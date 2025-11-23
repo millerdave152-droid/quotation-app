@@ -1,0 +1,63 @@
+{
+  "name": "backend",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "jest --coverage --detectOpenHandles",
+    "test:watch": "jest --watch",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
+    "format": "prettier --write \"**/*.{js,json,md}\"",
+    "format:check": "prettier --check \"**/*.{js,json,md}\""
+  },
+  "jest": {
+    "testEnvironment": "node",
+    "coveragePathIgnorePatterns": [
+      "/node_modules/"
+    ],
+    "testMatch": [
+      "**/__tests__/**/*.test.js"
+    ],
+    "collectCoverageFrom": [
+      "routes/**/*.js",
+      "middleware/**/*.js",
+      "services/**/*.js",
+      "utils/**/*.js"
+    ]
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "@aws-sdk/client-ses": "^3.927.0",
+    "@aws-sdk/client-sesv2": "^3.927.0",
+    "bcryptjs": "^3.0.3",
+    "chokidar": "^4.0.3",
+    "cors": "^2.8.5",
+    "csv-parse": "^6.1.0",
+    "csv-parser": "^3.2.0",
+    "dotenv": "^17.2.3",
+    "express": "^5.1.0",
+    "express-rate-limit": "^8.2.1",
+    "express-validator": "^7.3.1",
+    "helmet": "^8.1.0",
+    "joi": "^18.0.2",
+    "jsonwebtoken": "^9.0.2",
+    "multer": "^2.0.2",
+    "node-cache": "^5.1.2",
+    "nodemailer": "^7.0.10",
+    "pdfkit": "^0.17.2",
+    "pg": "^8.16.3",
+    "sqlite3": "^5.1.7",
+    "web-push": "^3.6.7",
+    "xlsx": "^0.18.5"
+  },
+  "devDependencies": {
+    "@types/jest": "^30.0.0",
+    "eslint": "^9.39.1",
+    "jest": "^30.2.0",
+    "prettier": "^3.6.2",
+    "supertest": "^7.1.4"
+  }
+}

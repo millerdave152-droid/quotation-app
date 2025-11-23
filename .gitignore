@@ -1,0 +1,69 @@
+# Dependencies
+node_modules/
+/.pnp
+.pnp.js
+
+# Testing
+coverage/
+.nyc_output
+
+# Production
+build/
+dist/
+
+# Misc
+.DS_Store
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# Logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+logs/
+*.log
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+Thumbs.db
+.DS_Store
+
+# Database
+*.db
+*.sqlite
+*.sqlite3
+
+# Backups
+backup_*/
+*.bak
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+
+# Uploads
+uploads/
+
+# Environment
+.env.production
+.env.development
+
+# Testing
+__snapshots__/
+
+# Build artifacts
+*.tgz
+
+# Windows reserved filenames
+nul
+NUL

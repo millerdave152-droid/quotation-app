@@ -1,0 +1,80 @@
+# GitLab CI/CD Configuration
+# For use with GitLab CI/CD
+
+stages:
+  - test
+  - build
+  - security
+
+variables:
+  NODE_VERSION: "20"
+
+# Cache node_modules for faster builds
+cache:
+  key: ${CI_COMMIT_REF_SLUG}
+  paths:
+    - backend/node_modules/
+    - frontend/node_modules/
+
+# Backend Tests
+backend-test:
+  stage: test
+  image: node:${NODE_VERSION}
+  script:
+    - cd backend
+    - npm ci
+    - npm test
+  coverage: '/All files[^|]*\|[^|]*\s+([\d\.]+)/'
+  artifacts:
+    reports:
+      coverage_report:
+        coverage_format: cobertura
+        path: backend/coverage/cobertura-coverage.xml
+    paths:
+      - backend/coverage/
+    expire_in: 1 week
+
+# Frontend Tests
+frontend-test:
+  stage: test
+  image: node:${NODE_VERSION}
+  script:
+    - cd frontend
+    - npm ci
+    - npm test -- --watchAll=false --coverage
+  coverage: '/All files[^|]*\|[^|]*\s+([\d\.]+)/'
+  artifacts:
+    reports:
+      coverage_report:
+        coverage_format: cobertura
+        path: frontend/coverage/cobertura-coverage.xml
+    paths:
+      - frontend/coverage/
+    expire_in: 1 week
+
+# Build Frontend
+build-frontend:
+  stage: build
+  image: node:${NODE_VERSION}
+  dependencies:
+    - frontend-test
+  script:
+    - cd frontend
+    - npm ci
+    - npm run build
+  artifacts:
+    paths:
+      - frontend/build/
+    expire_in: 1 week
+  only:
+    - main
+    - develop
+
+# Security Audit
+security-audit:
+  stage: security
+  image: node:${NODE_VERSION}
+  script:
+    - cd backend && npm audit --audit-level=high || true
+    - cd ../frontend && npm audit --audit-level=high || true
+  allow_failure: true

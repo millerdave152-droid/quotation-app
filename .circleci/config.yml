@@ -1,0 +1,69 @@
+# CircleCI Configuration
+version: 2.1
+
+orbs:
+  node: circleci/node@5.1.0
+
+jobs:
+  backend-test:
+    docker:
+      - image: cimg/node:20.11
+    steps:
+      - checkout
+      - node/install-packages:
+          pkg-manager: npm
+          app-dir: ~/project/backend
+      - run:
+          name: Run Backend Tests
+          command: |
+            cd backend
+            npm test
+      - store_test_results:
+          path: backend/coverage
+      - store_artifacts:
+          path: backend/coverage
+
+  frontend-test:
+    docker:
+      - image: cimg/node:20.11
+    steps:
+      - checkout
+      - node/install-packages:
+          pkg-manager: npm
+          app-dir: ~/project/frontend
+      - run:
+          name: Run Frontend Tests
+          command: |
+            cd frontend
+            npm test -- --watchAll=false --coverage
+      - store_test_results:
+          path: frontend/coverage
+      - store_artifacts:
+          path: frontend/coverage
+
+  build:
+    docker:
+      - image: cimg/node:20.11
+    steps:
+      - checkout
+      - node/install-packages:
+          pkg-manager: npm
+          app-dir: ~/project/frontend
+      - run:
+          name: Build Frontend
+          command: |
+            cd frontend
+            npm run build
+      - store_artifacts:
+          path: frontend/build
+
+workflows:
+  version: 2
+  test-and-build:
+    jobs:
+      - backend-test
+      - frontend-test
+      - build:
+          requires:
+            - backend-test
+            - frontend-test

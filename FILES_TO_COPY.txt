@@ -1,0 +1,54 @@
+===============================================
+FILES TO COPY TO OTHER COMPUTER
+===============================================
+
+FRONTEND (REQUIRED) ✅
+--------------------------------------------
+frontend/src/components/QuoteCreator.jsx
+frontend/src/components/QuotationManager.jsx
+frontend/src/services/pdfService.js
+frontend/package.json
+
+
+BACKEND (OPTIONAL) ⚙️
+--------------------------------------------
+backend/server.js
+backend/scripts/cleanup-incomplete-products.js
+backend/scripts/calculate-msrp.js
+backend/scripts/update-incomplete-products.js
+
+
+DO NOT COPY ❌
+--------------------------------------------
+node_modules/          (Too large, run npm install instead)
+.env                   (Contains local database credentials)
+build/                 (Generated files)
+dist/                  (Generated files)
+logs/                  (Log files)
+.git/                  (Git repository)
+
+
+AFTER COPYING
+--------------------------------------------
+1. cd frontend
+2. npm uninstall jspdf jspdf-autotable
+3. npm install jspdf@2.5.2 jspdf-autotable@3.8.3
+4. npm start
+
+
+KEY CHANGES SUMMARY
+--------------------------------------------
+✓ Fixed customer dropdown (now shows names)
+✓ Fixed product display (filters incomplete products)
+✓ Added PDF buttons to quote viewer
+✓ Fixed PDF generation (autoTable error)
+✓ Added MSRP warnings (red for $0.00)
+✓ Increased product API limit (100 → 5000)
+
+
+PACKAGE VERSIONS (IMPORTANT!)
+--------------------------------------------
+jspdf: 2.5.2 (not 3.x)
+jspdf-autotable: 3.8.3 (not 5.x)
+
+These specific versions are required for PDF to work!

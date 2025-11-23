@@ -1,0 +1,56 @@
+{
+  "name": "Quotation Management System",
+  "short_name": "QuoteApp",
+  "description": "Professional quotation management system for sales teams",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#3b82f6",
+  "orientation": "any",
+  "categories": ["business", "productivity"],
+  "lang": "en-US",
+  "dir": "ltr",
+  "scope": "/",
+  "icons": [
+    {
+      "src": "favicon.ico",
+      "sizes": "64x64 32x32 24x24 16x16",
+      "type": "image/x-icon"
+    },
+    {
+      "src": "logo192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "logo512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Create New Quote",
+      "short_name": "New Quote",
+      "description": "Create a new quotation",
+      "url": "/?action=create",
+      "icons": [{ "src": "logo192.png", "sizes": "192x192" }]
+    },
+    {
+      "name": "Follow-Ups",
+      "short_name": "Follow-Ups",
+      "description": "View pending follow-ups",
+      "url": "/?view=followups",
+      "icons": [{ "src": "logo192.png", "sizes": "192x192" }]
+    },
+    {
+      "name": "Approvals",
+      "short_name": "Approvals",
+      "description": "View pending approvals",
+      "url": "/?view=approvals",
+      "icons": [{ "src": "logo192.png", "sizes": "192x192" }]
+    }
+  ]
+}

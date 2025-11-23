@@ -1,0 +1,126 @@
+{
+  "provinces": {
+    "ON": {
+      "name": "Ontario",
+      "cities": [
+        "Ajax", "Aurora", "Barrie", "Belleville", "Brampton", "Brant", "Brantford",
+        "Brockville", "Burlington", "Cambridge", "Clarence-Rockland", "Cornwall",
+        "Dryden", "Elliot Lake", "Greater Sudbury", "Guelph", "Haldimand County",
+        "Hamilton", "Kawartha Lakes", "Kenora", "Kingston", "Kitchener", "London",
+        "Markham", "Mississauga", "Niagara Falls", "Norfolk County", "North Bay",
+        "Oakville", "Orillia", "Oshawa", "Ottawa", "Owen Sound", "Pembroke",
+        "Peterborough", "Pickering", "Port Colborne", "Prince Edward County",
+        "Quinte West", "Richmond Hill", "Sarnia", "Sault Ste. Marie", "St. Catharines",
+        "St. Thomas", "Stratford", "Temiskaming Shores", "Thorold", "Thunder Bay",
+        "Timmins", "Toronto", "Vaughan", "Waterloo", "Welland", "Windsor", "Woodstock"
+      ]
+    },
+    "QC": {
+      "name": "Quebec",
+      "cities": [
+        "Alma", "Amos", "Baie-Comeau", "Beloeil", "Blainville", "Bois-des-Filion",
+        "Boisbriand", "Boucherville", "Brossard", "Candiac", "Chambly", "Charlemagne",
+        "Châteauguay", "Côte-Saint-Luc", "Delson", "Dollard-des-Ormeaux", "Dorval",
+        "Drummondville", "Gatineau", "Granby", "Joliette", "Kirkland", "La Prairie",
+        "Lachute", "Laval", "Lavaltrie", "Lévis", "Longueuil", "Magog", "Mascouche",
+        "Mirabel", "Mont-Laurier", "Mont-Royal", "Montreal", "Montréal-Est",
+        "Pincourt", "Pointe-Claire", "Quebec City", "Repentigny", "Rimouski",
+        "Rivière-du-Loup", "Rouyn-Noranda", "Saguenay", "Saint-Basile-le-Grand",
+        "Saint-Bruno-de-Montarville", "Saint-Colomban", "Saint-Constant",
+        "Saint-Eustache", "Saint-Hyacinthe", "Saint-Jean-sur-Richelieu",
+        "Saint-Jérôme", "Saint-Lambert", "Saint-Lazare", "Sainte-Adèle",
+        "Sainte-Anne-des-Plaines", "Sainte-Catherine", "Sainte-Julie",
+        "Sainte-Marthe-sur-le-Lac", "Sainte-Thérèse", "Salaberry-de-Valleyfield",
+        "Sept-Îles", "Shawinigan", "Sherbrooke", "Sorel-Tracy", "Terrebonne",
+        "Thetford Mines", "Trois-Rivières", "Val-d'Or", "Varennes", "Vaudreuil-Dorion",
+        "Victoriaville", "Westmount"
+      ]
+    },
+    "BC": {
+      "name": "British Columbia",
+      "cities": [
+        "Abbotsford", "Armstrong", "Burnaby", "Campbell River", "Castlegar",
+        "Chilliwack", "Colwood", "Coquitlam", "Courtenay", "Cranbrook", "Dawson Creek",
+        "Delta", "Duncan", "Enderby", "Fernie", "Fort St. John", "Grand Forks",
+        "Greenwood", "Kamloops", "Kelowna", "Kimberley", "Langford", "Langley",
+        "Maple Ridge", "Merritt", "Nanaimo", "Nelson", "New Westminster",
+        "North Vancouver", "Parksville", "Penticton", "Pitt Meadows", "Port Alberni",
+        "Port Coquitlam", "Port Moody", "Powell River", "Prince George",
+        "Prince Rupert", "Quesnel", "Revelstoke", "Richmond", "Rossland",
+        "Salmon Arm", "Surrey", "Terrace", "Trail", "Vancouver", "Vernon",
+        "Victoria", "West Vancouver", "White Rock", "Williams Lake"
+      ]
+    },
+    "AB": {
+      "name": "Alberta",
+      "cities": [
+        "Airdrie", "Beaumont", "Brooks", "Calgary", "Camrose", "Chestermere",
+        "Cold Lake", "Edmonton", "Fort Saskatchewan", "Grande Prairie", "Lacombe",
+        "Leduc", "Lethbridge", "Lloydminster", "Medicine Hat", "Okotoks",
+        "Red Deer", "Spruce Grove", "St. Albert", "Wetaskiwin", "Wood Buffalo"
+      ]
+    },
+    "MB": {
+      "name": "Manitoba",
+      "cities": [
+        "Brandon", "Dauphin", "Flin Flon", "Morden", "Portage la Prairie",
+        "Selkirk", "Steinbach", "Thompson", "Winkler", "Winnipeg"
+      ]
+    },
+    "SK": {
+      "name": "Saskatchewan",
+      "cities": [
+        "Estevan", "Flin Flon", "Humboldt", "Lloydminster", "Martensville",
+        "Meadow Lake", "Melfort", "Melville", "Moose Jaw", "North Battleford",
+        "Prince Albert", "Regina", "Saskatoon", "Swift Current", "Warman",
+        "Weyburn", "Yorkton"
+      ]
+    },
+    "NS": {
+      "name": "Nova Scotia",
+      "cities": [
+        "Amherst", "Annapolis Royal", "Antigonish", "Bridgewater", "Cape Breton",
+        "Digby", "Halifax", "Kentville", "New Glasgow", "Pictou", "Port Hawkesbury",
+        "Stellarton", "Trenton", "Truro", "Windsor", "Wolfville", "Yarmouth"
+      ]
+    },
+    "NB": {
+      "name": "New Brunswick",
+      "cities": [
+        "Bathurst", "Campbellton", "Dieppe", "Edmundston", "Fredericton",
+        "Miramichi", "Moncton", "Saint John", "Woodstock"
+      ]
+    },
+    "PE": {
+      "name": "Prince Edward Island",
+      "cities": [
+        "Charlottetown", "Cornwall", "Montague", "Souris", "Stratford", "Summerside"
+      ]
+    },
+    "NL": {
+      "name": "Newfoundland and Labrador",
+      "cities": [
+        "Corner Brook", "Gander", "Grand Falls-Windsor", "Labrador City",
+        "Mount Pearl", "Paradise", "St. John's"
+      ]
+    },
+    "YT": {
+      "name": "Yukon",
+      "cities": [
+        "Whitehorse", "Dawson City", "Watson Lake"
+      ]
+    },
+    "NT": {
+      "name": "Northwest Territories",
+      "cities": [
+        "Yellowknife", "Hay River", "Inuvik", "Fort Smith"
+      ]
+    },
+    "NU": {
+      "name": "Nunavut",
+      "cities": [
+        "Iqaluit", "Rankin Inlet", "Arviat", "Baker Lake"
+      ]
+    }
+  }
+}

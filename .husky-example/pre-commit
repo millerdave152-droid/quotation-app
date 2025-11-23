@@ -1,0 +1,20 @@
+#!/bin/sh
+# Husky Git Hook - Pre-commit
+# This runs before every commit
+# To install: npm install --save-dev husky && npx husky install
+
+. "$(dirname "$0")/_/husky.sh"
+
+echo "Running pre-commit checks..."
+
+# Run linting
+echo "→ Checking code style..."
+cd backend && npm run lint || exit 1
+cd ../frontend && npm run lint || exit 1
+
+# Run tests
+echo "→ Running tests..."
+cd ../backend && npm test || exit 1
+cd ../frontend && npm test -- --watchAll=false || exit 1
+
+echo "✓ Pre-commit checks passed!"
