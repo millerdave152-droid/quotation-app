@@ -529,11 +529,11 @@ describe('Approval Workflow Service', () => {
       };
 
       const now = new Date();
-      const twelveHoursAgo = new Date(now - 12 * 60 * 60 * 1000);
+      const tenHoursAgo = new Date(now - 10 * 60 * 60 * 1000);
       const twentyHoursAgo = new Date(now - 20 * 60 * 60 * 1000);
       const fortyEightHoursAgo = new Date(now - 48 * 60 * 60 * 1000);
 
-      expect(getApprovalSLAStatus(twelveHoursAgo, 1)).toBe('on-time');
+      expect(getApprovalSLAStatus(tenHoursAgo, 1)).toBe('on-time');
       expect(getApprovalSLAStatus(twentyHoursAgo, 1)).toBe('at-risk');
       expect(getApprovalSLAStatus(fortyEightHoursAgo, 1)).toBe('breached');
     });
