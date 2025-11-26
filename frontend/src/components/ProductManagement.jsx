@@ -237,6 +237,19 @@ const ProductManagement = () => {
       return;
     }
 
+    // Validate file type
+    if (!importFile.name.toLowerCase().endsWith('.csv')) {
+      showNotification('Please select a valid CSV file', 'error');
+      return;
+    }
+
+    // Validate file size (10MB max)
+    const maxSize = 10 * 1024 * 1024;
+    if (importFile.size > maxSize) {
+      showNotification('File size exceeds 10MB limit. Please use a smaller file.', 'error');
+      return;
+    }
+
     try {
       setImporting(true);
       setImportResults(null);
@@ -269,6 +282,24 @@ const ProductManagement = () => {
         setImporting(false);
       }
     }
+  };
+
+  const downloadCSVTemplate = () => {
+    const template = `MANUFACTURER,MODEL,Description,CATEGORY,COST,MSRP
+Samsung,RF28R7351SG,French Door Refrigerator 28 cu ft,Refrigerators,1299.99,2499.99
+LG,WM9000HVA,Front Load Washer 5.2 cu ft,Washers,899.99,1599.99
+Whirlpool,WRS325SDHZ,Side-by-Side Refrigerator 25 cu ft,Refrigerators,749.99,1299.99`;
+
+    const blob = new Blob([template], { type: 'text/csv' });
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'product-import-template.csv';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    window.URL.revokeObjectURL(url);
+    showNotification('CSV template downloaded successfully', 'success');
   };
 
   const formatPrice = (cents) => {
@@ -809,9 +840,29 @@ const ProductManagement = () => {
   const renderImport = () => (
     <div>
       <div style={{ background: 'white', borderRadius: '12px', padding: '30px', boxShadow: '0 1px 3px rgba(0,0,0,0.1)', marginBottom: '20px' }}>
-        <h2 style={{ margin: '0 0 8px 0', fontSize: '24px', fontWeight: 'bold' }}>CSV Import</h2>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+          <h2 style={{ margin: '0', fontSize: '24px', fontWeight: 'bold' }}>CSV Import</h2>
+          <button
+            onClick={downloadCSVTemplate}
+            style={{
+              padding: '8px 16px',
+              background: '#6366f1',
+              color: 'white',
+              border: 'none',
+              borderRadius: '6px',
+              cursor: 'pointer',
+              fontSize: '14px',
+              fontWeight: '600',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px'
+            }}
+          >
+            📥 Download Template
+          </button>
+        </div>
         <p style={{ margin: '0 0 24px 0', color: '#6b7280', fontSize: '14px' }}>
-          Upload a CSV file to import multiple products at once. The CSV should have columns: model, name, manufacturer, category, description, cost_cents, msrp_cents
+          Upload a CSV file to import multiple products at once. The CSV should have columns: MANUFACTURER, MODEL, Description, CATEGORY, COST, MSRP
         </p>
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
@@ -822,8 +873,20 @@ const ProductManagement = () => {
               accept=".csv"
               onChange={(e) => {
                 const file = e.target.files[0];
-                setImportFile(file);
-                setImportResults(null);
+                if (file) {
+                  const maxSize = 10 * 1024 * 1024; // 10MB
+                  if (file.size > maxSize) {
+                    showNotification('File size exceeds 10MB limit. Please use a smaller file.', 'error');
+                    e.target.value = '';
+                    setImportFile(null);
+                    return;
+                  }
+                  if (file.size > 5 * 1024 * 1024) { // 5MB warning
+                    showNotification('Large file detected (>5MB). Import may take longer.', 'warning');
+                  }
+                  setImportFile(file);
+                  setImportResults(null);
+                }
               }}
               style={{ padding: '10px', border: '2px solid #e5e7eb', borderRadius: '8px', fontSize: '14px', width: '100%' }}
             />

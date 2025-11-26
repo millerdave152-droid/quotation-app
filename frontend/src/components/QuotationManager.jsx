@@ -218,14 +218,19 @@ const QuotationManager = () => {
   // DATA FETCHING
   // ============================================
   useEffect(() => {
+    console.log('[QuotationManager] Component mounted');
     isMounted.current = true;
 
     if (!loadedOnce.current) {
+      console.log('[QuotationManager] First mount - fetching initial data');
       loadedOnce.current = true;
       fetchInitialData();
+    } else {
+      console.log('[QuotationManager] Already loaded once, skipping fetch');
     }
 
     return () => {
+      console.log('[QuotationManager] Component unmounting');
       isMounted.current = false;
     };
   }, []);
@@ -492,10 +497,15 @@ const QuotationManager = () => {
   };
 
   const fetchInitialData = async () => {
-    if (!isMounted.current) return;
+    console.log('[QuotationManager] fetchInitialData called');
+    if (!isMounted.current) {
+      console.log('[QuotationManager] Component unmounted, aborting fetch');
+      return;
+    }
 
     try {
       // Set loading FIRST to prevent flickering
+      console.log('[QuotationManager] Setting loading=true, starting data fetch');
       setLoading(true);
 
       // Fetch ALL data in parallel with CACHING - prevents rate limit issues
@@ -552,12 +562,14 @@ const QuotationManager = () => {
         setStats(statsData || {});
       });
     } catch (err) {
+      console.error('[QuotationManager] Error fetching data:', err);
       logger.error('Error fetching data:', err);
       if (isMounted.current) {
         alert('Error loading data. Please try again.');
       }
     } finally {
       if (isMounted.current) {
+        console.log('[QuotationManager] Data fetch complete, setting loading=false');
         setLoading(false);
       }
     }

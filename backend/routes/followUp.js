@@ -1,6 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const { pool } = require('../db');
+const pool = require('../db');
 
 // Get all follow-up reminders for a quote
 router.get('/quotations/:id/follow-ups', async (req, res) => {
