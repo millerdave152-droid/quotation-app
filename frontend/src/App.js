@@ -6,6 +6,9 @@ const QuotationManager = React.lazy(() => import('./components/QuotationManager'
 const CustomerManagement = React.lazy(() => import('./components/CustomerManagement'));
 const ProductManagement = React.lazy(() => import('./components/ProductManagement'));
 const RevenueAnalytics = React.lazy(() => import('./components/RevenueAnalytics'));
+const MarketplaceManager = React.lazy(() => import('./components/MarketplaceManager'));
+const MarketplaceReports = React.lazy(() => import('./components/MarketplaceReports'));
+const BulkOperationsCenter = React.lazy(() => import('./components/BulkOperationsCenter'));
 
 // Dashboard component with real data and anti-flickering
 const Dashboard = () => {
@@ -244,6 +247,15 @@ function App() {
             <button onClick={() => handleTabClick('analytics')} style={{ padding: '12px 24px', background: activeTab === 'analytics' ? 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)' : 'transparent', color: activeTab === 'analytics' ? 'white' : '#6b7280', border: 'none', borderRadius: '8px 8px 0 0', fontSize: '15px', fontWeight: '600', cursor: 'pointer' }}>
               📊 Analytics
             </button>
+            <button onClick={() => handleTabClick('marketplace')} style={{ padding: '12px 24px', background: activeTab === 'marketplace' ? 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)' : 'transparent', color: activeTab === 'marketplace' ? 'white' : '#6b7280', border: 'none', borderRadius: '8px 8px 0 0', fontSize: '15px', fontWeight: '600', cursor: 'pointer' }}>
+              🛒 Marketplace
+            </button>
+            <button onClick={() => handleTabClick('reports')} style={{ padding: '12px 24px', background: activeTab === 'reports' ? 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)' : 'transparent', color: activeTab === 'reports' ? 'white' : '#6b7280', border: 'none', borderRadius: '8px 8px 0 0', fontSize: '15px', fontWeight: '600', cursor: 'pointer' }}>
+              📑 Reports
+            </button>
+            <button onClick={() => handleTabClick('powertools')} style={{ padding: '12px 24px', background: activeTab === 'powertools' ? 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)' : 'transparent', color: activeTab === 'powertools' ? 'white' : '#6b7280', border: 'none', borderRadius: '8px 8px 0 0', fontSize: '15px', fontWeight: '600', cursor: 'pointer' }}>
+              ⚡ Power Tools
+            </button>
           </div>
         </div>
       </div>
@@ -282,6 +294,21 @@ function App() {
           {loadedTabs.analytics && (
             <div style={{ display: activeTab === 'analytics' ? 'block' : 'none' }}>
               <RevenueAnalytics />
+            </div>
+          )}
+          {loadedTabs.marketplace && (
+            <div style={{ display: activeTab === 'marketplace' ? 'block' : 'none' }}>
+              <MarketplaceManager />
+            </div>
+          )}
+          {loadedTabs.reports && (
+            <div style={{ display: activeTab === 'reports' ? 'block' : 'none' }}>
+              <MarketplaceReports />
+            </div>
+          )}
+          {loadedTabs.powertools && (
+            <div style={{ display: activeTab === 'powertools' ? 'block' : 'none' }}>
+              <BulkOperationsCenter />
             </div>
           )}
         </React.Suspense>

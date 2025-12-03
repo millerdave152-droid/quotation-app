@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import CustomerCreditTracking from './CustomerCreditTracking';
+import CustomerOrderHistory from './CustomerOrderHistory';
 import logger from '../utils/logger';
 import { useDebounce } from '../utils/useDebounce';
 import { cachedFetch, invalidateCache } from '../services/apiCache';
@@ -842,7 +843,7 @@ function CustomerManagement() {
                   )}
                 </div>
 
-                {/* Quote Statistics */}
+                {/* Customer Statistics */}
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '16px', marginBottom: '30px' }}>
                   <div style={{ background: '#f0f9ff', borderRadius: '8px', padding: '16px', textAlign: 'center' }}>
                     <div style={{ fontSize: '24px', fontWeight: 'bold', color: '#0284c7' }}>{selectedCustomer.stats.total_quotes}</div>
@@ -850,65 +851,55 @@ function CustomerManagement() {
                   </div>
                   <div style={{ background: '#f0fdf4', borderRadius: '8px', padding: '16px', textAlign: 'center' }}>
                     <div style={{ fontSize: '24px', fontWeight: 'bold', color: '#16a34a' }}>{formatCurrency(selectedCustomer.stats.total_spent)}</div>
-                    <div style={{ fontSize: '12px', color: '#6b7280', marginTop: '4px' }}>Total Spent</div>
+                    <div style={{ fontSize: '12px', color: '#6b7280', marginTop: '4px' }}>Quote Revenue</div>
                   </div>
                   <div style={{ background: '#fef3c7', borderRadius: '8px', padding: '16px', textAlign: 'center' }}>
-                    <div style={{ fontSize: '24px', fontWeight: 'bold', color: '#d97706' }}>{formatCurrency(selectedCustomer.stats.average_order)}</div>
-                    <div style={{ fontSize: '12px', color: '#6b7280', marginTop: '4px' }}>Avg Order</div>
+                    <div style={{ fontSize: '24px', fontWeight: 'bold', color: '#d97706' }}>{selectedCustomer.customer.marketplace_orders_count || 0}</div>
+                    <div style={{ fontSize: '12px', color: '#6b7280', marginTop: '4px' }}>Marketplace Orders</div>
                   </div>
-                  <div style={{ background: '#fae8ff', borderRadius: '8px', padding: '16px', textAlign: 'center' }}>
-                    <div style={{ fontSize: '16px', fontWeight: 'bold', color: '#a855f7' }}>{formatDate(selectedCustomer.stats.last_quote_date)}</div>
-                    <div style={{ fontSize: '12px', color: '#6b7280', marginTop: '4px' }}>Last Quote</div>
+                  <div style={{ background: '#fef9c3', borderRadius: '8px', padding: '16px', textAlign: 'center' }}>
+                    <div style={{ fontSize: '24px', fontWeight: 'bold', color: '#854d0e' }}>{formatCurrency(selectedCustomer.customer.marketplace_revenue_cents || 0)}</div>
+                    <div style={{ fontSize: '12px', color: '#6b7280', marginTop: '4px' }}>Marketplace Revenue</div>
                   </div>
                 </div>
 
-                {/* Quote History */}
-                <div>
-                  <h3 style={{ margin: '0 0 16px 0', fontSize: '18px', fontWeight: '600', color: '#111827' }}>
-                    📋 Quote History ({selectedCustomer.quotes.length})
-                  </h3>
-                  {selectedCustomer.quotes.length === 0 ? (
-                    <div style={{ textAlign: 'center', padding: '40px', color: '#9ca3af', background: '#f9fafb', borderRadius: '8px' }}>
-                      No quotes yet for this customer
+                {/* Combined Revenue Summary */}
+                {(selectedCustomer.customer.marketplace_orders_count > 0 || selectedCustomer.stats.total_quotes > 0) && (
+                  <div style={{
+                    background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                    borderRadius: '8px',
+                    padding: '16px',
+                    marginBottom: '20px',
+                    color: 'white',
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center'
+                  }}>
+                    <div>
+                      <div style={{ fontSize: '14px', opacity: 0.9 }}>Combined Lifetime Value</div>
+                      <div style={{ fontSize: '28px', fontWeight: 'bold', marginTop: '4px' }}>
+                        {formatCurrency((selectedCustomer.stats.total_spent || 0) + (selectedCustomer.customer.marketplace_revenue_cents || 0))}
+                      </div>
                     </div>
-                  ) : (
-                    <div style={{ maxHeight: '300px', overflow: 'auto' }}>
-                      <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-                        <thead style={{ position: 'sticky', top: 0, background: '#f9fafb' }}>
-                          <tr style={{ borderBottom: '2px solid #e5e7eb' }}>
-                            <th style={{ padding: '12px', textAlign: 'left', fontSize: '12px', fontWeight: '600', color: '#6b7280' }}>Quote #</th>
-                            <th style={{ padding: '12px', textAlign: 'left', fontSize: '12px', fontWeight: '600', color: '#6b7280' }}>Date</th>
-                            <th style={{ padding: '12px', textAlign: 'left', fontSize: '12px', fontWeight: '600', color: '#6b7280' }}>Status</th>
-                            <th style={{ padding: '12px', textAlign: 'right', fontSize: '12px', fontWeight: '600', color: '#6b7280' }}>Amount</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {selectedCustomer.quotes.map(quote => (
-                            <tr key={quote.id} style={{ borderBottom: '1px solid #f3f4f6' }}>
-                              <td style={{ padding: '12px', fontSize: '14px', color: '#111827', fontWeight: '500' }}>{quote.quotation_number}</td>
-                              <td style={{ padding: '12px', fontSize: '14px', color: '#6b7280' }}>{formatDate(quote.created_at)}</td>
-                              <td style={{ padding: '12px' }}>
-                                <span style={{
-                                  padding: '4px 12px',
-                                  borderRadius: '12px',
-                                  fontSize: '12px',
-                                  fontWeight: '500',
-                                  background: quote.status === 'approved' ? '#dcfce7' : quote.status === 'pending' ? '#fef3c7' : '#fee2e2',
-                                  color: quote.status === 'approved' ? '#166534' : quote.status === 'pending' ? '#854d0e' : '#991b1b'
-                                }}>
-                                  {quote.status || 'draft'}
-                                </span>
-                              </td>
-                              <td style={{ padding: '12px', fontSize: '14px', color: '#111827', textAlign: 'right', fontWeight: '600' }}>
-                                {formatCurrency(quote.total_amount)}
-                              </td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
+                    <div style={{ textAlign: 'right' }}>
+                      <div style={{ fontSize: '14px', opacity: 0.9 }}>Total Orders</div>
+                      <div style={{ fontSize: '28px', fontWeight: 'bold', marginTop: '4px' }}>
+                        {(selectedCustomer.stats.total_quotes || 0) + (selectedCustomer.customer.marketplace_orders_count || 0)}
+                      </div>
                     </div>
-                  )}
-                </div>
+                  </div>
+                )}
+
+                {/* Unified Order History - Quotes + Marketplace Orders */}
+                <CustomerOrderHistory
+                  customerId={selectedCustomer.customer.id}
+                  customerEmail={selectedCustomer.customer.email}
+                  onCreateQuote={(order) => {
+                    // Handle creating quote from marketplace order
+                    console.log('Create quote from order:', order);
+                    showNotification('Quote creation from marketplace order coming soon!', 'success');
+                  }}
+                />
 
                 {/* Customer Credit & Payment Tracking */}
                 <CustomerCreditTracking

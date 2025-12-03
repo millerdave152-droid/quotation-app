@@ -67,3 +67,11 @@ __snapshots__/
 # Windows reserved filenames
 nul
 NUL
+
+# Duplicate/alternative project structures
+client/
+server/
+
+# Temporary data files
+bestbuy_categories*.json
+migration_output.txt

@@ -20,6 +20,7 @@ const followUpRoutes = require('./routes/followUp');
 const pushNotificationRoutes = require('./routes/pushNotifications');
 const { router: apiKeysRoutes } = require('./routes/apiKeys');
 const paymentsRoutes = require('./routes/payments');
+const marketplaceRoutes = require('./routes/marketplace');
 const { authenticate, requireRole } = require('./middleware/auth');
 
 const app = express();
@@ -125,6 +126,12 @@ console.log('✅ API key management routes loaded');
 // ============================================
 app.use('/api/payments', paymentsRoutes);
 console.log('✅ Customer payments routes loaded');
+
+// ============================================
+// MARKETPLACE INTEGRATION (BEST BUY)
+// ============================================
+app.use('/api/marketplace', marketplaceRoutes);
+console.log('✅ Marketplace integration routes loaded');
 
 // ============================================
 // EMAIL ENDPOINTS (PHASE 5)
