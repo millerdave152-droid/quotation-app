@@ -235,37 +235,48 @@ const QuotationManager = () => {
     };
   }, []);
 
-  // DISABLED TEMPORARILY TO FIX INFINITE LOOP - Smart suggestions calculation
-  // This useEffect was causing infinite re-renders due to too many dependencies
-  /*
+  // Smart suggestions calculation - FIXED to prevent infinite loops
+  // Uses primitive values and lengths in dependencies to avoid reference changes
+  const quoteItemsLength = quoteItems.length;
+  const quoteWarrantiesLength = quoteWarranties.length;
+  const quoteRebatesLength = quoteRebates.length;
+  const quoteTradeInsLength = quoteTradeIns.length;
+  const hasFinancing = !!quoteFinancing;
+  const hasDelivery = !!quoteDelivery;
+
   useEffect(() => {
     if (!loadedOnce.current || !isMounted.current) return;
-    if (quoteItems.length > 0 && view === 'builder') {
+
+    if (quoteItemsLength > 0 && view === 'builder') {
       const timer = setTimeout(() => {
         if (!isMounted.current) return;
-        const quoteTotal = calculateQuoteTotals.total;
-        const suggestions = getSmartSuggestions({
-          quoteTotal,
-          products: quoteItems,
-          availableFinancing,
-          availableWarranties,
-          availableRebates,
-          currentFeatures: {
-            financing: quoteFinancing,
-            warranties: quoteWarranties,
-            delivery: quoteDelivery,
-            rebates: quoteRebates,
-            tradeIns: quoteTradeIns
-          }
-        });
-        setSmartSuggestions(suggestions);
-      }, 300);
+        try {
+          const suggestions = getSmartSuggestions({
+            quoteTotal: quoteItems.reduce((sum, item) => sum + (item.sell * item.quantity), 0),
+            products: quoteItems,
+            availableFinancing,
+            availableWarranties,
+            availableRebates,
+            currentFeatures: {
+              financing: quoteFinancing,
+              warranties: quoteWarranties,
+              delivery: quoteDelivery,
+              rebates: quoteRebates,
+              tradeIns: quoteTradeIns
+            }
+          });
+          setSmartSuggestions(suggestions);
+        } catch (err) {
+          console.warn('Error generating smart suggestions:', err);
+          setSmartSuggestions(null);
+        }
+      }, 500); // Increased debounce to reduce recalculations
       return () => clearTimeout(timer);
     } else {
       setSmartSuggestions(null);
     }
-  }, [calculateQuoteTotals, quoteItems, quoteFinancing, quoteWarranties, quoteDelivery, quoteRebates, quoteTradeIns, availableFinancing, availableWarranties, availableRebates, view]);
-  */
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [quoteItemsLength, quoteWarrantiesLength, quoteRebatesLength, quoteTradeInsLength, hasFinancing, hasDelivery, view]);
 
   const fetchTemplates = async () => {
     try {
