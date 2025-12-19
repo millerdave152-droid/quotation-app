@@ -1,6 +1,9 @@
 import jsPDF from 'jspdf';
 import 'jspdf-autotable';
 import logger from '../utils/logger';
+import companyConfig, { formatCustomerAddress } from '../config/companyConfig';
+import { handleApiError } from '../utils/errorHandler';
+import { toast } from '../components/ui/Toast';
 
 const API_BASE = `${process.env.REACT_APP_API_URL || 'http://localhost:3001'}/api`;
 
@@ -33,7 +36,7 @@ export const previewQuotePDF = async (quoteId, type = 'customer') => {
     const items = await itemsResponse.json();
 
     if (!items || items.length === 0) {
-      alert('⚠️ This quote has no items. Please add products before previewing.');
+      toast.warning('This quote has no items. Please add products before previewing.', 'Empty Quote');
       return;
     }
 
@@ -49,8 +52,7 @@ export const previewQuotePDF = async (quoteId, type = 'customer') => {
 
     logger.log('✅ PDF preview opened in new tab');
   } catch (error) {
-    console.error('❌ Error previewing PDF:', error);
-    alert('Error loading quote details: ' + error.message);
+    handleApiError(error, { context: 'Preview PDF' });
   }
 };
 
@@ -83,7 +85,7 @@ export const downloadQuotePDF = async (quoteId, type = 'customer') => {
     const items = await itemsResponse.json();
 
     if (!items || items.length === 0) {
-      alert('⚠️ This quote has no items. Please add products before downloading PDF.');
+      toast.warning('This quote has no items. Please add products before downloading PDF.', 'Empty Quote');
       return;
     }
 
@@ -98,8 +100,7 @@ export const downloadQuotePDF = async (quoteId, type = 'customer') => {
     doc.save(filename);
     logger.log('✅ PDF downloaded:', filename);
   } catch (error) {
-    console.error('❌ Error generating PDF download:', error);
-    alert('Error generating PDF download: ' + error.message);
+    handleApiError(error, { context: 'Download PDF' });
   }
 };
 
@@ -188,18 +189,37 @@ export const generateCustomerPDF = (quote, customer, items) => {
   const expiryDate = quote.quote_expiry_date || new Date(Date.now() + 14*24*60*60*1000);
 
   // Header with company branding
-  doc.setFillColor(102, 126, 234); // Professional blue
+  const { primaryColor, headerTextColor } = companyConfig.branding;
+  doc.setFillColor(...primaryColor);
   doc.rect(0, 0, 220, 40, 'F');
 
-  // Logo placeholder area (left side of header)
-  doc.setDrawColor(255, 255, 255);
-  doc.setLineWidth(1);
-  doc.rect(10, 8, 24, 24, 'S'); // Square logo area
-  doc.setFontSize(6);
-  doc.setTextColor(255, 255, 255);
-  doc.text('LOGO', 22, 21, { align: 'center' });
+  // Logo area (left side of header)
+  const { logo } = companyConfig;
+  if (logo.base64) {
+    try {
+      doc.addImage(logo.base64, 'PNG', 10, 8, logo.width, logo.height);
+    } catch (e) {
+      console.warn('Could not add logo image:', e);
+    }
+  } else if (logo.url) {
+    // URL-based logos would need to be pre-loaded - show placeholder
+    doc.setDrawColor(...headerTextColor);
+    doc.setLineWidth(1);
+    doc.rect(10, 8, 24, 24, 'S');
+    doc.setFontSize(6);
+    doc.setTextColor(...headerTextColor);
+    doc.text('LOGO', 22, 21, { align: 'center' });
+  } else {
+    // No logo configured - show placeholder
+    doc.setDrawColor(...headerTextColor);
+    doc.setLineWidth(1);
+    doc.rect(10, 8, 24, 24, 'S');
+    doc.setFontSize(6);
+    doc.setTextColor(...headerTextColor);
+    doc.text('LOGO', 22, 21, { align: 'center' });
+  }
 
-  doc.setTextColor(255, 255, 255);
+  doc.setTextColor(...headerTextColor);
   doc.setFontSize(28);
   doc.setFont(undefined, 'bold');
   doc.text('QUOTATION', 105, 25, { align: 'center' });
@@ -208,14 +228,15 @@ export const generateCustomerPDF = (quote, customer, items) => {
   doc.setTextColor(0, 0, 0);
 
   // Company Info (Left)
+  const { address, contact } = companyConfig;
   doc.setFontSize(10);
   doc.setFont(undefined, 'bold');
-  doc.text('TeleTime Solutions', 14, 50);
+  doc.text(companyConfig.name, 14, 50);
   doc.setFont(undefined, 'normal');
-  doc.text('123 Business Street', 14, 56);
-  doc.text('Toronto, ON M5H 2N2', 14, 62);
-  doc.text('Phone: (416) 555-1234', 14, 68);
-  doc.text('Email: info@teletime.ca', 14, 74);
+  doc.text(address.street, 14, 56);
+  doc.text(`${address.city}, ${address.province} ${address.postalCode}`, 14, 62);
+  doc.text(`Phone: ${contact.phone}`, 14, 68);
+  doc.text(`Email: ${contact.email}`, 14, 74);
 
   // Quote Info (Right)
   doc.setFont(undefined, 'bold');
@@ -225,7 +246,8 @@ export const generateCustomerPDF = (quote, customer, items) => {
   doc.text('Valid Until:', 140, 68);
 
   doc.setFont(undefined, 'normal');
-  doc.text(quote.quote_number || `QT-2025-${String(quote.id).padStart(4, '0')}`, 165, 50);
+  const quotePrefix = companyConfig.quotes.prefix;
+  doc.text(quote.quote_number || `${quotePrefix}-2025-${String(quote.id).padStart(4, '0')}`, 165, 50);
   doc.text(new Date(quote.created_at).toLocaleDateString(), 165, 56);
   doc.text(quote.status || 'DRAFT', 165, 62);
   doc.text(new Date(expiryDate).toLocaleDateString(), 165, 68);
@@ -236,7 +258,14 @@ export const generateCustomerPDF = (quote, customer, items) => {
 
   // Customer Info Section
   doc.setFillColor(249, 250, 251);
-  doc.rect(14, currentY, 182, 28, 'F');
+
+  // Calculate box height based on customer info available
+  const customerAddress = formatCustomerAddress(customer);
+  const hasCompany = !!customer?.company;
+  const hasPhone = !!customer?.phone;
+  const boxHeight = 28 + (customerAddress ? customerAddress.length * 5 : 0) + (hasPhone ? 6 : 0);
+
+  doc.rect(14, currentY, 182, boxHeight, 'F');
 
   doc.setFont(undefined, 'bold');
   doc.setFontSize(11);
@@ -244,11 +273,31 @@ export const generateCustomerPDF = (quote, customer, items) => {
 
   doc.setFont(undefined, 'normal');
   doc.setFontSize(10);
-  doc.text(String(customer?.name || 'N/A'), 18, currentY + 14);
-  if (customer?.company) doc.text(String(customer.company), 18, currentY + 20);
-  doc.text(String(customer?.email || 'N/A'), 18, (customer?.company ? currentY + 26 : currentY + 20));
+  let customerY = currentY + 14;
 
-  currentY += 36;
+  doc.text(String(customer?.name || 'N/A'), 18, customerY);
+  customerY += 6;
+
+  if (hasCompany) {
+    doc.text(String(customer.company), 18, customerY);
+    customerY += 6;
+  }
+
+  if (customerAddress) {
+    customerAddress.forEach(line => {
+      doc.text(line, 18, customerY);
+      customerY += 5;
+    });
+  }
+
+  if (hasPhone) {
+    doc.text(`Phone: ${customer.phone}`, 18, customerY);
+    customerY += 6;
+  }
+
+  doc.text(String(customer?.email || 'N/A'), 18, customerY);
+
+  currentY += boxHeight + 8;
 
   // Items Table
   const tableData = items.map(item => {
@@ -284,7 +333,7 @@ export const generateCustomerPDF = (quote, customer, items) => {
     body: tableData,
     theme: 'striped',
     headStyles: {
-      fillColor: [102, 126, 234],
+      fillColor: primaryColor,
       textColor: 255,
       fontStyle: 'bold',
       fontSize: 10
@@ -413,7 +462,8 @@ export const generateCustomerPDF = (quote, customer, items) => {
   const discountAmount = (quote.discount_cents || 0) / 100;
   const taxAmount = (quote.tax_cents || 0) / 100;
   const total = (quote.total_cents || 0) / 100;
-  const taxRate = quote.tax_rate || 0.13; // Default 13% HST
+  const taxRate = quote.tax_rate || companyConfig.tax.defaultRate;
+  const taxName = companyConfig.tax.taxName;
 
   // Totals Section
   const finalY = revenueFeaturesY + 5;
@@ -431,7 +481,7 @@ export const generateCustomerPDF = (quote, customer, items) => {
   }
 
   const taxY = finalY + (discountAmount > 0 ? 12 : 6);
-  doc.text(`Tax (${(taxRate * 100).toFixed(0)}%):`, totalsX, taxY);
+  doc.text(`${taxName} (${(taxRate * 100).toFixed(0)}%):`, totalsX, taxY);
   doc.text(`$${taxAmount.toFixed(2)}`, 195, taxY, { align: 'right' });
 
   // Total
@@ -472,7 +522,7 @@ export const generateCustomerPDF = (quote, customer, items) => {
     doc.setFont(undefined, 'italic');
     doc.setFontSize(8);
     doc.setTextColor(100, 100, 100);
-    const terms = quote.terms || 'Payment due within 30 days. All prices in CAD. Prices subject to change.';
+    const terms = quote.terms || companyConfig.quotes.defaultTerms;
     const splitTerms = doc.splitTextToSize(terms, 180);
     doc.text(splitTerms, 14, termsY);
     termsY += splitTerms.length * 3 + 4;
@@ -499,7 +549,7 @@ export const generateCustomerPDF = (quote, customer, items) => {
   doc.setTextColor(0, 0, 0);
   doc.text('1. Review this quotation carefully', 18, nextStepsY + 14);
   doc.text('2. Sign below to accept', 18, nextStepsY + 19);
-  doc.text('3. Contact us at info@teletime.ca or (416) 555-1234 with any questions', 18, nextStepsY + 24);
+  doc.text(`3. Contact us at ${contact.email} or ${contact.phone} with any questions`, 18, nextStepsY + 24);
 
   // Signature Section (after Next Steps)
   const signatureY = nextStepsY + 34;
@@ -519,7 +569,8 @@ export const generateCustomerPDF = (quote, customer, items) => {
   doc.text('Payment Methods:', 14, signatureY + 12);
   doc.setFont(undefined, 'normal');
   doc.setFontSize(8);
-  doc.text('We accept: Cash, Check, Credit Card, Wire Transfer', 14, signatureY + 17);
+  const paymentText = `We accept: ${companyConfig.paymentMethods.slice(0, 4).join(', ')}`;
+  doc.text(paymentText, 14, signatureY + 17);
 
   // Add page numbers to all pages
   const totalPages = doc.internal.getNumberOfPages();
@@ -575,7 +626,7 @@ export const generateInternalPDF = (quote, customer, items) => {
   // Company Info (Left)
   doc.setFontSize(10);
   doc.setFont(undefined, 'bold');
-  doc.text('TeleTime Solutions', 14, 50);
+  doc.text(companyConfig.name, 14, 50);
   doc.setFont(undefined, 'normal');
   doc.text('Internal Analysis Document', 14, 56);
 
@@ -587,7 +638,7 @@ export const generateInternalPDF = (quote, customer, items) => {
   doc.text('Created By:', 140, 68);
 
   doc.setFont(undefined, 'normal');
-  doc.text(quote.quote_number || `QT-2025-${String(quote.id).padStart(4, '0')}`, 165, 50);
+  doc.text(quote.quote_number || `${companyConfig.quotes.prefix}-2025-${String(quote.id).padStart(4, '0')}`, 165, 50);
   doc.text(new Date(quote.created_at).toLocaleDateString(), 165, 56);
   doc.text(quote.status || 'DRAFT', 165, 62);
   doc.text(quote.created_by || 'System', 165, 68);
@@ -657,7 +708,6 @@ export const generateInternalPDF = (quote, customer, items) => {
     margin: { left: 14, right: 14 }
   });
 
-  // ... (rest of internal PDF code continues as before - revenue features, totals, etc.)
   // Calculate totals
   const subtotal = (quote.subtotal_cents || 0) / 100;
   const totalCost = items.reduce((sum, item) =>
@@ -666,7 +716,8 @@ export const generateInternalPDF = (quote, customer, items) => {
   const taxAmount = (quote.tax_cents || 0) / 100;
   const total = (quote.total_cents || 0) / 100;
   const grossProfit = (quote.gross_profit_cents || 0) / 100;
-  const taxRate = quote.tax_rate || 0.13;
+  const taxRate = quote.tax_rate || companyConfig.tax.defaultRate;
+  const internalTaxName = companyConfig.tax.taxName;
   const totalMarginPercent = total > 0 ? (grossProfit / total * 100) : 0;
 
   // Totals Section
@@ -690,7 +741,7 @@ export const generateInternalPDF = (quote, customer, items) => {
   }
 
   const taxY = finalY + (discountAmount > 0 ? 18 : 12);
-  doc.text(`Tax (${(taxRate * 100).toFixed(0)}%):`, totalsX, taxY);
+  doc.text(`${internalTaxName} (${(taxRate * 100).toFixed(0)}%):`, totalsX, taxY);
   doc.text(`$${taxAmount.toFixed(2)}`, 195, taxY, { align: 'right' });
 
   doc.setFont(undefined, 'bold');
@@ -753,7 +804,7 @@ export const emailQuotePDF = async (quoteId, emailData) => {
   try {
     logger.log('📧 Sending email for quote:', quoteId);
 
-    const response = await fetch(`${API_BASE}/quotations/${quoteId}/email`, {
+    const response = await fetch(`${API_BASE}/quotations/${quoteId}/send-email`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json'
@@ -770,7 +821,7 @@ export const emailQuotePDF = async (quoteId, emailData) => {
     logger.log('✅ Email sent successfully:', result);
     return result;
   } catch (error) {
-    console.error('❌ Error sending email:', error);
+    handleApiError(error, { context: 'Send quote email' });
     throw error;
   }
 };

@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import logger from '../utils/logger';
 import { cachedFetch, invalidateCache } from '../services/apiCache';
+import { handleApiError } from '../utils/errorHandler';
 
 const API_BASE = `${process.env.REACT_APP_API_URL || 'http://localhost:3001'}/api`;
 
@@ -60,11 +61,11 @@ const ProductManagement = () => {
       // Load products and stats in parallel with caching
       const [productsData, statsData] = await Promise.all([
         cachedFetch('/api/products?limit=1000').catch(err => {
-          logger.error('Error loading products:', err);
+          handleApiError(err, { context: 'Loading products', silent: true });
           return [];
         }),
         cachedFetch('/api/products/stats').catch(err => {
-          logger.error('Error loading stats:', err);
+          handleApiError(err, { context: 'Loading stats', silent: true });
           return {};
         })
       ]);
@@ -75,8 +76,7 @@ const ProductManagement = () => {
       }
 
     } catch (error) {
-      logger.error('Error loading data:', error);
-      showNotification('Error loading products', 'error');
+      handleApiError(error, { context: 'Loading products' });
     } finally {
       if (isMounted.current) {
         setLoading(false);
@@ -161,8 +161,7 @@ const ProductManagement = () => {
       setFormData({});
       setView('browser');
     } catch (error) {
-      logger.error('❌ Error creating product:', error);
-      showNotification(`Failed to create: ${error.message}`, 'error');
+      handleApiError(error, { context: 'Creating product' });
     }
   };
 
@@ -187,8 +186,7 @@ const ProductManagement = () => {
       setEditingProduct(null);
       setView('browser');
     } catch (error) {
-      logger.error('❌ Error updating product:', error);
-      showNotification(`Failed to update: ${error.message}`, 'error');
+      handleApiError(error, { context: 'Updating product' });
     }
   };
 
@@ -233,20 +231,24 @@ const ProductManagement = () => {
 
   const handleCSVImport = async () => {
     if (!importFile) {
-      showNotification('Please select a CSV file', 'error');
+      showNotification('Please select a file to import', 'error');
       return;
     }
 
-    // Validate file type
-    if (!importFile.name.toLowerCase().endsWith('.csv')) {
-      showNotification('Please select a valid CSV file', 'error');
+    // Validate file type - support CSV and Excel files
+    const fileName = importFile.name.toLowerCase();
+    const validExtensions = ['.csv', '.xlsx', '.xls'];
+    const isValidType = validExtensions.some(ext => fileName.endsWith(ext));
+
+    if (!isValidType) {
+      showNotification('Please select a valid CSV or Excel file (.csv, .xlsx, .xls)', 'error');
       return;
     }
 
-    // Validate file size (10MB max)
-    const maxSize = 10 * 1024 * 1024;
+    // Validate file size (25MB max for Excel files)
+    const maxSize = 25 * 1024 * 1024;
     if (importFile.size > maxSize) {
-      showNotification('File size exceeds 10MB limit. Please use a smaller file.', 'error');
+      showNotification('File size exceeds 25MB limit. Please use a smaller file.', 'error');
       return;
     }
 
@@ -255,9 +257,10 @@ const ProductManagement = () => {
       setImportResults(null);
 
       const formData = new FormData();
-      formData.append('csvfile', importFile);
+      formData.append('file', importFile);
 
-      const response = await fetch(`${API_BASE}/products/import-csv`, {
+      // Use the new universal import endpoint
+      const response = await fetch(`${API_BASE}/products/import-universal`, {
         method: 'POST',
         body: formData
       });
@@ -269,14 +272,14 @@ const ProductManagement = () => {
       }
 
       setImportResults(result);
-      showNotification(`Import complete! ${result.successful} products imported`, 'success');
+      const fileType = fileName.endsWith('.csv') ? 'CSV' : 'Excel';
+      showNotification(`${fileType} import complete! ${result.summary?.inserted || 0} new, ${result.summary?.updated || 0} updated`, 'success');
 
       // Reload products after successful import
       await loadAllData();
       setImportFile(null);
     } catch (error) {
-      logger.error('❌ CSV Import error:', error);
-      showNotification(`Import failed: ${error.message}`, 'error');
+      handleApiError(error, { context: 'Importing products' });
     } finally {
       if (isMounted.current) {
         setImporting(false);
@@ -862,27 +865,28 @@ Whirlpool,WRS325SDHZ,Side-by-Side Refrigerator 25 cu ft,Refrigerators,749.99,129
           </button>
         </div>
         <p style={{ margin: '0 0 24px 0', color: '#6b7280', fontSize: '14px' }}>
-          Upload a CSV file to import multiple products at once. The CSV should have columns: MANUFACTURER, MODEL, Description, CATEGORY, COST, MSRP
+          Upload a CSV or Excel file to import products from manufacturer price lists. Supported formats: .csv, .xlsx, .xls<br/>
+          <span style={{ fontSize: '12px' }}>Common column names supported: MODEL, SKU, Part Number, MANUFACTURER, Brand, COST, Dealer Cost, MSRP, Retail Price, Description</span>
         </p>
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
           <div>
-            <label style={{ display: 'block', marginBottom: '8px', fontSize: '14px', fontWeight: '600' }}>Select CSV File</label>
+            <label style={{ display: 'block', marginBottom: '8px', fontSize: '14px', fontWeight: '600' }}>Select File (CSV or Excel)</label>
             <input
               type="file"
-              accept=".csv"
+              accept=".csv,.xlsx,.xls"
               onChange={(e) => {
                 const file = e.target.files[0];
                 if (file) {
-                  const maxSize = 10 * 1024 * 1024; // 10MB
+                  const maxSize = 25 * 1024 * 1024; // 25MB for Excel files
                   if (file.size > maxSize) {
-                    showNotification('File size exceeds 10MB limit. Please use a smaller file.', 'error');
+                    showNotification('File size exceeds 25MB limit. Please use a smaller file.', 'error');
                     e.target.value = '';
                     setImportFile(null);
                     return;
                   }
-                  if (file.size > 5 * 1024 * 1024) { // 5MB warning
-                    showNotification('Large file detected (>5MB). Import may take longer.', 'warning');
+                  if (file.size > 10 * 1024 * 1024) { // 10MB warning
+                    showNotification('Large file detected (>10MB). Import may take longer.', 'warning');
                   }
                   setImportFile(file);
                   setImportResults(null);
@@ -1032,7 +1036,7 @@ Whirlpool,WRS325SDHZ,Side-by-Side Refrigerator 25 cu ft,Refrigerators,749.99,129
             { id: 'dashboard', label: '📊 Dashboard' },
             { id: 'browser', label: '🔍 Browse' },
             { id: 'add', label: '➕ Add Product' },
-            { id: 'import', label: '📤 Import CSV' },
+            { id: 'import', label: '📤 Import Products' },
           ].map(tab => (
             <button
               key={tab.id}

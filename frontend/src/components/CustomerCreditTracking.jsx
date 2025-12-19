@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { handleApiError } from '../utils/errorHandler';
 
 const API_BASE = `${process.env.REACT_APP_API_URL || 'http://localhost:3001'}/api`;
 
@@ -44,7 +45,7 @@ const CustomerCreditTracking = ({ customer, onUpdate }) => {
       if (paymentsData.success) setPayments(paymentsData.payments);
       if (summaryData.success) setSummary(summaryData.summary);
     } catch (error) {
-      console.error('Error loading payment data:', error);
+      handleApiError(error, { context: 'Loading payment data' });
     } finally {
       setLoading(false);
     }
@@ -80,8 +81,7 @@ const CustomerCreditTracking = ({ customer, onUpdate }) => {
         if (onUpdate) onUpdate();
       }
     } catch (error) {
-      console.error('Error recording payment:', error);
-      alert('Failed to record payment');
+      handleApiError(error, { context: 'Recording payment' });
     } finally {
       setLoading(false);
     }
@@ -106,8 +106,7 @@ const CustomerCreditTracking = ({ customer, onUpdate }) => {
         if (onUpdate) onUpdate();
       }
     } catch (error) {
-      console.error('Error updating credit limit:', error);
-      alert('Failed to update credit limit');
+      handleApiError(error, { context: 'Updating credit limit' });
     } finally {
       setLoading(false);
     }

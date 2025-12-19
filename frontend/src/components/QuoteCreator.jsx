@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 
 const API_BASE = `${process.env.REACT_APP_API_URL || 'http://localhost:3001'}/api`;
 
@@ -12,6 +12,7 @@ function QuoteCreatorEnhanced({ onClose, onQuoteCreated }) {
   const [internalNotes, setInternalNotes] = useState('');
   const [loading, setLoading] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
+  const [productsLoading, setProductsLoading] = useState(false);
   const [quoteStatus, setQuoteStatus] = useState('DRAFT');
   const [expirationDays, setExpirationDays] = useState(7);
   const [showNewCustomerForm, setShowNewCustomerForm] = useState(false);
@@ -25,10 +26,14 @@ function QuoteCreatorEnhanced({ onClose, onQuoteCreated }) {
   const [taxRate, setTaxRate] = useState(0.13); // Ontario default
   const [taxExempt, setTaxExempt] = useState(false);
 
+  // Refs for debouncing
+  const searchTimeoutRef = useRef(null);
+
   useEffect(() => {
     fetchCustomers();
-    fetchProducts();
-    
+    // Load recent products on initial mount (small set)
+    fetchProducts('', true);
+
     // Keyboard shortcuts
     const handleKeyboard = (e) => {
       if (e.ctrlKey && e.key === 's') {
@@ -37,8 +42,32 @@ function QuoteCreatorEnhanced({ onClose, onQuoteCreated }) {
       }
     };
     window.addEventListener('keydown', handleKeyboard);
-    return () => window.removeEventListener('keydown', handleKeyboard);
+    return () => {
+      window.removeEventListener('keydown', handleKeyboard);
+      // Clear any pending search timeout on unmount
+      if (searchTimeoutRef.current) {
+        clearTimeout(searchTimeoutRef.current);
+      }
+    };
   }, []);
+
+  // Debounced product search effect
+  useEffect(() => {
+    // Clear any existing timeout
+    if (searchTimeoutRef.current) {
+      clearTimeout(searchTimeoutRef.current);
+    }
+
+    // Only search if user has typed at least 2 characters
+    if (searchTerm.trim().length >= 2) {
+      searchTimeoutRef.current = setTimeout(() => {
+        fetchProducts(searchTerm);
+      }, 300); // 300ms debounce
+    } else if (searchTerm.trim().length === 0) {
+      // Reset to recent products when search is cleared
+      fetchProducts('', true);
+    }
+  }, [searchTerm]);
 
   const fetchCustomers = async () => {
     try {
@@ -50,21 +79,39 @@ function QuoteCreatorEnhanced({ onClose, onQuoteCreated }) {
     }
   };
 
-  const fetchProducts = async () => {
+  // Optimized product fetch - server-side search with pagination
+  const fetchProducts = async (search = '', isInitial = false) => {
     try {
-      const response = await fetch(`${API_BASE}/products?limit=5000`);
+      setProductsLoading(true);
+
+      // Build URL with search params
+      const params = new URLSearchParams();
+      if (search.trim()) {
+        params.append('search', search.trim());
+      }
+      params.append('limit', '50'); // Only fetch 50 products at a time
+
+      const response = await fetch(`${API_BASE}/products?${params.toString()}`);
       const data = await response.json();
 
       // Filter out products without model names and with valid data
-      const validProducts = data.filter(p =>
+      const validProducts = (Array.isArray(data) ? data : data.products || []).filter(p =>
         p.model && p.model.trim() !== '' &&
         p.manufacturer && p.manufacturer.trim() !== ''
       );
 
-      console.log(`Loaded ${data.length} total products, ${validProducts.length} valid products`);
+      if (isInitial) {
+        console.log(`Loaded ${validProducts.length} initial products`);
+      } else {
+        console.log(`Found ${validProducts.length} products matching "${search}"`);
+      }
+
       setProducts(validProducts);
     } catch (error) {
       console.error('Error fetching products:', error);
+      setProducts([]);
+    } finally {
+      setProductsLoading(false);
     }
   };
 
@@ -260,11 +307,9 @@ function QuoteCreatorEnhanced({ onClose, onQuoteCreated }) {
     }
   };
 
-  const filteredProducts = products.filter(p =>
-    (p.model && p.model.toLowerCase().includes(searchTerm.toLowerCase())) ||
-    (p.manufacturer && p.manufacturer.toLowerCase().includes(searchTerm.toLowerCase())) ||
-    (p.description && p.description.toLowerCase().includes(searchTerm.toLowerCase()))
-  );
+  // Products are now filtered server-side, so just use them directly
+  // Memoize to prevent unnecessary re-renders
+  const filteredProducts = useMemo(() => products, [products]);
 
   return (
     <div style={{ 
@@ -459,20 +504,51 @@ function QuoteCreatorEnhanced({ onClose, onQuoteCreated }) {
                 </h3>
                 <input
                   type="text"
-                  placeholder="Search products..."
+                  placeholder="Type 2+ characters to search products..."
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
-                  style={{ 
-                    width: '100%', 
-                    padding: '12px', 
-                    border: '2px solid #7dd3fc', 
+                  style={{
+                    width: '100%',
+                    padding: '12px',
+                    border: '2px solid #7dd3fc',
                     borderRadius: '8px',
                     fontSize: '14px',
                     marginBottom: '12px'
                   }}
                 />
+                {searchTerm.trim().length === 1 && (
+                  <div style={{
+                    padding: '12px',
+                    background: '#fef3c7',
+                    borderRadius: '8px',
+                    marginBottom: '12px',
+                    fontSize: '13px',
+                    color: '#92400e'
+                  }}>
+                    💡 Type at least 2 characters to search
+                  </div>
+                )}
                 <div style={{ maxHeight: '400px', overflow: 'auto' }}>
-                  {filteredProducts.map(product => (
+                  {productsLoading ? (
+                    <div style={{
+                      padding: '24px',
+                      textAlign: 'center',
+                      color: '#6b7280'
+                    }}>
+                      ⏳ Searching products...
+                    </div>
+                  ) : filteredProducts.length === 0 ? (
+                    <div style={{
+                      padding: '24px',
+                      textAlign: 'center',
+                      color: '#6b7280'
+                    }}>
+                      {searchTerm.trim().length >= 2
+                        ? 'No products found. Try a different search term.'
+                        : 'Type to search for products'
+                      }
+                    </div>
+                  ) : filteredProducts.map(product => (
                     <div
                       key={product.id}
                       onClick={() => addLineItem(product)}

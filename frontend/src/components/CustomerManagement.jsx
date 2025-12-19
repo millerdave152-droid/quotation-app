@@ -4,6 +4,9 @@ import CustomerOrderHistory from './CustomerOrderHistory';
 import logger from '../utils/logger';
 import { useDebounce } from '../utils/useDebounce';
 import { cachedFetch, invalidateCache } from '../services/apiCache';
+import { useToast } from './ui/Toast';
+import { useConfirmDialog } from './ui/ConfirmDialog';
+import { SkeletonTable, SkeletonStats } from './ui/LoadingSkeleton';
 
 const API_BASE = `${process.env.REACT_APP_API_URL || 'http://localhost:3001'}/api`;
 
@@ -50,9 +53,55 @@ function CustomerManagement() {
     notes: ''
   });
 
+  // Form Validation State
+  const [formErrors, setFormErrors] = useState({});
+  const [touched, setTouched] = useState({});
+
+  // Validation rules
+  const validateField = (name, value) => {
+    switch (name) {
+      case 'name':
+        if (!value || value.trim() === '') return 'Name is required';
+        if (value.length < 2) return 'Name must be at least 2 characters';
+        return '';
+      case 'email':
+        if (!value || value.trim() === '') return 'Email is required';
+        if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)) return 'Please enter a valid email address';
+        return '';
+      case 'phone':
+        if (value && !/^[\d\s\-()]+$/.test(value)) return 'Please enter a valid phone number';
+        return '';
+      case 'postal_code':
+        if (value && !/^[A-Za-z]\d[A-Za-z][ -]?\d[A-Za-z]\d$/.test(value)) return 'Please enter a valid postal code (e.g., A1A 1A1)';
+        return '';
+      default:
+        return '';
+    }
+  };
+
+  const validateForm = () => {
+    const errors = {};
+    Object.keys(formData).forEach(field => {
+      const error = validateField(field, formData[field]);
+      if (error) errors[field] = error;
+    });
+    setFormErrors(errors);
+    return Object.keys(errors).length === 0;
+  };
+
+  const handleFieldBlur = (name) => {
+    setTouched(prev => ({ ...prev, [name]: true }));
+    const error = validateField(name, formData[name]);
+    setFormErrors(prev => ({ ...prev, [name]: error }));
+  };
+
   // Anti-flickering refs
   const isMounted = useRef(true);
   const loadedOnce = useRef(false);
+
+  // UI Hooks - Toast notifications and Confirm Dialog
+  const toast = useToast();
+  const { confirm, DialogComponent } = useConfirmDialog();
 
   useEffect(() => {
     isMounted.current = true;
@@ -75,9 +124,15 @@ function CustomerManagement() {
     }
   }, [currentPage, itemsPerPage, debouncedSearchTerm, cityFilter, provinceFilter, sortBy, sortOrder]);
 
+  // Updated notification function using toast system
   const showNotification = (message, type = 'success') => {
-    setNotification({ message, type });
-    setTimeout(() => setNotification(null), 4000);
+    if (type === 'success') {
+      toast.success(message);
+    } else if (type === 'error') {
+      toast.error(message);
+    } else {
+      toast.info(message);
+    }
   };
 
   const fetchStats = async () => {
@@ -218,6 +273,8 @@ function CustomerManagement() {
       postal_code: '',
       notes: ''
     });
+    setFormErrors({});
+    setTouched({});
     setAvailableCities([]);
     setShowAddForm(false);
     setEditingCustomer(null);
@@ -225,6 +282,15 @@ function CustomerManagement() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+
+    // Validate form before submitting
+    if (!validateForm()) {
+      // Mark all fields as touched to show errors
+      const allTouched = Object.keys(formData).reduce((acc, key) => ({ ...acc, [key]: true }), {});
+      setTouched(allTouched);
+      showNotification('Please fix the form errors before submitting', 'error');
+      return;
+    }
 
     try {
       // Validate editingCustomer state
@@ -301,7 +367,16 @@ function CustomerManagement() {
   };
 
   const handleDelete = async (id) => {
-    if (!window.confirm('Are you sure you want to delete this customer? This action cannot be undone.')) return;
+    // Use custom confirm dialog instead of window.confirm
+    const confirmed = await confirm({
+      title: 'Delete Customer',
+      message: 'Are you sure you want to delete this customer? This action cannot be undone and will remove all associated data.',
+      variant: 'danger',
+      confirmText: 'Delete',
+      cancelText: 'Cancel'
+    });
+
+    if (!confirmed) return;
 
     try {
       const response = await fetch(`${API_BASE}/customers/${id}`, {
@@ -362,28 +437,8 @@ function CustomerManagement() {
 
   return (
     <div style={{ padding: '30px', fontFamily: 'system-ui, -apple-system, sans-serif', background: '#f9fafb', minHeight: '100vh' }}>
-      {/* Notification Toast */}
-      {notification && (
-        <div style={{
-          position: 'fixed',
-          top: '20px',
-          right: '20px',
-          zIndex: 9999,
-          background: notification.type === 'success' ? '#10b981' : '#ef4444',
-          color: 'white',
-          padding: '16px 24px',
-          borderRadius: '8px',
-          boxShadow: '0 10px 40px rgba(0,0,0,0.2)',
-          animation: 'slideIn 0.3s ease-out',
-          display: 'flex',
-          alignItems: 'center',
-          gap: '12px',
-          maxWidth: '400px'
-        }}>
-          <span style={{ fontSize: '20px' }}>{notification.type === 'success' ? '✅' : '❌'}</span>
-          <span style={{ fontWeight: '500' }}>{notification.message}</span>
-        </div>
-      )}
+      {/* Confirm Dialog */}
+      <DialogComponent />
 
       <div style={{ maxWidth: '1400px', margin: '0 auto' }}>
         {/* Header */}
@@ -444,26 +499,54 @@ function CustomerManagement() {
             <form onSubmit={handleSubmit}>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px', marginBottom: '20px' }}>
                 <div>
-                  <label style={{ display: 'block', marginBottom: '8px', fontSize: '14px', fontWeight: '500', color: '#374151' }}>Name *</label>
+                  <label style={{ display: 'block', marginBottom: '8px', fontSize: '14px', fontWeight: '500', color: '#374151' }}>Name <span style={{ color: '#ef4444' }}>*</span></label>
                   <input
                     type="text"
                     name="name"
                     value={formData.name}
                     onChange={handleInputChange}
-                    required
-                    style={{ width: '100%', padding: '12px', border: '2px solid #e5e7eb', borderRadius: '8px', fontSize: '14px' }}
+                    onBlur={() => handleFieldBlur('name')}
+                    aria-invalid={touched.name && formErrors.name ? 'true' : 'false'}
+                    aria-describedby={formErrors.name ? 'name-error' : undefined}
+                    style={{
+                      width: '100%',
+                      padding: '12px',
+                      border: `2px solid ${touched.name && formErrors.name ? '#ef4444' : '#e5e7eb'}`,
+                      borderRadius: '8px',
+                      fontSize: '14px',
+                      outline: 'none'
+                    }}
                   />
+                  {touched.name && formErrors.name && (
+                    <div id="name-error" role="alert" style={{ color: '#ef4444', fontSize: '13px', marginTop: '4px', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                      <span>✕</span> {formErrors.name}
+                    </div>
+                  )}
                 </div>
                 <div>
-                  <label style={{ display: 'block', marginBottom: '8px', fontSize: '14px', fontWeight: '500', color: '#374151' }}>Email *</label>
+                  <label style={{ display: 'block', marginBottom: '8px', fontSize: '14px', fontWeight: '500', color: '#374151' }}>Email <span style={{ color: '#ef4444' }}>*</span></label>
                   <input
                     type="email"
                     name="email"
                     value={formData.email}
                     onChange={handleInputChange}
-                    required
-                    style={{ width: '100%', padding: '12px', border: '2px solid #e5e7eb', borderRadius: '8px', fontSize: '14px' }}
+                    onBlur={() => handleFieldBlur('email')}
+                    aria-invalid={touched.email && formErrors.email ? 'true' : 'false'}
+                    aria-describedby={formErrors.email ? 'email-error' : undefined}
+                    style={{
+                      width: '100%',
+                      padding: '12px',
+                      border: `2px solid ${touched.email && formErrors.email ? '#ef4444' : '#e5e7eb'}`,
+                      borderRadius: '8px',
+                      fontSize: '14px',
+                      outline: 'none'
+                    }}
                   />
+                  {touched.email && formErrors.email && (
+                    <div id="email-error" role="alert" style={{ color: '#ef4444', fontSize: '13px', marginTop: '4px', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                      <span>✕</span> {formErrors.email}
+                    </div>
+                  )}
                 </div>
                 <div>
                   <label style={{ display: 'block', marginBottom: '8px', fontSize: '14px', fontWeight: '500', color: '#374151' }}>Phone</label>
@@ -472,9 +555,24 @@ function CustomerManagement() {
                     name="phone"
                     value={formData.phone}
                     onChange={handleInputChange}
+                    onBlur={() => handleFieldBlur('phone')}
+                    aria-invalid={touched.phone && formErrors.phone ? 'true' : 'false'}
+                    aria-describedby={formErrors.phone ? 'phone-error' : undefined}
                     placeholder="(555) 123-4567"
-                    style={{ width: '100%', padding: '12px', border: '2px solid #e5e7eb', borderRadius: '8px', fontSize: '14px' }}
+                    style={{
+                      width: '100%',
+                      padding: '12px',
+                      border: `2px solid ${touched.phone && formErrors.phone ? '#ef4444' : '#e5e7eb'}`,
+                      borderRadius: '8px',
+                      fontSize: '14px',
+                      outline: 'none'
+                    }}
                   />
+                  {touched.phone && formErrors.phone && (
+                    <div id="phone-error" role="alert" style={{ color: '#ef4444', fontSize: '13px', marginTop: '4px', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                      <span>✕</span> {formErrors.phone}
+                    </div>
+                  )}
                 </div>
                 <div>
                   <label style={{ display: 'block', marginBottom: '8px', fontSize: '14px', fontWeight: '500', color: '#374151' }}>Company</label>
@@ -696,12 +794,17 @@ function CustomerManagement() {
               </thead>
               <tbody>
                 {loading ? (
-                  <tr>
-                    <td colSpan="6" style={{ padding: '40px', textAlign: 'center', color: '#9ca3af' }}>
-                      <div style={{ fontSize: '40px', marginBottom: '16px' }}>⏳</div>
-                      Loading customers...
-                    </td>
-                  </tr>
+                  // Skeleton loading rows
+                  Array.from({ length: 5 }).map((_, i) => (
+                    <tr key={`skeleton-${i}`} style={{ borderBottom: '1px solid #f3f4f6' }}>
+                      <td style={{ padding: '16px' }}><div style={{ background: 'linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%)', backgroundSize: '200% 100%', animation: 'shimmer 1.5s infinite', height: '20px', width: '60%', borderRadius: '4px' }} /></td>
+                      <td style={{ padding: '16px' }}><div style={{ background: 'linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%)', backgroundSize: '200% 100%', animation: 'shimmer 1.5s infinite', height: '20px', width: '80%', borderRadius: '4px' }} /></td>
+                      <td style={{ padding: '16px' }}><div style={{ background: 'linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%)', backgroundSize: '200% 100%', animation: 'shimmer 1.5s infinite', height: '20px', width: '50%', borderRadius: '4px' }} /></td>
+                      <td style={{ padding: '16px' }}><div style={{ background: 'linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%)', backgroundSize: '200% 100%', animation: 'shimmer 1.5s infinite', height: '20px', width: '70%', borderRadius: '4px' }} /></td>
+                      <td style={{ padding: '16px' }}><div style={{ background: 'linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%)', backgroundSize: '200% 100%', animation: 'shimmer 1.5s infinite', height: '20px', width: '40%', borderRadius: '4px' }} /></td>
+                      <td style={{ padding: '16px' }}><div style={{ background: 'linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%)', backgroundSize: '200% 100%', animation: 'shimmer 1.5s infinite', height: '20px', width: '30%', borderRadius: '4px', margin: '0 auto' }} /></td>
+                    </tr>
+                  ))
                 ) : customers.length === 0 ? (
                   <tr>
                     <td colSpan="6" style={{ padding: '40px', textAlign: 'center', color: '#9ca3af' }}>

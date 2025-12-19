@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import axios from 'axios';
 import ProductMappingTool from './ProductMappingTool';
+import { handleApiError } from '../utils/errorHandler';
 
 /**
  * Enhanced Marketplace Manager Dashboard
@@ -124,7 +125,7 @@ const MarketplaceManager = () => {
         setOrders(Array.isArray(response.data) ? response.data : response.data.orders || []);
       }
     } catch (err) {
-      console.error('Failed to fetch orders:', err);
+      handleApiError(err, { context: 'Loading orders', silent: true });
     }
   }, [API_BASE_URL]);
 
@@ -143,7 +144,7 @@ const MarketplaceManager = () => {
         setUnreadCount(newUnread);
       }
     } catch (err) {
-      console.error('Failed to fetch notifications:', err);
+      handleApiError(err, { context: 'Loading notifications', silent: true });
     }
   }, [API_BASE_URL, unreadCount, notificationSound]);
 
@@ -153,7 +154,7 @@ const MarketplaceManager = () => {
       const response = await axios.get(`${API_BASE_URL}/api/marketplace/auto-rules`);
       setAutoRules(response.data || []);
     } catch (err) {
-      console.error('Failed to fetch auto-rules:', err);
+      handleApiError(err, { context: 'Loading auto-rules', silent: true });
     }
   }, [API_BASE_URL]);
 
@@ -166,7 +167,7 @@ const MarketplaceManager = () => {
         setNotificationSound(response.data.notification_sound.enabled);
       }
     } catch (err) {
-      console.error('Failed to fetch settings:', err);
+      handleApiError(err, { context: 'Loading settings', silent: true });
     }
   }, [API_BASE_URL]);
 
@@ -179,7 +180,7 @@ const MarketplaceManager = () => {
         setGlobalBuffer(response.data.global_stock_buffer.value || 0);
       }
     } catch (err) {
-      console.error('Failed to fetch sync settings:', err);
+      handleApiError(err, { context: 'Loading sync settings', silent: true });
     }
   }, [API_BASE_URL]);
 
@@ -189,7 +190,7 @@ const MarketplaceManager = () => {
       const response = await axios.get(`${API_BASE_URL}/api/marketplace/sync-history?limit=10`);
       setSyncHistory(response.data || []);
     } catch (err) {
-      console.error('Failed to fetch sync history:', err);
+      handleApiError(err, { context: 'Loading sync history', silent: true });
     }
   }, [API_BASE_URL]);
 
@@ -199,7 +200,7 @@ const MarketplaceManager = () => {
       const response = await axios.get(`${API_BASE_URL}/api/marketplace/price-rules`);
       setPriceRules(response.data || []);
     } catch (err) {
-      console.error('Failed to fetch price rules:', err);
+      handleApiError(err, { context: 'Loading price rules', silent: true });
     }
   }, [API_BASE_URL]);
 
@@ -209,7 +210,7 @@ const MarketplaceManager = () => {
       const response = await axios.get(`${API_BASE_URL}/api/marketplace/preview-prices?limit=20`);
       setPricePreviews(response.data?.previews || []);
     } catch (err) {
-      console.error('Failed to fetch price previews:', err);
+      handleApiError(err, { context: 'Loading price previews', silent: true });
     }
   }, [API_BASE_URL]);
 
@@ -223,7 +224,7 @@ const MarketplaceManager = () => {
       setInventoryTotal(response.data?.total || 0);
       setGlobalBuffer(response.data?.global_buffer || 0);
     } catch (err) {
-      console.error('Failed to fetch inventory products:', err);
+      handleApiError(err, { context: 'Loading inventory', silent: true });
     }
   }, [API_BASE_URL]);
 
@@ -509,7 +510,7 @@ const MarketplaceManager = () => {
       await axios.put(`${API_BASE_URL}/api/marketplace/notifications/${id}/read`);
       fetchNotifications();
     } catch (err) {
-      console.error('Failed to mark notification as read:', err);
+      handleApiError(err, { context: 'Marking notification read', silent: true });
     }
   };
 
@@ -518,7 +519,7 @@ const MarketplaceManager = () => {
       await axios.put(`${API_BASE_URL}/api/marketplace/notifications/mark-all-read`);
       fetchNotifications();
     } catch (err) {
-      console.error('Failed to mark all notifications as read:', err);
+      handleApiError(err, { context: 'Marking notifications read', silent: true });
     }
   };
 
@@ -527,7 +528,7 @@ const MarketplaceManager = () => {
       await axios.put(`${API_BASE_URL}/api/marketplace/notifications/${id}/dismiss`);
       fetchNotifications();
     } catch (err) {
-      console.error('Failed to dismiss notification:', err);
+      handleApiError(err, { context: 'Dismissing notification', silent: true });
     }
   };
 

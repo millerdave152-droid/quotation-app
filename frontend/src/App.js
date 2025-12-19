@@ -1,5 +1,11 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { BrowserRouter, Routes, Route, NavLink, Navigate, useLocation } from 'react-router-dom';
 import { cachedFetch } from './services/apiCache';
+import { ToastProvider, useToast, setToastRef } from './components/ui';
+import { SkeletonStats, SkeletonTable } from './components/ui';
+import { handleApiError } from './utils/errorHandler';
+import ErrorBoundary from './components/ErrorBoundary';
+import Sidebar from './components/Sidebar';
 
 // Lazy load components - loads ONLY when tab is first clicked
 const QuotationManager = React.lazy(() => import('./components/QuotationManager'));
@@ -9,6 +15,7 @@ const RevenueAnalytics = React.lazy(() => import('./components/RevenueAnalytics'
 const MarketplaceManager = React.lazy(() => import('./components/MarketplaceManager'));
 const MarketplaceReports = React.lazy(() => import('./components/MarketplaceReports'));
 const BulkOperationsCenter = React.lazy(() => import('./components/BulkOperationsCenter'));
+const PowerFeatures2026 = React.lazy(() => import('./components/PowerFeatures2026'));
 
 // Dashboard component with real data and anti-flickering
 const Dashboard = () => {
@@ -42,7 +49,7 @@ const Dashboard = () => {
       if (!isMounted.current) return;
       setStats(data);
     } catch (error) {
-      console.error('Error fetching dashboard stats:', error);
+      handleApiError(error, { context: 'Loading dashboard' });
     } finally {
       if (isMounted.current) {
         setLoading(false);
@@ -61,8 +68,22 @@ const Dashboard = () => {
 
   if (loading) {
     return (
-      <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '400px' }}>
-        <div style={{ fontSize: '24px', color: '#6b7280' }}>Loading dashboard...</div>
+      <div style={{ padding: '30px', fontFamily: 'system-ui, -apple-system, sans-serif', background: '#f9fafb', minHeight: 'calc(100vh - 140px)' }}>
+        <div style={{ maxWidth: '1400px', margin: '0 auto' }}>
+          {/* Header skeleton */}
+          <div style={{ marginBottom: '30px' }}>
+            <div style={{ background: '#e5e7eb', width: '200px', height: '32px', borderRadius: '8px', marginBottom: '8px' }} />
+            <div style={{ background: '#e5e7eb', width: '300px', height: '16px', borderRadius: '4px' }} />
+          </div>
+          {/* Stats skeleton */}
+          <div style={{ marginBottom: '30px' }}>
+            <SkeletonStats count={4} />
+          </div>
+          {/* Table skeleton */}
+          <div style={{ background: 'white', borderRadius: '12px', overflow: 'hidden', boxShadow: '0 1px 3px rgba(0,0,0,0.1)' }}>
+            <SkeletonTable rows={5} columns={4} />
+          </div>
+        </div>
       </div>
     );
   }
@@ -209,112 +230,63 @@ const Dashboard = () => {
 };
 
 function App() {
-  const [activeTab, setActiveTab] = useState('quotations');
-  // Track which tabs have been visited to avoid unmounting/remounting
-  const [loadedTabs, setLoadedTabs] = useState({ quotations: true }); // Start with first tab loaded
-
-  // Switch tabs and mark as loaded
-  const handleTabClick = (tab) => {
-    setActiveTab(tab);
-    if (!loadedTabs[tab]) {
-      setLoadedTabs(prev => ({ ...prev, [tab]: true }));
-    }
-  };
-
   return (
-    <div style={{ minHeight: '100vh', background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)' }}>
-      {/* Header */}
-      <div style={{ background: 'white', boxShadow: '0 2px 4px rgba(0,0,0,0.1)' }}>
-        <div style={{ maxWidth: '1400px', margin: '0 auto', padding: '20px 30px' }}>
-          <h1 style={{ margin: 0, fontSize: '24px', fontWeight: 'bold', background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
-            Customer Quotation System Pro
-          </h1>
-
-          {/* Navigation Tabs */}
-          <div style={{ display: 'flex', gap: '8px', marginTop: '20px', borderBottom: '2px solid #e5e7eb' }}>
-            <button onClick={() => handleTabClick('dashboard')} style={{ padding: '12px 24px', background: activeTab === 'dashboard' ? 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)' : 'transparent', color: activeTab === 'dashboard' ? 'white' : '#6b7280', border: 'none', borderRadius: '8px 8px 0 0', fontSize: '15px', fontWeight: '600', cursor: 'pointer' }}>
-              📈 Dashboard
-            </button>
-            <button onClick={() => handleTabClick('customers')} style={{ padding: '12px 24px', background: activeTab === 'customers' ? 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)' : 'transparent', color: activeTab === 'customers' ? 'white' : '#6b7280', border: 'none', borderRadius: '8px 8px 0 0', fontSize: '15px', fontWeight: '600', cursor: 'pointer' }}>
-              👥 Customers
-            </button>
-            <button onClick={() => handleTabClick('products')} style={{ padding: '12px 24px', background: activeTab === 'products' ? 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)' : 'transparent', color: activeTab === 'products' ? 'white' : '#6b7280', border: 'none', borderRadius: '8px 8px 0 0', fontSize: '15px', fontWeight: '600', cursor: 'pointer' }}>
-              🏷️ Products
-            </button>
-            <button onClick={() => handleTabClick('quotations')} style={{ padding: '12px 24px', background: activeTab === 'quotations' ? 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)' : 'transparent', color: activeTab === 'quotations' ? 'white' : '#6b7280', border: 'none', borderRadius: '8px 8px 0 0', fontSize: '15px', fontWeight: '600', cursor: 'pointer' }}>
-              📋 Quotations
-            </button>
-            <button onClick={() => handleTabClick('analytics')} style={{ padding: '12px 24px', background: activeTab === 'analytics' ? 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)' : 'transparent', color: activeTab === 'analytics' ? 'white' : '#6b7280', border: 'none', borderRadius: '8px 8px 0 0', fontSize: '15px', fontWeight: '600', cursor: 'pointer' }}>
-              📊 Analytics
-            </button>
-            <button onClick={() => handleTabClick('marketplace')} style={{ padding: '12px 24px', background: activeTab === 'marketplace' ? 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)' : 'transparent', color: activeTab === 'marketplace' ? 'white' : '#6b7280', border: 'none', borderRadius: '8px 8px 0 0', fontSize: '15px', fontWeight: '600', cursor: 'pointer' }}>
-              🛒 Marketplace
-            </button>
-            <button onClick={() => handleTabClick('reports')} style={{ padding: '12px 24px', background: activeTab === 'reports' ? 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)' : 'transparent', color: activeTab === 'reports' ? 'white' : '#6b7280', border: 'none', borderRadius: '8px 8px 0 0', fontSize: '15px', fontWeight: '600', cursor: 'pointer' }}>
-              📑 Reports
-            </button>
-            <button onClick={() => handleTabClick('powertools')} style={{ padding: '12px 24px', background: activeTab === 'powertools' ? 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)' : 'transparent', color: activeTab === 'powertools' ? 'white' : '#6b7280', border: 'none', borderRadius: '8px 8px 0 0', fontSize: '15px', fontWeight: '600', cursor: 'pointer' }}>
-              ⚡ Power Tools
-            </button>
-          </div>
+    <Sidebar>
+      {/* Main Content - React Router based routing with lazy loading */}
+      <React.Suspense fallback={
+        <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '400px', flexDirection: 'column' }}>
+          <div style={{ fontSize: '20px', color: '#667eea', fontWeight: '600', marginBottom: '12px' }}>Loading...</div>
+          <div style={{ fontSize: '14px', color: '#6b7280' }}>Please wait</div>
         </div>
-      </div>
-
-      {/* Main Content - Only load tabs when first visited, then keep mounted */}
-      <div style={{ background: '#f9fafb', minHeight: 'calc(100vh - 140px)' }}>
-        {/* Dashboard - always eager loaded */}
-        {loadedTabs.dashboard && (
-          <div style={{ display: activeTab === 'dashboard' ? 'block' : 'none' }}>
-            <Dashboard />
-          </div>
-        )}
-
-        {/* Lazy-loaded tabs - load once on first visit, then keep mounted */}
-        <React.Suspense fallback={
-          <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '400px', flexDirection: 'column' }}>
-            <div style={{ fontSize: '20px', color: '#667eea', fontWeight: '600', marginBottom: '12px' }}>Loading...</div>
-            <div style={{ fontSize: '14px', color: '#6b7280' }}>Please wait</div>
-          </div>
-        }>
-          {loadedTabs.customers && (
-            <div style={{ display: activeTab === 'customers' ? 'block' : 'none' }}>
-              <CustomerManagement />
+      }>
+        <Routes>
+          <Route path="/" element={<Navigate to="/quotes" replace />} />
+          <Route path="/dashboard" element={<Dashboard />} />
+          <Route path="/customers" element={<CustomerManagement />} />
+          <Route path="/customers/:id" element={<CustomerManagement />} />
+          <Route path="/products" element={<ProductManagement />} />
+          <Route path="/products/:id" element={<ProductManagement />} />
+          <Route path="/quotes" element={<QuotationManager />} />
+          <Route path="/quotes/new" element={<QuotationManager />} />
+          <Route path="/quotes/:id" element={<QuotationManager />} />
+          <Route path="/analytics" element={<RevenueAnalytics />} />
+          <Route path="/marketplace/*" element={<MarketplaceManager />} />
+          <Route path="/reports" element={<MarketplaceReports />} />
+          <Route path="/bulk-ops" element={<BulkOperationsCenter />} />
+          <Route path="/features/*" element={<PowerFeatures2026 />} />
+          {/* 404 fallback */}
+          <Route path="*" element={
+            <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '400px', flexDirection: 'column' }}>
+              <div style={{ fontSize: '48px', marginBottom: '16px' }}>404</div>
+              <div style={{ fontSize: '20px', color: '#667eea', fontWeight: '600', marginBottom: '12px' }}>Page Not Found</div>
+              <NavLink to="/quotes" style={{ color: '#667eea', textDecoration: 'underline' }}>Go to Quotations</NavLink>
             </div>
-          )}
-          {loadedTabs.products && (
-            <div style={{ display: activeTab === 'products' ? 'block' : 'none' }}>
-              <ProductManagement />
-            </div>
-          )}
-          {loadedTabs.quotations && (
-            <div style={{ display: activeTab === 'quotations' ? 'block' : 'none' }}>
-              <QuotationManager />
-            </div>
-          )}
-          {loadedTabs.analytics && (
-            <div style={{ display: activeTab === 'analytics' ? 'block' : 'none' }}>
-              <RevenueAnalytics />
-            </div>
-          )}
-          {loadedTabs.marketplace && (
-            <div style={{ display: activeTab === 'marketplace' ? 'block' : 'none' }}>
-              <MarketplaceManager />
-            </div>
-          )}
-          {loadedTabs.reports && (
-            <div style={{ display: activeTab === 'reports' ? 'block' : 'none' }}>
-              <MarketplaceReports />
-            </div>
-          )}
-          {loadedTabs.powertools && (
-            <div style={{ display: activeTab === 'powertools' ? 'block' : 'none' }}>
-              <BulkOperationsCenter />
-            </div>
-          )}
-        </React.Suspense>
-      </div>
-    </div>
+          } />
+        </Routes>
+      </React.Suspense>
+    </Sidebar>
   );
 }
 
-export default App;
+// Wrap App with BrowserRouter, ErrorBoundary, and ToastProvider
+const AppWithProviders = () => (
+  <BrowserRouter>
+    <ErrorBoundary>
+      <ToastProvider position="top-right" maxToasts={5}>
+        <ToastRefSetter />
+        <App />
+      </ToastProvider>
+    </ErrorBoundary>
+  </BrowserRouter>
+);
+
+// Component to set toast ref for use outside React
+const ToastRefSetter = () => {
+  const toast = useToast();
+  useEffect(() => {
+    setToastRef(toast);
+  }, [toast]);
+  return null;
+};
+
+export default AppWithProviders;

@@ -11,6 +11,8 @@ import { getSmartSuggestions, getSuggestionsSummary } from '../utils/smartSugges
 import { useAuth } from '../contexts/AuthContext';
 import logger from '../utils/logger';
 import { cachedFetch, invalidateCache } from '../services/apiCache';
+import { QuoteList, QuoteBuilder, QuoteViewer } from './quotes';
+import { toast } from './ui/Toast';
 
 const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:3001';
 
@@ -659,7 +661,43 @@ const QuotationManager = () => {
     if (sell === 0 || cost === 0) return 0;
     return ((sell - cost) / sell * 100);
   };
-  
+
+  // ============================================
+  // HELPER FUNCTIONS (for extracted components)
+  // ============================================
+  const formatCurrency = (cents) => {
+    return `$${((cents || 0) / 100).toFixed(2)}`;
+  };
+
+  const formatDate = (dateString) => {
+    if (!dateString) return 'N/A';
+    return new Date(dateString).toLocaleDateString();
+  };
+
+  const getStatusColor = (status) => {
+    const colors = {
+      'DRAFT': { bg: '#f3f4f6', text: '#374151' },
+      'SENT': { bg: '#dbeafe', text: '#1d4ed8' },
+      'VIEWED': { bg: '#fef3c7', text: '#b45309' },
+      'PENDING_APPROVAL': { bg: '#e0e7ff', text: '#4338ca' },
+      'APPROVED': { bg: '#d1fae5', text: '#059669' },
+      'REJECTED': { bg: '#fee2e2', text: '#dc2626' },
+      'WON': { bg: '#d1fae5', text: '#059669' },
+      'LOST': { bg: '#fee2e2', text: '#dc2626' }
+    };
+    return colors[status] || { bg: '#f3f4f6', text: '#374151' };
+  };
+
+  const clearFilters = () => {
+    setSearchTerm('');
+    setStatusFilter('all');
+    setDateFilter('all');
+    setValueFilter('all');
+    setExpiringFilter(false);
+    setCustomerFilter('all');
+    setProductFilter('');
+  };
+
   // MEMOIZED CALCULATION - Prevents recalculation unless dependencies change
   const calculateQuoteTotals = useMemo(() => {
     // Base product totals
@@ -726,15 +764,137 @@ const QuotationManager = () => {
       financing: quoteFinancing
     };
   }, [quoteItems, discountPercent, quoteDelivery, quoteWarranties, quoteTradeIns, quoteRebates, quoteFinancing]);
-  
+
+  // MEMOIZED: Helper to check if quote is expiring soon
+  const isExpiringSoon = useCallback((expiresAt) => {
+    if (!expiresAt) return false;
+    const expiryDate = new Date(expiresAt);
+    const today = new Date();
+    const daysUntilExpiry = Math.ceil((expiryDate - today) / (1000 * 60 * 60 * 24));
+    return daysUntilExpiry <= 7 && daysUntilExpiry > 0;
+  }, []);
+
+  // MEMOIZED: Filtered and sorted quotations list - prevents recalculation on every render
+  const { filteredQuotes, sortedQuotes, expiringSoonCount } = useMemo(() => {
+    // Filter quotations
+    const filtered = quotations.filter(q => {
+      const matchesSearch =
+        q.quote_number?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        q.customer_name?.toLowerCase().includes(searchTerm.toLowerCase());
+
+      const matchesStatus = statusFilter === 'all' || q.status === statusFilter;
+
+      // Date filter
+      let matchesDate = true;
+      if (dateFilter !== 'all') {
+        const quoteDate = new Date(q.created_at);
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+
+        if (dateFilter === 'today') {
+          matchesDate = quoteDate >= today;
+        } else if (dateFilter === 'week') {
+          const weekAgo = new Date(today);
+          weekAgo.setDate(weekAgo.getDate() - 7);
+          matchesDate = quoteDate >= weekAgo;
+        } else if (dateFilter === 'month') {
+          const monthAgo = new Date(today);
+          monthAgo.setMonth(monthAgo.getMonth() - 1);
+          matchesDate = quoteDate >= monthAgo;
+        }
+      }
+
+      // Value filter
+      let matchesValue = true;
+      if (valueFilter !== 'all') {
+        const totalDollars = (q.total_cents || 0) / 100;
+        if (valueFilter === '0-1000') {
+          matchesValue = totalDollars <= 1000;
+        } else if (valueFilter === '1000-5000') {
+          matchesValue = totalDollars > 1000 && totalDollars <= 5000;
+        } else if (valueFilter === '5000-10000') {
+          matchesValue = totalDollars > 5000 && totalDollars <= 10000;
+        } else if (valueFilter === '10000+') {
+          matchesValue = totalDollars > 10000;
+        }
+      }
+
+      // Expiring filter
+      let matchesExpiring = true;
+      if (expiringFilter) {
+        matchesExpiring = isExpiringSoon(q.expires_at) && q.status !== 'WON' && q.status !== 'LOST';
+      }
+
+      // Advanced Filters
+      const matchesCustomer = customerFilter === 'all' || q.customer_id === parseInt(customerFilter);
+
+      let matchesProduct = true;
+      if (productFilter.trim()) {
+        const productLower = productFilter.toLowerCase();
+        matchesProduct =
+          q.notes?.toLowerCase().includes(productLower) ||
+          q.internal_notes?.toLowerCase().includes(productLower) ||
+          q.customer_name?.toLowerCase().includes(productLower);
+      }
+
+      const matchesCreatedBy = createdByFilter === 'all' || q.created_by === createdByFilter;
+
+      return matchesSearch && matchesStatus && matchesDate && matchesValue && matchesExpiring &&
+             matchesCustomer && matchesProduct && matchesCreatedBy;
+    });
+
+    // Sort quotes
+    const sorted = [...filtered].sort((a, b) => {
+      let comparison = 0;
+      if (sortBy === 'date') {
+        comparison = new Date(b.created_at) - new Date(a.created_at);
+      } else if (sortBy === 'value') {
+        comparison = (b.total_cents || 0) - (a.total_cents || 0);
+      } else if (sortBy === 'customer') {
+        comparison = (a.customer_name || '').localeCompare(b.customer_name || '');
+      } else if (sortBy === 'status') {
+        comparison = (a.status || '').localeCompare(b.status || '');
+      }
+      return sortOrder === 'asc' ? -comparison : comparison;
+    });
+
+    // Count expiring soon quotes
+    const expiringCount = quotations.filter(q =>
+      isExpiringSoon(q.expires_at) && q.status !== 'WON' && q.status !== 'LOST'
+    ).length;
+
+    return { filteredQuotes: filtered, sortedQuotes: sorted, expiringSoonCount: expiringCount };
+  }, [quotations, searchTerm, statusFilter, dateFilter, valueFilter, expiringFilter,
+      customerFilter, productFilter, createdByFilter, sortBy, sortOrder, isExpiringSoon]);
+
+  // MEMOIZED: Filtered products for search in builder view
+  const filteredProducts = useMemo(() => {
+    return products.filter(p =>
+      p.sku?.toLowerCase().includes(productSearchTerm.toLowerCase()) ||
+      p.model?.toLowerCase().includes(productSearchTerm.toLowerCase()) ||
+      p.manufacturer?.toLowerCase().includes(productSearchTerm.toLowerCase())
+    );
+  }, [products, productSearchTerm]);
+
+  // MEMOIZED: Filtered customers for dropdown
+  const filteredCustomers = useMemo(() => {
+    if (!customerSearchTerm.trim()) return customers.slice(0, 10);
+    const searchLower = customerSearchTerm.toLowerCase();
+    return customers.filter(c =>
+      c.name?.toLowerCase().includes(searchLower) ||
+      c.company?.toLowerCase().includes(searchLower) ||
+      c.email?.toLowerCase().includes(searchLower)
+    ).slice(0, 10);
+  }, [customers, customerSearchTerm]);
+
   const saveQuote = async () => {
     if (!selectedCustomer) {
-      alert('Please select a customer');
+      toast.warning('Please select a customer before saving', 'Missing Customer');
       return;
     }
 
     if (quoteItems.length === 0) {
-      alert('Please add at least one item');
+      toast.warning('Please add at least one item to the quote', 'No Items');
       return;
     }
 
@@ -784,10 +944,13 @@ const QuotationManager = () => {
       if (!res.ok) throw new Error(editingQuoteId ? 'Failed to update quote' : 'Failed to create quote');
 
       const result = await res.json();
+      const quoteNumber = result.quote?.quote_number || result.quote_number;
 
-      alert(editingQuoteId
-        ? `Quote updated successfully!`
-        : `Quote ${result.quote?.quote_number || result.quote_number} created successfully!`
+      toast.success(
+        editingQuoteId
+          ? 'Your quote has been updated successfully'
+          : `Quote ${quoteNumber} has been created`,
+        editingQuoteId ? 'Quote Updated' : 'Quote Created'
       );
 
       // Reset builder and return to list
@@ -796,10 +959,99 @@ const QuotationManager = () => {
       refreshQuotesOnly(); // Only refresh quotes, not everything
     } catch (err) {
       logger.error('Error saving quote:', err);
-      alert(`Error ${editingQuoteId ? 'updating' : 'creating'} quote. Please try again.`);
+      toast.error(
+        `Failed to ${editingQuoteId ? 'update' : 'create'} quote. Please try again.`,
+        'Save Error'
+      );
     }
   };
-  
+
+  // Save quote and immediately open email dialog
+  const saveAndSend = async () => {
+    if (!selectedCustomer) {
+      toast.warning('Please select a customer before saving', 'Missing Customer');
+      return;
+    }
+
+    if (quoteItems.length === 0) {
+      toast.warning('Please add at least one item to the quote', 'No Items');
+      return;
+    }
+
+    try {
+      const quoteData = {
+        customer_id: selectedCustomer.id,
+        items: quoteItems,
+        notes,
+        internal_notes: internalNotes,
+        terms,
+        discount_percent: discountPercent,
+        created_by: 'User',
+        hide_model_numbers: hideModelNumbers,
+        watermark_text: watermarkText,
+        watermark_enabled: watermarkEnabled,
+        quote_expiry_date: quoteExpiryDate || new Date(Date.now() + 14*24*60*60*1000).toISOString().split('T')[0],
+        revenue_features: {
+          financing: quoteFinancing,
+          warranties: quoteWarranties,
+          delivery: quoteDelivery,
+          rebates: quoteRebates,
+          tradeIns: quoteTradeIns
+        }
+      };
+
+      let res;
+      if (editingQuoteId) {
+        res = await fetch(`${API_URL}/api/quotations/${editingQuoteId}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(quoteData)
+        });
+      } else {
+        res = await fetch(`${API_URL}/api/quotes`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(quoteData)
+        });
+      }
+
+      if (!res.ok) throw new Error(editingQuoteId ? 'Failed to update quote' : 'Failed to create quote');
+
+      const result = await res.json();
+      const savedQuote = result.quote || result;
+      const quoteNumber = savedQuote.quote_number;
+
+      toast.success(
+        `Quote ${quoteNumber} saved. Opening email...`,
+        'Quote Saved'
+      );
+
+      // Set the selected quote and open email dialog
+      setSelectedQuote({
+        ...savedQuote,
+        customer_name: selectedCustomer.name,
+        customer_email: selectedCustomer.email
+      });
+
+      // Prepare email dialog
+      setEmailTo(selectedCustomer.email || '');
+      setEmailSubject(`Quote ${quoteNumber}`);
+      setEmailMessage(`Dear ${selectedCustomer.name},\n\nPlease find attached our quotation for your review.\n\nThank you for your business!`);
+      setShowEmailDialog(true);
+
+      // Reset builder and refresh quotes
+      resetBuilder();
+      refreshQuotesOnly();
+
+    } catch (err) {
+      logger.error('Error saving quote:', err);
+      toast.error(
+        `Failed to save quote. Please try again.`,
+        'Save Error'
+      );
+    }
+  };
+
   const resetBuilder = () => {
     setSelectedCustomer(null);
     setQuoteItems([]);
@@ -1697,3203 +1949,6 @@ const QuotationManager = () => {
     );
   };
 
-  const renderListView = () => {
-    // Helper function to check if quote is expiring soon
-    const isExpiringSoon = (expiresAt) => {
-      if (!expiresAt) return false;
-      const expiryDate = new Date(expiresAt);
-      const today = new Date();
-      const daysUntilExpiry = Math.ceil((expiryDate - today) / (1000 * 60 * 60 * 24));
-      return daysUntilExpiry >= 0 && daysUntilExpiry <= 7;
-    };
-
-    const isExpired = (expiresAt) => {
-      if (!expiresAt) return false;
-      const expiryDate = new Date(expiresAt);
-      const today = new Date();
-      return expiryDate < today;
-    };
-
-    // Filter quotations
-    const filteredQuotes = quotations.filter(q => {
-      const matchesSearch =
-        q.quote_number?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        q.customer_name?.toLowerCase().includes(searchTerm.toLowerCase());
-
-      const matchesStatus = statusFilter === 'all' || q.status === statusFilter;
-
-      // Date filter
-      let matchesDate = true;
-      if (dateFilter !== 'all') {
-        const quoteDate = new Date(q.created_at);
-        const today = new Date();
-        today.setHours(0, 0, 0, 0);
-
-        if (dateFilter === 'today') {
-          matchesDate = quoteDate >= today;
-        } else if (dateFilter === 'week') {
-          const weekAgo = new Date(today);
-          weekAgo.setDate(weekAgo.getDate() - 7);
-          matchesDate = quoteDate >= weekAgo;
-        } else if (dateFilter === 'month') {
-          const monthAgo = new Date(today);
-          monthAgo.setMonth(monthAgo.getMonth() - 1);
-          matchesDate = quoteDate >= monthAgo;
-        }
-      }
-
-      // Value filter
-      let matchesValue = true;
-      if (valueFilter !== 'all') {
-        const totalDollars = (q.total_cents || 0) / 100;
-        if (valueFilter === '0-1000') {
-          matchesValue = totalDollars <= 1000;
-        } else if (valueFilter === '1000-5000') {
-          matchesValue = totalDollars > 1000 && totalDollars <= 5000;
-        } else if (valueFilter === '5000-10000') {
-          matchesValue = totalDollars > 5000 && totalDollars <= 10000;
-        } else if (valueFilter === '10000+') {
-          matchesValue = totalDollars > 10000;
-        }
-      }
-
-      // Expiring filter
-      let matchesExpiring = true;
-      if (expiringFilter) {
-        matchesExpiring = isExpiringSoon(q.expires_at) && q.status !== 'WON' && q.status !== 'LOST';
-      }
-
-      // Advanced Filters
-      // Customer filter
-      const matchesCustomer = customerFilter === 'all' || q.customer_id === parseInt(customerFilter);
-
-      // Product filter (search in quote notes and internal notes for product mentions)
-      let matchesProduct = true;
-      if (productFilter.trim()) {
-        const productLower = productFilter.toLowerCase();
-        matchesProduct =
-          q.notes?.toLowerCase().includes(productLower) ||
-          q.internal_notes?.toLowerCase().includes(productLower) ||
-          q.customer_name?.toLowerCase().includes(productLower);
-      }
-
-      // Created by filter
-      const matchesCreatedBy = createdByFilter === 'all' || q.created_by === createdByFilter;
-
-      return matchesSearch && matchesStatus && matchesDate && matchesValue && matchesExpiring &&
-             matchesCustomer && matchesProduct && matchesCreatedBy;
-    });
-
-    // Sort quotes
-    const sortedQuotes = [...filteredQuotes].sort((a, b) => {
-      let comparison = 0;
-
-      if (sortBy === 'date') {
-        comparison = new Date(b.created_at) - new Date(a.created_at);
-      } else if (sortBy === 'value') {
-        comparison = (b.total_cents || 0) - (a.total_cents || 0);
-      } else if (sortBy === 'customer') {
-        comparison = (a.customer_name || '').localeCompare(b.customer_name || '');
-      } else if (sortBy === 'status') {
-        comparison = (a.status || '').localeCompare(b.status || '');
-      }
-
-      return sortOrder === 'asc' ? -comparison : comparison;
-    });
-
-    // Count expiring soon quotes (for dashboard)
-    const expiringSoonCount = quotations.filter(q =>
-      isExpiringSoon(q.expires_at) && q.status !== 'WON' && q.status !== 'LOST'
-    ).length;
-    
-    return (
-      <div style={{ padding: '24px' }}>
-        {/* Header */}
-        <div style={{
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-          marginBottom: '24px'
-        }}>
-          <h1 style={{ fontSize: '32px', fontWeight: 'bold', margin: 0 }}>
-            📋 Quotations
-          </h1>
-
-          <div style={{ display: 'flex', gap: '12px' }}>
-            <button
-              onClick={() => setView('analytics')}
-              style={{
-                padding: '12px 24px',
-                background: '#8b5cf6',
-                color: 'white',
-                border: 'none',
-                borderRadius: '8px',
-                fontSize: '16px',
-                fontWeight: 'bold',
-                cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '8px'
-              }}
-            >
-              📊 Analytics
-            </button>
-
-            <button
-              onClick={() => {
-                fetchPendingApprovals();
-                setView('approvals');
-              }}
-              style={{
-                padding: '12px 24px',
-                background: '#6366f1',
-                color: 'white',
-                border: 'none',
-                borderRadius: '8px',
-                fontSize: '16px',
-                fontWeight: 'bold',
-                cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '8px'
-              }}
-            >
-              ✅ Approvals
-            </button>
-
-            <button
-              onClick={() => {
-                fetchFollowUpData();
-                setView('followups');
-              }}
-              style={{
-                padding: '12px 24px',
-                background: '#ec4899',
-                color: 'white',
-                border: 'none',
-                borderRadius: '8px',
-                fontSize: '16px',
-                fontWeight: 'bold',
-                cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '8px'
-              }}
-            >
-              📞 Follow-Ups
-              {(followUpStats.overdue_count > 0 || followUpStats.due_soon_count > 0) && (
-                <span style={{
-                  background: '#dc2626',
-                  color: 'white',
-                  borderRadius: '12px',
-                  padding: '2px 8px',
-                  fontSize: '12px',
-                  fontWeight: 'bold'
-                }}>
-                  {(followUpStats.overdue_count || 0) + (followUpStats.due_soon_count || 0)}
-                </span>
-              )}
-            </button>
-
-            <button
-              onClick={() => setExpiringFilter(!expiringFilter)}
-              style={{
-                padding: '12px 24px',
-                background: expiringFilter ? '#f59e0b' : '#6b7280',
-                color: 'white',
-                border: 'none',
-                borderRadius: '8px',
-                fontSize: '16px',
-                fontWeight: 'bold',
-                cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '8px'
-              }}
-            >
-              ⚠️ Expiring Soon ({quotations.filter(q => {
-                if (!q.quote_expiry_date) return false;
-                const days = Math.ceil((new Date(q.quote_expiry_date) - new Date()) / (1000 * 60 * 60 * 24));
-                return days >= 0 && days <= 7 && q.status !== 'WON' && q.status !== 'LOST';
-              }).length})
-            </button>
-
-            <button
-              onClick={() => exportToExcel(sortedQuotes)}
-              disabled={sortedQuotes.length === 0}
-              style={{
-                padding: '12px 24px',
-                background: sortedQuotes.length === 0 ? '#9ca3af' : '#10b981',
-                color: 'white',
-                border: 'none',
-                borderRadius: '8px',
-                fontSize: '16px',
-                fontWeight: 'bold',
-                cursor: sortedQuotes.length === 0 ? 'not-allowed' : 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '8px'
-              }}
-            >
-              📥 Export
-            </button>
-
-            <button
-              onClick={createNewQuote}
-              style={{
-                padding: '12px 24px',
-                background: '#3b82f6',
-                color: 'white',
-                border: 'none',
-                borderRadius: '8px',
-                fontSize: '16px',
-                fontWeight: 'bold',
-                cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '8px'
-              }}
-            >
-              ➕ New Quote
-            </button>
-          </div>
-        </div>
-        
-        {/* Stats Cards */}
-        <div style={{ 
-          display: 'grid', 
-          gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
-          gap: '16px',
-          marginBottom: '24px'
-        }}>
-          <div style={{
-            background: 'white',
-            padding: '20px',
-            borderRadius: '12px',
-            boxShadow: '0 1px 3px rgba(0,0,0,0.1)'
-          }}>
-            <div style={{ fontSize: '14px', color: '#6b7280', marginBottom: '8px' }}>
-              Total Quotes
-            </div>
-            <div style={{ fontSize: '32px', fontWeight: 'bold', color: '#3b82f6' }}>
-              {stats.total_quotes || 0}
-            </div>
-          </div>
-          
-          <div style={{
-            background: 'white',
-            padding: '20px',
-            borderRadius: '12px',
-            boxShadow: '0 1px 3px rgba(0,0,0,0.1)'
-          }}>
-            <div style={{ fontSize: '14px', color: '#6b7280', marginBottom: '8px' }}>
-              Total Value
-            </div>
-            <div style={{ fontSize: '32px', fontWeight: 'bold', color: '#10b981' }}>
-              ${((stats.total_value_cents || 0) / 100).toFixed(2)}
-            </div>
-          </div>
-          
-          <div style={{
-            background: 'white',
-            padding: '20px',
-            borderRadius: '12px',
-            boxShadow: '0 1px 3px rgba(0,0,0,0.1)'
-          }}>
-            <div style={{ fontSize: '14px', color: '#6b7280', marginBottom: '8px' }}>
-              Average Quote
-            </div>
-            <div style={{ fontSize: '32px', fontWeight: 'bold', color: '#f59e0b' }}>
-              ${((stats.avg_quote_cents || 0) / 100).toFixed(2)}
-            </div>
-          </div>
-          
-          <div style={{
-            background: 'white',
-            padding: '20px',
-            borderRadius: '12px',
-            boxShadow: '0 1px 3px rgba(0,0,0,0.1)'
-          }}>
-            <div style={{ fontSize: '14px', color: '#6b7280', marginBottom: '8px' }}>
-              Won Rate
-            </div>
-            <div style={{ fontSize: '32px', fontWeight: 'bold', color: '#8b5cf6' }}>
-              {stats.won_rate || '0'}%
-            </div>
-          </div>
-
-          <div style={{
-            background: 'white',
-            padding: '20px',
-            borderRadius: '12px',
-            boxShadow: '0 1px 3px rgba(0,0,0,0.1)',
-            border: expiringSoonCount > 0 ? '2px solid #f59e0b' : 'none'
-          }}>
-            <div style={{ fontSize: '14px', color: '#6b7280', marginBottom: '8px' }}>
-              ⏰ Expiring Soon
-            </div>
-            <div style={{ fontSize: '32px', fontWeight: 'bold', color: expiringSoonCount > 0 ? '#f59e0b' : '#6b7280' }}>
-              {expiringSoonCount}
-            </div>
-            <div style={{ fontSize: '11px', color: '#9ca3af', marginTop: '4px' }}>
-              Within 7 days
-            </div>
-          </div>
-        </div>
-        
-        {/* Filters */}
-        <div style={{
-          background: 'white',
-          padding: '16px',
-          borderRadius: '12px',
-          marginBottom: '24px',
-          boxShadow: '0 1px 3px rgba(0,0,0,0.1)'
-        }}>
-          <div style={{ display: 'flex', gap: '12px', marginBottom: '12px', flexWrap: 'wrap' }}>
-            <input
-              type="text"
-              placeholder="🔍 Search quotes or customers..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              style={{
-                flex: '1 1 250px',
-                padding: '12px',
-                border: '1px solid #d1d5db',
-                borderRadius: '8px',
-                fontSize: '14px'
-              }}
-            />
-
-            <select
-              value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value)}
-              style={{
-                padding: '12px',
-                border: '1px solid #d1d5db',
-                borderRadius: '8px',
-                fontSize: '14px',
-                minWidth: '120px'
-              }}
-            >
-              <option value="all">All Status</option>
-              <option value="DRAFT">Draft</option>
-              <option value="SENT">Sent</option>
-              <option value="WON">Won</option>
-              <option value="LOST">Lost</option>
-            </select>
-
-            <select
-              value={dateFilter}
-              onChange={(e) => setDateFilter(e.target.value)}
-              style={{
-                padding: '12px',
-                border: '1px solid #d1d5db',
-                borderRadius: '8px',
-                fontSize: '14px',
-                minWidth: '120px'
-              }}
-            >
-              <option value="all">All Time</option>
-              <option value="today">Today</option>
-              <option value="week">Last 7 Days</option>
-              <option value="month">Last 30 Days</option>
-            </select>
-
-            <select
-              value={valueFilter}
-              onChange={(e) => setValueFilter(e.target.value)}
-              style={{
-                padding: '12px',
-                border: '1px solid #d1d5db',
-                borderRadius: '8px',
-                fontSize: '14px',
-                minWidth: '120px'
-              }}
-            >
-              <option value="all">All Values</option>
-              <option value="0-1000">$0 - $1,000</option>
-              <option value="1000-5000">$1,000 - $5,000</option>
-              <option value="5000-10000">$5,000 - $10,000</option>
-              <option value="10000+">$10,000+</option>
-            </select>
-
-            <button
-              onClick={() => setExpiringFilter(!expiringFilter)}
-              style={{
-                padding: '12px 16px',
-                background: expiringFilter ? '#f59e0b' : 'white',
-                color: expiringFilter ? 'white' : '#6b7280',
-                border: expiringFilter ? 'none' : '1px solid #d1d5db',
-                borderRadius: '8px',
-                fontSize: '14px',
-                fontWeight: 'bold',
-                cursor: 'pointer',
-                whiteSpace: 'nowrap'
-              }}
-            >
-              ⏰ Expiring Soon
-            </button>
-          </div>
-
-          {/* Sort Controls */}
-          <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
-            <span style={{ fontSize: '14px', color: '#6b7280', fontWeight: 'bold' }}>
-              Sort by:
-            </span>
-            <select
-              value={sortBy}
-              onChange={(e) => setSortBy(e.target.value)}
-              style={{
-                padding: '8px 12px',
-                border: '1px solid #d1d5db',
-                borderRadius: '8px',
-                fontSize: '14px'
-              }}
-            >
-              <option value="date">Date</option>
-              <option value="value">Value</option>
-              <option value="customer">Customer</option>
-              <option value="status">Status</option>
-            </select>
-
-            <button
-              onClick={() => setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc')}
-              style={{
-                padding: '8px 12px',
-                background: 'white',
-                border: '1px solid #d1d5db',
-                borderRadius: '8px',
-                fontSize: '14px',
-                cursor: 'pointer',
-                fontWeight: 'bold'
-              }}
-            >
-              {sortOrder === 'asc' ? '↑ Ascending' : '↓ Descending'}
-            </button>
-
-            <div style={{ flex: 1 }} />
-
-            <button
-              onClick={() => setShowAdvancedFilters(!showAdvancedFilters)}
-              style={{
-                padding: '8px 16px',
-                background: showAdvancedFilters ? '#667eea' : 'white',
-                color: showAdvancedFilters ? 'white' : '#667eea',
-                border: showAdvancedFilters ? 'none' : '1px solid #667eea',
-                borderRadius: '8px',
-                fontSize: '14px',
-                cursor: 'pointer',
-                fontWeight: 'bold'
-              }}
-            >
-              {showAdvancedFilters ? '▲' : '▼'} Advanced {getActiveFilterCount() > 0 && `(${getActiveFilterCount()})`}
-            </button>
-
-            <button
-              onClick={clearAllFilters}
-              style={{
-                padding: '8px 12px',
-                background: '#6b7280',
-                color: 'white',
-                border: 'none',
-                borderRadius: '8px',
-                fontSize: '14px',
-                cursor: 'pointer'
-              }}
-            >
-              ✕ Clear All
-            </button>
-          </div>
-
-          {/* Advanced Filters Panel */}
-          {showAdvancedFilters && (
-            <div style={{
-              marginTop: '16px',
-              padding: '16px',
-              background: '#f9fafb',
-              borderRadius: '8px',
-              border: '1px solid #e5e7eb'
-            }}>
-              <div style={{ fontWeight: 'bold', marginBottom: '12px', color: '#374151' }}>
-                🔍 Advanced Filters
-              </div>
-              <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
-                <select
-                  value={customerFilter}
-                  onChange={(e) => setCustomerFilter(e.target.value)}
-                  style={{
-                    padding: '10px',
-                    border: '1px solid #d1d5db',
-                    borderRadius: '8px',
-                    fontSize: '14px',
-                    minWidth: '200px',
-                    background: 'white'
-                  }}
-                >
-                  <option value="all">All Customers</option>
-                  {customers.map(c => (
-                    <option key={c.id} value={c.id}>{c.name}</option>
-                  ))}
-                </select>
-
-                <input
-                  type="text"
-                  placeholder="Filter by product/model..."
-                  value={productFilter}
-                  onChange={(e) => setProductFilter(e.target.value)}
-                  style={{
-                    flex: '1 1 200px',
-                    padding: '10px',
-                    border: '1px solid #d1d5db',
-                    borderRadius: '8px',
-                    fontSize: '14px',
-                    background: 'white'
-                  }}
-                />
-
-                <select
-                  value={createdByFilter}
-                  onChange={(e) => setCreatedByFilter(e.target.value)}
-                  style={{
-                    padding: '10px',
-                    border: '1px solid #d1d5db',
-                    borderRadius: '8px',
-                    fontSize: '14px',
-                    minWidth: '180px',
-                    background: 'white'
-                  }}
-                >
-                  <option value="all">All Creators</option>
-                  {[...new Set(quotations.map(q => q.created_by).filter(Boolean))].map(creator => (
-                    <option key={creator} value={creator}>{creator}</option>
-                  ))}
-                </select>
-              </div>
-
-              {/* Active Filter Chips */}
-              {getActiveFilterCount() > 0 && (
-                <div style={{ marginTop: '12px', display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-                  <span style={{ fontSize: '12px', color: '#6b7280', fontWeight: 'bold' }}>
-                    Active filters:
-                  </span>
-                  {searchTerm && (
-                    <span style={{
-                      padding: '4px 8px',
-                      background: '#dbeafe',
-                      color: '#1e40af',
-                      borderRadius: '4px',
-                      fontSize: '12px'
-                    }}>
-                      Search: "{searchTerm}"
-                    </span>
-                  )}
-                  {statusFilter !== 'all' && (
-                    <span style={{
-                      padding: '4px 8px',
-                      background: '#dbeafe',
-                      color: '#1e40af',
-                      borderRadius: '4px',
-                      fontSize: '12px'
-                    }}>
-                      Status: {statusFilter}
-                    </span>
-                  )}
-                  {dateFilter !== 'all' && (
-                    <span style={{
-                      padding: '4px 8px',
-                      background: '#dbeafe',
-                      color: '#1e40af',
-                      borderRadius: '4px',
-                      fontSize: '12px'
-                    }}>
-                      Date: {dateFilter}
-                    </span>
-                  )}
-                  {valueFilter !== 'all' && (
-                    <span style={{
-                      padding: '4px 8px',
-                      background: '#dbeafe',
-                      color: '#1e40af',
-                      borderRadius: '4px',
-                      fontSize: '12px'
-                    }}>
-                      Value: {valueFilter}
-                    </span>
-                  )}
-                  {customerFilter !== 'all' && (
-                    <span style={{
-                      padding: '4px 8px',
-                      background: '#dbeafe',
-                      color: '#1e40af',
-                      borderRadius: '4px',
-                      fontSize: '12px'
-                    }}>
-                      Customer: {customers.find(c => c.id == customerFilter)?.name || 'Unknown'}
-                    </span>
-                  )}
-                  {productFilter && (
-                    <span style={{
-                      padding: '4px 8px',
-                      background: '#dbeafe',
-                      color: '#1e40af',
-                      borderRadius: '4px',
-                      fontSize: '12px'
-                    }}>
-                      Product: "{productFilter}"
-                    </span>
-                  )}
-                </div>
-              )}
-            </div>
-          )}
-        </div>
-        
-        {/* Quotes Table */}
-        <div style={{
-          background: 'white',
-          borderRadius: '12px',
-          boxShadow: '0 1px 3px rgba(0,0,0,0.1)',
-          overflow: 'hidden'
-        }}>
-          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-            <thead>
-              <tr style={{ background: '#f9fafb', borderBottom: '2px solid #e5e7eb' }}>
-                <th style={{ padding: '16px', textAlign: 'left', fontWeight: 'bold' }}>
-                  Quote #
-                </th>
-                <th style={{ padding: '16px', textAlign: 'left', fontWeight: 'bold' }}>
-                  Customer
-                </th>
-                <th style={{ padding: '16px', textAlign: 'left', fontWeight: 'bold' }}>
-                  Date
-                </th>
-                <th style={{ padding: '16px', textAlign: 'right', fontWeight: 'bold' }}>
-                  Total
-                </th>
-                <th style={{ padding: '16px', textAlign: 'center', fontWeight: 'bold' }}>
-                  Status
-                </th>
-                <th style={{ padding: '16px', textAlign: 'center', fontWeight: 'bold' }}>
-                  Actions
-                </th>
-              </tr>
-            </thead>
-            <tbody>
-              {sortedQuotes.map((quote) => {
-                const expiringSoon = isExpiringSoon(quote.expires_at);
-                const expired = isExpired(quote.expires_at);
-                const showWarning = (expiringSoon || expired) && quote.status !== 'WON' && quote.status !== 'LOST';
-
-                return (
-                  <tr
-                    key={quote.id}
-                    style={{
-                      borderBottom: '1px solid #e5e7eb',
-                      transition: 'background 0.2s',
-                      background: showWarning && expired ? '#fef2f2' : 'white'
-                    }}
-                    onMouseEnter={(e) => e.currentTarget.style.background = showWarning && expired ? '#fee2e2' : '#f9fafb'}
-                    onMouseLeave={(e) => e.currentTarget.style.background = showWarning && expired ? '#fef2f2' : 'white'}
-                  >
-                    <td style={{ padding: '16px' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                        <span style={{ fontWeight: 'bold', color: '#3b82f6' }}>
-                          {quote.quote_number}
-                        </span>
-                        {showWarning && (
-                          <span style={{
-                            padding: '2px 8px',
-                            borderRadius: '12px',
-                            fontSize: '10px',
-                            fontWeight: 'bold',
-                            background: expired ? '#fee2e2' : '#fef3c7',
-                            color: expired ? '#991b1b' : '#92400e',
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: '4px'
-                          }}>
-                            {expired ? '🚫 EXPIRED' : '⏰ EXPIRES SOON'}
-                          </span>
-                        )}
-                      </div>
-                    </td>
-                  <td style={{ padding: '16px' }}>
-                    {quote.customer_name}
-                  </td>
-                  <td style={{ padding: '16px', color: '#6b7280' }}>
-                    {new Date(quote.created_at || quote.quote_date).toLocaleDateString()}
-                  </td>
-                  <td style={{ padding: '16px', textAlign: 'right', fontWeight: 'bold' }}>
-                    ${((quote.total_cents || 0) / 100).toFixed(2)}
-                  </td>
-                  <td style={{ padding: '16px', textAlign: 'center' }}>
-                    <span style={{
-                      padding: '4px 12px',
-                      borderRadius: '12px',
-                      fontSize: '12px',
-                      fontWeight: 'bold',
-                      background:
-                        quote.status === 'DRAFT' ? '#e0e7ff' :
-                        quote.status === 'SENT' ? '#dbeafe' :
-                        quote.status === 'WON' ? '#d1fae5' :
-                        quote.status === 'PENDING_APPROVAL' ? '#fef3c7' :
-                        quote.status === 'APPROVED' ? '#d1fae5' :
-                        quote.status === 'REJECTED' ? '#fee2e2' :
-                        '#fee2e2',
-                      color:
-                        quote.status === 'DRAFT' ? '#3730a3' :
-                        quote.status === 'SENT' ? '#1e40af' :
-                        quote.status === 'WON' ? '#065f46' :
-                        quote.status === 'PENDING_APPROVAL' ? '#92400e' :
-                        quote.status === 'APPROVED' ? '#065f46' :
-                        quote.status === 'REJECTED' ? '#991b1b' :
-                        '#991b1b'
-                    }}>
-                      {quote.status}
-                    </span>
-                    {/* Expiry Warning Badge */}
-                    {getExpiryInfo(quote.quote_expiry_date) && (
-                      <div style={{
-                        display: 'inline-flex',
-                        alignItems: 'center',
-                        gap: '4px',
-                        padding: '4px 12px',
-                        background: getExpiryInfo(quote.quote_expiry_date).bg,
-                        color: getExpiryInfo(quote.quote_expiry_date).color,
-                        borderRadius: '12px',
-                        fontSize: '12px',
-                        fontWeight: '600',
-                        marginLeft: '8px'
-                      }}>
-                        {getExpiryInfo(quote.quote_expiry_date).urgent && '⚠️ '}
-                        {getExpiryInfo(quote.quote_expiry_date).text}
-                      </div>
-                    )}
-                  </td>
-                  <td style={{ padding: '16px', textAlign: 'center' }}>
-                    <div style={{ display: 'flex', gap: '8px', justifyContent: 'center' }}>
-                      <button
-                        onClick={() => viewQuote(quote.id)}
-                        style={{
-                          padding: '6px 12px',
-                          background: '#3b82f6',
-                          color: 'white',
-                          border: 'none',
-                          borderRadius: '6px',
-                          fontSize: '12px',
-                          cursor: 'pointer'
-                        }}
-                      >
-                        👁️ View
-                      </button>
-                      <button
-                        onClick={() => deleteQuote(quote.id)}
-                        style={{
-                          padding: '6px 12px',
-                          background: '#ef4444',
-                          color: 'white',
-                          border: 'none',
-                          borderRadius: '6px',
-                          fontSize: '12px',
-                          cursor: 'pointer'
-                        }}
-                      >
-                        🗑️ Delete
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-                );
-              })}
-            </tbody>
-          </table>
-          
-          {sortedQuotes.length === 0 && (
-            <div style={{ 
-              padding: '48px',
-              textAlign: 'center',
-              color: '#6b7280'
-            }}>
-              No quotes found. Create your first quote!
-            </div>
-          )}
-        </div>
-      </div>
-    );
-  };
-  
-  const renderBuilderView = () => {
-    const totals = calculateQuoteTotals;
-    
-    // Filter products for search
-    const filteredProducts = products.filter(p =>
-      p.sku?.toLowerCase().includes(productSearchTerm.toLowerCase()) ||
-      p.model?.toLowerCase().includes(productSearchTerm.toLowerCase()) ||
-      p.manufacturer?.toLowerCase().includes(productSearchTerm.toLowerCase())
-    );
-    
-    return (
-      <div style={{ padding: '24px' }}>
-        {/* Header */}
-        <div style={{ 
-          display: 'flex', 
-          justifyContent: 'space-between', 
-          alignItems: 'center',
-          marginBottom: '24px'
-        }}>
-          <h1 style={{ fontSize: '32px', fontWeight: 'bold', margin: 0 }}>
-            {editingQuoteId ? '✏️ Edit Quote' : '📝 Quote Builder'}
-          </h1>
-
-          <button
-            onClick={() => {
-              resetBuilder();
-              setView('list');
-            }}
-            style={{
-              padding: '12px 24px',
-              background: '#6b7280',
-              color: 'white',
-              border: 'none',
-              borderRadius: '8px',
-              fontSize: '16px',
-              fontWeight: 'bold',
-              cursor: 'pointer'
-            }}
-          >
-            ← Back to List
-          </button>
-        </div>
-        
-        {/* Customer Selection */}
-        <div style={{
-          background: 'white',
-          padding: '24px',
-          borderRadius: '12px',
-          marginBottom: '24px',
-          boxShadow: '0 1px 3px rgba(0,0,0,0.1)'
-        }}>
-          <h3 style={{ fontSize: '18px', fontWeight: 'bold', marginBottom: '16px' }}>
-            1. Select Customer <span style={{ color: '#ef4444' }}>*</span>
-          </h3>
-
-          {!selectedCustomer && (
-            <div style={{
-              padding: '8px 12px',
-              background: '#fef2f2',
-              border: '1px solid #fecaca',
-              borderRadius: '6px',
-              color: '#991b1b',
-              fontSize: '13px',
-              fontWeight: '600',
-              marginBottom: '12px'
-            }}>
-              ⚠️ Please select a customer to continue
-            </div>
-          )}
-
-          {!selectedCustomer ? (
-            <div style={{ position: 'relative' }}>
-              <input
-                type="text"
-                placeholder="🔍 Search customers by name, company, or email..."
-                value={customerSearchTerm}
-                onChange={(e) => {
-                  setCustomerSearchTerm(e.target.value);
-                  setShowCustomerDropdown(true);
-                }}
-                onFocus={() => setShowCustomerDropdown(true)}
-                style={{
-                  width: '100%',
-                  padding: '12px',
-                  border: '2px solid #ef4444',
-                  borderRadius: '8px',
-                  fontSize: '14px'
-                }}
-              />
-
-              {showCustomerDropdown && (
-                <div style={{
-                  position: 'absolute',
-                  top: '100%',
-                  left: 0,
-                  right: 0,
-                  maxHeight: '300px',
-                  overflowY: 'auto',
-                  background: 'white',
-                  border: '2px solid #d1d5db',
-                  borderRadius: '8px',
-                  marginTop: '4px',
-                  boxShadow: '0 4px 6px rgba(0,0,0,0.1)',
-                  zIndex: 1000
-                }}>
-                  {customers
-                    .filter(c => {
-                      const search = customerSearchTerm.toLowerCase();
-                      return (
-                        (c.name && c.name.toLowerCase().includes(search)) ||
-                        (c.company && c.company.toLowerCase().includes(search)) ||
-                        (c.company_name && c.company_name.toLowerCase().includes(search)) ||
-                        (c.email && c.email.toLowerCase().includes(search)) ||
-                        (c.first_name && c.first_name.toLowerCase().includes(search)) ||
-                        (c.last_name && c.last_name.toLowerCase().includes(search))
-                      );
-                    })
-                    .slice(0, 50)
-                    .map(c => (
-                      <div
-                        key={c.id}
-                        onClick={() => {
-                          setSelectedCustomer(c);
-                          setCustomerSearchTerm('');
-                          setShowCustomerDropdown(false);
-                          fetchCustomerQuotes(c.id);
-                        }}
-                        style={{
-                          padding: '12px',
-                          borderBottom: '1px solid #e5e7eb',
-                          cursor: 'pointer',
-                          transition: 'background 0.2s'
-                        }}
-                        onMouseEnter={(e) => e.currentTarget.style.background = '#f9fafb'}
-                        onMouseLeave={(e) => e.currentTarget.style.background = 'white'}
-                      >
-                        <div style={{ fontWeight: 'bold' }}>
-                          {c.company || c.company_name || 'N/A'}
-                        </div>
-                        <div style={{ fontSize: '12px', color: '#6b7280' }}>
-                          {c.name || `${c.first_name || ''} ${c.last_name || ''}`.trim()}
-                        </div>
-                        <div style={{ fontSize: '12px', color: '#6b7280' }}>{c.email}</div>
-                      </div>
-                    ))}
-                  {customers.filter(c => {
-                    const search = customerSearchTerm.toLowerCase();
-                    return (
-                      (c.name && c.name.toLowerCase().includes(search)) ||
-                      (c.company && c.company.toLowerCase().includes(search)) ||
-                      (c.company_name && c.company_name.toLowerCase().includes(search)) ||
-                      (c.email && c.email.toLowerCase().includes(search)) ||
-                      (c.first_name && c.first_name.toLowerCase().includes(search)) ||
-                      (c.last_name && c.last_name.toLowerCase().includes(search))
-                    );
-                  }).length === 0 && (
-                    <div style={{ padding: '12px', textAlign: 'center', color: '#6b7280' }}>
-                      No customers found
-                    </div>
-                  )}
-                </div>
-              )}
-            </div>
-          ) : (
-            <div style={{
-              padding: '16px',
-              background: '#f0f9ff',
-              borderRadius: '8px',
-              border: '2px solid #3b82f6'
-            }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <div>
-                  <div style={{ fontWeight: 'bold', fontSize: '16px', marginBottom: '4px' }}>
-                    {selectedCustomer.company || selectedCustomer.company_name || 'N/A'}
-                  </div>
-                  <div style={{ color: '#6b7280', fontSize: '14px' }}>
-                    {selectedCustomer.name || `${selectedCustomer.first_name || ''} ${selectedCustomer.last_name || ''}`}
-                  </div>
-                  <div style={{ color: '#6b7280', fontSize: '14px' }}>
-                    {selectedCustomer.email} • {selectedCustomer.phone}
-                  </div>
-                </div>
-                <button
-                  onClick={() => setSelectedCustomer(null)}
-                  style={{
-                    padding: '8px 16px',
-                    background: '#ef4444',
-                    color: 'white',
-                    border: 'none',
-                    borderRadius: '6px',
-                    cursor: 'pointer'
-                  }}
-                >
-                  Change
-                </button>
-              </div>
-
-              {/* Customer Quote History */}
-              {customerQuotes.length > 0 && (
-                <div style={{
-                  marginTop: '16px',
-                  padding: '12px',
-                  background: '#fef3c7',
-                  border: '1px solid #fde047',
-                  borderRadius: '8px'
-                }}>
-                  <div style={{ fontSize: '13px', fontWeight: 'bold', marginBottom: '8px', color: '#92400e' }}>
-                    📊 Recent Quotes for this Customer:
-                  </div>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                    {customerQuotes.map((quote, idx) => (
-                      <div key={quote.id} style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px', color: '#78350f' }}>
-                        <span style={{ fontWeight: '600' }}>
-                          {quote.quote_number}
-                        </span>
-                        <span>
-                          {new Date(quote.created_at).toLocaleDateString()}
-                        </span>
-                        <span style={{ fontWeight: 'bold' }}>
-                          ${((quote.total_cents || 0) / 100).toFixed(2)}
-                        </span>
-                        <span style={{
-                          padding: '2px 6px',
-                          borderRadius: '4px',
-                          fontSize: '10px',
-                          fontWeight: 'bold',
-                          background:
-                            quote.status === 'WON' ? '#d1fae5' :
-                            quote.status === 'LOST' ? '#fee2e2' :
-                            quote.status === 'SENT' ? '#dbeafe' : '#e0e7ff',
-                          color:
-                            quote.status === 'WON' ? '#065f46' :
-                            quote.status === 'LOST' ? '#991b1b' :
-                            quote.status === 'SENT' ? '#1e40af' : '#3730a3'
-                        }}>
-                          {quote.status}
-                        </span>
-                      </div>
-                    ))}
-                  </div>
-                  {customerQuotes.length === 5 && (
-                    <div style={{ fontSize: '11px', color: '#92400e', marginTop: '8px', fontStyle: 'italic' }}>
-                      Showing last 5 quotes
-                    </div>
-                  )}
-                </div>
-              )}
-            </div>
-          )}
-        </div>
-
-        {/* Template Section */}
-        {templates.length > 0 && (
-          <div style={{
-            background: 'white',
-            padding: '24px',
-            borderRadius: '12px',
-            marginBottom: '24px',
-            boxShadow: '0 1px 3px rgba(0,0,0,0.1)',
-            border: '2px solid #8b5cf6'
-          }}>
-            <h3 style={{ fontSize: '18px', fontWeight: 'bold', marginBottom: '16px', color: '#8b5cf6' }}>
-              📋 Quote Templates
-            </h3>
-
-            <div style={{
-              display: 'grid',
-              gridTemplateColumns: 'repeat(auto-fill, minmax(250px, 1fr))',
-              gap: '12px'
-            }}>
-              {templates.map(template => (
-                <div
-                  key={template.id}
-                  style={{
-                    padding: '16px',
-                    background: '#f9fafb',
-                    border: '1px solid #d1d5db',
-                    borderRadius: '8px',
-                    transition: 'all 0.2s'
-                  }}
-                  onMouseEnter={(e) => {
-                    e.currentTarget.style.background = '#f0f9ff';
-                    e.currentTarget.style.borderColor = '#8b5cf6';
-                  }}
-                  onMouseLeave={(e) => {
-                    e.currentTarget.style.background = '#f9fafb';
-                    e.currentTarget.style.borderColor = '#d1d5db';
-                  }}
-                >
-                  <div style={{ fontWeight: 'bold', marginBottom: '8px', fontSize: '14px' }}>
-                    {template.name}
-                  </div>
-                  {template.description && (
-                    <div style={{ fontSize: '12px', color: '#6b7280', marginBottom: '12px' }}>
-                      {template.description}
-                    </div>
-                  )}
-                  <div style={{ fontSize: '11px', color: '#9ca3af', marginBottom: '12px' }}>
-                    {typeof template.items === 'string'
-                      ? JSON.parse(template.items).length
-                      : template.items.length} items
-                    {template.discount_percent > 0 && ` • ${template.discount_percent}% discount`}
-                  </div>
-                  <div style={{ display: 'flex', gap: '8px' }}>
-                    <button
-                      onClick={() => loadTemplate(template)}
-                      style={{
-                        flex: 1,
-                        padding: '8px 12px',
-                        background: '#8b5cf6',
-                        color: 'white',
-                        border: 'none',
-                        borderRadius: '6px',
-                        fontSize: '12px',
-                        fontWeight: 'bold',
-                        cursor: 'pointer'
-                      }}
-                    >
-                      Load
-                    </button>
-                    <button
-                      onClick={() => deleteTemplate(template.id, template.name)}
-                      style={{
-                        padding: '8px 12px',
-                        background: '#ef4444',
-                        color: 'white',
-                        border: 'none',
-                        borderRadius: '6px',
-                        fontSize: '12px',
-                        cursor: 'pointer'
-                      }}
-                    >
-                      🗑️
-                    </button>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* Product Selection */}
-        <div style={{
-          background: 'white',
-          padding: '24px',
-          borderRadius: '12px',
-          marginBottom: '24px',
-          boxShadow: '0 1px 3px rgba(0,0,0,0.1)'
-        }}>
-          <h3 style={{ fontSize: '18px', fontWeight: 'bold', marginBottom: '16px' }}>
-            2. Add Products
-          </h3>
-
-          {/* Product Tabs */}
-          <div style={{ display: 'flex', gap: '8px', marginBottom: '16px', borderBottom: '2px solid #e5e7eb' }}>
-            <button
-              onClick={() => setProductTab('search')}
-              style={{
-                padding: '8px 16px',
-                background: productTab === 'search' ? '#3b82f6' : 'transparent',
-                color: productTab === 'search' ? 'white' : '#6b7280',
-                border: 'none',
-                borderRadius: '8px 8px 0 0',
-                fontSize: '14px',
-                fontWeight: 'bold',
-                cursor: 'pointer',
-                marginBottom: '-2px'
-              }}
-            >
-              🔍 Search
-            </button>
-            <button
-              onClick={() => setProductTab('favorites')}
-              style={{
-                padding: '8px 16px',
-                background: productTab === 'favorites' ? '#3b82f6' : 'transparent',
-                color: productTab === 'favorites' ? 'white' : '#6b7280',
-                border: 'none',
-                borderRadius: '8px 8px 0 0',
-                fontSize: '14px',
-                fontWeight: 'bold',
-                cursor: 'pointer',
-                marginBottom: '-2px'
-              }}
-            >
-              ⭐ Favorites ({favoriteProducts ? favoriteProducts.length : 0})
-            </button>
-            <button
-              onClick={() => setProductTab('recent')}
-              style={{
-                padding: '8px 16px',
-                background: productTab === 'recent' ? '#3b82f6' : 'transparent',
-                color: productTab === 'recent' ? 'white' : '#6b7280',
-                border: 'none',
-                borderRadius: '8px 8px 0 0',
-                fontSize: '14px',
-                fontWeight: 'bold',
-                cursor: 'pointer',
-                marginBottom: '-2px'
-              }}
-            >
-              🕐 Recent ({recentProducts.length})
-            </button>
-          </div>
-
-          {/* Search Tab */}
-          {productTab === 'search' && (
-            <>
-              <input
-                type="text"
-                placeholder="Search products by SKU, model, or manufacturer..."
-                value={productSearchTerm}
-                onChange={(e) => setProductSearchTerm(e.target.value)}
-                style={{
-                  width: '100%',
-                  padding: '12px',
-                  border: '1px solid #d1d5db',
-                  borderRadius: '8px',
-                  fontSize: '14px',
-                  marginBottom: '16px'
-                }}
-              />
-            </>
-          )}
-          
-          {/* Product Results - Search Tab */}
-          {productTab === 'search' && productSearchTerm && (
-            <div style={{
-              maxHeight: '300px',
-              overflowY: 'auto',
-              border: '1px solid #d1d5db',
-              borderRadius: '8px',
-              marginBottom: '16px'
-            }}>
-              {filteredProducts.slice(0, 10).map(product => {
-                const isFavorite = favoriteProducts && favoriteProducts.some(p => p.id === product.id);
-                return (
-                  <div
-                    key={product.id}
-                    style={{
-                      padding: '12px',
-                      borderBottom: '1px solid #e5e7eb',
-                      display: 'flex',
-                      justifyContent: 'space-between',
-                      alignItems: 'center'
-                    }}
-                    onMouseEnter={(e) => e.currentTarget.style.background = '#f9fafb'}
-                    onMouseLeave={(e) => e.currentTarget.style.background = 'white'}
-                  >
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        toggleFavorite(product.id);
-                      }}
-                      style={{
-                        background: 'none',
-                        border: 'none',
-                        fontSize: '20px',
-                        cursor: 'pointer',
-                        marginRight: '8px'
-                      }}
-                    >
-                      {isFavorite ? '⭐' : '☆'}
-                    </button>
-                    <div style={{ flex: 1, cursor: 'pointer' }} onClick={() => addProductToQuote(product)}>
-                      <div style={{ fontWeight: 'bold', marginBottom: '4px' }}>
-                        {product.manufacturer} - {product.model}
-                      </div>
-                      <div style={{ fontSize: '12px', color: '#6b7280' }}>
-                        SKU: {product.sku || product.model} • {product.category}
-                      </div>
-                    </div>
-                    <div style={{ textAlign: 'right', marginRight: '16px' }}>
-                      <div style={{ fontWeight: 'bold' }}>
-                        ${(product.msrp_cents / 100).toFixed(2)}
-                      </div>
-                      <div style={{ fontSize: '12px', color: '#6b7280' }}>
-                        Cost: ${(product.cost_cents / 100).toFixed(2)}
-                      </div>
-                    </div>
-                    <button
-                      onClick={() => addProductToQuote(product)}
-                      style={{
-                        padding: '6px 12px',
-                        background: '#3b82f6',
-                        color: 'white',
-                        border: 'none',
-                        borderRadius: '6px',
-                        fontSize: '12px',
-                        cursor: 'pointer'
-                      }}
-                    >
-                      Add
-                    </button>
-                  </div>
-                );
-              })}
-            </div>
-          )}
-
-          {/* Favorites Tab */}
-          {productTab === 'favorites' && (
-            <div style={{
-              maxHeight: '300px',
-              overflowY: 'auto',
-              border: '1px solid #d1d5db',
-              borderRadius: '8px',
-              marginBottom: '16px'
-            }}>
-              {!favoriteProducts || favoriteProducts.length === 0 ? (
-                <div style={{ padding: '48px', textAlign: 'center', color: '#6b7280' }}>
-                  No favorite products yet. Click the ☆ icon to add favorites!
-                </div>
-              ) : (
-                favoriteProducts.map(product => (
-                  <div
-                    key={product.id}
-                    style={{
-                      padding: '12px',
-                      borderBottom: '1px solid #e5e7eb',
-                      display: 'flex',
-                      justifyContent: 'space-between',
-                      alignItems: 'center'
-                    }}
-                    onMouseEnter={(e) => e.currentTarget.style.background = '#f9fafb'}
-                    onMouseLeave={(e) => e.currentTarget.style.background = 'white'}
-                  >
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        toggleFavorite(product.id);
-                      }}
-                      style={{
-                        background: 'none',
-                        border: 'none',
-                        fontSize: '20px',
-                        cursor: 'pointer',
-                        marginRight: '8px'
-                      }}
-                    >
-                      ⭐
-                    </button>
-                    <div style={{ flex: 1, cursor: 'pointer' }} onClick={() => addProductToQuote(product)}>
-                      <div style={{ fontWeight: 'bold', marginBottom: '4px' }}>
-                        {product.manufacturer} - {product.model}
-                      </div>
-                      <div style={{ fontSize: '12px', color: '#6b7280' }}>
-                        SKU: {product.sku || product.model} • {product.category}
-                      </div>
-                    </div>
-                    <div style={{ textAlign: 'right', marginRight: '16px' }}>
-                      <div style={{ fontWeight: 'bold' }}>
-                        ${(product.msrp_cents / 100).toFixed(2)}
-                      </div>
-                      <div style={{ fontSize: '12px', color: '#6b7280' }}>
-                        Cost: ${(product.cost_cents / 100).toFixed(2)}
-                      </div>
-                    </div>
-                    <button
-                      onClick={() => addProductToQuote(product)}
-                      style={{
-                        padding: '6px 12px',
-                        background: '#3b82f6',
-                        color: 'white',
-                        border: 'none',
-                        borderRadius: '6px',
-                        fontSize: '12px',
-                        cursor: 'pointer'
-                      }}
-                    >
-                      Add
-                    </button>
-                  </div>
-                ))
-              )}
-            </div>
-          )}
-
-          {/* Recent Tab */}
-          {productTab === 'recent' && (
-            <div style={{
-              maxHeight: '300px',
-              overflowY: 'auto',
-              border: '1px solid #d1d5db',
-              borderRadius: '8px',
-              marginBottom: '16px'
-            }}>
-              {recentProducts.length === 0 ? (
-                <div style={{ padding: '48px', textAlign: 'center', color: '#6b7280' }}>
-                  No recently used products yet. Start creating quotes!
-                </div>
-              ) : (
-                recentProducts.map(product => {
-                  const isFavorite = favoriteProducts && favoriteProducts.some(p => p.id === product.id);
-                  return (
-                    <div
-                      key={product.id}
-                      style={{
-                        padding: '12px',
-                        borderBottom: '1px solid #e5e7eb',
-                        display: 'flex',
-                        justifyContent: 'space-between',
-                        alignItems: 'center'
-                      }}
-                      onMouseEnter={(e) => e.currentTarget.style.background = '#f9fafb'}
-                      onMouseLeave={(e) => e.currentTarget.style.background = 'white'}
-                    >
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          toggleFavorite(product.id);
-                        }}
-                        style={{
-                          background: 'none',
-                          border: 'none',
-                          fontSize: '20px',
-                          cursor: 'pointer',
-                          marginRight: '8px'
-                        }}
-                      >
-                        {isFavorite ? '⭐' : '☆'}
-                      </button>
-                      <div style={{ flex: 1, cursor: 'pointer' }} onClick={() => addProductToQuote(product)}>
-                        <div style={{ fontWeight: 'bold', marginBottom: '4px' }}>
-                          {product.manufacturer} - {product.model}
-                        </div>
-                        <div style={{ fontSize: '12px', color: '#6b7280' }}>
-                          SKU: {product.sku || product.model} • {product.category}
-                        </div>
-                      </div>
-                      <div style={{ textAlign: 'right', marginRight: '16px' }}>
-                        <div style={{ fontWeight: 'bold' }}>
-                          ${(product.msrp_cents / 100).toFixed(2)}
-                        </div>
-                        <div style={{ fontSize: '12px', color: '#6b7280' }}>
-                          Cost: ${(product.cost_cents / 100).toFixed(2)}
-                        </div>
-                      </div>
-                      <button
-                        onClick={() => addProductToQuote(product)}
-                        style={{
-                          padding: '6px 12px',
-                          background: '#3b82f6',
-                          color: 'white',
-                          border: 'none',
-                          borderRadius: '6px',
-                          fontSize: '12px',
-                          cursor: 'pointer'
-                        }}
-                      >
-                        Add
-                      </button>
-                    </div>
-                  );
-                })
-              )}
-            </div>
-          )}
-          
-          {/* Service Items Quick Add */}
-          <div style={{ marginTop: '16px' }}>
-            <h4 style={{ fontSize: '14px', fontWeight: 'bold', marginBottom: '12px' }}>
-              Quick Add Services:
-            </h4>
-            <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-              {SERVICE_ITEMS.map(service => (
-                <button
-                  key={service.sku}
-                  onClick={() => addServiceItem(service)}
-                  style={{
-                    padding: '8px 16px',
-                    background: '#f0f9ff',
-                    color: '#3b82f6',
-                    border: '1px solid #3b82f6',
-                    borderRadius: '6px',
-                    fontSize: '12px',
-                    cursor: 'pointer',
-                    fontWeight: 'bold'
-                  }}
-                >
-                  + {service.name}
-                </button>
-              ))}
-            </div>
-          </div>
-        </div>
-        
-        {/* Quote Items */}
-        {quoteItems.length === 0 && selectedCustomer && (
-          <div style={{
-            background: 'white',
-            padding: '24px',
-            borderRadius: '12px',
-            marginBottom: '24px',
-            boxShadow: '0 1px 3px rgba(0,0,0,0.1)'
-          }}>
-            <h3 style={{ fontSize: '18px', fontWeight: 'bold', marginBottom: '16px' }}>
-              3. Quote Items <span style={{ color: '#ef4444' }}>*</span>
-            </h3>
-            <div style={{
-              padding: '12px 16px',
-              background: '#fef2f2',
-              border: '1px solid #fecaca',
-              borderRadius: '6px',
-              color: '#991b1b',
-              fontSize: '14px',
-              fontWeight: '600'
-            }}>
-              ⚠️ Please add at least one item to the quote
-            </div>
-          </div>
-        )}
-
-        {quoteItems.length > 0 && (
-          <div style={{
-            background: 'white',
-            padding: '24px',
-            borderRadius: '12px',
-            marginBottom: '24px',
-            boxShadow: '0 1px 3px rgba(0,0,0,0.1)'
-          }}>
-            <h3 style={{ fontSize: '18px', fontWeight: 'bold', marginBottom: '16px' }}>
-              3. Quote Items
-            </h3>
-            
-            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-              <thead>
-                <tr style={{ background: '#f9fafb', borderBottom: '2px solid #e5e7eb' }}>
-                  <th style={{ padding: '12px', textAlign: 'left', fontWeight: 'bold' }}>Item</th>
-                  <th style={{ padding: '12px', textAlign: 'center', fontWeight: 'bold', width: '80px' }}>Qty</th>
-                  <th style={{ padding: '12px', textAlign: 'right', fontWeight: 'bold', width: '100px' }}>Cost</th>
-                  <th style={{ padding: '12px', textAlign: 'right', fontWeight: 'bold', width: '100px' }}>MSRP</th>
-                  <th style={{ padding: '12px', textAlign: 'right', fontWeight: 'bold', width: '100px' }}>Sell</th>
-                  <th style={{ padding: '12px', textAlign: 'right', fontWeight: 'bold', width: '80px' }}>Margin</th>
-                  <th style={{ padding: '12px', textAlign: 'right', fontWeight: 'bold', width: '100px' }}>Total</th>
-                  <th style={{ padding: '12px', textAlign: 'center', fontWeight: 'bold', width: '60px' }}>-</th>
-                </tr>
-              </thead>
-              <tbody>
-                {quoteItems.map((item, idx) => {
-                  const lineTotal = item.sell * item.quantity;
-                  const margin = calculateMargin(item.sell, item.cost);
-                  const isPriceBelowCost = item.sell < item.cost;
-                  const isLowMargin = margin < 5;
-                  const hasWarning = isPriceBelowCost || isLowMargin;
-
-                  return (
-                    <React.Fragment key={idx}>
-                      <tr style={{ borderBottom: hasWarning ? '0' : '1px solid #e5e7eb' }}>
-                        <td style={{ padding: '12px' }}>
-                          <div style={{ fontWeight: 'bold' }}>
-                            {item.manufacturer} - {item.model}
-                          </div>
-                          <div style={{ fontSize: '12px', color: '#6b7280' }}>
-                            SKU: {item.sku || item.model}
-                          </div>
-                        </td>
-                      <td style={{ padding: '12px', textAlign: 'center' }}>
-                        <input
-                          type="number"
-                          min="1"
-                          value={item.quantity}
-                          onChange={(e) => updateQuoteItem(idx, 'quantity', parseInt(e.target.value) || 1)}
-                          style={{
-                            width: '60px',
-                            padding: '6px',
-                            border: '1px solid #d1d5db',
-                            borderRadius: '4px',
-                            textAlign: 'center'
-                          }}
-                        />
-                      </td>
-                      <td style={{ padding: '12px', textAlign: 'right', color: '#6b7280' }}>
-                        ${item.cost.toFixed(2)}
-                      </td>
-                      <td style={{ padding: '12px', textAlign: 'right', color: '#6b7280' }}>
-                        ${item.msrp.toFixed(2)}
-                      </td>
-                      <td style={{ padding: '12px', textAlign: 'right' }}>
-                        <input
-                          type="number"
-                          min="0"
-                          step="0.01"
-                          value={item.sell}
-                          onChange={(e) => updateQuoteItem(idx, 'sell', parseFloat(e.target.value) || 0)}
-                          style={{
-                            width: '100px',
-                            padding: '6px',
-                            border: '1px solid #d1d5db',
-                            borderRadius: '4px',
-                            textAlign: 'right'
-                          }}
-                        />
-                      </td>
-                      <td style={{ 
-                        padding: '12px', 
-                        textAlign: 'right',
-                        fontWeight: 'bold',
-                        color: margin >= 20 ? '#10b981' : margin >= 10 ? '#f59e0b' : '#ef4444'
-                      }}>
-                        {margin.toFixed(1)}%
-                      </td>
-                      <td style={{ padding: '12px', textAlign: 'right', fontWeight: 'bold' }}>
-                        ${lineTotal.toFixed(2)}
-                      </td>
-                      <td style={{ padding: '12px', textAlign: 'center' }}>
-                        <button
-                          onClick={() => removeQuoteItem(idx)}
-                          style={{
-                            padding: '4px 8px',
-                            background: '#ef4444',
-                            color: 'white',
-                            border: 'none',
-                            borderRadius: '4px',
-                            cursor: 'pointer'
-                          }}
-                        >
-                          ×
-                        </button>
-                      </td>
-                    </tr>
-
-                    {/* Inline Validation Warnings */}
-                    {hasWarning && (
-                      <tr style={{ borderBottom: '1px solid #e5e7eb' }}>
-                        <td colSpan="8" style={{ padding: '8px 12px', background: '#fef2f2' }}>
-                          <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
-                            {isPriceBelowCost && (
-                              <div style={{
-                                padding: '4px 12px',
-                                background: '#fee2e2',
-                                border: '1px solid #fecaca',
-                                borderRadius: '6px',
-                                color: '#991b1b',
-                                fontSize: '13px',
-                                fontWeight: '600'
-                              }}>
-                                ⚠️ Price (${item.sell.toFixed(2)}) is below cost (${item.cost.toFixed(2)})
-                              </div>
-                            )}
-                            {isLowMargin && !isPriceBelowCost && (
-                              <div style={{
-                                padding: '4px 12px',
-                                background: '#fef3c7',
-                                border: '1px solid #fde047',
-                                borderRadius: '6px',
-                                color: '#92400e',
-                                fontSize: '13px',
-                                fontWeight: '600'
-                              }}>
-                                ⚠️ Low margin: {margin.toFixed(1)}% (below 5%)
-                              </div>
-                            )}
-                          </div>
-                        </td>
-                      </tr>
-                    )}
-                    </React.Fragment>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        )}
-
-        {/* Smart Suggestions Banner */}
-        {smartSuggestions && showSuggestions && view === 'builder' && (
-          <div style={{
-            background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-            padding: '20px',
-            borderRadius: '8px',
-            marginTop: '20px',
-            marginBottom: '20px',
-            color: 'white'
-          }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px' }}>
-              <h3 style={{ margin: 0, fontSize: '18px' }}>💡 Smart Suggestions</h3>
-              <button
-                onClick={() => setShowSuggestions(false)}
-                style={{
-                  background: 'rgba(255,255,255,0.2)',
-                  border: 'none',
-                  color: 'white',
-                  padding: '5px 15px',
-                  borderRadius: '5px',
-                  cursor: 'pointer'
-                }}
-              >
-                Dismiss
-              </button>
-            </div>
-
-            {getSuggestionsSummary(smartSuggestions, calculateQuoteTotals.total).messages.map((msg, idx) => (
-              <div key={idx} style={{ marginBottom: '8px', fontSize: '14px' }}>{msg}</div>
-            ))}
-
-            <button
-              onClick={() => setShowRevenueFeatures(true)}
-              style={{
-                background: 'white',
-                color: '#667eea',
-                border: 'none',
-                padding: '10px 20px',
-                borderRadius: '5px',
-                cursor: 'pointer',
-                fontWeight: 'bold',
-                marginTop: '10px'
-              }}
-            >
-              View Suggestions
-            </button>
-          </div>
-        )}
-
-        {/* ============================================ */}
-        {/* REVENUE FEATURES SECTION */}
-        {/* ============================================ */}
-        {quoteItems.length > 0 && (
-          <div style={{
-            marginTop: '30px',
-            padding: '20px',
-            backgroundColor: '#f8f9fa',
-            borderRadius: '8px',
-            border: '2px solid #4CAF50'
-          }}>
-            <div style={{
-              display: 'flex',
-              justifyContent: 'space-between',
-              alignItems: 'center',
-              marginBottom: '20px'
-            }}>
-              <h3 style={{ margin: 0, color: '#4CAF50' }}>
-                Revenue Features - Maximize Your Sale!
-              </h3>
-              <button
-                onClick={() => setShowRevenueFeatures(!showRevenueFeatures)}
-                style={{
-                  padding: '10px 20px',
-                  backgroundColor: '#4CAF50',
-                  color: 'white',
-                  border: 'none',
-                  borderRadius: '4px',
-                  cursor: 'pointer',
-                  fontWeight: 'bold'
-                }}
-              >
-                {showRevenueFeatures ? 'Hide Revenue Features' : 'Show Revenue Features'}
-              </button>
-            </div>
-
-            {showRevenueFeatures && (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-
-                {/* Financing Calculator */}
-                <FinancingCalculator
-                  quoteTotal={calculateQuoteTotals.total * 100}
-                  onFinancingSelected={(financing) => {
-                    setQuoteFinancing(financing);
-                    logger.log('Financing selected:', financing);
-                  }}
-                />
-
-                {/* Warranty Selector */}
-                <WarrantySelector
-                  products={quoteItems}
-                  onWarrantyAdded={(warranty) => {
-                    setQuoteWarranties([...quoteWarranties, warranty]);
-                    logger.log('Warranty added:', warranty);
-                  }}
-                />
-
-                {/* Delivery Selector */}
-                <DeliverySelector
-                  customerAddress={selectedCustomer ?
-                    `${selectedCustomer.address}, ${selectedCustomer.city}` :
-                    'Customer address'
-                  }
-                  onDeliverySelected={(delivery) => {
-                    setQuoteDelivery(delivery);
-                    logger.log('Delivery selected:', delivery);
-                  }}
-                />
-
-                {/* Rebates Display */}
-                <RebatesDisplay
-                  products={quoteItems}
-                  onRebateApplied={(rebates) => {
-                    setQuoteRebates(rebates);
-                    logger.log('Rebates applied:', rebates);
-                  }}
-                />
-
-                {/* Trade-In Estimator */}
-                <TradeInEstimator
-                  onTradeInAdded={(tradeIn) => {
-                    setQuoteTradeIns([...quoteTradeIns, tradeIn]);
-                    logger.log('Trade-in added:', tradeIn);
-                  }}
-                />
-
-                {/* Summary of Applied Features */}
-                {(quoteFinancing || quoteWarranties.length > 0 || quoteDelivery ||
-                  quoteRebates.length > 0 || quoteTradeIns.length > 0) && (
-                  <div style={{
-                    backgroundColor: '#e8f5e9',
-                    padding: '20px',
-                    borderRadius: '8px',
-                    marginTop: '20px'
-                  }}>
-                    <h4 style={{ marginTop: 0 }}>Applied Revenue Features:</h4>
-
-                    {quoteFinancing && (
-                      <div style={{ marginBottom: '10px' }}>
-                        <span style={{ fontWeight: 'bold' }}>Financing:</span> {quoteFinancing.plan.plan_name} -
-                        ${(quoteFinancing.calculation.monthlyPaymentCents / 100).toFixed(2)}/month
-                      </div>
-                    )}
-
-                    {quoteWarranties.length > 0 && (
-                      <div style={{ marginBottom: '10px' }}>
-                        <span style={{ fontWeight: 'bold' }}>Warranties:</span> {quoteWarranties.length} warranty plans added
-                        (${quoteWarranties.reduce((sum, w) => sum + (w.cost / 100), 0).toFixed(2)})
-                      </div>
-                    )}
-
-                    {quoteDelivery && (
-                      <div style={{ marginBottom: '10px' }}>
-                        <span style={{ fontWeight: 'bold' }}>Delivery:</span> {quoteDelivery.service.service_name} -
-                        ${(quoteDelivery.calculation.totalCents / 100).toFixed(2)}
-                      </div>
-                    )}
-
-                    {quoteRebates.length > 0 && (
-                      <div style={{ marginBottom: '10px' }}>
-                        <span style={{ fontWeight: 'bold' }}>Rebates:</span> {quoteRebates.length} rebates applied
-                      </div>
-                    )}
-
-                    {quoteTradeIns.length > 0 && (
-                      <div style={{ marginBottom: '10px' }}>
-                        <span style={{ fontWeight: 'bold' }}>Trade-Ins:</span> {quoteTradeIns.length} trade-ins -
-                        Credit: ${quoteTradeIns.reduce((sum, t) => sum + (t.estimatedValueCents / 100), 0).toFixed(2)}
-                      </div>
-                    )}
-
-                    <button
-                      onClick={() => {
-                        setQuoteFinancing(null);
-                        setQuoteWarranties([]);
-                        setQuoteDelivery(null);
-                        setQuoteRebates([]);
-                        setQuoteTradeIns([]);
-                      }}
-                      style={{
-                        marginTop: '10px',
-                        padding: '8px 16px',
-                        backgroundColor: '#f44336',
-                        color: 'white',
-                        border: 'none',
-                        borderRadius: '4px',
-                        cursor: 'pointer'
-                      }}
-                    >
-                      Clear All Revenue Features
-                    </button>
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* Totals & Summary */}
-        {quoteItems.length > 0 && (
-          <div style={{
-            background: 'white',
-            padding: '24px',
-            borderRadius: '12px',
-            marginBottom: '24px',
-            boxShadow: '0 1px 3px rgba(0,0,0,0.1)'
-          }}>
-            <h3 style={{ fontSize: '18px', fontWeight: 'bold', marginBottom: '16px' }}>
-              4. Quote Summary
-            </h3>
-            
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '24px' }}>
-              {/* Left: Notes & Discount */}
-              <div>
-                <div style={{ marginBottom: '16px' }}>
-                  <label style={{ display: 'block', fontWeight: 'bold', marginBottom: '8px' }}>
-                    Discount %:
-                  </label>
-                  <input
-                    type="number"
-                    min="0"
-                    max="100"
-                    step="0.1"
-                    value={discountPercent}
-                    onChange={(e) => setDiscountPercent(parseFloat(e.target.value) || 0)}
-                    style={{
-                      width: '100%',
-                      padding: '12px',
-                      border: '1px solid #d1d5db',
-                      borderRadius: '8px'
-                    }}
-                  />
-                </div>
-                
-                <div style={{ marginBottom: '16px' }}>
-                  <label style={{ display: 'block', fontWeight: 'bold', marginBottom: '8px' }}>
-                    Customer Notes (Visible on Quote):
-                  </label>
-                  <textarea
-                    value={notes}
-                    onChange={(e) => setNotes(e.target.value)}
-                    rows="3"
-                    placeholder="Add notes that will be visible to the customer..."
-                    style={{
-                      width: '100%',
-                      padding: '12px',
-                      border: '1px solid #d1d5db',
-                      borderRadius: '8px',
-                      resize: 'vertical'
-                    }}
-                  />
-                </div>
-
-                <div style={{ marginBottom: '16px' }}>
-                  <label style={{ display: 'block', fontWeight: 'bold', marginBottom: '8px' }}>
-                    🔒 Internal Notes (Private):
-                  </label>
-                  <textarea
-                    value={internalNotes}
-                    onChange={(e) => setInternalNotes(e.target.value)}
-                    rows="3"
-                    placeholder="Add internal notes (NOT visible to customer)..."
-                    style={{
-                      width: '100%',
-                      padding: '12px',
-                      border: '2px solid #fee2e2',
-                      borderRadius: '8px',
-                      resize: 'vertical',
-                      background: '#fef2f2'
-                    }}
-                  />
-                </div>
-
-                <div>
-                  <label style={{ display: 'block', fontWeight: 'bold', marginBottom: '8px' }}>
-                    Payment Terms:
-                  </label>
-                  <select
-                    onChange={(e) => {
-                      if (e.target.value) {
-                        const template = paymentTermsTemplates.find(t => t.id === parseInt(e.target.value));
-                        if (template) setTerms(template.terms_text);
-                      }
-                    }}
-                    style={{
-                      width: '100%',
-                      padding: '12px',
-                      border: '1px solid #d1d5db',
-                      borderRadius: '8px',
-                      marginBottom: '12px',
-                      fontSize: '14px'
-                    }}
-                  >
-                    <option value="">Select a template...</option>
-                    {paymentTermsTemplates && paymentTermsTemplates.map(template => (
-                      <option key={template.id} value={template.id}>
-                        {template.name} {template.is_default && '(Default)'}
-                      </option>
-                    ))}
-                  </select>
-                  <textarea
-                    value={terms}
-                    onChange={(e) => setTerms(e.target.value)}
-                    rows="3"
-                    placeholder="Or enter custom terms..."
-                    style={{
-                      width: '100%',
-                      padding: '12px',
-                      border: '1px solid #d1d5db',
-                      borderRadius: '8px',
-                      resize: 'vertical'
-                    }}
-                  />
-                </div>
-              </div>
-              
-              {/* Right: Totals */}
-              <div style={{
-                padding: '24px',
-                background: '#f9fafb',
-                borderRadius: '8px',
-                border: '2px solid #e5e7eb'
-              }}>
-                <div style={{ marginBottom: '12px', display: 'flex', justifyContent: 'space-between' }}>
-                  <span>Products Subtotal:</span>
-                  <span style={{ fontWeight: 'bold' }}>${totals.subtotal.toFixed(2)}</span>
-                </div>
-
-                {discountPercent > 0 && (
-                  <div style={{ marginBottom: '12px', display: 'flex', justifyContent: 'space-between', color: '#ef4444' }}>
-                    <span>Discount ({discountPercent}%):</span>
-                    <span style={{ fontWeight: 'bold' }}>-${totals.discount.toFixed(2)}</span>
-                  </div>
-                )}
-
-                {totals.deliveryCost > 0 && (
-                  <div style={{ marginBottom: '12px', display: 'flex', justifyContent: 'space-between', color: '#4CAF50' }}>
-                    <span>Delivery & Installation:</span>
-                    <span style={{ fontWeight: 'bold' }}>+${totals.deliveryCost.toFixed(2)}</span>
-                  </div>
-                )}
-
-                {totals.warrantiesCost > 0 && (
-                  <div style={{ marginBottom: '12px', display: 'flex', justifyContent: 'space-between', color: '#4CAF50' }}>
-                    <span>Extended Warranties:</span>
-                    <span style={{ fontWeight: 'bold' }}>+${totals.warrantiesCost.toFixed(2)}</span>
-                  </div>
-                )}
-
-                {totals.tradeInCredit > 0 && (
-                  <div style={{ marginBottom: '12px', display: 'flex', justifyContent: 'space-between', color: '#2196F3' }}>
-                    <span>Trade-In Credit:</span>
-                    <span style={{ fontWeight: 'bold' }}>-${totals.tradeInCredit.toFixed(2)}</span>
-                  </div>
-                )}
-
-                {totals.rebateCredit > 0 && (
-                  <div style={{ marginBottom: '12px', display: 'flex', justifyContent: 'space-between', color: '#2196F3' }}>
-                    <span>Manufacturer Rebates:</span>
-                    <span style={{ fontWeight: 'bold' }}>-${totals.rebateCredit.toFixed(2)}</span>
-                  </div>
-                )}
-
-                <div style={{
-                  borderTop: '2px solid #ddd',
-                  marginTop: '10px',
-                  paddingTop: '10px',
-                  marginBottom: '12px',
-                  display: 'flex',
-                  justifyContent: 'space-between'
-                }}>
-                  <span>Subtotal after add-ons:</span>
-                  <span style={{ fontWeight: 'bold' }}>${totals.afterAddOns.toFixed(2)}</span>
-                </div>
-
-                <div style={{ marginBottom: '12px', display: 'flex', justifyContent: 'space-between' }}>
-                  <span>HST (13%):</span>
-                  <span style={{ fontWeight: 'bold' }}>${totals.tax.toFixed(2)}</span>
-                </div>
-
-                <div style={{
-                  paddingTop: '12px',
-                  marginTop: '12px',
-                  borderTop: '2px solid #333',
-                  display: 'flex',
-                  justifyContent: 'space-between',
-                  fontSize: '20px'
-                }}>
-                  <span style={{ fontWeight: 'bold' }}>TOTAL:</span>
-                  <span style={{ fontWeight: 'bold', color: '#3b82f6' }}>${totals.total.toFixed(2)}</span>
-                </div>
-
-                {totals.financing && (
-                  <div style={{
-                    marginTop: '15px',
-                    padding: '10px',
-                    backgroundColor: '#e3f2fd',
-                    borderRadius: '4px',
-                    textAlign: 'center'
-                  }}>
-                    <div style={{ fontSize: '14px', color: '#666' }}>Or as low as:</div>
-                    <div style={{ fontSize: '20px', fontWeight: 'bold', color: '#2196F3' }}>
-                      ${(totals.financing.calculation.monthlyPaymentCents / 100).toFixed(2)}/month
-                    </div>
-                    <div style={{ fontSize: '12px', color: '#666' }}>
-                      {totals.financing.plan.plan_name}
-                    </div>
-                  </div>
-                )}
-                
-                <div style={{ 
-                  marginTop: '16px',
-                  paddingTop: '16px',
-                  borderTop: '1px solid #d1d5db'
-                }}>
-                  <div style={{ marginBottom: '8px', display: 'flex', justifyContent: 'space-between', color: '#10b981' }}>
-                    <span>Gross Profit:</span>
-                    <span style={{ fontWeight: 'bold' }}>${totals.profit.toFixed(2)}</span>
-                  </div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                    <span>Profit Margin:</span>
-                    <span style={{
-                      fontWeight: 'bold',
-                      color: totals.profitMargin >= 20 ? '#10b981' : totals.profitMargin >= 10 ? '#f59e0b' : '#ef4444'
-                    }}>
-                      {totals.profitMargin.toFixed(1)}%
-                    </span>
-                  </div>
-
-                  {/* Overall Validation Warning */}
-                  {totals.profitMargin < 5 && (
-                    <div style={{
-                      marginTop: '12px',
-                      padding: '8px 12px',
-                      background: '#fef2f2',
-                      border: '1px solid #fecaca',
-                      borderRadius: '6px',
-                      color: '#991b1b',
-                      fontSize: '13px',
-                      fontWeight: '600'
-                    }}>
-                      ⚠️ Overall margin is very low ({totals.profitMargin.toFixed(1)}%)
-                    </div>
-                  )}
-                </div>
-              </div>
-            </div>
-
-            {/* QUOTE PROTECTION SETTINGS */}
-            <div style={{
-              background: 'white',
-              borderRadius: '12px',
-              padding: '24px',
-              marginTop: '24px',
-              boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
-            }}>
-              <h3 style={{
-                fontSize: '18px',
-                fontWeight: 'bold',
-                marginBottom: '16px',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '8px'
-              }}>
-                🔒 Quote Protection Settings
-              </h3>
-
-              <div style={{ display: 'grid', gap: '16px' }}>
-                {/* Hide Model Numbers */}
-                <label style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '12px',
-                  cursor: 'pointer',
-                  padding: '12px',
-                  background: '#f9fafb',
-                  borderRadius: '8px'
-                }}>
-                  <input
-                    type="checkbox"
-                    checked={hideModelNumbers}
-                    onChange={(e) => setHideModelNumbers(e.target.checked)}
-                    style={{ width: '20px', height: '20px', cursor: 'pointer' }}
-                  />
-                  <div>
-                    <div style={{ fontWeight: '600', fontSize: '14px' }}>
-                      Hide Model Numbers (Customer-Facing Quote)
-                    </div>
-                    <div style={{ fontSize: '12px', color: '#6b7280' }}>
-                      Protects pricing from competitors. Shows only product descriptions.
-                    </div>
-                  </div>
-                </label>
-
-                {/* Watermark Settings */}
-                <div style={{
-                  padding: '12px',
-                  background: '#f9fafb',
-                  borderRadius: '8px'
-                }}>
-                  <label style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '8px' }}>
-                    <input
-                      type="checkbox"
-                      checked={watermarkEnabled}
-                      onChange={(e) => setWatermarkEnabled(e.target.checked)}
-                      style={{ width: '20px', height: '20px', cursor: 'pointer' }}
-                    />
-                    <span style={{ fontWeight: '600', fontSize: '14px' }}>
-                      Enable PDF Watermark
-                    </span>
-                  </label>
-
-                  {watermarkEnabled && (
-                    <div style={{ marginLeft: '32px' }}>
-                      <label style={{ fontSize: '12px', color: '#6b7280', display: 'block', marginBottom: '4px' }}>
-                        Watermark Text:
-                      </label>
-                      <input
-                        type="text"
-                        value={watermarkText}
-                        onChange={(e) => setWatermarkText(e.target.value)}
-                        placeholder="CONFIDENTIAL - FOR {CUSTOMER} ONLY"
-                        style={{
-                          width: '100%',
-                          padding: '8px 12px',
-                          border: '1px solid #d1d5db',
-                          borderRadius: '6px',
-                          fontSize: '14px'
-                        }}
-                      />
-                      <div style={{ fontSize: '11px', color: '#9ca3af', marginTop: '4px' }}>
-                        Use {"{CUSTOMER}"} for customer name placeholder
-                      </div>
-                    </div>
-                  )}
-                </div>
-
-                {/* Quote Expiry Date */}
-                <div style={{
-                  padding: '12px',
-                  background: '#f9fafb',
-                  borderRadius: '8px'
-                }}>
-                  <label style={{ fontSize: '14px', fontWeight: '600', display: 'block', marginBottom: '8px' }}>
-                    Quote Expires:
-                  </label>
-                  <input
-                    type="date"
-                    value={quoteExpiryDate}
-                    onChange={(e) => setQuoteExpiryDate(e.target.value)}
-                    min={new Date().toISOString().split('T')[0]}
-                    style={{
-                      padding: '8px 12px',
-                      border: '1px solid #d1d5db',
-                      borderRadius: '6px',
-                      fontSize: '14px'
-                    }}
-                  />
-                  <div style={{ fontSize: '11px', color: '#9ca3af', marginTop: '4px' }}>
-                    Default: 14 days from creation
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* Save Button */}
-            <div style={{ marginTop: '24px', textAlign: 'center', display: 'flex', gap: '16px', justifyContent: 'center' }}>
-              <button
-                onClick={saveQuote}
-                disabled={!selectedCustomer || quoteItems.length === 0}
-                style={{
-                  padding: '16px 48px',
-                  background: (!selectedCustomer || quoteItems.length === 0) ? '#9ca3af' : '#10b981',
-                  color: 'white',
-                  border: 'none',
-                  borderRadius: '8px',
-                  fontSize: '18px',
-                  fontWeight: 'bold',
-                  cursor: (!selectedCustomer || quoteItems.length === 0) ? 'not-allowed' : 'pointer'
-                }}
-              >
-                {editingQuoteId ? '✅ Update Quote' : '💾 Save Quote'}
-              </button>
-
-              <button
-                onClick={() => setShowTemplateSaveDialog(true)}
-                disabled={quoteItems.length === 0}
-                style={{
-                  padding: '16px 48px',
-                  background: quoteItems.length === 0 ? '#9ca3af' : '#8b5cf6',
-                  color: 'white',
-                  border: 'none',
-                  borderRadius: '8px',
-                  fontSize: '18px',
-                  fontWeight: 'bold',
-                  cursor: quoteItems.length === 0 ? 'not-allowed' : 'pointer'
-                }}
-              >
-                📋 Save as Template
-              </button>
-            </div>
-          </div>
-        )}
-
-        {/* Template Save Dialog */}
-        {showTemplateSaveDialog && (
-          <div style={{
-            position: 'fixed',
-            top: 0,
-            left: 0,
-            right: 0,
-            bottom: 0,
-            background: 'rgba(0, 0, 0, 0.5)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            zIndex: 1000
-          }}>
-            <div style={{
-              background: 'white',
-              padding: '32px',
-              borderRadius: '12px',
-              boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1)',
-              minWidth: '500px',
-              maxWidth: '600px'
-            }}>
-              <h3 style={{ fontSize: '24px', fontWeight: 'bold', marginBottom: '24px' }}>
-                📋 Save as Template
-              </h3>
-
-              <div style={{ marginBottom: '20px' }}>
-                <label style={{ display: 'block', fontWeight: 'bold', marginBottom: '8px' }}>
-                  Template Name <span style={{ color: '#ef4444' }}>*</span>
-                </label>
-                <input
-                  type="text"
-                  value={templateName}
-                  onChange={(e) => setTemplateName(e.target.value)}
-                  placeholder="e.g., Standard Kitchen Package, Office Setup..."
-                  style={{
-                    width: '100%',
-                    padding: '12px',
-                    border: '2px solid #d1d5db',
-                    borderRadius: '8px',
-                    fontSize: '14px'
-                  }}
-                  autoFocus
-                />
-              </div>
-
-              <div style={{ marginBottom: '24px' }}>
-                <label style={{ display: 'block', fontWeight: 'bold', marginBottom: '8px' }}>
-                  Description (Optional)
-                </label>
-                <textarea
-                  value={templateDescription}
-                  onChange={(e) => setTemplateDescription(e.target.value)}
-                  placeholder="Brief description of this template..."
-                  rows="3"
-                  style={{
-                    width: '100%',
-                    padding: '12px',
-                    border: '2px solid #d1d5db',
-                    borderRadius: '8px',
-                    fontSize: '14px',
-                    resize: 'vertical'
-                  }}
-                />
-              </div>
-
-              <div style={{
-                padding: '12px',
-                background: '#f0f9ff',
-                border: '1px solid #bfdbfe',
-                borderRadius: '8px',
-                marginBottom: '24px',
-                fontSize: '13px',
-                color: '#1e40af'
-              }}>
-                ℹ️ This will save the current items ({quoteItems.length}), discount ({discountPercent}%), notes, and terms as a reusable template.
-              </div>
-
-              <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end' }}>
-                <button
-                  onClick={() => {
-                    setShowTemplateSaveDialog(false);
-                    setTemplateName('');
-                    setTemplateDescription('');
-                  }}
-                  style={{
-                    padding: '12px 24px',
-                    background: '#6b7280',
-                    color: 'white',
-                    border: 'none',
-                    borderRadius: '8px',
-                    fontSize: '16px',
-                    fontWeight: 'bold',
-                    cursor: 'pointer'
-                  }}
-                >
-                  Cancel
-                </button>
-
-                <button
-                  onClick={saveAsTemplate}
-                  disabled={!templateName.trim()}
-                  style={{
-                    padding: '12px 24px',
-                    background: templateName.trim() ? '#8b5cf6' : '#9ca3af',
-                    color: 'white',
-                    border: 'none',
-                    borderRadius: '8px',
-                    fontSize: '16px',
-                    fontWeight: 'bold',
-                    cursor: templateName.trim() ? 'pointer' : 'not-allowed'
-                  }}
-                >
-                  💾 Save Template
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
-      </div>
-    );
-  };
-  
-  const renderViewerView = () => {
-    if (!selectedQuote) return null;
-    
-    return (
-      <div style={{ padding: '24px' }}>
-        {/* Header */}
-        <div style={{ 
-          display: 'flex', 
-          justifyContent: 'space-between', 
-          alignItems: 'center',
-          marginBottom: '24px'
-        }}>
-          <h1 style={{ fontSize: '32px', fontWeight: 'bold', margin: 0 }}>
-            📄 Quote {selectedQuote.quote_number}
-          </h1>
-
-          <div style={{ display: 'flex', gap: '12px' }}>
-            <button
-              onClick={() => openEmailDialog(selectedQuote)}
-              style={{
-                padding: '12px 24px',
-                background: '#10b981',
-                color: 'white',
-                border: 'none',
-                borderRadius: '8px',
-                fontSize: '16px',
-                fontWeight: 'bold',
-                cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '8px'
-              }}
-            >
-              📧 Send Email
-            </button>
-
-            {(selectedQuote.status === 'DRAFT' || selectedQuote.status === 'SENT') && (
-              <button
-                onClick={openApprovalDialog}
-                disabled={quoteApprovals.some(a => a.status === 'PENDING')}
-                style={{
-                  padding: '12px 24px',
-                  background: quoteApprovals.some(a => a.status === 'PENDING') ? '#9ca3af' : '#6366f1',
-                  color: 'white',
-                  border: 'none',
-                  borderRadius: '8px',
-                  fontSize: '16px',
-                  fontWeight: 'bold',
-                  cursor: quoteApprovals.some(a => a.status === 'PENDING') ? 'not-allowed' : 'pointer',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '8px'
-                }}
-              >
-                ✅ Request Approval
-              </button>
-            )}
-
-            <button
-              onClick={() => setView('list')}
-              style={{
-                padding: '12px 24px',
-                background: '#6b7280',
-                color: 'white',
-                border: 'none',
-                borderRadius: '8px',
-                fontSize: '16px',
-                fontWeight: 'bold',
-                cursor: 'pointer'
-              }}
-            >
-              ← Back to List
-            </button>
-          </div>
-        </div>
-        
-        {/* Quote Header Info */}
-        <div style={{
-          background: 'white',
-          padding: '24px',
-          borderRadius: '12px',
-          marginBottom: '24px',
-          boxShadow: '0 1px 3px rgba(0,0,0,0.1)'
-        }}>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '24px', marginBottom: '16px' }}>
-            <div>
-              <h3 style={{ fontSize: '18px', fontWeight: 'bold', marginBottom: '12px' }}>
-                Customer Information
-              </h3>
-              <div style={{ color: '#6b7280' }}>
-                <div style={{ marginBottom: '4px' }}>{selectedQuote.customer_name}</div>
-                <div style={{ marginBottom: '4px' }}>{selectedQuote.customer_email}</div>
-                <div>{selectedQuote.customer_phone}</div>
-              </div>
-            </div>
-            
-            <div>
-              <h3 style={{ fontSize: '18px', fontWeight: 'bold', marginBottom: '12px' }}>
-                Quote Information
-              </h3>
-              <div style={{ color: '#6b7280' }}>
-                <div style={{ marginBottom: '4px' }}>
-                  Date: {new Date(selectedQuote.created_at || selectedQuote.quote_date).toLocaleDateString()}
-                </div>
-                <div style={{ marginBottom: '4px' }}>
-                  Valid Until: {new Date(selectedQuote.expires_at || selectedQuote.valid_until).toLocaleDateString()}
-                </div>
-                <div>
-                  Status: <span style={{
-                    padding: '2px 8px',
-                    borderRadius: '8px',
-                    fontSize: '12px',
-                    fontWeight: 'bold',
-                    background:
-                      selectedQuote.status === 'DRAFT' ? '#e0e7ff' :
-                      selectedQuote.status === 'SENT' ? '#dbeafe' :
-                      selectedQuote.status === 'WON' ? '#d1fae5' :
-                      selectedQuote.status === 'PENDING_APPROVAL' ? '#fef3c7' :
-                      selectedQuote.status === 'APPROVED' ? '#d1fae5' :
-                      selectedQuote.status === 'REJECTED' ? '#fee2e2' :
-                      '#fee2e2',
-                    color:
-                      selectedQuote.status === 'DRAFT' ? '#3730a3' :
-                      selectedQuote.status === 'SENT' ? '#1e40af' :
-                      selectedQuote.status === 'WON' ? '#065f46' :
-                      selectedQuote.status === 'PENDING_APPROVAL' ? '#92400e' :
-                      selectedQuote.status === 'APPROVED' ? '#065f46' :
-                      selectedQuote.status === 'REJECTED' ? '#991b1b' :
-                      '#991b1b'
-                  }}>
-                    {selectedQuote.status}
-                  </span>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-        
-        {/* Quote Items */}
-        <div style={{
-          background: 'white',
-          padding: '24px',
-          borderRadius: '12px',
-          marginBottom: '24px',
-          boxShadow: '0 1px 3px rgba(0,0,0,0.1)'
-        }}>
-          <h3 style={{ fontSize: '18px', fontWeight: 'bold', marginBottom: '16px' }}>
-            Items
-          </h3>
-          
-          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-            <thead>
-              <tr style={{ background: '#f9fafb', borderBottom: '2px solid #e5e7eb' }}>
-                <th style={{ padding: '12px', textAlign: 'left', fontWeight: 'bold' }}>Item</th>
-                <th style={{ padding: '12px', textAlign: 'center', fontWeight: 'bold' }}>Qty</th>
-                <th style={{ padding: '12px', textAlign: 'right', fontWeight: 'bold' }}>Unit Price</th>
-                <th style={{ padding: '12px', textAlign: 'right', fontWeight: 'bold' }}>Total</th>
-              </tr>
-            </thead>
-            <tbody>
-              {selectedQuote.items?.map((item, idx) => (
-                <tr key={idx} style={{ borderBottom: '1px solid #e5e7eb' }}>
-                  <td style={{ padding: '12px' }}>
-                    <div style={{ fontWeight: 'bold' }}>
-                      {item.manufacturer} - {item.model}
-                    </div>
-                    <div style={{ fontSize: '12px', color: '#6b7280' }}>
-                      SKU: {item.sku || item.model}
-                    </div>
-                    {item.description && (
-                      <div style={{ fontSize: '12px', color: '#6b7280', marginTop: '4px' }}>
-                        {item.description}
-                      </div>
-                    )}
-                  </td>
-                  <td style={{ padding: '12px', textAlign: 'center' }}>
-                    {item.quantity}
-                  </td>
-                  <td style={{ padding: '12px', textAlign: 'right' }}>
-                    ${((item.sell_cents || item.unit_price_cents || 0) / 100).toFixed(2)}
-                  </td>
-                  <td style={{ padding: '12px', textAlign: 'right', fontWeight: 'bold' }}>
-                    ${((item.line_total_cents || 0) / 100).toFixed(2)}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-          
-          {/* Totals */}
-          <div style={{ 
-            marginTop: '24px', 
-            paddingTop: '24px', 
-            borderTop: '2px solid #e5e7eb',
-            textAlign: 'right'
-          }}>
-            <div style={{ marginBottom: '8px' }}>
-              <span style={{ marginRight: '40px' }}>Subtotal:</span>
-              <span style={{ fontWeight: 'bold' }}>${((selectedQuote.subtotal_cents || 0) / 100).toFixed(2)}</span>
-            </div>
-            {selectedQuote.discount_percent > 0 && (
-              <div style={{ marginBottom: '8px', color: '#ef4444' }}>
-                <span style={{ marginRight: '40px' }}>
-                  Discount ({selectedQuote.discount_percent}%):
-                </span>
-                <span style={{ fontWeight: 'bold' }}>-${((selectedQuote.discount_cents || 0) / 100).toFixed(2)}</span>
-              </div>
-            )}
-            <div style={{ marginBottom: '8px' }}>
-              <span style={{ marginRight: '40px' }}>HST (13%):</span>
-              <span style={{ fontWeight: 'bold' }}>${((selectedQuote.tax_cents || 0) / 100).toFixed(2)}</span>
-            </div>
-            <div style={{ 
-              fontSize: '24px', 
-              marginTop: '16px',
-              paddingTop: '16px',
-              borderTop: '2px solid #e5e7eb'
-            }}>
-              <span style={{ marginRight: '40px', fontWeight: 'bold' }}>TOTAL:</span>
-              <span style={{ fontWeight: 'bold', color: '#3b82f6' }}>
-                ${((selectedQuote.total_cents || 0) / 100).toFixed(2)}
-              </span>
-            </div>
-            <div style={{ marginTop: '12px', fontSize: '14px', color: '#10b981' }}>
-              <span style={{ marginRight: '40px' }}>Gross Profit:</span>
-              <span style={{ fontWeight: 'bold' }}>
-                ${((selectedQuote.gross_profit_cents || 0) / 100).toFixed(2)}
-              </span>
-            </div>
-          </div>
-        </div>
-
-        {/* Revenue Features Section */}
-        {(() => {
-          let revenueFeatures = null;
-          try {
-            revenueFeatures = selectedQuote.revenue_features ?
-              (typeof selectedQuote.revenue_features === 'string' ?
-                JSON.parse(selectedQuote.revenue_features) :
-                selectedQuote.revenue_features) :
-              null;
-          } catch (e) {
-            logger.warn('Could not parse revenue_features:', e);
-          }
-
-          if (revenueFeatures && (revenueFeatures.delivery || revenueFeatures.warranties?.length > 0 ||
-              revenueFeatures.financing || revenueFeatures.rebates?.length > 0 || revenueFeatures.tradeIns?.length > 0)) {
-            return (
-              <div style={{
-                background: 'white',
-                padding: '24px',
-                borderRadius: '12px',
-                marginBottom: '24px',
-                boxShadow: '0 1px 3px rgba(0,0,0,0.1)',
-                border: '2px solid #4CAF50'
-              }}>
-                <h3 style={{ fontSize: '18px', fontWeight: 'bold', marginBottom: '16px', color: '#4CAF50' }}>
-                  Value-Added Services
-                </h3>
-
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
-                  {/* Delivery & Installation */}
-                  {revenueFeatures.delivery && revenueFeatures.delivery.service && (
-                    <div style={{
-                      padding: '16px',
-                      background: '#f0fdf4',
-                      borderRadius: '8px',
-                      border: '1px solid #bbf7d0'
-                    }}>
-                      <div style={{ fontWeight: 'bold', marginBottom: '8px', color: '#166534' }}>
-                        Delivery & Installation
-                      </div>
-                      <div style={{ fontSize: '14px', color: '#6b7280', marginBottom: '4px' }}>
-                        {revenueFeatures.delivery.service.service_name}
-                      </div>
-                      {revenueFeatures.delivery.calculation && (
-                        <div style={{ fontSize: '16px', fontWeight: 'bold', color: '#166534', marginTop: '8px' }}>
-                          ${(revenueFeatures.delivery.calculation.totalCents / 100).toFixed(2)}
-                        </div>
-                      )}
-                    </div>
-                  )}
-
-                  {/* Extended Warranties */}
-                  {revenueFeatures.warranties && revenueFeatures.warranties.length > 0 && (
-                    <div style={{
-                      padding: '16px',
-                      background: '#f0fdf4',
-                      borderRadius: '8px',
-                      border: '1px solid #bbf7d0'
-                    }}>
-                      <div style={{ fontWeight: 'bold', marginBottom: '8px', color: '#166534' }}>
-                        Extended Warranty Coverage
-                      </div>
-                      {revenueFeatures.warranties.map((warranty, idx) => (
-                        <div key={idx} style={{ fontSize: '14px', color: '#6b7280', marginBottom: '4px' }}>
-                          • {warranty.plan?.plan_name || 'Warranty Plan'} ({warranty.plan?.duration_years || 'N/A'} years) -
-                          ${(warranty.cost / 100).toFixed(2)}
-                        </div>
-                      ))}
-                      <div style={{ fontSize: '16px', fontWeight: 'bold', color: '#166534', marginTop: '8px' }}>
-                        Total: ${revenueFeatures.warranties.reduce((sum, w) => sum + (w.cost / 100), 0).toFixed(2)}
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Financing */}
-                  {revenueFeatures.financing && revenueFeatures.financing.plan && (
-                    <div style={{
-                      padding: '16px',
-                      background: '#eff6ff',
-                      borderRadius: '8px',
-                      border: '1px solid #bfdbfe'
-                    }}>
-                      <div style={{ fontWeight: 'bold', marginBottom: '8px', color: '#1e40af' }}>
-                        Financing Available
-                      </div>
-                      <div style={{ fontSize: '14px', color: '#6b7280', marginBottom: '4px' }}>
-                        {revenueFeatures.financing.plan.plan_name}
-                      </div>
-                      {revenueFeatures.financing.calculation && (
-                        <div>
-                          <div style={{ fontSize: '20px', fontWeight: 'bold', color: '#1e40af', marginTop: '8px' }}>
-                            ${(revenueFeatures.financing.calculation.monthlyPaymentCents / 100).toFixed(2)}/month
-                          </div>
-                          <div style={{ fontSize: '12px', color: '#6b7280', marginTop: '4px' }}>
-                            {revenueFeatures.financing.plan.term_months} months @ {revenueFeatures.financing.plan.apr_percent}% APR
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  )}
-
-                  {/* Rebates */}
-                  {revenueFeatures.rebates && revenueFeatures.rebates.length > 0 && (
-                    <div style={{
-                      padding: '16px',
-                      background: '#eff6ff',
-                      borderRadius: '8px',
-                      border: '1px solid #bfdbfe'
-                    }}>
-                      <div style={{ fontWeight: 'bold', marginBottom: '8px', color: '#1e40af' }}>
-                        Manufacturer Rebates
-                      </div>
-                      {revenueFeatures.rebates.map((rebate, idx) => (
-                        <div key={idx} style={{ fontSize: '14px', color: '#6b7280', marginBottom: '4px' }}>
-                          • {rebate.rebate_name || 'Rebate'} -
-                          {rebate.rebate_percent ?
-                            ` ${rebate.rebate_percent}% off` :
-                            ` $${(rebate.rebate_amount_cents / 100).toFixed(2)}`
-                          }
-                        </div>
-                      ))}
-                    </div>
-                  )}
-
-                  {/* Trade-Ins */}
-                  {revenueFeatures.tradeIns && revenueFeatures.tradeIns.length > 0 && (
-                    <div style={{
-                      padding: '16px',
-                      background: '#eff6ff',
-                      borderRadius: '8px',
-                      border: '1px solid #bfdbfe'
-                    }}>
-                      <div style={{ fontWeight: 'bold', marginBottom: '8px', color: '#1e40af' }}>
-                        Trade-In Credit
-                      </div>
-                      {revenueFeatures.tradeIns.map((tradeIn, idx) => (
-                        <div key={idx} style={{ fontSize: '14px', color: '#6b7280', marginBottom: '4px' }}>
-                          • {tradeIn.item_description || 'Trade-In Item'} -
-                          ${(tradeIn.estimatedValueCents / 100).toFixed(2)} credit
-                        </div>
-                      ))}
-                      <div style={{ fontSize: '16px', fontWeight: 'bold', color: '#1e40af', marginTop: '8px' }}>
-                        Total Credit: -${revenueFeatures.tradeIns.reduce((sum, t) => sum + (t.estimatedValueCents / 100), 0).toFixed(2)}
-                      </div>
-                    </div>
-                  )}
-                </div>
-              </div>
-            );
-          }
-          return null;
-        })()}
-
-        {/* Notes and Terms */}
-        {(selectedQuote.notes || selectedQuote.internal_notes || selectedQuote.terms) && (
-          <div style={{
-            background: 'white',
-            padding: '24px',
-            borderRadius: '12px',
-            marginBottom: '24px',
-            boxShadow: '0 1px 3px rgba(0,0,0,0.1)'
-          }}>
-            {selectedQuote.notes && (
-              <div style={{ marginBottom: '16px' }}>
-                <h4 style={{ fontSize: '14px', fontWeight: 'bold', marginBottom: '8px' }}>
-                  Customer Notes:
-                </h4>
-                <p style={{ color: '#6b7280', margin: 0 }}>{selectedQuote.notes}</p>
-              </div>
-            )}
-
-            {selectedQuote.internal_notes && (
-              <div style={{ marginBottom: '16px', padding: '12px', background: '#fef2f2', borderRadius: '8px', border: '2px solid #fee2e2' }}>
-                <h4 style={{ fontSize: '14px', fontWeight: 'bold', marginBottom: '8px', color: '#991b1b' }}>
-                  🔒 Internal Notes (Private):
-                </h4>
-                <p style={{ color: '#6b7280', margin: 0 }}>{selectedQuote.internal_notes}</p>
-              </div>
-            )}
-
-            {selectedQuote.terms && (
-              <div>
-                <h4 style={{ fontSize: '14px', fontWeight: 'bold', marginBottom: '8px' }}>
-                  Terms & Conditions:
-                </h4>
-                <p style={{ color: '#6b7280', margin: 0 }}>{selectedQuote.terms}</p>
-              </div>
-            )}
-          </div>
-        )}
-        
-        {/* PDF Actions */}
-        <div style={{
-          background: 'white',
-          padding: '24px',
-          borderRadius: '12px',
-          marginBottom: '24px',
-          boxShadow: '0 1px 3px rgba(0,0,0,0.1)'
-        }}>
-          <h3 style={{ fontSize: '18px', fontWeight: 'bold', marginBottom: '16px' }}>
-            PDF Options
-          </h3>
-
-          <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
-            <button
-              onClick={() => previewQuotePDF(selectedQuote.id, 'customer')}
-              style={{
-                padding: '12px 24px',
-                background: '#8b5cf6',
-                color: 'white',
-                border: 'none',
-                borderRadius: '8px',
-                fontWeight: 'bold',
-                cursor: 'pointer'
-              }}
-            >
-              👁️ Preview Customer PDF
-            </button>
-
-            <button
-              onClick={() => downloadQuotePDF(selectedQuote.id, 'customer')}
-              style={{
-                padding: '12px 24px',
-                background: '#3b82f6',
-                color: 'white',
-                border: 'none',
-                borderRadius: '8px',
-                fontWeight: 'bold',
-                cursor: 'pointer'
-              }}
-            >
-              📄 Download Customer PDF
-            </button>
-
-            <button
-              onClick={() => previewQuotePDF(selectedQuote.id, 'internal')}
-              style={{
-                padding: '12px 24px',
-                background: '#f59e0b',
-                color: 'white',
-                border: 'none',
-                borderRadius: '8px',
-                fontWeight: 'bold',
-                cursor: 'pointer'
-              }}
-            >
-              👁️ Preview Internal PDF
-            </button>
-
-            <button
-              onClick={() => downloadQuotePDF(selectedQuote.id, 'internal')}
-              style={{
-                padding: '12px 24px',
-                background: '#ec4899',
-                color: 'white',
-                border: 'none',
-                borderRadius: '8px',
-                fontWeight: 'bold',
-                cursor: 'pointer'
-              }}
-            >
-              📥 Download Internal PDF
-            </button>
-          </div>
-
-          <div style={{ marginTop: '12px', fontSize: '13px', color: '#6b7280' }}>
-            <strong>Customer PDF:</strong> Clean quote for customer (no costs/margins) • <strong>Internal PDF:</strong> Includes cost analysis & profit margins
-          </div>
-        </div>
-
-        {/* Actions */}
-        <div style={{
-          background: 'white',
-          padding: '24px',
-          borderRadius: '12px',
-          marginBottom: '24px',
-          boxShadow: '0 1px 3px rgba(0,0,0,0.1)'
-        }}>
-          <h3 style={{ fontSize: '18px', fontWeight: 'bold', marginBottom: '16px' }}>
-            Quote Status
-          </h3>
-
-          <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
-            <button
-              onClick={() => editQuote(selectedQuote.id)}
-              style={{
-                padding: '12px 24px',
-                background: '#8b5cf6',
-                color: 'white',
-                border: 'none',
-                borderRadius: '8px',
-                fontWeight: 'bold',
-                cursor: 'pointer'
-              }}
-            >
-              ✏️ Edit Quote
-            </button>
-
-            <button
-              onClick={() => duplicateQuote(selectedQuote.id)}
-              style={{
-                padding: '12px 24px',
-                background: '#06b6d4',
-                color: 'white',
-                border: 'none',
-                borderRadius: '8px',
-                fontWeight: 'bold',
-                cursor: 'pointer'
-              }}
-            >
-              📋 Duplicate Quote
-            </button>
-
-            <button
-              onClick={() => updateQuoteStatus(selectedQuote.id, 'SENT')}
-              disabled={selectedQuote.status !== 'DRAFT'}
-              style={{
-                padding: '12px 24px',
-                background: selectedQuote.status === 'DRAFT' ? '#3b82f6' : '#9ca3af',
-                color: 'white',
-                border: 'none',
-                borderRadius: '8px',
-                fontWeight: 'bold',
-                cursor: selectedQuote.status === 'DRAFT' ? 'pointer' : 'not-allowed'
-              }}
-            >
-              📧 Mark as Sent
-            </button>
-
-            <button
-              onClick={() => updateQuoteStatus(selectedQuote.id, 'WON')}
-              disabled={selectedQuote.status === 'WON'}
-              style={{
-                padding: '12px 24px',
-                background: selectedQuote.status !== 'WON' ? '#10b981' : '#9ca3af',
-                color: 'white',
-                border: 'none',
-                borderRadius: '8px',
-                fontWeight: 'bold',
-                cursor: selectedQuote.status !== 'WON' ? 'pointer' : 'not-allowed'
-              }}
-            >
-              🏆 Mark as Won
-            </button>
-
-            <button
-              onClick={() => updateQuoteStatus(selectedQuote.id, 'LOST')}
-              disabled={selectedQuote.status === 'LOST'}
-              style={{
-                padding: '12px 24px',
-                background: selectedQuote.status !== 'LOST' ? '#ef4444' : '#9ca3af',
-                color: 'white',
-                border: 'none',
-                borderRadius: '8px',
-                fontWeight: 'bold',
-                cursor: selectedQuote.status !== 'LOST' ? 'pointer' : 'not-allowed'
-              }}
-            >
-              ❌ Mark as Lost
-            </button>
-
-            <button
-              onClick={() => deleteQuote(selectedQuote.id)}
-              style={{
-                padding: '12px 24px',
-                background: '#6b7280',
-                color: 'white',
-                border: 'none',
-                borderRadius: '8px',
-                fontWeight: 'bold',
-                cursor: 'pointer',
-                marginLeft: 'auto'
-              }}
-            >
-              🗑️ Delete Quote
-            </button>
-          </div>
-        </div>
-        
-        {/* Event History */}
-        {quoteEvents.length > 0 && (
-          <div style={{
-            background: 'white',
-            padding: '24px',
-            borderRadius: '12px',
-            boxShadow: '0 1px 3px rgba(0,0,0,0.1)'
-          }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
-              <h3 style={{ fontSize: '18px', fontWeight: 'bold', margin: 0 }}>
-                📅 Activity Timeline
-              </h3>
-              <button
-                onClick={() => setShowAddEventDialog(true)}
-                style={{
-                  padding: '8px 16px',
-                  background: '#3b82f6',
-                  color: 'white',
-                  border: 'none',
-                  borderRadius: '6px',
-                  fontSize: '14px',
-                  fontWeight: 'bold',
-                  cursor: 'pointer'
-                }}
-              >
-                ➕ Add Note
-              </button>
-            </div>
-
-            {quoteEvents.length === 0 ? (
-              <div style={{ padding: '32px', textAlign: 'center', color: '#6b7280' }}>
-                No activity recorded yet. Add notes to track interactions!
-              </div>
-            ) : (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                {quoteEvents.map((event, idx) => {
-                  const eventColors = {
-                    'CREATED': { bg: '#dbeafe', border: '#3b82f6', icon: '✨' },
-                    'UPDATED': { bg: '#fef3c7', border: '#f59e0b', icon: '✏️' },
-                    'STATUS_CHANGED': { bg: '#e0e7ff', border: '#6366f1', icon: '🔄' },
-                    'EMAIL_SENT': { bg: '#d1fae5', border: '#10b981', icon: '📧' },
-                    'APPROVAL_REQUESTED': { bg: '#fef3c7', border: '#f59e0b', icon: '✅' },
-                    'APPROVED': { bg: '#d1fae5', border: '#10b981', icon: '✅' },
-                    'REJECTED': { bg: '#fee2e2', border: '#ef4444', icon: '❌' },
-                    'NOTE': { bg: '#f3f4f6', border: '#6b7280', icon: '📝' }
-                  };
-                  const style = eventColors[event.event_type] || eventColors['NOTE'];
-
-                  return (
-                    <div
-                      key={event.id}
-                      style={{
-                        padding: '12px',
-                        background: style.bg,
-                        borderRadius: '6px',
-                        borderLeft: `4px solid ${style.border}`
-                      }}
-                    >
-                      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
-                        <span style={{ fontWeight: 'bold', color: style.border }}>
-                          {style.icon} {event.event_type.replace(/_/g, ' ')}
-                        </span>
-                        <span style={{ fontSize: '12px', color: '#6b7280' }}>
-                          {new Date(event.created_at).toLocaleString()}
-                        </span>
-                      </div>
-                      {event.description && (
-                        <div style={{ fontSize: '14px', color: '#374151', marginTop: '8px' }}>
-                          {event.description}
-                        </div>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* Approval History */}
-        {quoteApprovals.length > 0 && (
-          <div style={{
-            background: 'white',
-            padding: '24px',
-            borderRadius: '12px',
-            boxShadow: '0 1px 3px rgba(0,0,0,0.1)',
-            marginTop: '24px'
-          }}>
-            <h3 style={{ fontSize: '18px', fontWeight: 'bold', marginBottom: '16px' }}>
-              ✅ Approval History
-            </h3>
-
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-              {quoteApprovals.map((approval) => {
-                const statusColors = {
-                  'PENDING': { bg: '#fef3c7', border: '#f59e0b', text: '#92400e' },
-                  'APPROVED': { bg: '#d1fae5', border: '#10b981', text: '#065f46' },
-                  'REJECTED': { bg: '#fee2e2', border: '#ef4444', text: '#991b1b' }
-                };
-                const style = statusColors[approval.status] || statusColors['PENDING'];
-
-                return (
-                  <div
-                    key={approval.id}
-                    style={{
-                      padding: '16px',
-                      background: style.bg,
-                      borderRadius: '8px',
-                      borderLeft: `4px solid ${style.border}`
-                    }}
-                  >
-                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '12px' }}>
-                      <div>
-                        <div style={{ fontWeight: 'bold', color: style.text, marginBottom: '4px' }}>
-                          {approval.status === 'PENDING' && '⏳ Pending Approval'}
-                          {approval.status === 'APPROVED' && '✅ Approved'}
-                          {approval.status === 'REJECTED' && '❌ Rejected'}
-                        </div>
-                        <div style={{ fontSize: '14px', color: '#6b7280' }}>
-                          Requested by: {approval.requested_by} ({approval.requested_by_email})
-                        </div>
-                        {approval.approver_name && (
-                          <div style={{ fontSize: '14px', color: '#6b7280' }}>
-                            Approver: {approval.approver_name} ({approval.approver_email})
-                          </div>
-                        )}
-                      </div>
-                      <div style={{ textAlign: 'right' }}>
-                        <div style={{ fontSize: '12px', color: '#6b7280' }}>
-                          Requested: {new Date(approval.requested_at).toLocaleString()}
-                        </div>
-                        {approval.reviewed_at && (
-                          <div style={{ fontSize: '12px', color: '#6b7280' }}>
-                            Reviewed: {new Date(approval.reviewed_at).toLocaleString()}
-                          </div>
-                        )}
-                      </div>
-                    </div>
-
-                    {approval.comments && (
-                      <div style={{
-                        padding: '12px',
-                        background: 'white',
-                        borderRadius: '6px',
-                        fontSize: '14px',
-                        color: '#374151'
-                      }}>
-                        <strong>Comments:</strong> {approval.comments}
-                      </div>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        )}
-      </div>
-    );
-  };
-
   // ============================================
   // FOLLOW-UP DASHBOARD VIEW
   // ============================================
@@ -5461,9 +2516,137 @@ const QuotationManager = () => {
   
   return (
     <div>
-      {view === 'list' && renderListView()}
-      {view === 'builder' && renderBuilderView()}
-      {view === 'viewer' && renderViewerView()}
+      {view === 'list' && (
+        <QuoteList
+          quotations={quotations}
+          stats={stats}
+          followUpStats={followUpStats}
+          searchTerm={searchTerm}
+          setSearchTerm={setSearchTerm}
+          statusFilter={statusFilter}
+          setStatusFilter={setStatusFilter}
+          dateFilter={dateFilter}
+          setDateFilter={setDateFilter}
+          valueFilter={valueFilter}
+          setValueFilter={setValueFilter}
+          expiringFilter={expiringFilter}
+          setExpiringFilter={setExpiringFilter}
+          sortBy={sortBy}
+          setSortBy={setSortBy}
+          sortOrder={sortOrder}
+          setSortOrder={setSortOrder}
+          showAdvancedFilters={showAdvancedFilters}
+          setShowAdvancedFilters={setShowAdvancedFilters}
+          customerFilter={customerFilter}
+          setCustomerFilter={setCustomerFilter}
+          productFilter={productFilter}
+          setProductFilter={setProductFilter}
+          onCreateNew={createNewQuote}
+          onViewQuote={(id) => viewQuote(id)}
+          onEditQuote={(id) => editQuote(id)}
+          onDeleteQuote={(id) => deleteQuote(id)}
+          onViewAnalytics={() => setView('analytics')}
+          onViewApprovals={() => { fetchPendingApprovals(); setView('approvals'); }}
+          onViewFollowUps={() => { fetchFollowUpData(); setView('followups'); }}
+          onExport={(quotes) => exportToExcel(quotes)}
+          onClearFilters={clearFilters}
+          getActiveFilterCount={getActiveFilterCount}
+          formatCurrency={formatCurrency}
+          formatDate={formatDate}
+          getStatusColor={getStatusColor}
+        />
+      )}
+      {view === 'builder' && (
+        <QuoteBuilder
+          customers={customers}
+          products={products}
+          templates={templates}
+          paymentTermsTemplates={paymentTermsTemplates}
+          favoriteProducts={favoriteProducts}
+          recentProducts={recentProducts}
+          customerQuotes={customerQuotes}
+          editingQuoteId={editingQuoteId}
+          selectedCustomer={selectedCustomer}
+          setSelectedCustomer={setSelectedCustomer}
+          quoteItems={quoteItems}
+          setQuoteItems={setQuoteItems}
+          discountPercent={discountPercent}
+          setDiscountPercent={setDiscountPercent}
+          notes={notes}
+          setNotes={setNotes}
+          internalNotes={internalNotes}
+          setInternalNotes={setInternalNotes}
+          terms={terms}
+          setTerms={setTerms}
+          hideModelNumbers={hideModelNumbers}
+          setHideModelNumbers={setHideModelNumbers}
+          watermarkEnabled={watermarkEnabled}
+          setWatermarkEnabled={setWatermarkEnabled}
+          watermarkText={watermarkText}
+          setWatermarkText={setWatermarkText}
+          quoteExpiryDate={quoteExpiryDate}
+          setQuoteExpiryDate={setQuoteExpiryDate}
+          quoteFinancing={quoteFinancing}
+          setQuoteFinancing={setQuoteFinancing}
+          quoteWarranties={quoteWarranties}
+          setQuoteWarranties={setQuoteWarranties}
+          quoteDelivery={quoteDelivery}
+          setQuoteDelivery={setQuoteDelivery}
+          quoteRebates={quoteRebates}
+          setQuoteRebates={setQuoteRebates}
+          quoteTradeIns={quoteTradeIns}
+          setQuoteTradeIns={setQuoteTradeIns}
+          showRevenueFeatures={showRevenueFeatures}
+          setShowRevenueFeatures={setShowRevenueFeatures}
+          onSave={saveQuote}
+          onSaveAndSend={saveAndSend}
+          onSaveTemplate={saveAsTemplate}
+          onBack={() => setView('list')}
+          onLoadTemplate={loadTemplate}
+          onAddProduct={addProductToQuote}
+          onRemoveProduct={removeQuoteItem}
+          onUpdateItem={updateQuoteItem}
+          onAddService={addServiceItem}
+          toggleFavorite={toggleFavorite}
+          isFavorite={(productId) => favoriteProducts && favoriteProducts.some(p => p.id === productId)}
+          formatCurrency={formatCurrency}
+          calculateMargin={calculateMargin}
+          calculateTotals={calculateQuoteTotals}
+          showTemplateSaveDialog={showTemplateSaveDialog}
+          setShowTemplateSaveDialog={setShowTemplateSaveDialog}
+          templateName={templateName}
+          setTemplateName={setTemplateName}
+          templateDescription={templateDescription}
+          setTemplateDescription={setTemplateDescription}
+        />
+      )}
+      {view === 'viewer' && (
+        <QuoteViewer
+          quote={selectedQuote}
+          quoteEvents={quoteEvents}
+          quoteApprovals={quoteApprovals}
+          onBack={() => setView('list')}
+          onEdit={(id) => editQuote(id)}
+          onDuplicate={(id) => duplicateQuote(id)}
+          onDelete={(id) => deleteQuote(id)}
+          onUpdateStatus={(id, status) => updateQuoteStatus(id, status)}
+          onSendEmail={() => {
+            if (selectedQuote) {
+              setEmailTo(selectedQuote.customer_email || '');
+              setEmailSubject(`Quote #${selectedQuote.quote_number || selectedQuote.id} from Your Company`);
+              setEmailMessage('');
+              setShowEmailDialog(true);
+            }
+          }}
+          onRequestApproval={() => setShowApprovalDialog(true)}
+          onAddEvent={() => setShowAddEventDialog(true)}
+          showAddEventDialog={showAddEventDialog}
+          setShowAddEventDialog={setShowAddEventDialog}
+          newEventDescription={newEventDescription}
+          setNewEventDescription={setNewEventDescription}
+          onSaveEvent={addQuoteEvent}
+        />
+      )}
       {view === 'analytics' && renderAnalyticsView()}
       {view === 'approvals' && renderApprovalsView()}
       {view === 'followups' && renderFollowUpsView()}

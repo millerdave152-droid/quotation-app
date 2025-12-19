@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Plus, Edit2, Trash2, Package, Download, Mail, Search, X, Award } from 'lucide-react';
+import { handleApiError } from './src/utils/errorHandler';
 
 const API_URL = 'http://localhost:3001/api';
 
@@ -35,7 +36,7 @@ const QuotationAppMain = () => {
       setProducts(await productsRes.json());
       setQuotations(await quotationsRes.json());
     } catch (error) {
-      console.error('Error:', error);
+      handleApiError(error, { context: 'Loading data' });
     } finally {
       setLoading(false);
     }
@@ -50,7 +51,7 @@ const QuotationAppMain = () => {
       });
       setCustomers([...customers, await res.json()]);
     } catch (error) {
-      console.error('Error:', error);
+      handleApiError(error, { context: 'Adding customer' });
     }
   };
 
@@ -64,7 +65,7 @@ const QuotationAppMain = () => {
       const updated = await res.json();
       setCustomers(customers.map(c => c.id === id ? updated : c));
     } catch (error) {
-      console.error('Error:', error);
+      handleApiError(error, { context: 'Updating customer' });
     }
   };
 
@@ -74,7 +75,7 @@ const QuotationAppMain = () => {
       await fetch(`${API_URL}/customers/${id}`, { method: 'DELETE' });
       setCustomers(customers.filter(c => c.id !== id));
     } catch (error) {
-      console.error('Error:', error);
+      handleApiError(error, { context: 'Deleting customer' });
     }
   };
 
@@ -87,7 +88,7 @@ const QuotationAppMain = () => {
       });
       setProducts([...products, await res.json()]);
     } catch (error) {
-      console.error('Error:', error);
+      handleApiError(error, { context: 'Adding product' });
     }
   };
 
@@ -101,7 +102,7 @@ const QuotationAppMain = () => {
       const updated = await res.json();
       setProducts(products.map(p => p.id === id ? updated : p));
     } catch (error) {
-      console.error('Error:', error);
+      handleApiError(error, { context: 'Updating product' });
     }
   };
 
@@ -111,7 +112,7 @@ const QuotationAppMain = () => {
       await fetch(`${API_URL}/products/${id}`, { method: 'DELETE' });
       setProducts(products.filter(p => p.id !== id));
     } catch (error) {
-      console.error('Error:', error);
+      handleApiError(error, { context: 'Deleting product' });
     }
   };
 
@@ -131,7 +132,7 @@ const QuotationAppMain = () => {
         fetchAllData();
       }
     } catch (error) {
-      console.error('Error:', error);
+      handleApiError(error, { context: 'Importing products' });
     }
     e.target.value = '';
   };
@@ -145,7 +146,7 @@ const QuotationAppMain = () => {
       });
       fetchAllData();
     } catch (error) {
-      console.error('Error:', error);
+      handleApiError(error, { context: 'Creating quotation' });
     }
   };
 
@@ -165,7 +166,7 @@ const QuotationAppMain = () => {
       await fetch(`${API_URL}/quotations/${quote.id}/email`, { method: 'POST' });
       alert('Sent!');
     } catch (error) {
-      console.error('Error:', error);
+      handleApiError(error, { context: 'Sending email' });
     }
   };
 

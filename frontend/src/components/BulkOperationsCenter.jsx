@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { handleApiError } from '../utils/errorHandler';
 
 const API_BASE = `${process.env.REACT_APP_API_URL || 'http://localhost:3001'}/api`;
 
@@ -45,7 +46,7 @@ function BulkOperationsCenter() {
     fetch(`${API_BASE}/marketplace/categories`)
       .then(res => res.json())
       .then(data => setCategories(data.categories || []))
-      .catch(console.error);
+      .catch(err => handleApiError(err, { context: 'Loading categories' }));
   }, []);
 
   // Fetch products based on filters
@@ -65,7 +66,7 @@ function BulkOperationsCenter() {
       setProducts(data.products || []);
       setTotalPages(data.totalPages || 1);
     } catch (err) {
-      console.error('Error fetching products:', err);
+      handleApiError(err, { context: 'Loading products' });
     } finally {
       setLoading(false);
     }
@@ -84,7 +85,7 @@ function BulkOperationsCenter() {
       const data = await res.json();
       setHealthScore(data);
     } catch (err) {
-      console.error('Error fetching health score:', err);
+      handleApiError(err, { context: 'Loading health score' });
     }
   }, []);
 
@@ -105,7 +106,7 @@ function BulkOperationsCenter() {
       const data = await res.json();
       setSyncErrors(data.errors || []);
     } catch (err) {
-      console.error('Error fetching sync errors:', err);
+      handleApiError(err, { context: 'Loading sync errors' });
     }
   }, [errorFilter]);
 
@@ -122,7 +123,7 @@ function BulkOperationsCenter() {
       const data = await res.json();
       setAuditLogs(data.entries || []);
     } catch (err) {
-      console.error('Error fetching audit log:', err);
+      handleApiError(err, { context: 'Loading audit log' });
     }
   }, []);
 
@@ -139,7 +140,7 @@ function BulkOperationsCenter() {
       const data = await res.json();
       setBulkHistory(data || []);
     } catch (err) {
-      console.error('Error fetching bulk history:', err);
+      handleApiError(err, { context: 'Loading operations history' });
     }
   }, []);
 
