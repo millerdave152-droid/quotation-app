@@ -73,6 +73,50 @@ const QuoteBuilder = ({
   showRevenueFeatures,
   setShowRevenueFeatures,
 
+  // Delivery & Installation
+  deliveryAddress,
+  setDeliveryAddress,
+  deliveryCity,
+  setDeliveryCity,
+  deliveryPostalCode,
+  setDeliveryPostalCode,
+  deliveryDate,
+  setDeliveryDate,
+  deliveryTimeSlot,
+  setDeliveryTimeSlot,
+  deliveryInstructions,
+  setDeliveryInstructions,
+  installationRequired,
+  setInstallationRequired,
+  installationType,
+  setInstallationType,
+  haulAwayRequired,
+  setHaulAwayRequired,
+  haulAwayItems,
+  setHaulAwayItems,
+
+  // Sales & Commission
+  salesRepName,
+  setSalesRepName,
+  commissionPercent,
+  setCommissionPercent,
+  referralSource,
+  setReferralSource,
+  referralName,
+  setReferralName,
+
+  // Customer Experience
+  priorityLevel,
+  setPriorityLevel,
+  specialInstructions,
+  setSpecialInstructions,
+  paymentMethod,
+  setPaymentMethod,
+  depositRequired,
+  setDepositRequired,
+  depositAmount,
+  setDepositAmount,
+
   // Actions
   onSave,
   onSaveAndSend,
@@ -794,10 +838,289 @@ const QuoteBuilder = ({
         </div>
       )}
 
+      {/* Delivery, Sales & Service Options */}
+      {quoteItems.length > 0 && (
+        <div style={{ background: 'white', padding: '24px', borderRadius: '12px', marginBottom: '24px', boxShadow: '0 1px 3px rgba(0,0,0,0.1)' }}>
+          <h3 style={{ fontSize: '18px', fontWeight: 'bold', marginBottom: '16px' }}>4. Delivery & Service Options</h3>
+
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '24px' }}>
+            {/* Left Column: Delivery Info */}
+            <div>
+              <h4 style={{ fontSize: '16px', fontWeight: 'bold', marginBottom: '12px', color: '#3b82f6' }}>📦 Delivery Information</h4>
+
+              <div style={{ marginBottom: '12px' }}>
+                <label style={{ display: 'block', fontWeight: '500', marginBottom: '4px', fontSize: '14px' }}>Delivery Address (if different from customer):</label>
+                <input
+                  type="text"
+                  value={deliveryAddress || ''}
+                  onChange={(e) => setDeliveryAddress(e.target.value)}
+                  placeholder="Leave blank to use customer address"
+                  style={{ width: '100%', padding: '10px', border: '1px solid #d1d5db', borderRadius: '6px', fontSize: '14px' }}
+                />
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '12px', marginBottom: '12px' }}>
+                <div>
+                  <label style={{ display: 'block', fontWeight: '500', marginBottom: '4px', fontSize: '14px' }}>City:</label>
+                  <input
+                    type="text"
+                    value={deliveryCity || ''}
+                    onChange={(e) => setDeliveryCity(e.target.value)}
+                    style={{ width: '100%', padding: '10px', border: '1px solid #d1d5db', borderRadius: '6px', fontSize: '14px' }}
+                  />
+                </div>
+                <div>
+                  <label style={{ display: 'block', fontWeight: '500', marginBottom: '4px', fontSize: '14px' }}>Postal Code:</label>
+                  <input
+                    type="text"
+                    value={deliveryPostalCode || ''}
+                    onChange={(e) => setDeliveryPostalCode(e.target.value)}
+                    style={{ width: '100%', padding: '10px', border: '1px solid #d1d5db', borderRadius: '6px', fontSize: '14px' }}
+                  />
+                </div>
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '12px' }}>
+                <div>
+                  <label style={{ display: 'block', fontWeight: '500', marginBottom: '4px', fontSize: '14px' }}>Delivery Date:</label>
+                  <input
+                    type="date"
+                    value={deliveryDate || ''}
+                    onChange={(e) => setDeliveryDate(e.target.value)}
+                    style={{ width: '100%', padding: '10px', border: '1px solid #d1d5db', borderRadius: '6px', fontSize: '14px' }}
+                  />
+                </div>
+                <div>
+                  <label style={{ display: 'block', fontWeight: '500', marginBottom: '4px', fontSize: '14px' }}>Time Slot:</label>
+                  <select
+                    value={deliveryTimeSlot || ''}
+                    onChange={(e) => setDeliveryTimeSlot(e.target.value)}
+                    style={{ width: '100%', padding: '10px', border: '1px solid #d1d5db', borderRadius: '6px', fontSize: '14px' }}
+                  >
+                    <option value="">Select time...</option>
+                    <option value="morning">Morning (8am-12pm)</option>
+                    <option value="afternoon">Afternoon (12pm-4pm)</option>
+                    <option value="evening">Evening (4pm-8pm)</option>
+                    <option value="allday">All Day</option>
+                    <option value="first">First Available</option>
+                  </select>
+                </div>
+              </div>
+
+              <div style={{ marginBottom: '12px' }}>
+                <label style={{ display: 'block', fontWeight: '500', marginBottom: '4px', fontSize: '14px' }}>Delivery Instructions:</label>
+                <textarea
+                  value={deliveryInstructions || ''}
+                  onChange={(e) => setDeliveryInstructions(e.target.value)}
+                  placeholder="Stairs, elevator access, parking info, access codes..."
+                  rows="2"
+                  style={{ width: '100%', padding: '10px', border: '1px solid #d1d5db', borderRadius: '6px', fontSize: '14px', resize: 'vertical' }}
+                />
+              </div>
+
+              {/* Installation Options */}
+              <div style={{ marginTop: '16px', padding: '12px', background: '#f0fdf4', borderRadius: '8px', border: '1px solid #bbf7d0' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '12px' }}>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
+                    <input
+                      type="checkbox"
+                      checked={installationRequired || false}
+                      onChange={(e) => setInstallationRequired(e.target.checked)}
+                      style={{ width: '18px', height: '18px' }}
+                    />
+                    <span style={{ fontWeight: '500' }}>🔧 Installation Required</span>
+                  </label>
+                </div>
+
+                {installationRequired && (
+                  <div style={{ marginLeft: '26px' }}>
+                    <select
+                      value={installationType || ''}
+                      onChange={(e) => setInstallationType(e.target.value)}
+                      style={{ width: '100%', padding: '8px', border: '1px solid #d1d5db', borderRadius: '6px', fontSize: '14px' }}
+                    >
+                      <option value="">Select installation type...</option>
+                      <option value="basic">Basic Installation</option>
+                      <option value="premium">Premium Installation (Full Setup)</option>
+                      <option value="wallmount">Wall Mount (TV)</option>
+                      <option value="builtin">Built-In Installation</option>
+                      <option value="custom">Custom Installation</option>
+                    </select>
+                  </div>
+                )}
+
+                <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginTop: '12px' }}>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
+                    <input
+                      type="checkbox"
+                      checked={haulAwayRequired || false}
+                      onChange={(e) => setHaulAwayRequired(e.target.checked)}
+                      style={{ width: '18px', height: '18px' }}
+                    />
+                    <span style={{ fontWeight: '500' }}>🚛 Haul Away Old Appliance</span>
+                  </label>
+                </div>
+
+                {haulAwayRequired && (
+                  <div style={{ marginLeft: '26px', marginTop: '8px' }}>
+                    <input
+                      type="text"
+                      value={haulAwayItems || ''}
+                      onChange={(e) => setHaulAwayItems(e.target.value)}
+                      placeholder="Describe items to haul away..."
+                      style={{ width: '100%', padding: '8px', border: '1px solid #d1d5db', borderRadius: '6px', fontSize: '14px' }}
+                    />
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Right Column: Sales & Payment Info */}
+            <div>
+              <h4 style={{ fontSize: '16px', fontWeight: 'bold', marginBottom: '12px', color: '#10b981' }}>💼 Sales Information</h4>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '12px', marginBottom: '12px' }}>
+                <div>
+                  <label style={{ display: 'block', fontWeight: '500', marginBottom: '4px', fontSize: '14px' }}>Sales Rep:</label>
+                  <input
+                    type="text"
+                    value={salesRepName || ''}
+                    onChange={(e) => setSalesRepName(e.target.value)}
+                    placeholder="Sales rep name"
+                    style={{ width: '100%', padding: '10px', border: '1px solid #d1d5db', borderRadius: '6px', fontSize: '14px' }}
+                  />
+                </div>
+                <div>
+                  <label style={{ display: 'block', fontWeight: '500', marginBottom: '4px', fontSize: '14px' }}>Commission %:</label>
+                  <input
+                    type="number"
+                    min="0"
+                    max="100"
+                    step="0.5"
+                    value={commissionPercent || 5}
+                    onChange={(e) => setCommissionPercent(parseFloat(e.target.value) || 0)}
+                    style={{ width: '100%', padding: '10px', border: '1px solid #d1d5db', borderRadius: '6px', fontSize: '14px' }}
+                  />
+                </div>
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '12px' }}>
+                <div>
+                  <label style={{ display: 'block', fontWeight: '500', marginBottom: '4px', fontSize: '14px' }}>Referral Source:</label>
+                  <select
+                    value={referralSource || ''}
+                    onChange={(e) => setReferralSource(e.target.value)}
+                    style={{ width: '100%', padding: '10px', border: '1px solid #d1d5db', borderRadius: '6px', fontSize: '14px' }}
+                  >
+                    <option value="">Select source...</option>
+                    <option value="walk-in">Walk-in</option>
+                    <option value="website">Website</option>
+                    <option value="google">Google Search</option>
+                    <option value="facebook">Facebook</option>
+                    <option value="instagram">Instagram</option>
+                    <option value="referral-customer">Referral - Customer</option>
+                    <option value="referral-builder">Referral - Builder/Contractor</option>
+                    <option value="referral-designer">Referral - Designer</option>
+                    <option value="repeat">Repeat Customer</option>
+                    <option value="ad">Advertisement</option>
+                    <option value="other">Other</option>
+                  </select>
+                </div>
+                <div>
+                  <label style={{ display: 'block', fontWeight: '500', marginBottom: '4px', fontSize: '14px' }}>Referrer Name:</label>
+                  <input
+                    type="text"
+                    value={referralName || ''}
+                    onChange={(e) => setReferralName(e.target.value)}
+                    placeholder="Who referred them?"
+                    style={{ width: '100%', padding: '10px', border: '1px solid #d1d5db', borderRadius: '6px', fontSize: '14px' }}
+                  />
+                </div>
+              </div>
+
+              <h4 style={{ fontSize: '16px', fontWeight: 'bold', marginBottom: '12px', marginTop: '20px', color: '#8b5cf6' }}>💳 Payment & Priority</h4>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '12px' }}>
+                <div>
+                  <label style={{ display: 'block', fontWeight: '500', marginBottom: '4px', fontSize: '14px' }}>Priority Level:</label>
+                  <select
+                    value={priorityLevel || 'standard'}
+                    onChange={(e) => setPriorityLevel(e.target.value)}
+                    style={{ width: '100%', padding: '10px', border: '1px solid #d1d5db', borderRadius: '6px', fontSize: '14px' }}
+                  >
+                    <option value="standard">Standard</option>
+                    <option value="preferred">Preferred Customer</option>
+                    <option value="vip">VIP</option>
+                    <option value="urgent">Urgent</option>
+                  </select>
+                </div>
+                <div>
+                  <label style={{ display: 'block', fontWeight: '500', marginBottom: '4px', fontSize: '14px' }}>Payment Method:</label>
+                  <select
+                    value={paymentMethod || ''}
+                    onChange={(e) => setPaymentMethod(e.target.value)}
+                    style={{ width: '100%', padding: '10px', border: '1px solid #d1d5db', borderRadius: '6px', fontSize: '14px' }}
+                  >
+                    <option value="">Select method...</option>
+                    <option value="cash">Cash</option>
+                    <option value="credit">Credit Card</option>
+                    <option value="debit">Debit</option>
+                    <option value="financing">Financing</option>
+                    <option value="check">Check</option>
+                    <option value="etransfer">E-Transfer</option>
+                  </select>
+                </div>
+              </div>
+
+              {/* Deposit Section */}
+              <div style={{ marginTop: '16px', padding: '12px', background: '#fef3c7', borderRadius: '8px', border: '1px solid #fcd34d' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '12px' }}>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
+                    <input
+                      type="checkbox"
+                      checked={depositRequired || false}
+                      onChange={(e) => setDepositRequired(e.target.checked)}
+                      style={{ width: '18px', height: '18px' }}
+                    />
+                    <span style={{ fontWeight: '500' }}>💰 Deposit Required</span>
+                  </label>
+                </div>
+
+                {depositRequired && (
+                  <div style={{ marginLeft: '26px' }}>
+                    <label style={{ display: 'block', fontWeight: '500', marginBottom: '4px', fontSize: '14px' }}>Deposit Amount ($):</label>
+                    <input
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      value={depositAmount || 0}
+                      onChange={(e) => setDepositAmount(parseFloat(e.target.value) || 0)}
+                      style={{ width: '150px', padding: '8px', border: '1px solid #d1d5db', borderRadius: '6px', fontSize: '14px' }}
+                    />
+                  </div>
+                )}
+              </div>
+
+              {/* Special Instructions */}
+              <div style={{ marginTop: '16px' }}>
+                <label style={{ display: 'block', fontWeight: '500', marginBottom: '4px', fontSize: '14px' }}>Special Instructions:</label>
+                <textarea
+                  value={specialInstructions || ''}
+                  onChange={(e) => setSpecialInstructions(e.target.value)}
+                  placeholder="Any special handling requirements..."
+                  rows="2"
+                  style={{ width: '100%', padding: '10px', border: '1px solid #d1d5db', borderRadius: '6px', fontSize: '14px', resize: 'vertical' }}
+                />
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Summary & Totals */}
       {quoteItems.length > 0 && (
         <div style={{ background: 'white', padding: '24px', borderRadius: '12px', marginBottom: '24px', boxShadow: '0 1px 3px rgba(0,0,0,0.1)' }}>
-          <h3 style={{ fontSize: '18px', fontWeight: 'bold', marginBottom: '16px' }}>4. Quote Summary</h3>
+          <h3 style={{ fontSize: '18px', fontWeight: 'bold', marginBottom: '16px' }}>5. Quote Summary</h3>
 
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '24px' }}>
             {/* Left: Notes & Discount */}

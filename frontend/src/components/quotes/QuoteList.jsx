@@ -582,7 +582,7 @@ const QuoteList = ({
                     }}
                     onMouseEnter={(e) => e.currentTarget.style.background = '#f9fafb'}
                     onMouseLeave={(e) => e.currentTarget.style.background = expired && quote.status !== 'WON' && quote.status !== 'LOST' ? '#fef3c7' : 'white'}
-                    onClick={() => onViewQuote(quote)}
+                    onClick={() => onViewQuote(quote.id)}
                   >
                     <td style={{ padding: '16px' }}>
                       <div style={{ fontWeight: '600', color: '#3b82f6' }}>
@@ -644,7 +644,7 @@ const QuoteList = ({
                     <td style={{ padding: '16px', textAlign: 'center' }} onClick={(e) => e.stopPropagation()}>
                       <div style={{ display: 'flex', gap: '8px', justifyContent: 'center' }}>
                         <button
-                          onClick={() => onViewQuote(quote)}
+                          onClick={() => onViewQuote(quote.id)}
                           style={{
                             padding: '8px 12px',
                             background: '#3b82f6',
@@ -659,7 +659,7 @@ const QuoteList = ({
                           View
                         </button>
                         <button
-                          onClick={() => onEditQuote(quote)}
+                          onClick={() => onEditQuote(quote.id)}
                           style={{
                             padding: '8px 12px',
                             background: '#6b7280',

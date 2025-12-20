@@ -132,6 +132,38 @@ const QuotationManager = () => {
   const [selectedEmailTemplate, setSelectedEmailTemplate] = useState(null);
 
   // ============================================
+  // DELIVERY & INSTALLATION STATE
+  // ============================================
+  const [deliveryAddress, setDeliveryAddress] = useState('');
+  const [deliveryCity, setDeliveryCity] = useState('');
+  const [deliveryPostalCode, setDeliveryPostalCode] = useState('');
+  const [deliveryDate, setDeliveryDate] = useState('');
+  const [deliveryTimeSlot, setDeliveryTimeSlot] = useState('');
+  const [deliveryInstructions, setDeliveryInstructions] = useState('');
+  const [installationRequired, setInstallationRequired] = useState(false);
+  const [installationType, setInstallationType] = useState('');
+  const [haulAwayRequired, setHaulAwayRequired] = useState(false);
+  const [haulAwayItems, setHaulAwayItems] = useState('');
+
+  // ============================================
+  // SALES & COMMISSION STATE
+  // ============================================
+  const [salesRepName, setSalesRepName] = useState('');
+  const [commissionPercent, setCommissionPercent] = useState(5);
+  const [referralSource, setReferralSource] = useState('');
+  const [referralName, setReferralName] = useState('');
+  const [referralSources, setReferralSources] = useState([]);
+
+  // ============================================
+  // CUSTOMER EXPERIENCE STATE
+  // ============================================
+  const [priorityLevel, setPriorityLevel] = useState('standard');
+  const [specialInstructions, setSpecialInstructions] = useState('');
+  const [paymentMethod, setPaymentMethod] = useState('');
+  const [depositRequired, setDepositRequired] = useState(false);
+  const [depositAmount, setDepositAmount] = useState(0);
+
+  // ============================================
   // FOLLOW-UP REMINDER STATE
   // ============================================
   const [pendingFollowUps, setPendingFollowUps] = useState([]);
@@ -908,12 +940,34 @@ const QuotationManager = () => {
         internal_notes: internalNotes,
         terms,
         discount_percent: discountPercent,
-        created_by: 'User', // You can add user authentication later
+        created_by: salesRepName || 'User',
         // Quote protection settings
         hide_model_numbers: hideModelNumbers,
         watermark_text: watermarkText,
         watermark_enabled: watermarkEnabled,
         quote_expiry_date: quoteExpiryDate || new Date(Date.now() + 14*24*60*60*1000).toISOString().split('T')[0],
+        // Delivery & Installation
+        delivery_address: deliveryAddress,
+        delivery_city: deliveryCity,
+        delivery_postal_code: deliveryPostalCode,
+        delivery_date: deliveryDate || null,
+        delivery_time_slot: deliveryTimeSlot,
+        delivery_instructions: deliveryInstructions,
+        installation_required: installationRequired,
+        installation_type: installationType,
+        haul_away_required: haulAwayRequired,
+        haul_away_items: haulAwayItems,
+        // Sales & Commission
+        sales_rep_name: salesRepName,
+        commission_percent: commissionPercent,
+        referral_source: referralSource,
+        referral_name: referralName,
+        // Customer Experience
+        priority_level: priorityLevel,
+        special_instructions: specialInstructions,
+        payment_method: paymentMethod,
+        deposit_required: depositRequired,
+        deposit_amount_cents: Math.round(depositAmount * 100),
         // Revenue features
         revenue_features: {
           financing: quoteFinancing,
@@ -986,11 +1040,33 @@ const QuotationManager = () => {
         internal_notes: internalNotes,
         terms,
         discount_percent: discountPercent,
-        created_by: 'User',
+        created_by: salesRepName || 'User',
         hide_model_numbers: hideModelNumbers,
         watermark_text: watermarkText,
         watermark_enabled: watermarkEnabled,
         quote_expiry_date: quoteExpiryDate || new Date(Date.now() + 14*24*60*60*1000).toISOString().split('T')[0],
+        // Delivery & Installation
+        delivery_address: deliveryAddress,
+        delivery_city: deliveryCity,
+        delivery_postal_code: deliveryPostalCode,
+        delivery_date: deliveryDate || null,
+        delivery_time_slot: deliveryTimeSlot,
+        delivery_instructions: deliveryInstructions,
+        installation_required: installationRequired,
+        installation_type: installationType,
+        haul_away_required: haulAwayRequired,
+        haul_away_items: haulAwayItems,
+        // Sales & Commission
+        sales_rep_name: salesRepName,
+        commission_percent: commissionPercent,
+        referral_source: referralSource,
+        referral_name: referralName,
+        // Customer Experience
+        priority_level: priorityLevel,
+        special_instructions: specialInstructions,
+        payment_method: paymentMethod,
+        deposit_required: depositRequired,
+        deposit_amount_cents: Math.round(depositAmount * 100),
         revenue_features: {
           financing: quoteFinancing,
           warranties: quoteWarranties,
@@ -1070,6 +1146,38 @@ const QuotationManager = () => {
     setWatermarkEnabled(true);
     setQuoteExpiryDate('');
     setSelectedEmailTemplate(null);
+
+    // Reset delivery & installation fields
+    setDeliveryAddress('');
+    setDeliveryCity('');
+    setDeliveryPostalCode('');
+    setDeliveryDate('');
+    setDeliveryTimeSlot('');
+    setDeliveryInstructions('');
+    setInstallationRequired(false);
+    setInstallationType('');
+    setHaulAwayRequired(false);
+    setHaulAwayItems('');
+
+    // Reset sales & commission fields
+    setSalesRepName('');
+    setCommissionPercent(5);
+    setReferralSource('');
+    setReferralName('');
+
+    // Reset customer experience fields
+    setPriorityLevel('standard');
+    setSpecialInstructions('');
+    setPaymentMethod('');
+    setDepositRequired(false);
+    setDepositAmount(0);
+
+    // Reset revenue features
+    setQuoteFinancing(null);
+    setQuoteWarranties([]);
+    setQuoteDelivery(null);
+    setQuoteRebates([]);
+    setQuoteTradeIns([]);
   };
 
   // ============================================
@@ -2598,6 +2706,47 @@ const QuotationManager = () => {
           setQuoteTradeIns={setQuoteTradeIns}
           showRevenueFeatures={showRevenueFeatures}
           setShowRevenueFeatures={setShowRevenueFeatures}
+          // Delivery & Installation
+          deliveryAddress={deliveryAddress}
+          setDeliveryAddress={setDeliveryAddress}
+          deliveryCity={deliveryCity}
+          setDeliveryCity={setDeliveryCity}
+          deliveryPostalCode={deliveryPostalCode}
+          setDeliveryPostalCode={setDeliveryPostalCode}
+          deliveryDate={deliveryDate}
+          setDeliveryDate={setDeliveryDate}
+          deliveryTimeSlot={deliveryTimeSlot}
+          setDeliveryTimeSlot={setDeliveryTimeSlot}
+          deliveryInstructions={deliveryInstructions}
+          setDeliveryInstructions={setDeliveryInstructions}
+          installationRequired={installationRequired}
+          setInstallationRequired={setInstallationRequired}
+          installationType={installationType}
+          setInstallationType={setInstallationType}
+          haulAwayRequired={haulAwayRequired}
+          setHaulAwayRequired={setHaulAwayRequired}
+          haulAwayItems={haulAwayItems}
+          setHaulAwayItems={setHaulAwayItems}
+          // Sales & Commission
+          salesRepName={salesRepName}
+          setSalesRepName={setSalesRepName}
+          commissionPercent={commissionPercent}
+          setCommissionPercent={setCommissionPercent}
+          referralSource={referralSource}
+          setReferralSource={setReferralSource}
+          referralName={referralName}
+          setReferralName={setReferralName}
+          // Customer Experience
+          priorityLevel={priorityLevel}
+          setPriorityLevel={setPriorityLevel}
+          specialInstructions={specialInstructions}
+          setSpecialInstructions={setSpecialInstructions}
+          paymentMethod={paymentMethod}
+          setPaymentMethod={setPaymentMethod}
+          depositRequired={depositRequired}
+          setDepositRequired={setDepositRequired}
+          depositAmount={depositAmount}
+          setDepositAmount={setDepositAmount}
           onSave={saveQuote}
           onSaveAndSend={saveAndSend}
           onSaveTemplate={saveAsTemplate}
