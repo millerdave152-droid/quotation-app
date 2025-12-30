@@ -1,0 +1,90 @@
+/* FilterSection - Collapsible filter category */
+
+.filter-section {
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.filter-section:last-child {
+  border-bottom: none;
+}
+
+.filter-section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  padding: 12px 16px;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 600;
+  color: #1a202c;
+  transition: background-color 0.15s ease;
+}
+
+.filter-section-header:hover {
+  background-color: #f7fafc;
+}
+
+.filter-section-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.filter-section-icon {
+  font-size: 16px;
+  opacity: 0.7;
+}
+
+.filter-section-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 6px;
+  background: #e7f5ff;
+  color: #1c7ed6;
+  border-radius: 10px;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.filter-section-chevron {
+  font-size: 10px;
+  color: #718096;
+  transition: transform 0.2s ease;
+}
+
+.filter-section-chevron.rotated {
+  transform: rotate(180deg);
+}
+
+.filter-section-content {
+  padding: 8px 16px 16px;
+  animation: slideDown 0.15s ease-out;
+}
+
+@keyframes slideDown {
+  from {
+    opacity: 0;
+    transform: translateY(-8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Mobile adjustments */
+@media (max-width: 768px) {
+  .filter-section-header {
+    padding: 10px 12px;
+  }
+
+  .filter-section-content {
+    padding: 6px 12px 12px;
+  }
+}

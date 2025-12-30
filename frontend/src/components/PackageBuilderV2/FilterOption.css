@@ -1,0 +1,124 @@
+/* FilterOption - Individual filter option */
+
+.filter-option {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background-color 0.15s ease;
+  user-select: none;
+}
+
+.filter-option:hover:not(.disabled) {
+  background-color: #f7fafc;
+}
+
+.filter-option.selected {
+  background-color: #ebf8ff;
+}
+
+.filter-option.disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.filter-option:focus {
+  outline: 2px solid #4299e1;
+  outline-offset: -2px;
+}
+
+/* Radio button styles */
+.filter-option-indicator {
+  flex-shrink: 0;
+}
+
+.radio-circle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  border: 2px solid #cbd5e0;
+  border-radius: 50%;
+  background: white;
+  transition: all 0.15s ease;
+}
+
+.radio-circle.checked {
+  border-color: #3182ce;
+}
+
+.radio-dot {
+  width: 10px;
+  height: 10px;
+  background: #3182ce;
+  border-radius: 50%;
+  animation: scaleIn 0.15s ease;
+}
+
+/* Checkbox styles */
+.checkbox-box {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  border: 2px solid #cbd5e0;
+  border-radius: 4px;
+  background: white;
+  transition: all 0.15s ease;
+}
+
+.checkbox-box.checked {
+  background: #3182ce;
+  border-color: #3182ce;
+}
+
+.checkbox-check {
+  color: white;
+  font-size: 12px;
+  font-weight: bold;
+  line-height: 1;
+}
+
+/* Label */
+.filter-option-label {
+  flex: 1;
+  font-size: 13px;
+  color: #2d3748;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Count badge */
+.filter-option-count {
+  flex-shrink: 0;
+  font-size: 12px;
+  color: #718096;
+}
+
+.filter-option-count.zero {
+  color: #cbd5e0;
+}
+
+/* Animation */
+@keyframes scaleIn {
+  from {
+    transform: scale(0);
+  }
+  to {
+    transform: scale(1);
+  }
+}
+
+/* Hover state improvements */
+.filter-option:hover .radio-circle:not(.checked) {
+  border-color: #a0aec0;
+}
+
+.filter-option:hover .checkbox-box:not(.checked) {
+  border-color: #a0aec0;
+}
