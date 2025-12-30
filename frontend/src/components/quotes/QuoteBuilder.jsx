@@ -14,6 +14,8 @@ import {
 } from '../RevenueFeatures';
 import { getSmartSuggestions, getSuggestionsSummary } from '../../utils/smartSuggestions';
 import logger from '../../utils/logger';
+import PackageBuilder from '../PackageBuilder';
+import PackageBuilderV2 from '../PackageBuilderV2';
 
 // Service items for quick add
 const SERVICE_ITEMS = [
@@ -139,17 +141,21 @@ const QuoteBuilder = ({
   const [templateName, setTemplateName] = useState('');
   const [templateDescription, setTemplateDescription] = useState('');
   const [showSuggestions, setShowSuggestions] = useState(true);
+  const [showPackageBuilder, setShowPackageBuilder] = useState(false);
+  const [showPackageBuilderV2, setShowPackageBuilderV2] = useState(false);
+  const [packageBuilderDropdownOpen, setPackageBuilderDropdownOpen] = useState(false);
 
   // Filter products based on search
   const filteredProducts = useMemo(() => {
     if (!productSearchTerm || productSearchTerm.length < 2) return [];
     const search = productSearchTerm.toLowerCase();
     return products.filter(p =>
-      (p.model_number || '').toLowerCase().includes(search) ||
+      (p.model || '').toLowerCase().includes(search) ||
       (p.manufacturer || '').toLowerCase().includes(search) ||
       (p.sku || '').toLowerCase().includes(search) ||
-      (p.description || '').toLowerCase().includes(search)
-    ).slice(0, 20);
+      (p.description || '').toLowerCase().includes(search) ||
+      (p.name || '').toLowerCase().includes(search)
+    ).slice(0, 50);
   }, [products, productSearchTerm]);
 
   // Calculate margin
@@ -222,7 +228,7 @@ const QuoteBuilder = ({
   // Add product to quote
   const addProductToQuote = useCallback((product) => {
     const existingIndex = quoteItems.findIndex(item =>
-      (item.product_id === product.id) || (item.model === product.model_number)
+      (item.product_id === product.id) || (item.model === product.model)
     );
 
     if (existingIndex >= 0) {
@@ -233,14 +239,14 @@ const QuoteBuilder = ({
       const newItem = {
         product_id: product.id,
         manufacturer: product.manufacturer || '',
-        model: product.model_number || product.name || '',
+        model: product.model || product.name || '',
         description: product.description || product.name || '',
         category: product.category || '',
         quantity: 1,
         cost: (product.cost_cents || 0) / 100,
         msrp: (product.msrp_cents || 0) / 100,
         sell: (product.msrp_cents || 0) / 100,
-        sku: product.sku || product.model_number,
+        sku: product.sku || product.model,
         notes: ''
       };
       setQuoteItems(prev => [...prev, newItem]);
@@ -266,6 +272,43 @@ const QuoteBuilder = ({
     };
     setQuoteItems(prev => [...prev, newItem]);
   }, [setQuoteItems]);
+
+  // Add package items from Package Builder
+  const handleAddPackageToQuote = useCallback((packageData) => {
+    const { items, bundle_discount_cents, tier, brand_cohesion_score } = packageData;
+
+    // Add each item from the package
+    const newItems = items.map(item => ({
+      product_id: item.product_id,
+      manufacturer: item.manufacturer || '',
+      model: item.model || '',
+      description: item.description || '',
+      category: item.category || '',
+      quantity: item.quantity || 1,
+      cost: (item.cost_cents || 0) / 100,
+      msrp: (item.msrp_cents || 0) / 100,
+      sell: (item.sell_cents || 0) / 100,
+      sku: item.model,
+      notes: item.item_notes || ''
+    }));
+
+    setQuoteItems(prev => [...prev, ...newItems]);
+
+    // Apply bundle discount if applicable
+    if (bundle_discount_cents > 0) {
+      const discountPercent = Math.round((bundle_discount_cents / items.reduce((sum, i) => sum + (i.sell_cents || 0), 0)) * 100);
+      if (discountPercent > 0 && discountPercent <= 100) {
+        setDiscountPercent(prev => Math.max(prev, discountPercent));
+      }
+    }
+
+    // Add internal note about the package
+    const tierLabel = tier ? tier.toUpperCase() : 'CUSTOM';
+    const cohesionNote = brand_cohesion_score ? ` (Brand cohesion: ${brand_cohesion_score}%)` : '';
+    setInternalNotes(prev => prev ? `${prev}\n\n[Package Builder] ${tierLabel} tier package added${cohesionNote}` : `[Package Builder] ${tierLabel} tier package added${cohesionNote}`);
+
+    setShowPackageBuilder(false);
+  }, [setQuoteItems, setDiscountPercent, setInternalNotes]);
 
   // Update quote item
   const updateQuoteItem = useCallback((index, field, value) => {
@@ -562,9 +605,106 @@ const QuoteBuilder = ({
         marginBottom: '24px',
         boxShadow: '0 1px 3px rgba(0,0,0,0.1)'
       }}>
-        <h3 style={{ fontSize: '18px', fontWeight: 'bold', marginBottom: '16px' }}>
-          2. Add Products
-        </h3>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+          <h3 style={{ fontSize: '18px', fontWeight: 'bold', margin: 0 }}>
+            2. Add Products
+          </h3>
+          <div style={{ position: 'relative' }}>
+            <button
+              onClick={() => setPackageBuilderDropdownOpen(!packageBuilderDropdownOpen)}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px',
+                padding: '10px 20px',
+                background: 'linear-gradient(135deg, #8b5cf6 0%, #6366f1 100%)',
+                color: 'white',
+                border: 'none',
+                borderRadius: '8px',
+                fontSize: '14px',
+                fontWeight: 'bold',
+                cursor: 'pointer',
+                boxShadow: '0 2px 8px rgba(139, 92, 246, 0.3)',
+                transition: 'all 0.2s ease'
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.transform = 'translateY(-1px)';
+                e.currentTarget.style.boxShadow = '0 4px 12px rgba(139, 92, 246, 0.4)';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.transform = 'translateY(0)';
+                e.currentTarget.style.boxShadow = '0 2px 8px rgba(139, 92, 246, 0.3)';
+              }}
+            >
+              <span style={{ fontSize: '18px' }}>+</span>
+              Build Package
+              <span style={{ marginLeft: '4px', fontSize: '10px' }}>&#9660;</span>
+            </button>
+            {packageBuilderDropdownOpen && (
+              <div style={{
+                position: 'absolute',
+                top: '100%',
+                right: 0,
+                marginTop: '4px',
+                background: 'white',
+                borderRadius: '8px',
+                boxShadow: '0 4px 20px rgba(0, 0, 0, 0.15)',
+                border: '1px solid #e5e7eb',
+                overflow: 'hidden',
+                zIndex: 100,
+                minWidth: '220px'
+              }}>
+                <button
+                  onClick={() => {
+                    setShowPackageBuilder(true);
+                    setPackageBuilderDropdownOpen(false);
+                  }}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '10px',
+                    width: '100%',
+                    padding: '12px 16px',
+                    background: 'transparent',
+                    border: 'none',
+                    borderBottom: '1px solid #e5e7eb',
+                    cursor: 'pointer',
+                    textAlign: 'left'
+                  }}
+                >
+                  <span style={{ fontSize: '20px' }}>&#128221;</span>
+                  <div>
+                    <div style={{ fontWeight: 'bold', color: '#1f2937' }}>Wizard Mode</div>
+                    <div style={{ fontSize: '12px', color: '#6b7280' }}>Guided questionnaire</div>
+                  </div>
+                </button>
+                <button
+                  onClick={() => {
+                    setShowPackageBuilderV2(true);
+                    setPackageBuilderDropdownOpen(false);
+                  }}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '10px',
+                    width: '100%',
+                    padding: '12px 16px',
+                    background: 'transparent',
+                    border: 'none',
+                    cursor: 'pointer',
+                    textAlign: 'left'
+                  }}
+                >
+                  <span style={{ fontSize: '20px' }}>&#128270;</span>
+                  <div>
+                    <div style={{ fontWeight: 'bold', color: '#1f2937' }}>Filter Mode</div>
+                    <div style={{ fontSize: '12px', color: '#6b7280' }}>Faceted filtering (NEW)</div>
+                  </div>
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
 
         {/* Product Tabs */}
         <div style={{ display: 'flex', gap: '8px', marginBottom: '16px', borderBottom: '2px solid #e5e7eb' }}>
@@ -620,10 +760,10 @@ const QuoteBuilder = ({
                   >
                     <div style={{ flex: 1, cursor: 'pointer' }} onClick={() => addProductToQuote(product)}>
                       <div style={{ fontWeight: 'bold', marginBottom: '4px' }}>
-                        {product.manufacturer} - {product.model_number}
+                        {product.manufacturer} - {product.model}
                       </div>
                       <div style={{ fontSize: '12px', color: '#6b7280' }}>
-                        SKU: {product.sku || product.model_number} • {product.category}
+                        SKU: {product.sku || product.model} • {product.category}
                       </div>
                     </div>
                     <div style={{ textAlign: 'right', marginRight: '16px' }}>
@@ -649,7 +789,7 @@ const QuoteBuilder = ({
             {favoriteProducts.map(product => (
               <div key={product.id} style={{ padding: '12px', borderBottom: '1px solid #e5e7eb', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <div style={{ flex: 1, cursor: 'pointer' }} onClick={() => addProductToQuote(product)}>
-                  <div style={{ fontWeight: 'bold' }}>{product.manufacturer} - {product.model_number}</div>
+                  <div style={{ fontWeight: 'bold' }}>{product.manufacturer} - {product.model}</div>
                   <div style={{ fontSize: '12px', color: '#6b7280' }}>{product.category}</div>
                 </div>
                 <button onClick={() => addProductToQuote(product)} style={{ padding: '6px 12px', background: '#3b82f6', color: 'white', border: 'none', borderRadius: '6px', fontSize: '12px', cursor: 'pointer' }}>Add</button>
@@ -664,7 +804,7 @@ const QuoteBuilder = ({
             {recentProducts.map(product => (
               <div key={product.id} style={{ padding: '12px', borderBottom: '1px solid #e5e7eb', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <div style={{ flex: 1, cursor: 'pointer' }} onClick={() => addProductToQuote(product)}>
-                  <div style={{ fontWeight: 'bold' }}>{product.manufacturer} - {product.model_number}</div>
+                  <div style={{ fontWeight: 'bold' }}>{product.manufacturer} - {product.model}</div>
                   <div style={{ fontSize: '12px', color: '#6b7280' }}>{product.category}</div>
                 </div>
                 <button onClick={() => addProductToQuote(product)} style={{ padding: '6px 12px', background: '#3b82f6', color: 'white', border: 'none', borderRadius: '6px', fontSize: '12px', cursor: 'pointer' }}>Add</button>
@@ -1310,6 +1450,78 @@ const QuoteBuilder = ({
               <button onClick={() => { setShowTemplateSaveDialog(false); setTemplateName(''); setTemplateDescription(''); }} style={{ padding: '12px 24px', background: '#6b7280', color: 'white', border: 'none', borderRadius: '8px', fontSize: '16px', fontWeight: 'bold', cursor: 'pointer' }}>Cancel</button>
               <button onClick={handleSaveTemplate} disabled={!templateName.trim()} style={{ padding: '12px 24px', background: templateName.trim() ? '#8b5cf6' : '#9ca3af', color: 'white', border: 'none', borderRadius: '8px', fontSize: '16px', fontWeight: 'bold', cursor: templateName.trim() ? 'pointer' : 'not-allowed' }}>Save Template</button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Package Builder Modal (Wizard Mode) */}
+      {showPackageBuilder && (
+        <PackageBuilder
+          isOpen={showPackageBuilder}
+          onClose={() => setShowPackageBuilder(false)}
+          onAddToQuote={handleAddPackageToQuote}
+          customerId={selectedCustomer?.id}
+        />
+      )}
+
+      {/* Package Builder V2 Modal (Filter Mode) */}
+      {showPackageBuilderV2 && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          background: 'rgba(0, 0, 0, 0.6)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 1000,
+          padding: '20px'
+        }}>
+          <div style={{
+            background: 'white',
+            borderRadius: '16px',
+            width: '100%',
+            maxWidth: '1400px',
+            height: '90vh',
+            maxHeight: '900px',
+            overflow: 'hidden',
+            boxShadow: '0 20px 60px rgba(0, 0, 0, 0.3)'
+          }}>
+            <PackageBuilderV2
+              defaultPackageType="kitchen"
+              onPackageSelect={(tier, pkg, packageType) => {
+                // Add all items from the selected package tier to the quote
+                if (pkg && pkg.items && pkg.items.length > 0) {
+                  // Extract product data - handle both nested and flat structures
+                  const items = pkg.items.map(item => {
+                    const product = item.product || item;
+                    return {
+                      product_id: product.id,
+                      model: product.model,
+                      manufacturer: product.manufacturer,
+                      description: product.name || '',
+                      category: item.slot || product.category || '',
+                      msrp_cents: parseInt(product.msrp_cents) || 0,
+                      cost_cents: parseInt(product.cost_cents) || 0,
+                      sell_cents: parseInt(product.msrp_cents) || 0,
+                      quantity: 1
+                    };
+                  });
+
+                  // Call handleAddPackageToQuote once with properly formatted data
+                  handleAddPackageToQuote({
+                    items,
+                    tier,
+                    bundle_discount_cents: pkg.bundle_savings_cents || 0,
+                    brand_cohesion_score: pkg.brand_cohesion_score || 0
+                  });
+                }
+                setShowPackageBuilderV2(false);
+              }}
+              onClose={() => setShowPackageBuilderV2(false)}
+            />
           </div>
         </div>
       )}
