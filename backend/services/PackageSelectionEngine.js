@@ -110,7 +110,9 @@ class PackageSelectionEngine {
         'rangetop', 'speed oven', 'steam oven', 'warming drawer', 'coffee',
         'single convection oven', 'double convection oven',
         'drop-in', 'drop in',  // Drop-in cooktops
-        'cooker rear control'   // Rear control cookers (different from ranges)
+        'cooker rear control',   // Rear control cookers (different from ranges)
+        'radiant cooktop', 'wall mount', 'chimney hood',  // Hoods and cooktops
+        'cbew', 'cbgj', 'cbih', 'cbis', 'lsce'  // LG cooktop model prefixes
       ],
       dishwasher: ['clothes washer', 'laundry', 'washing machine', 'accessory'],
       microwave: ['hood', 'accessory'],  // Note: OTR microwaves are OK
@@ -254,10 +256,31 @@ class PackageSelectionEngine {
       const products = await this.fetchCatalogForSlot(slotConfig.category, slotType);
       catalogBySlot[slotKey] = products;
 
-      // Compute dynamic tier ranges from actual price distribution
-      tierRangesBySlot[slotKey] = this.computeDynamicTiers(products);
+      // If brand is required, filter products by brand BEFORE computing tiers
+      // This ensures tier ranges are relative to the selected brand's price range
+      let productsForTiers = products;
+      if (requirements.brand_preference && requirements.brand_preference !== 'any') {
+        const brandFilter = requirements.brand_preference.toLowerCase();
+        const normalizedBrand = this.normalizeBrandName(requirements.brand_preference).toLowerCase();
+        // Use exact match or word boundary match to avoid "lg" matching "fulgor"
+        productsForTiers = products.filter(p => {
+          const mfr = (p.manufacturer || '').toLowerCase();
+          // Exact match or starts with brand
+          return mfr === brandFilter || mfr === normalizedBrand ||
+                 mfr.startsWith(brandFilter + ' ') || mfr.startsWith(normalizedBrand + ' ');
+        });
+        console.log(`   🏷️ Brand filter "${brandFilter}": ${products.length} -> ${productsForTiers.length} products for tier calculation`);
+        // If no products match the brand, fall back to all products for tier calculation
+        if (productsForTiers.length === 0) {
+          console.log(`   ⚠️ No ${brandFilter} products found, using all products for tiers`);
+          productsForTiers = products;
+        }
+      }
 
-      console.log(`   ${slotKey}: ${products.length} products, tiers: $${(tierRangesBySlot[slotKey].good.max/100).toFixed(0)}/$${(tierRangesBySlot[slotKey].better.max/100).toFixed(0)}/$${(tierRangesBySlot[slotKey].best.max/100).toFixed(0)}`);
+      // Compute dynamic tier ranges from actual price distribution
+      tierRangesBySlot[slotKey] = this.computeDynamicTiers(productsForTiers);
+
+      console.log(`   ${slotKey}: ${productsForTiers.length} products for tiers, ranges: $${(tierRangesBySlot[slotKey].good.max/100).toFixed(0)}/$${(tierRangesBySlot[slotKey].better.max/100).toFixed(0)}/$${(tierRangesBySlot[slotKey].best.max/100).toFixed(0)}`);
     }
 
     // STEP 2: Build packages for each tier with progressive filter relaxation
@@ -387,6 +410,11 @@ class PackageSelectionEngine {
       // Also exclude by name for extra safety
       const nameExclusionParts = exclusions.map(() => `LOWER(p.name) NOT LIKE $${paramIndex++}`);
       exclusionConditions += ' AND ' + nameExclusionParts.join(' AND ');
+      exclusionParams.push(...exclusions.map(e => `%${e}%`));
+
+      // Also exclude by model (for model-prefix patterns like LG cooktops: cbew, cbgj, etc.)
+      const modelExclusionParts = exclusions.map(() => `LOWER(p.model) NOT LIKE $${paramIndex++}`);
+      exclusionConditions += ' AND ' + modelExclusionParts.join(' AND ');
       exclusionParams.push(...exclusions.map(e => `%${e}%`));
     }
 
@@ -968,10 +996,12 @@ class PackageSelectionEngine {
       if (requirements.brand_preference && requirements.brand_preference !== 'any') {
         const originalBrand = requirements.brand_preference.toLowerCase();
         const normalizedBrand = this.normalizeBrandName(requirements.brand_preference).toLowerCase();
-        // Check both original and normalized (e.g., "jenn-air" vs "jennair")
+        // Use exact match or starts-with to avoid "lg" matching "fulgor"
         filtered = filtered.filter(p => {
           const mfr = p.manufacturer?.toLowerCase() || '';
-          return mfr.includes(originalBrand) || mfr.includes(normalizedBrand);
+          // Exact match or starts with brand name
+          return mfr === originalBrand || mfr === normalizedBrand ||
+                 mfr.startsWith(originalBrand + ' ') || mfr.startsWith(normalizedBrand + ' ');
         });
       }
 
