@@ -75,7 +75,8 @@ class FilterCountService {
     };
 
     this.CATEGORY_EXCLUSIONS = {
-      refrigerator: ['wine', 'beverage', 'cooler', 'ice maker', 'water filter', 'accessory', 'undercounter', 'column'],
+      refrigerator: ['wine', 'beverage', 'cooler', 'ice maker', 'water filter', 'accessory', 'undercounter', 'column',
+                     'chest', 'upright', 'sidekick', 'freezer only', 'stand alone freezer'],
       range: ['range hood', 'hood', 'wall oven', 'cooktop', 'microwave', 'grill', 'accessory',
               'rangetop', 'speed oven', 'steam oven', 'warming drawer', 'coffee',
               'single convection oven', 'double convection oven', 'built-in cooking cooktop',

@@ -101,7 +101,8 @@ class PackageSelectionEngine {
     // Category exclusion patterns - prevent cross-category contamination
     // IMPORTANT: These patterns exclude products that match inclusion patterns but are wrong category
     this.CATEGORY_EXCLUSIONS = {
-      refrigerator: ['wine', 'beverage', 'cooler', 'ice maker', 'water filter', 'accessory'],
+      refrigerator: ['wine', 'beverage', 'cooler', 'ice maker', 'water filter', 'accessory',
+                     'chest', 'upright', 'sidekick', 'freezer only', 'stand alone freezer'],
       freezer: ['refrigerator', 'fridge', 'fdr', 'french door'],
       range: [
         'range hood', 'hood', 'wall oven', 'cooktop', 'microwave', 'grill', 'accessory',
