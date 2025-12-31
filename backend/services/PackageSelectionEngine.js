@@ -89,7 +89,8 @@ class PackageSelectionEngine {
         'dryer', 'dryers',
         'tl dryer', 'fl dryer',             // Samsung patterns
         'laundry - dryer',                   // Full category path
-        'fabric care - fl dryer', 'fabric care - tl dryer'
+        'fabric care - fl dryer', 'fabric care - tl dryer',
+        'w/m'                                // LG uses W/M for dryers (DL* models)
       ],
       laundry_combo: [
         'washer dryer combo', 'all-in-one', 'washer/dryer',
@@ -117,7 +118,7 @@ class PackageSelectionEngine {
       wall_oven: ['microwave', 'cooktop', 'range hood', 'accessory'],  // Note: Combo ovens are OK
       hood: ['microwave', 'accessory'],  // Range hoods only
       washer: ['dishwasher', 'dish washer', 'dryer', 'pressure washer', 'power washer', 'accessory', 'pedestal'],
-      dryer: ['hair dryer', 'hand dryer', 'blow dryer', 'accessory', 'pedestal'],
+      dryer: ['hair dryer', 'hand dryer', 'blow dryer', 'accessory', 'pedestal', 'stacking kit', 'accessory & parts'],
       laundry_combo: ['accessory', 'pedestal']
     };
 

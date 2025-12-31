@@ -69,6 +69,8 @@ class FilterCountService {
         // Specific sub-categories
         'laundry - dryer',
         'laundry-dryer',
+        // LG uses W/M category for dryers (detected by DL* model prefix)
+        'w/m',
         // Model prefixes
         'df', 'dv'
       ]
@@ -83,7 +85,7 @@ class FilterCountService {
               'drop-in', 'drop in', 'vent', 'ventilation'],
       dishwasher: ['clothes washer', 'laundry', 'washing machine', 'accessory'],
       washer: ['dishwasher', 'dish washer', 'dryer', 'pressure washer', 'power washer', 'accessory', 'pedestal'],
-      dryer: ['hair dryer', 'hand dryer', 'blow dryer', 'accessory', 'pedestal']
+      dryer: ['hair dryer', 'hand dryer', 'blow dryer', 'accessory', 'pedestal', 'stacking kit', 'accessory & parts']
     };
   }
 
