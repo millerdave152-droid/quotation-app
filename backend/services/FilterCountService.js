@@ -10,38 +10,76 @@ class FilterCountService {
   constructor(pool) {
     this.pool = pool;
 
-    // Category patterns for appliance detection (same as PackageSelectionEngine)
+    // Category patterns for appliance detection (synced with PackageSelectionEngine)
     this.CATEGORY_PATTERNS = {
       refrigerator: [
         'refrigerator', 'fridge', 'refrig', 'ref',
         'fdr', 'sxs', 'tmf', 'bmf',
-        'refrigeration', '4dflex', '4dr'
+        'refrigeration', '4dflex', '4dr',
+        // Specific sub-categories found in database
+        'french door', 'side by side', 'top freezer', 'bottom freezer',
+        'bottom mount', 'top mount', 'multidoor',
+        // Brand-specific patterns
+        'fulgor milano - refrig',
+        'built-in refrigeration',
+        'refrigeration - refrigerator',
+        'refrigeration - built-in refrigeration',
+        // Electrolux/Frigidaire patterns
+        'preservation - freestanding',
+        'food preservation'
       ],
       range: [
         'range', 'stove', 'ranges',
         'slide-in', 'slide in', 'slidein',
-        'freestanding', 'cooking - range',
-        'front control', 'dual fuel', 'commercial range'
+        'freestanding', 'front control',
+        'dual fuel', 'commercial range',
+        // Specific sub-categories
+        'cooking - range',
+        'cooking - built-in cooking',
+        // Brand-specific patterns
+        'fulgor milano - cooking',
+        'bertazzoni - cooking',
+        // Just "Cooking" category (Electrolux ranges)
+        'cooking'
       ],
       dishwasher: [
         'dishwasher', 'dish washer', 'dishwashers',
         'dw rotary', 'dw aquablast',
-        'cleaning - dishwasher', 'dish care'
+        'dish care',
+        // Specific sub-categories
+        'cleaning - dishwasher',
+        'cleaning - built-in',
+        // Brand-specific
+        'fulgor milano - dishwasher',
+        'bertazzoni - dishwasher',
+        'cleanup'
       ],
       washer: [
-        'washer', 'washing machine', 'laundry - washer',
+        'washer', 'washing machine',
         'clothes washer', 'front load washer', 'top load washer',
-        'laundry-washer', 'wf', 'ww'
+        // Specific sub-categories
+        'laundry - washer',
+        'laundry-washer',
+        // Model prefixes
+        'wf', 'ww'
       ],
       dryer: [
-        'dryer', 'drying machine', 'laundry - dryer',
-        'clothes dryer', 'laundry-dryer', 'df', 'dv'
+        'dryer', 'drying machine',
+        'clothes dryer',
+        // Specific sub-categories
+        'laundry - dryer',
+        'laundry-dryer',
+        // Model prefixes
+        'df', 'dv'
       ]
     };
 
     this.CATEGORY_EXCLUSIONS = {
-      refrigerator: ['wine', 'beverage', 'cooler', 'ice maker', 'water filter', 'accessory'],
-      range: ['range hood', 'hood', 'wall oven', 'cooktop', 'microwave', 'grill', 'accessory'],
+      refrigerator: ['wine', 'beverage', 'cooler', 'ice maker', 'water filter', 'accessory', 'undercounter', 'column'],
+      range: ['range hood', 'hood', 'wall oven', 'cooktop', 'microwave', 'grill', 'accessory',
+              'rangetop', 'speed oven', 'steam oven', 'warming drawer', 'coffee',
+              'single convection oven', 'double convection oven', 'built-in cooking cooktop',
+              'drop-in', 'drop in', 'vent', 'ventilation'],
       dishwasher: ['clothes washer', 'laundry', 'washing machine', 'accessory'],
       washer: ['dishwasher', 'dish washer', 'dryer', 'pressure washer', 'power washer', 'accessory', 'pedestal'],
       dryer: ['hair dryer', 'hand dryer', 'blow dryer', 'accessory', 'pedestal']
