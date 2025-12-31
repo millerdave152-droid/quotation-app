@@ -387,11 +387,31 @@ class FilterCountService {
         values.type = 'top_load';
       }
 
-      // Capacity detection (from specs if available)
-      if (product.capacity_cu_ft) {
-        if (product.capacity_cu_ft < 5) values.capacity = 'standard';
-        else if (product.capacity_cu_ft < 6) values.capacity = 'large';
+      // Capacity detection - Parse from product name (e.g., "5.2 cu.ft", "5.8 Cu. Ft.")
+      const washerCapacityMatch = name.match(/(\d+\.?\d*)\s*cu\.?\s*ft/i);
+      if (washerCapacityMatch) {
+        const cuFt = parseFloat(washerCapacityMatch[1]);
+        if (cuFt < 5) values.capacity = 'standard';
+        else if (cuFt < 6) values.capacity = 'large';
         else values.capacity = 'xl';
+      } else {
+        // Try model-based detection for Samsung, LG
+        // Samsung: WF45 = 4.5 cu.ft, WF50 = 5.0 cu.ft, WF53 = 5.3 cu.ft
+        const samsungWasherMatch = model.match(/^WF(\d{2})/);
+        if (samsungWasherMatch) {
+          const capacity = parseInt(samsungWasherMatch[1]) / 10;
+          if (capacity < 5) values.capacity = 'standard';
+          else if (capacity < 6) values.capacity = 'large';
+          else values.capacity = 'xl';
+        }
+        // LG: WM4000 = 4.5, WM5000 = 5.0, etc.
+        const lgWasherMatch = model.match(/^WM(\d)(\d)/);
+        if (lgWasherMatch) {
+          const capacity = parseInt(lgWasherMatch[1]) + parseInt(lgWasherMatch[2]) / 10;
+          if (capacity < 5) values.capacity = 'standard';
+          else if (capacity < 6) values.capacity = 'large';
+          else values.capacity = 'xl';
+        }
       }
 
       // Steam detection
@@ -412,11 +432,31 @@ class FilterCountService {
         values.fuel_type = 'electric';
       }
 
-      // Capacity detection
-      if (product.capacity_cu_ft) {
-        if (product.capacity_cu_ft < 8) values.capacity = 'standard';
-        else if (product.capacity_cu_ft < 9) values.capacity = 'large';
+      // Capacity detection - Parse from product name (e.g., "7.4 cu.ft", "9.0 Cu. Ft.")
+      const dryerCapacityMatch = name.match(/(\d+\.?\d*)\s*cu\.?\s*ft/i);
+      if (dryerCapacityMatch) {
+        const cuFt = parseFloat(dryerCapacityMatch[1]);
+        if (cuFt < 8) values.capacity = 'standard';
+        else if (cuFt < 9) values.capacity = 'large';
         else values.capacity = 'xl';
+      } else {
+        // Try model-based detection for Samsung, LG
+        // Samsung: DVE45 = 7.5 cu.ft, DVE50 = 7.5, DVE55 = 7.8, DVE60 = 9.5
+        const samsungDryerMatch = model.match(/^DV[EG](\d{2})/);
+        if (samsungDryerMatch) {
+          const modelNum = parseInt(samsungDryerMatch[1]);
+          if (modelNum < 55) values.capacity = 'standard';
+          else if (modelNum < 60) values.capacity = 'large';
+          else values.capacity = 'xl';
+        }
+        // LG: DLEX/DLGX patterns - capacity often in name
+        const lgDryerMatch = model.match(/^DL[EG]X?(\d)/);
+        if (lgDryerMatch) {
+          const series = parseInt(lgDryerMatch[1]);
+          if (series < 5) values.capacity = 'standard';
+          else if (series < 8) values.capacity = 'large';
+          else values.capacity = 'xl';
+        }
       }
 
       // Steam detection
