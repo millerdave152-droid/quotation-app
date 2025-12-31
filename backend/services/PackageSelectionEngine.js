@@ -108,11 +108,12 @@ class PackageSelectionEngine {
       range: [
         'range hood', 'hood', 'wall oven', 'cooktop', 'microwave', 'grill', 'accessory',
         'rangetop', 'speed oven', 'steam oven', 'warming drawer', 'coffee',
-        'single convection oven', 'double convection oven',
+        'single convection oven', 'double convection oven', 'combination oven',
         'drop-in', 'drop in',  // Drop-in cooktops
         'cooker rear control',   // Rear control cookers (different from ranges)
         'radiant cooktop', 'wall mount', 'chimney hood',  // Hoods and cooktops
-        'cbew', 'cbgj', 'cbih', 'cbis', 'lsce'  // LG cooktop model prefixes
+        'cbew', 'cbgj', 'cbih', 'cbis', 'lsce',  // LG cooktop model prefixes
+        'wcep', 'wces', 'wceg'  // LG wall oven model prefixes
       ],
       dishwasher: ['clothes washer', 'laundry', 'washing machine', 'accessory'],
       microwave: ['hood', 'accessory'],  // Note: OTR microwaves are OK

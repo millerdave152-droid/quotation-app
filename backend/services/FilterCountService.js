@@ -82,11 +82,13 @@ class FilterCountService {
       range: ['range hood', 'hood', 'wall oven', 'cooktop', 'microwave', 'grill', 'accessory',
               'rangetop', 'speed oven', 'steam oven', 'warming drawer', 'coffee',
               'single convection oven', 'double convection oven', 'built-in cooking cooktop',
-              'drop-in', 'drop in', 'vent', 'ventilation',
+              'combination oven', 'drop-in', 'drop in', 'vent', 'ventilation',
               // LG cooktops have name "Built-In" with category "Cooking" - exclude them
               'radiant cooktop', 'wall mount', 'chimney hood',
               // LG cooktop model prefixes (CB* = Cooktop Built-in)
-              'cbew', 'cbgj', 'cbih', 'cbis', 'lsce'],
+              'cbew', 'cbgj', 'cbih', 'cbis', 'lsce',
+              // LG wall oven model prefixes
+              'wcep', 'wces', 'wceg'],
       dishwasher: ['clothes washer', 'laundry', 'washing machine', 'accessory'],
       washer: ['dishwasher', 'dish washer', 'dryer', 'pressure washer', 'power washer', 'accessory', 'pedestal'],
       dryer: ['hair dryer', 'hand dryer', 'blow dryer', 'accessory', 'pedestal', 'stacking kit', 'accessory & parts']
