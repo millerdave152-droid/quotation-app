@@ -141,28 +141,94 @@ class FilterCountService {
 
     // Category-specific detection
     if (applianceCategory === 'refrigerator') {
-      // Width detection from category (e.g., "36 FDR", "33 SxS")
-      const widthMatch = category.match(/(\d{2})\s*(fdr|sxs|bmf|tmf|4dr|4dflex)/i);
+      // WIDTH DETECTION - Multiple sources for better coverage
+      // 1. Category pattern: "36 FDR", "33 SxS", "30 BMF"
+      let widthMatch = category.match(/(\d{2})\s*(fdr|sxs|bmf|tmf|4dr|4dflex|french|side|top|bottom)/i);
+
+      // 2. Name pattern: "36-inch", '36"', "36 inch Wide", "36in"
+      if (!widthMatch) {
+        widthMatch = name.match(/(\d{2})[\-\s]?(inch|"|in|''|")\s*(wide)?/i);
+      }
+
+      // 3. Category with explicit width: '36"', "36 inch"
+      if (!widthMatch) {
+        widthMatch = category.match(/(\d{2})[\s"']/);
+      }
+
+      // 4. Model-based width detection by brand
       if (widthMatch) {
         values.width = widthMatch[1];
       } else {
-        // Model-based width detection for Samsung, LG, etc.
-        if (/^RF\d{2}/.test(model)) {
-          const sizeDigits = parseInt(model.substring(2, 4));
-          if (sizeDigits >= 28 && sizeDigits <= 32) values.width = '36';
-          else if (sizeDigits >= 22 && sizeDigits <= 27) values.width = '33';
-          else if (sizeDigits >= 15 && sizeDigits <= 21) values.width = '30';
+        // Samsung: RF28 = 36", RF24 = 33", RF18 = 30"
+        if (/^RF(\d{2})/.test(model)) {
+          const digits = parseInt(model.substring(2, 4));
+          if (digits >= 28) values.width = '36';
+          else if (digits >= 22) values.width = '33';
+          else values.width = '30';
+        }
+        // LG: LF/LR patterns
+        else if (/^L[FR][A-Z]*(\d{2})/.test(model)) {
+          const match = model.match(/^L[FR][A-Z]*(\d{2})/);
+          if (match) {
+            const digits = parseInt(match[1]);
+            if (digits >= 28) values.width = '36';
+            else if (digits >= 22) values.width = '33';
+            else values.width = '30';
+          }
+        }
+        // GE: GFE, GSS, GNE patterns
+        else if (/^G[FSEN][ES](\d{2})/.test(model)) {
+          const match = model.match(/^G[FSEN][ES](\d{2})/);
+          if (match) {
+            const digits = parseInt(match[1]);
+            if (digits >= 28) values.width = '36';
+            else if (digits >= 22) values.width = '33';
+            else values.width = '30';
+          }
+        }
+        // Whirlpool: WRF, WRS patterns
+        else if (/^WR[FS](\d{2})/.test(model)) {
+          const match = model.match(/^WR[FS](\d{2})/);
+          if (match) {
+            const digits = parseInt(match[1]);
+            if (digits >= 28) values.width = '36';
+            else if (digits >= 22) values.width = '33';
+            else values.width = '30';
+          }
+        }
+        // KitchenAid: KRMF, KRFC, KRFF patterns
+        else if (/^KR[MFC][FC](\d{2})/.test(model)) {
+          const match = model.match(/^KR[MFC][FC](\d{2})/);
+          if (match) {
+            const digits = parseInt(match[1]);
+            if (digits >= 28) values.width = '36';
+            else if (digits >= 22) values.width = '33';
+            else values.width = '30';
+          }
         }
       }
 
+      // CAPACITY DETECTION - Parse from product name "XX cu.ft", "XX Cu. Ft."
+      const capacityMatch = name.match(/(\d+\.?\d*)\s*cu\.?\s*ft/i);
+      if (capacityMatch) {
+        const cuFt = parseFloat(capacityMatch[1]);
+        if (cuFt < 20) values.capacity = 'small';
+        else if (cuFt < 25) values.capacity = 'medium';
+        else values.capacity = 'large';
+      }
+
       // Style detection
-      if (category.includes('fdr') || category.includes('french door') || name.includes('french door')) {
+      if (category.includes('fdr') || category.includes('french door') || category.includes('french') ||
+          name.includes('french door') || category.includes('multidoor') || category.includes('4dr')) {
         values.style = 'french_door';
-      } else if (category.includes('sxs') || category.includes('side by side') || category.includes('side-by-side')) {
+      } else if (category.includes('sxs') || category.includes('side by side') || category.includes('side-by-side') ||
+                 name.includes('side by side') || name.includes('side-by-side')) {
         values.style = 'side_by_side';
-      } else if (category.includes('tmf') || category.includes('top freezer') || category.includes('top mount')) {
+      } else if (category.includes('tmf') || category.includes('top freezer') || category.includes('top mount') ||
+                 name.includes('top mount') || name.includes('top freezer')) {
         values.style = 'top_freezer';
-      } else if (category.includes('bmf') || category.includes('bottom freezer') || category.includes('bottom mount')) {
+      } else if (category.includes('bmf') || category.includes('bottom freezer') || category.includes('bottom mount') ||
+                 name.includes('bottom mount') || name.includes('bottom freezer')) {
         values.style = 'bottom_freezer';
       }
 
@@ -173,34 +239,62 @@ class FilterCountService {
         values.depth = 'standard';
       }
 
-      // Ice & Water detection
-      if (name.includes('dispenser') || name.includes('ice and water')) {
+      // Ice & Water detection - enhanced patterns
+      if (name.includes('dispenser') || name.includes('ice and water') || name.includes('ice & water') ||
+          name.includes('external ice') || name.includes('door dispenser') || name.includes('through-the-door')) {
         values.ice_water = 'door';
-      } else if (name.includes('ice maker')) {
+      } else if (name.includes('ice maker') || name.includes('internal ice')) {
         values.ice_water = 'inside';
       }
 
     } else if (applianceCategory === 'range') {
-      // Fuel type detection
-      if (category.includes('gas') || name.includes('gas')) {
-        values.fuel_type = 'gas';
-      } else if (category.includes('induction') || name.includes('induction')) {
+      // Fuel type detection - enhanced patterns
+      if (category.includes('induction') || name.includes('induction')) {
         values.fuel_type = 'induction';
       } else if (category.includes('dual fuel') || name.includes('dual fuel')) {
         values.fuel_type = 'dual_fuel';
-      } else if (category.includes('electric') || name.includes('electric')) {
+      } else if (category.includes('gas') || name.includes(' gas') || name.includes('gas ') ||
+                 category.includes('natural gas') || name.includes('propane')) {
+        values.fuel_type = 'gas';
+      } else if (category.includes('electric') || name.includes('electric') || name.includes('radiant')) {
         values.fuel_type = 'electric';
       }
 
-      // Width detection
-      const rangeWidthMatch = category.match(/(\d{2})["\']?\s*(range|slide|freestanding)/i);
+      // WIDTH DETECTION - Multiple sources for better coverage
+      // 1. Category pattern: "30\" Range", "36 Slide-In", "48 Freestanding"
+      let rangeWidthMatch = category.match(/(\d{2})["\'\s]*(range|slide|freestanding|induction|gas|electric|dual)/i);
+
+      // 2. Name pattern: "30-inch", '30"', "30 inch Wide"
+      if (!rangeWidthMatch) {
+        rangeWidthMatch = name.match(/(\d{2})[\-\s]?(inch|"|in|''|")\s*(wide)?/i);
+      }
+
+      // 3. Category with just width
+      if (!rangeWidthMatch) {
+        rangeWidthMatch = category.match(/^(\d{2})\s/);
+      }
+
       if (rangeWidthMatch) {
         values.width = rangeWidthMatch[1];
       } else {
-        // Model pattern detection
-        if (/NX60|NE60|NZ60/.test(model)) values.width = '30';
-        else if (/NX36|NE36|NZ36|36/.test(model)) values.width = '36';
+        // Model pattern detection by brand
+        // Samsung: NX60 = 30", NX36 = 36"
+        if (/NX60|NE60|NZ60|NY60/.test(model)) values.width = '30';
+        else if (/NX36|NE36|NZ36|NY36/.test(model)) values.width = '36';
+        // GE/Café patterns
+        else if (/^C[GC]S\d{3}|^JGS\d{3}/.test(model)) values.width = '30';
+        else if (/^CGY\d{3}|^C2S\d{3}/.test(model)) values.width = '30';
+        // LG patterns
+        else if (/^L[RS][GES]\d{4}/.test(model)) values.width = '30';
+        // Whirlpool/KitchenAid
+        else if (/^W[EG][EG]\d{3}|^K[SFG][EIG][BGS]\d/.test(model)) values.width = '30';
+        // Bertazzoni/Fulgor Milano - often have width in model
+        else if (/36/.test(model)) values.width = '36';
         else if (/48/.test(model)) values.width = '48';
+        else if (/60/.test(model)) values.width = '60';
+        else if (/30/.test(model)) values.width = '30';
+        // Default to 30" (most common size) if no pattern matches
+        else values.width = '30';
       }
 
       // Configuration detection
