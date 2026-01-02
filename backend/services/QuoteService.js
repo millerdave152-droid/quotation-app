@@ -87,9 +87,24 @@ class QuoteService {
         COUNT(CASE WHEN status = 'SENT' THEN 1 END) as sent_count,
         COUNT(CASE WHEN status = 'WON' THEN 1 END) as won_count,
         COUNT(CASE WHEN status = 'LOST' THEN 1 END) as lost_count,
-        SUM(total_cents) / 100.0 as total_value,
-        SUM(CASE WHEN status = 'WON' THEN total_cents ELSE 0 END) / 100.0 as won_value,
-        SUM(gross_profit_cents) / 100.0 as total_profit,
+        COUNT(CASE WHEN status = 'PENDING_APPROVAL' THEN 1 END) as pending_approval_count,
+
+        -- All values in CENTS for frontend compatibility
+        COALESCE(SUM(total_cents), 0) as total_value_cents,
+        COALESCE(SUM(CASE WHEN status = 'WON' THEN total_cents ELSE 0 END), 0) as won_value_cents,
+        COALESCE(SUM(CASE WHEN status IN ('DRAFT', 'SENT', 'PENDING_APPROVAL') THEN total_cents ELSE 0 END), 0) as pipeline_value_cents,
+        COALESCE(SUM(CASE WHEN status = 'DRAFT' THEN total_cents ELSE 0 END), 0) as draft_value_cents,
+        COALESCE(SUM(CASE WHEN status = 'SENT' THEN total_cents ELSE 0 END), 0) as sent_value_cents,
+        COALESCE(SUM(CASE WHEN status = 'LOST' THEN total_cents ELSE 0 END), 0) as lost_value_cents,
+
+        COALESCE(SUM(gross_profit_cents), 0) as total_profit_cents,
+        COALESCE(SUM(CASE WHEN status = 'WON' THEN gross_profit_cents ELSE 0 END), 0) as won_profit_cents,
+
+        -- Dollar amounts (for backward compatibility)
+        COALESCE(SUM(total_cents), 0) / 100.0 as total_value,
+        COALESCE(SUM(CASE WHEN status = 'WON' THEN total_cents ELSE 0 END), 0) / 100.0 as won_value,
+        COALESCE(SUM(gross_profit_cents), 0) / 100.0 as total_profit,
+
         COUNT(CASE WHEN created_at >= CURRENT_DATE - INTERVAL '7 days' THEN 1 END) as last_7_days,
         COUNT(CASE WHEN created_at >= CURRENT_DATE - INTERVAL '30 days' THEN 1 END) as last_30_days
       FROM quotations
@@ -97,10 +112,34 @@ class QuoteService {
 
     const stats = result.rows[0];
 
+    // Parse numeric values to ensure proper types
+    stats.total_quotes = parseInt(stats.total_quotes) || 0;
+    stats.draft_count = parseInt(stats.draft_count) || 0;
+    stats.sent_count = parseInt(stats.sent_count) || 0;
+    stats.won_count = parseInt(stats.won_count) || 0;
+    stats.lost_count = parseInt(stats.lost_count) || 0;
+    stats.pending_approval_count = parseInt(stats.pending_approval_count) || 0;
+
+    stats.total_value_cents = parseInt(stats.total_value_cents) || 0;
+    stats.won_value_cents = parseInt(stats.won_value_cents) || 0;
+    stats.pipeline_value_cents = parseInt(stats.pipeline_value_cents) || 0;
+    stats.draft_value_cents = parseInt(stats.draft_value_cents) || 0;
+    stats.sent_value_cents = parseInt(stats.sent_value_cents) || 0;
+    stats.lost_value_cents = parseInt(stats.lost_value_cents) || 0;
+    stats.total_profit_cents = parseInt(stats.total_profit_cents) || 0;
+    stats.won_profit_cents = parseInt(stats.won_profit_cents) || 0;
+
+    stats.total_value = parseFloat(stats.total_value) || 0;
+    stats.won_value = parseFloat(stats.won_value) || 0;
+    stats.total_profit = parseFloat(stats.total_profit) || 0;
+
     // Calculate win rate
-    const total = parseInt(stats.total_quotes) || 0;
-    const won = parseInt(stats.won_count) || 0;
+    const total = stats.total_quotes;
+    const won = stats.won_count;
     stats.win_rate = total > 0 ? Math.round((won / total) * 100) : 0;
+
+    // Calculate average quote value
+    stats.avg_quote_value_cents = total > 0 ? Math.round(stats.total_value_cents / total) : 0;
 
     return stats;
   }
@@ -260,26 +299,42 @@ class QuoteService {
 
       const {
         customer_id,
-        subtotal_cents,
-        discount_percent,
-        discount_cents,
-        tax_rate,
-        tax_cents,
-        total_cents,
-        gross_profit_cents,
+        discount_percent = 0,
+        tax_rate = 13,
         notes,
         internal_notes = '',
         terms,
         status = 'DRAFT',
-        items = []
+        items = [],
+        expires_at: providedExpiresAt
       } = quoteData;
+
+      // Calculate totals from items (the source of truth)
+      const calculatedTotals = this.calculateTotals(items, discount_percent, tax_rate);
+      const {
+        subtotal_cents,
+        discount_cents,
+        tax_cents,
+        total_cents,
+        gross_profit_cents
+      } = calculatedTotals;
 
       // Generate quote number
       const quote_number = await this.generateQuoteNumber();
 
-      // Set expiration date (30 days)
-      const expires_at = new Date();
-      expires_at.setDate(expires_at.getDate() + 30);
+      // Set expiration date - use provided date or default to 30 days
+      let expires_at;
+      if (providedExpiresAt) {
+        expires_at = new Date(providedExpiresAt);
+        // Validate the date is valid
+        if (isNaN(expires_at.getTime())) {
+          expires_at = new Date();
+          expires_at.setDate(expires_at.getDate() + 30);
+        }
+      } else {
+        expires_at = new Date();
+        expires_at.setDate(expires_at.getDate() + 30);
+      }
 
       const quoteResult = await client.query(
         `INSERT INTO quotations (
@@ -334,18 +389,23 @@ class QuoteService {
       await client.query('BEGIN');
 
       const {
-        subtotal_cents,
-        discount_percent,
-        discount_cents,
-        tax_rate,
-        tax_cents,
-        total_cents,
-        gross_profit_cents,
+        discount_percent = 0,
+        tax_rate = 13,
         notes,
         internal_notes = '',
         terms,
         items = []
       } = quoteData;
+
+      // Calculate totals from items (the source of truth)
+      const calculatedTotals = this.calculateTotals(items, discount_percent, tax_rate);
+      const {
+        subtotal_cents,
+        discount_cents,
+        tax_cents,
+        total_cents,
+        gross_profit_cents
+      } = calculatedTotals;
 
       const result = await client.query(
         `UPDATE quotations SET
@@ -451,32 +511,127 @@ class QuoteService {
   }
 
   /**
-   * Update quote status
-   * @param {number} id - Quote ID
-   * @param {string} status - New status
-   * @returns {Promise<object|null>}
+   * Status transition rules
    */
-  async updateStatus(id, status) {
-    const validStatuses = ['DRAFT', 'SENT', 'WON', 'LOST', 'PENDING_APPROVAL', 'APPROVED', 'REJECTED'];
+  static STATUS_TRANSITIONS = {
+    DRAFT: ['SENT', 'LOST', 'PENDING_APPROVAL'],
+    SENT: ['WON', 'LOST', 'DRAFT', 'PENDING_APPROVAL'],
+    WON: ['DRAFT'],  // Allow reopening
+    LOST: ['DRAFT'], // Allow reopening
+    PENDING_APPROVAL: ['APPROVED', 'REJECTED', 'DRAFT'],
+    APPROVED: ['SENT', 'DRAFT'],
+    REJECTED: ['DRAFT']
+  };
 
-    if (!validStatuses.includes(status)) {
-      throw new Error(`Invalid status: ${status}`);
+  /**
+   * Validate status transition
+   * @param {string} currentStatus - Current quote status
+   * @param {string} newStatus - Desired new status
+   * @returns {{valid: boolean, reason?: string}}
+   */
+  validateStatusTransition(currentStatus, newStatus) {
+    const allowedTransitions = QuoteService.STATUS_TRANSITIONS[currentStatus] || [];
+
+    if (!allowedTransitions.includes(newStatus)) {
+      return {
+        valid: false,
+        reason: `Cannot transition from ${currentStatus} to ${newStatus}. Allowed: ${allowedTransitions.join(', ') || 'none'}`
+      };
     }
 
+    return { valid: true };
+  }
+
+  /**
+   * Update quote status with validation and date tracking
+   * @param {number} id - Quote ID
+   * @param {string} newStatus - New status
+   * @param {object} options - Additional options
+   * @param {string} options.lostReason - Reason for losing quote (if status is LOST)
+   * @param {boolean} options.skipValidation - Skip transition validation (for admin use)
+   * @returns {Promise<object|null>}
+   */
+  async updateStatus(id, newStatus, options = {}) {
+    const validStatuses = ['DRAFT', 'SENT', 'WON', 'LOST', 'PENDING_APPROVAL', 'APPROVED', 'REJECTED'];
+
+    if (!validStatuses.includes(newStatus)) {
+      throw new Error(`Invalid status: ${newStatus}`);
+    }
+
+    // Get current quote to validate transition
+    const currentQuote = await this.getQuoteById(id);
+    if (!currentQuote) {
+      return null;
+    }
+
+    const currentStatus = currentQuote.status;
+
+    // Validate transition unless skipped
+    if (!options.skipValidation) {
+      const validation = this.validateStatusTransition(currentStatus, newStatus);
+      if (!validation.valid) {
+        throw new Error(validation.reason);
+      }
+
+      // Additional validation: Can't mark as SENT without a customer
+      if (newStatus === 'SENT' && !currentQuote.customer_id) {
+        throw new Error('Cannot mark as Sent without a customer assigned');
+      }
+    }
+
+    // Build the update query with appropriate date fields
+    let updateFields = ['status = $1', 'updated_at = CURRENT_TIMESTAMP'];
+    let values = [newStatus];
+    let paramIndex = 2;
+
+    // Set appropriate date based on new status
+    if (newStatus === 'SENT' && currentStatus !== 'SENT') {
+      updateFields.push(`sent_at = CURRENT_TIMESTAMP`);
+    } else if (newStatus === 'WON') {
+      updateFields.push(`won_at = CURRENT_TIMESTAMP`);
+    } else if (newStatus === 'LOST') {
+      updateFields.push(`lost_at = CURRENT_TIMESTAMP`);
+      if (options.lostReason) {
+        updateFields.push(`lost_reason = $${paramIndex}`);
+        values.push(options.lostReason);
+        paramIndex++;
+      }
+    } else if (newStatus === 'DRAFT') {
+      // Clear status dates when reopening
+      updateFields.push(`won_at = NULL`, `lost_at = NULL`);
+    }
+
+    values.push(id);
+
     const result = await this.pool.query(
-      `UPDATE quotations SET status = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2 RETURNING *`,
-      [status, id]
+      `UPDATE quotations SET ${updateFields.join(', ')} WHERE id = $${paramIndex} RETURNING *`,
+      values
     );
 
     if (result.rows.length > 0) {
+      // Create descriptive event message
+      let eventDescription = `Status changed from ${currentStatus} to ${newStatus}`;
+      if (newStatus === 'LOST' && options.lostReason) {
+        eventDescription += `. Reason: ${options.lostReason}`;
+      }
+
       // Log status change event
       await this.pool.query(`
         INSERT INTO quote_events (quotation_id, event_type, description)
         VALUES ($1, $2, $3)
-      `, [id, status, `Status changed to ${status}`]);
+      `, [id, 'STATUS_CHANGED', eventDescription]);
     }
 
     return result.rows.length > 0 ? result.rows[0] : null;
+  }
+
+  /**
+   * Get allowed status transitions for a quote
+   * @param {string} currentStatus - Current status
+   * @returns {string[]} Array of allowed next statuses
+   */
+  getAllowedTransitions(currentStatus) {
+    return QuoteService.STATUS_TRANSITIONS[currentStatus] || [];
   }
 
   /**

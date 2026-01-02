@@ -14,7 +14,14 @@ function QuoteCreatorEnhanced({ onClose, onQuoteCreated }) {
   const [searchTerm, setSearchTerm] = useState('');
   const [productsLoading, setProductsLoading] = useState(false);
   const [quoteStatus, setQuoteStatus] = useState('DRAFT');
-  const [expirationDays, setExpirationDays] = useState(7);
+
+  // Expiry date - default 30 days from now
+  const getDefaultExpiryDate = () => {
+    const date = new Date();
+    date.setDate(date.getDate() + 30);
+    return date.toISOString().split('T')[0]; // YYYY-MM-DD format for input
+  };
+  const [expiryDate, setExpiryDate] = useState(getDefaultExpiryDate());
   const [showNewCustomerForm, setShowNewCustomerForm] = useState(false);
 
   // Additional charges - STORED IN CENTS
@@ -127,10 +134,15 @@ function QuoteCreatorEnhanced({ onClose, onQuoteCreated }) {
     } else {
       setLineItems([...lineItems, {
         product_id: product.id,
+        manufacturer: product.manufacturer || '',
+        model: product.model || '',
+        sku: product.model || '',
+        category: product.category || '',
         product_name: product.model || product.description,
-        description: product.description,
+        description: product.description || product.name || '',
         unit_cost: (product.cost_cents || 0) / 100,
         unit_price: (product.msrp_cents || 0) / 100,
+        msrp: (product.msrp_cents || 0) / 100,
         quantity: 1,
         discount: 0,
         notes: ''
@@ -205,6 +217,38 @@ function QuoteCreatorEnhanced({ onClose, onQuoteCreated }) {
     return (calculateTotalProfit() / total) * 100;
   };
 
+  // Validate line items have required fields
+  const validateLineItems = () => {
+    const invalidItems = [];
+
+    lineItems.forEach((item, index) => {
+      const issues = [];
+
+      if (!item.manufacturer || item.manufacturer.trim() === '') {
+        issues.push('missing manufacturer');
+      }
+      if (!item.model || item.model.trim() === '') {
+        issues.push('missing model');
+      }
+      if (!item.unit_price || item.unit_price <= 0) {
+        issues.push('invalid price');
+      }
+      if (!item.product_id) {
+        issues.push('missing product ID');
+      }
+
+      if (issues.length > 0) {
+        invalidItems.push({
+          index: index + 1,
+          name: item.product_name || item.model || `Item ${index + 1}`,
+          issues
+        });
+      }
+    });
+
+    return invalidItems;
+  };
+
   const handleSaveQuote = async () => {
     if (!selectedCustomer) {
       alert('⚠️ Please select a customer');
@@ -213,6 +257,17 @@ function QuoteCreatorEnhanced({ onClose, onQuoteCreated }) {
 
     if (lineItems.length === 0) {
       alert('⚠️ Please add at least one product');
+      return;
+    }
+
+    // Validate line items have all required data
+    const invalidItems = validateLineItems();
+    if (invalidItems.length > 0) {
+      const errorList = invalidItems.map(item =>
+        `  Line ${item.index} (${item.name}): ${item.issues.join(', ')}`
+      ).join('\n');
+
+      alert(`⚠️ Some line items have incomplete data:\n\n${errorList}\n\nPlease remove and re-add these products to ensure all data is captured.`);
       return;
     }
 
@@ -227,8 +282,8 @@ function QuoteCreatorEnhanced({ onClose, onQuoteCreated }) {
     setLoading(true);
 
     try {
-      const expirationDate = new Date();
-      expirationDate.setDate(expirationDate.getDate() + expirationDays);
+      // Parse expiry date from date picker (YYYY-MM-DD format)
+      const expirationDate = new Date(expiryDate + 'T23:59:59'); // End of day
 
       // Calculate totals - values are in DOLLARS, need to convert to CENTS
       const subtotal = calculateSubtotal();
@@ -254,22 +309,30 @@ function QuoteCreatorEnhanced({ onClose, onQuoteCreated }) {
         internal_notes: internalNotes,
         terms: 'Payment due within 30 days. All prices in CAD.',
         status: quoteStatus,
+        expires_at: expirationDate.toISOString(),
 
         // Map line items to match database schema
         items: lineItems.map(item => {
           const lineTotal = calculateLineTotal(item);
           const lineCost = item.unit_cost * item.quantity;
           const lineProfit = lineTotal - lineCost;
+          const margin_bp = lineTotal > 0 ? Math.round((lineProfit / lineTotal) * 10000) : 0;
 
           return {
             product_id: item.product_id,
-            description: item.description,
+            manufacturer: item.manufacturer || '',
+            model: item.model || item.sku || item.product_name || '',
+            sku: item.sku || item.model || '',
+            category: item.category || '',
+            description: item.description || item.product_name || '',
             quantity: item.quantity,
-            sell_cents: Math.round(item.unit_price * 100),
             cost_cents: Math.round(item.unit_cost * 100),
+            msrp_cents: Math.round((item.msrp || item.unit_price) * 100),
+            sell_cents: Math.round(item.unit_price * 100),
             discount_percent: item.discount,
             line_total_cents: Math.round(lineTotal * 100),
             line_profit_cents: Math.round(lineProfit * 100),
+            margin_bp: margin_bp,
             notes: item.notes
           };
         })
@@ -289,14 +352,23 @@ function QuoteCreatorEnhanced({ onClose, onQuoteCreated }) {
       }
 
       const result = await response.json();
-      
-      console.log('✅ Quote created successfully:', result);
-      alert(`✅ Quote #${result.quote.quote_number} created successfully!`);
-      
+
+      // Handle different response formats (standardized API returns { data: {...} })
+      const createdQuote = result.data || result.quote || result;
+      const quoteNumber = createdQuote.quote_number || createdQuote.quotation_number;
+      const quoteId = createdQuote.id;
+
+      console.log('✅ Quote created successfully:', createdQuote);
+
+      // Show success message with View Quote option
+      const viewQuote = window.confirm(
+        `✅ Quote ${quoteNumber} created successfully!\n\nClick OK to view the quote, or Cancel to close.`
+      );
+
       if (onQuoteCreated) {
-        onQuoteCreated(result.quote);
+        onQuoteCreated(createdQuote, { viewQuote, quoteId });
       }
-      
+
       onClose();
 
     } catch (error) {
@@ -460,23 +532,31 @@ function QuoteCreatorEnhanced({ onClose, onQuoteCreated }) {
 
                 <div style={{ marginBottom: '16px' }}>
                   <label style={{ display: 'block', fontSize: '13px', fontWeight: '600', color: '#6b7280', marginBottom: '6px' }}>
-                    Valid For (Days)
+                    Valid Until
                   </label>
                   <input
-                    type="number"
-                    value={expirationDays}
-                    onChange={(e) => setExpirationDays(parseInt(e.target.value) || 7)}
-                    min="1"
-                    max="365"
-                    style={{ 
-                      width: '100%', 
-                      padding: '10px', 
-                      border: '2px solid #d1d5db', 
+                    type="date"
+                    value={expiryDate}
+                    onChange={(e) => setExpiryDate(e.target.value)}
+                    min={new Date().toISOString().split('T')[0]}
+                    style={{
+                      width: '100%',
+                      padding: '10px',
+                      border: '2px solid #d1d5db',
                       borderRadius: '6px',
                       fontSize: '14px',
                       fontWeight: '600'
                     }}
                   />
+                  <div style={{ fontSize: '11px', color: '#9ca3af', marginTop: '4px' }}>
+                    {(() => {
+                      const today = new Date();
+                      today.setHours(0, 0, 0, 0);
+                      const expiry = new Date(expiryDate);
+                      const diffDays = Math.ceil((expiry - today) / (1000 * 60 * 60 * 24));
+                      return diffDays > 0 ? `${diffDays} days from today` : 'Expires today';
+                    })()}
+                  </div>
                 </div>
 
                 <div>

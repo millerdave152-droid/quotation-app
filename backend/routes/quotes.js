@@ -47,9 +47,18 @@ router.get('/stats/overview', asyncHandler(async (req, res) => {
       COUNT(*) as total_quotes,
       COUNT(CASE WHEN created_at >= NOW() - INTERVAL '30 days' THEN 1 END) as quotes_this_month,
       COUNT(CASE WHEN created_at >= NOW() - INTERVAL '7 days' THEN 1 END) as quotes_this_week,
-      COALESCE(SUM(total_amount), 0) as total_value,
-      COALESCE(SUM(CASE WHEN status = 'WON' THEN total_amount ELSE 0 END), 0) as won_value,
-      COALESCE(SUM(CASE WHEN status = 'SENT' THEN total_amount ELSE 0 END), 0) as pending_value,
+
+      -- Values in cents (correct column name)
+      COALESCE(SUM(total_cents), 0) as total_value_cents,
+      COALESCE(SUM(CASE WHEN status = 'WON' THEN total_cents ELSE 0 END), 0) as won_value_cents,
+      COALESCE(SUM(CASE WHEN status IN ('DRAFT', 'SENT', 'PENDING_APPROVAL') THEN total_cents ELSE 0 END), 0) as pipeline_value_cents,
+      COALESCE(SUM(CASE WHEN status = 'SENT' THEN total_cents ELSE 0 END), 0) as sent_value_cents,
+
+      -- Dollar amounts for backward compatibility
+      COALESCE(SUM(total_cents), 0) / 100.0 as total_value,
+      COALESCE(SUM(CASE WHEN status = 'WON' THEN total_cents ELSE 0 END), 0) / 100.0 as won_value,
+      COALESCE(SUM(CASE WHEN status = 'SENT' THEN total_cents ELSE 0 END), 0) / 100.0 as pending_value,
+
       COUNT(CASE WHEN status = 'DRAFT' THEN 1 END) as draft_count,
       COUNT(CASE WHEN status = 'SENT' THEN 1 END) as sent_count,
       COUNT(CASE WHEN status = 'WON' THEN 1 END) as won_count,
@@ -127,23 +136,112 @@ router.put('/:id', asyncHandler(async (req, res) => {
 
 /**
  * PATCH /api/quotations/:id/status
- * Update quotation status
+ * Update quotation status with validation
+ *
+ * Body:
+ * - status: string (required) - New status
+ * - lostReason: string (optional) - Reason for marking as lost
+ * - skipValidation: boolean (optional) - Skip transition validation (admin only)
  */
 router.patch('/:id/status', asyncHandler(async (req, res) => {
   const { id } = req.params;
-  const { status } = req.body;
+  const { status, lostReason, skipValidation } = req.body;
 
   if (!status) {
     throw ApiError.validation('Status is required');
   }
 
-  const quote = await quoteService.updateStatus(id, status);
+  try {
+    const quote = await quoteService.updateStatus(id, status, {
+      lostReason,
+      skipValidation: skipValidation === true
+    });
 
+    if (!quote) {
+      throw ApiError.notFound('Quotation');
+    }
+
+    res.success(quote, { message: `Status updated to ${status}` });
+  } catch (error) {
+    // Handle validation errors
+    if (error.message.includes('Cannot transition') || error.message.includes('Cannot mark as')) {
+      throw ApiError.validation(error.message);
+    }
+    throw error;
+  }
+}));
+
+/**
+ * GET /api/quotations/:id/allowed-transitions
+ * Get allowed status transitions for a quote
+ */
+router.get('/:id/allowed-transitions', asyncHandler(async (req, res) => {
+  const { id } = req.params;
+
+  const quote = await quoteService.getQuoteById(id);
   if (!quote) {
     throw ApiError.notFound('Quotation');
   }
 
-  res.success(quote, { message: `Status updated to ${status}` });
+  const allowedTransitions = quoteService.getAllowedTransitions(quote.status);
+
+  res.success({
+    currentStatus: quote.status,
+    allowedTransitions,
+    transitionLabels: {
+      DRAFT: 'Reopen as Draft',
+      SENT: 'Mark as Sent',
+      WON: 'Mark as Won',
+      LOST: 'Mark as Lost',
+      PENDING_APPROVAL: 'Request Approval',
+      APPROVED: 'Approve',
+      REJECTED: 'Reject'
+    }
+  });
+}));
+
+/**
+ * POST /api/quotations/:id/recalculate
+ * Recalculate totals for an existing quote from its items
+ */
+router.post('/:id/recalculate', asyncHandler(async (req, res) => {
+  const { id } = req.params;
+
+  // Get the quote with items
+  const quote = await quoteService.getQuoteById(id);
+  if (!quote) {
+    throw ApiError.notFound('Quotation');
+  }
+
+  // Calculate totals from items
+  const totals = quoteService.calculateTotals(
+    quote.items || [],
+    quote.discount_percent || 0,
+    quote.tax_rate || 13
+  );
+
+  // Update the quote with calculated totals
+  await pool.query(`
+    UPDATE quotations SET
+      subtotal_cents = $1,
+      discount_cents = $2,
+      tax_cents = $3,
+      total_cents = $4,
+      gross_profit_cents = $5,
+      updated_at = CURRENT_TIMESTAMP
+    WHERE id = $6
+  `, [
+    totals.subtotal_cents,
+    totals.discount_cents,
+    totals.tax_cents,
+    totals.total_cents,
+    totals.gross_profit_cents,
+    id
+  ]);
+
+  // Return updated quote
+  const updatedQuote = await quoteService.getQuoteById(id);
+  res.success(updatedQuote, { message: 'Quote totals recalculated successfully' });
 }));
 
 /**

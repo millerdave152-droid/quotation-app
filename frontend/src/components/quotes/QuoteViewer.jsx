@@ -39,7 +39,98 @@ const QuoteViewer = ({
     downloadInternal: false
   });
 
+  // Status change dialog states
+  const [showStatusDialog, setShowStatusDialog] = useState(false);
+  const [pendingStatus, setPendingStatus] = useState(null);
+  const [lostReason, setLostReason] = useState('');
+  const [statusLoading, setStatusLoading] = useState(false);
+
   if (!quote) return null;
+
+  // Status transition rules
+  const STATUS_TRANSITIONS = {
+    DRAFT: ['SENT', 'LOST'],
+    SENT: ['WON', 'LOST', 'DRAFT'],
+    WON: ['DRAFT'],
+    LOST: ['DRAFT'],
+    PENDING_APPROVAL: ['APPROVED', 'REJECTED', 'DRAFT'],
+    APPROVED: ['SENT', 'DRAFT'],
+    REJECTED: ['DRAFT']
+  };
+
+  const allowedTransitions = STATUS_TRANSITIONS[quote.status] || [];
+
+  // Status button configurations
+  const statusButtons = {
+    SENT: { label: 'Mark as Sent', icon: '📧', color: '#3b82f6', confirm: false },
+    WON: { label: 'Mark as Won', icon: '🎉', color: '#10b981', confirm: true },
+    LOST: { label: 'Mark as Lost', icon: '❌', color: '#ef4444', confirm: true, needsReason: true },
+    DRAFT: { label: 'Reopen as Draft', icon: '📝', color: '#6b7280', confirm: true }
+  };
+
+  // Handle status button click
+  const handleStatusClick = (newStatus) => {
+    const config = statusButtons[newStatus];
+    if (config?.confirm || config?.needsReason) {
+      setPendingStatus(newStatus);
+      setLostReason('');
+      setShowStatusDialog(true);
+    } else {
+      confirmStatusChange(newStatus);
+    }
+  };
+
+  // Confirm and execute status change
+  const confirmStatusChange = async (status, reason = null) => {
+    setStatusLoading(true);
+    try {
+      await onUpdateStatus?.(quote.id, status, { lostReason: reason });
+      setShowStatusDialog(false);
+      setPendingStatus(null);
+      setLostReason('');
+    } catch (error) {
+      console.error('Error updating status:', error);
+      toast.error(error.message || 'Failed to update status');
+    } finally {
+      setStatusLoading(false);
+    }
+  };
+
+  // Helper function to safely format dates
+  const formatDate = (dateValue) => {
+    if (!dateValue) return 'Not set';
+    const date = new Date(dateValue);
+    // Check for invalid date (epoch zero or NaN)
+    if (isNaN(date.getTime()) || date.getFullYear() < 2000) {
+      return 'Not set';
+    }
+    return date.toLocaleDateString('en-US', {
+      month: '2-digit',
+      day: '2-digit',
+      year: 'numeric'
+    });
+  };
+
+  // Helper function to calculate days until expiry
+  const getDaysUntilExpiry = (expiresAt) => {
+    if (!expiresAt) return null;
+    const expiry = new Date(expiresAt);
+    if (isNaN(expiry.getTime()) || expiry.getFullYear() < 2000) return null;
+
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    expiry.setHours(0, 0, 0, 0);
+
+    const diffTime = expiry - today;
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+    return diffDays;
+  };
+
+  const daysUntilExpiry = getDaysUntilExpiry(quote.expires_at);
+  const expiryStatus = daysUntilExpiry === null ? null :
+    daysUntilExpiry < 0 ? 'expired' :
+    daysUntilExpiry === 0 ? 'today' :
+    daysUntilExpiry <= 7 ? 'warning' : 'ok';
 
   // PDF operation handlers with loading state
   const handlePdfAction = async (action, type) => {
@@ -209,10 +300,28 @@ const QuoteViewer = ({
             </h3>
             <div style={{ color: '#6b7280' }}>
               <div style={{ marginBottom: '4px' }}>
-                Date: {new Date(quote.created_at).toLocaleDateString()}
+                Date: {formatDate(quote.created_at)}
               </div>
-              <div style={{ marginBottom: '4px' }}>
-                Valid Until: {new Date(quote.expires_at).toLocaleDateString()}
+              <div style={{ marginBottom: '4px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <span>Valid Until: {formatDate(quote.expires_at)}</span>
+                {expiryStatus && (
+                  <span style={{
+                    padding: '2px 8px',
+                    borderRadius: '8px',
+                    fontSize: '11px',
+                    fontWeight: 'bold',
+                    background: expiryStatus === 'expired' ? '#fee2e2' :
+                               expiryStatus === 'today' ? '#fef3c7' :
+                               expiryStatus === 'warning' ? '#fef3c7' : '#d1fae5',
+                    color: expiryStatus === 'expired' ? '#991b1b' :
+                           expiryStatus === 'today' ? '#92400e' :
+                           expiryStatus === 'warning' ? '#92400e' : '#065f46'
+                  }}>
+                    {expiryStatus === 'expired' ? `Expired ${Math.abs(daysUntilExpiry)} days ago` :
+                     expiryStatus === 'today' ? 'Expires today' :
+                     `${daysUntilExpiry} days left`}
+                  </span>
+                )}
               </div>
               <div>
                 Status: <span style={{
@@ -292,9 +401,17 @@ const QuoteViewer = ({
             <span style={{ marginRight: '40px', fontWeight: 'bold' }}>TOTAL:</span>
             <span style={{ fontWeight: 'bold', color: '#3b82f6' }}>${((quote.total_cents || 0) / 100).toFixed(2)}</span>
           </div>
-          <div style={{ marginTop: '12px', fontSize: '14px', color: '#10b981' }}>
-            <span style={{ marginRight: '40px' }}>Gross Profit:</span>
-            <span style={{ fontWeight: 'bold' }}>${((quote.gross_profit_cents || 0) / 100).toFixed(2)}</span>
+          <div style={{
+            marginTop: '12px',
+            padding: '8px 12px',
+            background: '#fef2f2',
+            borderRadius: '6px',
+            border: '1px dashed #ef4444',
+            fontSize: '14px'
+          }}>
+            <span style={{ color: '#991b1b', marginRight: '8px', fontSize: '12px' }}>🔒 INTERNAL</span>
+            <span style={{ marginRight: '40px', color: '#10b981' }}>Gross Profit:</span>
+            <span style={{ fontWeight: 'bold', color: '#10b981' }}>${((quote.gross_profit_cents || 0) / 100).toFixed(2)}</span>
           </div>
         </div>
       </div>
@@ -503,8 +620,26 @@ const QuoteViewer = ({
           </button>
         </div>
 
-        <div style={{ marginTop: '12px', fontSize: '13px', color: '#6b7280' }}>
-          <strong>Customer PDF:</strong> Clean quote (no costs/margins) • <strong>Internal PDF:</strong> Includes cost analysis & profit margins
+        {/* PDF Type Explanations */}
+        <div style={{ marginTop: '16px', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+          <div style={{ padding: '12px', background: '#dcfce7', borderRadius: '8px', border: '2px solid #22c55e' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
+              <span style={{ fontSize: '16px' }}>✅</span>
+              <strong style={{ color: '#15803d' }}>Customer PDF (Safe to Send)</strong>
+            </div>
+            <div style={{ fontSize: '12px', color: '#166534' }}>
+              Clean pricing only - NO cost, profit, or margin data
+            </div>
+          </div>
+          <div style={{ padding: '12px', background: '#fef2f2', borderRadius: '8px', border: '2px solid #ef4444' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
+              <span style={{ fontSize: '16px' }}>⚠️</span>
+              <strong style={{ color: '#991b1b' }}>Internal PDF (DO NOT SEND)</strong>
+            </div>
+            <div style={{ fontSize: '12px', color: '#991b1b' }}>
+              Contains CONFIDENTIAL cost, profit & margin analysis
+            </div>
+          </div>
         </div>
       </div>
 
@@ -516,82 +651,296 @@ const QuoteViewer = ({
         marginBottom: '24px',
         boxShadow: '0 1px 3px rgba(0,0,0,0.1)'
       }}>
-        <h3 style={{ fontSize: '18px', fontWeight: 'bold', marginBottom: '16px' }}>Quote Status</h3>
+        <h3 style={{ fontSize: '18px', fontWeight: 'bold', marginBottom: '16px' }}>Quote Status & Actions</h3>
 
-        <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
-          <button onClick={() => onEdit?.(quote)} style={{ padding: '12px 24px', background: '#8b5cf6', color: 'white', border: 'none', borderRadius: '8px', fontWeight: 'bold', cursor: 'pointer' }}>
-            Edit Quote
-          </button>
-
-          <button onClick={() => onDuplicate?.(quote.id)} style={{ padding: '12px 24px', background: '#06b6d4', color: 'white', border: 'none', borderRadius: '8px', fontWeight: 'bold', cursor: 'pointer' }}>
-            Duplicate Quote
-          </button>
-
-          <button
-            onClick={() => onUpdateStatus?.(quote.id, 'SENT')}
-            disabled={quote.status !== 'DRAFT'}
-            style={{
-              padding: '12px 24px',
-              background: quote.status === 'DRAFT' ? '#3b82f6' : '#9ca3af',
-              color: 'white',
-              border: 'none',
-              borderRadius: '8px',
+        {/* Current Status Display */}
+        <div style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: '16px',
+          marginBottom: '20px',
+          padding: '16px',
+          background: '#f9fafb',
+          borderRadius: '8px'
+        }}>
+          <div>
+            <span style={{ fontSize: '14px', color: '#6b7280' }}>Current Status:</span>
+            <span style={{
+              marginLeft: '8px',
+              padding: '6px 16px',
+              borderRadius: '20px',
+              fontSize: '14px',
               fontWeight: 'bold',
-              cursor: quote.status === 'DRAFT' ? 'pointer' : 'not-allowed'
-            }}
-          >
-            Mark as Sent
-          </button>
+              background: statusStyle.bg,
+              color: statusStyle.color
+            }}>
+              {quote.status}
+            </span>
+          </div>
 
+          {/* Status Dates */}
+          {quote.sent_at && (
+            <div style={{ fontSize: '13px', color: '#6b7280' }}>
+              Sent: {formatDate(quote.sent_at)}
+            </div>
+          )}
+          {quote.won_at && (
+            <div style={{ fontSize: '13px', color: '#10b981', fontWeight: '600' }}>
+              Won: {formatDate(quote.won_at)}
+            </div>
+          )}
+          {quote.lost_at && (
+            <div style={{ fontSize: '13px', color: '#ef4444' }}>
+              Lost: {formatDate(quote.lost_at)}
+              {quote.lost_reason && <span> - {quote.lost_reason}</span>}
+            </div>
+          )}
+        </div>
+
+        {/* Action Buttons */}
+        <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap', marginBottom: '16px' }}>
           <button
-            onClick={() => onUpdateStatus?.(quote.id, 'WON')}
-            disabled={quote.status === 'WON'}
+            onClick={() => onEdit?.(quote)}
             style={{
               padding: '12px 24px',
-              background: quote.status !== 'WON' ? '#10b981' : '#9ca3af',
-              color: 'white',
-              border: 'none',
-              borderRadius: '8px',
-              fontWeight: 'bold',
-              cursor: quote.status !== 'WON' ? 'pointer' : 'not-allowed'
-            }}
-          >
-            Mark as Won
-          </button>
-
-          <button
-            onClick={() => onUpdateStatus?.(quote.id, 'LOST')}
-            disabled={quote.status === 'LOST'}
-            style={{
-              padding: '12px 24px',
-              background: quote.status !== 'LOST' ? '#ef4444' : '#9ca3af',
-              color: 'white',
-              border: 'none',
-              borderRadius: '8px',
-              fontWeight: 'bold',
-              cursor: quote.status !== 'LOST' ? 'pointer' : 'not-allowed'
-            }}
-          >
-            Mark as Lost
-          </button>
-
-          <button
-            onClick={() => onDelete?.(quote.id)}
-            style={{
-              padding: '12px 24px',
-              background: '#6b7280',
+              background: '#8b5cf6',
               color: 'white',
               border: 'none',
               borderRadius: '8px',
               fontWeight: 'bold',
               cursor: 'pointer',
-              marginLeft: 'auto'
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px'
             }}
           >
-            Delete Quote
+            <span>Edit Quote</span>
+          </button>
+
+          <button
+            onClick={() => onDuplicate?.(quote.id)}
+            style={{
+              padding: '12px 24px',
+              background: '#06b6d4',
+              color: 'white',
+              border: 'none',
+              borderRadius: '8px',
+              fontWeight: 'bold',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px'
+            }}
+          >
+            <span>Duplicate</span>
+          </button>
+        </div>
+
+        {/* Status Transition Buttons */}
+        <div style={{ marginBottom: '16px' }}>
+          <div style={{ fontSize: '14px', fontWeight: '600', color: '#374151', marginBottom: '8px' }}>
+            Change Status:
+          </div>
+          <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
+            {allowedTransitions.map(status => {
+              const config = statusButtons[status];
+              if (!config) return null;
+
+              return (
+                <button
+                  key={status}
+                  onClick={() => handleStatusClick(status)}
+                  disabled={statusLoading}
+                  style={{
+                    padding: '12px 24px',
+                    background: statusLoading ? '#9ca3af' : config.color,
+                    color: 'white',
+                    border: 'none',
+                    borderRadius: '8px',
+                    fontWeight: 'bold',
+                    cursor: statusLoading ? 'not-allowed' : 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '8px',
+                    opacity: statusLoading ? 0.7 : 1
+                  }}
+                >
+                  <span>{config.icon}</span>
+                  <span>{config.label}</span>
+                </button>
+              );
+            })}
+
+            {allowedTransitions.length === 0 && (
+              <div style={{ color: '#6b7280', fontStyle: 'italic' }}>
+                No status changes available for {quote.status} quotes
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Delete Button */}
+        <div style={{ borderTop: '1px solid #e5e7eb', paddingTop: '16px' }}>
+          <button
+            onClick={() => {
+              if (window.confirm('Are you sure you want to delete this quote? This action cannot be undone.')) {
+                onDelete?.(quote.id);
+              }
+            }}
+            style={{
+              padding: '10px 20px',
+              background: 'transparent',
+              color: '#ef4444',
+              border: '2px solid #ef4444',
+              borderRadius: '8px',
+              fontWeight: 'bold',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px'
+            }}
+          >
+            <span>Delete Quote</span>
           </button>
         </div>
       </div>
+
+      {/* Status Change Confirmation Dialog */}
+      {showStatusDialog && pendingStatus && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          background: 'rgba(0,0,0,0.5)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 1000
+        }}>
+          <div style={{
+            background: 'white',
+            padding: '32px',
+            borderRadius: '16px',
+            maxWidth: '480px',
+            width: '90%',
+            boxShadow: '0 20px 25px -5px rgba(0,0,0,0.1)'
+          }}>
+            <h3 style={{ fontSize: '20px', fontWeight: 'bold', marginBottom: '16px' }}>
+              {statusButtons[pendingStatus]?.icon} Confirm Status Change
+            </h3>
+
+            <p style={{ color: '#4b5563', marginBottom: '20px' }}>
+              {pendingStatus === 'WON' && (
+                <>Are you sure you want to mark this quote as <strong style={{ color: '#10b981' }}>Won</strong>? This will record the sale and update your revenue metrics.</>
+              )}
+              {pendingStatus === 'LOST' && (
+                <>Are you sure you want to mark this quote as <strong style={{ color: '#ef4444' }}>Lost</strong>? Please provide a reason below.</>
+              )}
+              {pendingStatus === 'DRAFT' && (
+                <>Are you sure you want to <strong>reopen</strong> this quote as a Draft? This will clear the won/lost date.</>
+              )}
+            </p>
+
+            {/* Lost Reason Input */}
+            {pendingStatus === 'LOST' && (
+              <div style={{ marginBottom: '20px' }}>
+                <label style={{ display: 'block', fontSize: '14px', fontWeight: '600', marginBottom: '8px' }}>
+                  Reason for Loss (optional):
+                </label>
+                <select
+                  value={lostReason}
+                  onChange={(e) => setLostReason(e.target.value)}
+                  style={{
+                    width: '100%',
+                    padding: '12px',
+                    border: '2px solid #d1d5db',
+                    borderRadius: '8px',
+                    fontSize: '14px',
+                    marginBottom: '8px'
+                  }}
+                >
+                  <option value="">Select a reason...</option>
+                  <option value="Price too high">Price too high</option>
+                  <option value="Competitor won">Competitor won</option>
+                  <option value="Customer changed mind">Customer changed mind</option>
+                  <option value="Budget constraints">Budget constraints</option>
+                  <option value="Timeline issues">Timeline issues</option>
+                  <option value="Product not available">Product not available</option>
+                  <option value="No response">No response from customer</option>
+                  <option value="Other">Other</option>
+                </select>
+                {lostReason === 'Other' && (
+                  <input
+                    type="text"
+                    placeholder="Enter custom reason..."
+                    onChange={(e) => setLostReason(e.target.value)}
+                    style={{
+                      width: '100%',
+                      padding: '12px',
+                      border: '2px solid #d1d5db',
+                      borderRadius: '8px',
+                      fontSize: '14px'
+                    }}
+                  />
+                )}
+              </div>
+            )}
+
+            <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end' }}>
+              <button
+                onClick={() => {
+                  setShowStatusDialog(false);
+                  setPendingStatus(null);
+                  setLostReason('');
+                }}
+                disabled={statusLoading}
+                style={{
+                  padding: '12px 24px',
+                  background: '#f3f4f6',
+                  color: '#374151',
+                  border: 'none',
+                  borderRadius: '8px',
+                  fontWeight: 'bold',
+                  cursor: 'pointer'
+                }}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => confirmStatusChange(pendingStatus, lostReason || null)}
+                disabled={statusLoading}
+                style={{
+                  padding: '12px 24px',
+                  background: statusLoading ? '#9ca3af' : (statusButtons[pendingStatus]?.color || '#3b82f6'),
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '8px',
+                  fontWeight: 'bold',
+                  cursor: statusLoading ? 'not-allowed' : 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '8px'
+                }}
+              >
+                {statusLoading && (
+                  <span style={{
+                    display: 'inline-block',
+                    width: '16px',
+                    height: '16px',
+                    border: '2px solid white',
+                    borderTopColor: 'transparent',
+                    borderRadius: '50%',
+                    animation: 'spin 1s linear infinite'
+                  }} />
+                )}
+                {statusLoading ? 'Updating...' : `Confirm ${statusButtons[pendingStatus]?.label}`}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Activity Timeline */}
       <div style={{

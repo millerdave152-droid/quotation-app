@@ -569,7 +569,7 @@ const QuotationManager = () => {
         cachedFetch('/api/email-templates').catch(() => []),
         cachedFetch('/api/quotes').catch(() => ({ quotations: [] })),
         cachedFetch('/api/customers').catch(() => []),
-        cachedFetch('/api/products?limit=5000').catch(() => []),
+        cachedFetch('/api/products?limit=15000').catch(() => []),
         cachedFetch('/api/quotes/stats/summary').catch(() => ({}))
       ]);
 
@@ -998,13 +998,25 @@ const QuotationManager = () => {
       if (!res.ok) throw new Error(editingQuoteId ? 'Failed to update quote' : 'Failed to create quote');
 
       const result = await res.json();
-      const quoteNumber = result.quote?.quote_number || result.quote_number;
+
+      // Handle different response formats (standardized API returns { data: {...} })
+      const savedQuote = result.data || result.quote || result;
+      const quoteNumber = savedQuote.quote_number || savedQuote.quotation_number;
+      const quoteId = savedQuote.id;
 
       toast.success(
         editingQuoteId
           ? 'Your quote has been updated successfully'
           : `Quote ${quoteNumber} has been created`,
-        editingQuoteId ? 'Quote Updated' : 'Quote Created'
+        editingQuoteId ? 'Quote Updated' : 'Quote Created',
+        {
+          action: quoteId ? {
+            label: 'View Quote',
+            onClick: () => {
+              viewQuote({ id: quoteId });
+            }
+          } : undefined
+        }
       );
 
       // Reset builder and return to list
@@ -1094,7 +1106,9 @@ const QuotationManager = () => {
       if (!res.ok) throw new Error(editingQuoteId ? 'Failed to update quote' : 'Failed to create quote');
 
       const result = await res.json();
-      const savedQuote = result.quote || result;
+
+      // Handle different response formats (standardized API returns { data: {...} })
+      const savedQuote = result.data || result.quote || result;
       const quoteNumber = savedQuote.quote_number;
 
       toast.success(
@@ -1302,19 +1316,41 @@ const QuotationManager = () => {
 
   const sendQuoteEmail = async () => {
     if (!emailTo || !selectedQuote) {
-      alert('Please enter recipient email');
+      toast.warning('Please enter recipient email', 'Missing Email');
       return;
     }
 
     try {
+      toast.info('Generating PDF and sending email...', 'Please Wait');
+
+      // Generate customer PDF on client side
+      const { generateCustomerPDF } = await import('../services/pdfService');
+
+      // Fetch quote details for PDF
+      const quoteRes = await fetch(`${API_URL}/api/quotations/${selectedQuote.id}`);
+      const quote = await quoteRes.json();
+
+      const customerRes = await fetch(`${API_URL}/api/customers/${quote.customer_id}`);
+      const customer = await customerRes.json();
+
+      const itemsRes = await fetch(`${API_URL}/api/quotations/${selectedQuote.id}/items`);
+      const items = await itemsRes.json();
+
+      // Generate the CUSTOMER PDF (never internal!)
+      const doc = generateCustomerPDF(quote, customer, items);
+      const pdfBlob = doc.output('blob');
+
+      // Create FormData with PDF
+      const formData = new FormData();
+      formData.append('pdf', pdfBlob, `Quote_${quote.quote_number || quote.id}.pdf`);
+      formData.append('recipientEmail', emailTo);
+      formData.append('recipientName', customer.name || 'Valued Customer');
+      formData.append('subject', emailSubject || `Quote #${quote.quote_number || quote.id}`);
+      formData.append('message', emailMessage || 'Thank you for your interest. Please find your quote attached.');
+
       const res = await fetch(`${API_URL}/api/quotations/${selectedQuote.id}/send-email`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          to_email: emailTo,
-          subject: emailSubject,
-          message: emailMessage
-        })
+        body: formData
       });
 
       if (!res.ok) {
@@ -1322,7 +1358,7 @@ const QuotationManager = () => {
         throw new Error(error.error || 'Failed to send email');
       }
 
-      alert(`Email sent successfully to ${emailTo}!`);
+      toast.success(`Quote sent successfully to ${emailTo}!`, 'Email Sent');
       setShowEmailDialog(false);
       setEmailTo('');
       setEmailSubject('');
@@ -1330,10 +1366,9 @@ const QuotationManager = () => {
 
       // Refresh quote to update status if it changed
       viewQuote(selectedQuote.id);
-      // No need to refresh all data - email doesn't change quotes list
     } catch (err) {
       logger.error('Error sending email:', err);
-      alert(`Error sending email: ${err.message}`);
+      toast.error(`Failed to send email: ${err.message}`, 'Email Error');
     }
   };
 
@@ -1651,13 +1686,14 @@ const QuotationManager = () => {
     setShowRevenueFeatures(false);
   };
 
-  const updateQuoteStatus = async (quoteId, newStatus) => {
+  const updateQuoteStatus = async (quoteId, newStatus, options = {}) => {
     try {
       const res = await fetch(`${API_URL}/api/quotes/${quoteId}/status`, {
-        method: 'PUT',
+        method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
+        body: JSON.stringify({
           status: newStatus,
+          lostReason: options.lostReason || null,
           user_name: 'User' // Add authentication later
         })
       });
@@ -1822,23 +1858,41 @@ const QuotationManager = () => {
         </div>
 
         {/* Key Metrics */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '16px', marginBottom: '24px' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '16px', marginBottom: '24px' }}>
           <div style={{ background: 'white', padding: '20px', borderRadius: '12px', boxShadow: '0 1px 3px rgba(0,0,0,0.1)' }}>
             <div style={{ fontSize: '14px', color: '#6b7280', marginBottom: '8px' }}>Total Quotes</div>
-            <div style={{ fontSize: '32px', fontWeight: 'bold', color: '#3b82f6' }}>{quotations.length}</div>
+            <div style={{ fontSize: '32px', fontWeight: 'bold', color: '#3b82f6' }}>{stats.total_quotes || quotations.length}</div>
           </div>
           <div style={{ background: 'white', padding: '20px', borderRadius: '12px', boxShadow: '0 1px 3px rgba(0,0,0,0.1)' }}>
             <div style={{ fontSize: '14px', color: '#6b7280', marginBottom: '8px' }}>Win Rate</div>
-            <div style={{ fontSize: '32px', fontWeight: 'bold', color: '#10b981' }}>{stats.won_rate || 0}%</div>
+            <div style={{ fontSize: '32px', fontWeight: 'bold', color: '#10b981' }}>{stats.win_rate || 0}%</div>
           </div>
           <div style={{ background: 'white', padding: '20px', borderRadius: '12px', boxShadow: '0 1px 3px rgba(0,0,0,0.1)' }}>
             <div style={{ fontSize: '14px', color: '#6b7280', marginBottom: '8px' }}>Avg Days to Close</div>
             <div style={{ fontSize: '32px', fontWeight: 'bold', color: '#f59e0b' }}>{analytics.avgDaysToClose}</div>
           </div>
-          <div style={{ background: 'white', padding: '20px', borderRadius: '12px', boxShadow: '0 1px 3px rgba(0,0,0,0.1)' }}>
-            <div style={{ fontSize: '14px', color: '#6b7280', marginBottom: '8px' }}>Total Revenue</div>
-            <div style={{ fontSize: '32px', fontWeight: 'bold', color: '#8b5cf6' }}>
+          <div style={{ background: 'white', padding: '20px', borderRadius: '12px', boxShadow: '0 1px 3px rgba(0,0,0,0.1)', border: '2px solid #10b981' }}>
+            <div style={{ fontSize: '14px', color: '#6b7280', marginBottom: '8px' }}>Closed Revenue (Won)</div>
+            <div style={{ fontSize: '32px', fontWeight: 'bold', color: '#10b981' }}>
               ${((stats.won_value_cents || 0) / 100).toLocaleString(undefined, { maximumFractionDigits: 0 })}
+            </div>
+          </div>
+          <div style={{ background: 'white', padding: '20px', borderRadius: '12px', boxShadow: '0 1px 3px rgba(0,0,0,0.1)', border: '2px solid #3b82f6' }}>
+            <div style={{ fontSize: '14px', color: '#6b7280', marginBottom: '8px' }}>Pipeline Value</div>
+            <div style={{ fontSize: '32px', fontWeight: 'bold', color: '#3b82f6' }}>
+              ${((stats.pipeline_value_cents || 0) / 100).toLocaleString(undefined, { maximumFractionDigits: 0 })}
+            </div>
+            <div style={{ fontSize: '11px', color: '#9ca3af', marginTop: '4px' }}>
+              Draft + Sent + Pending
+            </div>
+          </div>
+          <div style={{ background: 'white', padding: '20px', borderRadius: '12px', boxShadow: '0 1px 3px rgba(0,0,0,0.1)' }}>
+            <div style={{ fontSize: '14px', color: '#6b7280', marginBottom: '8px' }}>Total Quote Value</div>
+            <div style={{ fontSize: '32px', fontWeight: 'bold', color: '#8b5cf6' }}>
+              ${((stats.total_value_cents || 0) / 100).toLocaleString(undefined, { maximumFractionDigits: 0 })}
+            </div>
+            <div style={{ fontSize: '11px', color: '#9ca3af', marginTop: '4px' }}>
+              All quotes combined
             </div>
           </div>
         </div>
@@ -2778,7 +2832,7 @@ const QuotationManager = () => {
           onEdit={(id) => editQuote(id)}
           onDuplicate={(id) => duplicateQuote(id)}
           onDelete={(id) => deleteQuote(id)}
-          onUpdateStatus={(id, status) => updateQuoteStatus(id, status)}
+          onUpdateStatus={(id, status, options) => updateQuoteStatus(id, status, options)}
           onSendEmail={() => {
             if (selectedQuote) {
               setEmailTo(selectedQuote.customer_email || '');
@@ -2954,16 +3008,22 @@ const QuotationManager = () => {
               />
             </div>
 
+            {/* Safety indicator - CUSTOMER PDF only */}
             <div style={{
-              padding: '12px',
-              background: '#f0f9ff',
-              border: '1px solid #bfdbfe',
+              padding: '16px',
+              background: '#dcfce7',
+              border: '2px solid #22c55e',
               borderRadius: '8px',
-              marginBottom: '24px',
-              fontSize: '13px',
-              color: '#1e40af'
+              marginBottom: '24px'
             }}>
-              ℹ️ The quote will be included as a formatted HTML email with all items, totals, and terms.
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '8px' }}>
+                <span style={{ fontSize: '20px' }}>✅</span>
+                <strong style={{ color: '#15803d', fontSize: '15px' }}>CUSTOMER-SAFE PDF</strong>
+              </div>
+              <div style={{ fontSize: '13px', color: '#166534' }}>
+                This will attach the <strong>Customer Quote PDF</strong> which shows only pricing -
+                NO cost, profit, or margin information will be sent.
+              </div>
             </div>
 
             <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end' }}>
