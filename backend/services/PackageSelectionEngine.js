@@ -519,16 +519,19 @@ class PackageSelectionEngine {
         const alwaysRequired = [
           'range_fuel', 'dryer_fuel', 'laundry_type', 'washer_type',
           'fridge_style', 'fridge_depth', 'fridge_width', 'ice_water',
-          'range_width', 'dishwasher_width',
-          'brand_preference'
+          'range_width', 'dishwasher_width', 'range_config',  // Range configuration (slide-in/freestanding)
+          'brand_preference',
+          'finish'  // Color/finish must be enforced strictly
         ];
         if (alwaysRequired.includes(key)) {
           requirements[key] = answer;
+          console.log(`   📋 Requirement: ${key} = ${answer}`);
         } else {
           preferences[key] = answer;
         }
       }
     }
+    console.log('   📋 Final requirements:', JSON.stringify(requirements));
 
     return { requirements, preferences };
   }
@@ -1017,14 +1020,63 @@ class PackageSelectionEngine {
       }
     }
 
-    // 3. FINISH FILTER
-    if (!relaxations.includes('finish')) {
-      if (requirements.finish && requirements.finish !== 'any') {
-        filtered = filtered.filter(p =>
-          !p.finish || p.finish === requirements.finish ||
-          p.color?.toLowerCase().includes(requirements.finish.toLowerCase())
-        );
-      }
+    // 3. FINISH FILTER (STRICT - now in alwaysRequired)
+    if (requirements.finish && requirements.finish !== 'any') {
+      const requiredFinish = requirements.finish.toLowerCase();
+      filtered = filtered.filter(p => {
+        // Check database fields first - these are authoritative
+        const dbFinish = (p.finish || '').toLowerCase();
+        const dbColor = (p.color || '').toLowerCase();
+
+        // If database has explicit color info, use it as the authoritative source
+        if (dbColor) {
+          // Special handling for stainless - must not match black stainless, etc.
+          if (requiredFinish === 'stainless') {
+            // Exact match or "smudge resistant stainless" or just "sts"
+            // But NOT "black stainless" or "slate" or other variants
+            const isPlainStainless =
+              dbFinish === 'stainless' ||
+              dbColor === 'stainless' ||
+              dbColor === 'sts' ||
+              dbColor === 'stainless steel' ||
+              dbColor.includes('smudge resistant stainless') ||
+              (dbColor.includes('stainless') && !dbColor.includes('black'));
+            return isPlainStainless;
+          } else if (requiredFinish === 'black_stainless') {
+            // Must include "black" AND "stainless"
+            return dbColor.includes('black') && dbColor.includes('stainless');
+          } else if (requiredFinish === 'white') {
+            return dbColor.includes('white');
+          } else if (requiredFinish === 'black') {
+            // Black but not black stainless
+            return dbColor.includes('black') && !dbColor.includes('stainless');
+          } else {
+            // Other finishes - simple includes match
+            return dbFinish === requiredFinish || dbColor.includes(requiredFinish);
+          }
+        }
+
+        // Only use model suffix if no database color info is available
+        // W = White, S = Stainless, B = Black, V = Black Stainless, D = Black Slate
+        const model = (p.model || '');
+        const modelSuffix = model.slice(-1).toUpperCase();
+        const suffixFinishMap = {
+          'W': 'white',
+          'S': 'stainless',
+          'B': 'black',
+          'V': 'black_stainless',
+          'D': 'slate'
+        };
+        const modelFinish = suffixFinishMap[modelSuffix];
+
+        if (modelFinish) {
+          // Model suffix indicates a specific finish
+          return modelFinish === requiredFinish;
+        }
+
+        // No finish info available - exclude when specific finish required
+        return false;
+      });
     }
 
     // 4. FUEL TYPE FILTER (always required for ranges, cooktops, and dryers)
@@ -1067,60 +1119,103 @@ class PackageSelectionEngine {
       });
     }
 
-    // 5. DIMENSION RULES (appliance-specific)
-    if (!relaxations.includes('dimensions')) {
-      // Fridge depth type
-      if (slotType === 'refrigerator' && requirements.fridge_depth) {
-        if (requirements.fridge_depth === 'counter_depth') {
-          filtered = filtered.filter(p =>
-            p.depth_type === 'counter_depth' ||
-            (p.depth_inches_x10 && p.depth_inches_x10 <= 300)
-          );
+    // 4b. RANGE CONFIGURATION FILTER (slide_in, freestanding, front_control)
+    // STRICT: Must match exactly - slide-in should never return freestanding
+    if (slotType === 'range' && requirements.range_config) {
+      const beforeCount = filtered.length;
+      filtered = filtered.filter(p => {
+        const detectedConfig = this.detectRangeConfiguration(p);
+
+        if (requirements.range_config === 'slide_in') {
+          // Strict: only slide-in ranges
+          return detectedConfig === 'slide_in';
+        } else if (requirements.range_config === 'freestanding') {
+          // Strict: only freestanding ranges
+          return detectedConfig === 'freestanding';
+        } else if (requirements.range_config === 'front_control') {
+          // Allow front control or slide-in (similar design)
+          return detectedConfig === 'front_control' || detectedConfig === 'slide_in';
         }
-      }
 
-      // Fridge style - use detection method for reliable matching
-      if (slotType === 'refrigerator' && requirements.fridge_style) {
-        filtered = filtered.filter(p => {
-          const detectedStyle = this.detectFridgeStyle(p);
-          // Match if detected style equals required, or if unknown (allow flexibility)
-          return detectedStyle === requirements.fridge_style || detectedStyle === 'unknown';
-        });
-      }
+        return true;
+      });
+      console.log(`   🔧 Range config filter: ${requirements.range_config}, ${beforeCount} -> ${filtered.length} products`);
+    }
 
-      // Fridge width - filter by width in inches
-      if (slotType === 'refrigerator' && requirements.fridge_width) {
+    // 5. WIDTH FILTERS (STRICT - cannot be relaxed)
+    // These are moved outside the dimensions relaxation block because width is a hard requirement
+
+    // Fridge width - filter by width in inches (STRICT - CANNOT BE RELAXED)
+    if (slotType === 'refrigerator' && requirements.fridge_width) {
+      const requiredWidth = parseInt(requirements.fridge_width) || 0;
+      console.log(`   🔧 Fridge width filter: required=${requiredWidth}", have ${filtered.length} products`);
+      if (requiredWidth > 0) {
+        const beforeCount = filtered.length;
         filtered = filtered.filter(p => {
           const detectedWidth = this.detectFridgeWidth(p);
-          const requiredWidth = parseInt(requirements.fridge_width) || 0;
-
-          if (requiredWidth === 0) return true; // No width requirement
 
           // Allow within 2 inches tolerance (e.g., 35" to 37" for 36" requirement)
           if (detectedWidth > 0) {
-            return Math.abs(detectedWidth - requiredWidth) <= 2;
+            const passes = Math.abs(detectedWidth - requiredWidth) <= 2;
+            if (!passes) console.log(`      ❌ ${p.model}: ${detectedWidth}" != ${requiredWidth}" (excluded)`);
+            return passes;
           }
 
-          // Unknown width - allow if no better match found
-          return true;
+          // Unknown width - STRICT: exclude when specific width is required
+          console.log(`      ❌ ${p.model}: unknown width (excluded)`);
+          return false;
         });
+        console.log(`   🔧 After fridge width filter: ${beforeCount} -> ${filtered.length} products`);
       }
+    }
 
-      // Range width - filter by width in inches
-      if (slotType === 'range' && requirements.range_width) {
+    // Range width - filter by width in inches (STRICT - CANNOT BE RELAXED)
+    if (slotType === 'range' && requirements.range_width) {
+      const requiredWidth = parseInt(requirements.range_width) || 0;
+      if (requiredWidth > 0) {
         filtered = filtered.filter(p => {
           const detectedWidth = this.detectRangeWidth(p);
-          const requiredWidth = parseInt(requirements.range_width) || 0;
-
-          if (requiredWidth === 0) return true;
 
           // Allow within 1 inch tolerance
           if (detectedWidth > 0) {
             return Math.abs(detectedWidth - requiredWidth) <= 1;
           }
 
+          // Unknown width - STRICT: exclude when specific width is required
+          return false;
+        });
+      }
+    }
+
+    // 6. DIMENSION RULES (can be relaxed for depth/style)
+    if (!relaxations.includes('dimensions')) {
+      // Fridge depth type - use detection method for reliable matching
+      if (slotType === 'refrigerator' && requirements.fridge_depth) {
+        const beforeCount = filtered.length;
+        filtered = filtered.filter(p => {
+          const detectedDepth = this.detectFridgeDepth(p);
+
+          if (requirements.fridge_depth === 'counter_depth') {
+            return detectedDepth === 'counter_depth';
+          } else if (requirements.fridge_depth === 'standard') {
+            return detectedDepth === 'standard';
+          }
+
           return true;
         });
+        console.log(`   🔧 Fridge depth filter: ${requirements.fridge_depth}, ${beforeCount} -> ${filtered.length} products`);
+      }
+
+      // Fridge style - use detection method for reliable matching
+      // STRICT: do not accept unknown - must match exactly
+      if (slotType === 'refrigerator' && requirements.fridge_style) {
+        const beforeCount = filtered.length;
+        filtered = filtered.filter(p => {
+          const detectedStyle = this.detectFridgeStyle(p);
+          // STRICT: only accept exact style match, no fallback to unknown
+          return detectedStyle === requirements.fridge_style;
+        });
+        console.log(`   🔧 Fridge style filter: ${requirements.fridge_style}, ${beforeCount} -> ${filtered.length} products`);
       }
 
       // Washer type - STRICT: Must match front_load or top_load
@@ -1149,25 +1244,27 @@ class PackageSelectionEngine {
     // 6. ICE/WATER FILTER (NEVER RELAXED - customer explicit requirement)
     // This is outside the dimensions block so it's always applied
     if (slotType === 'refrigerator' && requirements.ice_water) {
+      const beforeCount = filtered.length;
       filtered = filtered.filter(p => {
         const detectedIceWater = this.detectFridgeIceWater(p);
 
         if (requirements.ice_water === 'door') {
-          // Door dispenser required - must have external dispenser
+          // Door dispenser required - STRICT: must have external dispenser
           return detectedIceWater === 'door';
         } else if (requirements.ice_water === 'inside') {
-          // Internal ice maker - no external dispenser
-          return detectedIceWater === 'inside' || detectedIceWater === 'door';
+          // Internal ice maker only - STRICT: no door dispenser allowed
+          // User specifically wants internal ice maker, NOT door dispenser
+          return detectedIceWater === 'inside';
         } else if (requirements.ice_water === 'none') {
-          // No ice/water preference - allow any
-          return true;
+          // No ice/water feature - allow none or inside (no door dispenser)
+          return detectedIceWater === 'none' || detectedIceWater === 'inside';
         }
 
         return true; // No restriction
       });
 
       // Log ice_water filter results
-      console.log(`[Ice/Water Filter] Required: ${requirements.ice_water}, filtered to ${filtered.length} products`);
+      console.log(`   🔧 Ice/Water filter: ${requirements.ice_water}, ${beforeCount} -> ${filtered.length} products`);
     }
 
     // 7. DISHWASHER NOISE LEVEL
@@ -1501,6 +1598,39 @@ class PackageSelectionEngine {
     const category = (product.category || '').toLowerCase();
     const model = (product.model || '').toUpperCase();
     const name = (product.name || '').toLowerCase();
+    const description = (product.description || '').toLowerCase();
+
+    // Check description for explicit width (HIGHEST PRIORITY - most accurate)
+    // Handle various inch markers: " ″ '' ' (double quote, prime, two singles, single)
+
+    // Pattern 1: Size followed by "Width" indicator (e.g., "30″ Width", "36" Width")
+    const descWidthMatch = description.match(/(\d{2})[\s″"'''`\-]*(width|inch|in\b|wide)/i);
+    if (descWidthMatch) {
+      const width = parseInt(descWidthMatch[1]);
+      if (width >= 24 && width <= 48) {
+        return width;
+      }
+    }
+
+    // Pattern 2: Size with inch mark followed by depth indicator (e.g., "33'' C/Depth", "36" S/Depth")
+    // Handles: 33'' C/Depth, 33" S/Depth, 33″ Standard
+    const descSizeMatch = description.match(/(\d{2})(?:''|["″'`])\s*(?:s\/depth|c\/depth|standard|counter|c-depth|s-depth)/i);
+    if (descSizeMatch) {
+      const width = parseInt(descSizeMatch[1]);
+      if (width >= 24 && width <= 48) {
+        return width;
+      }
+    }
+
+    // Pattern 3: Size with any inch marker at word boundary
+    // Common in descriptions like "33", 22 cu.ft" or "36'' Width French Door"
+    const standaloneMatch = description.match(/\b(\d{2})(?:''|["″'`])\s*(?:,|\s|w|c|s|$)/i);
+    if (standaloneMatch) {
+      const width = parseInt(standaloneMatch[1]);
+      if (width >= 24 && width <= 48) {
+        return width;
+      }
+    }
 
     // Check category for width indicators (e.g., "36 FDR", "33 FDR", "30 FDR")
     const categoryWidthMatch = category.match(/(\d{2})\s*(fdr|sxs|bmf|tmf|4dr|4dflex)/i);
@@ -1522,9 +1652,41 @@ class PackageSelectionEngine {
       if (sizeDigits >= 15 && sizeDigits <= 21) return 30; // Compact
     }
 
-    // LG model patterns (LRF, LRMV, etc.)
-    if (/^LRF/.test(model) || /^LRMV/.test(model)) {
-      return 36; // Most LG French doors are 36"
+    // LG model patterns - determine width by fridge type
+    // LRF* = French Door (all 36" wide)
+    // LRY* = French Door (all 36" wide)
+    // LRD* = Bottom Mount (check capacity for 30/33")
+    // LRO* = Single Door Column (24-30")
+    // LF* = French Door (all 36")
+    // LB* = Bottom Mount (varies)
+    // LS* = Side by Side (36")
+    // LT* = Top Freezer (30-33")
+
+    // French Door models = always 36"
+    if (/^(LRF|LRY|LF|LS)/.test(model)) {
+      return 36;
+    }
+
+    // Single door/column models = 24-30"
+    if (/^LRO/.test(model)) {
+      return 30; // Single door columns are typically 24" but we use 30" for matching tolerance
+    }
+
+    // Bottom mount models - check capacity
+    if (/^(LRD|LB)/.test(model)) {
+      const capacityMatch = model.match(/(\d{2})/);
+      if (capacityMatch) {
+        const cap = parseInt(capacityMatch[1]);
+        if (cap <= 22) return 30;
+        if (cap <= 26) return 33;
+        return 36;
+      }
+      return 33; // Default bottom mount to 33"
+    }
+
+    // Top freezer models
+    if (/^LT/.test(model)) {
+      return 30; // Most top freezers are 30"
     }
 
     // Check for size in category/name text
@@ -2358,6 +2520,160 @@ class PackageSelectionEngine {
       }
     }
     return 'refrigerator'; // default
+  }
+
+  /**
+   * Detect range configuration type (slide_in, freestanding, front_control)
+   * @param {object} product - Product with model, name, category, description
+   * @returns {string} 'slide_in', 'freestanding', 'front_control', or 'unknown'
+   */
+  detectRangeConfiguration(product) {
+    if (!product) return 'unknown';
+
+    const model = (product.model || '').toUpperCase();
+    const name = (product.name || '').toLowerCase();
+    const category = (product.category || '').toLowerCase();
+    const description = (product.description || '').toLowerCase();
+
+    // Combined text for searching
+    const allText = `${name} ${category} ${description}`;
+
+    // Check for slide-in first (most specific)
+    // Slide-in ranges have no backguard and sit flush with countertops
+    if (allText.includes('slide-in') || allText.includes('slide in') || allText.includes('slidein')) {
+      return 'slide_in';
+    }
+
+    // Check model prefixes for slide-in (brand-specific patterns)
+    const slideInModelPatterns = [
+      // LG slide-in models
+      /^LS[EIG][LRS]?\d/.test(model),  // LSEL, LSGL, LSIL, LSIS
+      // Samsung slide-in models
+      /^NX60[A-Z]*\d.*S/.test(model),   // NX60A... slide-in indicator
+      /^NE63[A-Z]*\d.*S/.test(model),   // NE63A... with S suffix often slide-in
+      /^NY60[A-Z]*\d/.test(model),      // NY60 = gas slide-in
+      /^NZ60[A-Z]*\d/.test(model),      // NZ60 = induction slide-in
+      // GE slide-in models
+      /^JS\d{3}/.test(model),           // JS760, JS645 = GE slide-in
+      /^JGS\d{3}/.test(model),          // JGS760 = GE gas slide-in
+      /^PGS\d{3}/.test(model),          // PGS960 = GE Profile gas slide-in
+      /^PS\d{3}/.test(model),           // PS960 = GE slide-in
+      /^PHS\d{3}/.test(model),          // PHS930 = GE Profile slide-in induction
+      // Café slide-in models
+      /^C[GH]S\d{3}/.test(model),       // CGS, CHS = Café slide-in
+      /^CES\d{3}/.test(model),          // CES = Café electric slide-in
+      // KitchenAid slide-in models
+      /^KS[EGI][BG]?\d{3}/.test(model), // KSEG, KSGB, KSIB = KitchenAid slide-in
+      /^KFGS\d{3}/.test(model),         // KFGS = KitchenAid front control gas
+      // Whirlpool slide-in models
+      /^WEE\d{3}[HS]/.test(model),      // WEE750H = Whirlpool electric slide-in
+      /^WEG\d{3}[HS]/.test(model),      // WEG = Whirlpool gas slide-in
+      // Bosch slide-in models
+      /^HIS\d/.test(model),             // HIS = Bosch induction slide-in
+      /^HGS\d/.test(model),             // HGS = Bosch gas slide-in
+      // Frigidaire/Electrolux slide-in models
+      /^PL[EG]S\d{3}/.test(model),      // PLES, PLGS = Frigidaire Prof slide-in
+      /^FG[EG]S\d{3}/.test(model),      // FGES = Frigidaire Gallery slide-in
+      /^E[IW]30[EG]S\d/.test(model),    // Electrolux 30" slide-in
+      // Jenn-Air slide-in models
+      /^JIS\d/.test(model),             // JIS = Jenn-Air induction slide-in
+      /^JGS\d/.test(model),             // JGS = Jenn-Air gas slide-in
+      // Bertazzoni slide-in models
+      /^MAST\d{2}/.test(model),         // MAST = Bertazzoni Master
+      /^PROF\d{2}/.test(model),         // PROF = Bertazzoni Professional
+      // Thor Kitchen slide-in models
+      /^HRG\d{4}[US]/.test(model),      // HRG with U or S suffix = slide-in style
+    ];
+    if (slideInModelPatterns.some(p => p)) {
+      return 'slide_in';
+    }
+
+    // Check for front control (specific style between slide-in and freestanding)
+    if (allText.includes('front control') || allText.includes('front-control')) {
+      return 'front_control';
+    }
+
+    // Check for freestanding (has backguard, traditional style)
+    if (allText.includes('freestanding') || allText.includes('free standing') || allText.includes('free-standing')) {
+      return 'freestanding';
+    }
+
+    // Model prefixes for freestanding (brand-specific patterns)
+    const freestandingModelPatterns = [
+      // LG freestanding models
+      /^LR[EG][LDS]?\d/.test(model),    // LREL, LRGL = LG freestanding
+      // Samsung freestanding models
+      /^NE59[A-Z]*\d/.test(model),      // NE59 = Samsung freestanding electric
+      /^NX58[A-Z]*\d/.test(model),      // NX58 = Samsung freestanding gas
+      // GE freestanding models
+      /^JB\d{3}/.test(model),           // JB645 = GE freestanding
+      /^JGB\d{3}/.test(model),          // JGB = GE gas freestanding
+      // Whirlpool freestanding models
+      /^WFE\d{3}/.test(model),          // WFE = Whirlpool freestanding electric
+      /^WFG\d{3}/.test(model),          // WFG = Whirlpool freestanding gas
+      // Frigidaire freestanding models
+      /^FFEF\d{3}/.test(model),         // FFEF = Frigidaire freestanding electric
+      /^FFGF\d{3}/.test(model),         // FFGF = Frigidaire freestanding gas
+      /^GCRE\d{3}/.test(model),         // GCRE = Frigidaire Gallery freestanding electric
+    ];
+    if (freestandingModelPatterns.some(p => p)) {
+      return 'freestanding';
+    }
+
+    // Default: if "range" in category but no clear indicator, check name for clues
+    if (name.includes('free') && name.includes('stand')) {
+      return 'freestanding';
+    }
+
+    return 'unknown';
+  }
+
+  /**
+   * Detect refrigerator depth type from description
+   * @param {object} product - Product with description, name, category
+   * @returns {string} 'counter_depth' or 'standard'
+   */
+  detectFridgeDepth(product) {
+    if (!product) return 'standard';
+
+    // Check explicit field first
+    if (product.depth_type) {
+      const depth = product.depth_type.toLowerCase();
+      if (depth.includes('counter')) return 'counter_depth';
+      return 'standard';
+    }
+
+    // Check dimensions
+    if (product.depth_inches_x10 && product.depth_inches_x10 > 0) {
+      return product.depth_inches_x10 <= 300 ? 'counter_depth' : 'standard';
+    }
+
+    const description = (product.description || '').toLowerCase();
+    const name = (product.name || '').toLowerCase();
+    const category = (product.category || '').toLowerCase();
+
+    // Combined text
+    const allText = `${description} ${name} ${category}`;
+
+    // Check for counter-depth indicators
+    const counterDepthPatterns = [
+      /counter[\s-]?depth/i,
+      /c[\s\/]?depth/i,
+      /c-depth/i,
+      /counter-d/i,
+      /\bcd\b/i,  // CD abbreviation
+    ];
+
+    if (counterDepthPatterns.some(p => p.test(allText))) {
+      return 'counter_depth';
+    }
+
+    // Check for standard depth indicators
+    if (allText.includes('standard depth') || allText.includes('s/depth') || allText.includes('s-depth')) {
+      return 'standard';
+    }
+
+    return 'standard'; // Default to standard
   }
 }
 

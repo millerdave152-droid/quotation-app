@@ -281,7 +281,7 @@ function convertFiltersToAnswers(filters, packageType) {
   // Refrigerator filters
   if (filters.refrigerator) {
     const rf = filters.refrigerator;
-    if (rf.width) answers.fridge_width = rf.width + '_inch';
+    if (rf.width) answers.fridge_width = rf.width;  // Just the number, e.g., "36"
     if (rf.style) answers.fridge_style = rf.style;
     if (rf.depth) answers.fridge_depth = rf.depth;
     if (rf.ice_water) answers.ice_water = rf.ice_water;
