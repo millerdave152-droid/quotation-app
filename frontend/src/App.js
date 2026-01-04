@@ -5,7 +5,7 @@ import { ToastProvider, useToast, setToastRef } from './components/ui';
 import { SkeletonStats, SkeletonTable } from './components/ui';
 import { handleApiError } from './utils/errorHandler';
 import ErrorBoundary from './components/ErrorBoundary';
-import Sidebar from './components/Sidebar';
+import { MainLayout } from './components/layout';
 
 // Lazy load components - loads ONLY when tab is first clicked
 const QuotationManager = React.lazy(() => import('./components/QuotationManager'));
@@ -16,6 +16,7 @@ const MarketplaceManager = React.lazy(() => import('./components/MarketplaceMana
 const MarketplaceReports = React.lazy(() => import('./components/MarketplaceReports'));
 const BulkOperationsCenter = React.lazy(() => import('./components/BulkOperationsCenter'));
 const PowerFeatures2026 = React.lazy(() => import('./components/PowerFeatures2026'));
+const SearchResults = React.lazy(() => import('./components/SearchResults'));
 
 // Dashboard component with real data and anti-flickering
 const Dashboard = () => {
@@ -63,7 +64,14 @@ const Dashboard = () => {
   };
 
   const formatDate = (dateString) => {
-    return new Date(dateString).toLocaleDateString('en-CA', { month: 'short', day: 'numeric' });
+    if (!dateString) return 'N/A';
+    try {
+      const date = new Date(dateString);
+      if (isNaN(date.getTime())) return 'N/A';
+      return date.toLocaleDateString('en-CA', { month: 'short', day: 'numeric' });
+    } catch {
+      return 'N/A';
+    }
   };
 
   if (loading) {
@@ -231,7 +239,7 @@ const Dashboard = () => {
 
 function App() {
   return (
-    <Sidebar>
+    <MainLayout>
       {/* Main Content - React Router based routing with lazy loading */}
       <React.Suspense fallback={
         <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '400px', flexDirection: 'column' }}>
@@ -254,6 +262,7 @@ function App() {
           <Route path="/reports" element={<MarketplaceReports />} />
           <Route path="/bulk-ops" element={<BulkOperationsCenter />} />
           <Route path="/features/*" element={<PowerFeatures2026 />} />
+          <Route path="/search" element={<SearchResults />} />
           {/* 404 fallback */}
           <Route path="*" element={
             <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '400px', flexDirection: 'column' }}>
@@ -264,7 +273,7 @@ function App() {
           } />
         </Routes>
       </React.Suspense>
-    </Sidebar>
+    </MainLayout>
   );
 }
 
