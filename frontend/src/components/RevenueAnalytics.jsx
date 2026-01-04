@@ -364,7 +364,7 @@ const RevenueAnalytics = () => {
       </div>
 
       {/* Recent Quotes with Features */}
-      {topFeatures.length > 0 && (
+      {Array.isArray(topFeatures) && topFeatures.length > 0 && (
         <div style={{ background: 'white', padding: '30px', borderRadius: '12px', boxShadow: '0 1px 3px rgba(0,0,0,0.1)' }}>
           <h2 style={{ fontSize: '20px', fontWeight: 'bold', color: '#111827', marginBottom: '20px' }}>
             Recent Quotes with Revenue Features
@@ -384,38 +384,38 @@ const RevenueAnalytics = () => {
                 </tr>
               </thead>
               <tbody>
-                {topFeatures.map((feature, index) => (
+                {topFeatures.filter(f => f != null).map((feature, index) => (
                   <tr key={index} style={{ borderBottom: '1px solid #f3f4f6' }}>
-                    <td style={{ padding: '12px', fontSize: '14px', fontWeight: '500', color: '#111827' }}>Q-{feature.quoteId}</td>
+                    <td style={{ padding: '12px', fontSize: '14px', fontWeight: '500', color: '#111827' }}>Q-{feature?.quoteId || 'N/A'}</td>
                     <td style={{ padding: '12px', fontSize: '14px', color: '#6b7280' }}>
-                      {formatDate(feature.date)}
+                      {formatDate(feature?.date)}
                     </td>
                     <td style={{ padding: '12px', fontSize: '14px', fontWeight: '600', color: '#10b981', textAlign: 'right' }}>
-                      {formatCurrency(feature.total)}
+                      {formatCurrency(feature?.total)}
                     </td>
                     <td style={{ padding: '12px', textAlign: 'center' }}>
-                      {feature.features?.financing ? <span style={{ color: '#10b981', fontSize: '18px' }}>✓</span> : <span style={{ color: '#d1d5db' }}>−</span>}
+                      {feature?.features?.financing ? <span style={{ color: '#10b981', fontSize: '18px' }}>✓</span> : <span style={{ color: '#d1d5db' }}>−</span>}
                     </td>
                     <td style={{ padding: '12px', textAlign: 'center' }}>
-                      {(feature.features?.warranties || 0) > 0 ? (
-                        <span style={{ color: '#10b981', fontSize: '14px', fontWeight: '600' }}>{feature.features.warranties}</span>
+                      {(feature?.features?.warranties || 0) > 0 ? (
+                        <span style={{ color: '#10b981', fontSize: '14px', fontWeight: '600' }}>{feature?.features?.warranties}</span>
                       ) : (
                         <span style={{ color: '#d1d5db' }}>−</span>
                       )}
                     </td>
                     <td style={{ padding: '12px', textAlign: 'center' }}>
-                      {feature.features?.delivery ? <span style={{ color: '#10b981', fontSize: '18px' }}>✓</span> : <span style={{ color: '#d1d5db' }}>−</span>}
+                      {feature?.features?.delivery ? <span style={{ color: '#10b981', fontSize: '18px' }}>✓</span> : <span style={{ color: '#d1d5db' }}>−</span>}
                     </td>
                     <td style={{ padding: '12px', textAlign: 'center' }}>
-                      {(feature.features?.rebates || 0) > 0 ? (
-                        <span style={{ color: '#f59e0b', fontSize: '14px', fontWeight: '600' }}>{feature.features.rebates}</span>
+                      {(feature?.features?.rebates || 0) > 0 ? (
+                        <span style={{ color: '#f59e0b', fontSize: '14px', fontWeight: '600' }}>{feature?.features?.rebates}</span>
                       ) : (
                         <span style={{ color: '#d1d5db' }}>−</span>
                       )}
                     </td>
                     <td style={{ padding: '12px', textAlign: 'center' }}>
-                      {(feature.features?.tradeIns || 0) > 0 ? (
-                        <span style={{ color: '#06b6d4', fontSize: '14px', fontWeight: '600' }}>{feature.features.tradeIns}</span>
+                      {(feature?.features?.tradeIns || 0) > 0 ? (
+                        <span style={{ color: '#06b6d4', fontSize: '14px', fontWeight: '600' }}>{feature?.features?.tradeIns}</span>
                       ) : (
                         <span style={{ color: '#d1d5db' }}>−</span>
                       )}
