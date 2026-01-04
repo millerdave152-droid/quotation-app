@@ -28,10 +28,14 @@ const { init: initCustomerRoutes } = require('./routes/customers');
 const { init: initProductRoutes } = require('./routes/products');
 const { init: initAnalyticsRoutes } = require('./routes/analytics');
 const { init: initQuotesRoutes } = require('./routes/quotes');
+const { init: initImportTemplateRoutes } = require('./routes/importTemplates');
 
 // Standardized API response utilities
 const { attachResponseHelpers } = require('./utils/apiResponse');
 const { notFoundHandler, errorHandler, ApiError, asyncHandler } = require('./middleware/errorHandler');
+
+// Email notification scheduler
+const notificationScheduler = require('./services/NotificationScheduler');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -146,6 +150,12 @@ app.use('/api/products', initProductRoutes({ pool, cache, upload }));
 console.log('✅ Product routes loaded (modular)');
 
 // ============================================
+// IMPORT TEMPLATES (Manufacturer Mappings)
+// ============================================
+app.use('/api/import-templates', initImportTemplateRoutes({ pool, cache }));
+console.log('✅ Import template routes loaded');
+
+// ============================================
 // ANALYTICS (Modular)
 // ============================================
 app.use('/api/analytics', initAnalyticsRoutes({ pool }));
@@ -175,6 +185,20 @@ console.log('✅ Marketplace integration routes loaded');
 const features2026Routes = require('./routes/features2026')(pool);
 app.use('/api/features', features2026Routes);
 console.log('✅ 2026 Features routes loaded');
+
+// ============================================
+// PACKAGE BUILDER (Guided Package Wizard)
+// ============================================
+const initPackageBuilderRoutes = require('./routes/packageBuilder');
+app.use('/api/package-builder', initPackageBuilderRoutes({ pool }));
+console.log('✅ Package builder routes loaded');
+
+// ============================================
+// PACKAGE BUILDER V2 (Faceted Filtering)
+// ============================================
+const packageBuilderV2Routes = require('./routes/packageBuilderV2');
+app.use('/api/package-builder-v2', packageBuilderV2Routes);
+console.log('✅ Package builder V2 routes loaded');
 
 // ============================================
 // EMAIL ENDPOINTS (PHASE 5)
@@ -392,6 +416,13 @@ app.post('/api/quotations/:id/send-email', upload.single('pdf'), async (req, res
 });
 
 console.log('✅ Phase 5: Email routes loaded');
+
+// ============================================
+// ACTIVITY TRACKING ROUTES
+// ============================================
+const activityRoutes = require('./routes/activities')(pool);
+app.use('/api/activities', activityRoutes);
+console.log('✅ Activity tracking routes loaded');
 
 // ============================================
 // CUSTOMER MANAGEMENT ENDPOINTS
@@ -628,8 +659,9 @@ app.post('/api/payment-terms', async (req, res) => {
 
 console.log('✅ Payment terms endpoints loaded');
 
-// Note: Quote aliases (/api/quotes/*) have been removed.
-// Use the modular /api/quotations routes instead.
+// Quote aliases - redirect /api/quotes/* to /api/quotations/*
+app.use('/api/quotes', initQuotesRoutes({ pool }));
+console.log('✅ Quote aliases loaded (/api/quotes -> /api/quotations)');
 
 // ============================================
 // QUOTE TEMPLATES
@@ -1973,6 +2005,11 @@ const server = app.listen(PORT, () => {
   console.log(`Environment: ${process.env.NODE_ENV || 'development'}`);
   console.log('========================================');
   console.log('');
+
+  // Start notification scheduler for automated email reminders
+  if (process.env.ENABLE_EMAIL_NOTIFICATIONS !== 'false') {
+    notificationScheduler.start();
+  }
 });
 
 // Handle server errors

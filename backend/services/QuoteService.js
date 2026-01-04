@@ -4,6 +4,7 @@
  */
 
 const ActivityService = require('./ActivityService');
+const emailService = require('./EmailService');
 
 class QuoteService {
   constructor(pool) {
@@ -906,7 +907,16 @@ class QuoteService {
       await client.query('COMMIT');
 
       console.log(`✅ Created quotation ${quote_number} with ${items.length} items`);
-      return quoteResult.rows[0];
+
+      // Send quote created notification (async, don't block)
+      const createdQuote = quoteResult.rows[0];
+      if (created_by) {
+        emailService.sendQuoteCreatedEmail(createdQuote.id, created_by).catch(err => {
+          console.error('Failed to send quote created email:', err.message);
+        });
+      }
+
+      return createdQuote;
 
     } catch (err) {
       await client.query('ROLLBACK');
@@ -1300,6 +1310,20 @@ class QuoteService {
         INSERT INTO quote_events (quotation_id, event_type, description)
         VALUES ($1, $2, $3)
       `, [id, 'STATUS_CHANGED', eventDescription]);
+
+      // Send email notifications for status changes (async, don't block)
+      const quote = result.rows[0];
+      const recipientEmail = quote.created_by || process.env.EMAIL_FROM;
+
+      if (newStatus === 'WON' && recipientEmail) {
+        emailService.sendQuoteWonEmail(id, recipientEmail).catch(err => {
+          console.error('Failed to send quote won email:', err.message);
+        });
+      } else if (newStatus === 'LOST' && recipientEmail) {
+        emailService.sendQuoteLostEmail(id, recipientEmail, options.lostReason).catch(err => {
+          console.error('Failed to send quote lost email:', err.message);
+        });
+      }
     }
 
     return result.rows.length > 0 ? result.rows[0] : null;
