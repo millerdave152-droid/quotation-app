@@ -376,11 +376,15 @@ router.post('/sync-offers', async (req, res) => {
     console.log('🔄 Starting inventory sync to Mirakl...');
 
     // Get all active products that need syncing
+    // INCREASED LIMIT: Process up to 500 products, prioritizing unsynced ones
     const productsQuery = await pool.query(`
       SELECT id, model, name, msrp_cents, active, mirakl_sku
       FROM products
       WHERE active = true
-      LIMIT 100
+      ORDER BY
+        CASE WHEN last_synced_at IS NULL THEN 0 ELSE 1 END,
+        last_synced_at ASC NULLS FIRST
+      LIMIT 500
     `);
 
     const products = productsQuery.rows;
@@ -480,6 +484,242 @@ router.post('/products/sync-bulk', async (req, res) => {
   } catch (error) {
     console.error('❌ Error in bulk sync:', error);
     res.status(500).json({ error: 'Bulk sync failed', details: error.message });
+  }
+});
+
+// Batch sync products using bulk API (more efficient, avoids rate limits)
+router.post('/products/batch-sync', async (req, res) => {
+  try {
+    const batchSize = req.body.batch_size || 100; // Mirakl supports up to 100 offers per request
+    const delayBetweenBatches = req.body.delay_ms || 5000; // 5 second delay between batches
+
+    console.log('🔄 Starting BATCH sync of unsynced products...');
+    console.log(`   Batch size: ${batchSize}, Delay: ${delayBetweenBatches}ms`);
+
+    // Get all unsynced products
+    const productsQuery = await pool.query(`
+      SELECT id, model, name, msrp_cents, stock_quantity, active, mirakl_sku
+      FROM products
+      WHERE active = true
+      AND last_synced_at IS NULL
+      ORDER BY id
+    `);
+
+    const products = productsQuery.rows;
+
+    if (products.length === 0) {
+      return res.json({
+        success: true,
+        synced: 0,
+        message: 'All products are already synced'
+      });
+    }
+
+    console.log(`📋 Found ${products.length} unsynced products to batch sync`);
+
+    let totalSucceeded = 0;
+    let totalFailed = 0;
+    const errors = [];
+    const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+
+    // Process in batches
+    for (let i = 0; i < products.length; i += batchSize) {
+      const batch = products.slice(i, i + batchSize);
+      const batchNum = Math.floor(i / batchSize) + 1;
+      const totalBatches = Math.ceil(products.length / batchSize);
+
+      console.log(`\n📦 Processing batch ${batchNum}/${totalBatches} (${batch.length} products)...`);
+
+      const result = await miraklService.batchImportOffers(batch);
+
+      if (result.success) {
+        // Update last_synced_at for all products in batch
+        const productIds = batch.map(p => p.id);
+        await pool.query(
+          `UPDATE products SET last_synced_at = CURRENT_TIMESTAMP WHERE id = ANY($1)`,
+          [productIds]
+        );
+        totalSucceeded += batch.length;
+        console.log(`   ✅ Batch ${batchNum} succeeded: ${batch.length} products synced`);
+      } else {
+        totalFailed += batch.length;
+        errors.push({
+          batch: batchNum,
+          error: result.error,
+          details: result.details
+        });
+        console.log(`   ❌ Batch ${batchNum} failed: ${result.error}`);
+      }
+
+      // Delay between batches
+      if (i + batchSize < products.length) {
+        console.log(`   ⏱️  Waiting ${delayBetweenBatches}ms before next batch...`);
+        await delay(delayBetweenBatches);
+      }
+    }
+
+    console.log(`\n✅ Batch sync complete: ${totalSucceeded} succeeded, ${totalFailed} failed`);
+
+    res.json({
+      success: true,
+      total: products.length,
+      synced: totalSucceeded,
+      failed: totalFailed,
+      batches_processed: Math.ceil(products.length / batchSize),
+      errors: errors.length > 5 ? errors.slice(0, 5) : errors,
+      totalErrors: errors.length
+    });
+  } catch (error) {
+    console.error('❌ Error in batch sync:', error);
+    res.status(500).json({ error: 'Batch sync failed', details: error.message });
+  }
+});
+
+// Set default stock quantity for products with zero stock
+router.post('/products/set-default-stock', async (req, res) => {
+  try {
+    const { default_stock = 10, manufacturer } = req.body;
+
+    console.log(`📦 Setting default stock quantity to ${default_stock}...`);
+
+    let query = `
+      UPDATE products
+      SET stock_quantity = $1, updated_at = CURRENT_TIMESTAMP
+      WHERE active = true
+      AND (stock_quantity IS NULL OR stock_quantity = 0)
+    `;
+    const params = [default_stock];
+
+    if (manufacturer) {
+      query += ` AND LOWER(manufacturer) = LOWER($2)`;
+      params.push(manufacturer);
+    }
+
+    query += ' RETURNING id';
+
+    const result = await pool.query(query, params);
+
+    console.log(`✅ Updated ${result.rowCount} products with default stock`);
+
+    res.json({
+      success: true,
+      updated_count: result.rowCount,
+      default_stock: default_stock,
+      message: `Set stock to ${default_stock} for ${result.rowCount} products`
+    });
+  } catch (error) {
+    console.error('❌ Error setting default stock:', error);
+    res.status(500).json({ error: 'Failed to set default stock', details: error.message });
+  }
+});
+
+// Sync ALL unsynced products to Mirakl (no limit - for catch-up)
+router.post('/products/sync-all-unsynced', async (req, res) => {
+  try {
+    // Rate limiting settings - Mirakl typically allows ~60-120 requests/minute
+    const requestDelayMs = req.body.delay_ms || 500; // 500ms = 120 requests/min
+    const retryDelayMs = 5000; // Wait 5 seconds on rate limit before retry
+    const maxRetries = 3;
+
+    console.log('🔄 Starting full sync of ALL unsynced products to Mirakl...');
+    console.log(`⏱️  Request delay: ${requestDelayMs}ms between requests`);
+
+    // Get ALL active products that have never been synced
+    const productsQuery = await pool.query(`
+      SELECT id, model, name, msrp_cents, stock_quantity
+      FROM products
+      WHERE active = true
+      AND last_synced_at IS NULL
+      ORDER BY id
+    `);
+
+    const products = productsQuery.rows;
+
+    if (products.length === 0) {
+      return res.json({
+        success: true,
+        synced: 0,
+        message: 'All products are already synced'
+      });
+    }
+
+    console.log(`📋 Found ${products.length} unsynced products to process`);
+
+    let succeeded = 0;
+    let failed = 0;
+    let rateLimited = 0;
+    const errors = [];
+    const batchSize = 50;
+    let processed = 0;
+
+    // Helper to delay
+    const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+
+    // Helper to sync with retry on rate limit
+    const syncWithRetry = async (productId, retries = 0) => {
+      try {
+        await miraklService.syncProductToMirakl(productId);
+        return { success: true };
+      } catch (error) {
+        const isRateLimited = error.message?.includes('Too Many Requests') ||
+                             error.details?.status === 429;
+
+        if (isRateLimited && retries < maxRetries) {
+          rateLimited++;
+          const waitTime = retryDelayMs * (retries + 1); // Exponential backoff
+          console.log(`⏳ Rate limited, waiting ${waitTime}ms before retry ${retries + 1}...`);
+          await delay(waitTime);
+          return syncWithRetry(productId, retries + 1);
+        }
+        return { success: false, error: error.message };
+      }
+    };
+
+    // Process in batches with rate limiting
+    for (let i = 0; i < products.length; i += batchSize) {
+      const batch = products.slice(i, i + batchSize);
+
+      for (const product of batch) {
+        const result = await syncWithRetry(product.id);
+
+        if (result.success) {
+          succeeded++;
+        } else {
+          failed++;
+          errors.push({
+            product_id: product.id,
+            model: product.model,
+            error: result.error
+          });
+        }
+
+        // Delay between requests to respect rate limits
+        await delay(requestDelayMs);
+      }
+
+      processed += batch.length;
+      console.log(`   Progress: ${processed}/${products.length} (${succeeded} succeeded, ${failed} failed, ${rateLimited} rate-limit retries)`);
+
+      // Extra delay between batches
+      if (i + batchSize < products.length) {
+        await delay(2000);
+      }
+    }
+
+    console.log(`✅ Full sync complete: ${succeeded} succeeded, ${failed} failed out of ${products.length}`);
+
+    res.json({
+      success: true,
+      total: products.length,
+      synced: succeeded,
+      failed: failed,
+      rate_limit_retries: rateLimited,
+      errors: errors.length > 10 ? errors.slice(0, 10) : errors,
+      totalErrors: errors.length
+    });
+  } catch (error) {
+    console.error('❌ Error syncing all unsynced products:', error);
+    res.status(500).json({ success: false, error: 'Failed to sync unsynced products', details: error.message });
   }
 });
 
@@ -716,6 +956,114 @@ router.get('/sync-status', async (req, res) => {
     res.status(500).json({ error: 'Failed to fetch sync status' });
   }
 });
+
+// Detailed sync diagnostics - helps debug why products aren't syncing
+router.get('/sync-diagnostics', async (req, res) => {
+  try {
+    // Get breakdown of product sync status
+    const productBreakdown = await pool.query(`
+      SELECT
+        COUNT(*) as total_active_products,
+        COUNT(*) FILTER (WHERE last_synced_at IS NULL) as never_synced,
+        COUNT(*) FILTER (WHERE last_synced_at IS NOT NULL) as synced_at_least_once,
+        COUNT(*) FILTER (WHERE mirakl_offer_id IS NOT NULL) as has_mirakl_offer,
+        COUNT(*) FILTER (WHERE COALESCE(stock_quantity, 0) = 0) as zero_stock,
+        COUNT(*) FILTER (WHERE COALESCE(stock_quantity, 0) > 0) as has_stock,
+        COUNT(*) FILTER (WHERE last_synced_at IS NULL AND COALESCE(stock_quantity, 0) = 0) as unsynced_no_stock,
+        COUNT(*) FILTER (WHERE last_synced_at IS NULL AND COALESCE(stock_quantity, 0) > 0) as unsynced_with_stock
+      FROM products
+      WHERE active = true
+    `);
+
+    // Get sample of unsynced products
+    const unsyncedSample = await pool.query(`
+      SELECT id, model, name, manufacturer, stock_quantity, msrp_cents, created_at
+      FROM products
+      WHERE active = true AND last_synced_at IS NULL
+      ORDER BY created_at DESC
+      LIMIT 10
+    `);
+
+    // Get recent sync errors from log
+    const recentErrors = await pool.query(`
+      SELECT entity_id, error_message, created_at
+      FROM marketplace_sync_log
+      WHERE status = 'FAILED' AND sync_type = 'product_sync'
+      ORDER BY created_at DESC
+      LIMIT 10
+    `);
+
+    // Check environment configuration
+    const envConfig = {
+      mirakl_api_url_set: !!process.env.MIRAKL_API_URL,
+      mirakl_api_key_set: !!process.env.MIRAKL_API_KEY,
+      mirakl_shop_id_set: !!process.env.MIRAKL_SHOP_ID,
+      auto_sync_enabled: process.env.MARKETPLACE_AUTO_SYNC === 'true',
+      product_sync_interval_minutes: parseInt(process.env.MARKETPLACE_PRODUCT_SYNC_INTERVAL) || 60
+    };
+
+    res.json({
+      summary: productBreakdown.rows[0],
+      sample_unsynced_products: unsyncedSample.rows,
+      recent_sync_errors: recentErrors.rows,
+      environment: envConfig,
+      recommendations: generateSyncRecommendations(productBreakdown.rows[0], envConfig)
+    });
+  } catch (error) {
+    console.error('❌ Error fetching sync diagnostics:', error);
+    res.status(500).json({ error: 'Failed to fetch sync diagnostics' });
+  }
+});
+
+// Helper function to generate sync recommendations
+function generateSyncRecommendations(stats, env) {
+  const recommendations = [];
+
+  if (!env.auto_sync_enabled) {
+    recommendations.push({
+      priority: 'high',
+      issue: 'Auto-sync is disabled',
+      action: 'Set MARKETPLACE_AUTO_SYNC=true in .env file'
+    });
+  }
+
+  if (!env.mirakl_api_key_set || !env.mirakl_shop_id_set) {
+    recommendations.push({
+      priority: 'critical',
+      issue: 'Mirakl API credentials not configured',
+      action: 'Set MIRAKL_API_KEY and MIRAKL_SHOP_ID in .env file'
+    });
+  }
+
+  const neverSynced = parseInt(stats.never_synced) || 0;
+  if (neverSynced > 100) {
+    recommendations.push({
+      priority: 'high',
+      issue: `${neverSynced} products have never been synced`,
+      action: 'Call POST /api/marketplace/products/sync-all-unsynced to sync all unsynced products'
+    });
+  }
+
+  const zeroStock = parseInt(stats.zero_stock) || 0;
+  const total = parseInt(stats.total_active_products) || 0;
+  if (zeroStock > total * 0.5) {
+    recommendations.push({
+      priority: 'medium',
+      issue: `${zeroStock} of ${total} products have zero stock`,
+      action: 'Update stock quantities via POST /api/marketplace/bulk/stock-update or import from inventory file'
+    });
+  }
+
+  if (recommendations.length === 0) {
+    recommendations.push({
+      priority: 'info',
+      issue: 'No critical issues detected',
+      action: 'Sync is operating normally'
+    });
+  }
+
+  return recommendations;
+}
 
 // ============================================
 // BEST BUY CATEGORIES & PRODUCT MAPPING
@@ -4005,7 +4353,7 @@ router.get('/reports/export/:type', async (req, res) => {
         const salesResult = await pool.query(`
           SELECT
             DATE(mo.order_date) as date,
-            mo.marketplace_order_id as order_id,
+            mo.mirakl_order_id as order_id,
             mo.customer_name,
             mo.customer_email,
             mo.total_price_cents / 100.0 as total_amount,
@@ -4044,7 +4392,7 @@ router.get('/reports/export/:type', async (req, res) => {
         const profitResult = await pool.query(`
           SELECT
             DATE(mo.order_date) as date,
-            mo.marketplace_order_id as order_id,
+            mo.mirakl_order_id as order_id,
             p.name as product_name,
             oi.quantity,
             oi.unit_price_cents / 100.0 as sale_price,

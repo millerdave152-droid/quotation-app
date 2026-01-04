@@ -199,11 +199,41 @@ function MarketplaceReports() {
     }
   }, [activeReport, dateRange, customStartDate, customEndDate]);
 
-  // Export report
+  // Export state
+  const [exporting, setExporting] = useState(false);
+  const [exportError, setExportError] = useState(null);
+
+  // Export report with better error handling
   const handleExport = async (type) => {
-    const params = getDateParams();
-    const url = `${API_BASE}/marketplace/reports/export/${type}?start_date=${params.start_date}&end_date=${params.end_date}`;
-    window.open(url, '_blank');
+    setExporting(true);
+    setExportError(null);
+    try {
+      const params = getDateParams();
+      const url = `${API_BASE}/marketplace/reports/export/${type}?start_date=${params.start_date}&end_date=${params.end_date}`;
+
+      // Use fetch to check if the export works before opening
+      const response = await fetch(url);
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || `Export failed: ${response.status}`);
+      }
+
+      // Get the blob and create download link
+      const blob = await response.blob();
+      const downloadUrl = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = downloadUrl;
+      link.download = `${type}-report-${params.start_date}-to-${params.end_date}.csv`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(downloadUrl);
+    } catch (err) {
+      console.error('Export error:', err);
+      setExportError(err.message || 'Failed to export report');
+    } finally {
+      setExporting(false);
+    }
   };
 
   // Format helpers
@@ -542,8 +572,12 @@ function MarketplaceReports() {
         <div style={styles.card}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
             <h3 style={{ ...styles.cardTitle, margin: 0 }}>Daily Sales Trend</h3>
-            <button onClick={() => handleExport('sales')} style={styles.exportButton}>
-              Export CSV
+            <button
+              onClick={() => handleExport('sales')}
+              disabled={exporting}
+              style={{ ...styles.exportButton, opacity: exporting ? 0.6 : 1, cursor: exporting ? 'not-allowed' : 'pointer' }}
+            >
+              {exporting ? 'Exporting...' : 'Export CSV'}
             </button>
           </div>
           {salesData.daily && salesData.daily.length > 0 ? (
@@ -661,8 +695,12 @@ function MarketplaceReports() {
         <div style={styles.card}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
             <h3 style={{ ...styles.cardTitle, margin: 0 }}>Sync Status</h3>
-            <button onClick={() => handleExport('inventory')} style={styles.exportButton}>
-              Export CSV
+            <button
+              onClick={() => handleExport('inventory')}
+              disabled={exporting}
+              style={{ ...styles.exportButton, opacity: exporting ? 0.6 : 1, cursor: exporting ? 'not-allowed' : 'pointer' }}
+            >
+              {exporting ? 'Exporting...' : 'Export CSV'}
             </button>
           </div>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '16px' }}>
@@ -820,8 +858,12 @@ function MarketplaceReports() {
 
         {/* Export Button */}
         <div style={{ marginBottom: '20px' }}>
-          <button onClick={() => handleExport('profit')} style={styles.exportButton}>
-            Export Profit Report CSV
+          <button
+            onClick={() => handleExport('profit')}
+            disabled={exporting}
+            style={{ ...styles.exportButton, opacity: exporting ? 0.6 : 1, cursor: exporting ? 'not-allowed' : 'pointer' }}
+          >
+            {exporting ? 'Exporting...' : 'Export Profit Report CSV'}
           </button>
         </div>
 
@@ -1205,6 +1247,41 @@ function MarketplaceReports() {
           Order Report
         </button>
       </div>
+
+      {/* Export Status Messages */}
+      {exportError && (
+        <div style={{
+          background: '#fee2e2',
+          border: '1px solid #ef4444',
+          borderRadius: '8px',
+          padding: '12px 16px',
+          marginBottom: '16px',
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center'
+        }}>
+          <span style={{ color: '#dc2626', fontWeight: '500' }}>Export Error: {exportError}</span>
+          <button
+            onClick={() => setExportError(null)}
+            style={{ background: 'none', border: 'none', color: '#dc2626', cursor: 'pointer', fontSize: '18px' }}
+          >
+            ×
+          </button>
+        </div>
+      )}
+      {exporting && (
+        <div style={{
+          background: '#dbeafe',
+          border: '1px solid #3b82f6',
+          borderRadius: '8px',
+          padding: '12px 16px',
+          marginBottom: '16px',
+          color: '#1e40af',
+          fontWeight: '500'
+        }}>
+          Generating export... Please wait.
+        </div>
+      )}
 
       {/* Date Filter (not shown for dashboard and inventory) */}
       {!['dashboard', 'inventory'].includes(activeReport) && (

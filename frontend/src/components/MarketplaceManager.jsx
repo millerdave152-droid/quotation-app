@@ -277,10 +277,19 @@ const MarketplaceManager = () => {
       setMessage(null);
       setError(null);
 
-      const response = await axios.post(`${API_BASE_URL}/api/marketplace/sync-offers`);
+      // Use batch sync for efficiency (100 products per API call)
+      const response = await axios.post(`${API_BASE_URL}/api/marketplace/products/batch-sync`, {
+        batch_size: 100,
+        delay_ms: 5000
+      });
 
       if (response.data.success) {
-        setMessage(`Successfully synced ${response.data.synced} products to marketplace`);
+        const { synced, failed, total } = response.data;
+        if (failed > 0) {
+          setMessage(`Synced ${synced}/${total} products. ${failed} failed (check logs).`);
+        } else {
+          setMessage(`Successfully synced ${synced} products to marketplace`);
+        }
         fetchDashboardData();
       } else {
         setError('Sync completed with issues');
@@ -1211,6 +1220,43 @@ const MarketplaceManager = () => {
               disabled={inventorySyncing}
             >
               {inventorySyncing ? 'Syncing...' : 'Run Sync Now'}
+            </button>
+            <button
+              style={{
+                ...styles.button,
+                marginLeft: '12px',
+                background: '#f59e0b',
+                color: 'white'
+              }}
+              onClick={async () => {
+                try {
+                  const response = await axios.get(`${API_BASE_URL}/api/marketplace/sync-diagnostics`);
+                  const data = response.data;
+                  const diag = data.breakdown || {};
+                  const env = data.environment || {};
+                  const recommendations = data.recommendations || [];
+
+                  let diagMessage = `SYNC DIAGNOSTICS:\n\n`;
+                  diagMessage += `Products: ${diag.total_active_products || 0} active, ${diag.never_synced || 0} never synced\n`;
+                  diagMessage += `Synced: ${diag.synced_products || 0} with Mirakl ID\n`;
+                  diagMessage += `Zero stock: ${diag.zero_stock || 0}\n\n`;
+                  diagMessage += `API Config: ${env.mirakl_api_configured ? 'Configured' : 'NOT CONFIGURED'}\n`;
+                  diagMessage += `API URL: ${env.mirakl_base_url || 'Not set'}\n\n`;
+
+                  if (recommendations.length > 0) {
+                    diagMessage += `Recommendations:\n`;
+                    recommendations.forEach(r => {
+                      diagMessage += `- ${r.message}\n`;
+                    });
+                  }
+
+                  alert(diagMessage);
+                } catch (err) {
+                  setError('Failed to get diagnostics: ' + (err.response?.data?.error || err.message));
+                }
+              }}
+            >
+              Check Sync Status
             </button>
           </div>
 

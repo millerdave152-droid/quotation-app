@@ -43,14 +43,21 @@ const RevenueAnalytics = () => {
     setError(null);
     try {
       // Fetch both analytics and top features in parallel with caching
-      const [data, topData] = await Promise.all([
+      const [analyticsResponse, topFeaturesResponse] = await Promise.all([
         cachedFetch(`/api/analytics/revenue-features?period=${period}`),
         cachedFetch('/api/analytics/top-features?limit=10')
       ]);
 
       if (!isMounted.current) return;
-      setAnalytics(data);
-      setTopFeatures(topData);
+
+      // Extract data from wrapped response (backend uses res.success() which wraps in { success, data, ... })
+      const analyticsData = analyticsResponse?.data || analyticsResponse || {};
+      const topFeaturesData = Array.isArray(topFeaturesResponse?.data)
+        ? topFeaturesResponse.data
+        : (Array.isArray(topFeaturesResponse) ? topFeaturesResponse : []);
+
+      setAnalytics(analyticsData);
+      setTopFeatures(topFeaturesData);
     } catch (err) {
       console.error('Analytics fetch error:', err);
       if (isMounted.current) {
@@ -102,19 +109,38 @@ const RevenueAnalytics = () => {
   }
 
   const formatCurrency = (cents) => {
+    if (cents === null || cents === undefined || isNaN(cents)) return '$0.00';
     return `$${(cents / 100).toFixed(2)}`;
   };
 
   const formatPercent = (value) => {
+    if (value === null || value === undefined || isNaN(value)) return '0.0%';
     return `${value.toFixed(1)}%`;
   };
 
+  const formatDate = (dateValue) => {
+    if (!dateValue) return 'N/A';
+    try {
+      const date = new Date(dateValue);
+      if (isNaN(date.getTime())) return 'N/A';
+      return date.toLocaleDateString();
+    } catch {
+      return 'N/A';
+    }
+  };
+
+  // Safe accessor for nested properties
+  const featureAdoption = analytics?.featureAdoption || {};
+  const revenue = analytics?.revenue || {};
+  const averages = analytics?.averages || {};
+  const periodInfo = analytics?.period || {};
+
   const maxAdoption = Math.max(
-    analytics?.featureAdoption?.financing || 0,
-    analytics?.featureAdoption?.warranties || 0,
-    analytics?.featureAdoption?.delivery || 0,
-    analytics?.featureAdoption?.rebates || 0,
-    analytics?.featureAdoption?.tradeIns || 0
+    featureAdoption.financing || 0,
+    featureAdoption.warranties || 0,
+    featureAdoption.delivery || 0,
+    featureAdoption.rebates || 0,
+    featureAdoption.tradeIns || 0
   );
 
   return (
@@ -173,7 +199,7 @@ const RevenueAnalytics = () => {
             <DollarSign size={20} color="#10b981" />
           </div>
           <div style={{ fontSize: '32px', fontWeight: 'bold', color: '#10b981' }}>
-            {formatCurrency(analytics?.revenue?.total || 0)}
+            {formatCurrency(revenue.total || 0)}
           </div>
           <div style={{ fontSize: '12px', color: '#6b7280', marginTop: '5px' }}>
             Warranties + Delivery
@@ -187,10 +213,10 @@ const RevenueAnalytics = () => {
             <TrendingUp size={20} color="#8b5cf6" />
           </div>
           <div style={{ fontSize: '32px', fontWeight: 'bold', color: '#8b5cf6' }}>
-            {formatCurrency(analytics?.averages?.revenuePerQuote || 0)}
+            {formatCurrency(averages.revenuePerQuote || 0)}
           </div>
           <div style={{ fontSize: '12px', color: '#6b7280', marginTop: '5px' }}>
-            {(analytics?.averages?.featuresPerQuote || 0).toFixed(1)} features per quote
+            {(averages.featuresPerQuote || 0).toFixed(1)} features per quote
           </div>
         </div>
 
@@ -201,7 +227,7 @@ const RevenueAnalytics = () => {
             <Calendar size={20} color="#f59e0b" />
           </div>
           <div style={{ fontSize: '32px', fontWeight: 'bold', color: '#f59e0b' }}>
-            {analytics?.period?.days || period}
+            {periodInfo.days || period}
           </div>
           <div style={{ fontSize: '12px', color: '#6b7280', marginTop: '5px' }}>
             days analyzed
@@ -220,14 +246,14 @@ const RevenueAnalytics = () => {
             <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
               <span style={{ fontSize: '14px', fontWeight: '600', color: '#374151' }}>💳 Financing</span>
               <span style={{ fontSize: '14px', fontWeight: 'bold', color: '#3b82f6' }}>
-                {analytics.featureAdoption.financing} quotes
+                {featureAdoption.financing || 0} quotes
               </span>
             </div>
             <div style={{ background: '#e5e7eb', height: '12px', borderRadius: '6px', overflow: 'hidden' }}>
               <div style={{
                 background: '#3b82f6',
                 height: '100%',
-                width: maxAdoption > 0 ? `${(analytics.featureAdoption.financing / maxAdoption) * 100}%` : '0%',
+                width: maxAdoption > 0 ? `${((featureAdoption.financing || 0) / maxAdoption) * 100}%` : '0%',
                 transition: 'width 0.3s'
               }} />
             </div>
@@ -238,14 +264,14 @@ const RevenueAnalytics = () => {
             <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
               <span style={{ fontSize: '14px', fontWeight: '600', color: '#374151' }}>🛡️ Extended Warranties</span>
               <span style={{ fontSize: '14px', fontWeight: 'bold', color: '#10b981' }}>
-                {analytics.featureAdoption.warranties} quotes ({formatCurrency(analytics.revenue.warranties)})
+                {featureAdoption.warranties || 0} quotes ({formatCurrency(revenue.warranties || 0)})
               </span>
             </div>
             <div style={{ background: '#e5e7eb', height: '12px', borderRadius: '6px', overflow: 'hidden' }}>
               <div style={{
                 background: '#10b981',
                 height: '100%',
-                width: maxAdoption > 0 ? `${(analytics.featureAdoption.warranties / maxAdoption) * 100}%` : '0%',
+                width: maxAdoption > 0 ? `${((featureAdoption.warranties || 0) / maxAdoption) * 100}%` : '0%',
                 transition: 'width 0.3s'
               }} />
             </div>
@@ -256,14 +282,14 @@ const RevenueAnalytics = () => {
             <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
               <span style={{ fontSize: '14px', fontWeight: '600', color: '#374151' }}>🚚 Delivery & Installation</span>
               <span style={{ fontSize: '14px', fontWeight: 'bold', color: '#8b5cf6' }}>
-                {analytics.featureAdoption.delivery} quotes ({formatCurrency(analytics.revenue.delivery)})
+                {featureAdoption.delivery || 0} quotes ({formatCurrency(revenue.delivery || 0)})
               </span>
             </div>
             <div style={{ background: '#e5e7eb', height: '12px', borderRadius: '6px', overflow: 'hidden' }}>
               <div style={{
                 background: '#8b5cf6',
                 height: '100%',
-                width: maxAdoption > 0 ? `${(analytics.featureAdoption.delivery / maxAdoption) * 100}%` : '0%',
+                width: maxAdoption > 0 ? `${((featureAdoption.delivery || 0) / maxAdoption) * 100}%` : '0%',
                 transition: 'width 0.3s'
               }} />
             </div>
@@ -274,14 +300,14 @@ const RevenueAnalytics = () => {
             <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
               <span style={{ fontSize: '14px', fontWeight: '600', color: '#374151' }}>🎁 Manufacturer Rebates</span>
               <span style={{ fontSize: '14px', fontWeight: 'bold', color: '#f59e0b' }}>
-                {analytics.featureAdoption.rebates} quotes
+                {featureAdoption.rebates || 0} quotes
               </span>
             </div>
             <div style={{ background: '#e5e7eb', height: '12px', borderRadius: '6px', overflow: 'hidden' }}>
               <div style={{
                 background: '#f59e0b',
                 height: '100%',
-                width: maxAdoption > 0 ? `${(analytics.featureAdoption.rebates / maxAdoption) * 100}%` : '0%',
+                width: maxAdoption > 0 ? `${((featureAdoption.rebates || 0) / maxAdoption) * 100}%` : '0%',
                 transition: 'width 0.3s'
               }} />
             </div>
@@ -292,14 +318,14 @@ const RevenueAnalytics = () => {
             <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
               <span style={{ fontSize: '14px', fontWeight: '600', color: '#374151' }}>♻️ Trade-In Credits</span>
               <span style={{ fontSize: '14px', fontWeight: 'bold', color: '#06b6d4' }}>
-                {analytics.featureAdoption.tradeIns} quotes ({formatCurrency(analytics.revenue.tradeIns)} credit)
+                {featureAdoption.tradeIns || 0} quotes ({formatCurrency(revenue.tradeIns || 0)} credit)
               </span>
             </div>
             <div style={{ background: '#e5e7eb', height: '12px', borderRadius: '6px', overflow: 'hidden' }}>
               <div style={{
                 background: '#06b6d4',
                 height: '100%',
-                width: maxAdoption > 0 ? `${(analytics.featureAdoption.tradeIns / maxAdoption) * 100}%` : '0%',
+                width: maxAdoption > 0 ? `${((featureAdoption.tradeIns || 0) / maxAdoption) * 100}%` : '0%',
                 transition: 'width 0.3s'
               }} />
             </div>
@@ -313,25 +339,25 @@ const RevenueAnalytics = () => {
         <div style={{ background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)', padding: '24px', borderRadius: '12px', color: 'white' }}>
           <div style={{ fontSize: '14px', opacity: 0.9, marginBottom: '8px' }}>Warranty Revenue</div>
           <div style={{ fontSize: '36px', fontWeight: 'bold', marginBottom: '5px' }}>
-            {formatCurrency(analytics.revenue.warranties)}
+            {formatCurrency(revenue.warranties || 0)}
           </div>
-          <div style={{ fontSize: '12px', opacity: 0.8 }}>{analytics.featureAdoption.warranties} warranty plans sold</div>
+          <div style={{ fontSize: '12px', opacity: 0.8 }}>{featureAdoption.warranties || 0} warranty plans sold</div>
         </div>
 
         {/* Delivery Revenue */}
         <div style={{ background: 'linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%)', padding: '24px', borderRadius: '12px', color: 'white' }}>
           <div style={{ fontSize: '14px', opacity: 0.9, marginBottom: '8px' }}>Delivery Revenue</div>
           <div style={{ fontSize: '36px', fontWeight: 'bold', marginBottom: '5px' }}>
-            {formatCurrency(analytics.revenue.delivery)}
+            {formatCurrency(revenue.delivery || 0)}
           </div>
-          <div style={{ fontSize: '12px', opacity: 0.8 }}>{analytics.featureAdoption.delivery} deliveries scheduled</div>
+          <div style={{ fontSize: '12px', opacity: 0.8 }}>{featureAdoption.delivery || 0} deliveries scheduled</div>
         </div>
 
         {/* Total Feature Revenue */}
         <div style={{ background: 'linear-gradient(135deg, #3b82f6 0%, #2563eb 100%)', padding: '24px', borderRadius: '12px', color: 'white' }}>
           <div style={{ fontSize: '14px', opacity: 0.9, marginBottom: '8px' }}>Combined Revenue</div>
           <div style={{ fontSize: '36px', fontWeight: 'bold', marginBottom: '5px' }}>
-            {formatCurrency(analytics.revenue.total)}
+            {formatCurrency(revenue.total || 0)}
           </div>
           <div style={{ fontSize: '12px', opacity: 0.8 }}>Direct revenue from add-ons</div>
         </div>
@@ -362,33 +388,33 @@ const RevenueAnalytics = () => {
                   <tr key={index} style={{ borderBottom: '1px solid #f3f4f6' }}>
                     <td style={{ padding: '12px', fontSize: '14px', fontWeight: '500', color: '#111827' }}>Q-{feature.quoteId}</td>
                     <td style={{ padding: '12px', fontSize: '14px', color: '#6b7280' }}>
-                      {new Date(feature.date).toLocaleDateString()}
+                      {formatDate(feature.date)}
                     </td>
                     <td style={{ padding: '12px', fontSize: '14px', fontWeight: '600', color: '#10b981', textAlign: 'right' }}>
                       {formatCurrency(feature.total)}
                     </td>
                     <td style={{ padding: '12px', textAlign: 'center' }}>
-                      {feature.features.financing ? <span style={{ color: '#10b981', fontSize: '18px' }}>✓</span> : <span style={{ color: '#d1d5db' }}>−</span>}
+                      {feature.features?.financing ? <span style={{ color: '#10b981', fontSize: '18px' }}>✓</span> : <span style={{ color: '#d1d5db' }}>−</span>}
                     </td>
                     <td style={{ padding: '12px', textAlign: 'center' }}>
-                      {feature.features.warranties > 0 ? (
+                      {(feature.features?.warranties || 0) > 0 ? (
                         <span style={{ color: '#10b981', fontSize: '14px', fontWeight: '600' }}>{feature.features.warranties}</span>
                       ) : (
                         <span style={{ color: '#d1d5db' }}>−</span>
                       )}
                     </td>
                     <td style={{ padding: '12px', textAlign: 'center' }}>
-                      {feature.features.delivery ? <span style={{ color: '#10b981', fontSize: '18px' }}>✓</span> : <span style={{ color: '#d1d5db' }}>−</span>}
+                      {feature.features?.delivery ? <span style={{ color: '#10b981', fontSize: '18px' }}>✓</span> : <span style={{ color: '#d1d5db' }}>−</span>}
                     </td>
                     <td style={{ padding: '12px', textAlign: 'center' }}>
-                      {feature.features.rebates > 0 ? (
+                      {(feature.features?.rebates || 0) > 0 ? (
                         <span style={{ color: '#f59e0b', fontSize: '14px', fontWeight: '600' }}>{feature.features.rebates}</span>
                       ) : (
                         <span style={{ color: '#d1d5db' }}>−</span>
                       )}
                     </td>
                     <td style={{ padding: '12px', textAlign: 'center' }}>
-                      {feature.features.tradeIns > 0 ? (
+                      {(feature.features?.tradeIns || 0) > 0 ? (
                         <span style={{ color: '#06b6d4', fontSize: '14px', fontWeight: '600' }}>{feature.features.tradeIns}</span>
                       ) : (
                         <span style={{ color: '#d1d5db' }}>−</span>

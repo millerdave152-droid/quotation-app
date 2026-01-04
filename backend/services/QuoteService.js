@@ -3,9 +3,12 @@
  * Handles all quotation-related business logic and calculations
  */
 
+const ActivityService = require('./ActivityService');
+
 class QuoteService {
   constructor(pool) {
     this.pool = pool;
+    this.activityService = new ActivityService(pool);
   }
 
   /**
@@ -145,6 +148,220 @@ class QuoteService {
   }
 
   /**
+   * Get enhanced dashboard metrics with advanced calculations
+   * @returns {Promise<object>}
+   */
+  async getEnhancedDashboardMetrics() {
+    // Run all queries in parallel for performance
+    const [
+      basicStats,
+      conversionStats,
+      daysToCloseStats,
+      topSalesperson,
+      winRateByTier,
+      weeklyActivity,
+      velocityStats
+    ] = await Promise.all([
+      // Basic stats (reuse existing)
+      this.getStatsSummary(),
+
+      // Conversion rate: Won / (Won + Lost)
+      this.pool.query(`
+        SELECT
+          COUNT(CASE WHEN status = 'WON' THEN 1 END) as won_count,
+          COUNT(CASE WHEN status = 'LOST' THEN 1 END) as lost_count,
+          COUNT(CASE WHEN status IN ('WON', 'LOST') THEN 1 END) as closed_count
+        FROM quotations
+      `),
+
+      // Average days to close (Won quotes: won_at - created_at)
+      this.pool.query(`
+        SELECT
+          AVG(EXTRACT(EPOCH FROM (won_at - created_at)) / 86400)::numeric(10,1) as avg_days_to_win,
+          MIN(EXTRACT(EPOCH FROM (won_at - created_at)) / 86400)::numeric(10,1) as min_days_to_win,
+          MAX(EXTRACT(EPOCH FROM (won_at - created_at)) / 86400)::numeric(10,1) as max_days_to_win,
+          COUNT(*) as sample_size
+        FROM quotations
+        WHERE status = 'WON' AND won_at IS NOT NULL
+      `),
+
+      // Top salesperson by quotes and revenue
+      this.pool.query(`
+        SELECT
+          COALESCE(created_by, 'Unknown') as salesperson,
+          COUNT(*) as quote_count,
+          COUNT(CASE WHEN status = 'WON' THEN 1 END) as won_count,
+          COALESCE(SUM(total_cents), 0) as total_value_cents,
+          COALESCE(SUM(CASE WHEN status = 'WON' THEN total_cents ELSE 0 END), 0) as won_value_cents
+        FROM quotations
+        WHERE created_by IS NOT NULL AND created_by != ''
+        GROUP BY created_by
+        ORDER BY won_value_cents DESC
+        LIMIT 5
+      `),
+
+      // Win rate by value tier
+      this.pool.query(`
+        SELECT
+          CASE
+            WHEN total_cents < 100000 THEN 'under_1k'
+            WHEN total_cents >= 100000 AND total_cents < 500000 THEN '1k_to_5k'
+            WHEN total_cents >= 500000 AND total_cents < 1000000 THEN '5k_to_10k'
+            ELSE 'over_10k'
+          END as value_tier,
+          COUNT(*) as total_count,
+          COUNT(CASE WHEN status = 'WON' THEN 1 END) as won_count,
+          COUNT(CASE WHEN status = 'LOST' THEN 1 END) as lost_count,
+          COUNT(CASE WHEN status IN ('WON', 'LOST') THEN 1 END) as closed_count,
+          COALESCE(SUM(total_cents), 0) as total_value_cents,
+          COALESCE(SUM(CASE WHEN status = 'WON' THEN total_cents ELSE 0 END), 0) as won_value_cents
+        FROM quotations
+        GROUP BY 1
+      `),
+
+      // Quote activity this week
+      this.pool.query(`
+        SELECT
+          COUNT(CASE WHEN created_at >= CURRENT_DATE - INTERVAL '7 days' THEN 1 END) as created_this_week,
+          COUNT(CASE WHEN sent_at >= CURRENT_DATE - INTERVAL '7 days' THEN 1 END) as sent_this_week,
+          COUNT(CASE WHEN won_at >= CURRENT_DATE - INTERVAL '7 days' THEN 1 END) as won_this_week,
+          COUNT(CASE WHEN lost_at >= CURRENT_DATE - INTERVAL '7 days' THEN 1 END) as lost_this_week,
+          COALESCE(SUM(CASE WHEN won_at >= CURRENT_DATE - INTERVAL '7 days' THEN total_cents ELSE 0 END), 0) as won_value_this_week,
+
+          COUNT(CASE WHEN created_at >= CURRENT_DATE - INTERVAL '30 days' THEN 1 END) as created_this_month,
+          COUNT(CASE WHEN sent_at >= CURRENT_DATE - INTERVAL '30 days' THEN 1 END) as sent_this_month,
+          COUNT(CASE WHEN won_at >= CURRENT_DATE - INTERVAL '30 days' THEN 1 END) as won_this_month
+        FROM quotations
+      `),
+
+      // Sales velocity metrics
+      this.pool.query(`
+        WITH weekly_stats AS (
+          SELECT
+            DATE_TRUNC('week', created_at) as week_start,
+            COUNT(*) as quotes_created
+          FROM quotations
+          WHERE created_at >= CURRENT_DATE - INTERVAL '90 days'
+          GROUP BY DATE_TRUNC('week', created_at)
+        ),
+        time_to_send AS (
+          SELECT
+            AVG(EXTRACT(EPOCH FROM (sent_at - created_at)) / 86400)::numeric(10,2) as avg_days_to_send
+          FROM quotations
+          WHERE sent_at IS NOT NULL AND created_at >= CURRENT_DATE - INTERVAL '90 days'
+        ),
+        time_to_close AS (
+          SELECT
+            AVG(EXTRACT(EPOCH FROM (
+              CASE
+                WHEN status = 'WON' THEN won_at
+                WHEN status = 'LOST' THEN lost_at
+                ELSE NULL
+              END - sent_at
+            )) / 86400)::numeric(10,2) as avg_days_sent_to_close
+          FROM quotations
+          WHERE status IN ('WON', 'LOST')
+            AND sent_at IS NOT NULL
+            AND created_at >= CURRENT_DATE - INTERVAL '90 days'
+        )
+        SELECT
+          COALESCE((SELECT AVG(quotes_created) FROM weekly_stats), 0)::numeric(10,1) as avg_quotes_per_week,
+          COALESCE((SELECT avg_days_to_send FROM time_to_send), 0) as avg_days_to_send,
+          COALESCE((SELECT avg_days_sent_to_close FROM time_to_close), 0) as avg_days_sent_to_close
+      `)
+    ]);
+
+    // Calculate conversion rate
+    const conversionData = conversionStats.rows[0];
+    const closedCount = parseInt(conversionData.closed_count) || 0;
+    const wonCount = parseInt(conversionData.won_count) || 0;
+    const conversionRate = closedCount > 0 ? Math.round((wonCount / closedCount) * 100) : 0;
+
+    // Process days to close
+    const daysData = daysToCloseStats.rows[0];
+    const avgDaysToClose = parseFloat(daysData.avg_days_to_win) || 0;
+
+    // Process win rate by tier
+    const tierData = winRateByTier.rows.map(row => ({
+      tier: row.value_tier,
+      tierLabel: {
+        'under_1k': 'Under $1K',
+        '1k_to_5k': '$1K - $5K',
+        '5k_to_10k': '$5K - $10K',
+        'over_10k': 'Over $10K'
+      }[row.value_tier] || row.value_tier,
+      totalCount: parseInt(row.total_count) || 0,
+      wonCount: parseInt(row.won_count) || 0,
+      lostCount: parseInt(row.lost_count) || 0,
+      closedCount: parseInt(row.closed_count) || 0,
+      winRate: parseInt(row.closed_count) > 0
+        ? Math.round((parseInt(row.won_count) / parseInt(row.closed_count)) * 100)
+        : 0,
+      totalValueCents: parseInt(row.total_value_cents) || 0,
+      wonValueCents: parseInt(row.won_value_cents) || 0
+    }));
+
+    // Process weekly activity
+    const activityData = weeklyActivity.rows[0];
+
+    // Process velocity stats
+    const velocityData = velocityStats.rows[0];
+
+    return {
+      // Basic stats
+      ...basicStats,
+
+      // Conversion metrics
+      conversionRate,
+      closedQuotesCount: closedCount,
+
+      // Time metrics
+      avgDaysToClose: Math.round(avgDaysToClose * 10) / 10,
+      minDaysToClose: parseFloat(daysData.min_days_to_win) || 0,
+      maxDaysToClose: parseFloat(daysData.max_days_to_win) || 0,
+      daysToCloseSampleSize: parseInt(daysData.sample_size) || 0,
+
+      // Top salespeople
+      topSalespeople: topSalesperson.rows.map(row => ({
+        name: row.salesperson,
+        quoteCount: parseInt(row.quote_count) || 0,
+        wonCount: parseInt(row.won_count) || 0,
+        totalValueCents: parseInt(row.total_value_cents) || 0,
+        wonValueCents: parseInt(row.won_value_cents) || 0,
+        winRate: parseInt(row.quote_count) > 0
+          ? Math.round((parseInt(row.won_count) / parseInt(row.quote_count)) * 100)
+          : 0
+      })),
+
+      // Win rate by value tier
+      winRateByTier: tierData,
+
+      // Weekly activity
+      weeklyActivity: {
+        created: parseInt(activityData.created_this_week) || 0,
+        sent: parseInt(activityData.sent_this_week) || 0,
+        won: parseInt(activityData.won_this_week) || 0,
+        lost: parseInt(activityData.lost_this_week) || 0,
+        wonValueCents: parseInt(activityData.won_value_this_week) || 0
+      },
+
+      // Monthly activity
+      monthlyActivity: {
+        created: parseInt(activityData.created_this_month) || 0,
+        sent: parseInt(activityData.sent_this_month) || 0,
+        won: parseInt(activityData.won_this_month) || 0
+      },
+
+      // Sales velocity
+      salesVelocity: {
+        avgQuotesPerWeek: parseFloat(velocityData.avg_quotes_per_week) || 0,
+        avgDaysToSend: parseFloat(velocityData.avg_days_to_send) || 0,
+        avgDaysSentToClose: parseFloat(velocityData.avg_days_sent_to_close) || 0
+      }
+    };
+  }
+
+  /**
    * Get quotes with search, filtering, and pagination
    * @param {object} options - Query options
    * @returns {Promise<{quotations: Array, pagination: object}>}
@@ -253,6 +470,250 @@ class QuoteService {
   }
 
   /**
+   * Enhanced search across multiple fields
+   * Searches: quote numbers, customer info, products/SKUs in line items, internal notes
+   * @param {object} options - Search options
+   * @returns {Promise<{quotations: Array, pagination: object}>}
+   */
+  async searchQuotes(options = {}) {
+    const {
+      search = '',
+      status,
+      page = 1,
+      limit = 50,
+      sortBy = 'created_at',
+      sortOrder = 'DESC'
+    } = options;
+
+    if (!search || search.trim().length < 2) {
+      // If no search term, fall back to regular getQuotes
+      return this.getQuotes(options);
+    }
+
+    const searchTerm = search.trim().toLowerCase();
+    const offset = (page - 1) * limit;
+    const order = sortOrder.toUpperCase() === 'ASC' ? 'ASC' : 'DESC';
+
+    // Build the search query with match type detection
+    const searchQuery = `
+      WITH matched_quotes AS (
+        SELECT DISTINCT
+          q.id,
+          q.quote_number,
+          q.quotation_number,
+          q.customer_id,
+          q.status,
+          q.subtotal_cents,
+          q.discount_percent,
+          q.discount_cents,
+          q.tax_rate,
+          q.tax_cents,
+          q.total_cents,
+          q.gross_profit_cents,
+          q.notes,
+          q.internal_notes,
+          q.terms,
+          q.expires_at,
+          q.created_at,
+          q.updated_at,
+          q.created_by,
+          q.modified_by,
+          q.delivery_address,
+          q.delivery_city,
+          q.delivery_date,
+          q.sales_rep_name,
+          q.priority_level,
+          c.name as customer_name,
+          c.email as customer_email,
+          c.phone as customer_phone,
+          c.company as customer_company,
+          COALESCE(ic.item_count, 0) as item_count,
+          -- Determine which field matched
+          CASE
+            WHEN LOWER(q.quote_number) LIKE $1 THEN 'quote_number'
+            WHEN LOWER(q.quotation_number) LIKE $1 THEN 'quote_number'
+            WHEN LOWER(c.name) LIKE $1 THEN 'customer_name'
+            WHEN LOWER(c.email) LIKE $1 THEN 'customer_email'
+            WHEN LOWER(c.phone) LIKE $1 THEN 'customer_phone'
+            WHEN LOWER(c.company) LIKE $1 THEN 'customer_company'
+            WHEN LOWER(q.internal_notes) LIKE $1 THEN 'internal_notes'
+            WHEN LOWER(q.notes) LIKE $1 THEN 'notes'
+            WHEN EXISTS (
+              SELECT 1 FROM quotation_items qi
+              LEFT JOIN products p ON qi.product_id = p.id
+              WHERE qi.quotation_id = q.id
+              AND (
+                LOWER(qi.model) LIKE $1 OR
+                LOWER(qi.manufacturer) LIKE $1 OR
+                LOWER(qi.description) LIKE $1 OR
+                LOWER(p.sku) LIKE $1 OR
+                LOWER(p.model) LIKE $1
+              )
+            ) THEN 'product'
+            ELSE 'other'
+          END as match_type,
+          -- Get the matched product info if applicable
+          (
+            SELECT json_agg(json_build_object(
+              'model', COALESCE(qi.model, p.model),
+              'sku', p.sku,
+              'manufacturer', COALESCE(qi.manufacturer, p.manufacturer)
+            ))
+            FROM quotation_items qi
+            LEFT JOIN products p ON qi.product_id = p.id
+            WHERE qi.quotation_id = q.id
+            AND (
+              LOWER(qi.model) LIKE $1 OR
+              LOWER(qi.manufacturer) LIKE $1 OR
+              LOWER(qi.description) LIKE $1 OR
+              LOWER(p.sku) LIKE $1 OR
+              LOWER(p.model) LIKE $1
+            )
+          ) as matched_products
+        FROM quotations q
+        LEFT JOIN customers c ON q.customer_id = c.id
+        LEFT JOIN (
+          SELECT quotation_id, COUNT(*)::int as item_count
+          FROM quotation_items
+          GROUP BY quotation_id
+        ) ic ON ic.quotation_id = q.id
+        WHERE (
+          -- Quote number search (with flexible matching)
+          LOWER(q.quote_number) LIKE $1 OR
+          LOWER(q.quotation_number) LIKE $1 OR
+          -- Customer info search
+          LOWER(c.name) LIKE $1 OR
+          LOWER(c.email) LIKE $1 OR
+          LOWER(c.phone) LIKE $1 OR
+          LOWER(c.company) LIKE $1 OR
+          -- Internal notes search
+          LOWER(q.internal_notes) LIKE $1 OR
+          LOWER(q.notes) LIKE $1 OR
+          -- Product/SKU search in line items
+          EXISTS (
+            SELECT 1 FROM quotation_items qi
+            LEFT JOIN products p ON qi.product_id = p.id
+            WHERE qi.quotation_id = q.id
+            AND (
+              LOWER(qi.model) LIKE $1 OR
+              LOWER(qi.manufacturer) LIKE $1 OR
+              LOWER(qi.description) LIKE $1 OR
+              LOWER(p.sku) LIKE $1 OR
+              LOWER(p.model) LIKE $1
+            )
+          )
+        )
+        ${status ? 'AND q.status = $2' : ''}
+      )
+      SELECT * FROM matched_quotes
+      ORDER BY
+        CASE match_type
+          WHEN 'quote_number' THEN 1
+          WHEN 'customer_name' THEN 2
+          WHEN 'product' THEN 3
+          ELSE 4
+        END,
+        created_at ${order}
+      LIMIT $${status ? '3' : '2'} OFFSET $${status ? '4' : '3'}
+    `;
+
+    const countQuery = `
+      SELECT COUNT(DISTINCT q.id) as total
+      FROM quotations q
+      LEFT JOIN customers c ON q.customer_id = c.id
+      WHERE (
+        LOWER(q.quote_number) LIKE $1 OR
+        LOWER(q.quotation_number) LIKE $1 OR
+        LOWER(c.name) LIKE $1 OR
+        LOWER(c.email) LIKE $1 OR
+        LOWER(c.phone) LIKE $1 OR
+        LOWER(c.company) LIKE $1 OR
+        LOWER(q.internal_notes) LIKE $1 OR
+        LOWER(q.notes) LIKE $1 OR
+        EXISTS (
+          SELECT 1 FROM quotation_items qi
+          LEFT JOIN products p ON qi.product_id = p.id
+          WHERE qi.quotation_id = q.id
+          AND (
+            LOWER(qi.model) LIKE $1 OR
+            LOWER(qi.manufacturer) LIKE $1 OR
+            LOWER(qi.description) LIKE $1 OR
+            LOWER(p.sku) LIKE $1 OR
+            LOWER(p.model) LIKE $1
+          )
+        )
+      )
+      ${status ? 'AND q.status = $2' : ''}
+    `;
+
+    const searchPattern = `%${searchTerm}%`;
+    const searchParams = status
+      ? [searchPattern, status, limit, offset]
+      : [searchPattern, limit, offset];
+    const countParams = status
+      ? [searchPattern, status]
+      : [searchPattern];
+
+    try {
+      const [countResult, searchResult] = await Promise.all([
+        this.pool.query(countQuery, countParams),
+        this.pool.query(searchQuery, searchParams)
+      ]);
+
+      const totalCount = parseInt(countResult.rows[0].total);
+
+      // Format results with match info
+      const quotations = searchResult.rows.map(row => ({
+        ...row,
+        search_match: {
+          type: row.match_type,
+          field: this.getMatchFieldLabel(row.match_type),
+          matched_products: row.matched_products || null
+        }
+      }));
+
+      return {
+        quotations,
+        pagination: {
+          total: totalCount,
+          page: parseInt(page),
+          limit: parseInt(limit),
+          totalPages: Math.ceil(totalCount / limit)
+        },
+        search_info: {
+          term: search,
+          fields_searched: [
+            'quote_number', 'customer_name', 'customer_email',
+            'customer_phone', 'product_sku', 'product_model',
+            'internal_notes', 'notes'
+          ]
+        }
+      };
+    } catch (error) {
+      console.error('Search error:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Get human-readable label for match type
+   */
+  getMatchFieldLabel(matchType) {
+    const labels = {
+      'quote_number': 'Quote Number',
+      'customer_name': 'Customer Name',
+      'customer_email': 'Customer Email',
+      'customer_phone': 'Customer Phone',
+      'customer_company': 'Company',
+      'internal_notes': 'Internal Notes',
+      'notes': 'Notes',
+      'product': 'Product/SKU',
+      'other': 'Other'
+    };
+    return labels[matchType] || matchType;
+  }
+
+  /**
    * Get quote by ID with items and customer info
    * @param {number} id - Quote ID
    * @returns {Promise<object|null>}
@@ -306,8 +767,57 @@ class QuoteService {
         terms,
         status = 'DRAFT',
         items = [],
-        expires_at: providedExpiresAt
+        expires_at: providedExpiresAt,
+        quote_expiry_date,
+        // Template flag - templates don't require customer
+        is_template = false,
+        // Quote protection
+        hide_model_numbers = false,
+        watermark_text = '',
+        watermark_enabled = true,
+        // Delivery & Installation
+        delivery_address = '',
+        delivery_city = '',
+        delivery_postal_code = '',
+        delivery_date = null,
+        delivery_time_slot = '',
+        delivery_instructions = '',
+        installation_required = false,
+        installation_type = '',
+        haul_away_required = false,
+        haul_away_items = '',
+        // Sales & Commission
+        sales_rep_name = '',
+        commission_percent = 0,
+        referral_source = '',
+        referral_name = '',
+        // Customer Experience
+        priority_level = 'standard',
+        special_instructions = '',
+        payment_method = '',
+        deposit_required = false,
+        deposit_amount_cents = 0,
+        // Created by
+        created_by = 'User'
       } = quoteData;
+
+      // ============================================
+      // VALIDATION: Customer is required for quotes (not templates)
+      // ============================================
+      if (!is_template && !customer_id) {
+        throw new Error('Customer is required. Please select a customer before saving the quote.');
+      }
+
+      // Validate customer exists if provided
+      if (customer_id) {
+        const customerCheck = await client.query(
+          'SELECT id FROM customers WHERE id = $1',
+          [customer_id]
+        );
+        if (customerCheck.rows.length === 0) {
+          throw new Error('Selected customer not found. Please select a valid customer.');
+        }
+      }
 
       // Calculate totals from items (the source of truth)
       const calculatedTotals = this.calculateTotals(items, discount_percent, tax_rate);
@@ -322,10 +832,11 @@ class QuoteService {
       // Generate quote number
       const quote_number = await this.generateQuoteNumber();
 
-      // Set expiration date - use provided date or default to 30 days
+      // Set expiration date - use quote_expiry_date, expires_at, or default to 30 days
       let expires_at;
-      if (providedExpiresAt) {
-        expires_at = new Date(providedExpiresAt);
+      const expirySource = quote_expiry_date || providedExpiresAt;
+      if (expirySource) {
+        expires_at = new Date(expirySource);
         // Validate the date is valid
         if (isNaN(expires_at.getTime())) {
           expires_at = new Date();
@@ -336,17 +847,36 @@ class QuoteService {
         expires_at.setDate(expires_at.getDate() + 30);
       }
 
+      // Calculate commission amount
+      const commission_amount_cents = Math.round(total_cents * (commission_percent / 100));
+
       const quoteResult = await client.query(
         `INSERT INTO quotations (
           quote_number, customer_id, status, subtotal_cents, discount_percent,
           discount_cents, tax_rate, tax_cents, total_cents, gross_profit_cents,
-          notes, internal_notes, terms, expires_at
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+          notes, internal_notes, terms, expires_at,
+          hide_model_numbers, watermark_text, watermark_enabled,
+          delivery_address, delivery_city, delivery_postal_code, delivery_date,
+          delivery_time_slot, delivery_instructions, installation_required,
+          installation_type, haul_away_required, haul_away_items,
+          sales_rep_name, commission_percent, commission_amount_cents,
+          referral_source, referral_name, priority_level, special_instructions,
+          payment_method, deposit_required, deposit_amount_cents, created_by
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14,
+                  $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27,
+                  $28, $29, $30, $31, $32, $33, $34, $35, $36, $37, $38)
         RETURNING *`,
         [
           quote_number, customer_id, status, subtotal_cents, discount_percent,
           discount_cents, tax_rate, tax_cents, total_cents, gross_profit_cents,
-          notes, internal_notes, terms, expires_at
+          notes, internal_notes, terms, expires_at,
+          hide_model_numbers, watermark_text, watermark_enabled,
+          delivery_address || null, delivery_city || null, delivery_postal_code || null, delivery_date || null,
+          delivery_time_slot || null, delivery_instructions || null, installation_required,
+          installation_type || null, haul_away_required, haul_away_items || null,
+          sales_rep_name || null, commission_percent, commission_amount_cents,
+          referral_source || null, referral_name || null, priority_level, special_instructions || null,
+          payment_method || null, deposit_required, deposit_amount_cents, created_by
         ]
       );
 
@@ -357,11 +887,21 @@ class QuoteService {
         await this.insertQuoteItems(client, quotation_id, items);
       }
 
-      // Log creation event
+      // Log creation event with comprehensive metadata
       await client.query(`
-        INSERT INTO quote_events (quotation_id, event_type, description)
-        VALUES ($1, 'CREATED', 'Quote created')
-      `, [quotation_id]);
+        INSERT INTO quote_events (quotation_id, event_type, description, user_name, metadata, activity_category)
+        VALUES ($1, 'CREATED', $2, $3, $4, 'lifecycle')
+      `, [
+        quotation_id,
+        `Quote ${quote_number} created with ${items.length} item(s)`,
+        created_by,
+        JSON.stringify({
+          quoteNumber: quote_number,
+          itemCount: items.length,
+          totalCents: total_cents,
+          customerId: customer_id
+        })
+      ]);
 
       await client.query('COMMIT');
 
@@ -388,14 +928,98 @@ class QuoteService {
     try {
       await client.query('BEGIN');
 
+      // ============================================
+      // First, get the existing quote to validate customer requirement
+      // ============================================
+      const existingQuote = await client.query(
+        'SELECT customer_id, status FROM quotations WHERE id = $1',
+        [id]
+      );
+
+      if (existingQuote.rows.length === 0) {
+        await client.query('ROLLBACK');
+        return null;
+      }
+
+      // ============================================
+      // Create version snapshot BEFORE making changes
+      // ============================================
+      try {
+        await this.createVersionSnapshotInTransaction(client, id, 'items_updated', 'Quote updated');
+      } catch (versionErr) {
+        // Log but don't fail the update if versioning fails
+        console.warn('Failed to create version snapshot:', versionErr.message);
+      }
+
+      const {
+        customer_id: existingCustomerId,
+        is_template: existingIsTemplate
+      } = existingQuote.rows[0];
+
       const {
         discount_percent = 0,
         tax_rate = 13,
         notes,
         internal_notes = '',
         terms,
-        items = []
+        items = [],
+        quote_expiry_date,
+        expires_at: providedExpiresAt,
+        // Customer ID can be updated
+        customer_id,
+        // Template flag
+        is_template = existingIsTemplate || false,
+        // Quote protection
+        hide_model_numbers,
+        watermark_text,
+        watermark_enabled,
+        // Delivery & Installation
+        delivery_address,
+        delivery_city,
+        delivery_postal_code,
+        delivery_date,
+        delivery_time_slot,
+        delivery_instructions,
+        installation_required,
+        installation_type,
+        haul_away_required,
+        haul_away_items,
+        // Sales & Commission
+        sales_rep_name,
+        commission_percent,
+        referral_source,
+        referral_name,
+        // Customer Experience
+        priority_level,
+        special_instructions,
+        payment_method,
+        deposit_required,
+        deposit_amount_cents,
+        // Modified by
+        modified_by = 'User'
       } = quoteData;
+
+      // ============================================
+      // VALIDATION: Customer is required for quotes (not templates)
+      // ============================================
+      // Determine the final customer_id (use new value if provided, otherwise existing)
+      const finalCustomerId = customer_id !== undefined ? customer_id : existingCustomerId;
+
+      // Validate customer requirement
+      if (!is_template && !finalCustomerId) {
+        throw new Error('Customer is required. Please select a customer before saving the quote.');
+      }
+
+      // Validate customer exists if provided
+      if (finalCustomerId) {
+        const customerCheck = await client.query(
+          'SELECT id FROM customers WHERE id = $1',
+          [finalCustomerId]
+        );
+        if (customerCheck.rows.length === 0) {
+          throw new Error('Selected customer not found. Please select a valid customer.');
+        }
+      }
 
       // Calculate totals from items (the source of truth)
       const calculatedTotals = this.calculateTotals(items, discount_percent, tax_rate);
@@ -407,23 +1031,70 @@ class QuoteService {
         gross_profit_cents
       } = calculatedTotals;
 
+      // Calculate commission amount
+      const commission_amount_cents = Math.round(total_cents * ((commission_percent || 0) / 100));
+
+      // Handle expiry date
+      let expires_at = null;
+      const expirySource = quote_expiry_date || providedExpiresAt;
+      if (expirySource) {
+        expires_at = new Date(expirySource);
+        if (isNaN(expires_at.getTime())) {
+          expires_at = null;
+        }
+      }
+
       const result = await client.query(
         `UPDATE quotations SET
-          subtotal_cents = $1,
-          discount_percent = $2,
-          discount_cents = $3,
-          tax_rate = $4,
-          tax_cents = $5,
-          total_cents = $6,
-          gross_profit_cents = $7,
-          notes = $8,
-          internal_notes = $9,
-          terms = $10,
-          updated_at = CURRENT_TIMESTAMP
-        WHERE id = $11 RETURNING *`,
+          customer_id = COALESCE($1, customer_id),
+          subtotal_cents = $2,
+          discount_percent = $3,
+          discount_cents = $4,
+          tax_rate = $5,
+          tax_cents = $6,
+          total_cents = $7,
+          gross_profit_cents = $8,
+          notes = $9,
+          internal_notes = $10,
+          terms = $11,
+          updated_at = CURRENT_TIMESTAMP,
+          expires_at = COALESCE($12, expires_at),
+          hide_model_numbers = COALESCE($13, hide_model_numbers),
+          watermark_text = COALESCE($14, watermark_text),
+          watermark_enabled = COALESCE($15, watermark_enabled),
+          delivery_address = $16,
+          delivery_city = $17,
+          delivery_postal_code = $18,
+          delivery_date = $19,
+          delivery_time_slot = $20,
+          delivery_instructions = $21,
+          installation_required = COALESCE($22, installation_required),
+          installation_type = $23,
+          haul_away_required = COALESCE($24, haul_away_required),
+          haul_away_items = $25,
+          sales_rep_name = $26,
+          commission_percent = COALESCE($27, commission_percent),
+          commission_amount_cents = $28,
+          referral_source = $29,
+          referral_name = $30,
+          priority_level = COALESCE($31, priority_level),
+          special_instructions = $32,
+          payment_method = $33,
+          deposit_required = COALESCE($34, deposit_required),
+          deposit_amount_cents = COALESCE($35, deposit_amount_cents),
+          modified_by = $36
+        WHERE id = $37 RETURNING *`,
         [
+          finalCustomerId || null,
           subtotal_cents, discount_percent, discount_cents, tax_rate, tax_cents,
-          total_cents, gross_profit_cents, notes, internal_notes, terms, id
+          total_cents, gross_profit_cents, notes, internal_notes, terms,
+          expires_at, hide_model_numbers, watermark_text, watermark_enabled,
+          delivery_address || null, delivery_city || null, delivery_postal_code || null,
+          delivery_date || null, delivery_time_slot || null, delivery_instructions || null,
+          installation_required, installation_type || null, haul_away_required, haul_away_items || null,
+          sales_rep_name || null, commission_percent, commission_amount_cents,
+          referral_source || null, referral_name || null, priority_level, special_instructions || null,
+          payment_method || null, deposit_required, deposit_amount_cents, modified_by, id
         ]
       );
 
@@ -439,11 +1110,20 @@ class QuoteService {
         await this.insertQuoteItems(client, id, items);
       }
 
-      // Log update event
+      // Log update event with metadata
       await client.query(`
-        INSERT INTO quote_events (quotation_id, event_type, description)
-        VALUES ($1, 'UPDATED', 'Quote updated')
-      `, [id]);
+        INSERT INTO quote_events (quotation_id, event_type, description, user_name, metadata, activity_category)
+        VALUES ($1, 'UPDATED', $2, $3, $4, 'lifecycle')
+      `, [
+        id,
+        `Quote updated (${items.length} item(s), total: $${(total_cents / 100).toFixed(2)})`,
+        modified_by,
+        JSON.stringify({
+          itemCount: items.length,
+          totalCents: total_cents,
+          discountPercent: discount_percent
+        })
+      ]);
 
       await client.query('COMMIT');
       return result.rows[0];
@@ -635,18 +1315,66 @@ class QuoteService {
   }
 
   /**
-   * Get quote events/history
+   * Get quote events/history with enhanced data
    * @param {number} quoteId - Quote ID
+   * @param {object} options - Filter options
    * @returns {Promise<Array>}
    */
-  async getQuoteEvents(quoteId) {
-    const result = await this.pool.query(`
-      SELECT * FROM quote_events
-      WHERE quotation_id = $1
-      ORDER BY created_at DESC
-    `, [quoteId]);
+  async getQuoteEvents(quoteId, options = {}) {
+    const { limit = 100, includeInternal = true } = options;
 
-    return result.rows;
+    let whereClause = 'quotation_id = $1';
+    if (!includeInternal) {
+      whereClause += ' AND (is_internal = FALSE OR is_internal IS NULL)';
+    }
+
+    const result = await this.pool.query(`
+      SELECT
+        id,
+        quotation_id,
+        event_type,
+        description,
+        user_name,
+        user_id,
+        metadata,
+        is_internal,
+        activity_category,
+        created_at
+      FROM quote_events
+      WHERE ${whereClause}
+      ORDER BY created_at DESC
+      LIMIT $2
+    `, [quoteId, limit]);
+
+    // Add icon for each event
+    const iconMap = {
+      CREATED: '✨',
+      UPDATED: '✏️',
+      DELETED: '🗑️',
+      STATUS_CHANGED: '🔄',
+      SENT: '📤',
+      WON: '🏆',
+      LOST: '❌',
+      EMAIL_SENT: '📧',
+      CUSTOMER_VIEWED: '👀',
+      FOLLOW_UP_SCHEDULED: '📅',
+      CUSTOMER_CONTACTED: '📞',
+      PRICE_ADJUSTED: '💰',
+      DISCOUNT_APPLIED: '🏷️',
+      APPROVAL_REQUESTED: '⏳',
+      APPROVED: '✅',
+      REJECTED: '❌',
+      NOTE_ADDED: '📝',
+      INTERNAL_NOTE: '🔒',
+      PDF_GENERATED: '📄',
+      PDF_DOWNLOADED: '⬇️'
+    };
+
+    return result.rows.map(row => ({
+      ...row,
+      metadata: typeof row.metadata === 'string' ? JSON.parse(row.metadata) : (row.metadata || {}),
+      icon: iconMap[row.event_type] || '📌'
+    }));
   }
 
   /**
@@ -654,15 +1382,689 @@ class QuoteService {
    * @param {number} quoteId - Quote ID
    * @param {string} eventType - Event type
    * @param {string} description - Event description
+   * @param {object} options - Additional options
    * @returns {Promise<object>}
    */
-  async addQuoteEvent(quoteId, eventType, description) {
+  async addQuoteEvent(quoteId, eventType, description, options = {}) {
+    const {
+      userName = 'User',
+      userId = null,
+      metadata = {},
+      isInternal = true,
+      category = 'general'
+    } = options;
+
     const result = await this.pool.query(`
-      INSERT INTO quote_events (quotation_id, event_type, description)
-      VALUES ($1, $2, $3) RETURNING *
-    `, [quoteId, eventType, description]);
+      INSERT INTO quote_events (
+        quotation_id, event_type, description, user_name, user_id,
+        metadata, is_internal, activity_category
+      )
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+      RETURNING *
+    `, [
+      quoteId,
+      eventType,
+      description,
+      userName,
+      userId,
+      JSON.stringify(metadata),
+      isInternal,
+      category
+    ]);
 
     return result.rows[0];
+  }
+
+  /**
+   * Log email sent activity
+   */
+  async logEmailSent(quoteId, recipientEmail, subject, userName = 'User') {
+    return this.addQuoteEvent(quoteId, 'EMAIL_SENT', `Email sent to ${recipientEmail}`, {
+      userName,
+      metadata: { recipientEmail, subject, sentAt: new Date().toISOString() },
+      isInternal: false,
+      category: 'communication'
+    });
+  }
+
+  /**
+   * Log follow-up scheduled
+   */
+  async logFollowUp(quoteId, followUpDate, description, userName = 'User') {
+    return this.addQuoteEvent(quoteId, 'FOLLOW_UP_SCHEDULED',
+      `Follow-up scheduled for ${new Date(followUpDate).toLocaleDateString()}: ${description}`, {
+        userName,
+        metadata: { followUpDate, description },
+        category: 'communication'
+      });
+  }
+
+  /**
+   * Log customer contacted
+   */
+  async logCustomerContact(quoteId, method, notes, userName = 'User') {
+    return this.addQuoteEvent(quoteId, 'CUSTOMER_CONTACTED',
+      `Customer contacted via ${method}${notes ? `: ${notes}` : ''}`, {
+        userName,
+        metadata: { method, notes },
+        category: 'communication'
+      });
+  }
+
+  /**
+   * Clone a quote
+   * Creates a new quote with copied line items and settings
+   * @param {number} sourceQuoteId - ID of quote to clone
+   * @param {object} options - Clone options
+   * @param {number} options.newCustomerId - Customer ID for cloned quote (null = same customer)
+   * @param {boolean} options.includeInternalNotes - Include internal notes in clone
+   * @param {string} options.clonedBy - User who initiated the clone
+   * @returns {Promise<object>} The newly created quote
+   */
+  async cloneQuote(sourceQuoteId, options = {}) {
+    const {
+      newCustomerId = null,
+      includeInternalNotes = false,
+      clonedBy = 'User'
+    } = options;
+
+    const client = await this.pool.connect();
+
+    try {
+      await client.query('BEGIN');
+
+      // 1. Fetch source quote with all details
+      const sourceQuote = await this.getQuoteById(sourceQuoteId);
+      if (!sourceQuote) {
+        throw new Error('Source quote not found');
+      }
+
+      // 2. Determine customer for new quote
+      const customerId = newCustomerId !== null ? newCustomerId : sourceQuote.customer_id;
+
+      // Validate customer exists if specified
+      if (customerId) {
+        const customerCheck = await client.query(
+          'SELECT id, name FROM customers WHERE id = $1',
+          [customerId]
+        );
+        if (customerCheck.rows.length === 0) {
+          throw new Error('Selected customer not found');
+        }
+      }
+
+      // 3. Generate new quote number
+      const quote_number = await this.generateQuoteNumber();
+
+      // 4. Calculate new expiry date (30 days from now)
+      const expires_at = new Date();
+      expires_at.setDate(expires_at.getDate() + 30);
+
+      // 5. Prepare items for new quote (copy from source)
+      const items = (sourceQuote.items || []).map(item => ({
+        product_id: item.product_id,
+        sku: item.sku,
+        manufacturer: item.manufacturer,
+        model: item.model,
+        description: item.description,
+        quantity: item.quantity,
+        cost_cents: item.cost_cents,
+        sell_cents: item.unit_price_cents || item.sell_cents,
+        unit_price_cents: item.unit_price_cents,
+        cost: item.cost_cents ? item.cost_cents / 100 : item.cost,
+        sell: item.unit_price_cents ? item.unit_price_cents / 100 : item.sell
+      }));
+
+      // 6. Calculate totals from items
+      const calculatedTotals = this.calculateTotals(
+        items,
+        sourceQuote.discount_percent || 0,
+        sourceQuote.tax_rate || 13
+      );
+
+      // 7. Create the new quote
+      const quoteResult = await client.query(
+        `INSERT INTO quotations (
+          quote_number, customer_id, status, subtotal_cents, discount_percent,
+          discount_cents, tax_rate, tax_cents, total_cents, gross_profit_cents,
+          notes, internal_notes, terms, expires_at,
+          hide_model_numbers, watermark_text, watermark_enabled,
+          delivery_address, delivery_city, delivery_postal_code,
+          delivery_time_slot, delivery_instructions, installation_required,
+          installation_type, haul_away_required, haul_away_items,
+          sales_rep_name, commission_percent, referral_source, referral_name,
+          priority_level, special_instructions, payment_method,
+          deposit_required, deposit_amount_cents, created_by
+        ) VALUES (
+          $1, $2, 'DRAFT', $3, $4, $5, $6, $7, $8, $9,
+          $10, $11, $12, $13, $14, $15, $16, $17, $18, $19,
+          $20, $21, $22, $23, $24, $25, $26, $27, $28, $29,
+          $30, $31, $32, $33, $34, $35
+        )
+        RETURNING *`,
+        [
+          quote_number,
+          customerId,
+          calculatedTotals.subtotal_cents,
+          sourceQuote.discount_percent || 0,
+          calculatedTotals.discount_cents,
+          sourceQuote.tax_rate || 13,
+          calculatedTotals.tax_cents,
+          calculatedTotals.total_cents,
+          calculatedTotals.gross_profit_cents,
+          sourceQuote.notes || '',
+          includeInternalNotes ? (sourceQuote.internal_notes || '') : '',
+          sourceQuote.terms || '',
+          expires_at,
+          sourceQuote.hide_model_numbers || false,
+          sourceQuote.watermark_text || '',
+          sourceQuote.watermark_enabled !== false,
+          sourceQuote.delivery_address || null,
+          sourceQuote.delivery_city || null,
+          sourceQuote.delivery_postal_code || null,
+          sourceQuote.delivery_time_slot || null,
+          sourceQuote.delivery_instructions || null,
+          sourceQuote.installation_required || false,
+          sourceQuote.installation_type || null,
+          sourceQuote.haul_away_required || false,
+          sourceQuote.haul_away_items || null,
+          sourceQuote.sales_rep_name || null,
+          sourceQuote.commission_percent || 0,
+          sourceQuote.referral_source || null,
+          sourceQuote.referral_name || null,
+          sourceQuote.priority_level || 'standard',
+          sourceQuote.special_instructions || null,
+          sourceQuote.payment_method || null,
+          sourceQuote.deposit_required || false,
+          sourceQuote.deposit_amount_cents || 0,
+          clonedBy
+        ]
+      );
+
+      const newQuote = quoteResult.rows[0];
+      const newQuoteId = newQuote.id;
+
+      // 8. Copy quote items
+      if (items.length > 0) {
+        await this.insertQuoteItems(client, newQuoteId, items);
+      }
+
+      // 9. Log clone event on new quote
+      await client.query(`
+        INSERT INTO quote_events (quotation_id, event_type, description, user_name, metadata, activity_category)
+        VALUES ($1, 'CREATED', $2, $3, $4, 'lifecycle')
+      `, [
+        newQuoteId,
+        `Quote ${quote_number} cloned from ${sourceQuote.quote_number || sourceQuote.quotation_number}`,
+        clonedBy,
+        JSON.stringify({
+          source_quote_id: sourceQuoteId,
+          source_quote_number: sourceQuote.quote_number || sourceQuote.quotation_number,
+          items_count: items.length,
+          total_cents: calculatedTotals.total_cents,
+          customer_changed: newCustomerId !== null && newCustomerId !== sourceQuote.customer_id
+        })
+      ]);
+
+      // 10. Log clone event on source quote
+      await client.query(`
+        INSERT INTO quote_events (quotation_id, event_type, description, user_name, metadata, activity_category)
+        VALUES ($1, 'NOTE_ADDED', $2, $3, $4, 'general')
+      `, [
+        sourceQuoteId,
+        `Quote cloned as ${quote_number}`,
+        clonedBy,
+        JSON.stringify({
+          cloned_quote_id: newQuoteId,
+          cloned_quote_number: quote_number
+        })
+      ]);
+
+      await client.query('COMMIT');
+
+      // 11. Fetch complete new quote with customer info
+      const completeQuote = await this.getQuoteById(newQuoteId);
+
+      return {
+        ...completeQuote,
+        source_quote_number: sourceQuote.quote_number || sourceQuote.quotation_number
+      };
+
+    } catch (error) {
+      await client.query('ROLLBACK');
+      throw error;
+    } finally {
+      client.release();
+    }
+  }
+
+  // ============================================
+  // VERSION HISTORY METHODS
+  // ============================================
+
+  /**
+   * Create a version snapshot before updating a quote
+   * @param {number} quoteId - Quote ID
+   * @param {string} changeType - Type of change (e.g., 'items_updated', 'customer_changed', 'price_adjusted')
+   * @param {string} changeSummary - Human-readable summary of changes
+   * @param {object} options - Additional options
+   * @returns {Promise<object>} The created version record
+   */
+  async createVersionSnapshot(quoteId, changeType, changeSummary, options = {}) {
+    // Use standalone pool queries (not in a transaction)
+    return this.createVersionSnapshotInTransaction(null, quoteId, changeType, changeSummary, options);
+  }
+
+  /**
+   * Create a version snapshot within an existing transaction
+   * @param {object|null} client - Database client (null for standalone)
+   * @param {number} quoteId - Quote ID
+   * @param {string} changeType - Type of change
+   * @param {string} changeSummary - Human-readable summary
+   * @param {object} options - Additional options
+   * @returns {Promise<object>} The created version record
+   */
+  async createVersionSnapshotInTransaction(client, quoteId, changeType, changeSummary, options = {}) {
+    const { changedBy = 'User', changes = {} } = options;
+    const db = client || this.pool; // Use client if in transaction, otherwise use pool
+
+    // Get current quote state with items
+    const quoteResult = await db.query(`
+      SELECT q.*, c.name as customer_name
+      FROM quotations q
+      LEFT JOIN customers c ON q.customer_id = c.id
+      WHERE q.id = $1
+    `, [quoteId]);
+
+    if (quoteResult.rows.length === 0) {
+      throw new Error('Quote not found');
+    }
+    const quote = quoteResult.rows[0];
+
+    // Get items
+    const itemsResult = await db.query(`
+      SELECT * FROM quotation_items WHERE quotation_id = $1
+    `, [quoteId]);
+    quote.items = itemsResult.rows;
+
+    // Get current version number
+    const versionResult = await db.query(
+      'SELECT COALESCE(MAX(version_number), 0) + 1 as next_version FROM quote_versions WHERE quotation_id = $1',
+      [quoteId]
+    );
+    const versionNumber = versionResult.rows[0].next_version;
+
+    // Create items snapshot
+    const itemsSnapshot = (quote.items || []).map(item => ({
+      product_id: item.product_id,
+      sku: item.sku || item.model,
+      manufacturer: item.manufacturer,
+      model: item.model,
+      description: item.description,
+      quantity: item.quantity,
+      cost_cents: item.cost_cents,
+      unit_price_cents: item.sell_cents || item.unit_price_cents,
+      line_total_cents: item.line_total_cents
+    }));
+
+    // Insert version record
+    const result = await db.query(`
+      INSERT INTO quote_versions (
+        quotation_id, version_number, customer_id, customer_name, status,
+        subtotal_cents, discount_percent, discount_cents, tax_rate, tax_cents,
+        total_cents, gross_profit_cents, notes, terms, expires_at,
+        delivery_address, delivery_city, delivery_postal_code, delivery_date,
+        delivery_instructions, installation_required, items_snapshot,
+        change_summary, change_type, changed_by, changes
+      ) VALUES (
+        $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15,
+        $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26
+      )
+      RETURNING *
+    `, [
+      quoteId,
+      versionNumber,
+      quote.customer_id,
+      quote.customer_name,
+      quote.status,
+      quote.subtotal_cents,
+      quote.discount_percent,
+      quote.discount_cents,
+      quote.tax_rate,
+      quote.tax_cents,
+      quote.total_cents,
+      quote.gross_profit_cents,
+      quote.notes,
+      quote.terms,
+      quote.expires_at,
+      quote.delivery_address,
+      quote.delivery_city,
+      quote.delivery_postal_code,
+      quote.delivery_date,
+      quote.delivery_instructions,
+      quote.installation_required,
+      JSON.stringify(itemsSnapshot),
+      changeSummary,
+      changeType,
+      changedBy,
+      JSON.stringify(changes)
+    ]);
+
+    // Update quote's current version
+    await db.query(
+      'UPDATE quotations SET current_version = $1 WHERE id = $2',
+      [versionNumber, quoteId]
+    );
+
+    return result.rows[0];
+  }
+
+  /**
+   * Get version history for a quote
+   * @param {number} quoteId - Quote ID
+   * @param {object} options - Query options
+   * @returns {Promise<Array>} List of version records
+   */
+  async getVersionHistory(quoteId, options = {}) {
+    const { limit = 50 } = options;
+
+    const result = await this.pool.query(`
+      SELECT
+        id,
+        quotation_id,
+        version_number,
+        customer_id,
+        customer_name,
+        status,
+        subtotal_cents,
+        discount_percent,
+        total_cents,
+        gross_profit_cents,
+        change_summary,
+        change_type,
+        changed_by,
+        changed_at,
+        changes,
+        (SELECT COUNT(*) FROM jsonb_array_elements(items_snapshot)) as items_count
+      FROM quote_versions
+      WHERE quotation_id = $1
+      ORDER BY version_number DESC
+      LIMIT $2
+    `, [quoteId, limit]);
+
+    return result.rows.map(row => ({
+      ...row,
+      changes: typeof row.changes === 'string' ? JSON.parse(row.changes) : (row.changes || {}),
+      items_count: parseInt(row.items_count) || 0
+    }));
+  }
+
+  /**
+   * Get a specific version of a quote
+   * @param {number} quoteId - Quote ID
+   * @param {number} versionNumber - Version number
+   * @returns {Promise<object|null>} Version record with items
+   */
+  async getQuoteVersion(quoteId, versionNumber) {
+    const result = await this.pool.query(`
+      SELECT *
+      FROM quote_versions
+      WHERE quotation_id = $1 AND version_number = $2
+    `, [quoteId, versionNumber]);
+
+    if (result.rows.length === 0) {
+      return null;
+    }
+
+    const version = result.rows[0];
+    return {
+      ...version,
+      items_snapshot: typeof version.items_snapshot === 'string'
+        ? JSON.parse(version.items_snapshot)
+        : (version.items_snapshot || []),
+      changes: typeof version.changes === 'string'
+        ? JSON.parse(version.changes)
+        : (version.changes || {})
+    };
+  }
+
+  /**
+   * Compare two versions of a quote
+   * @param {number} quoteId - Quote ID
+   * @param {number} version1 - First version number
+   * @param {number} version2 - Second version number
+   * @returns {Promise<object>} Comparison result with differences
+   */
+  async compareVersions(quoteId, version1, version2) {
+    const [v1, v2] = await Promise.all([
+      this.getQuoteVersion(quoteId, version1),
+      this.getQuoteVersion(quoteId, version2)
+    ]);
+
+    if (!v1 || !v2) {
+      throw new Error('One or both versions not found');
+    }
+
+    const differences = {
+      financial: [],
+      items: [],
+      details: []
+    };
+
+    // Compare financial fields
+    if (v1.subtotal_cents !== v2.subtotal_cents) {
+      differences.financial.push({
+        field: 'subtotal',
+        from: v1.subtotal_cents,
+        to: v2.subtotal_cents,
+        change: v2.subtotal_cents - v1.subtotal_cents
+      });
+    }
+
+    if (v1.discount_percent !== v2.discount_percent) {
+      differences.financial.push({
+        field: 'discount_percent',
+        from: v1.discount_percent,
+        to: v2.discount_percent
+      });
+    }
+
+    if (v1.total_cents !== v2.total_cents) {
+      differences.financial.push({
+        field: 'total',
+        from: v1.total_cents,
+        to: v2.total_cents,
+        change: v2.total_cents - v1.total_cents
+      });
+    }
+
+    // Compare items
+    const v1Items = v1.items_snapshot || [];
+    const v2Items = v2.items_snapshot || [];
+
+    // Find added items
+    v2Items.forEach(item => {
+      const existsInV1 = v1Items.find(i =>
+        i.product_id === item.product_id && i.sku === item.sku
+      );
+      if (!existsInV1) {
+        differences.items.push({
+          type: 'added',
+          item: item
+        });
+      }
+    });
+
+    // Find removed items
+    v1Items.forEach(item => {
+      const existsInV2 = v2Items.find(i =>
+        i.product_id === item.product_id && i.sku === item.sku
+      );
+      if (!existsInV2) {
+        differences.items.push({
+          type: 'removed',
+          item: item
+        });
+      }
+    });
+
+    // Find modified items
+    v1Items.forEach(v1Item => {
+      const v2Item = v2Items.find(i =>
+        i.product_id === v1Item.product_id && i.sku === v1Item.sku
+      );
+      if (v2Item) {
+        const itemChanges = [];
+        if (v1Item.quantity !== v2Item.quantity) {
+          itemChanges.push({ field: 'quantity', from: v1Item.quantity, to: v2Item.quantity });
+        }
+        if (v1Item.unit_price_cents !== v2Item.unit_price_cents) {
+          itemChanges.push({ field: 'price', from: v1Item.unit_price_cents, to: v2Item.unit_price_cents });
+        }
+        if (itemChanges.length > 0) {
+          differences.items.push({
+            type: 'modified',
+            item: v1Item,
+            changes: itemChanges
+          });
+        }
+      }
+    });
+
+    // Compare other details
+    if (v1.customer_id !== v2.customer_id) {
+      differences.details.push({
+        field: 'customer',
+        from: v1.customer_name,
+        to: v2.customer_name
+      });
+    }
+
+    if (v1.status !== v2.status) {
+      differences.details.push({
+        field: 'status',
+        from: v1.status,
+        to: v2.status
+      });
+    }
+
+    return {
+      version1: v1,
+      version2: v2,
+      differences,
+      summary: {
+        total_change: (v2.total_cents || 0) - (v1.total_cents || 0),
+        items_added: differences.items.filter(i => i.type === 'added').length,
+        items_removed: differences.items.filter(i => i.type === 'removed').length,
+        items_modified: differences.items.filter(i => i.type === 'modified').length
+      }
+    };
+  }
+
+  /**
+   * Restore a quote to a previous version
+   * @param {number} quoteId - Quote ID
+   * @param {number} versionNumber - Version to restore
+   * @param {string} restoredBy - User performing the restore
+   * @returns {Promise<object>} The restored quote
+   */
+  async restoreVersion(quoteId, versionNumber, restoredBy = 'User') {
+    const client = await this.pool.connect();
+
+    try {
+      await client.query('BEGIN');
+
+      // Get the version to restore
+      const version = await this.getQuoteVersion(quoteId, versionNumber);
+      if (!version) {
+        throw new Error('Version not found');
+      }
+
+      // Create a snapshot of current state before restoring
+      await this.createVersionSnapshot(
+        quoteId,
+        'restored',
+        `Restored to version ${versionNumber}`,
+        { changedBy: restoredBy }
+      );
+
+      // Update quote with version data
+      await client.query(`
+        UPDATE quotations SET
+          customer_id = $1,
+          subtotal_cents = $2,
+          discount_percent = $3,
+          discount_cents = $4,
+          tax_rate = $5,
+          tax_cents = $6,
+          total_cents = $7,
+          gross_profit_cents = $8,
+          notes = $9,
+          terms = $10,
+          expires_at = $11,
+          delivery_address = $12,
+          delivery_city = $13,
+          delivery_postal_code = $14,
+          delivery_instructions = $15,
+          installation_required = $16,
+          updated_at = CURRENT_TIMESTAMP,
+          modified_by = $17
+        WHERE id = $18
+      `, [
+        version.customer_id,
+        version.subtotal_cents,
+        version.discount_percent,
+        version.discount_cents,
+        version.tax_rate,
+        version.tax_cents,
+        version.total_cents,
+        version.gross_profit_cents,
+        version.notes,
+        version.terms,
+        version.expires_at,
+        version.delivery_address,
+        version.delivery_city,
+        version.delivery_postal_code,
+        version.delivery_instructions,
+        version.installation_required,
+        restoredBy,
+        quoteId
+      ]);
+
+      // Delete current items
+      await client.query('DELETE FROM quotation_items WHERE quotation_id = $1', [quoteId]);
+
+      // Restore items from snapshot
+      const items = version.items_snapshot || [];
+      if (items.length > 0) {
+        await this.insertQuoteItems(client, quoteId, items);
+      }
+
+      // Log the restore event
+      await client.query(`
+        INSERT INTO quote_events (quotation_id, event_type, description, user_name, metadata, activity_category)
+        VALUES ($1, 'UPDATED', $2, $3, $4, 'lifecycle')
+      `, [
+        quoteId,
+        `Quote restored to version ${versionNumber}`,
+        restoredBy,
+        JSON.stringify({
+          restored_version: versionNumber,
+          items_count: items.length,
+          total_cents: version.total_cents
+        })
+      ]);
+
+      await client.query('COMMIT');
+
+      return await this.getQuoteById(quoteId);
+
+    } catch (error) {
+      await client.query('ROLLBACK');
+      throw error;
+    } finally {
+      client.release();
+    }
   }
 }
 
