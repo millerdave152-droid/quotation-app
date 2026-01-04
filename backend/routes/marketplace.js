@@ -4732,10 +4732,10 @@ router.get('/bulk/export-mappings', async (req, res) => {
     const result = await pool.query(`
       SELECT
         p.id,
-        p.sku,
+        p.model,
         p.name,
         p.manufacturer,
-        p.price,
+        p.msrp_cents,
         p.bestbuy_category_code,
         c.name as category_name,
         COALESCE(p.marketplace_enabled, true) as marketplace_enabled
@@ -4745,7 +4745,7 @@ router.get('/bulk/export-mappings', async (req, res) => {
       ORDER BY p.name
     `);
 
-    const headers = ['id', 'sku', 'name', 'manufacturer', 'price', 'bestbuy_category_code', 'category_name', 'marketplace_enabled'];
+    const headers = ['id', 'model', 'name', 'manufacturer', 'msrp_cents', 'bestbuy_category_code', 'category_name', 'marketplace_enabled'];
     const csvRows = [
       headers.join(','),
       ...result.rows.map(row => headers.map(h => {

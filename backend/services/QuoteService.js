@@ -498,7 +498,7 @@ class QuoteService {
     // Build the search query with match type detection
     const searchQuery = `
       WITH matched_quotes AS (
-        SELECT DISTINCT
+        SELECT
           q.id,
           q.quote_number,
           q.quotation_number,
@@ -547,7 +547,6 @@ class QuoteService {
                 LOWER(qi.model) LIKE $1 OR
                 LOWER(qi.manufacturer) LIKE $1 OR
                 LOWER(qi.description) LIKE $1 OR
-                LOWER(p.sku) LIKE $1 OR
                 LOWER(p.model) LIKE $1
               )
             ) THEN 'product'
@@ -557,7 +556,6 @@ class QuoteService {
           (
             SELECT json_agg(json_build_object(
               'model', COALESCE(qi.model, p.model),
-              'sku', p.sku,
               'manufacturer', COALESCE(qi.manufacturer, p.manufacturer)
             ))
             FROM quotation_items qi
@@ -567,7 +565,6 @@ class QuoteService {
               LOWER(qi.model) LIKE $1 OR
               LOWER(qi.manufacturer) LIKE $1 OR
               LOWER(qi.description) LIKE $1 OR
-              LOWER(p.sku) LIKE $1 OR
               LOWER(p.model) LIKE $1
             )
           ) as matched_products
@@ -590,7 +587,7 @@ class QuoteService {
           -- Internal notes search
           LOWER(q.internal_notes) LIKE $1 OR
           LOWER(q.notes) LIKE $1 OR
-          -- Product/SKU search in line items
+          -- Product/model search in line items
           EXISTS (
             SELECT 1 FROM quotation_items qi
             LEFT JOIN products p ON qi.product_id = p.id
@@ -599,7 +596,6 @@ class QuoteService {
               LOWER(qi.model) LIKE $1 OR
               LOWER(qi.manufacturer) LIKE $1 OR
               LOWER(qi.description) LIKE $1 OR
-              LOWER(p.sku) LIKE $1 OR
               LOWER(p.model) LIKE $1
             )
           )
@@ -639,7 +635,6 @@ class QuoteService {
             LOWER(qi.model) LIKE $1 OR
             LOWER(qi.manufacturer) LIKE $1 OR
             LOWER(qi.description) LIKE $1 OR
-            LOWER(p.sku) LIKE $1 OR
             LOWER(p.model) LIKE $1
           )
         )
@@ -685,7 +680,7 @@ class QuoteService {
           term: search,
           fields_searched: [
             'quote_number', 'customer_name', 'customer_email',
-            'customer_phone', 'product_sku', 'product_model',
+            'customer_phone', 'product_model',
             'internal_notes', 'notes'
           ]
         }
