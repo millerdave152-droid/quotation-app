@@ -124,10 +124,14 @@ const QuoteBuilder = ({
   onSaveAndSend,
   onSaveTemplate,
   onBack,
+  onCancel,
   onCustomerSelect,
   onLoadTemplate,
   onDeleteTemplate,
   onToggleFavorite,
+
+  // Quote info for editing
+  editingQuoteNumber,
 
   // Helpers
   formatCurrency
@@ -378,6 +382,53 @@ const QuoteBuilder = ({
           Back to List
         </button>
       </div>
+
+      {/* Edit Mode Banner */}
+      {editingQuoteId && (
+        <div style={{
+          background: 'linear-gradient(135deg, #fef3c7 0%, #fde68a 100%)',
+          border: '2px solid #f59e0b',
+          borderRadius: '12px',
+          padding: '16px 24px',
+          marginBottom: '24px',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          boxShadow: '0 2px 8px rgba(245, 158, 11, 0.2)'
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+            <span style={{ fontSize: '24px' }}>✏️</span>
+            <div>
+              <div style={{ fontSize: '16px', fontWeight: 'bold', color: '#92400e' }}>
+                Editing Quote: {editingQuoteNumber || `#${editingQuoteId}`}
+              </div>
+              <div style={{ fontSize: '13px', color: '#b45309' }}>
+                Make your changes and click "Update Quote" to save
+              </div>
+            </div>
+          </div>
+          {onCancel && (
+            <button
+              onClick={onCancel}
+              style={{
+                padding: '10px 20px',
+                background: 'white',
+                color: '#92400e',
+                border: '2px solid #f59e0b',
+                borderRadius: '8px',
+                fontSize: '14px',
+                fontWeight: 'bold',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px'
+              }}
+            >
+              <span>Cancel Edit</span>
+            </button>
+          )}
+        </div>
+      )}
 
       {/* Customer Selection */}
       <div style={{
@@ -879,7 +930,23 @@ const QuoteBuilder = ({
                           type="number"
                           min="1"
                           value={item.quantity}
-                          onChange={(e) => updateQuoteItem(idx, 'quantity', parseInt(e.target.value) || 1)}
+                          onChange={(e) => {
+                            const val = e.target.value;
+                            if (val === '' || val === '0') {
+                              // Allow typing, but don't update to 0 immediately
+                              return;
+                            }
+                            const num = parseInt(val);
+                            if (!isNaN(num) && num >= 1) {
+                              updateQuoteItem(idx, 'quantity', num);
+                            }
+                          }}
+                          onBlur={(e) => {
+                            const num = parseInt(e.target.value);
+                            if (isNaN(num) || num < 1) {
+                              updateQuoteItem(idx, 'quantity', 1);
+                            }
+                          }}
                           style={{ width: '60px', padding: '6px', border: '1px solid #d1d5db', borderRadius: '4px', textAlign: 'center' }}
                         />
                       </td>
@@ -890,8 +957,19 @@ const QuoteBuilder = ({
                           type="number"
                           min="0"
                           step="0.01"
-                          value={item.sell}
-                          onChange={(e) => updateQuoteItem(idx, 'sell', parseFloat(e.target.value) || 0)}
+                          value={Math.round(item.sell * 100) / 100}
+                          onChange={(e) => {
+                            const val = e.target.value;
+                            if (val === '') {
+                              updateQuoteItem(idx, 'sell', 0);
+                            } else {
+                              const num = parseFloat(val);
+                              if (!isNaN(num) && num >= 0) {
+                                // Round to 2 decimal places to avoid float precision errors
+                                updateQuoteItem(idx, 'sell', Math.round(num * 100) / 100);
+                              }
+                            }
+                          }}
                           style={{ width: '100px', padding: '6px', border: '1px solid #d1d5db', borderRadius: '4px', textAlign: 'right' }}
                         />
                       </td>
@@ -1137,8 +1215,19 @@ const QuoteBuilder = ({
                     min="0"
                     max="100"
                     step="0.5"
-                    value={commissionPercent || 5}
-                    onChange={(e) => setCommissionPercent(parseFloat(e.target.value) || 0)}
+                    value={commissionPercent === 0 ? '0' : (commissionPercent || '')}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      if (val === '') {
+                        setCommissionPercent(0);
+                      } else {
+                        const num = parseFloat(val);
+                        if (!isNaN(num) && num >= 0 && num <= 100) {
+                          setCommissionPercent(num);
+                        }
+                      }
+                    }}
+                    placeholder="0"
                     style={{ width: '100%', padding: '10px', border: '1px solid #d1d5db', borderRadius: '6px', fontSize: '14px' }}
                   />
                 </div>
@@ -1233,8 +1322,20 @@ const QuoteBuilder = ({
                       type="number"
                       min="0"
                       step="0.01"
-                      value={depositAmount || 0}
-                      onChange={(e) => setDepositAmount(parseFloat(e.target.value) || 0)}
+                      value={depositAmount === 0 ? '0' : (depositAmount || '')}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        if (val === '') {
+                          setDepositAmount(0);
+                        } else {
+                          const num = parseFloat(val);
+                          if (!isNaN(num) && num >= 0) {
+                            // Round to 2 decimal places for currency
+                            setDepositAmount(Math.round(num * 100) / 100);
+                          }
+                        }
+                      }}
+                      placeholder="0.00"
                       style={{ width: '150px', padding: '8px', border: '1px solid #d1d5db', borderRadius: '6px', fontSize: '14px' }}
                     />
                   </div>
@@ -1267,7 +1368,26 @@ const QuoteBuilder = ({
             <div>
               <div style={{ marginBottom: '16px' }}>
                 <label style={{ display: 'block', fontWeight: 'bold', marginBottom: '8px' }}>Discount %:</label>
-                <input type="number" min="0" max="100" step="0.1" value={discountPercent} onChange={(e) => setDiscountPercent(parseFloat(e.target.value) || 0)} style={{ width: '100%', padding: '12px', border: '1px solid #d1d5db', borderRadius: '8px' }} />
+                <input
+                  type="number"
+                  min="0"
+                  max="100"
+                  step="0.1"
+                  value={discountPercent === 0 ? '0' : (discountPercent || '')}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    if (val === '') {
+                      setDiscountPercent(0);
+                    } else {
+                      const num = parseFloat(val);
+                      if (!isNaN(num) && num >= 0 && num <= 100) {
+                        setDiscountPercent(Math.round(num * 10) / 10); // Round to 1 decimal
+                      }
+                    }
+                  }}
+                  placeholder="0"
+                  style={{ width: '100%', padding: '12px', border: '1px solid #d1d5db', borderRadius: '8px' }}
+                />
               </div>
 
               <div style={{ marginBottom: '16px' }}>
@@ -1386,6 +1506,25 @@ const QuoteBuilder = ({
 
           {/* Save Buttons */}
           <div style={{ marginTop: '24px', textAlign: 'center', display: 'flex', gap: '16px', justifyContent: 'center', flexWrap: 'wrap' }}>
+            {/* Cancel Button - only shown when editing */}
+            {editingQuoteId && onCancel && (
+              <button
+                onClick={onCancel}
+                style={{
+                  padding: '16px 48px',
+                  background: 'white',
+                  color: '#dc2626',
+                  border: '2px solid #dc2626',
+                  borderRadius: '8px',
+                  fontSize: '18px',
+                  fontWeight: 'bold',
+                  cursor: 'pointer'
+                }}
+              >
+                Cancel
+              </button>
+            )}
+
             <button
               onClick={onSave}
               disabled={!selectedCustomer || quoteItems.length === 0}
@@ -1411,7 +1550,7 @@ const QuoteBuilder = ({
                 gap: '8px'
               }}
             >
-              <span>Save & Send</span>
+              <span>{editingQuoteId ? 'Update & Send' : 'Save & Send'}</span>
               <span style={{ fontSize: '16px' }}>📧</span>
             </button>
 

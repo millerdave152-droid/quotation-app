@@ -153,13 +153,17 @@ const formatProductDescription = (item, hideModelNumbers = false) => {
 const getTaxRatePercent = (taxRate) => {
   if (!taxRate) return 13; // Default 13% HST
 
+  // Ensure taxRate is a number (handle string values from API/DB)
+  const rate = parseFloat(taxRate);
+  if (isNaN(rate)) return 13; // Default if invalid
+
   // If tax rate is already a percentage (>1), use it directly
-  if (taxRate > 1) {
-    return taxRate;
+  if (rate > 1) {
+    return rate;
   }
 
   // If it's a decimal (0.13), multiply by 100
-  return taxRate * 100;
+  return rate * 100;
 };
 
 // ===================================

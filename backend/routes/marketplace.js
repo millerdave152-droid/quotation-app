@@ -4472,7 +4472,7 @@ router.get('/bulk/products', async (req, res) => {
 
     if (search) {
       paramCount++;
-      whereClause += ` AND (p.name ILIKE $${paramCount} OR p.description ILIKE $${paramCount} OR p.manufacturer ILIKE $${paramCount})`;
+      whereClause += ` AND (p.name ILIKE $${paramCount} OR p.model ILIKE $${paramCount} OR p.manufacturer ILIKE $${paramCount})`;
       params.push(`%${search}%`);
     }
 
@@ -4484,11 +4484,11 @@ router.get('/bulk/products', async (req, res) => {
     const productsResult = await pool.query(`
       SELECT
         p.id,
-        p.name as sku,
-        p.description as name,
+        p.model as sku,
+        p.name,
         p.manufacturer,
-        p.price,
-        p.cost,
+        COALESCE(p.msrp_cents, 0) / 100.0 as price,
+        COALESCE(p.cost_cents, 0) / 100.0 as cost,
         p.stock_quantity,
         p.bestbuy_category_code,
         COALESCE(c.name, 'Unknown') as category_name,
@@ -4790,8 +4790,8 @@ router.post('/bulk/import-mappings', async (req, res) => {
           SET bestbuy_category_code = $1,
               marketplace_enabled = COALESCE($2, true),
               updated_at = CURRENT_TIMESTAMP
-          WHERE id = $3 OR sku = $4
-        `, [mapping.bestbuy_category_code, mapping.marketplace_enabled, mapping.id, mapping.sku]);
+          WHERE id = $3 OR model = $4
+        `, [mapping.bestbuy_category_code, mapping.marketplace_enabled, mapping.id, mapping.model || mapping.sku]);
         successCount++;
       } catch (err) {
         failCount++;

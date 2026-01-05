@@ -19,6 +19,7 @@ function CustomerManagement() {
   const [editingCustomer, setEditingCustomer] = useState(null);
   const [selectedCustomer, setSelectedCustomer] = useState(null);
   const [notification, setNotification] = useState(null);
+  const [loadingCustomerId, setLoadingCustomerId] = useState(null); // Track which customer is being loaded
 
   // Search and Filter State
   const [searchTerm, setSearchTerm] = useState('');
@@ -171,13 +172,67 @@ function CustomerManagement() {
   };
 
   const fetchCustomerDetails = async (id) => {
+    if (!id) {
+      showNotification('Invalid customer ID', 'error');
+      return;
+    }
+
     try {
+      setLoadingCustomerId(id);
       const response = await fetch(`${API_BASE}/customers/${id}`);
-      const data = await response.json();
-      setSelectedCustomer(data);
+      const result = await response.json();
+
+      // Handle API response structure: { success, data: { customer, stats, quotes } }
+      const data = result.data || result;
+
+      // Validate response structure
+      if (!data || !data.customer) {
+        logger.error('Invalid customer details response:', result);
+        showNotification('Customer data is unavailable', 'error');
+        return;
+      }
+
+      // Ensure customer has required properties with defaults
+      const safeCustomer = {
+        customer: {
+          id: data.customer.id || id,
+          name: data.customer.name || 'Unknown Customer',
+          email: data.customer.email || '',
+          phone: data.customer.phone || '',
+          company: data.customer.company || '',
+          city: data.customer.city || '',
+          province: data.customer.province || '',
+          address: data.customer.address || '',
+          postal_code: data.customer.postal_code || '',
+          notes: data.customer.notes || '',
+          lifetime_value_cents: data.customer.lifetime_value_cents || 0,
+          average_quote_value_cents: data.customer.average_quote_value_cents || 0,
+          total_quotes: data.customer.total_quotes || 0,
+          total_won_quotes: data.customer.total_won_quotes || 0,
+          total_lost_quotes: data.customer.total_lost_quotes || 0,
+          win_rate: data.customer.win_rate || 0,
+          marketplace_orders_count: data.customer.marketplace_orders_count || 0,
+          marketplace_revenue_cents: data.customer.marketplace_revenue_cents || 0,
+          first_quote_date: data.customer.first_quote_date,
+          last_quote_date: data.customer.last_quote_date,
+          ...data.customer
+        },
+        stats: {
+          total_quotes: parseInt(data.stats?.total_quotes) || 0,
+          total_spent: parseInt(data.stats?.total_spent) || 0,
+          average_order: data.stats?.average_order || 0,
+          last_quote_date: data.stats?.last_quote_date,
+          ...data.stats
+        },
+        quotes: data.quotes || []
+      };
+
+      setSelectedCustomer(safeCustomer);
     } catch (error) {
       logger.error('Error fetching customer details:', error);
       showNotification('Failed to fetch customer details', 'error');
+    } finally {
+      setLoadingCustomerId(null);
     }
   };
 
@@ -344,6 +399,12 @@ function CustomerManagement() {
   };
 
   const handleEdit = (customer) => {
+    // Validate customer object
+    if (!customer || !customer.id) {
+      showNotification('Cannot edit: Invalid customer data', 'error');
+      return;
+    }
+
     setEditingCustomer(customer);
     setFormData({
       name: customer.name || '',
@@ -813,32 +874,46 @@ function CustomerManagement() {
                     </td>
                   </tr>
                 ) : (
-                  customers.map(customer => (
+                  customers.filter(c => c && c.id).map(customer => (
                     <tr key={customer.id} style={{ borderBottom: '1px solid #f3f4f6', cursor: 'pointer' }} onDoubleClick={() => fetchCustomerDetails(customer.id)}>
-                      <td style={{ padding: '16px', fontWeight: '600', color: '#111827' }}>{customer.name}</td>
-                      <td style={{ padding: '16px', color: '#374151' }}>{customer.email}</td>
+                      <td style={{ padding: '16px', fontWeight: '600', color: '#111827' }}>{customer.name || 'Unnamed Customer'}</td>
+                      <td style={{ padding: '16px', color: '#374151' }}>{customer.email || '-'}</td>
                       <td style={{ padding: '16px', color: '#374151' }}>{customer.phone || '-'}</td>
                       <td style={{ padding: '16px', color: '#374151' }}>{customer.company || '-'}</td>
                       <td style={{ padding: '16px', color: '#374151' }}>{customer.city || '-'}</td>
                       <td style={{ padding: '16px' }}>
                         <div style={{ display: 'flex', gap: '8px', justifyContent: 'center' }}>
                           <button
-                            onClick={() => fetchCustomerDetails(customer.id)}
-                            style={{ padding: '8px 16px', background: '#8b5cf6', color: 'white', border: 'none', borderRadius: '6px', fontSize: '13px', cursor: 'pointer', fontWeight: '500' }}
+                            onClick={(e) => { e.stopPropagation(); fetchCustomerDetails(customer.id); }}
+                            disabled={loadingCustomerId === customer.id}
+                            style={{
+                              padding: '8px 16px',
+                              background: loadingCustomerId === customer.id ? '#a78bfa' : '#8b5cf6',
+                              color: 'white',
+                              border: 'none',
+                              borderRadius: '6px',
+                              fontSize: '13px',
+                              cursor: loadingCustomerId === customer.id ? 'wait' : 'pointer',
+                              fontWeight: '500',
+                              opacity: loadingCustomerId === customer.id ? 0.7 : 1,
+                              minWidth: '65px'
+                            }}
                           >
-                            👁️ View
+                            {loadingCustomerId === customer.id ? 'Loading...' : 'View'}
                           </button>
                           <button
-                            onClick={() => handleEdit(customer)}
+                            onClick={(e) => { e.stopPropagation(); handleEdit(customer); }}
+                            disabled={loadingCustomerId === customer.id}
                             style={{ padding: '8px 16px', background: '#3b82f6', color: 'white', border: 'none', borderRadius: '6px', fontSize: '13px', cursor: 'pointer', fontWeight: '500' }}
                           >
-                            ✏️ Edit
+                            Edit
                           </button>
                           <button
-                            onClick={() => handleDelete(customer.id)}
+                            onClick={(e) => { e.stopPropagation(); handleDelete(customer.id); }}
+                            disabled={loadingCustomerId === customer.id}
                             style={{ padding: '8px 16px', background: '#ef4444', color: 'white', border: 'none', borderRadius: '6px', fontSize: '13px', cursor: 'pointer', fontWeight: '500' }}
                           >
-                            🗑️ Delete
+                            Delete
                           </button>
                         </div>
                       </td>
@@ -889,13 +964,13 @@ function CustomerManagement() {
         </div>
 
         {/* Customer Detail Modal */}
-        {selectedCustomer && (
+        {selectedCustomer && selectedCustomer.customer && (
           <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: '20px' }}>
             <div style={{ background: 'white', borderRadius: '12px', maxWidth: '900px', width: '100%', maxHeight: '90vh', overflow: 'auto', boxShadow: '0 20px 60px rgba(0,0,0,0.3)' }}>
               <div style={{ padding: '30px', borderBottom: '1px solid #e5e7eb', display: 'flex', justifyContent: 'space-between', alignItems: 'start' }}>
                 <div>
                   <h2 style={{ margin: '0 0 8px 0', fontSize: '24px', fontWeight: 'bold', color: '#111827' }}>
-                    {selectedCustomer.customer.name}
+                    {selectedCustomer.customer?.name || 'Customer Details'}
                   </h2>
                   <p style={{ margin: 0, color: '#6b7280', fontSize: '14px' }}>Customer Details & Quote History</p>
                 </div>
@@ -926,50 +1001,130 @@ function CustomerManagement() {
                     <div style={{ fontSize: '12px', color: '#6b7280', fontWeight: '600', marginBottom: '4px' }}>CITY & PROVINCE</div>
                     <div style={{ fontSize: '14px', color: '#111827' }}>
                       {selectedCustomer?.customer?.city && selectedCustomer?.customer?.province
-                        ? `${selectedCustomer.customer.city}, ${selectedCustomer.customer.province}`
+                        ? `${selectedCustomer.customer?.city}, ${selectedCustomer.customer?.province}`
                         : selectedCustomer?.customer?.city || selectedCustomer?.customer?.province || '-'}
                     </div>
                   </div>
                   {selectedCustomer?.customer?.address && (
                     <div style={{ gridColumn: '1 / -1' }}>
                       <div style={{ fontSize: '12px', color: '#6b7280', fontWeight: '600', marginBottom: '4px' }}>ADDRESS</div>
-                      <div style={{ fontSize: '14px', color: '#111827' }}>{selectedCustomer.customer.address}</div>
+                      <div style={{ fontSize: '14px', color: '#111827' }}>{selectedCustomer.customer?.address}</div>
                     </div>
                   )}
                   {selectedCustomer?.customer?.notes && (
                     <div style={{ gridColumn: '1 / -1' }}>
                       <div style={{ fontSize: '12px', color: '#6b7280', fontWeight: '600', marginBottom: '4px' }}>NOTES</div>
                       <div style={{ fontSize: '14px', color: '#111827', background: '#f9fafb', padding: '12px', borderRadius: '6px' }}>
-                        {selectedCustomer.customer.notes}
+                        {selectedCustomer.customer?.notes}
                       </div>
                     </div>
                   )}
                 </div>
 
+                {/* Customer Lifetime Value Card */}
+                <div style={{
+                  background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                  borderRadius: '12px',
+                  padding: '24px',
+                  marginBottom: '24px',
+                  color: 'white'
+                }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '20px' }}>
+                    <div>
+                      <div style={{ fontSize: '14px', opacity: 0.9, marginBottom: '4px' }}>Customer Lifetime Value</div>
+                      <div style={{ fontSize: '36px', fontWeight: 'bold' }}>
+                        {formatCurrency(selectedCustomer.customer?.lifetime_value_cents || selectedCustomer.stats?.total_spent || 0)}
+                      </div>
+                    </div>
+                    <div style={{ textAlign: 'right' }}>
+                      <div style={{
+                        background: 'rgba(255,255,255,0.2)',
+                        padding: '8px 16px',
+                        borderRadius: '20px',
+                        fontSize: '14px',
+                        fontWeight: '600'
+                      }}>
+                        {selectedCustomer.customer?.win_rate || 0}% Win Rate
+                      </div>
+                    </div>
+                  </div>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '16px' }}>
+                    <div style={{ background: 'rgba(255,255,255,0.15)', borderRadius: '8px', padding: '12px', textAlign: 'center' }}>
+                      <div style={{ fontSize: '20px', fontWeight: 'bold' }}>{selectedCustomer.customer?.total_quotes || selectedCustomer.stats?.total_quotes || 0}</div>
+                      <div style={{ fontSize: '11px', opacity: 0.9 }}>Total Quotes</div>
+                    </div>
+                    <div style={{ background: 'rgba(255,255,255,0.15)', borderRadius: '8px', padding: '12px', textAlign: 'center' }}>
+                      <div style={{ fontSize: '20px', fontWeight: 'bold', color: '#86efac' }}>{selectedCustomer.customer?.total_won_quotes || 0}</div>
+                      <div style={{ fontSize: '11px', opacity: 0.9 }}>Won</div>
+                    </div>
+                    <div style={{ background: 'rgba(255,255,255,0.15)', borderRadius: '8px', padding: '12px', textAlign: 'center' }}>
+                      <div style={{ fontSize: '20px', fontWeight: 'bold', color: '#fca5a5' }}>{selectedCustomer.customer?.total_lost_quotes || 0}</div>
+                      <div style={{ fontSize: '11px', opacity: 0.9 }}>Lost</div>
+                    </div>
+                    <div style={{ background: 'rgba(255,255,255,0.15)', borderRadius: '8px', padding: '12px', textAlign: 'center' }}>
+                      <div style={{ fontSize: '20px', fontWeight: 'bold' }}>{formatCurrency(selectedCustomer.customer?.average_quote_value_cents || 0)}</div>
+                      <div style={{ fontSize: '11px', opacity: 0.9 }}>Avg Quote</div>
+                    </div>
+                  </div>
+                </div>
+
                 {/* Customer Statistics */}
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '16px', marginBottom: '30px' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '16px', marginBottom: '24px' }}>
                   <div style={{ background: '#f0f9ff', borderRadius: '8px', padding: '16px', textAlign: 'center' }}>
-                    <div style={{ fontSize: '24px', fontWeight: 'bold', color: '#0284c7' }}>{selectedCustomer.stats.total_quotes}</div>
+                    <div style={{ fontSize: '24px', fontWeight: 'bold', color: '#0284c7' }}>{selectedCustomer.stats?.total_quotes}</div>
                     <div style={{ fontSize: '12px', color: '#6b7280', marginTop: '4px' }}>Total Quotes</div>
                   </div>
                   <div style={{ background: '#f0fdf4', borderRadius: '8px', padding: '16px', textAlign: 'center' }}>
-                    <div style={{ fontSize: '24px', fontWeight: 'bold', color: '#16a34a' }}>{formatCurrency(selectedCustomer.stats.total_spent)}</div>
-                    <div style={{ fontSize: '12px', color: '#6b7280', marginTop: '4px' }}>Quote Revenue</div>
+                    <div style={{ fontSize: '24px', fontWeight: 'bold', color: '#16a34a' }}>{formatCurrency(selectedCustomer.stats?.total_spent)}</div>
+                    <div style={{ fontSize: '12px', color: '#6b7280', marginTop: '4px' }}>Won Revenue</div>
                   </div>
                   <div style={{ background: '#fef3c7', borderRadius: '8px', padding: '16px', textAlign: 'center' }}>
-                    <div style={{ fontSize: '24px', fontWeight: 'bold', color: '#d97706' }}>{selectedCustomer.customer.marketplace_orders_count || 0}</div>
+                    <div style={{ fontSize: '24px', fontWeight: 'bold', color: '#d97706' }}>{selectedCustomer.customer?.marketplace_orders_count || 0}</div>
                     <div style={{ fontSize: '12px', color: '#6b7280', marginTop: '4px' }}>Marketplace Orders</div>
                   </div>
                   <div style={{ background: '#fef9c3', borderRadius: '8px', padding: '16px', textAlign: 'center' }}>
-                    <div style={{ fontSize: '24px', fontWeight: 'bold', color: '#854d0e' }}>{formatCurrency(selectedCustomer.customer.marketplace_revenue_cents || 0)}</div>
+                    <div style={{ fontSize: '24px', fontWeight: 'bold', color: '#854d0e' }}>{formatCurrency(selectedCustomer.customer?.marketplace_revenue_cents || 0)}</div>
                     <div style={{ fontSize: '12px', color: '#6b7280', marginTop: '4px' }}>Marketplace Revenue</div>
                   </div>
                 </div>
 
-                {/* Combined Revenue Summary */}
-                {(selectedCustomer.customer.marketplace_orders_count > 0 || selectedCustomer.stats.total_quotes > 0) && (
+                {/* Customer Timeline */}
+                {(selectedCustomer.customer?.first_quote_date || selectedCustomer.customer?.last_quote_date) && (
                   <div style={{
-                    background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                    background: '#f9fafb',
+                    borderRadius: '8px',
+                    padding: '16px',
+                    marginBottom: '24px',
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center'
+                  }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                      <span style={{ fontSize: '20px' }}>📅</span>
+                      <div>
+                        <div style={{ fontSize: '12px', color: '#6b7280', fontWeight: '500' }}>First Quote</div>
+                        <div style={{ fontSize: '14px', fontWeight: '600', color: '#111827' }}>
+                          {formatDate(selectedCustomer.customer?.first_quote_date)}
+                        </div>
+                      </div>
+                    </div>
+                    <div style={{ flex: 1, margin: '0 24px', borderTop: '2px dashed #d1d5db' }} />
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                      <div style={{ textAlign: 'right' }}>
+                        <div style={{ fontSize: '12px', color: '#6b7280', fontWeight: '500' }}>Last Quote</div>
+                        <div style={{ fontSize: '14px', fontWeight: '600', color: '#111827' }}>
+                          {formatDate(selectedCustomer.customer?.last_quote_date)}
+                        </div>
+                      </div>
+                      <span style={{ fontSize: '20px' }}>📋</span>
+                    </div>
+                  </div>
+                )}
+
+                {/* Combined Revenue Summary */}
+                {(selectedCustomer.customer?.marketplace_orders_count > 0 || selectedCustomer.stats?.total_quotes > 0) && (
+                  <div style={{
+                    background: 'linear-gradient(135deg, #22c55e 0%, #16a34a 100%)',
                     borderRadius: '8px',
                     padding: '16px',
                     marginBottom: '20px',
@@ -979,15 +1134,15 @@ function CustomerManagement() {
                     alignItems: 'center'
                   }}>
                     <div>
-                      <div style={{ fontSize: '14px', opacity: 0.9 }}>Combined Lifetime Value</div>
+                      <div style={{ fontSize: '14px', opacity: 0.9 }}>Combined Total Revenue</div>
                       <div style={{ fontSize: '28px', fontWeight: 'bold', marginTop: '4px' }}>
-                        {formatCurrency((selectedCustomer.stats.total_spent || 0) + (selectedCustomer.customer.marketplace_revenue_cents || 0))}
+                        {formatCurrency((selectedCustomer.stats?.total_spent || 0) + (selectedCustomer.customer?.marketplace_revenue_cents || 0))}
                       </div>
                     </div>
                     <div style={{ textAlign: 'right' }}>
                       <div style={{ fontSize: '14px', opacity: 0.9 }}>Total Orders</div>
                       <div style={{ fontSize: '28px', fontWeight: 'bold', marginTop: '4px' }}>
-                        {(selectedCustomer.stats.total_quotes || 0) + (selectedCustomer.customer.marketplace_orders_count || 0)}
+                        {(selectedCustomer.stats?.total_quotes || 0) + (selectedCustomer.customer?.marketplace_orders_count || 0)}
                       </div>
                     </div>
                   </div>
@@ -995,8 +1150,8 @@ function CustomerManagement() {
 
                 {/* Unified Order History - Quotes + Marketplace Orders */}
                 <CustomerOrderHistory
-                  customerId={selectedCustomer.customer.id}
-                  customerEmail={selectedCustomer.customer.email}
+                  customerId={selectedCustomer.customer?.id}
+                  customerEmail={selectedCustomer.customer?.email}
                   onCreateQuote={(order) => {
                     // Handle creating quote from marketplace order
                     console.log('Create quote from order:', order);
@@ -1018,7 +1173,7 @@ function CustomerManagement() {
                     ✏️ Edit Customer
                   </button>
                   <button
-                    onClick={() => { handleDelete(selectedCustomer.customer.id); }}
+                    onClick={() => { handleDelete(selectedCustomer.customer?.id); }}
                     style={{ padding: '12px 24px', background: '#ef4444', color: 'white', border: 'none', borderRadius: '8px', fontSize: '14px', fontWeight: '600', cursor: 'pointer' }}
                   >
                     🗑️ Delete Customer
