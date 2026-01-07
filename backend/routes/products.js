@@ -67,11 +67,53 @@ router.get('/favorites', asyncHandler(async (req, res) => {
 
 /**
  * GET /api/products/categories
- * Get all unique categories
+ * Get all unique categories (legacy raw strings)
  */
 router.get('/categories', asyncHandler(async (req, res) => {
   const categories = await productService.getCategories();
   res.json(categories);
+}));
+
+/**
+ * GET /api/products/categories/hierarchy
+ * Get normalized category hierarchy with product counts
+ */
+router.get('/categories/hierarchy', asyncHandler(async (req, res) => {
+  const hierarchy = await productService.getCategoryHierarchy();
+  res.json({
+    success: true,
+    categories: hierarchy
+  });
+}));
+
+/**
+ * GET /api/products/categories/main
+ * Get flat list of main level-2 categories
+ */
+router.get('/categories/main', asyncHandler(async (req, res) => {
+  const categories = await productService.getMainCategories();
+  res.json({
+    success: true,
+    categories
+  });
+}));
+
+/**
+ * GET /api/products/categories/:slug
+ * Get category by slug with subcategories
+ */
+router.get('/categories/:slug', asyncHandler(async (req, res) => {
+  const { slug } = req.params;
+  const category = await productService.getCategoryBySlug(slug);
+
+  if (!category) {
+    throw new ApiError('Category not found', 404);
+  }
+
+  res.json({
+    success: true,
+    category
+  });
 }));
 
 /**
@@ -81,6 +123,58 @@ router.get('/categories', asyncHandler(async (req, res) => {
 router.get('/manufacturers', asyncHandler(async (req, res) => {
   const manufacturers = await productService.getManufacturers();
   res.json(manufacturers);
+}));
+
+/**
+ * GET /api/products/tags
+ * Get all product tags grouped by type
+ */
+router.get('/tags', asyncHandler(async (req, res) => {
+  const result = await pool.query(`
+    SELECT pt.*,
+           COUNT(ptm.product_id) as product_count
+    FROM product_tags pt
+    LEFT JOIN product_tag_mappings ptm ON pt.id = ptm.tag_id
+    WHERE pt.is_active = true
+    GROUP BY pt.id
+    ORDER BY pt.tag_type, pt.display_order, pt.name
+  `);
+
+  // Group by tag_type
+  const grouped = result.rows.reduce((acc, tag) => {
+    const type = tag.tag_type;
+    if (!acc[type]) acc[type] = [];
+    acc[type].push({
+      id: tag.id,
+      name: tag.name,
+      color: tag.color,
+      icon: tag.icon,
+      productCount: parseInt(tag.product_count) || 0
+    });
+    return acc;
+  }, {});
+
+  res.json(grouped);
+}));
+
+/**
+ * GET /api/products/by-tag/:tagId
+ * Get products with a specific tag
+ */
+router.get('/by-tag/:tagId', asyncHandler(async (req, res) => {
+  const { tagId } = req.params;
+  const { limit = 100, offset = 0 } = req.query;
+
+  const result = await pool.query(`
+    SELECT p.*
+    FROM products p
+    INNER JOIN product_tag_mappings ptm ON p.id = ptm.product_id
+    WHERE ptm.tag_id = $1
+    ORDER BY p.manufacturer, p.model
+    LIMIT $2 OFFSET $3
+  `, [tagId, limit, offset]);
+
+  res.json(result.rows);
 }));
 
 /**
@@ -409,7 +503,19 @@ async function handleUniversalImport(req, res) {
   const fileExt = path.extname(filename).toLowerCase();
   const startTime = Date.now();
 
-  console.log(`📄 Processing file: ${filename} (type: ${fileExt})`);
+  // Parse column mappings from wizard (if provided)
+  let columnMappings = {};
+  try {
+    if (req.body.columnMappings) {
+      columnMappings = JSON.parse(req.body.columnMappings);
+      console.log('📋 Using custom column mappings from wizard');
+    }
+  } catch (e) {
+    console.warn('Could not parse columnMappings:', e.message);
+  }
+
+  const headerRowIndex = parseInt(req.body.headerRowIndex) || 1;
+  console.log(`📄 Processing file: ${filename} (type: ${fileExt}, headerRow: ${headerRowIndex})`);
 
   let records = [];
   const errors = [];
@@ -425,8 +531,57 @@ async function handleUniversalImport(req, res) {
     const workbook = XLSX.read(req.file.buffer, { type: 'buffer' });
     const sheetName = workbook.SheetNames[0];
     const sheet = workbook.Sheets[sheetName];
-    records = XLSX.utils.sheet_to_json(sheet, { defval: '' });
-    console.log(`📊 Parsed ${records.length} rows from Excel sheet: ${sheetName}`);
+
+    // Handle custom header row
+    if (headerRowIndex > 1) {
+      const data = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: '' });
+
+      // Detect sheet's starting row (some files start at A2, not A1)
+      const range = XLSX.utils.decode_range(sheet['!ref'] || 'A1');
+      const sheetStartRow = range.s.r + 1; // 1-indexed starting row
+
+      // Adjust header index: if sheet starts at row 2 and user wants row 7,
+      // the actual array index is 7 - 2 = 5
+      const adjustedHeaderIndex = headerRowIndex - sheetStartRow;
+      const headers = data[adjustedHeaderIndex] || [];
+      const dataRows = data.slice(adjustedHeaderIndex + 1);
+
+      console.log(`📊 Sheet starts at row ${sheetStartRow}, header at row ${headerRowIndex} (index ${adjustedHeaderIndex})`);
+      console.log(`📊 Headers found: ${headers.slice(0, 5).join(', ')}...`);
+
+      // Fix blank headers - generate fallback names and detect model column
+      const fixedHeaders = headers.map((h, i) => {
+        if (!h || h.toString().trim() === '') {
+          return `_Column_${i + 1}`;  // Generate fallback name for blank headers
+        }
+        return h;
+      });
+
+      // Check if first column might be model (common pattern - blank header but contains model data)
+      const firstDataRow = dataRows[0] || [];
+      const firstColValue = firstDataRow[0] ? firstDataRow[0].toString().trim() : '';
+      const looksLikeModel = /^[A-Z]{1,4}[\d\-A-Z]{3,}/i.test(firstColValue);
+
+      if (fixedHeaders[0].startsWith('_Column_') && looksLikeModel) {
+        fixedHeaders[0] = 'Model';  // Rename to Model if it looks like model data
+        console.log(`📊 First column has blank header but looks like Model data - auto-mapping`);
+      }
+
+      console.log(`📊 Fixed headers: ${fixedHeaders.slice(0, 5).join(', ')}...`);
+
+      records = dataRows.map(row => {
+        const obj = {};
+        fixedHeaders.forEach((h, i) => { obj[h] = row[i] || ''; });
+        return obj;
+      }).filter(row => {
+        // Filter out completely empty rows
+        const values = Object.values(row);
+        return values.some(v => v !== '' && v !== null && v !== undefined);
+      });
+    } else {
+      records = XLSX.utils.sheet_to_json(sheet, { defval: '' });
+    }
+    console.log(`📊 Parsed ${records.length} non-empty rows from Excel sheet: ${sheetName}`);
   } else if (fileExt === '.csv') {
     const stream = Readable.from(req.file.buffer.toString());
     records = await new Promise((resolve, reject) => {
@@ -442,49 +597,158 @@ async function handleUniversalImport(req, res) {
     throw ApiError.badRequest(`Unsupported file type: ${fileExt}. Please use .csv, .xlsx, or .xls`);
   }
 
-  // Normalize records
+  // Helper function to get value using column mappings or fallback
+  const getValue = (row, targetField, fallbackKeys = []) => {
+    // First check if we have a mapping for this target field
+    for (const [sourceCol, mapping] of Object.entries(columnMappings)) {
+      if (mapping.targetField === targetField && row[sourceCol] !== undefined) {
+        let value = row[sourceCol];
+        // Apply transformation if needed (e.g., multiply_100 for prices)
+        if (mapping.transform === 'multiply_100' && value) {
+          value = parseFloat(value.toString().replace(/[$,]/g, '')) * 100;
+        }
+        return value;
+      }
+    }
+    // Fallback to common column names
+    for (const key of fallbackKeys) {
+      if (row[key] !== undefined && row[key] !== '') {
+        return row[key];
+      }
+    }
+    return '';
+  };
+
+  // Normalize records using mappings or fallback detection
   const normalizedRecords = records.map((row, idx) => {
+    // Skip empty rows - check if row has any non-empty values
+    const rowValues = Object.values(row);
+    const hasData = rowValues.some(val => val !== undefined && val !== null && val !== '' && val.toString().trim() !== '');
+    if (!hasData) {
+      return null; // Skip completely empty rows
+    }
+
     totalRows++;
 
-    const model = row.MODEL || row.model || row['Model'] || row['Model Number'] ||
-                 row['Part Number'] || row['SKU'] || row['Item'] || '';
-    const manufacturer = row.MANUFACTURER || row.manufacturer || row['Manufacturer'] ||
-                        row['Brand'] || row['BRAND'] || row['Vendor'] || '';
-    const description = row.Description || row.DESCRIPTION || row.description ||
-                       row['Product Name'] || row['Name'] || row['Item Description'] || '';
-    const category = row.CATEGORY || row.category || row['Category'] ||
-                    row['Product Category'] || row['Type'] || '';
-    const cost = row.ACTUAL_COST || row.actual_cost || row.COST || row.cost ||
-                row['Dealer Cost'] || row['Cost'] || row['Unit Cost'] ||
-                row['Wholesale Price'] || row['Net Price'] || 0;
-    const msrp = row.MSRP || row.msrp || row['Retail Price'] ||
-                row['Retail'] || row['List Price'] || row['Suggested Retail'] || 0;
+    // Use mappings if available, otherwise fallback to common column names
+    // Include variations with colons (LG uses "Model:", "MSRP:", etc.)
+    // Include GE columns (MATERIAL, BRAND, MG DESC, etc.)
+    const model = getValue(row, 'model', [
+      'MODEL', 'model', 'Model', 'Model:', 'Model Number', 'Model #', 'Model + Suffix:',
+      'Part Number', 'SKU', 'Item', 'Part #', 'Item #', 'Item Number', 'Product Code',
+      'MATERIAL', 'Material',
+      '# Modèle / Model #', '# Modèle', 'Modèle', 'No. Modèle'
+    ]);
+    const manufacturer = getValue(row, 'manufacturer', [
+      'MANUFACTURER', 'manufacturer', 'Manufacturer', 'Brand', 'BRAND', 'Vendor',
+      'Vendor:', 'Make', 'Mfr', 'MFR'
+    ]);
+    const name = getValue(row, 'name', [
+      'Product Name', 'Name', 'Title', 'Short Description:', 'Short Description',
+      'Item Name', 'Product Title', 'DESCRIPTION', 'Description'
+    ]);
+    const description = getValue(row, 'description', [
+      'Description', 'DESCRIPTION', 'description', 'Description:', 'DESCRIPTION:',
+      'Product Name', 'Name', 'Item Description', 'Product Description',
+      'Short Description:', 'Short Description', 'Long Description',
+      'English Description', 'Description Française'
+    ]);
+    const category = getValue(row, 'category', [
+      'CATEGORY', 'category', 'Category', 'Category:', 'Product Category',
+      'Type', 'Division', 'Division:', 'Department', 'Class',
+      'MG DESC', 'MG4 DESC',
+      'Catégorie de produit / Product Category', 'Catégorie de produit', 'Catégorie'
+    ]);
+    const color = getValue(row, 'color', [
+      'Color', 'COLOR', 'Colour', 'Colour:', 'Color:', 'Finish', 'Finish:'
+    ]);
+
+    // Price fields - check if already transformed (from mapping) or need conversion
+    let cost_cents = getValue(row, 'cost_cents', [
+      'ACTUAL_COST', 'actual_cost', 'COST', 'cost', 'Dealer Cost', 'Cost',
+      'Unit Cost', 'Wholesale Price', 'Net Price', 'Net Dealer', 'Q1 Cost',
+      'Regular', 'Dealer', 'Net', 'Your Cost', 'Invoice Cost',
+      'DEALER COST', ' DEALER COST ', 'REGULAR COST', ' REGULAR COST ',
+      'Marchand / Dealer', 'Marchand', 'Marchand\r\n/ Dealer'
+    ]);
+    let msrp_cents = getValue(row, 'msrp_cents', [
+      'MSRP', 'msrp', 'MSRP:', 'Retail Price', 'Retail', 'List Price',
+      'Suggested Retail', 'SRP', 'List', 'RRP', 'Retail:',
+      ' MSRP ', ' MSRP',
+      'PDSM / MSRP', 'PDSM', 'PDSM/MSRP'
+    ]);
+    let promo_cost_cents = getValue(row, 'promo_cost_cents', [
+      'Avg Promo', 'Promo Cost', 'Better Cost', 'Special Price', 'Promo Price',
+      'Q1 Promo', 'Sale Cost', 'Promotional Cost',
+      'PROMO COST', ' PROMO COST ',
+      'Promo Marchand / Dealer Promo', 'Promo Marchand', 'Dealer Promo'
+    ]);
+    let retail_price_cents = getValue(row, 'retail_price_cents', [
+      'Go To Price', 'Retail Price', 'Go-To', 'GOTO:', 'Go To', 'GoTo',
+      'Selling Price', 'Sale Price', 'PROMO RETAIL'
+    ]);
+    let map_price_cents = getValue(row, 'map_price_cents', [
+      'MAP', 'Minimum Advertised', 'MAP Price', 'MAP:', 'Min Advertised',
+      ' MAP ', ' MAP'
+    ]);
+
+    // Convert to cents if not already (check if it looks like dollars)
+    const toCents = (val) => {
+      if (!val) return 0;
+      const num = parseFloat(val.toString().replace(/[$,]/g, ''));
+      // If the value is less than 100000, assume it's dollars and convert to cents
+      // (most products cost less than $1000)
+      return num > 0 ? (num < 100000 ? Math.round(num * 100) : Math.round(num)) : 0;
+    };
+
+    cost_cents = toCents(cost_cents);
+    msrp_cents = toCents(msrp_cents);
+    promo_cost_cents = toCents(promo_cost_cents);
+    retail_price_cents = toCents(retail_price_cents);
+    map_price_cents = toCents(map_price_cents);
 
     if (!model) {
+      // Check if this row has any price data - if not, it's likely a category header row
+      const hasAnyPrice = cost_cents > 0 || msrp_cents > 0 || promo_cost_cents > 0 || retail_price_cents > 0 || map_price_cents > 0;
+      if (!hasAnyPrice) {
+        // Silently skip category header rows (e.g., "Gas Ranges", "Electric Cooktops")
+        return null;
+      }
+      // Only report error if row has price data but missing model
       errors.push({ row: idx + 2, error: 'Missing MODEL/SKU field', data: row });
       failed++;
       return null;
     }
 
     successful++;
+
+    // Truncate long text fields to fit database columns
+    const truncate = (str, maxLen) => {
+      if (!str) return '';
+      const s = str.toString().trim();
+      return s.length > maxLen ? s.substring(0, maxLen - 3) + '...' : s;
+    };
+
     return {
       manufacturer: manufacturer.toString().trim().toUpperCase(),
       model: model.toString().trim().toUpperCase(),
-      name: description.toString().trim() || model.toString().trim(),
-      description: description.toString().trim(),
-      category: category.toString().trim() || 'Uncategorized',
-      cost_cents: Math.round(parseFloat(cost.toString().replace(/[$,]/g, '')) * 100) || 0,
-      msrp_cents: Math.round(parseFloat(msrp.toString().replace(/[$,]/g, '')) * 100) || 0
+      name: truncate((name || description || model).toString(), 450),
+      description: truncate(description.toString(), 500),
+      category: truncate(category.toString() || 'Uncategorized', 255),
+      color: truncate(color.toString(), 100),
+      cost_cents,
+      msrp_cents,
+      promo_cost_cents,
+      retail_price_cents,
+      map_price_cents
     };
   }).filter(Boolean);
 
   console.log(`✓ Normalized ${normalizedRecords.length} valid records`);
 
-  // Import to database
+  // Import to database - use individual transactions per row to prevent cascade failures
   const client = await pool.connect();
   try {
-    await client.query('BEGIN');
-
     for (let i = 0; i < normalizedRecords.length; i++) {
       const row = normalizedRecords[i];
 
@@ -495,26 +759,31 @@ async function handleUniversalImport(req, res) {
       try {
         const result = await client.query(`
           INSERT INTO products (
-            manufacturer, model, name, description, category,
-            cost_cents, msrp_cents,
+            manufacturer, model, name, description, category, color,
+            cost_cents, msrp_cents, promo_cost_cents, retail_price_cents, map_price_cents,
             import_source, import_date, import_file_name,
             created_at, updated_at
-          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, CURRENT_TIMESTAMP, $9, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, CURRENT_TIMESTAMP, $13, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
           ON CONFLICT (model)
           DO UPDATE SET
             manufacturer = COALESCE(NULLIF(EXCLUDED.manufacturer, ''), products.manufacturer),
             name = COALESCE(NULLIF(EXCLUDED.name, ''), products.name),
             description = COALESCE(NULLIF(EXCLUDED.description, ''), products.description),
             category = COALESCE(NULLIF(EXCLUDED.category, 'Uncategorized'), products.category),
+            color = COALESCE(NULLIF(EXCLUDED.color, ''), products.color),
             cost_cents = CASE WHEN EXCLUDED.cost_cents > 0 THEN EXCLUDED.cost_cents ELSE products.cost_cents END,
             msrp_cents = CASE WHEN EXCLUDED.msrp_cents > 0 THEN EXCLUDED.msrp_cents ELSE products.msrp_cents END,
+            promo_cost_cents = CASE WHEN EXCLUDED.promo_cost_cents > 0 THEN EXCLUDED.promo_cost_cents ELSE products.promo_cost_cents END,
+            retail_price_cents = CASE WHEN EXCLUDED.retail_price_cents > 0 THEN EXCLUDED.retail_price_cents ELSE products.retail_price_cents END,
+            map_price_cents = CASE WHEN EXCLUDED.map_price_cents > 0 THEN EXCLUDED.map_price_cents ELSE products.map_price_cents END,
             import_date = EXCLUDED.import_date,
             import_file_name = EXCLUDED.import_file_name,
             updated_at = CURRENT_TIMESTAMP
           RETURNING (xmax = 0) AS inserted
         `, [
-          row.manufacturer, row.model, row.name, row.description, row.category,
-          row.cost_cents, row.msrp_cents, 'automatic', filename
+          row.manufacturer, row.model, row.name, row.description, row.category, row.color,
+          row.cost_cents, row.msrp_cents, row.promo_cost_cents, row.retail_price_cents, row.map_price_cents,
+          'automatic', filename
         ]);
 
         if (result.rows[0].inserted) {
@@ -525,14 +794,11 @@ async function handleUniversalImport(req, res) {
       } catch (err) {
         console.error(`Error importing row ${i}:`, err.message);
         errors.push({ row: i + 2, error: err.message, data: row });
+        failed++;
       }
     }
 
-    await client.query('COMMIT');
-    console.log(`✅ Universal import committed`);
-  } catch (err) {
-    await client.query('ROLLBACK');
-    throw err;
+    console.log(`✅ Universal import completed`);
   } finally {
     client.release();
   }

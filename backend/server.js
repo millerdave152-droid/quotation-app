@@ -37,6 +37,37 @@ const { notFoundHandler, errorHandler, ApiError, asyncHandler } = require('./mid
 // Email notification scheduler
 const notificationScheduler = require('./services/NotificationScheduler');
 
+// New Enterprise Services (Phase 2)
+const InventoryService = require('./services/InventoryService');
+const OrderService = require('./services/OrderService');
+const InvoiceService = require('./services/InvoiceService');
+const StripeService = require('./services/StripeService');
+const DeliveryService = require('./services/DeliveryService');
+const PricingService = require('./services/PricingService');
+const ProductMetricsService = require('./services/ProductMetricsService');
+const QuoteExpiryService = require('./services/QuoteExpiryService');
+
+// New Enterprise Routes (Phase 2)
+const ordersRoutes = require('./routes/orders');
+const invoicesRoutes = require('./routes/invoices');
+const inventoryRoutes = require('./routes/inventory');
+const deliveryRoutes = require('./routes/delivery');
+const pricingRoutes = require('./routes/pricing');
+const stripeRoutes = require('./routes/stripe');
+const productMetricsRoutes = require('./routes/product-metrics');
+
+// Advanced Pricing (Volume Discounts, Promotions, Stacking)
+const advancedPricingRoutes = require('./routes/advancedPricing');
+
+// AI Personalization (Dynamic Pricing, Upselling, Smart Suggestions)
+const aiPersonalizationRoutes = require('./routes/aiPersonalization');
+
+// 3D Product Configurator
+const product3dRoutes = require('./routes/product3d');
+
+// Vendor Product Visualization & Scraper
+const vendorProductsRoutes = require('./routes/vendorProducts');
+
 const app = express();
 const PORT = process.env.PORT || 3001;
 
@@ -53,6 +84,12 @@ app.set('trust proxy', 1); // Trust proxy for rate limiting
 
 app.use(express.json()); // ← CRITICAL FIX: Parse JSON bodies!
 app.use(express.urlencoded({ extended: true })); // Parse URL-encoded bodies
+
+// Static file serving for 3D models, uploads, and vendor images
+const path = require('path');
+app.use('/models', express.static(path.join(__dirname, 'public/models')));
+app.use('/uploads', express.static(path.join(__dirname, 'public/uploads')));
+app.use('/vendor-images', express.static(path.join(__dirname, 'public/vendor-images')));
 
 // Attach standardized response helpers to res object
 app.use(attachResponseHelpers);
@@ -86,10 +123,24 @@ pool.query('SELECT NOW()', (err, res) => {
 });
 
 // ============================================
+// SERVICE INSTANTIATION (Phase 2)
+// ============================================
+const inventoryService = new InventoryService(pool, cache);
+const orderService = new OrderService(pool, cache, inventoryService);
+const invoiceService = new InvoiceService(pool, cache, null); // emailService passed as null for now
+const stripeService = new StripeService(pool, cache);
+const deliveryService = new DeliveryService(pool, cache);
+const pricingService = new PricingService(pool, cache);
+const productMetricsService = new ProductMetricsService(pool, cache);
+const quoteExpiryService = new QuoteExpiryService(pool, cache, inventoryService, null); // notificationService passed as null for now
+
+console.log('✅ Enterprise services initialized');
+
+// ============================================
 // FILE UPLOAD & AWS SES CONFIGURATION
 // ============================================
 const upload = multer({ storage: multer.memoryStorage() });
-const { SESv2Client, SendEmailCommand, SendRawEmailCommand } = require('@aws-sdk/client-sesv2');
+const { SESv2Client, SendEmailCommand } = require('@aws-sdk/client-sesv2');
 
 const sesClient = new SESv2Client({
   region: process.env.AWS_REGION || 'us-east-1',
@@ -115,6 +166,28 @@ app.get('/api/health', (req, res) => {
 // AUTHENTICATION ROUTES
 // ============================================
 app.use('/api/auth', authLimiter, authRoutes);
+
+// ============================================
+// USER MANAGEMENT ROUTES
+// ============================================
+const usersRoutes = require('./routes/users');
+app.use('/api/users', usersRoutes);
+console.log('✅ User management routes loaded');
+
+// ============================================
+// COUNTER-OFFER / NEGOTIATION ROUTES
+// ============================================
+const counterOfferRoutes = require('./routes/counterOffers');
+counterOfferRoutes.setSesClient(sesClient); // Pass SES client for email notifications
+app.use('/api', counterOfferRoutes);
+console.log('✅ Counter-offer routes loaded');
+
+// ============================================
+// IN-APP NOTIFICATIONS
+// ============================================
+const notificationRoutes = require('./routes/notifications');
+app.use('/api/notifications', notificationRoutes);
+console.log('✅ In-app notification routes loaded');
 
 // ============================================
 // QUOTE PROTECTION & EMAIL TEMPLATES
@@ -148,6 +221,15 @@ console.log('✅ Customer routes loaded (modular)');
 // ============================================
 app.use('/api/products', initProductRoutes({ pool, cache, upload }));
 console.log('✅ Product routes loaded (modular)');
+
+// ============================================
+// CATEGORY MANAGEMENT (Normalized Hierarchy)
+// ============================================
+const categoriesRoutes = require('./routes/categories');
+const ProductService = require('./services/ProductService');
+const categoryProductService = new ProductService(pool, cache);
+app.use('/api/categories', categoriesRoutes(pool, categoryProductService));
+console.log('✅ Category routes loaded');
 
 // ============================================
 // IMPORT TEMPLATES (Manufacturer Mappings)
@@ -396,9 +478,9 @@ app.post('/api/quotations/:id/send-email', upload.single('pdf'), async (req, res
       `--${boundary}--`
     ].join('\r\n');
 
-    const sendCommand = new SendRawEmailCommand({
+    const sendCommand = new SendEmailCommand({
       FromEmailAddress: process.env.EMAIL_FROM,
-      Destinations: [recipientEmail],
+      Destination: { ToAddresses: [recipientEmail] },
       Content: { Raw: { Data: Buffer.from(rawMessage) } }
     });
     await sesClient.send(sendCommand);
@@ -1982,6 +2064,56 @@ app.post('/api/ai/quote-recommendations', async (req, res) => {
 });
 
 console.log('✅ AI recommendation endpoints loaded');
+
+// ============================================
+// ENTERPRISE ROUTES (Phase 2)
+// Orders, Invoices, Inventory, Delivery, Pricing, Stripe
+// ============================================
+app.use('/api/orders', ordersRoutes(pool, cache, orderService, inventoryService));
+console.log('✅ Orders routes loaded');
+
+app.use('/api/invoices', invoicesRoutes(pool, cache, invoiceService));
+console.log('✅ Invoices routes loaded');
+
+app.use('/api/inventory', inventoryRoutes(pool, cache, inventoryService));
+console.log('✅ Inventory routes loaded');
+
+app.use('/api/delivery', deliveryRoutes(pool, cache, deliveryService));
+console.log('✅ Delivery routes loaded');
+
+app.use('/api/pricing', pricingRoutes(pool, cache, pricingService));
+console.log('✅ Pricing routes loaded');
+
+app.use('/api/product-metrics', productMetricsRoutes(pool, cache, productMetricsService));
+console.log('✅ Product metrics routes loaded');
+
+// Stripe webhook needs raw body, so mount before JSON parsing for that specific route
+// For regular Stripe routes, use standard JSON
+app.use('/api/stripe', stripeRoutes(pool, cache, stripeService));
+console.log('✅ Stripe payment routes loaded');
+
+// ============================================
+// ADVANCED PRICING (Volume Discounts, Promotions, Stacking)
+// ============================================
+app.use('/api/advanced-pricing', advancedPricingRoutes);
+console.log('✅ Advanced pricing routes loaded');
+
+// ============================================
+// AI PERSONALIZATION (Dynamic Pricing, Upselling, Suggestions)
+// ============================================
+app.use('/api/ai', aiPersonalizationRoutes);
+console.log('✅ AI personalization routes loaded');
+
+// 3D PRODUCT CONFIGURATOR
+// ============================================
+app.use('/api/product-3d', product3dRoutes);
+console.log('✅ 3D product configurator routes loaded');
+
+// ============================================
+// VENDOR PRODUCT VISUALIZATION & SCRAPER
+// ============================================
+vendorProductsRoutes(app);
+console.log('✅ Vendor product visualization routes loaded');
 
 // ============================================
 // ERROR HANDLING MIDDLEWARE

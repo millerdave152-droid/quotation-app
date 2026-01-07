@@ -6,13 +6,37 @@
  * - Progressive filter relaxation when no results found
  * - Brand awareness and cohesion scoring
  * - Appliance-aware dimension rules
+ *
+ * v3.1 - Category ID support (dual-mode)
+ * - Primary: Uses normalized category_id when available
+ * - Fallback: Legacy pattern matching for unmigrated products
  */
 
 class PackageSelectionEngine {
   constructor(pool) {
     this.pool = pool;
 
+    // NEW: Slot type to normalized category slug mapping
+    // Used for efficient category_id based filtering
+    this.SLOT_TO_CATEGORY_SLUG = {
+      refrigerator: 'refrigerators',
+      freezer: 'freezers',           // Under specialty
+      range: 'ranges',
+      dishwasher: 'dishwashers',
+      microwave: 'microwaves',
+      cooktop: 'cooktops',
+      wall_oven: 'wall-ovens',
+      hood: 'range-hoods',
+      washer: 'washers',
+      dryer: 'dryers',
+      laundry_combo: 'washers'       // Combo units in washers category
+    };
+
+    // Cache for category ID lookups
+    this._categoryIdCache = null;
+
     // Define category patterns for matching (flexible matching)
+    // LEGACY: Used only for fallback when category_id is not set
     // IMPORTANT: Patterns are case-insensitive and used with LIKE %pattern%
     // Updated to match actual database category names from all manufacturers
     this.CATEGORY_PATTERNS = {
@@ -388,10 +412,95 @@ class PackageSelectionEngine {
   }
 
   /**
+   * Load category ID cache from database
+   */
+  async loadCategoryIdCache() {
+    if (this._categoryIdCache) return this._categoryIdCache;
+
+    try {
+      const result = await this.pool.query(`
+        SELECT id, slug, parent_id, level
+        FROM categories
+        WHERE is_active = true
+      `);
+
+      this._categoryIdCache = {};
+      for (const row of result.rows) {
+        this._categoryIdCache[row.slug] = row;
+      }
+      return this._categoryIdCache;
+    } catch (err) {
+      console.error('Failed to load category ID cache:', err.message);
+      return {};
+    }
+  }
+
+  /**
+   * Get category ID for a slot type
+   */
+  async getCategoryIdForSlot(slotType) {
+    const cache = await this.loadCategoryIdCache();
+    const slug = this.SLOT_TO_CATEGORY_SLUG[slotType];
+    return cache[slug]?.id || null;
+  }
+
+  /**
    * Fetch full catalog for a slot category - same data source as product pages
-   * Applies category exclusion patterns to prevent cross-contamination (e.g., dishwashers in washer slot)
+   * DUAL-MODE: Uses category_id (fast) when available, falls back to pattern matching
    */
   async fetchCatalogForSlot(category, slotType) {
+    // Try category_id based filtering first (much faster and more accurate)
+    const categoryId = await this.getCategoryIdForSlot(slotType);
+
+    if (categoryId) {
+      return this.fetchCatalogByCategory(categoryId, slotType);
+    }
+
+    // FALLBACK: Legacy pattern matching for unmigrated products
+    console.log(`   [LEGACY] Using pattern matching for ${slotType} (no category_id mapping)`);
+    return this.fetchCatalogByPattern(category, slotType);
+  }
+
+  /**
+   * Fetch catalog using normalized category_id (fast, accurate)
+   */
+  async fetchCatalogByCategory(categoryId, slotType) {
+    const query = `
+      SELECT
+        p.id, p.model, p.manufacturer, p.name, p.description, p.category,
+        p.category_id, p.subcategory_id,
+        p.msrp_cents, p.cost_cents, p.active, p.color,
+        p.paired_product_id,
+        pea.width_inches_x10, pea.height_inches_x10, pea.depth_inches_x10,
+        pea.depth_type, pea.subtype, pea.capacity_cubic_ft_x10, pea.capacity_band,
+        pea.fuel_type, pea.db_level, pea.noise_band, pea.smart_level, pea.finish,
+        pea.has_ice_water, pea.has_air_fry, pea.has_convection, pea.has_steam_feature,
+        pea.is_stackable, pea.is_vented, pea.voltage, pea.reliability_tier,
+        pea.quiet_tier, pea.package_tier, pea.bundle_sku, pea.bundle_discount_percent
+      FROM products p
+      LEFT JOIN product_extended_attributes pea ON p.id = pea.product_id
+      WHERE (p.active = true OR p.active IS NULL)
+        AND p.msrp_cents > 0
+        AND (p.category_id = $1 OR p.subcategory_id IN (
+          SELECT id FROM categories WHERE parent_id = $1
+        ))
+      ORDER BY p.msrp_cents ASC
+    `;
+
+    try {
+      const result = await this.pool.query(query, [categoryId]);
+      console.log(`   Fetched ${result.rows.length} products for ${slotType} (category_id: ${categoryId})`);
+      return result.rows;
+    } catch (err) {
+      console.error(`Error fetching catalog for ${slotType}:`, err.message);
+      return [];
+    }
+  }
+
+  /**
+   * LEGACY: Fetch catalog using pattern matching (fallback for unmigrated products)
+   */
+  async fetchCatalogByPattern(category, slotType) {
     // Build category patterns for flexible matching
     const patterns = this.CATEGORY_PATTERNS[slotType] || [category.toLowerCase()];
     const exclusions = this.CATEGORY_EXCLUSIONS[slotType] || [];
@@ -422,6 +531,7 @@ class PackageSelectionEngine {
     const query = `
       SELECT
         p.id, p.model, p.manufacturer, p.name, p.description, p.category,
+        p.category_id, p.subcategory_id,
         p.msrp_cents, p.cost_cents, p.active, p.color,
         p.paired_product_id,
         pea.width_inches_x10, pea.height_inches_x10, pea.depth_inches_x10,
@@ -443,7 +553,7 @@ class PackageSelectionEngine {
 
     try {
       const result = await this.pool.query(query, allParams);
-      console.log(`   Fetched ${result.rows.length} products for ${slotType} (patterns: ${patterns.join(', ')}, exclusions: ${exclusions.join(', ') || 'none'})`);
+      console.log(`   [LEGACY] Fetched ${result.rows.length} products for ${slotType} (patterns: ${patterns.join(', ')})`);
       return result.rows;
     } catch (err) {
       console.error(`Error fetching catalog for ${slotType}:`, err.message);
@@ -864,18 +974,18 @@ class PackageSelectionEngine {
       const hasBrandRequirement = requirements.brand_preference && requirements.brand_preference !== 'any';
 
       const filterLevels = hasBrandRequirement ? [
-        // When brand is specified, NEVER relax it - only relax price, finish, dimensions
+        // When brand is specified, NEVER relax brand or finish - only relax price and dimensions
+        // Finish is a HARD requirement - users expect exact color match
         { name: 'strict', relaxations: [] },
         { name: 'relax_price', relaxations: ['price'] },
-        { name: 'relax_price_finish', relaxations: ['price', 'finish'] },
-        { name: 'relax_price_finish_dimensions', relaxations: ['price', 'finish', 'dimensions'] }
+        { name: 'relax_price_dimensions', relaxations: ['price', 'dimensions'] }
       ] : [
-        // When no brand specified, can relax all filters
+        // When no brand specified, can relax brand and price but NEVER finish
+        // Finish is a HARD requirement - wrong color is never acceptable
         { name: 'strict', relaxations: [] },
         { name: 'relax_price', relaxations: ['price'] },
         { name: 'relax_price_brand', relaxations: ['price', 'brand'] },
-        { name: 'relax_price_brand_finish', relaxations: ['price', 'brand', 'finish'] },
-        { name: 'relax_all', relaxations: ['price', 'brand', 'finish', 'dimensions'] }
+        { name: 'relax_price_brand_dimensions', relaxations: ['price', 'brand', 'dimensions'] }
       ];
 
       let filteredCandidates = [];
@@ -1024,16 +1134,70 @@ class PackageSelectionEngine {
     if (requirements.finish && requirements.finish !== 'any') {
       const requiredFinish = requirements.finish.toLowerCase();
       filtered = filtered.filter(p => {
-        // Check database fields first - these are authoritative
         const dbFinish = (p.finish || '').toLowerCase();
         const dbColor = (p.color || '').toLowerCase();
+        const model = (p.model || '');
 
-        // If database has explicit color info, use it as the authoritative source
+        // Model suffix is the MOST RELIABLE indicator for appliance colors
+        // W = White, S = Stainless, B = Black, V = Black Stainless, D = Black Slate
+        const suffixFinishMap = {
+          'W': 'white',
+          'S': 'stainless',
+          'B': 'black',
+          'V': 'black_stainless',
+          'D': 'slate'
+        };
+
+        // ENHANCED MODEL SUFFIX DETECTION
+        // Handle various model formats:
+        // - Standard: LRFNS2200W (color at end)
+        // - Extended: LRFNS2200W.ASLEUS (color before dot/variant suffix)
+        // - With slash: LRFNS2200W/00 (color before slash)
+
+        let modelFinish = null;
+
+        // First, try to extract color from LG model pattern
+        // LG refrigerator pattern: LR[FM][A-Z]{1,4}\d{4}[WSBVD]
+        const lgColorMatch = model.match(/^LR[A-Z]+\d{2,4}([WSBVD])(?:[.\/-]|$)/i);
+        if (lgColorMatch) {
+          modelFinish = suffixFinishMap[lgColorMatch[1].toUpperCase()];
+        }
+
+        // Samsung pattern: RF\d{2}[A-Z]*[WSBVD]
+        if (!modelFinish) {
+          const samsungColorMatch = model.match(/^RF\d{2}[A-Z0-9]*([WSBVD])(?:[.\/-]|$)/i);
+          if (samsungColorMatch) {
+            modelFinish = suffixFinishMap[samsungColorMatch[1].toUpperCase()];
+          }
+        }
+
+        // Generic pattern: Find color code before any variant suffix (.xxx, /xx, etc)
+        if (!modelFinish) {
+          // Strip variant suffixes and get the base model
+          const baseModel = model.replace(/[.\/-].*$/, '').toUpperCase();
+          const lastChar = baseModel.slice(-1);
+          modelFinish = suffixFinishMap[lastChar];
+        }
+
+        // Fallback: just check last character of full model
+        if (!modelFinish) {
+          const modelSuffix = model.slice(-1).toUpperCase();
+          modelFinish = suffixFinishMap[modelSuffix];
+        }
+
+        // PRIMARY CHECK: If model suffix indicates a specific finish, trust it
+        if (modelFinish) {
+          const matches = modelFinish === requiredFinish;
+          if (!matches) {
+            console.log(`      ❌ ${model}: detected finish=${modelFinish} (required: ${requiredFinish})`);
+          }
+          return matches;
+        }
+
+        // SECONDARY CHECK: Use database color field when model suffix is inconclusive
         if (dbColor) {
-          // Special handling for stainless - must not match black stainless, etc.
           if (requiredFinish === 'stainless') {
-            // Exact match or "smudge resistant stainless" or just "sts"
-            // But NOT "black stainless" or "slate" or other variants
+            // Must be stainless but NOT black stainless
             const isPlainStainless =
               dbFinish === 'stainless' ||
               dbColor === 'stainless' ||
@@ -1043,38 +1207,18 @@ class PackageSelectionEngine {
               (dbColor.includes('stainless') && !dbColor.includes('black'));
             return isPlainStainless;
           } else if (requiredFinish === 'black_stainless') {
-            // Must include "black" AND "stainless"
             return dbColor.includes('black') && dbColor.includes('stainless');
           } else if (requiredFinish === 'white') {
             return dbColor.includes('white');
           } else if (requiredFinish === 'black') {
-            // Black but not black stainless
             return dbColor.includes('black') && !dbColor.includes('stainless');
           } else {
-            // Other finishes - simple includes match
             return dbFinish === requiredFinish || dbColor.includes(requiredFinish);
           }
         }
 
-        // Only use model suffix if no database color info is available
-        // W = White, S = Stainless, B = Black, V = Black Stainless, D = Black Slate
-        const model = (p.model || '');
-        const modelSuffix = model.slice(-1).toUpperCase();
-        const suffixFinishMap = {
-          'W': 'white',
-          'S': 'stainless',
-          'B': 'black',
-          'V': 'black_stainless',
-          'D': 'slate'
-        };
-        const modelFinish = suffixFinishMap[modelSuffix];
-
-        if (modelFinish) {
-          // Model suffix indicates a specific finish
-          return modelFinish === requiredFinish;
-        }
-
         // No finish info available - exclude when specific finish required
+        console.log(`      ❌ ${model}: no finish info (required: ${requiredFinish})`);
         return false;
       });
     }
@@ -1662,8 +1806,27 @@ class PackageSelectionEngine {
     // LS* = Side by Side (36")
     // LT* = Top Freezer (30-33")
 
-    // French Door models = always 36"
-    if (/^(LRF|LRY|LF|LS)/.test(model)) {
+    // LG French Door models - width depends on capacity, NOT always 36"
+    // Model pattern: LRF[XX]S[CC]##[F] or LRM[XX]S[CC]##[F] where CC = capacity cu.ft
+    // LRF = French Door, LRM = InstaView French Door
+    // Example: LRFNS2200W = LRF + NS + 22 + 00 + W (22 cu.ft = 30" wide)
+    // Example: LRFXC2606S = LRF + XC + 26 + 06 + S (26 cu.ft = 33-36" wide)
+    // Example: LRMVS3006S = LRM + VS + 30 + 06 + S (30 cu.ft = 36" wide)
+    if (/^LR[FM]/.test(model)) {
+      // Extract capacity digits from model - 2 digits after prefix + 1-3 letter codes
+      // Patterns: LRF[A-Z]{1,3}[0-9]{2} or LRM[A-Z]{1,3}[0-9]{2}
+      const capacityMatch = model.match(/^LR[FM][A-Z]{1,3}(\d{2})/i);
+      if (capacityMatch) {
+        const capacity = parseInt(capacityMatch[1]);
+        if (capacity <= 23) return 30;  // 22-23 cu.ft = 30" wide
+        if (capacity <= 27) return 33;  // 24-27 cu.ft = 33" wide
+        return 36;                       // 28+ cu.ft = 36" wide
+      }
+      return 36; // Default for unmatched LRF/LRM patterns
+    }
+
+    // LG Side-by-Side models (LS*) - typically 36"
+    if (/^(LRY|LF|LS)/.test(model)) {
       return 36;
     }
 
@@ -2390,17 +2553,17 @@ class PackageSelectionEngine {
     const hasBrandRequirement = requirements.brand_preference && requirements.brand_preference !== 'any';
 
     const filterLevels = hasBrandRequirement ? [
-      // When brand is specified, NEVER relax it
+      // When brand is specified, NEVER relax brand or finish - only relax price and dimensions
+      // Finish is a HARD requirement - wrong color is never acceptable
       { name: 'strict', relaxations: [] },
       { name: 'relax_price', relaxations: ['price'] },
-      { name: 'relax_price_finish', relaxations: ['price', 'finish'] },
-      { name: 'relax_price_finish_dimensions', relaxations: ['price', 'finish', 'dimensions'] }
+      { name: 'relax_price_dimensions', relaxations: ['price', 'dimensions'] }
     ] : [
+      // When no brand specified, can relax brand and price but NEVER finish
       { name: 'strict', relaxations: [] },
       { name: 'relax_price', relaxations: ['price'] },
       { name: 'relax_price_brand', relaxations: ['price', 'brand'] },
-      { name: 'relax_price_brand_finish', relaxations: ['price', 'brand', 'finish'] },
-      { name: 'relax_all', relaxations: ['price', 'brand', 'finish', 'dimensions'] }
+      { name: 'relax_price_brand_dimensions', relaxations: ['price', 'brand', 'dimensions'] }
     ];
 
     let filteredCandidates = [];
