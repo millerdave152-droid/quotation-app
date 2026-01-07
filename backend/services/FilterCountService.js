@@ -10,7 +10,20 @@ class FilterCountService {
   constructor(pool) {
     this.pool = pool;
 
+    // Slot type to normalized category slug mapping (same as PackageSelectionEngine)
+    this.SLOT_TO_CATEGORY_SLUG = {
+      refrigerator: 'refrigerators',
+      range: 'ranges',
+      dishwasher: 'dishwashers',
+      washer: 'washers',
+      dryer: 'dryers'
+    };
+
+    // Cache for category ID lookups
+    this._categoryIdCache = null;
+
     // Category patterns for appliance detection (synced with PackageSelectionEngine)
+    // LEGACY: Only used as fallback when category_id is not available
     this.CATEGORY_PATTERNS = {
       refrigerator: [
         'refrigerator', 'fridge', 'refrig', 'ref',
@@ -155,6 +168,39 @@ class FilterCountService {
     }
 
     return false;
+  }
+
+  /**
+   * Load category ID cache from database (same as PackageSelectionEngine)
+   */
+  async loadCategoryIdCache() {
+    if (this._categoryIdCache) return this._categoryIdCache;
+
+    try {
+      const result = await this.pool.query(`
+        SELECT id, slug, parent_id, level
+        FROM categories
+        WHERE is_active = true
+      `);
+
+      this._categoryIdCache = {};
+      for (const row of result.rows) {
+        this._categoryIdCache[row.slug] = row;
+      }
+      return this._categoryIdCache;
+    } catch (err) {
+      console.error('FilterCountService: Failed to load category ID cache:', err.message);
+      return {};
+    }
+  }
+
+  /**
+   * Get category ID for a slot type
+   */
+  async getCategoryIdForSlot(slotType) {
+    const cache = await this.loadCategoryIdCache();
+    const slug = this.SLOT_TO_CATEGORY_SLUG[slotType];
+    return cache[slug]?.id || null;
   }
 
   /**
@@ -493,31 +539,64 @@ class FilterCountService {
       ? ['refrigerator', 'range', 'dishwasher']
       : ['washer', 'dryer'];
 
-    // Base query to get all active products
-    let baseQuery = `
-      SELECT
-        p.id,
-        p.model,
-        p.manufacturer,
-        p.category,
-        p.name,
-        p.msrp_cents
-      FROM products p
-      WHERE p.active = true
-    `;
-
-    // Apply global brand filter if set
-    if (currentFilters.brand && currentFilters.brand.length > 0) {
-      baseQuery += ` AND LOWER(p.manufacturer) IN (${currentFilters.brand.map(b => `'${b.toLowerCase()}'`).join(',')})`;
-    }
-
-    const products = await this.pool.query(baseQuery);
-
-    // Organize products by appliance category
+    // Organize products by appliance category using category_id (same as PackageSelectionEngine)
     const productsByCategory = {};
+    let allProducts = [];
+
     for (const category of categories) {
-      productsByCategory[category] = products.rows.filter(p => this.matchesCategory(p, category));
+      const categoryId = await this.getCategoryIdForSlot(category);
+
+      if (categoryId) {
+        // Use category_id based query (fast, accurate - same as PackageSelectionEngine)
+        let query = `
+          SELECT
+            p.id, p.model, p.manufacturer, p.category, p.name, p.msrp_cents
+          FROM products p
+          WHERE (p.active = true OR p.active IS NULL)
+            AND p.msrp_cents > 0
+            AND (p.category_id = $1 OR p.subcategory_id IN (
+              SELECT id FROM categories WHERE parent_id = $1
+            ))
+        `;
+        const params = [categoryId];
+
+        // Apply brand filter if set
+        if (currentFilters.brand && currentFilters.brand.length > 0) {
+          const brandPlaceholders = currentFilters.brand.map((_, i) => `$${i + 2}`).join(',');
+          query += ` AND LOWER(p.manufacturer) IN (${brandPlaceholders})`;
+          params.push(...currentFilters.brand.map(b => b.toLowerCase()));
+        }
+
+        const result = await this.pool.query(query, params);
+        productsByCategory[category] = result.rows;
+        allProducts = allProducts.concat(result.rows);
+        console.log(`   FilterCountService: ${category} -> ${result.rows.length} products (category_id: ${categoryId})`);
+      } else {
+        // FALLBACK: Legacy pattern matching for unmigrated categories
+        console.log(`   [LEGACY] FilterCountService: Using pattern matching for ${category}`);
+        let baseQuery = `
+          SELECT p.id, p.model, p.manufacturer, p.category, p.name, p.msrp_cents
+          FROM products p
+          WHERE p.active = true
+        `;
+
+        if (currentFilters.brand && currentFilters.brand.length > 0) {
+          baseQuery += ` AND LOWER(p.manufacturer) IN (${currentFilters.brand.map(b => `'${b.toLowerCase()}'`).join(',')})`;
+        }
+
+        const products = await this.pool.query(baseQuery);
+        productsByCategory[category] = products.rows.filter(p => this.matchesCategory(p, category));
+        allProducts = allProducts.concat(productsByCategory[category]);
+      }
     }
+
+    // Deduplicate allProducts for global filter counts
+    const seenIds = new Set();
+    const products = { rows: allProducts.filter(p => {
+      if (seenIds.has(p.id)) return false;
+      seenIds.add(p.id);
+      return true;
+    })};
 
     // Build filter options with counts
     const result = {
@@ -642,30 +721,51 @@ class FilterCountService {
    * Get products matching all applied filters for a category
    */
   async getFilteredProducts(applianceCategory, filters, globalFilters = {}) {
-    let query = `
-      SELECT
-        p.id,
-        p.model,
-        p.manufacturer,
-        p.category,
-        p.name,
-        p.msrp_cents,
-        p.cost_cents
-      FROM products p
-      WHERE p.active = true
-    `;
+    const categoryId = await this.getCategoryIdForSlot(applianceCategory);
+    let filtered = [];
 
-    // Apply brand filter
-    if (globalFilters.brand && globalFilters.brand.length > 0) {
-      query += ` AND LOWER(p.manufacturer) IN (${globalFilters.brand.map(b => `'${b.toLowerCase()}'`).join(',')})`;
+    if (categoryId) {
+      // Use category_id based query (same as PackageSelectionEngine)
+      let query = `
+        SELECT
+          p.id, p.model, p.manufacturer, p.category, p.name,
+          p.msrp_cents, p.cost_cents
+        FROM products p
+        WHERE (p.active = true OR p.active IS NULL)
+          AND p.msrp_cents > 0
+          AND (p.category_id = $1 OR p.subcategory_id IN (
+            SELECT id FROM categories WHERE parent_id = $1
+          ))
+      `;
+      const params = [categoryId];
+      let paramIndex = 2;
+
+      // Apply brand filter
+      if (globalFilters.brand && globalFilters.brand.length > 0) {
+        const brandPlaceholders = globalFilters.brand.map(() => `$${paramIndex++}`).join(',');
+        query += ` AND LOWER(p.manufacturer) IN (${brandPlaceholders})`;
+        params.push(...globalFilters.brand.map(b => b.toLowerCase()));
+      }
+
+      const products = await this.pool.query(query, params);
+      filtered = products.rows;
+    } else {
+      // FALLBACK: Legacy pattern matching
+      let query = `
+        SELECT p.id, p.model, p.manufacturer, p.category, p.name, p.msrp_cents, p.cost_cents
+        FROM products p
+        WHERE p.active = true
+      `;
+
+      if (globalFilters.brand && globalFilters.brand.length > 0) {
+        query += ` AND LOWER(p.manufacturer) IN (${globalFilters.brand.map(b => `'${b.toLowerCase()}'`).join(',')})`;
+      }
+
+      const products = await this.pool.query(query);
+      filtered = products.rows.filter(p => this.matchesCategory(p, applianceCategory));
     }
 
-    const products = await this.pool.query(query);
-
-    // Filter by category match
-    let filtered = products.rows.filter(p => this.matchesCategory(p, applianceCategory));
-
-    // Apply category-specific filters
+    // Apply category-specific filters using detectFilterValues
     for (const [key, value] of Object.entries(filters)) {
       if (!value) continue;
 
