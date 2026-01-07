@@ -401,6 +401,7 @@ class ProductService {
 
     return await this.cache.cacheQuery(cacheKey, 'long', async () => {
       // Get all categories with product counts
+      // Fixed: Count products by both category_id AND subcategory_id
       const result = await this.pool.query(`
         SELECT
           c.id,
@@ -417,23 +418,34 @@ class ProductService {
           COALESCE(pc.subcategory_count, 0) as subcategory_product_count
         FROM categories c
         LEFT JOIN (
+          -- Count products by category_id (main categories)
           SELECT
-            category_id,
+            category_id as cat_id,
             COUNT(*) as product_count,
             0 as subcategory_count
           FROM products
           WHERE category_id IS NOT NULL
           GROUP BY category_id
           UNION ALL
+          -- Count products by subcategory_id (for subcategory rows)
           SELECT
-            c2.parent_id as category_id,
+            subcategory_id as cat_id,
+            COUNT(*) as product_count,
+            0 as subcategory_count
+          FROM products
+          WHERE subcategory_id IS NOT NULL
+          GROUP BY subcategory_id
+          UNION ALL
+          -- Sum subcategory products to parent category
+          SELECT
+            c2.parent_id as cat_id,
             0 as product_count,
             COUNT(*) as subcategory_count
           FROM products p
           JOIN categories c2 ON p.subcategory_id = c2.id
           WHERE p.subcategory_id IS NOT NULL
           GROUP BY c2.parent_id
-        ) pc ON c.id = pc.category_id
+        ) pc ON c.id = pc.cat_id
         WHERE c.is_active = true
         ORDER BY c.level, c.display_order, c.name
       `);
