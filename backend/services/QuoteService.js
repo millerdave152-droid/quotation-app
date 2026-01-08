@@ -1121,9 +1121,33 @@ class QuoteService {
 
       // Send quote created notification (async, don't block)
       if (created_by) {
-        emailService.sendQuoteCreatedEmail(createdQuote.id, created_by).catch(err => {
-          console.error('Failed to send quote created email:', err.message);
-        });
+        // created_by is a name, not an email - try to find the user's email
+        let creatorEmail = null;
+        if (created_by.includes('@')) {
+          // It's already an email
+          creatorEmail = created_by;
+        } else {
+          // Look up email by name
+          try {
+            const userResult = await this.pool.query(`
+              SELECT email FROM users
+              WHERE CONCAT(first_name, ' ', last_name) ILIKE $1
+                 OR email ILIKE $1
+              LIMIT 1
+            `, [created_by]);
+            if (userResult.rows.length > 0) {
+              creatorEmail = userResult.rows[0].email;
+            }
+          } catch (lookupErr) {
+            console.log('Could not look up creator email:', lookupErr.message);
+          }
+        }
+
+        if (creatorEmail) {
+          emailService.sendQuoteCreatedEmail(createdQuote.id, creatorEmail).catch(err => {
+            console.error('Failed to send quote created email:', err.message);
+          });
+        }
       }
 
       return createdQuote;
