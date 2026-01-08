@@ -23,11 +23,13 @@ router.get('/', async (req, res) => {
       subcategory,
       brand,
       search,
-      page = 1,
-      limit = 50,
       sort_by = 'name',
       sort_order = 'ASC'
     } = req.query;
+
+    // Validate pagination params
+    const page = Math.max(1, parseInt(req.query.page) || 1);
+    const limit = Math.min(100, Math.max(1, parseInt(req.query.limit) || 50));
 
     const result = await VendorScraperService.getProducts({
       vendorSourceId: vendor_source_id ? parseInt(vendor_source_id) : null,
@@ -35,8 +37,8 @@ router.get('/', async (req, res) => {
       subcategory,
       brand,
       search,
-      page: parseInt(page),
-      limit: parseInt(limit),
+      page,
+      limit,
       sortBy: sort_by,
       sortOrder: sort_order
     });
@@ -102,16 +104,20 @@ router.get('/brands', async (req, res) => {
  */
 router.get('/search', async (req, res) => {
   try {
-    const { q, page = 1, limit = 50 } = req.query;
+    const { q } = req.query;
 
     if (!q) {
       return res.status(400).json({ error: 'Search query required' });
     }
 
+    // Validate pagination params
+    const page = Math.max(1, parseInt(req.query.page) || 1);
+    const limit = Math.min(100, Math.max(1, parseInt(req.query.limit) || 50));
+
     const result = await VendorScraperService.getProducts({
       search: q,
-      page: parseInt(page),
-      limit: parseInt(limit)
+      page,
+      limit
     });
 
     res.json(result);
@@ -219,34 +225,70 @@ router.post('/scrape', async (req, res) => {
       return res.status(400).json({ error: `Unsupported vendor: ${vendor}` });
     }
 
-    // Start scrape in background
+    // Start scrape in background with proper job tracking
     if (job_type === 'single_product' && model_number) {
-      // Single product scrape
+      // Create job record first
+      const job = await VendorScraperService.startScrapeJob(vendorSource.id, 'single_product');
+
+      // Single product scrape with status tracking
       scraper.scrapeSingleProduct(model_number, { downloadImages: download_images })
-        .then(result => console.log('Single product scrape completed:', result))
-        .catch(err => console.error('Single product scrape failed:', err))
-        .finally(() => VendorScraperService.closeBrowser());
+        .then(async (result) => {
+          await VendorScraperService.updateJobProgress(job.id, {
+            productsFound: 1,
+            productsScraped: 1,
+            productsFailed: 0,
+            imagesDownloaded: result?.images?.length || 0
+          });
+          await VendorScraperService.completeJob(job.id, 'completed');
+          await VendorScraperService.updateLastSync(vendorSource.id);
+          await VendorScraperService.closeBrowser();
+          console.log('Single product scrape completed:', result);
+        })
+        .catch(async (err) => {
+          await VendorScraperService.completeJob(job.id, 'failed', err.message);
+          await VendorScraperService.closeBrowser();
+          console.error('Single product scrape failed:', err);
+        });
 
       res.json({
         message: `Started single product scrape for ${model_number}`,
-        vendor: vendorSource.name
+        vendor: vendorSource.name,
+        jobId: job.id
       });
 
     } else {
-      // Full or category scrape
+      // Create job record first
+      const job = await VendorScraperService.startScrapeJob(vendorSource.id, job_type);
+
+      // Full or category scrape with status tracking
       scraper.scrapeFullCatalog({
         categories,
         maxProductsPerCategory: max_products,
         downloadImages: download_images
       })
-        .then(result => console.log('Full catalog scrape completed:', result))
-        .catch(err => console.error('Full catalog scrape failed:', err))
-        .finally(() => VendorScraperService.closeBrowser());
+        .then(async (result) => {
+          await VendorScraperService.updateJobProgress(job.id, {
+            productsFound: result?.found || 0,
+            productsScraped: result?.scraped || 0,
+            productsFailed: result?.failed || 0,
+            imagesDownloaded: result?.images || 0
+          });
+          await VendorScraperService.completeJob(job.id, 'completed');
+          await VendorScraperService.updateLastSync(vendorSource.id);
+          await VendorScraperService.closeBrowser();
+          console.log('Full catalog scrape completed:', result);
+        })
+        .catch(async (err) => {
+          await VendorScraperService.completeJob(job.id, 'failed', err.message);
+          await VendorScraperService.closeBrowser();
+          console.error('Full catalog scrape failed:', err);
+        });
 
       res.json({
         message: `Started ${job_type} scrape`,
         vendor: vendorSource.name,
-        categories: categories || 'all'
+        categories: categories || 'all',
+        jobId: job.id
       });
     }
 

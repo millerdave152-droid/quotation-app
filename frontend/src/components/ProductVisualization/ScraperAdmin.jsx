@@ -20,14 +20,12 @@ function ScraperAdmin({ onJobComplete }) {
 
   useEffect(() => {
     fetchStatus();
-    // Refresh status every 10 seconds while scraping
+    // Poll every 5 seconds to catch job status changes (even after page refresh)
     const interval = setInterval(() => {
-      if (scraping) {
-        fetchStatus();
-      }
-    }, 10000);
+      fetchStatus();
+    }, 5000);
     return () => clearInterval(interval);
-  }, [scraping]);
+  }, []);
 
   const fetchStatus = async () => {
     try {
@@ -40,6 +38,12 @@ function ScraperAdmin({ onJobComplete }) {
         const hasRunningJob = data.some(v =>
           v.recentJobs?.some(j => j.status === 'running')
         );
+
+        // Notify parent when job completes
+        if (!hasRunningJob && scraping && onJobComplete) {
+          onJobComplete();
+        }
+
         setScraping(hasRunningJob);
       }
     } catch (error) {

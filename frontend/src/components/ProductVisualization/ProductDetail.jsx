@@ -42,6 +42,14 @@ function ProductDetail({ productId, onBack }) {
     return `$${(cents / 100).toLocaleString('en-US', { minimumFractionDigits: 2 })}`;
   };
 
+  // Helper to get asset download URL - prefer local path over external URL
+  const getAssetDownloadUrl = (asset) => {
+    if (asset.local_path) {
+      return asset.local_path;
+    }
+    return asset.original_url;
+  };
+
   if (loading) {
     return (
       <div className="pd-loading">
@@ -210,7 +218,7 @@ function ProductDetail({ productId, onBack }) {
                 {assets.map((asset, idx) => (
                   <a
                     key={idx}
-                    href={asset.original_url || asset.local_path}
+                    href={getAssetDownloadUrl(asset)}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="pd-asset-item"
