@@ -2,6 +2,8 @@ import React, { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import companyConfig from '../../config/companyConfig';
+import NotificationBadge from './NotificationBadge';
+import NotificationDropdown from './NotificationDropdown';
 
 // Header Action Button Component
 const HeaderButton = ({ icon, badge, onClick, title }) => {
@@ -69,9 +71,25 @@ const UserDropdown = ({ user, onLogout }) => {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  const getInitials = (name) => {
-    if (!name) return 'U';
-    return name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
+  const getInitials = (user) => {
+    if (!user) return 'U';
+    // Handle both firstName/lastName and name formats
+    if (user.firstName && user.lastName) {
+      return `${user.firstName[0]}${user.lastName[0]}`.toUpperCase();
+    }
+    if (user.firstName) return user.firstName[0].toUpperCase();
+    if (user.name) return user.name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
+    if (user.email) return user.email[0].toUpperCase();
+    return 'U';
+  };
+
+  const getDisplayName = (user) => {
+    if (!user) return 'User';
+    if (user.firstName && user.lastName) return `${user.firstName} ${user.lastName}`;
+    if (user.firstName) return user.firstName;
+    if (user.name) return user.name;
+    if (user.email) return user.email.split('@')[0];
+    return 'User';
   };
 
   const menuItems = [
@@ -109,10 +127,10 @@ const UserDropdown = ({ user, onLogout }) => {
           fontSize: '12px',
           fontWeight: 'bold',
         }}>
-          {getInitials(user?.name || user?.username)}
+          {getInitials(user)}
         </div>
         <span style={{ fontSize: '14px', fontWeight: '500', color: '#374151' }}>
-          {user?.name || user?.username || 'John Doe'}
+          {getDisplayName(user)}
         </span>
         <span style={{ fontSize: '12px', color: '#9ca3af' }}>▼</span>
       </button>
@@ -134,11 +152,22 @@ const UserDropdown = ({ user, onLogout }) => {
           {/* User Info Header */}
           <div style={{ padding: '16px', borderBottom: '1px solid #e5e7eb' }}>
             <div style={{ fontWeight: '600', color: '#111827' }}>
-              {user?.name || user?.username || 'John Doe'}
+              {getDisplayName(user)}
             </div>
             <div style={{ fontSize: '13px', color: '#6b7280', marginTop: '2px' }}>
-              {user?.email || 'user@teletime.ca'}
+              {user?.email || 'user@company.com'}
             </div>
+            {user?.role && (
+              <div style={{
+                fontSize: '11px',
+                color: '#667eea',
+                marginTop: '4px',
+                textTransform: 'capitalize',
+                fontWeight: '500'
+              }}>
+                {user.role}
+              </div>
+            )}
           </div>
 
           {/* Menu Items */}
@@ -615,7 +644,7 @@ const AppsMenu = ({ isOpen, onClose, dropdownRef }) => {
 // Main Header Component
 const Header = ({ isMobile }) => {
   const { user, logout } = useAuth();
-  const [notificationCount] = useState(3); // TODO: Connect to notification context
+  const navigate = useNavigate();
 
   // Dropdown states
   const [notificationOpen, setNotificationOpen] = useState(false);
@@ -623,16 +652,12 @@ const Header = ({ isMobile }) => {
   const [appsOpen, setAppsOpen] = useState(false);
 
   // Refs for click-outside detection
-  const notificationRef = useRef(null);
   const helpRef = useRef(null);
   const appsRef = useRef(null);
 
   // Click outside handlers
   useEffect(() => {
     const handleClickOutside = (event) => {
-      if (notificationRef.current && !notificationRef.current.contains(event.target)) {
-        setNotificationOpen(false);
-      }
       if (helpRef.current && !helpRef.current.contains(event.target)) {
         setHelpOpen(false);
       }
@@ -646,6 +671,7 @@ const Header = ({ isMobile }) => {
 
   const handleLogout = () => {
     logout();
+    navigate('/login');
   };
 
   return (
@@ -737,21 +763,18 @@ const Header = ({ isMobile }) => {
         flexShrink: 0,
       }}>
         {/* Notifications */}
-        <div ref={notificationRef} style={{ position: 'relative' }}>
-          <HeaderButton
-            icon="🔔"
-            badge={notificationCount}
-            title="Notifications"
+        <div style={{ position: 'relative' }}>
+          <NotificationBadge
             onClick={() => {
               setNotificationOpen(!notificationOpen);
               setHelpOpen(false);
               setAppsOpen(false);
             }}
+            isOpen={notificationOpen}
           />
-          <NotificationPanel
+          <NotificationDropdown
             isOpen={notificationOpen}
             onClose={() => setNotificationOpen(false)}
-            dropdownRef={notificationRef}
           />
         </div>
 

@@ -3,7 +3,246 @@
  * Displays the list of quotations with filters, search, and actions
  */
 
-import React, { useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
+import BulkActionToolbar from './BulkActionToolbar';
+import FilterChips from './FilterChips';
+
+/**
+ * Tooltip wrapper component
+ */
+const Tooltip = ({ children, text }) => {
+  const [isVisible, setIsVisible] = useState(false);
+
+  return (
+    <div
+      style={{ position: 'relative', display: 'inline-block' }}
+      onMouseEnter={() => setIsVisible(true)}
+      onMouseLeave={() => setIsVisible(false)}
+    >
+      {children}
+      {isVisible && text && (
+        <div style={{
+          position: 'absolute',
+          bottom: '100%',
+          left: '50%',
+          transform: 'translateX(-50%)',
+          marginBottom: '6px',
+          padding: '6px 10px',
+          background: '#1f2937',
+          color: 'white',
+          fontSize: '11px',
+          fontWeight: '500',
+          borderRadius: '6px',
+          whiteSpace: 'nowrap',
+          zIndex: 1000,
+          boxShadow: '0 2px 8px rgba(0,0,0,0.2)'
+        }}>
+          {text}
+          {/* Arrow */}
+          <div style={{
+            position: 'absolute',
+            top: '100%',
+            left: '50%',
+            transform: 'translateX(-50%)',
+            borderWidth: '5px',
+            borderStyle: 'solid',
+            borderColor: '#1f2937 transparent transparent transparent'
+          }} />
+        </div>
+      )}
+    </div>
+  );
+};
+
+/**
+ * StatusBadge - Displays quote status with tooltip
+ */
+const StatusBadge = ({ status, createdAt }) => {
+  const statusConfig = {
+    DRAFT: { bg: '#3b82f6', text: 'white', label: 'DRAFT' },
+    SENT: { bg: '#8b5cf6', text: 'white', label: 'SENT' },
+    WON: { bg: '#10b981', text: 'white', label: 'WON' },
+    LOST: { bg: '#ef4444', text: 'white', label: 'LOST' },
+    PENDING_APPROVAL: { bg: '#f59e0b', text: 'white', label: 'PENDING' },
+    APPROVED: { bg: '#10b981', text: 'white', label: 'APPROVED' },
+    REJECTED: { bg: '#ef4444', text: 'white', label: 'REJECTED' }
+  };
+
+  const config = statusConfig[status] || { bg: '#6b7280', text: 'white', label: status };
+
+  const formatTooltipDate = (date) => {
+    if (!date) return 'Unknown date';
+    return new Date(date).toLocaleDateString('en-US', {
+      month: 'short',
+      day: 'numeric',
+      year: 'numeric'
+    });
+  };
+
+  return (
+    <Tooltip text={`Created on ${formatTooltipDate(createdAt)}`}>
+      <span style={{
+        display: 'inline-block',
+        padding: '4px 12px',
+        borderRadius: '9999px',
+        fontSize: '12px',
+        fontWeight: '600',
+        background: config.bg,
+        color: config.text,
+        cursor: 'default'
+      }}>
+        {config.label}
+      </span>
+    </Tooltip>
+  );
+};
+
+/**
+ * ExpiryBadge - Displays expiry status with tooltip (only for Draft/Sent)
+ */
+const ExpiryBadge = ({ expiresAt, status }) => {
+  // Only show for Draft and Sent quotes
+  if (status === 'WON' || status === 'LOST') return null;
+  if (!expiresAt) return null;
+
+  const expiryDate = new Date(expiresAt);
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  expiryDate.setHours(0, 0, 0, 0);
+
+  const diffTime = expiryDate - today;
+  const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+
+  // Not expiring soon and not expired - don't show badge
+  if (diffDays > 7) return null;
+
+  const isExpired = diffDays < 0;
+  const isExpiringSoon = diffDays >= 0 && diffDays <= 7;
+
+  const formatExpiryDate = (date) => {
+    return new Date(date).toLocaleDateString('en-US', {
+      month: 'short',
+      day: 'numeric',
+      year: 'numeric'
+    });
+  };
+
+  const getTooltipText = () => {
+    if (isExpired) {
+      const daysAgo = Math.abs(diffDays);
+      if (daysAgo === 0) return 'Expired today';
+      if (daysAgo === 1) return 'Expired yesterday';
+      return `Expired ${daysAgo} days ago`;
+    }
+    if (diffDays === 0) return 'Expires today';
+    if (diffDays === 1) return 'Expires tomorrow';
+    return `Expires on ${formatExpiryDate(expiresAt)}`;
+  };
+
+  if (isExpired) {
+    return (
+      <Tooltip text={getTooltipText()}>
+        <span style={{
+          display: 'inline-flex',
+          alignItems: 'center',
+          gap: '4px',
+          padding: '4px 10px',
+          borderRadius: '9999px',
+          fontSize: '11px',
+          fontWeight: '600',
+          background: '#dc2626',
+          color: 'white',
+          cursor: 'default'
+        }}>
+          <span style={{ fontSize: '12px' }}>&#128308;</span>
+          EXPIRED
+        </span>
+      </Tooltip>
+    );
+  }
+
+  if (isExpiringSoon) {
+    return (
+      <Tooltip text={getTooltipText()}>
+        <span style={{
+          display: 'inline-flex',
+          alignItems: 'center',
+          gap: '4px',
+          padding: '4px 10px',
+          borderRadius: '9999px',
+          fontSize: '11px',
+          fontWeight: '600',
+          background: '#f59e0b',
+          color: 'white',
+          cursor: 'default'
+        }}>
+          <span style={{ fontSize: '12px' }}>&#9200;</span>
+          {diffDays === 0 ? 'TODAY' : diffDays === 1 ? '1 DAY' : `${diffDays} DAYS`}
+        </span>
+      </Tooltip>
+    );
+  }
+
+  return null;
+};
+
+/**
+ * SearchMatchBadge - Shows which field matched the search
+ */
+const SearchMatchBadge = ({ match, searchTerm }) => {
+  if (!match || !match.type) return null;
+
+  const matchColors = {
+    quote_number: { bg: '#dbeafe', text: '#1d4ed8', icon: '#' },
+    customer_name: { bg: '#dcfce7', text: '#15803d', icon: '👤' },
+    customer_email: { bg: '#fef3c7', text: '#92400e', icon: '📧' },
+    customer_phone: { bg: '#f3e8ff', text: '#7c3aed', icon: '📞' },
+    customer_company: { bg: '#e0e7ff', text: '#4338ca', icon: '🏢' },
+    product: { bg: '#fce7f3', text: '#be185d', icon: '📦' },
+    internal_notes: { bg: '#fee2e2', text: '#dc2626', icon: '📝' },
+    notes: { bg: '#f3f4f6', text: '#374151', icon: '📋' }
+  };
+
+  const colors = matchColors[match.type] || { bg: '#f3f4f6', text: '#6b7280', icon: '🔍' };
+
+  return (
+    <div style={{ marginTop: '4px' }}>
+      <span style={{
+        display: 'inline-flex',
+        alignItems: 'center',
+        gap: '4px',
+        padding: '2px 8px',
+        borderRadius: '4px',
+        fontSize: '11px',
+        fontWeight: '500',
+        background: colors.bg,
+        color: colors.text
+      }}>
+        <span>{colors.icon}</span>
+        <span>Match: {match.field}</span>
+      </span>
+      {/* Show matched product details */}
+      {match.type === 'product' && match.matched_products && match.matched_products.length > 0 && (
+        <div style={{ marginTop: '2px' }}>
+          {match.matched_products.slice(0, 2).map((product, idx) => (
+            <div key={idx} style={{
+              fontSize: '10px',
+              color: '#6b7280',
+              paddingLeft: '12px'
+            }}>
+              • {product.manufacturer} {product.model || product.sku}
+            </div>
+          ))}
+          {match.matched_products.length > 2 && (
+            <div style={{ fontSize: '10px', color: '#9ca3af', paddingLeft: '12px' }}>
+              +{match.matched_products.length - 2} more
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+};
 
 const QuoteList = ({
   // Data
@@ -14,6 +253,7 @@ const QuoteList = ({
   // Filters
   searchTerm,
   setSearchTerm,
+  searchLoading = false,
   statusFilter,
   setStatusFilter,
   dateFilter,
@@ -38,6 +278,7 @@ const QuoteList = ({
   onViewQuote,
   onEditQuote,
   onDeleteQuote,
+  onViewDashboard,
   onViewAnalytics,
   onViewApprovals,
   onViewFollowUps,
@@ -45,10 +286,22 @@ const QuoteList = ({
   onClearFilters,
   getActiveFilterCount,
 
+  // Bulk selection
+  selectedIds = [],
+  onToggleSelect,
+  onSelectAll,
+  onClearSelection,
+  onBulkActionComplete,
+
   // Helpers
   formatCurrency,
   formatDate,
-  getStatusColor
+  getStatusColor,
+
+  // Filter chips
+  filterRefreshTrigger,
+  activeQuickFilter,
+  onQuickFilterChange
 }) => {
   // Filter and sort quotations
   const filteredQuotes = useMemo(() => {
@@ -99,6 +352,7 @@ const QuoteList = ({
         if (valueFilter === '1000-5000' && (total < 1000 || total > 5000)) return false;
         if (valueFilter === '5000-10000' && (total < 5000 || total > 10000)) return false;
         if (valueFilter === '10000+' && total < 10000) return false;
+        if (valueFilter === '5000+' && total < 5000) return false; // High value filter
       }
 
       // Expiring filter
@@ -112,7 +366,10 @@ const QuoteList = ({
       }
 
       // Customer filter
-      if (customerFilter !== 'all' && q.customer_id?.toString() !== customerFilter) {
+      if (customerFilter === 'none') {
+        // No customer filter - only show quotes without a customer
+        if (q.customer_id) return false;
+      } else if (customerFilter !== 'all' && q.customer_id?.toString() !== customerFilter) {
         return false;
       }
 
@@ -182,6 +439,25 @@ const QuoteList = ({
         </h1>
 
         <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
+          <button
+            onClick={onViewDashboard}
+            style={{
+              padding: '12px 24px',
+              background: '#0ea5e9',
+              color: 'white',
+              border: 'none',
+              borderRadius: '8px',
+              fontSize: '14px',
+              fontWeight: 'bold',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px'
+            }}
+          >
+            Dashboard
+          </button>
+
           <button
             onClick={onViewAnalytics}
             style={{
@@ -360,6 +636,24 @@ const QuoteList = ({
         </div>
       </div>
 
+      {/* Quick Filter Chips */}
+      <FilterChips
+        activeFilter={activeQuickFilter}
+        onFilterChange={onQuickFilterChange}
+        onRefreshTrigger={filterRefreshTrigger}
+        statusFilter={statusFilter}
+        setStatusFilter={setStatusFilter}
+        expiringFilter={expiringFilter}
+        setExpiringFilter={setExpiringFilter}
+        valueFilter={valueFilter}
+        setValueFilter={setValueFilter}
+        dateFilter={dateFilter}
+        setDateFilter={setDateFilter}
+        customerFilter={customerFilter}
+        setCustomerFilter={setCustomerFilter}
+        onClearFilters={onClearFilters}
+      />
+
       {/* Filters */}
       <div style={{
         background: 'white',
@@ -369,19 +663,38 @@ const QuoteList = ({
         boxShadow: '0 1px 3px rgba(0,0,0,0.1)'
       }}>
         <div style={{ display: 'flex', gap: '12px', marginBottom: '12px', flexWrap: 'wrap' }}>
-          <input
-            type="text"
-            placeholder="Search quotes or customers..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            style={{
-              flex: '1 1 250px',
-              padding: '12px',
-              border: '1px solid #d1d5db',
-              borderRadius: '8px',
-              fontSize: '14px'
-            }}
-          />
+          {/* Enhanced Search Input */}
+          <div style={{ flex: '0 1 350px', minWidth: '200px', position: 'relative', overflow: 'hidden' }}>
+            <input
+              type="text"
+              placeholder="Search by quote #, customer, phone, SKU, model, notes..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              style={{
+                width: '100%',
+                boxSizing: 'border-box',
+                padding: '12px 40px 12px 12px',
+                border: `2px solid ${searchTerm.length >= 2 ? '#3b82f6' : '#d1d5db'}`,
+                borderRadius: '8px',
+                fontSize: '14px',
+                transition: 'border-color 0.2s'
+              }}
+            />
+            {/* Search indicator */}
+            <div style={{
+              position: 'absolute',
+              right: '12px',
+              top: '50%',
+              transform: 'translateY(-50%)',
+              color: searchLoading ? '#3b82f6' : '#9ca3af'
+            }}>
+              {searchLoading ? (
+                <span style={{ animation: 'spin 1s linear infinite', display: 'inline-block' }}>⟳</span>
+              ) : (
+                <span>🔍</span>
+              )}
+            </div>
+          </div>
 
           <select
             value={statusFilter}
@@ -509,10 +822,52 @@ const QuoteList = ({
           </button>
 
           <span style={{ fontSize: '14px', color: '#6b7280' }}>
-            Showing {sortedQuotes.length} of {quotations.length}
+            Showing {sortedQuotes.length} {searchTerm && searchTerm.length >= 2 ? 'results' : `of ${quotations.length}`}
           </span>
         </div>
       </div>
+
+      {/* Search Info Banner */}
+      {searchTerm && searchTerm.length >= 2 && (
+        <div style={{
+          background: 'linear-gradient(135deg, #dbeafe 0%, #e0e7ff 100%)',
+          border: '1px solid #93c5fd',
+          borderRadius: '8px',
+          padding: '12px 16px',
+          marginBottom: '16px',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          gap: '12px'
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <span style={{ fontSize: '18px' }}>🔍</span>
+            <div>
+              <span style={{ fontWeight: '600', color: '#1e40af' }}>
+                Searching for "{searchTerm}"
+              </span>
+              <span style={{ marginLeft: '8px', fontSize: '13px', color: '#3b82f6' }}>
+                across quote #, customer, phone, email, SKU, model, notes
+              </span>
+            </div>
+          </div>
+          <button
+            onClick={() => setSearchTerm('')}
+            style={{
+              padding: '6px 12px',
+              background: 'white',
+              border: '1px solid #93c5fd',
+              borderRadius: '6px',
+              fontSize: '13px',
+              cursor: 'pointer',
+              color: '#1e40af',
+              fontWeight: '500'
+            }}
+          >
+            Clear Search
+          </button>
+        </div>
+      )}
 
       {/* Quote Table */}
       <div style={{
@@ -541,6 +896,23 @@ const QuoteList = ({
           <table style={{ width: '100%', borderCollapse: 'collapse' }}>
             <thead>
               <tr style={{ background: '#f9fafb', borderBottom: '1px solid #e5e7eb' }}>
+                {/* Checkbox column */}
+                <th style={{ padding: '16px', textAlign: 'center', width: '50px' }} onClick={(e) => e.stopPropagation()}>
+                  <input
+                    type="checkbox"
+                    checked={sortedQuotes.length > 0 && selectedIds.length === sortedQuotes.length}
+                    onChange={(e) => {
+                      e.stopPropagation();
+                      if (e.target.checked) {
+                        onSelectAll?.(sortedQuotes.map(q => q.id));
+                      } else {
+                        onClearSelection?.();
+                      }
+                    }}
+                    style={{ width: '18px', height: '18px', cursor: 'pointer' }}
+                    title={selectedIds.length === sortedQuotes.length ? 'Deselect all' : 'Select all'}
+                  />
+                </th>
                 <th style={{ padding: '16px', textAlign: 'left', fontSize: '14px', fontWeight: '600', color: '#374151' }}>
                   Quote #
                 </th>
@@ -563,13 +935,9 @@ const QuoteList = ({
             </thead>
             <tbody>
               {sortedQuotes.map((quote) => {
-                const expired = isExpired(quote.quote_expiry_date || quote.expires_at);
-                const statusColors = getStatusColor ? getStatusColor(quote.status) : {
-                  DRAFT: { bg: '#f3f4f6', text: '#6b7280' },
-                  SENT: { bg: '#dbeafe', text: '#1d4ed8' },
-                  WON: { bg: '#dcfce7', text: '#15803d' },
-                  LOST: { bg: '#fee2e2', text: '#dc2626' }
-                }[quote.status] || { bg: '#f3f4f6', text: '#6b7280' };
+                const expiryDate = quote.quote_expiry_date || quote.expires_at;
+                const expired = isExpired(expiryDate);
+                const isSelected = selectedIds.includes(quote.id);
 
                 return (
                   <tr
@@ -578,12 +946,36 @@ const QuoteList = ({
                       borderBottom: '1px solid #e5e7eb',
                       cursor: 'pointer',
                       transition: 'background 0.2s',
-                      background: expired && quote.status !== 'WON' && quote.status !== 'LOST' ? '#fef3c7' : 'white'
+                      background: isSelected
+                        ? '#eff6ff'
+                        : expired && quote.status !== 'WON' && quote.status !== 'LOST'
+                          ? '#fef3c7'
+                          : 'white'
                     }}
-                    onMouseEnter={(e) => e.currentTarget.style.background = '#f9fafb'}
-                    onMouseLeave={(e) => e.currentTarget.style.background = expired && quote.status !== 'WON' && quote.status !== 'LOST' ? '#fef3c7' : 'white'}
+                    onMouseEnter={(e) => {
+                      if (!isSelected) e.currentTarget.style.background = '#f9fafb';
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.background = isSelected
+                        ? '#eff6ff'
+                        : expired && quote.status !== 'WON' && quote.status !== 'LOST'
+                          ? '#fef3c7'
+                          : 'white';
+                    }}
                     onClick={() => onViewQuote(quote.id)}
                   >
+                    {/* Row checkbox */}
+                    <td style={{ padding: '16px', textAlign: 'center' }} onClick={(e) => e.stopPropagation()}>
+                      <input
+                        type="checkbox"
+                        checked={isSelected}
+                        onChange={(e) => {
+                          e.stopPropagation();
+                          onToggleSelect?.(quote.id);
+                        }}
+                        style={{ width: '18px', height: '18px', cursor: 'pointer' }}
+                      />
+                    </td>
                     <td style={{ padding: '16px' }}>
                       <div style={{ fontWeight: '600', color: '#3b82f6' }}>
                         {quote.quotation_number || quote.quote_number}
@@ -592,6 +984,10 @@ const QuoteList = ({
                         <div style={{ fontSize: '12px', color: '#9ca3af' }}>
                           {quote.item_count} item{quote.item_count !== 1 ? 's' : ''}
                         </div>
+                      )}
+                      {/* Search match indicator */}
+                      {quote.search_match && searchTerm && (
+                        <SearchMatchBadge match={quote.search_match} searchTerm={searchTerm} />
                       )}
                     </td>
                     <td style={{ padding: '16px' }}>
@@ -605,31 +1001,13 @@ const QuoteList = ({
                       )}
                     </td>
                     <td style={{ padding: '16px' }}>
-                      <span style={{
-                        display: 'inline-block',
-                        padding: '4px 12px',
-                        borderRadius: '9999px',
-                        fontSize: '12px',
-                        fontWeight: '600',
-                        background: statusColors.bg,
-                        color: statusColors.text
-                      }}>
-                        {quote.status}
-                      </span>
-                      {expired && quote.status !== 'WON' && quote.status !== 'LOST' && (
-                        <span style={{
-                          display: 'inline-block',
-                          marginLeft: '8px',
-                          padding: '4px 8px',
-                          borderRadius: '4px',
-                          fontSize: '10px',
-                          fontWeight: '600',
-                          background: '#dc2626',
-                          color: 'white'
-                        }}>
-                          EXPIRED
-                        </span>
-                      )}
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                        <StatusBadge status={quote.status} createdAt={quote.created_at} />
+                        <ExpiryBadge
+                          expiresAt={quote.quote_expiry_date || quote.expires_at}
+                          status={quote.status}
+                        />
+                      </div>
                     </td>
                     <td style={{ padding: '16px', textAlign: 'right' }}>
                       <div style={{ fontWeight: '600', color: '#111827' }}>
@@ -697,6 +1075,15 @@ const QuoteList = ({
           </table>
         )}
       </div>
+
+      {/* Bulk Action Toolbar */}
+      <BulkActionToolbar
+        selectedIds={selectedIds}
+        selectedQuotes={sortedQuotes.filter(q => selectedIds.includes(q.id))}
+        onClearSelection={onClearSelection}
+        onActionComplete={onBulkActionComplete}
+        formatCurrency={formatCurrency}
+      />
     </div>
   );
 };

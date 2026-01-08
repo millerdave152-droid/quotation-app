@@ -1,0 +1,515 @@
+/**
+ * CloneQuoteDialog Component
+ * Dialog for cloning a quote with options for customer selection
+ */
+
+import React, { useState, useEffect, useMemo } from 'react';
+
+const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:3001';
+
+const CloneQuoteDialog = ({
+  isOpen,
+  onClose,
+  quote,
+  customers = [],
+  onCloneComplete,
+  formatCurrency
+}) => {
+  const [cloneType, setCloneType] = useState('same'); // 'same' or 'new'
+  const [includeInternalNotes, setIncludeInternalNotes] = useState(false);
+  const [selectedCustomerId, setSelectedCustomerId] = useState(null);
+  const [customerSearchTerm, setCustomerSearchTerm] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
+
+  // Reset state when dialog opens
+  useEffect(() => {
+    if (isOpen) {
+      setCloneType('same');
+      setIncludeInternalNotes(false);
+      setSelectedCustomerId(null);
+      setCustomerSearchTerm('');
+      setError(null);
+    }
+  }, [isOpen]);
+
+  // Filter customers based on search
+  const filteredCustomers = useMemo(() => {
+    if (!customerSearchTerm) return customers.slice(0, 10);
+    const search = customerSearchTerm.toLowerCase();
+    return customers.filter(c =>
+      (c.name || '').toLowerCase().includes(search) ||
+      (c.email || '').toLowerCase().includes(search) ||
+      (c.company || '').toLowerCase().includes(search) ||
+      (c.phone || '').includes(search)
+    ).slice(0, 10);
+  }, [customers, customerSearchTerm]);
+
+  // Get selected customer details
+  const selectedCustomer = useMemo(() => {
+    if (!selectedCustomerId) return null;
+    return customers.find(c => c.id === selectedCustomerId);
+  }, [customers, selectedCustomerId]);
+
+  const handleClone = async () => {
+    setLoading(true);
+    setError(null);
+
+    try {
+      // Determine customer ID for clone
+      let newCustomerId = null;
+      if (cloneType === 'new') {
+        if (!selectedCustomerId) {
+          setError('Please select a customer for the new quote');
+          setLoading(false);
+          return;
+        }
+        newCustomerId = selectedCustomerId;
+      }
+
+      const response = await fetch(`${API_URL}/api/quotations/${quote.id}/clone`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          newCustomerId,
+          includeInternalNotes,
+          clonedBy: 'User'
+        })
+      });
+
+      if (!response.ok) {
+        const data = await response.json();
+        throw new Error(data.error || 'Failed to clone quote');
+      }
+
+      const result = await response.json();
+
+      // Call callback with the new quote
+      if (onCloneComplete) {
+        onCloneComplete(result.quote, result.message);
+      }
+
+      onClose();
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  if (!isOpen) return null;
+
+  return (
+    <div style={{
+      position: 'fixed',
+      top: 0,
+      left: 0,
+      right: 0,
+      bottom: 0,
+      background: 'rgba(0,0,0,0.5)',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      zIndex: 1000
+    }}>
+      <div style={{
+        background: 'white',
+        borderRadius: '12px',
+        width: '100%',
+        maxWidth: '500px',
+        maxHeight: '80vh',
+        overflow: 'hidden',
+        display: 'flex',
+        flexDirection: 'column',
+        boxShadow: '0 25px 50px -12px rgba(0,0,0,0.25)'
+      }}>
+        {/* Header */}
+        <div style={{
+          padding: '20px 24px',
+          borderBottom: '1px solid #e5e7eb',
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center'
+        }}>
+          <div>
+            <h2 style={{ margin: 0, fontSize: '20px', fontWeight: '600' }}>
+              Clone Quote
+            </h2>
+            <p style={{ margin: '4px 0 0', fontSize: '14px', color: '#6b7280' }}>
+              {quote?.quote_number || quote?.quotation_number}
+            </p>
+          </div>
+          <button
+            onClick={onClose}
+            style={{
+              background: 'none',
+              border: 'none',
+              fontSize: '24px',
+              cursor: 'pointer',
+              color: '#6b7280',
+              padding: '4px'
+            }}
+          >
+            &times;
+          </button>
+        </div>
+
+        {/* Content */}
+        <div style={{ padding: '24px', overflowY: 'auto', flex: 1 }}>
+          {/* Source Quote Info */}
+          <div style={{
+            background: '#f0f9ff',
+            border: '1px solid #bae6fd',
+            borderRadius: '8px',
+            padding: '12px 16px',
+            marginBottom: '20px'
+          }}>
+            <div style={{ fontSize: '13px', color: '#0369a1', fontWeight: '500' }}>
+              Cloning from: {quote?.quote_number || quote?.quotation_number}
+            </div>
+            <div style={{ fontSize: '12px', color: '#0284c7', marginTop: '4px' }}>
+              {quote?.items?.length || 0} items &bull; {formatCurrency ? formatCurrency(quote?.total_cents || 0) : `$${((quote?.total_cents || 0) / 100).toFixed(2)}`}
+            </div>
+          </div>
+
+          {/* Clone Type Selection */}
+          <div style={{ marginBottom: '20px' }}>
+            <label style={{
+              display: 'block',
+              fontSize: '14px',
+              fontWeight: '500',
+              marginBottom: '12px',
+              color: '#374151'
+            }}>
+              Clone Options
+            </label>
+
+            {/* Same Customer Option */}
+            <label style={{
+              display: 'flex',
+              alignItems: 'flex-start',
+              padding: '12px 16px',
+              border: `2px solid ${cloneType === 'same' ? '#3b82f6' : '#e5e7eb'}`,
+              borderRadius: '8px',
+              cursor: 'pointer',
+              marginBottom: '8px',
+              background: cloneType === 'same' ? '#eff6ff' : 'white',
+              transition: 'all 0.15s'
+            }}>
+              <input
+                type="radio"
+                name="cloneType"
+                checked={cloneType === 'same'}
+                onChange={() => setCloneType('same')}
+                style={{ marginTop: '2px', marginRight: '12px' }}
+              />
+              <div>
+                <div style={{ fontWeight: '500', fontSize: '14px' }}>
+                  Clone for same customer
+                </div>
+                <div style={{ fontSize: '12px', color: '#6b7280', marginTop: '2px' }}>
+                  Create a revised version for {quote?.customer_name || 'the same customer'}
+                </div>
+              </div>
+            </label>
+
+            {/* New Customer Option */}
+            <label style={{
+              display: 'flex',
+              alignItems: 'flex-start',
+              padding: '12px 16px',
+              border: `2px solid ${cloneType === 'new' ? '#3b82f6' : '#e5e7eb'}`,
+              borderRadius: '8px',
+              cursor: 'pointer',
+              background: cloneType === 'new' ? '#eff6ff' : 'white',
+              transition: 'all 0.15s'
+            }}>
+              <input
+                type="radio"
+                name="cloneType"
+                checked={cloneType === 'new'}
+                onChange={() => setCloneType('new')}
+                style={{ marginTop: '2px', marginRight: '12px' }}
+              />
+              <div>
+                <div style={{ fontWeight: '500', fontSize: '14px' }}>
+                  Clone for different customer
+                </div>
+                <div style={{ fontSize: '12px', color: '#6b7280', marginTop: '2px' }}>
+                  Use this quote as a template for a new customer
+                </div>
+              </div>
+            </label>
+          </div>
+
+          {/* Customer Selector (when new customer selected) */}
+          {cloneType === 'new' && (
+            <div style={{ marginBottom: '20px' }}>
+              <label style={{
+                display: 'block',
+                fontSize: '14px',
+                fontWeight: '500',
+                marginBottom: '8px',
+                color: '#374151'
+              }}>
+                Select Customer *
+              </label>
+              <input
+                type="text"
+                placeholder="Search customers by name, email, or phone..."
+                value={customerSearchTerm}
+                onChange={(e) => setCustomerSearchTerm(e.target.value)}
+                style={{
+                  width: '100%',
+                  padding: '10px 12px',
+                  border: '1px solid #d1d5db',
+                  borderRadius: '6px',
+                  fontSize: '14px',
+                  marginBottom: '8px'
+                }}
+              />
+              <div style={{
+                maxHeight: '150px',
+                overflowY: 'auto',
+                border: '1px solid #e5e7eb',
+                borderRadius: '6px'
+              }}>
+                {filteredCustomers.length === 0 ? (
+                  <div style={{
+                    padding: '12px',
+                    textAlign: 'center',
+                    color: '#6b7280',
+                    fontSize: '13px'
+                  }}>
+                    No customers found
+                  </div>
+                ) : (
+                  filteredCustomers.map(customer => (
+                    <div
+                      key={customer.id}
+                      onClick={() => setSelectedCustomerId(customer.id)}
+                      style={{
+                        padding: '10px 12px',
+                        cursor: 'pointer',
+                        background: selectedCustomerId === customer.id ? '#eff6ff' : 'white',
+                        borderBottom: '1px solid #f3f4f6',
+                        transition: 'background 0.1s'
+                      }}
+                      onMouseEnter={(e) => {
+                        if (selectedCustomerId !== customer.id) {
+                          e.currentTarget.style.background = '#f9fafb';
+                        }
+                      }}
+                      onMouseLeave={(e) => {
+                        if (selectedCustomerId !== customer.id) {
+                          e.currentTarget.style.background = 'white';
+                        }
+                      }}
+                    >
+                      <div style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '8px'
+                      }}>
+                        {selectedCustomerId === customer.id && (
+                          <span style={{ color: '#3b82f6' }}>&#10003;</span>
+                        )}
+                        <div>
+                          <div style={{ fontWeight: '500', fontSize: '14px' }}>
+                            {customer.name}
+                          </div>
+                          <div style={{ fontSize: '12px', color: '#6b7280' }}>
+                            {customer.email || customer.phone || customer.company || 'No contact info'}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+              {selectedCustomer && (
+                <div style={{
+                  marginTop: '8px',
+                  padding: '8px 12px',
+                  background: '#ecfdf5',
+                  borderRadius: '6px',
+                  fontSize: '13px',
+                  color: '#047857'
+                }}>
+                  Selected: <strong>{selectedCustomer.name}</strong>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Include Internal Notes Checkbox */}
+          <div style={{ marginBottom: '16px' }}>
+            <label style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px',
+              cursor: 'pointer'
+            }}>
+              <input
+                type="checkbox"
+                checked={includeInternalNotes}
+                onChange={(e) => setIncludeInternalNotes(e.target.checked)}
+                style={{ width: '16px', height: '16px' }}
+              />
+              <span style={{ fontSize: '14px' }}>
+                Include internal notes in cloned quote
+              </span>
+            </label>
+          </div>
+
+          {/* What will be copied */}
+          <div style={{
+            background: '#f9fafb',
+            borderRadius: '8px',
+            padding: '12px 16px',
+            marginBottom: '16px'
+          }}>
+            <div style={{
+              fontSize: '13px',
+              fontWeight: '500',
+              color: '#374151',
+              marginBottom: '8px'
+            }}>
+              What will be copied:
+            </div>
+            <ul style={{
+              margin: 0,
+              paddingLeft: '20px',
+              fontSize: '12px',
+              color: '#6b7280',
+              lineHeight: '1.6'
+            }}>
+              <li>All line items with quantities and prices</li>
+              <li>Delivery options and payment terms</li>
+              <li>Customer notes and terms & conditions</li>
+              <li>Quote settings (watermark, model hiding)</li>
+              {includeInternalNotes && <li>Internal notes</li>}
+            </ul>
+          </div>
+
+          {/* What will be new */}
+          <div style={{
+            background: '#fffbeb',
+            borderRadius: '8px',
+            padding: '12px 16px'
+          }}>
+            <div style={{
+              fontSize: '13px',
+              fontWeight: '500',
+              color: '#92400e',
+              marginBottom: '8px'
+            }}>
+              New quote will have:
+            </div>
+            <ul style={{
+              margin: 0,
+              paddingLeft: '20px',
+              fontSize: '12px',
+              color: '#a16207',
+              lineHeight: '1.6'
+            }}>
+              <li>New quote number (auto-generated)</li>
+              <li>Status set to Draft</li>
+              <li>Today's date as created date</li>
+              <li>Expiry date 30 days from now</li>
+            </ul>
+          </div>
+
+          {/* Error Message */}
+          {error && (
+            <div style={{
+              marginTop: '16px',
+              padding: '12px',
+              background: '#fef2f2',
+              border: '1px solid #fecaca',
+              borderRadius: '6px',
+              color: '#dc2626',
+              fontSize: '13px'
+            }}>
+              {error}
+            </div>
+          )}
+        </div>
+
+        {/* Footer */}
+        <div style={{
+          padding: '16px 24px',
+          borderTop: '1px solid #e5e7eb',
+          display: 'flex',
+          justifyContent: 'flex-end',
+          gap: '12px'
+        }}>
+          <button
+            onClick={onClose}
+            disabled={loading}
+            style={{
+              padding: '10px 20px',
+              border: '1px solid #d1d5db',
+              borderRadius: '6px',
+              background: 'white',
+              color: '#374151',
+              fontSize: '14px',
+              fontWeight: '500',
+              cursor: loading ? 'not-allowed' : 'pointer',
+              opacity: loading ? 0.5 : 1
+            }}
+          >
+            Cancel
+          </button>
+          <button
+            onClick={handleClone}
+            disabled={loading || (cloneType === 'new' && !selectedCustomerId)}
+            style={{
+              padding: '10px 24px',
+              border: 'none',
+              borderRadius: '6px',
+              background: loading || (cloneType === 'new' && !selectedCustomerId)
+                ? '#9ca3af'
+                : '#3b82f6',
+              color: 'white',
+              fontSize: '14px',
+              fontWeight: '500',
+              cursor: loading || (cloneType === 'new' && !selectedCustomerId)
+                ? 'not-allowed'
+                : 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px'
+            }}
+          >
+            {loading ? (
+              <>
+                <span style={{
+                  width: '16px',
+                  height: '16px',
+                  border: '2px solid white',
+                  borderTopColor: 'transparent',
+                  borderRadius: '50%',
+                  animation: 'spin 1s linear infinite'
+                }} />
+                Cloning...
+              </>
+            ) : (
+              <>Clone Quote</>
+            )}
+          </button>
+        </div>
+      </div>
+
+      <style>
+        {`
+          @keyframes spin {
+            to { transform: rotate(360deg); }
+          }
+        `}
+      </style>
+    </div>
+  );
+};
+
+export default CloneQuoteDialog;

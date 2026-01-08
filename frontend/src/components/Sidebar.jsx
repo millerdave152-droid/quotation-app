@@ -1,5 +1,8 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
+import { useAuth } from '../contexts/AuthContext';
+
+const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:3001';
 
 /**
  * Responsive Sidebar Navigation Component
@@ -7,11 +10,15 @@ import { NavLink, useLocation } from 'react-router-dom';
  * - Tablet/Mobile: Hamburger menu with slide-out drawer
  */
 
-const navItems = [
+const baseNavItems = [
   { path: '/dashboard', icon: '📈', label: 'Dashboard' },
   { path: '/customers', icon: '👥', label: 'Customers' },
   { path: '/products', icon: '🏷️', label: 'Products' },
-  { path: '/quotes', icon: '📋', label: 'Quotations' },
+  { path: '/product-visualization', icon: '🖼️', label: 'Product Gallery' },
+  { path: '/quotes', icon: '📋', label: 'Quotations', hasBadge: true },
+  { path: '/invoices', icon: '🧾', label: 'Invoices' },
+  { path: '/inventory', icon: '📦', label: 'Inventory' },
+  { path: '/pricing', icon: '💲', label: 'Pricing Rules' },
   { path: '/analytics', icon: '📊', label: 'Analytics' },
   { path: '/marketplace', icon: '🛒', label: 'Marketplace' },
   { path: '/reports', icon: '📑', label: 'Reports' },
@@ -19,10 +26,57 @@ const navItems = [
   { path: '/features', icon: '🚀', label: '2026 Features', isSpecial: true },
 ];
 
-const Sidebar = ({ children }) => {
+// Admin-only nav items
+const adminNavItems = [
+  { path: '/admin/users', icon: '👤', label: 'User Management', isAdmin: true },
+];
+
+const Sidebar = ({ children, isLayoutMode = false }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [isMobile, setIsMobile] = useState(window.innerWidth < 1024);
+  const [pendingApprovalsCount, setPendingApprovalsCount] = useState(0);
   const location = useLocation();
+  const { isAdmin, canApproveQuotes, user } = useAuth();
+
+  // Fetch pending approvals count for supervisors
+  const fetchPendingApprovals = useCallback(async () => {
+    if (!canApproveQuotes) return;
+
+    try {
+      const token = localStorage.getItem('token');
+      if (!token) return;
+
+      const response = await fetch(`${API_URL}/api/counter-offers/pending`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+
+      const data = await response.json();
+      if (data.success) {
+        setPendingApprovalsCount(data.data?.counterOffers?.length || 0);
+      }
+    } catch (err) {
+      console.error('Error fetching pending approvals:', err);
+    }
+  }, [canApproveQuotes]);
+
+  // Fetch on mount and periodically
+  useEffect(() => {
+    fetchPendingApprovals();
+    const interval = setInterval(fetchPendingApprovals, 60000); // Every minute
+    return () => clearInterval(interval);
+  }, [fetchPendingApprovals]);
+
+  // Build nav items based on user role
+  const navItems = useMemo(() => {
+    const items = [...baseNavItems];
+    if (isAdmin) {
+      items.push(...adminNavItems);
+    }
+    return items;
+  }, [isAdmin]);
+
+  // In layout mode, render only the sidebar navigation (no wrapper)
+  // This is used when MainLayout handles the overall layout
 
   // Close sidebar when route changes on mobile
   useEffect(() => {
@@ -79,6 +133,68 @@ const Sidebar = ({ children }) => {
     boxShadow: isActive ? '0 4px 12px rgba(102, 126, 234, 0.3)' : 'none',
   });
 
+  // Layout Mode: Render only the sidebar navigation panel
+  if (isLayoutMode) {
+    return (
+      <aside
+        style={{
+          position: 'sticky',
+          top: '64px', // Below the header
+          height: 'calc(100vh - 64px)',
+          width: '280px',
+          background: 'white',
+          boxShadow: '2px 0 8px rgba(0,0,0,0.05)',
+          display: 'flex',
+          flexDirection: 'column',
+          overflowY: 'auto',
+          flexShrink: 0,
+        }}
+      >
+        {/* Navigation Links */}
+        <nav style={{ padding: '16px 12px', flex: 1 }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+            {navItems.map((item) => (
+              <NavLink
+                key={item.path}
+                to={item.path}
+                style={({ isActive }) => navLinkStyle(isActive, item.isSpecial)}
+              >
+                <span style={{ fontSize: '20px' }}>{item.icon}</span>
+                <span style={{ flex: 1 }}>{item.label}</span>
+                {item.hasBadge && canApproveQuotes && pendingApprovalsCount > 0 && (
+                  <span style={{
+                    background: '#ef4444',
+                    color: 'white',
+                    fontSize: '11px',
+                    fontWeight: 'bold',
+                    padding: '2px 8px',
+                    borderRadius: '10px',
+                    minWidth: '20px',
+                    textAlign: 'center'
+                  }}>
+                    {pendingApprovalsCount}
+                  </span>
+                )}
+              </NavLink>
+            ))}
+          </div>
+        </nav>
+
+        {/* Sidebar Footer */}
+        <div style={{
+          padding: '16px 20px',
+          borderTop: '1px solid #e5e7eb',
+          fontSize: '12px',
+          color: '#9ca3af',
+        }}>
+          <div>Enterprise Edition</div>
+          <div style={{ marginTop: '4px' }}>v2.0.0</div>
+        </div>
+      </aside>
+    );
+  }
+
+  // Legacy Mode: Full wrapper with mobile support (for backwards compatibility)
   return (
     <div style={{ display: 'flex', minHeight: '100vh' }}>
       {/* Mobile Header with Hamburger */}
@@ -223,7 +339,21 @@ const Sidebar = ({ children }) => {
                 style={({ isActive }) => navLinkStyle(isActive, item.isSpecial)}
               >
                 <span style={{ fontSize: '20px' }}>{item.icon}</span>
-                <span>{item.label}</span>
+                <span style={{ flex: 1 }}>{item.label}</span>
+                {item.hasBadge && canApproveQuotes && pendingApprovalsCount > 0 && (
+                  <span style={{
+                    background: '#ef4444',
+                    color: 'white',
+                    fontSize: '11px',
+                    fontWeight: 'bold',
+                    padding: '2px 8px',
+                    borderRadius: '10px',
+                    minWidth: '20px',
+                    textAlign: 'center'
+                  }}>
+                    {pendingApprovalsCount}
+                  </span>
+                )}
               </NavLink>
             ))}
           </div>

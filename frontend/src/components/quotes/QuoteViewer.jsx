@@ -3,10 +3,204 @@
  * Displays quote details, items, revenue features, and actions
  */
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { previewQuotePDF, downloadQuotePDF } from '../../services/pdfService';
 import { toast } from '../ui/Toast';
 import logger from '../../utils/logger';
+import VersionHistory from './VersionHistory';
+
+const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:3001';
+
+/**
+ * Tooltip wrapper component
+ */
+const Tooltip = ({ children, text }) => {
+  const [isVisible, setIsVisible] = useState(false);
+
+  return (
+    <div
+      style={{ position: 'relative', display: 'inline-block' }}
+      onMouseEnter={() => setIsVisible(true)}
+      onMouseLeave={() => setIsVisible(false)}
+    >
+      {children}
+      {isVisible && text && (
+        <div style={{
+          position: 'absolute',
+          bottom: '100%',
+          left: '50%',
+          transform: 'translateX(-50%)',
+          marginBottom: '6px',
+          padding: '6px 10px',
+          background: '#1f2937',
+          color: 'white',
+          fontSize: '11px',
+          fontWeight: '500',
+          borderRadius: '6px',
+          whiteSpace: 'nowrap',
+          zIndex: 1000,
+          boxShadow: '0 2px 8px rgba(0,0,0,0.2)'
+        }}>
+          {text}
+          <div style={{
+            position: 'absolute',
+            top: '100%',
+            left: '50%',
+            transform: 'translateX(-50%)',
+            borderWidth: '5px',
+            borderStyle: 'solid',
+            borderColor: '#1f2937 transparent transparent transparent'
+          }} />
+        </div>
+      )}
+    </div>
+  );
+};
+
+/**
+ * StatusBadge - Displays quote status with tooltip
+ */
+const StatusBadge = ({ status, createdAt, size = 'normal' }) => {
+  const statusConfig = {
+    DRAFT: { bg: '#3b82f6', text: 'white', label: 'DRAFT' },
+    SENT: { bg: '#8b5cf6', text: 'white', label: 'SENT' },
+    WON: { bg: '#10b981', text: 'white', label: 'WON' },
+    LOST: { bg: '#ef4444', text: 'white', label: 'LOST' },
+    PENDING_APPROVAL: { bg: '#f59e0b', text: 'white', label: 'PENDING' },
+    APPROVED: { bg: '#10b981', text: 'white', label: 'APPROVED' },
+    REJECTED: { bg: '#ef4444', text: 'white', label: 'REJECTED' }
+  };
+
+  const config = statusConfig[status] || { bg: '#6b7280', text: 'white', label: status };
+
+  const formatTooltipDate = (date) => {
+    if (!date) return 'Unknown date';
+    return new Date(date).toLocaleDateString('en-US', {
+      month: 'short',
+      day: 'numeric',
+      year: 'numeric'
+    });
+  };
+
+  const sizeStyles = {
+    small: { padding: '2px 8px', fontSize: '12px' },
+    normal: { padding: '4px 12px', fontSize: '12px' },
+    large: { padding: '6px 16px', fontSize: '14px' }
+  };
+
+  const style = sizeStyles[size] || sizeStyles.normal;
+
+  return (
+    <Tooltip text={`Created on ${formatTooltipDate(createdAt)}`}>
+      <span style={{
+        display: 'inline-block',
+        ...style,
+        borderRadius: '9999px',
+        fontWeight: '600',
+        background: config.bg,
+        color: config.text,
+        cursor: 'default'
+      }}>
+        {config.label}
+      </span>
+    </Tooltip>
+  );
+};
+
+/**
+ * ExpiryBadge - Displays expiry status with tooltip (only for Draft/Sent)
+ */
+const ExpiryBadge = ({ expiresAt, status, size = 'normal' }) => {
+  if (status === 'WON' || status === 'LOST') return null;
+  if (!expiresAt) return null;
+
+  const expiryDate = new Date(expiresAt);
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  expiryDate.setHours(0, 0, 0, 0);
+
+  const diffTime = expiryDate - today;
+  const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+
+  if (diffDays > 7) return null;
+
+  const isExpired = diffDays < 0;
+  const isExpiringSoon = diffDays >= 0 && diffDays <= 7;
+
+  const formatExpiryDate = (date) => {
+    return new Date(date).toLocaleDateString('en-US', {
+      month: 'short',
+      day: 'numeric',
+      year: 'numeric'
+    });
+  };
+
+  const getTooltipText = () => {
+    if (isExpired) {
+      const daysAgo = Math.abs(diffDays);
+      if (daysAgo === 0) return 'Expired today';
+      if (daysAgo === 1) return 'Expired yesterday';
+      return `Expired ${daysAgo} days ago`;
+    }
+    if (diffDays === 0) return 'Expires today';
+    if (diffDays === 1) return 'Expires tomorrow';
+    return `Expires on ${formatExpiryDate(expiresAt)}`;
+  };
+
+  const sizeStyles = {
+    small: { padding: '2px 8px', fontSize: '11px', iconSize: '11px' },
+    normal: { padding: '4px 10px', fontSize: '11px', iconSize: '12px' },
+    large: { padding: '6px 14px', fontSize: '13px', iconSize: '14px' }
+  };
+
+  const style = sizeStyles[size] || sizeStyles.normal;
+
+  if (isExpired) {
+    return (
+      <Tooltip text={getTooltipText()}>
+        <span style={{
+          display: 'inline-flex',
+          alignItems: 'center',
+          gap: '4px',
+          padding: style.padding,
+          borderRadius: '9999px',
+          fontSize: style.fontSize,
+          fontWeight: '600',
+          background: '#dc2626',
+          color: 'white',
+          cursor: 'default'
+        }}>
+          <span style={{ fontSize: style.iconSize }}>&#128308;</span>
+          EXPIRED
+        </span>
+      </Tooltip>
+    );
+  }
+
+  if (isExpiringSoon) {
+    return (
+      <Tooltip text={getTooltipText()}>
+        <span style={{
+          display: 'inline-flex',
+          alignItems: 'center',
+          gap: '4px',
+          padding: style.padding,
+          borderRadius: '9999px',
+          fontSize: style.fontSize,
+          fontWeight: '600',
+          background: '#f59e0b',
+          color: 'white',
+          cursor: 'default'
+        }}>
+          <span style={{ fontSize: style.iconSize }}>&#9200;</span>
+          {diffDays === 0 ? 'TODAY' : diffDays === 1 ? '1 DAY' : `${diffDays} DAYS`}
+        </span>
+      </Tooltip>
+    );
+  }
+
+  return null;
+};
 
 const QuoteViewer = ({
   // Data
@@ -29,7 +223,11 @@ const QuoteViewer = ({
   setShowAddEventDialog,
   newEventDescription,
   setNewEventDescription,
-  onSaveEvent
+  onSaveEvent,
+
+  // Version history
+  onVersionRestore,
+  formatCurrency
 }) => {
   // Loading states for PDF operations
   const [pdfLoading, setPdfLoading] = useState({
@@ -39,11 +237,40 @@ const QuoteViewer = ({
     downloadInternal: false
   });
 
+  // Version history toggle
+  const [showVersionHistory, setShowVersionHistory] = useState(false);
+
   // Status change dialog states
   const [showStatusDialog, setShowStatusDialog] = useState(false);
   const [pendingStatus, setPendingStatus] = useState(null);
   const [lostReason, setLostReason] = useState('');
   const [statusLoading, setStatusLoading] = useState(false);
+
+  // Signatures state
+  const [signatures, setSignatures] = useState([]);
+  const [signaturesLoading, setSignaturesLoading] = useState(false);
+
+  // Fetch signatures when quote is loaded
+  useEffect(() => {
+    const fetchSignatures = async () => {
+      if (!quote?.id) return;
+
+      setSignaturesLoading(true);
+      try {
+        const response = await fetch(`${API_URL}/api/quotations/${quote.id}/signatures`);
+        if (response.ok) {
+          const data = await response.json();
+          setSignatures(data.signatures || []);
+        }
+      } catch (error) {
+        logger.error('Error fetching signatures:', error);
+      } finally {
+        setSignaturesLoading(false);
+      }
+    };
+
+    fetchSignatures();
+  }, [quote?.id]);
 
   if (!quote) return null;
 
@@ -323,18 +550,26 @@ const QuoteViewer = ({
                   </span>
                 )}
               </div>
-              <div>
-                Status: <span style={{
-                  padding: '2px 8px',
-                  borderRadius: '8px',
-                  fontSize: '12px',
-                  fontWeight: 'bold',
-                  background: statusStyle.bg,
-                  color: statusStyle.color
-                }}>
-                  {quote.status}
-                </span>
+              <div style={{ marginBottom: '4px', display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                <span>Status:</span>
+                <StatusBadge status={quote.status} createdAt={quote.created_at} size="small" />
+                <ExpiryBadge expiresAt={quote.expires_at} status={quote.status} size="small" />
               </div>
+              {quote.created_by && (
+                <div style={{ marginBottom: '4px' }}>
+                  Created by: <span style={{ fontWeight: '500' }}>{quote.created_by}</span>
+                </div>
+              )}
+              {quote.modified_by && (
+                <div style={{ marginBottom: '4px' }}>
+                  Last modified by: <span style={{ fontWeight: '500' }}>{quote.modified_by}</span>
+                  {quote.updated_at && quote.updated_at !== quote.created_at && (
+                    <span style={{ marginLeft: '8px', fontSize: '12px' }}>
+                      ({formatDate(quote.updated_at)})
+                    </span>
+                  )}
+                </div>
+              )}
             </div>
           </div>
         </div>
@@ -516,6 +751,99 @@ const QuoteViewer = ({
         </div>
       )}
 
+      {/* Signatures Section */}
+      {signatures.length > 0 && (
+        <div style={{
+          background: 'white',
+          padding: '24px',
+          borderRadius: '12px',
+          marginBottom: '24px',
+          boxShadow: '0 1px 3px rgba(0,0,0,0.1)',
+          border: '2px solid #10b981'
+        }}>
+          <h3 style={{ fontSize: '18px', fontWeight: 'bold', marginBottom: '16px', color: '#059669', display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <span style={{ fontSize: '20px' }}>✍️</span>
+            Signatures ({signatures.length})
+          </h3>
+
+          <div style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))',
+            gap: '16px'
+          }}>
+            {signatures.map((sig) => (
+              <div
+                key={sig.id}
+                style={{
+                  padding: '16px',
+                  background: '#f9fafb',
+                  borderRadius: '12px',
+                  border: '1px solid #e5e7eb'
+                }}
+              >
+                {/* Signature Type Badge */}
+                <div style={{ marginBottom: '12px' }}>
+                  <span style={{
+                    display: 'inline-block',
+                    padding: '4px 12px',
+                    background: sig.signature_type === 'staff' ? '#dbeafe' : '#d1fae5',
+                    color: sig.signature_type === 'staff' ? '#1e40af' : '#065f46',
+                    borderRadius: '12px',
+                    fontSize: '12px',
+                    fontWeight: '700',
+                    textTransform: 'uppercase'
+                  }}>
+                    {sig.signature_type === 'staff' ? 'Staff Signature' : 'Customer Signature'}
+                  </span>
+                </div>
+
+                {/* Signature Image */}
+                {sig.signature_data && (
+                  <div style={{
+                    background: 'white',
+                    borderRadius: '8px',
+                    padding: '8px',
+                    marginBottom: '12px',
+                    border: '1px solid #d1d5db'
+                  }}>
+                    <img
+                      src={sig.signature_data}
+                      alt={`Signature by ${sig.signer_name}`}
+                      style={{
+                        width: '100%',
+                        maxHeight: '80px',
+                        objectFit: 'contain'
+                      }}
+                    />
+                  </div>
+                )}
+
+                {/* Signer Info */}
+                <div style={{ fontSize: '14px' }}>
+                  <div style={{ fontWeight: '600', color: '#1f2937', marginBottom: '4px' }}>
+                    {sig.signer_name}
+                  </div>
+                  {sig.signer_email && (
+                    <div style={{ color: '#6b7280', fontSize: '13px', marginBottom: '4px' }}>
+                      {sig.signer_email}
+                    </div>
+                  )}
+                  <div style={{ color: '#9ca3af', fontSize: '12px' }}>
+                    Signed: {new Date(sig.signed_at).toLocaleString('en-US', {
+                      year: 'numeric',
+                      month: 'short',
+                      day: 'numeric',
+                      hour: '2-digit',
+                      minute: '2-digit'
+                    })}
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* PDF Options */}
       <div style={{
         background: 'white',
@@ -661,21 +989,13 @@ const QuoteViewer = ({
           marginBottom: '20px',
           padding: '16px',
           background: '#f9fafb',
-          borderRadius: '8px'
+          borderRadius: '8px',
+          flexWrap: 'wrap'
         }}>
-          <div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
             <span style={{ fontSize: '14px', color: '#6b7280' }}>Current Status:</span>
-            <span style={{
-              marginLeft: '8px',
-              padding: '6px 16px',
-              borderRadius: '20px',
-              fontSize: '14px',
-              fontWeight: 'bold',
-              background: statusStyle.bg,
-              color: statusStyle.color
-            }}>
-              {quote.status}
-            </span>
+            <StatusBadge status={quote.status} createdAt={quote.created_at} size="large" />
+            <ExpiryBadge expiresAt={quote.expires_at} status={quote.status} size="large" />
           </div>
 
           {/* Status Dates */}
@@ -718,10 +1038,10 @@ const QuoteViewer = ({
           </button>
 
           <button
-            onClick={() => onDuplicate?.(quote.id)}
+            onClick={() => onDuplicate?.(quote)}
             style={{
               padding: '12px 24px',
-              background: '#06b6d4',
+              background: 'linear-gradient(135deg, #06b6d4 0%, #0891b2 100%)',
               color: 'white',
               border: 'none',
               borderRadius: '8px',
@@ -729,10 +1049,23 @@ const QuoteViewer = ({
               cursor: 'pointer',
               display: 'flex',
               alignItems: 'center',
-              gap: '8px'
+              gap: '8px',
+              boxShadow: '0 2px 4px rgba(6, 182, 212, 0.3)'
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.transform = 'translateY(-1px)';
+              e.currentTarget.style.boxShadow = '0 4px 8px rgba(6, 182, 212, 0.4)';
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.transform = 'translateY(0)';
+              e.currentTarget.style.boxShadow = '0 2px 4px rgba(6, 182, 212, 0.3)';
             }}
           >
-            <span>Duplicate</span>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/>
+              <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
+            </svg>
+            <span>Clone Quote</span>
           </button>
         </div>
 
@@ -1075,6 +1408,76 @@ const QuoteViewer = ({
           </div>
         </div>
       )}
+
+      {/* Version History Section */}
+      <div style={{
+        background: 'white',
+        padding: '24px',
+        borderRadius: '12px',
+        marginBottom: '24px',
+        boxShadow: '0 1px 3px rgba(0,0,0,0.1)',
+        border: '2px solid #e0e7ff'
+      }}>
+        <div
+          style={{
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            cursor: 'pointer'
+          }}
+          onClick={() => setShowVersionHistory(!showVersionHistory)}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+            <span style={{ fontSize: '24px' }}>📜</span>
+            <div>
+              <h3 style={{ fontSize: '18px', fontWeight: 'bold', margin: 0, color: '#3730a3' }}>
+                Version History
+              </h3>
+              <div style={{ fontSize: '13px', color: '#6b7280', marginTop: '2px' }}>
+                {quote.current_version ? `Current: v${quote.current_version}` : 'Track changes to this quote'}
+              </div>
+            </div>
+          </div>
+          <button
+            style={{
+              padding: '8px 16px',
+              background: showVersionHistory ? '#4f46e5' : '#e0e7ff',
+              color: showVersionHistory ? 'white' : '#4f46e5',
+              border: 'none',
+              borderRadius: '6px',
+              fontSize: '13px',
+              fontWeight: '600',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px'
+            }}
+          >
+            <span style={{
+              transform: showVersionHistory ? 'rotate(180deg)' : 'rotate(0deg)',
+              transition: 'transform 0.2s'
+            }}>
+              ▼
+            </span>
+            {showVersionHistory ? 'Hide' : 'Show'}
+          </button>
+        </div>
+
+        {showVersionHistory && (
+          <div style={{ marginTop: '20px', borderTop: '1px solid #e5e7eb', paddingTop: '20px' }}>
+            <VersionHistory
+              quoteId={quote.id}
+              currentVersion={quote.current_version || 1}
+              onRestore={(restoredQuote) => {
+                if (onVersionRestore) {
+                  onVersionRestore(restoredQuote);
+                }
+              }}
+              formatCurrency={formatCurrency}
+            />
+          </div>
+        )}
+      </div>
 
       {/* Add Event Dialog */}
       {showAddEventDialog && (

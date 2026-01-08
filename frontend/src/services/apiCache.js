@@ -19,7 +19,7 @@ class APICache {
 
     // Custom TTLs for specific endpoints
     this.customTTLs = {
-      '/api/products': 10 * 60 * 1000, // 10 min - products change rarely
+      '/api/products': 2 * 60 * 1000, // 2 min - refresh more often for new imports
       '/api/customers': 5 * 60 * 1000, // 5 min - customers update occasionally
       '/api/quotes': 2 * 60 * 1000, // 2 min - quotes update frequently
       '/api/dashboard/stats': 1 * 60 * 1000, // 1 min - dashboard needs freshness

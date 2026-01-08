@@ -4,7 +4,7 @@
  * product search, item management, and revenue features
  */
 
-import React, { useState, useMemo, useCallback } from 'react';
+import React, { useState, useMemo, useCallback, useEffect, useRef } from 'react';
 import {
   FinancingCalculator,
   WarrantySelector,
@@ -16,6 +16,13 @@ import { getSmartSuggestions, getSuggestionsSummary } from '../../utils/smartSug
 import logger from '../../utils/logger';
 import PackageBuilder from '../PackageBuilder';
 import PackageBuilderV2 from '../PackageBuilderV2';
+import { useAuth } from '../../contexts/AuthContext';
+import SignaturePad from '../common/SignaturePad';
+import { PromoCodeInput, AppliedDiscountsDisplay } from '../pricing';
+import { SmartSuggestions, UpsellRecommendations } from '../ai';
+import { ProductConfigurator3D } from '../ProductConfigurator';
+
+const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:3001';
 
 // Service items for quick add
 const SERVICE_ITEMS = [
@@ -136,6 +143,9 @@ const QuoteBuilder = ({
   // Helpers
   formatCurrency
 }) => {
+  // Auth context for margin threshold
+  const { user } = useAuth();
+
   // Local state
   const [customerSearchTerm, setCustomerSearchTerm] = useState('');
   const [showCustomerDropdown, setShowCustomerDropdown] = useState(false);
@@ -148,6 +158,42 @@ const QuoteBuilder = ({
   const [showPackageBuilder, setShowPackageBuilder] = useState(false);
   const [showPackageBuilderV2, setShowPackageBuilderV2] = useState(false);
   const [packageBuilderDropdownOpen, setPackageBuilderDropdownOpen] = useState(false);
+
+  // Staff signature state
+  const [showStaffSignature, setShowStaffSignature] = useState(false);
+  const [staffSignature, setStaffSignature] = useState(null);
+  const [staffSignerName, setStaffSignerName] = useState('');
+  const [staffSignatureSaved, setStaffSignatureSaved] = useState(false);
+  const [staffSignatureSaving, setStaffSignatureSaving] = useState(false);
+  const signaturePadRef = useRef(null);
+
+  // Promo code state
+  const [appliedPromo, setAppliedPromo] = useState(null);
+
+  // 3D Configurator state
+  const [configuringProduct, setConfiguringProduct] = useState(null);
+
+  // Margin threshold check
+  const marginThreshold = user?.approvalThresholdPercent || null;
+  const marginBelowThreshold = useMemo(() => {
+    if (!marginThreshold || quoteItems.length === 0) return false;
+    // Calculate profit margin
+    const subtotal = quoteItems.reduce((sum, item) => sum + (item.sell * item.quantity), 0);
+    const discount = (subtotal * discountPercent) / 100;
+    const afterDiscount = subtotal - discount;
+    const totalCost = quoteItems.reduce((sum, item) => sum + (item.cost * item.quantity), 0);
+    const margin = afterDiscount > 0 ? ((afterDiscount - totalCost) / afterDiscount) * 100 : 0;
+    return margin < marginThreshold;
+  }, [quoteItems, discountPercent, marginThreshold]);
+
+  const currentMargin = useMemo(() => {
+    if (quoteItems.length === 0) return 0;
+    const subtotal = quoteItems.reduce((sum, item) => sum + (item.sell * item.quantity), 0);
+    const discount = (subtotal * discountPercent) / 100;
+    const afterDiscount = subtotal - discount;
+    const totalCost = quoteItems.reduce((sum, item) => sum + (item.cost * item.quantity), 0);
+    return afterDiscount > 0 ? ((afterDiscount - totalCost) / afterDiscount) * 100 : 0;
+  }, [quoteItems, discountPercent]);
 
   // Filter products based on search
   const filteredProducts = useMemo(() => {
@@ -174,13 +220,28 @@ const QuoteBuilder = ({
     const discount = (subtotal * discountPercent) / 100;
     const afterDiscount = subtotal - discount;
 
+    // Calculate promo discount
+    let promoDiscount = 0;
+    if (appliedPromo) {
+      if (appliedPromo.discount_type === 'percent') {
+        promoDiscount = (afterDiscount * parseFloat(appliedPromo.discount_value)) / 100;
+      } else {
+        promoDiscount = parseFloat(appliedPromo.discount_value);
+      }
+      // Apply max discount cap if set
+      if (appliedPromo.max_discount_cents) {
+        promoDiscount = Math.min(promoDiscount, appliedPromo.max_discount_cents / 100);
+      }
+    }
+    const afterPromo = afterDiscount - promoDiscount;
+
     // Add revenue features
     const deliveryCost = quoteDelivery?.calculation?.totalCents ? quoteDelivery.calculation.totalCents / 100 : 0;
     const warrantiesCost = quoteWarranties.reduce((sum, w) => sum + ((w.cost || 0) / 100), 0);
     const tradeInCredit = quoteTradeIns.reduce((sum, t) => sum + ((t.estimatedValueCents || 0) / 100), 0);
     const rebateCredit = quoteRebates.reduce((sum, r) => sum + ((r.rebate_amount_cents || 0) / 100), 0);
 
-    const afterAddOns = afterDiscount + deliveryCost + warrantiesCost - tradeInCredit - rebateCredit;
+    const afterAddOns = afterPromo + deliveryCost + warrantiesCost - tradeInCredit - rebateCredit;
     const tax = afterAddOns * 0.13; // 13% HST
     const total = afterAddOns + tax;
 
@@ -192,6 +253,9 @@ const QuoteBuilder = ({
       subtotal,
       discount,
       afterDiscount,
+      promoDiscount,
+      promoCode: appliedPromo?.promo_code || appliedPromo?.promo_name,
+      afterPromo,
       deliveryCost,
       warrantiesCost,
       tradeInCredit,
@@ -204,7 +268,7 @@ const QuoteBuilder = ({
       profitMargin,
       financing: quoteFinancing
     };
-  }, [quoteItems, discountPercent, quoteDelivery, quoteWarranties, quoteTradeIns, quoteRebates, quoteFinancing]);
+  }, [quoteItems, discountPercent, appliedPromo, quoteDelivery, quoteWarranties, quoteTradeIns, quoteRebates, quoteFinancing]);
 
   // Smart suggestions
   const smartSuggestions = useMemo(() => {
@@ -342,6 +406,57 @@ const QuoteBuilder = ({
     setTemplateDescription('');
   }, [templateName, templateDescription, quoteItems, discountPercent, notes, terms, onSaveTemplate]);
 
+  // Handle staff signature save
+  const handleSaveStaffSignature = useCallback(async () => {
+    if (!staffSignature || !staffSignerName.trim()) {
+      alert('Please enter your name and provide a signature');
+      return;
+    }
+
+    if (!editingQuoteId) {
+      // For new quotes, just store the signature locally
+      // It will be saved when the quote is created
+      setStaffSignatureSaved(true);
+      return;
+    }
+
+    setStaffSignatureSaving(true);
+    try {
+      const response = await fetch(`${API_URL}/api/quotations/${editingQuoteId}/staff-signature`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          signature_data: staffSignature,
+          signer_name: staffSignerName.trim(),
+          legal_text: 'Staff signature acknowledging quote preparation and accuracy'
+        })
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to save signature');
+      }
+
+      setStaffSignatureSaved(true);
+      logger.log('Staff signature saved successfully');
+    } catch (err) {
+      alert('Error saving signature: ' + err.message);
+      logger.error('Error saving staff signature:', err);
+    } finally {
+      setStaffSignatureSaving(false);
+    }
+  }, [staffSignature, staffSignerName, editingQuoteId]);
+
+  // Clear staff signature
+  const handleClearStaffSignature = useCallback(() => {
+    if (signaturePadRef.current) {
+      signaturePadRef.current.clear();
+    }
+    setStaffSignature(null);
+    setStaffSignatureSaved(false);
+  }, []);
+
   // Clear revenue features
   const clearRevenueFeatures = useCallback(() => {
     setQuoteFinancing(null);
@@ -427,6 +542,55 @@ const QuoteBuilder = ({
               <span>Cancel Edit</span>
             </button>
           )}
+        </div>
+      )}
+
+      {/* Margin Warning Banner */}
+      {marginBelowThreshold && quoteItems.length > 0 && (
+        <div style={{
+          background: 'linear-gradient(135deg, #fef2f2 0%, #fee2e2 100%)',
+          border: '2px solid #ef4444',
+          borderRadius: '12px',
+          padding: '16px 24px',
+          marginBottom: '24px',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '16px',
+          boxShadow: '0 2px 8px rgba(239, 68, 68, 0.2)'
+        }}>
+          <div style={{
+            width: '48px',
+            height: '48px',
+            background: '#ef4444',
+            borderRadius: '50%',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            flexShrink: 0
+          }}>
+            <span style={{ fontSize: '24px' }}>⚠️</span>
+          </div>
+          <div style={{ flex: 1 }}>
+            <div style={{ fontSize: '16px', fontWeight: 'bold', color: '#991b1b', marginBottom: '4px' }}>
+              Approval Required - Low Margin
+            </div>
+            <div style={{ fontSize: '14px', color: '#b91c1c' }}>
+              Current margin ({currentMargin.toFixed(1)}%) is below your threshold ({marginThreshold.toFixed(1)}%).
+              This quote will require supervisor approval before it can be sent.
+            </div>
+          </div>
+          <div style={{
+            background: 'white',
+            padding: '8px 16px',
+            borderRadius: '8px',
+            border: '1px solid #fca5a5',
+            textAlign: 'center'
+          }}>
+            <div style={{ fontSize: '12px', color: '#991b1b', fontWeight: '500' }}>MARGIN</div>
+            <div style={{ fontSize: '20px', fontWeight: 'bold', color: '#ef4444' }}>
+              {currentMargin.toFixed(1)}%
+            </div>
+          </div>
         </div>
       )}
 
@@ -978,7 +1142,25 @@ const QuoteBuilder = ({
                       </td>
                       <td style={{ padding: '12px', textAlign: 'right', fontWeight: 'bold' }}>${lineTotal.toFixed(2)}</td>
                       <td style={{ padding: '12px', textAlign: 'center' }}>
-                        <button onClick={() => removeQuoteItem(idx)} style={{ padding: '4px 8px', background: '#ef4444', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>×</button>
+                        <div style={{ display: 'flex', gap: '4px', justifyContent: 'center' }}>
+                          <button
+                            onClick={() => setConfiguringProduct({ ...item, idx })}
+                            title="View in 3D / Configure"
+                            style={{
+                              padding: '4px 8px',
+                              background: '#6366f1',
+                              color: 'white',
+                              border: 'none',
+                              borderRadius: '4px',
+                              cursor: 'pointer',
+                              fontSize: '11px',
+                              fontWeight: '600'
+                            }}
+                          >
+                            3D
+                          </button>
+                          <button onClick={() => removeQuoteItem(idx)} style={{ padding: '4px 8px', background: '#ef4444', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>×</button>
+                        </div>
                       </td>
                     </tr>
                     {(isPriceBelowCost || isLowMargin) && (
@@ -1358,6 +1540,38 @@ const QuoteBuilder = ({
         </div>
       )}
 
+      {/* AI-Powered Recommendations */}
+      {quoteItems.length > 0 && (
+        <>
+          <SmartSuggestions
+            quoteItems={quoteItems}
+            customerId={selectedCustomer?.id}
+            onActionClick={(suggestion) => {
+              console.log('Suggestion action:', suggestion);
+              // Handle different actions based on suggestion.action
+            }}
+          />
+          <UpsellRecommendations
+            quoteItems={quoteItems}
+            customerId={selectedCustomer?.id}
+            onAddProduct={(product) => {
+              // Add the recommended product to quote
+              const newItem = {
+                id: product.id,
+                name: product.name,
+                model: product.model,
+                manufacturer: product.manufacturer,
+                category: product.category,
+                sell: product.sell,
+                cost: product.cost || product.sell * 0.7,
+                quantity: 1
+              };
+              setQuoteItems([...quoteItems, newItem]);
+            }}
+          />
+        </>
+      )}
+
       {/* Summary & Totals */}
       {quoteItems.length > 0 && (
         <div style={{ background: 'white', padding: '24px', borderRadius: '12px', marginBottom: '24px', boxShadow: '0 1px 3px rgba(0,0,0,0.1)' }}>
@@ -1389,6 +1603,16 @@ const QuoteBuilder = ({
                   style={{ width: '100%', padding: '12px', border: '1px solid #d1d5db', borderRadius: '8px' }}
                 />
               </div>
+
+              {/* Promo Code Input */}
+              <PromoCodeInput
+                customerId={selectedCustomer?.id}
+                cartTotal={Math.round(totals.subtotal * 100)}
+                cartItems={quoteItems.map(item => ({ productId: item.id, quantity: item.quantity }))}
+                onPromoApplied={(promo) => setAppliedPromo(promo)}
+                onPromoRemoved={() => setAppliedPromo(null)}
+                appliedPromo={appliedPromo}
+              />
 
               <div style={{ marginBottom: '16px' }}>
                 <label style={{ display: 'block', fontWeight: 'bold', marginBottom: '8px' }}>Customer Notes:</label>
@@ -1423,6 +1647,13 @@ const QuoteBuilder = ({
                 <div style={{ marginBottom: '12px', display: 'flex', justifyContent: 'space-between', color: '#ef4444' }}>
                   <span>Discount ({discountPercent}%):</span>
                   <span style={{ fontWeight: 'bold' }}>-${totals.discount.toFixed(2)}</span>
+                </div>
+              )}
+
+              {totals.promoDiscount > 0 && (
+                <div style={{ marginBottom: '12px', display: 'flex', justifyContent: 'space-between', color: '#10b981' }}>
+                  <span>Promo ({totals.promoCode}):</span>
+                  <span style={{ fontWeight: 'bold' }}>-${totals.promoDiscount.toFixed(2)}</span>
                 </div>
               )}
 
@@ -1502,6 +1733,188 @@ const QuoteBuilder = ({
                 <input type="date" value={quoteExpiryDate} onChange={(e) => setQuoteExpiryDate(e.target.value)} min={new Date().toISOString().split('T')[0]} style={{ padding: '8px 12px', border: '1px solid #d1d5db', borderRadius: '6px', fontSize: '14px' }} />
               </div>
             </div>
+          </div>
+
+          {/* Staff Signature Section */}
+          <div style={{ background: 'white', borderRadius: '12px', padding: '24px', marginTop: '24px', boxShadow: '0 2px 4px rgba(0,0,0,0.1)', border: '2px solid #3b82f6' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: showStaffSignature ? '20px' : '0' }}>
+              <h3 style={{ fontSize: '18px', fontWeight: 'bold', margin: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <span style={{ fontSize: '20px' }}>✍️</span>
+                Staff Signature
+                {staffSignatureSaved && (
+                  <span style={{
+                    padding: '4px 10px',
+                    background: '#d1fae5',
+                    color: '#065f46',
+                    borderRadius: '12px',
+                    fontSize: '12px',
+                    fontWeight: '600'
+                  }}>
+                    Signed
+                  </span>
+                )}
+              </h3>
+              <button
+                onClick={() => setShowStaffSignature(!showStaffSignature)}
+                style={{
+                  padding: '8px 16px',
+                  background: showStaffSignature ? '#e5e7eb' : '#3b82f6',
+                  color: showStaffSignature ? '#374151' : 'white',
+                  border: 'none',
+                  borderRadius: '6px',
+                  fontSize: '14px',
+                  fontWeight: '600',
+                  cursor: 'pointer',
+                  transition: 'all 0.2s'
+                }}
+              >
+                {showStaffSignature ? 'Hide' : 'Add Signature'}
+              </button>
+            </div>
+
+            {showStaffSignature && (
+              <div style={{ display: 'grid', gap: '16px' }}>
+                <div>
+                  <label style={{ display: 'block', fontWeight: '600', marginBottom: '8px', fontSize: '14px' }}>
+                    Your Name <span style={{ color: '#ef4444' }}>*</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={staffSignerName}
+                    onChange={(e) => setStaffSignerName(e.target.value)}
+                    placeholder="Enter your full name"
+                    disabled={staffSignatureSaved}
+                    style={{
+                      width: '100%',
+                      maxWidth: '400px',
+                      padding: '10px 12px',
+                      border: '1px solid #d1d5db',
+                      borderRadius: '6px',
+                      fontSize: '14px',
+                      background: staffSignatureSaved ? '#f9fafb' : 'white'
+                    }}
+                  />
+                </div>
+
+                <div>
+                  <label style={{ display: 'block', fontWeight: '600', marginBottom: '8px', fontSize: '14px' }}>
+                    Signature <span style={{ color: '#ef4444' }}>*</span>
+                  </label>
+                  {staffSignatureSaved ? (
+                    <div style={{
+                      width: '400px',
+                      padding: '12px',
+                      background: '#f9fafb',
+                      borderRadius: '8px',
+                      border: '2px solid #10b981'
+                    }}>
+                      <img
+                        src={staffSignature}
+                        alt="Staff Signature"
+                        style={{ maxWidth: '100%', height: 'auto' }}
+                      />
+                      <div style={{ marginTop: '8px', fontSize: '13px', color: '#059669', fontWeight: '600' }}>
+                        Signed by {staffSignerName}
+                      </div>
+                    </div>
+                  ) : (
+                    <SignaturePad
+                      ref={signaturePadRef}
+                      width={400}
+                      height={180}
+                      strokeColor="#1a1a2e"
+                      strokeWidth={2}
+                      onChange={(dataUrl) => setStaffSignature(dataUrl)}
+                      showControls={true}
+                      label="Sign here"
+                    />
+                  )}
+                </div>
+
+                <div style={{
+                  padding: '12px',
+                  background: '#f0f9ff',
+                  borderRadius: '8px',
+                  border: '1px solid #bfdbfe',
+                  fontSize: '13px',
+                  color: '#1e40af'
+                }}>
+                  By signing, I acknowledge that I have reviewed this quote for accuracy and confirm it is ready for the customer.
+                </div>
+
+                {!staffSignatureSaved && (
+                  <div style={{ display: 'flex', gap: '12px' }}>
+                    <button
+                      onClick={handleSaveStaffSignature}
+                      disabled={!staffSignature || !staffSignerName.trim() || staffSignatureSaving}
+                      style={{
+                        padding: '10px 24px',
+                        background: (!staffSignature || !staffSignerName.trim() || staffSignatureSaving) ? '#9ca3af' : '#10b981',
+                        color: 'white',
+                        border: 'none',
+                        borderRadius: '6px',
+                        fontSize: '14px',
+                        fontWeight: 'bold',
+                        cursor: (!staffSignature || !staffSignerName.trim() || staffSignatureSaving) ? 'not-allowed' : 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '8px'
+                      }}
+                    >
+                      {staffSignatureSaving ? (
+                        <>
+                          <span style={{ animation: 'spin 1s linear infinite' }}>⏳</span>
+                          Saving...
+                        </>
+                      ) : (
+                        <>
+                          <span>✓</span>
+                          Confirm Signature
+                        </>
+                      )}
+                    </button>
+                    <button
+                      onClick={handleClearStaffSignature}
+                      disabled={staffSignatureSaving}
+                      style={{
+                        padding: '10px 24px',
+                        background: 'white',
+                        color: '#dc2626',
+                        border: '1px solid #dc2626',
+                        borderRadius: '6px',
+                        fontSize: '14px',
+                        fontWeight: '600',
+                        cursor: staffSignatureSaving ? 'not-allowed' : 'pointer'
+                      }}
+                    >
+                      Clear
+                    </button>
+                  </div>
+                )}
+
+                {staffSignatureSaved && (
+                  <button
+                    onClick={() => {
+                      setStaffSignatureSaved(false);
+                      handleClearStaffSignature();
+                    }}
+                    style={{
+                      padding: '10px 24px',
+                      background: 'white',
+                      color: '#dc2626',
+                      border: '1px solid #dc2626',
+                      borderRadius: '6px',
+                      fontSize: '14px',
+                      fontWeight: '600',
+                      cursor: 'pointer',
+                      width: 'fit-content'
+                    }}
+                  >
+                    Remove Signature
+                  </button>
+                )}
+              </div>
+            )}
           </div>
 
           {/* Save Buttons */}
@@ -1663,6 +2076,29 @@ const QuoteBuilder = ({
             />
           </div>
         </div>
+      )}
+
+      {/* 3D Product Configurator Modal */}
+      {configuringProduct && (
+        <ProductConfigurator3D
+          product={configuringProduct}
+          onClose={() => setConfiguringProduct(null)}
+          onSaveConfiguration={(config) => {
+            // Update the quote item with the configuration
+            const idx = configuringProduct.idx;
+            if (idx !== undefined && idx >= 0) {
+              const updatedItem = {
+                ...quoteItems[idx],
+                configuration: config,
+                sell: quoteItems[idx].sell + (config.price_adjustment || 0)
+              };
+              const newItems = [...quoteItems];
+              newItems[idx] = updatedItem;
+              setQuoteItems(newItems);
+            }
+            setConfiguringProduct(null);
+          }}
+        />
       )}
     </div>
   );

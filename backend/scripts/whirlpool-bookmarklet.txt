@@ -1,0 +1,151 @@
+WHIRLPOOL CENTRAL PRODUCT EXTRACTOR - BOOKMARKLET
+==================================================
+
+OPTION 1: CONSOLE SCRIPT
+-------------------------
+Copy the contents of whirlpool-extractor.js and paste into browser console (F12 -> Console)
+
+
+OPTION 2: BOOKMARKLET (Save as bookmark)
+----------------------------------------
+Create a new bookmark in your browser with this URL:
+
+javascript:(function(){const s=document.createElement('script');s.src='data:text/javascript;base64,'+btoa(`
+(function(){
+  const getText=(s,c=document)=>{const e=c.querySelector(s);return e?e.textContent.trim():null};
+  const getAll=(s,c=document)=>Array.from(c.querySelectorAll(s));
+
+  const extractSKU=()=>{
+    const m=window.location.pathname.match(/\\/product\\/([A-Z0-9]+)/i);
+    if(m)return m[1];
+    const h=getText('h1');
+    if(h){const hm=h.match(/([A-Z]{2,3}[A-Z0-9]{5,})/i);if(hm)return hm[1];}
+    return null;
+  };
+
+  const extractImages=()=>{
+    const imgs={hero:null,gallery:[],all:[]};
+    const seen=new Set();
+    getAll('img').forEach(i=>{
+      let src=i.src||i.dataset.src;
+      if(!src||i.width<50)return;
+      if(src.includes('icon')||src.includes('logo'))return;
+      if(i.dataset.zoom)src=i.dataset.zoom;
+      if(i.dataset.large)src=i.dataset.large;
+      if(seen.has(src))return;
+      seen.add(src);
+      const alt=i.alt||'';
+      const cls=(i.closest('[class*=gallery]')?.className||'')+(i.className||'');
+      let type='product';
+      if(cls.includes('hero')||cls.includes('main'))type='hero';
+      else if(cls.includes('lifestyle'))type='lifestyle';
+      else if(cls.includes('feature'))type='feature';
+      const data={type,url:src,alt,w:i.naturalWidth||i.width,h:i.naturalHeight||i.height};
+      if(type==='hero'&&!imgs.hero)imgs.hero=src;
+      else imgs.gallery.push(data);
+      imgs.all.push(data);
+    });
+    return imgs;
+  };
+
+  const extractSections=()=>{
+    const s=[];
+    getAll('.tab,[role=tab],.accordion-header,.section-header,button[data-toggle]').forEach(t=>{
+      const n=t.textContent.trim().replace(/\\s+/g,' ');
+      if(n&&n.length>2&&n.length<100&&!s.includes(n))s.push(n);
+    });
+    return s;
+  };
+
+  const extractSpecs=()=>{
+    const sp={};
+    getAll('table tr').forEach(r=>{
+      const c=getAll('td,th',r);
+      if(c.length>=2){const k=c[0].textContent.trim(),v=c[1].textContent.trim();if(k&&v)sp[k]=v;}
+    });
+    getAll('dl dt').forEach(dt=>{
+      const dd=dt.nextElementSibling;
+      if(dd&&dd.tagName==='DD')sp[dt.textContent.trim()]=dd.textContent.trim();
+    });
+    return sp;
+  };
+
+  const extractAssets=()=>{
+    const a=[];const seen=new Set();
+    getAll('a[href*=".pdf"],a[href*="manual"],a[href*="document"]').forEach(l=>{
+      if(seen.has(l.href))return;seen.add(l.href);
+      let t='document';
+      if(l.href.includes('manual'))t='manual';
+      else if(l.href.includes('spec'))t='specification';
+      a.push({name:l.textContent.trim()||'Doc',type:t,url:l.href});
+    });
+    return a;
+  };
+
+  const sku=extractSKU();
+  const data={
+    sku,
+    url:window.location.href,
+    scrapedAt:new Date().toISOString(),
+    source:'whirlpoolcentral.ca',
+    brand:document.body.innerText.match(/(Whirlpool|Maytag|KitchenAid|JennAir|Amana)/)?.[1]||'Whirlpool',
+    title:getText('h1')||document.title.split('|')[0].trim(),
+    description:getText('.product-description,.description'),
+    category:getAll('.breadcrumb li,.breadcrumbs li').slice(1,-1).map(l=>l.textContent.trim()).join(' > '),
+    images:extractImages(),
+    availableSections:extractSections(),
+    specifications:extractSpecs(),
+    assets:extractAssets()
+  };
+
+  console.log('Whirlpool Extractor - Results:',data);
+
+  const json=JSON.stringify(data,null,2);
+  navigator.clipboard.writeText(json).then(()=>alert('Copied to clipboard!\\n\\nSKU: '+sku+'\\nImages: '+data.images.all.length+'\\nSections: '+data.availableSections.length));
+
+  const blob=new Blob([json],{type:'application/json'});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement('a');
+  a.href=url;a.download=(sku||'product')+'_'+new Date().toISOString().slice(0,10)+'.json';
+  document.body.appendChild(a);a.click();document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+
+  window.extractedProduct=data;
+  return data;
+})();
+`);document.body.appendChild(s);})();
+
+
+OPTION 3: SIMPLE BOOKMARKLET (Minimal Version)
+----------------------------------------------
+This version just extracts images and basic info:
+
+javascript:(function(){const sku=(location.pathname.match(/\/product\/([A-Z0-9]+)/i)||[])[1];const imgs=[...document.querySelectorAll('img')].filter(i=>i.width>100).map(i=>({url:i.src,alt:i.alt,w:i.width,h:i.height}));const data={sku,url:location.href,title:document.querySelector('h1')?.textContent?.trim(),images:imgs};console.log(data);navigator.clipboard.writeText(JSON.stringify(data,null,2));alert('Extracted '+imgs.length+' images for '+sku+'\n\nCopied to clipboard!');window.extractedProduct=data;})();
+
+
+USAGE INSTRUCTIONS
+==================
+
+1. Go to a product page on whirlpoolcentral.ca (e.g., /product/WRF535SWHV/)
+2. Either:
+   - Open Console (F12) and paste the full script from whirlpool-extractor.js
+   - Or click the bookmarklet you created
+3. The script will:
+   - Extract all product data
+   - Log summary to console
+   - Copy JSON to clipboard
+   - Download JSON file automatically
+4. Access data anytime via: window.extractedProduct
+
+
+WHAT GETS EXTRACTED
+===================
+- SKU/Model number
+- Brand, Title, Description
+- Category (from breadcrumb)
+- Status (Active/Discontinued)
+- All images with types (hero, gallery, lifestyle, etc.)
+- Available sections/tabs
+- Specifications table data
+- PDF/document asset links
+- Video links

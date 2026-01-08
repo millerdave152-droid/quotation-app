@@ -11,8 +11,10 @@ import { getSmartSuggestions, getSuggestionsSummary } from '../utils/smartSugges
 import { useAuth } from '../contexts/AuthContext';
 import logger from '../utils/logger';
 import { cachedFetch, invalidateCache } from '../services/apiCache';
-import { QuoteList, QuoteBuilder, QuoteViewer } from './quotes';
+import { QuoteList, QuoteBuilder, QuoteViewer, CloneQuoteDialog } from './quotes';
+import Dashboard from './Dashboard';
 import { toast } from './ui/Toast';
+import companyConfig from '../config/companyConfig';
 
 const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:3001';
 
@@ -25,13 +27,16 @@ const QuotationManager = () => {
   // ============================================
   // STATE MANAGEMENT
   // ============================================
-  const [view, setView] = useState('list'); // 'list', 'builder', 'viewer', 'analytics', 'approvals', 'followups'
+  const [view, setView] = useState('list'); // 'list', 'builder', 'viewer', 'analytics', 'approvals', 'followups', 'dashboard'
   const [quotations, setQuotations] = useState([]);
+  const [selectedQuoteIds, setSelectedQuoteIds] = useState([]); // Bulk selection
   const [customers, setCustomers] = useState([]);
   const [products, setProducts] = useState([]);
   const [stats, setStats] = useState({});
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
+  const [searchResults, setSearchResults] = useState(null); // Server-side search results
+  const [searchLoading, setSearchLoading] = useState(false);
   const [statusFilter, setStatusFilter] = useState('all');
   const [dateFilter, setDateFilter] = useState('all'); // 'all', 'today', 'week', 'month', 'custom'
   const [valueFilter, setValueFilter] = useState('all'); // 'all', '0-1000', '1000-5000', '5000-10000', '10000+'
@@ -45,6 +50,8 @@ const QuotationManager = () => {
   const [createdByFilter, setCreatedByFilter] = useState('all'); // Filter by creator
   const [showAdvancedFilters, setShowAdvancedFilters] = useState(false); // Toggle advanced panel
   const [filterPresets, setFilterPresets] = useState([]); // Saved filter combinations
+  const [filterRefreshTrigger, setFilterRefreshTrigger] = useState(0); // Trigger to refresh filter counts
+  const [activeQuickFilter, setActiveQuickFilter] = useState('all'); // Active quick filter chip
 
   // Builder state
   const [selectedCustomer, setSelectedCustomer] = useState(null);
@@ -55,6 +62,7 @@ const QuotationManager = () => {
   const [terms, setTerms] = useState('Payment due within 30 days. All prices in CAD.');
   const [productSearchTerm, setProductSearchTerm] = useState('');
   const [editingQuoteId, setEditingQuoteId] = useState(null); // Track if editing
+  const [editingQuoteNumber, setEditingQuoteNumber] = useState(null); // Track quote number for display
   const [customerSearchTerm, setCustomerSearchTerm] = useState('');
   const [showCustomerDropdown, setShowCustomerDropdown] = useState(false);
 
@@ -84,6 +92,10 @@ const QuotationManager = () => {
   const [emailTo, setEmailTo] = useState('');
   const [emailSubject, setEmailSubject] = useState('');
   const [emailMessage, setEmailMessage] = useState('');
+
+  // Clone quote dialog state
+  const [showCloneDialog, setShowCloneDialog] = useState(false);
+  const [quoteToClone, setQuoteToClone] = useState(null);
 
   // Activity timeline state
   const [showAddEventDialog, setShowAddEventDialog] = useState(false);
@@ -312,6 +324,50 @@ const QuotationManager = () => {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [quoteItemsLength, quoteWarrantiesLength, quoteRebatesLength, quoteTradeInsLength, hasFinancing, hasDelivery, view]);
 
+  // ============================================
+  // ENHANCED SEARCH - Server-side with match info
+  // ============================================
+  useEffect(() => {
+    if (!isMounted.current) return;
+
+    // Clear search results if search term is too short
+    if (!searchTerm || searchTerm.trim().length < 2) {
+      setSearchResults(null);
+      setSearchLoading(false);
+      return;
+    }
+
+    // Debounce the search
+    const timer = setTimeout(async () => {
+      if (!isMounted.current) return;
+      setSearchLoading(true);
+
+      try {
+        const params = new URLSearchParams({
+          search: searchTerm.trim(),
+          ...(statusFilter !== 'all' && { status: statusFilter })
+        });
+
+        const res = await fetch(`${API_URL}/api/quotes/search?${params}`);
+        if (!res.ok) throw new Error('Search failed');
+
+        const data = await res.json();
+        if (!isMounted.current) return;
+
+        setSearchResults(data);
+      } catch (err) {
+        logger.error('Search error:', err);
+        setSearchResults(null);
+      } finally {
+        if (isMounted.current) {
+          setSearchLoading(false);
+        }
+      }
+    }, 300); // 300ms debounce
+
+    return () => clearTimeout(timer);
+  }, [searchTerm, statusFilter]);
+
   const fetchTemplates = async () => {
     try {
       const res = await fetch(`${API_URL}/api/quote-templates`);
@@ -451,6 +507,8 @@ const QuotationManager = () => {
       const quotesArray = quotesData.quotations || quotesData;
       setQuotations(Array.isArray(quotesArray) ? quotesArray : []);
       setStats(statsData || {});
+      // Trigger filter chip counts refresh
+      setFilterRefreshTrigger(prev => prev + 1);
     } catch (err) {
       logger.error('Error refreshing quotes:', err);
     }
@@ -728,6 +786,7 @@ const QuotationManager = () => {
     setExpiringFilter(false);
     setCustomerFilter('all');
     setProductFilter('');
+    setActiveQuickFilter('all');
   };
 
   // MEMOIZED CALCULATION - Prevents recalculation unless dependencies change
@@ -808,9 +867,14 @@ const QuotationManager = () => {
 
   // MEMOIZED: Filtered and sorted quotations list - prevents recalculation on every render
   const { filteredQuotes, sortedQuotes, expiringSoonCount } = useMemo(() => {
+    // Use server-side search results when available (searchTerm >= 2 chars)
+    const useServerSearch = searchTerm && searchTerm.trim().length >= 2 && searchResults?.quotations;
+    const sourceQuotes = useServerSearch ? searchResults.quotations : quotations;
+
     // Filter quotations
-    const filtered = quotations.filter(q => {
-      const matchesSearch =
+    const filtered = sourceQuotes.filter(q => {
+      // When using server search, search matching is already done
+      const matchesSearch = useServerSearch ? true :
         q.quote_number?.toLowerCase().includes(searchTerm.toLowerCase()) ||
         q.customer_name?.toLowerCase().includes(searchTerm.toLowerCase());
 
@@ -896,7 +960,7 @@ const QuotationManager = () => {
     ).length;
 
     return { filteredQuotes: filtered, sortedQuotes: sorted, expiringSoonCount: expiringCount };
-  }, [quotations, searchTerm, statusFilter, dateFilter, valueFilter, expiringFilter,
+  }, [quotations, searchTerm, searchResults, statusFilter, dateFilter, valueFilter, expiringFilter,
       customerFilter, productFilter, createdByFilter, sortBy, sortOrder, isExpiringSoon]);
 
   // MEMOIZED: Filtered products for search in builder view
@@ -1123,10 +1187,15 @@ const QuotationManager = () => {
         customer_email: selectedCustomer.email
       });
 
-      // Prepare email dialog
+      // Prepare email dialog with full quote details
+      const quoteTotal = ((savedQuote.total_cents || 0) / 100).toLocaleString('en-CA', {
+        style: 'currency',
+        currency: 'CAD'
+      });
       setEmailTo(selectedCustomer.email || '');
-      setEmailSubject(`Quote ${quoteNumber}`);
-      setEmailMessage(`Dear ${selectedCustomer.name},\n\nPlease find attached our quotation for your review.\n\nThank you for your business!`);
+      setEmailSubject(`Quote #${quoteNumber} from ${companyConfig.name}`);
+      setEmailMessage(`Dear ${selectedCustomer.name || 'Valued Customer'},\n\nThank you for the opportunity to provide you with a quote!\n\nQuote Details:\n• Quote Number: #${quoteNumber}\n• Total: ${quoteTotal}\n\nPlease find the attached PDF with full details.\n\nBest regards,\n${companyConfig.name}\n${companyConfig.contact?.phone || ''}`);
+      setSelectedEmailTemplate('');
       setShowEmailDialog(true);
 
       // Reset builder and refresh quotes
@@ -1308,9 +1377,14 @@ const QuotationManager = () => {
   // EMAIL QUOTE
   // ============================================
   const openEmailDialog = (quote) => {
+    const quoteTotal = ((quote.total_cents || 0) / 100).toLocaleString('en-CA', {
+      style: 'currency',
+      currency: 'CAD'
+    });
     setEmailTo(quote.customer_email || '');
-    setEmailSubject(`Quote ${quote.quote_number}`);
-    setEmailMessage(`Dear ${quote.customer_name},\n\nPlease find attached our quotation for your review.\n\nThank you for your business!`);
+    setEmailSubject(`Quote #${quote.quote_number || quote.id} from ${companyConfig.name}`);
+    setEmailMessage(`Dear ${quote.customer_name || 'Valued Customer'},\n\nThank you for the opportunity to provide you with a quote!\n\nQuote Details:\n• Quote Number: #${quote.quote_number || quote.id}\n• Total: ${quoteTotal}\n\nPlease find the attached PDF with full details.\n\nBest regards,\n${companyConfig.name}\n${companyConfig.contact?.phone || ''}`);
+    setSelectedEmailTemplate('');
     setShowEmailDialog(true);
   };
 
@@ -1597,12 +1671,38 @@ const QuotationManager = () => {
       setInternalNotes(data.internal_notes || '');
       setTerms(data.terms || 'Payment due within 30 days. All prices in CAD.');
       setEditingQuoteId(quoteId);
+      setEditingQuoteNumber(data.quote_number || null);
 
       // Load quote protection settings
       setHideModelNumbers(data.hide_model_numbers || false);
       setWatermarkText(data.watermark_text || 'CONFIDENTIAL - FOR CUSTOMER USE ONLY');
       setWatermarkEnabled(data.watermark_enabled !== false);
-      setQuoteExpiryDate(data.quote_expiry_date || '');
+      setQuoteExpiryDate(data.quote_expiry_date || data.expires_at?.split('T')[0] || '');
+
+      // Load delivery & installation fields
+      setDeliveryAddress(data.delivery_address || '');
+      setDeliveryCity(data.delivery_city || '');
+      setDeliveryPostalCode(data.delivery_postal_code || '');
+      setDeliveryDate(data.delivery_date ? data.delivery_date.split('T')[0] : '');
+      setDeliveryTimeSlot(data.delivery_time_slot || '');
+      setDeliveryInstructions(data.delivery_instructions || '');
+      setInstallationRequired(data.installation_required || false);
+      setInstallationType(data.installation_type || '');
+      setHaulAwayRequired(data.haul_away_required || false);
+      setHaulAwayItems(data.haul_away_items || '');
+
+      // Load sales & commission fields
+      setSalesRepName(data.sales_rep_name || '');
+      setCommissionPercent(data.commission_percent || 5);
+      setReferralSource(data.referral_source || '');
+      setReferralName(data.referral_name || '');
+
+      // Load customer experience fields
+      setPriorityLevel(data.priority_level || 'standard');
+      setSpecialInstructions(data.special_instructions || '');
+      setPaymentMethod(data.payment_method || '');
+      setDepositRequired(data.deposit_required || false);
+      setDepositAmount((data.deposit_amount_cents || 0) / 100);
 
       // Transform items back to builder format
       const items = data.items.map(item => ({
@@ -1621,9 +1721,11 @@ const QuotationManager = () => {
 
       setQuoteItems(items);
       setView('builder');
+
+      toast.success(`Editing quote ${data.quote_number}`, 'info');
     } catch (err) {
       logger.error('Error loading quote for editing:', err);
-      alert('Error loading quote for editing');
+      toast.error('Error loading quote for editing');
     }
   };
 
@@ -1642,6 +1744,41 @@ const QuotationManager = () => {
       setInternalNotes(data.internal_notes || '');
       setTerms(data.terms || 'Payment due within 30 days. All prices in CAD.');
       setEditingQuoteId(null); // Important: null = create new quote
+      setEditingQuoteNumber(null);
+
+      // Load quote protection settings
+      setHideModelNumbers(data.hide_model_numbers || false);
+      setWatermarkText(data.watermark_text || 'CONFIDENTIAL - FOR CUSTOMER USE ONLY');
+      setWatermarkEnabled(data.watermark_enabled !== false);
+      // Don't copy expiry date - set fresh 30-day expiry
+      const newExpiryDate = new Date();
+      newExpiryDate.setDate(newExpiryDate.getDate() + 30);
+      setQuoteExpiryDate(newExpiryDate.toISOString().split('T')[0]);
+
+      // Copy delivery & installation fields
+      setDeliveryAddress(data.delivery_address || '');
+      setDeliveryCity(data.delivery_city || '');
+      setDeliveryPostalCode(data.delivery_postal_code || '');
+      setDeliveryDate(''); // Clear delivery date for new quote
+      setDeliveryTimeSlot(data.delivery_time_slot || '');
+      setDeliveryInstructions(data.delivery_instructions || '');
+      setInstallationRequired(data.installation_required || false);
+      setInstallationType(data.installation_type || '');
+      setHaulAwayRequired(data.haul_away_required || false);
+      setHaulAwayItems(data.haul_away_items || '');
+
+      // Copy sales & commission fields
+      setSalesRepName(data.sales_rep_name || '');
+      setCommissionPercent(data.commission_percent || 5);
+      setReferralSource(data.referral_source || '');
+      setReferralName(data.referral_name || '');
+
+      // Copy customer experience fields
+      setPriorityLevel(data.priority_level || 'standard');
+      setSpecialInstructions(data.special_instructions || '');
+      setPaymentMethod(data.payment_method || '');
+      setDepositRequired(data.deposit_required || false);
+      setDepositAmount((data.deposit_amount_cents || 0) / 100);
 
       // Transform items back to builder format
       const items = data.items.map(item => ({
@@ -1661,11 +1798,19 @@ const QuotationManager = () => {
       setQuoteItems(items);
       setView('builder');
 
-      alert('Quote duplicated! Click "Save Quote" to create a new quote with this data.');
+      toast.success(`Quote duplicated from ${data.quote_number}. Click "Save Quote" to create your new quote.`, 'info');
     } catch (err) {
       logger.error('Error duplicating quote:', err);
-      alert('Error duplicating quote');
+      toast.error('Error duplicating quote');
     }
+  };
+
+  const cancelEdit = () => {
+    // Return to list without saving
+    setEditingQuoteId(null);
+    setEditingQuoteNumber(null);
+    setView('list');
+    toast.info('Edit cancelled - no changes saved');
   };
 
   const createNewQuote = () => {
@@ -1677,6 +1822,41 @@ const QuotationManager = () => {
     setInternalNotes('');
     setTerms('Payment due within 30 days. All prices in CAD.');
     setEditingQuoteId(null);
+    setEditingQuoteNumber(null);
+
+    // Reset quote protection settings
+    setHideModelNumbers(false);
+    setWatermarkText('CONFIDENTIAL - FOR CUSTOMER USE ONLY');
+    setWatermarkEnabled(true);
+    const defaultExpiry = new Date();
+    defaultExpiry.setDate(defaultExpiry.getDate() + 30);
+    setQuoteExpiryDate(defaultExpiry.toISOString().split('T')[0]);
+
+    // Reset delivery & installation fields
+    setDeliveryAddress('');
+    setDeliveryCity('');
+    setDeliveryPostalCode('');
+    setDeliveryDate('');
+    setDeliveryTimeSlot('');
+    setDeliveryInstructions('');
+    setInstallationRequired(false);
+    setInstallationType('');
+    setHaulAwayRequired(false);
+    setHaulAwayItems('');
+
+    // Reset sales & commission fields
+    setSalesRepName('');
+    setCommissionPercent(5);
+    setReferralSource('');
+    setReferralName('');
+
+    // Reset customer experience fields
+    setPriorityLevel('standard');
+    setSpecialInstructions('');
+    setPaymentMethod('');
+    setDepositRequired(false);
+    setDepositAmount(0);
+
     // Reset revenue features
     setQuoteFinancing(null);
     setQuoteWarranties([]);
@@ -2311,10 +2491,15 @@ const QuotationManager = () => {
                             // Open email dialog with quote
                             const quote = quotations.find(q => q.id === followUp.quotation_id);
                             if (quote) {
+                              const quoteTotal = ((quote.total_cents || 0) / 100).toLocaleString('en-CA', {
+                                style: 'currency',
+                                currency: 'CAD'
+                              });
                               setSelectedQuote(quote);
                               setEmailTo(quote.customer_email || '');
-                              setEmailSubject(`Follow-up: Quote ${quote.quote_number}`);
-                              setEmailMessage('');
+                              setEmailSubject(`Follow-up: Quote #${quote.quote_number || quote.id} from ${companyConfig.name}`);
+                              setEmailMessage(`Dear ${quote.customer_name || 'Valued Customer'},\n\nI wanted to follow up on the quote we sent you.\n\nQuote Details:\n• Quote Number: #${quote.quote_number || quote.id}\n• Total: ${quoteTotal}\n\nPlease let me know if you have any questions.\n\nBest regards,\n${companyConfig.name}\n${companyConfig.contact?.phone || ''}`);
+                              setSelectedEmailTemplate('');
                               setShowEmailDialog(true);
                               markFollowUpSent(followUp.id);
                             }
@@ -2680,11 +2865,12 @@ const QuotationManager = () => {
     <div>
       {view === 'list' && (
         <QuoteList
-          quotations={quotations}
+          quotations={sortedQuotes}
           stats={stats}
           followUpStats={followUpStats}
           searchTerm={searchTerm}
           setSearchTerm={setSearchTerm}
+          searchLoading={searchLoading}
           statusFilter={statusFilter}
           setStatusFilter={setStatusFilter}
           dateFilter={dateFilter}
@@ -2707,15 +2893,40 @@ const QuotationManager = () => {
           onViewQuote={(id) => viewQuote(id)}
           onEditQuote={(id) => editQuote(id)}
           onDeleteQuote={(id) => deleteQuote(id)}
+          onViewDashboard={() => setView('dashboard')}
           onViewAnalytics={() => setView('analytics')}
           onViewApprovals={() => { fetchPendingApprovals(); setView('approvals'); }}
           onViewFollowUps={() => { fetchFollowUpData(); setView('followups'); }}
           onExport={(quotes) => exportToExcel(quotes)}
           onClearFilters={clearFilters}
           getActiveFilterCount={getActiveFilterCount}
+          selectedIds={selectedQuoteIds}
+          onToggleSelect={(id) => {
+            setSelectedQuoteIds(prev =>
+              prev.includes(id)
+                ? prev.filter(qId => qId !== id)
+                : [...prev, id]
+            );
+          }}
+          onSelectAll={(ids) => setSelectedQuoteIds(ids)}
+          onClearSelection={() => setSelectedQuoteIds([])}
+          onBulkActionComplete={(result) => {
+            // Refresh quotations after bulk action
+            refreshQuotesOnly();
+            // Show toast notification
+            if (result.success > 0) {
+              toast.success(result.message || `Successfully updated ${result.success} quotes`);
+            }
+            if (result.failed > 0) {
+              toast.warning(`${result.failed} quotes failed to update`);
+            }
+          }}
           formatCurrency={formatCurrency}
           formatDate={formatDate}
           getStatusColor={getStatusColor}
+          filterRefreshTrigger={filterRefreshTrigger}
+          activeQuickFilter={activeQuickFilter}
+          onQuickFilterChange={setActiveQuickFilter}
         />
       )}
       {view === 'builder' && (
@@ -2801,10 +3012,12 @@ const QuotationManager = () => {
           setDepositRequired={setDepositRequired}
           depositAmount={depositAmount}
           setDepositAmount={setDepositAmount}
+          editingQuoteNumber={editingQuoteNumber}
           onSave={saveQuote}
           onSaveAndSend={saveAndSend}
           onSaveTemplate={saveAsTemplate}
           onBack={() => setView('list')}
+          onCancel={editingQuoteId ? cancelEdit : null}
           onLoadTemplate={loadTemplate}
           onAddProduct={addProductToQuote}
           onRemoveProduct={removeQuoteItem}
@@ -2830,14 +3043,22 @@ const QuotationManager = () => {
           quoteApprovals={quoteApprovals}
           onBack={() => setView('list')}
           onEdit={(id) => editQuote(id)}
-          onDuplicate={(id) => duplicateQuote(id)}
+          onDuplicate={(quote) => {
+            setQuoteToClone(quote);
+            setShowCloneDialog(true);
+          }}
           onDelete={(id) => deleteQuote(id)}
           onUpdateStatus={(id, status, options) => updateQuoteStatus(id, status, options)}
           onSendEmail={() => {
             if (selectedQuote) {
+              const quoteTotal = ((selectedQuote.total_cents || 0) / 100).toLocaleString('en-CA', {
+                style: 'currency',
+                currency: 'CAD'
+              });
               setEmailTo(selectedQuote.customer_email || '');
-              setEmailSubject(`Quote #${selectedQuote.quote_number || selectedQuote.id} from Your Company`);
-              setEmailMessage('');
+              setEmailSubject(`Quote #${selectedQuote.quote_number || selectedQuote.id} from ${companyConfig.name}`);
+              setEmailMessage(`Dear ${selectedQuote.customer_name || 'Valued Customer'},\n\nThank you for the opportunity to provide you with a quote!\n\nQuote Details:\n• Quote Number: #${selectedQuote.quote_number || selectedQuote.id}\n• Total: ${quoteTotal}\n\nPlease find the attached PDF with full details.\n\nBest regards,\n${companyConfig.name}\n${companyConfig.contact?.phone || ''}`);
+              setSelectedEmailTemplate('');
               setShowEmailDialog(true);
             }
           }}
@@ -2848,11 +3069,53 @@ const QuotationManager = () => {
           newEventDescription={newEventDescription}
           setNewEventDescription={setNewEventDescription}
           onSaveEvent={addQuoteEvent}
+          formatCurrency={formatCurrency}
+          onVersionRestore={async (restoredQuote) => {
+            // Refresh the quotes list
+            await refreshQuotesOnly();
+            // Update the selected quote with the restored version
+            setSelectedQuote(restoredQuote);
+            // Show success message
+            toast.success(`Quote restored to version ${restoredQuote.current_version || 'previous'}`);
+          }}
+        />
+      )}
+      {view === 'dashboard' && (
+        <Dashboard
+          onNavigate={(viewName) => setView(viewName)}
+          onViewQuote={(id) => viewQuote(id)}
+          onBack={() => setView('list')}
         />
       )}
       {view === 'analytics' && renderAnalyticsView()}
       {view === 'approvals' && renderApprovalsView()}
       {view === 'followups' && renderFollowUpsView()}
+
+      {/* Clone Quote Dialog */}
+      <CloneQuoteDialog
+        isOpen={showCloneDialog}
+        onClose={() => {
+          setShowCloneDialog(false);
+          setQuoteToClone(null);
+        }}
+        quote={quoteToClone}
+        customers={customers}
+        formatCurrency={formatCurrency}
+        onCloneComplete={async (clonedQuote, message) => {
+          // Refresh quotes list
+          await refreshQuotesOnly();
+
+          // Show success message
+          toast.success(message || `Quote cloned as ${clonedQuote.quote_number}`);
+
+          // Close the clone dialog
+          setShowCloneDialog(false);
+          setQuoteToClone(null);
+
+          // Open the cloned quote in edit mode
+          editQuote(clonedQuote.id);
+        }}
+      />
 
       {/* Email Dialog */}
       {showEmailDialog && (
@@ -2916,20 +3179,39 @@ const QuotationManager = () => {
                   if (templateId) {
                     const template = emailTemplates.find(t => t.id === parseInt(templateId));
                     if (template) {
-                      setEmailSubject(template.subject_line
-                        .replace('{quote_number}', selectedQuote.quote_number || selectedQuote.id)
-                        .replace('{customer_name}', selectedQuote.customer_name)
-                      );
-                      setEmailMessage(template.body_text
-                        .replace('{customer_first_name}', selectedQuote.customer_name.split(' ')[0])
-                        .replace('{customer_name}', selectedQuote.customer_name)
-                        .replace('{quote_number}', selectedQuote.quote_number || selectedQuote.id)
-                        .replace('{quote_date}', new Date(selectedQuote.created_at).toLocaleDateString())
-                        .replace('{product_summary}', `${quoteItems.length} items`)
-                        .replace('{quote_expiry_date}', quoteExpiryDate || 'TBD')
-                        .replace('{sales_rep_name}', 'Sales Team')
-                        .replace('{sales_rep_phone}', '(416) 555-1234')
-                      );
+                      // Calculate quote total for display
+                      const quoteTotal = ((selectedQuote.total_cents || 0) / 100).toLocaleString('en-CA', {
+                        style: 'currency',
+                        currency: 'CAD'
+                      });
+                      const subtotal = ((selectedQuote.subtotal_cents || 0) / 100).toLocaleString('en-CA', {
+                        style: 'currency',
+                        currency: 'CAD'
+                      });
+
+                      // Helper function to replace all placeholders
+                      const replacePlaceholders = (text) => {
+                        return text
+                          .replace(/{customer_first_name}/g, (selectedQuote.customer_name || 'Customer').split(' ')[0])
+                          .replace(/{customer_name}/g, selectedQuote.customer_name || 'Valued Customer')
+                          .replace(/{quote_number}/g, selectedQuote.quote_number || `QT-${selectedQuote.id}`)
+                          .replace(/{quote_total}/g, quoteTotal)
+                          .replace(/{total_amount}/g, quoteTotal)
+                          .replace(/{subtotal}/g, subtotal)
+                          .replace(/{quote_date}/g, new Date(selectedQuote.created_at).toLocaleDateString())
+                          .replace(/{product_summary}/g, `${quoteItems.length} item${quoteItems.length !== 1 ? 's' : ''}`)
+                          .replace(/{item_count}/g, quoteItems.length)
+                          .replace(/{quote_expiry_date}/g, quoteExpiryDate || 'TBD')
+                          .replace(/{expiry_date}/g, quoteExpiryDate || 'TBD')
+                          .replace(/{company_name}/g, companyConfig.name || 'Our Company')
+                          .replace(/{company_phone}/g, companyConfig.contact?.phone || '')
+                          .replace(/{company_email}/g, companyConfig.contact?.email || '')
+                          .replace(/{sales_rep_name}/g, selectedQuote.sales_rep_name || 'Sales Team')
+                          .replace(/{sales_rep_phone}/g, companyConfig.contact?.phone || '');
+                      };
+
+                      setEmailSubject(replacePlaceholders(template.subject_line));
+                      setEmailMessage(replacePlaceholders(template.body_text));
                       setSelectedEmailTemplate(templateId);
                     }
                   }

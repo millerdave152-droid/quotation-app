@@ -6,8 +6,11 @@ import { SkeletonStats, SkeletonTable } from './components/ui';
 import { handleApiError } from './utils/errorHandler';
 import ErrorBoundary from './components/ErrorBoundary';
 import { MainLayout } from './components/layout';
+import { AuthProvider, useAuth } from './contexts/AuthContext';
+import ProtectedRoute from './components/auth/ProtectedRoute';
 
 // Lazy load components - loads ONLY when tab is first clicked
+const LoginPage = React.lazy(() => import('./pages/LoginPage'));
 const QuotationManager = React.lazy(() => import('./components/QuotationManager'));
 const CustomerManagement = React.lazy(() => import('./components/CustomerManagement'));
 const ProductManagement = React.lazy(() => import('./components/ProductManagement'));
@@ -17,6 +20,21 @@ const MarketplaceReports = React.lazy(() => import('./components/MarketplaceRepo
 const BulkOperationsCenter = React.lazy(() => import('./components/BulkOperationsCenter'));
 const PowerFeatures2026 = React.lazy(() => import('./components/PowerFeatures2026'));
 const SearchResults = React.lazy(() => import('./components/SearchResults'));
+const UserManagement = React.lazy(() => import('./components/admin/UserManagement'));
+const CustomerQuoteView = React.lazy(() => import('./pages/CustomerQuoteView'));
+
+// Enterprise Phase 2 Components
+const InvoiceManager = React.lazy(() => import('./components/invoices/InvoiceManager'));
+const InventoryDashboard = React.lazy(() => import('./components/inventory/InventoryDashboard'));
+const PaymentPortal = React.lazy(() => import('./pages/PaymentPortal'));
+const EnhancedCustomerPortal = React.lazy(() => import('./pages/EnhancedCustomerPortal'));
+const QuoteExpiryManager = React.lazy(() => import('./components/quotes/QuoteExpiryManager'));
+
+// Advanced Pricing Components
+const AdvancedPricingManager = React.lazy(() => import('./components/pricing/AdvancedPricingManager'));
+
+// Product Visualization (Vendor Product Gallery)
+const ProductVisualization = React.lazy(() => import('./components/ProductVisualization/ProductVisualization'));
 
 // Dashboard component with real data and anti-flickering
 const Dashboard = () => {
@@ -237,17 +255,44 @@ const Dashboard = () => {
   );
 };
 
+// Main App with protected routes
 function App() {
-  return (
-    <MainLayout>
-      {/* Main Content - React Router based routing with lazy loading */}
-      <React.Suspense fallback={
-        <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '400px', flexDirection: 'column' }}>
-          <div style={{ fontSize: '20px', color: '#667eea', fontWeight: '600', marginBottom: '12px' }}>Loading...</div>
-          <div style={{ fontSize: '14px', color: '#6b7280' }}>Please wait</div>
+  const { isAuthenticated, loading } = useAuth();
+
+  // Show loading while checking auth state
+  if (loading) {
+    return (
+      <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh', background: '#f9fafb' }}>
+        <div style={{ textAlign: 'center' }}>
+          <div style={{ width: '48px', height: '48px', border: '4px solid #e5e7eb', borderTopColor: '#667eea', borderRadius: '50%', animation: 'spin 1s linear infinite', margin: '0 auto 16px' }} />
+          <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+          <p style={{ color: '#6b7280', fontSize: '14px', margin: 0 }}>Loading...</p>
         </div>
-      }>
-        <Routes>
+      </div>
+    );
+  }
+
+  return (
+    <React.Suspense fallback={
+      <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh', flexDirection: 'column', background: '#f9fafb' }}>
+        <div style={{ fontSize: '20px', color: '#667eea', fontWeight: '600', marginBottom: '12px' }}>Loading...</div>
+        <div style={{ fontSize: '14px', color: '#6b7280' }}>Please wait</div>
+      </div>
+    }>
+      <Routes>
+        {/* Public route - Login page */}
+        <Route path="/login" element={
+          isAuthenticated ? <Navigate to="/quotes" replace /> : <LoginPage />
+        } />
+
+        {/* Public route - Customer quote view via magic link */}
+        <Route path="/quote/counter/:token" element={<CustomerQuoteView />} />
+        <Route path="/quote/view/:token" element={<CustomerQuoteView />} />
+        <Route path="/pay/:token" element={<PaymentPortal />} />
+        <Route path="/customer-portal/:token" element={<EnhancedCustomerPortal />} />
+
+        {/* Protected routes - wrapped in MainLayout */}
+        <Route element={<ProtectedRoute><MainLayout /></ProtectedRoute>}>
           <Route path="/" element={<Navigate to="/quotes" replace />} />
           <Route path="/dashboard" element={<Dashboard />} />
           <Route path="/customers" element={<CustomerManagement />} />
@@ -263,6 +308,21 @@ function App() {
           <Route path="/bulk-ops" element={<BulkOperationsCenter />} />
           <Route path="/features/*" element={<PowerFeatures2026 />} />
           <Route path="/search" element={<SearchResults />} />
+          {/* Enterprise Phase 2 Routes */}
+          <Route path="/invoices" element={<InvoiceManager />} />
+          <Route path="/inventory" element={<InventoryDashboard />} />
+          <Route path="/quote-expiry" element={<QuoteExpiryManager />} />
+          {/* Advanced Pricing */}
+          <Route path="/pricing" element={<AdvancedPricingManager />} />
+          {/* Product Visualization */}
+          <Route path="/product-visualization" element={<ProductVisualization />} />
+          <Route path="/product-visualization/:id" element={<ProductVisualization />} />
+          {/* Admin routes */}
+          <Route path="/admin/users" element={
+            <ProtectedRoute requiredRoles={['admin']}>
+              <UserManagement />
+            </ProtectedRoute>
+          } />
           {/* 404 fallback */}
           <Route path="*" element={
             <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '400px', flexDirection: 'column' }}>
@@ -271,20 +331,22 @@ function App() {
               <NavLink to="/quotes" style={{ color: '#667eea', textDecoration: 'underline' }}>Go to Quotations</NavLink>
             </div>
           } />
-        </Routes>
-      </React.Suspense>
-    </MainLayout>
+        </Route>
+      </Routes>
+    </React.Suspense>
   );
 }
 
-// Wrap App with BrowserRouter, ErrorBoundary, and ToastProvider
+// Wrap App with BrowserRouter, ErrorBoundary, AuthProvider, and ToastProvider
 const AppWithProviders = () => (
   <BrowserRouter>
     <ErrorBoundary>
-      <ToastProvider position="top-right" maxToasts={5}>
-        <ToastRefSetter />
-        <App />
-      </ToastProvider>
+      <AuthProvider>
+        <ToastProvider position="top-right" maxToasts={5}>
+          <ToastRefSetter />
+          <App />
+        </ToastProvider>
+      </AuthProvider>
     </ErrorBoundary>
   </BrowserRouter>
 );

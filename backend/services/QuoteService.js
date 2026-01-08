@@ -13,6 +13,189 @@ class QuoteService {
   }
 
   /**
+   * Check if a quote requires approval based on user's margin threshold
+   * @param {object} quote - Quote object with margin_percent or calculated totals
+   * @param {string} userEmail - Email of the user creating/updating the quote
+   * @returns {Promise<{requiresApproval: boolean, user: object|null, reason: string}>}
+   */
+  async checkMarginApproval(quote, userEmail) {
+    try {
+      // Get user and their approval threshold
+      const userResult = await this.pool.query(`
+        SELECT
+          u.id,
+          u.email,
+          u.first_name,
+          u.last_name,
+          u.role,
+          u.approval_threshold_percent,
+          u.can_approve_quotes,
+          u.manager_id,
+          m.email as manager_email,
+          m.first_name || ' ' || m.last_name as manager_name
+        FROM users u
+        LEFT JOIN users m ON u.manager_id = m.id
+        WHERE u.email = $1 AND u.is_active = true
+      `, [userEmail]);
+
+      if (userResult.rows.length === 0) {
+        // User not found - no threshold set, no approval required
+        return { requiresApproval: false, user: null, reason: 'User not found or inactive' };
+      }
+
+      const user = userResult.rows[0];
+      const threshold = parseFloat(user.approval_threshold_percent);
+
+      // If no threshold is set, no approval required
+      if (!threshold || isNaN(threshold)) {
+        return { requiresApproval: false, user, reason: 'No margin threshold configured' };
+      }
+
+      // Calculate margin from quote
+      const marginPercent = quote.margin_percent ?? quote.marginPercent ?? 0;
+
+      // If margin is below threshold, approval is required
+      if (marginPercent < threshold) {
+        return {
+          requiresApproval: true,
+          user,
+          marginPercent,
+          threshold,
+          reason: `Margin ${marginPercent.toFixed(2)}% is below threshold ${threshold.toFixed(2)}%`
+        };
+      }
+
+      return {
+        requiresApproval: false,
+        user,
+        marginPercent,
+        threshold,
+        reason: `Margin ${marginPercent.toFixed(2)}% meets threshold ${threshold.toFixed(2)}%`
+      };
+    } catch (error) {
+      console.error('Error checking margin approval:', error);
+      return { requiresApproval: false, user: null, reason: 'Error checking approval' };
+    }
+  }
+
+  /**
+   * Auto-create an approval request for a quote
+   * @param {object} client - Database client (for transaction) or null
+   * @param {number} quoteId - Quote ID
+   * @param {object} user - User object from checkMarginApproval
+   * @param {number} marginPercent - Current margin percentage
+   * @param {number} threshold - User's threshold percentage
+   * @returns {Promise<object|null>} Created approval record
+   */
+  async createAutoApprovalRequest(client, quoteId, user, marginPercent, threshold) {
+    const db = client || this.pool;
+
+    try {
+      // Check for existing pending approval
+      const existing = await db.query(
+        `SELECT id FROM quote_approvals WHERE quotation_id = $1 AND status = 'PENDING'`,
+        [quoteId]
+      );
+
+      if (existing.rows.length > 0) {
+        console.log(`Quote ${quoteId} already has pending approval`);
+        return null;
+      }
+
+      // Find an approver (supervisor/manager or anyone with can_approve_quotes)
+      let approverEmail = user.manager_email;
+      let approverName = user.manager_name;
+
+      // If no manager, find another approver
+      if (!approverEmail) {
+        const approverResult = await db.query(`
+          SELECT email, first_name || ' ' || last_name as name
+          FROM users
+          WHERE can_approve_quotes = true
+            AND is_active = true
+            AND email != $1
+          ORDER BY role = 'admin' DESC, role = 'manager' DESC
+          LIMIT 1
+        `, [user.email]);
+
+        if (approverResult.rows.length > 0) {
+          approverEmail = approverResult.rows[0].email;
+          approverName = approverResult.rows[0].name;
+        }
+      }
+
+      if (!approverEmail) {
+        console.warn('No approvers available for quote', quoteId);
+        return null;
+      }
+
+      // Create approval request
+      const comments = `Auto-triggered: Margin ${marginPercent.toFixed(2)}% is below threshold ${threshold.toFixed(2)}%`;
+      const requesterName = `${user.first_name || ''} ${user.last_name || ''}`.trim() || user.email;
+
+      const result = await db.query(`
+        INSERT INTO quote_approvals (
+          quotation_id, requested_by, requested_by_email, requester_user_id,
+          approver_name, approver_email, comments, approval_type,
+          margin_at_request, threshold_at_request
+        )
+        VALUES ($1, $2, $3, $4, $5, $6, $7, 'margin_threshold', $8, $9)
+        RETURNING *
+      `, [quoteId, requesterName, user.email, user.id, approverName, approverEmail, comments, marginPercent, threshold]);
+
+      // Update quote status to PENDING_APPROVAL
+      await db.query(
+        `UPDATE quotations SET status = 'PENDING_APPROVAL' WHERE id = $1`,
+        [quoteId]
+      );
+
+      // Add event to timeline
+      await db.query(`
+        INSERT INTO quote_events (quotation_id, event_type, description, user_name, metadata, activity_category)
+        VALUES ($1, 'APPROVAL_REQUESTED', $2, $3, $4, 'approval')
+      `, [
+        quoteId,
+        `Auto-approval requested: ${comments}`,
+        requesterName,
+        JSON.stringify({
+          marginPercent,
+          threshold,
+          approverEmail,
+          autoTriggered: true
+        })
+      ]);
+
+      console.log(`Auto-approval request created for quote ${quoteId} to ${approverEmail}`);
+      return result.rows[0];
+
+    } catch (error) {
+      console.error('Error creating auto-approval request:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Get supervisors/managers who can approve quotes
+   * @returns {Promise<Array>} List of approvers
+   */
+  async getApprovers() {
+    const result = await this.pool.query(`
+      SELECT id, email, first_name, last_name, role, department
+      FROM users
+      WHERE can_approve_quotes = true AND is_active = true
+      ORDER BY role = 'admin' DESC, role = 'manager' DESC, first_name
+    `);
+
+    return result.rows.map(u => ({
+      id: u.id,
+      email: u.email,
+      name: `${u.first_name || ''} ${u.last_name || ''}`.trim() || u.email,
+      role: u.role,
+      department: u.department
+    }));
+  }
+
+  /**
    * Calculate quote totals from items
    * @param {Array} items - Quote items
    * @param {number} discountPercent - Discount percentage
@@ -903,8 +1086,40 @@ class QuoteService {
 
       console.log(`✅ Created quotation ${quote_number} with ${items.length} items`);
 
-      // Send quote created notification (async, don't block)
       const createdQuote = quoteResult.rows[0];
+
+      // Check margin and auto-trigger approval if needed (post-commit)
+      if (created_by && status === 'DRAFT') {
+        try {
+          const marginCheck = await this.checkMarginApproval(
+            { margin_percent: calculatedTotals.margin_percent },
+            created_by
+          );
+
+          if (marginCheck.requiresApproval) {
+            console.log(`Quote ${quote_number} margin ${marginCheck.marginPercent}% below threshold ${marginCheck.threshold}%`);
+
+            // Create approval request (this runs outside the main transaction)
+            await this.createAutoApprovalRequest(
+              null, // Use pool, not transaction client
+              createdQuote.id,
+              marginCheck.user,
+              marginCheck.marginPercent,
+              marginCheck.threshold
+            );
+
+            // Update the returned quote object to reflect new status
+            createdQuote.status = 'PENDING_APPROVAL';
+            createdQuote.approval_required = true;
+            createdQuote.approval_reason = marginCheck.reason;
+          }
+        } catch (marginErr) {
+          console.error('Error checking margin approval:', marginErr.message);
+          // Don't fail the entire operation if margin check fails
+        }
+      }
+
+      // Send quote created notification (async, don't block)
       if (created_by) {
         emailService.sendQuoteCreatedEmail(createdQuote.id, created_by).catch(err => {
           console.error('Failed to send quote created email:', err.message);
@@ -1131,7 +1346,41 @@ class QuoteService {
       ]);
 
       await client.query('COMMIT');
-      return result.rows[0];
+
+      const updatedQuote = result.rows[0];
+
+      // Check margin and auto-trigger approval if needed (post-commit)
+      // Only check if quote is in DRAFT status (not already pending approval)
+      if (modified_by && updatedQuote.status === 'DRAFT') {
+        try {
+          const marginCheck = await this.checkMarginApproval(
+            { margin_percent: calculatedTotals.margin_percent },
+            modified_by
+          );
+
+          if (marginCheck.requiresApproval) {
+            console.log(`Quote ${id} margin ${marginCheck.marginPercent}% below threshold ${marginCheck.threshold}%`);
+
+            // Create approval request
+            await this.createAutoApprovalRequest(
+              null,
+              id,
+              marginCheck.user,
+              marginCheck.marginPercent,
+              marginCheck.threshold
+            );
+
+            // Update the returned quote object
+            updatedQuote.status = 'PENDING_APPROVAL';
+            updatedQuote.approval_required = true;
+            updatedQuote.approval_reason = marginCheck.reason;
+          }
+        } catch (marginErr) {
+          console.error('Error checking margin approval on update:', marginErr.message);
+        }
+      }
+
+      return updatedQuote;
 
     } catch (err) {
       await client.query('ROLLBACK');

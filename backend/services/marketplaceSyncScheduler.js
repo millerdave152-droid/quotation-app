@@ -60,6 +60,9 @@ class MarketplaceSyncScheduler {
     console.log('🔄 Running initial syncs...');
     await this.syncOrders();
 
+    // Also run initial product sync to catch any unsynced products
+    await this.syncProducts();
+
     console.log('✓ Marketplace sync scheduler started successfully\n');
   }
 
@@ -202,6 +205,8 @@ class MarketplaceSyncScheduler {
       console.log('─'.repeat(60));
 
       // Get products that haven't been synced in the last hour or were updated
+      // PRIORITY: Products never synced (last_synced_at IS NULL) get synced first
+      // INCREASED LIMIT: Process up to 500 products per cycle to catch up faster
       const productsQuery = await pool.query(`
         SELECT id, sku, model, name, manufacturer, stock_quantity, msrp_cents, active
         FROM products
@@ -211,7 +216,10 @@ class MarketplaceSyncScheduler {
           OR last_synced_at < NOW() - INTERVAL '1 hour'
           OR updated_at > last_synced_at
         )
-        LIMIT 100
+        ORDER BY
+          CASE WHEN last_synced_at IS NULL THEN 0 ELSE 1 END,
+          last_synced_at ASC NULLS FIRST
+        LIMIT 500
       `);
 
       const products = productsQuery.rows;
@@ -294,12 +302,13 @@ class MarketplaceSyncScheduler {
       console.log('─'.repeat(60));
 
       // Get products with Mirakl offers that have quantity changes
+      // INCREASED LIMIT: Process up to 500 products per cycle
       const productsQuery = await pool.query(`
         SELECT id, mirakl_offer_id, stock_quantity, model
         FROM products
         WHERE mirakl_offer_id IS NOT NULL
         AND active = true
-        LIMIT 100
+        LIMIT 500
       `);
 
       const products = productsQuery.rows;

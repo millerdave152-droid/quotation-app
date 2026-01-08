@@ -104,27 +104,87 @@ class MiraklService {
     try {
       console.log('➕ Creating offer on Mirakl:', offerData.sku);
 
+      // Mirakl OF21 API expects offers array format
       const payload = {
-        shop_id: this.shopId,
-        sku: offerData.sku,
-        product_id: offerData.product_id || offerData.sku,
-        product_id_type: 'SKU',
-        quantity: offerData.quantity || 0,
-        price: offerData.price,
-        price_additional_info: offerData.price_additional_info,
-        state_code: offerData.state_code || '11', // 11 = Active
-        available_start_date: offerData.available_start_date,
-        available_end_date: offerData.available_end_date,
-        leadtime_to_ship: offerData.leadtime_to_ship || 2,
-        logistic_class: offerData.logistic_class || 'standard'
+        offers: [{
+          shop_sku: offerData.sku,
+          product_id: offerData.product_id || offerData.sku,
+          product_id_type: 'SHOP_SKU',
+          quantity: offerData.quantity || 0,
+          price: parseFloat(offerData.price) || 0,
+          state_code: offerData.state_code || '11', // 11 = Active
+          leadtime_to_ship: offerData.leadtime_to_ship || 2,
+          allow_quote_requests: false
+        }]
       };
 
+      // Use OF21 endpoint for offer import
       const response = await this.client.post('/offers', payload);
       console.log('✅ Offer created successfully');
       return response.data;
     } catch (error) {
-      console.error('❌ Error creating offer:', error.message);
-      throw error;
+      // Log detailed error information for debugging
+      const errorDetails = {
+        message: error.message,
+        status: error.response?.status,
+        statusText: error.response?.statusText,
+        responseData: error.response?.data,
+        sku: offerData.sku
+      };
+      console.error('❌ Error creating offer:', JSON.stringify(errorDetails, null, 2));
+
+      // Throw with more context
+      const detailedError = new Error(
+        `Mirakl API error for SKU ${offerData.sku}: ${error.response?.data?.message || error.message}`
+      );
+      detailedError.details = errorDetails;
+      throw detailedError;
+    }
+  }
+
+  /**
+   * Batch import multiple offers in a single API call
+   * More efficient than individual requests and avoids rate limiting
+   */
+  async batchImportOffers(products) {
+    try {
+      console.log(`📦 Batch importing ${products.length} offers to Mirakl...`);
+
+      // Build offers array
+      const offers = products.map(product => ({
+        shop_sku: product.mirakl_sku || product.model,
+        product_id: product.model,
+        product_id_type: 'SHOP_SKU',
+        quantity: product.stock_quantity || 0,
+        price: parseFloat((product.msrp_cents / 100).toFixed(2)) || 0,
+        state_code: product.active && (product.stock_quantity || 0) > 0 ? '11' : '12',
+        leadtime_to_ship: 2,
+        allow_quote_requests: false
+      }));
+
+      const payload = { offers };
+
+      const response = await this.client.post('/offers', payload);
+      console.log(`✅ Batch import completed: ${products.length} offers`);
+
+      return {
+        success: true,
+        count: products.length,
+        data: response.data
+      };
+    } catch (error) {
+      const errorDetails = {
+        message: error.message,
+        status: error.response?.status,
+        responseData: error.response?.data
+      };
+      console.error('❌ Batch import failed:', JSON.stringify(errorDetails, null, 2));
+
+      return {
+        success: false,
+        error: error.message,
+        details: errorDetails
+      };
     }
   }
 

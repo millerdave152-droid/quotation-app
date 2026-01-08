@@ -1,4 +1,4 @@
-import React, { createContext, useState, useContext, useEffect, useMemo } from 'react';
+import React, { createContext, useState, useContext, useEffect, useMemo, useCallback } from 'react';
 
 const AuthContext = createContext(null);
 
@@ -15,45 +15,81 @@ export const AuthProvider = ({ children }) => {
   const [token, setToken] = useState(null);
   const [loading, setLoading] = useState(true);
 
-  // Load user from localStorage on mount
-  useEffect(() => {
-    const storedToken = localStorage.getItem('auth_token');
-    const storedUser = localStorage.getItem('auth_user');
+  const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:3001';
 
-    if (storedToken && storedUser) {
-      try {
-        setToken(storedToken);
-        setUser(JSON.parse(storedUser));
-      } catch (error) {
-        console.error('Error parsing stored user data:', error);
-        localStorage.removeItem('auth_token');
-        localStorage.removeItem('auth_user');
+  // Fetch current user from API to get latest data (including approval threshold)
+  const fetchCurrentUser = useCallback(async (authToken) => {
+    try {
+      const response = await fetch(`${API_URL}/api/auth/me`, {
+        headers: {
+          'Authorization': `Bearer ${authToken}`,
+          'Content-Type': 'application/json'
+        }
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        if (data.success && data.data?.user) {
+          const updatedUser = data.data.user;
+          setUser(updatedUser);
+          localStorage.setItem('auth_user', JSON.stringify(updatedUser));
+          return updatedUser;
+        }
       }
+    } catch (error) {
+      console.error('Error fetching current user:', error);
     }
-    setLoading(false);
-  }, []);
+    return null;
+  }, [API_URL]);
+
+  // Load user from localStorage on mount and optionally refresh from API
+  useEffect(() => {
+    const initAuth = async () => {
+      const storedToken = localStorage.getItem('auth_token');
+      const storedUser = localStorage.getItem('auth_user');
+
+      if (storedToken && storedUser) {
+        try {
+          setToken(storedToken);
+          const parsedUser = JSON.parse(storedUser);
+          setUser(parsedUser);
+
+          // Refresh user data from API in background
+          fetchCurrentUser(storedToken);
+        } catch (error) {
+          console.error('Error parsing stored user data:', error);
+          localStorage.removeItem('auth_token');
+          localStorage.removeItem('auth_user');
+        }
+      }
+      setLoading(false);
+    };
+
+    initAuth();
+  }, [fetchCurrentUser]);
 
   const login = async (email, password) => {
     try {
-      const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:3001';
       const response = await fetch(`${API_URL}/api/auth/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, password })
       });
 
-      if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.message || 'Login failed');
+      const result = await response.json();
+
+      if (!response.ok || !result.success) {
+        throw new Error(result.message || 'Login failed');
       }
 
-      const data = await response.json();
+      // API returns { success, data: { user, accessToken, refreshToken } }
+      const { user: userData, accessToken } = result.data;
 
-      setToken(data.token);
-      setUser(data.user);
+      setToken(accessToken);
+      setUser(userData);
 
-      localStorage.setItem('auth_token', data.token);
-      localStorage.setItem('auth_user', JSON.stringify(data.user));
+      localStorage.setItem('auth_token', accessToken);
+      localStorage.setItem('auth_user', JSON.stringify(userData));
 
       return { success: true };
     } catch (error) {
@@ -74,6 +110,44 @@ export const AuthProvider = ({ children }) => {
     localStorage.setItem('auth_user', JSON.stringify(updatedUser));
   };
 
+  // Role helper functions
+  const hasRole = useCallback((requiredRole) => {
+    if (!user?.role) return false;
+    const userRole = user.role.toLowerCase();
+    const required = requiredRole.toLowerCase();
+    return userRole === required;
+  }, [user]);
+
+  const hasAnyRole = useCallback((roles) => {
+    if (!user?.role) return false;
+    const userRole = user.role.toLowerCase();
+    return roles.some(role => role.toLowerCase() === userRole);
+  }, [user]);
+
+  // Check if user can approve quotes (manager, supervisor, or admin)
+  const canApproveQuotes = useMemo(() => {
+    if (!user?.role) return false;
+    const approverRoles = ['admin', 'manager', 'supervisor'];
+    return approverRoles.includes(user.role.toLowerCase()) || user.canApproveQuotes === true;
+  }, [user]);
+
+  // Get user's approval threshold (for margin-based auto-approval)
+  const approvalThreshold = useMemo(() => {
+    return user?.approvalThresholdPercent || user?.approval_threshold_percent || null;
+  }, [user]);
+
+  // Check if user is admin
+  const isAdmin = useMemo(() => {
+    return user?.role?.toLowerCase() === 'admin';
+  }, [user]);
+
+  // Check if user is manager or above
+  const isManagerOrAbove = useMemo(() => {
+    if (!user?.role) return false;
+    const managerRoles = ['admin', 'manager', 'supervisor'];
+    return managerRoles.includes(user.role.toLowerCase());
+  }, [user]);
+
   const value = useMemo(() => ({
     user,
     token,
@@ -81,8 +155,17 @@ export const AuthProvider = ({ children }) => {
     login,
     logout,
     updateUser,
-    isAuthenticated: !!user
-  }), [user, token, loading]);
+    isAuthenticated: !!user,
+    // Role helpers
+    hasRole,
+    hasAnyRole,
+    canApproveQuotes,
+    approvalThreshold,
+    isAdmin,
+    isManagerOrAbove,
+    // Utility
+    refreshUser: () => token && fetchCurrentUser(token)
+  }), [user, token, loading, hasRole, hasAnyRole, canApproveQuotes, approvalThreshold, isAdmin, isManagerOrAbove, fetchCurrentUser]);
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 };

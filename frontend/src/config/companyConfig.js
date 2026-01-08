@@ -1,5 +1,5 @@
 /**
- * Company Configuration
+ * Company Configuration - TELETIME
  *
  * This file contains all company-specific information used throughout the app.
  * Update these values to match your business details.
@@ -8,25 +8,28 @@
  * REACT_APP_COMPANY_NAME, REACT_APP_COMPANY_ADDRESS, etc.
  */
 
+import TELETIME_LOGO from '../assets/teletimeLogo';
+
 const companyConfig = {
   // Company Identity
-  name: process.env.REACT_APP_COMPANY_NAME || 'Your Company Name',
-  legalName: process.env.REACT_APP_COMPANY_LEGAL_NAME || 'Your Company Name Inc.',
+  name: process.env.REACT_APP_COMPANY_NAME || 'TELETIME',
+  legalName: process.env.REACT_APP_COMPANY_LEGAL_NAME || 'Teletime Inc.',
+  tagline: 'TV · ELECTRONICS · APPLIANCES · FURNITURE',
 
   // Address
   address: {
-    street: process.env.REACT_APP_COMPANY_STREET || '123 Business Street',
-    city: process.env.REACT_APP_COMPANY_CITY || 'Toronto',
+    street: process.env.REACT_APP_COMPANY_STREET || '3125 Wolfedale Road',
+    city: process.env.REACT_APP_COMPANY_CITY || 'Mississauga',
     province: process.env.REACT_APP_COMPANY_PROVINCE || 'ON',
-    postalCode: process.env.REACT_APP_COMPANY_POSTAL || 'M5H 2N2',
+    postalCode: process.env.REACT_APP_COMPANY_POSTAL || 'L5C 1V8',
     country: process.env.REACT_APP_COMPANY_COUNTRY || 'Canada'
   },
 
   // Contact Information
   contact: {
-    phone: process.env.REACT_APP_COMPANY_PHONE || '(416) 555-1234',
-    email: process.env.REACT_APP_COMPANY_EMAIL || 'info@yourcompany.ca',
-    website: process.env.REACT_APP_COMPANY_WEBSITE || 'www.yourcompany.ca',
+    phone: process.env.REACT_APP_COMPANY_PHONE || '(905) 273-5550',
+    email: process.env.REACT_APP_COMPANY_EMAIL || 'info@teletime.ca',
+    website: process.env.REACT_APP_COMPANY_WEBSITE || 'www.teletime.ca',
     fax: process.env.REACT_APP_COMPANY_FAX || ''
   },
 
@@ -62,20 +65,19 @@ const companyConfig = {
   ],
 
   // Logo (base64 or URL)
-  // To add a logo, convert your logo image to base64 and paste here
-  // Or provide a URL if hosted externally
+  // Teletime logo imported from assets
   logo: {
-    base64: process.env.REACT_APP_LOGO_BASE64 || null,
+    base64: process.env.REACT_APP_LOGO_BASE64 || TELETIME_LOGO,
     url: process.env.REACT_APP_LOGO_URL || null,
-    width: 30, // mm
-    height: 20 // mm
+    width: 35, // mm - wider for Teletime logo
+    height: 24 // mm
   },
 
-  // PDF Branding Colors
+  // PDF Branding Colors - Teletime brand colors
   branding: {
-    primaryColor: [102, 126, 234], // RGB - Blue
-    secondaryColor: [118, 75, 162], // RGB - Purple
-    accentColor: [16, 185, 129], // RGB - Green
+    primaryColor: [0, 102, 178], // RGB - Teletime Blue
+    secondaryColor: [100, 100, 100], // RGB - Teletime Gray
+    accentColor: [0, 150, 214], // RGB - Light Blue accent
     headerTextColor: [255, 255, 255], // RGB - White
     warningColor: [220, 38, 38], // RGB - Red
     cautionColor: [234, 179, 8] // RGB - Yellow
