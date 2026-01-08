@@ -209,15 +209,25 @@ router.get('/', asyncHandler(async (req, res) => {
  */
 router.get('/salespeople', asyncHandler(async (req, res) => {
   try {
-    // Try to get from users table first (check if role column exists)
+    // Try to get from users table first
     const usersResult = await pool.query(`
-      SELECT DISTINCT id, name, email
+      SELECT id,
+             CONCAT(first_name, ' ', last_name) as name,
+             email,
+             first_name,
+             last_name
       FROM users
-      ORDER BY name
+      WHERE is_active = true
+      ORDER BY first_name, last_name
     `);
 
     if (usersResult.rows.length > 0) {
-      return res.json(usersResult.rows);
+      // Return only id, name, email (exclude first_name, last_name)
+      return res.json(usersResult.rows.map(u => ({
+        id: u.id,
+        name: u.name,
+        email: u.email
+      })));
     }
   } catch (err) {
     console.log('Users table query failed, using fallback:', err.message);
