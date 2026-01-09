@@ -1,9 +1,12 @@
 /**
  * Pricing API Routes
+ * Handles pricing tiers, margins, violations, and customer pricing
+ * Uses consistent error handling with asyncHandler and ApiError
  */
 
 const express = require('express');
 const router = express.Router();
+const { ApiError, asyncHandler } = require('../middleware/errorHandler');
 
 module.exports = (pool, cache, pricingService) => {
 
@@ -11,210 +14,228 @@ module.exports = (pool, cache, pricingService) => {
    * GET /api/pricing/tiers
    * Get all customer pricing tiers
    */
-  router.get('/tiers', async (req, res) => {
-    try {
-      const result = await pool.query(`
-        SELECT * FROM customer_price_tiers ORDER BY discount_percent ASC
-      `);
-      res.json({ success: true, data: result.rows });
-    } catch (error) {
-      console.error('Error fetching pricing tiers:', error);
-      res.status(500).json({ error: error.message });
-    }
-  });
+  router.get('/tiers', asyncHandler(async (req, res) => {
+    const result = await pool.query(`
+      SELECT * FROM customer_price_tiers ORDER BY discount_percent ASC
+    `);
+    res.json({ success: true, data: result.rows });
+  }));
 
   /**
    * GET /api/pricing/:productId
    * Get all price points for a product
    */
-  router.get('/:productId', async (req, res) => {
-    try {
-      const pricePoints = await pricingService.getPricePoints(
-        parseInt(req.params.productId)
-      );
+  router.get('/:productId', asyncHandler(async (req, res) => {
+    const productId = parseInt(req.params.productId);
 
-      res.json(pricePoints);
-    } catch (error) {
-      console.error('Error fetching price points:', error);
-      res.status(500).json({ error: error.message });
+    if (isNaN(productId)) {
+      throw ApiError.badRequest('Invalid product ID');
     }
-  });
+
+    const pricePoints = await pricingService.getPricePoints(productId);
+    res.json(pricePoints);
+  }));
 
   /**
    * GET /api/pricing/:productId/margins
    * Calculate margins at different price points
    */
-  router.get('/:productId/margins', async (req, res) => {
-    try {
-      const sellPrice = req.query.sellPrice ? parseInt(req.query.sellPrice) : null;
-      const margins = await pricingService.calculateMargins(
-        parseInt(req.params.productId),
-        sellPrice
-      );
+  router.get('/:productId/margins', asyncHandler(async (req, res) => {
+    const productId = parseInt(req.params.productId);
 
-      res.json(margins);
-    } catch (error) {
-      console.error('Error calculating margins:', error);
-      res.status(500).json({ error: error.message });
+    if (isNaN(productId)) {
+      throw ApiError.badRequest('Invalid product ID');
     }
-  });
+
+    const sellPrice = req.query.sellPrice ? parseInt(req.query.sellPrice) : null;
+    const margins = await pricingService.calculateMargins(productId, sellPrice);
+
+    res.json(margins);
+  }));
 
   /**
    * POST /api/pricing/:productId/simulate
    * Simulate margin at a proposed price
    */
-  router.post('/:productId/simulate', async (req, res) => {
-    try {
-      const result = await pricingService.simulateMargin(
-        parseInt(req.params.productId),
-        req.body.proposedPriceCents
-      );
+  router.post('/:productId/simulate', asyncHandler(async (req, res) => {
+    const productId = parseInt(req.params.productId);
 
-      res.json(result);
-    } catch (error) {
-      console.error('Error simulating margin:', error);
-      res.status(500).json({ error: error.message });
+    if (isNaN(productId)) {
+      throw ApiError.badRequest('Invalid product ID');
     }
-  });
+
+    if (!req.body.proposedPriceCents) {
+      throw ApiError.badRequest('Proposed price is required');
+    }
+
+    const result = await pricingService.simulateMargin(
+      productId,
+      req.body.proposedPriceCents
+    );
+
+    res.json(result);
+  }));
 
   /**
    * POST /api/pricing/:productId/check-violations
    * Check for price violations
    */
-  router.post('/:productId/check-violations', async (req, res) => {
-    try {
-      const result = await pricingService.checkPriceViolations(
-        parseInt(req.params.productId),
-        req.body.sellPriceCents
-      );
+  router.post('/:productId/check-violations', asyncHandler(async (req, res) => {
+    const productId = parseInt(req.params.productId);
 
-      res.json(result);
-    } catch (error) {
-      console.error('Error checking violations:', error);
-      res.status(500).json({ error: error.message });
+    if (isNaN(productId)) {
+      throw ApiError.badRequest('Invalid product ID');
     }
-  });
+
+    if (!req.body.sellPriceCents) {
+      throw ApiError.badRequest('Sell price is required');
+    }
+
+    const result = await pricingService.checkPriceViolations(
+      productId,
+      req.body.sellPriceCents
+    );
+
+    res.json(result);
+  }));
 
   /**
    * GET /api/pricing/customer/:customerId/:productId
    * Get customer-specific pricing recommendation
    */
-  router.get('/customer/:customerId/:productId', async (req, res) => {
-    try {
-      const recommendation = await pricingService.getRecommendedPrice(
-        parseInt(req.params.productId),
-        parseInt(req.params.customerId)
-      );
+  router.get('/customer/:customerId/:productId', asyncHandler(async (req, res) => {
+    const customerId = parseInt(req.params.customerId);
+    const productId = parseInt(req.params.productId);
 
-      res.json(recommendation);
-    } catch (error) {
-      console.error('Error getting customer pricing:', error);
-      res.status(500).json({ error: error.message });
+    if (isNaN(customerId)) {
+      throw ApiError.badRequest('Invalid customer ID');
     }
-  });
+
+    if (isNaN(productId)) {
+      throw ApiError.badRequest('Invalid product ID');
+    }
+
+    const recommendation = await pricingService.getRecommendedPrice(
+      productId,
+      customerId
+    );
+
+    res.json(recommendation);
+  }));
 
   /**
    * GET /api/pricing/customer/:customerId/history
    * Get customer product price history
    */
-  router.get('/customer/:customerId/history', async (req, res) => {
-    try {
-      const productId = req.query.productId ? parseInt(req.query.productId) : null;
-      const history = await pricingService.getCustomerPriceHistory(
-        parseInt(req.params.customerId),
-        productId
-      );
+  router.get('/customer/:customerId/history', asyncHandler(async (req, res) => {
+    const customerId = parseInt(req.params.customerId);
 
-      res.json(history);
-    } catch (error) {
-      console.error('Error fetching customer history:', error);
-      res.status(500).json({ error: error.message });
+    if (isNaN(customerId)) {
+      throw ApiError.badRequest('Invalid customer ID');
     }
-  });
+
+    const productId = req.query.productId ? parseInt(req.query.productId) : null;
+    const history = await pricingService.getCustomerPriceHistory(
+      customerId,
+      productId
+    );
+
+    res.json(history);
+  }));
 
   /**
-   * GET /api/pricing/violations
+   * GET /api/pricing/violations/list
    * List price violations
    */
-  router.get('/violations/list', async (req, res) => {
-    try {
-      const violations = await pricingService.getPendingViolations({
-        status: req.query.status || 'pending',
-        limit: parseInt(req.query.limit) || 50
-      });
+  router.get('/violations/list', asyncHandler(async (req, res) => {
+    const violations = await pricingService.getPendingViolations({
+      status: req.query.status || 'pending',
+      limit: parseInt(req.query.limit) || 50
+    });
 
-      res.json(violations);
-    } catch (error) {
-      console.error('Error fetching violations:', error);
-      res.status(500).json({ error: error.message });
-    }
-  });
+    res.json(violations);
+  }));
 
   /**
    * POST /api/pricing/violations
    * Log a new price violation
    */
-  router.post('/violations', async (req, res) => {
-    try {
-      const violation = await pricingService.logViolation({
-        productId: req.body.productId,
-        quotationId: req.body.quotationId,
-        orderId: req.body.orderId,
-        violationType: req.body.violationType,
-        quotedPriceCents: req.body.quotedPriceCents,
-        thresholdPriceCents: req.body.thresholdPriceCents,
-        createdBy: req.body.createdBy || 'api'
-      });
+  router.post('/violations', asyncHandler(async (req, res) => {
+    const { productId, violationType, quotedPriceCents, thresholdPriceCents } = req.body;
 
-      res.status(201).json(violation);
-    } catch (error) {
-      console.error('Error logging violation:', error);
-      res.status(400).json({ error: error.message });
+    if (!productId) {
+      throw ApiError.badRequest('Product ID is required');
     }
-  });
+
+    if (!violationType) {
+      throw ApiError.badRequest('Violation type is required');
+    }
+
+    const violation = await pricingService.logViolation({
+      productId: req.body.productId,
+      quotationId: req.body.quotationId,
+      orderId: req.body.orderId,
+      violationType: req.body.violationType,
+      quotedPriceCents: req.body.quotedPriceCents,
+      thresholdPriceCents: req.body.thresholdPriceCents,
+      createdBy: req.body.createdBy || 'api'
+    });
+
+    res.status(201).json(violation);
+  }));
 
   /**
    * POST /api/pricing/violations/:id/resolve
    * Approve or reject a price violation
    */
-  router.post('/violations/:id/resolve', async (req, res) => {
-    try {
-      const violation = await pricingService.resolveViolation(
-        parseInt(req.params.id),
-        req.body.status, // 'approved' or 'rejected'
-        req.body.approvedBy,
-        req.body.notes
-      );
+  router.post('/violations/:id/resolve', asyncHandler(async (req, res) => {
+    const violationId = parseInt(req.params.id);
 
-      res.json(violation);
-    } catch (error) {
-      console.error('Error resolving violation:', error);
-      res.status(400).json({ error: error.message });
+    if (isNaN(violationId)) {
+      throw ApiError.badRequest('Invalid violation ID');
     }
-  });
+
+    if (!req.body.status || !['approved', 'rejected'].includes(req.body.status)) {
+      throw ApiError.badRequest('Status must be "approved" or "rejected"');
+    }
+
+    const violation = await pricingService.resolveViolation(
+      violationId,
+      req.body.status,
+      req.body.approvedBy,
+      req.body.notes
+    );
+
+    res.json(violation);
+  }));
 
   /**
    * POST /api/pricing/customer-history
    * Update customer product history
    */
-  router.post('/customer-history', async (req, res) => {
-    try {
-      const history = await pricingService.updateCustomerProductHistory(
-        req.body.customerId,
-        req.body.productId,
-        {
-          pricePaidCents: req.body.pricePaidCents,
-          quantity: req.body.quantity,
-          type: req.body.type
-        }
-      );
+  router.post('/customer-history', asyncHandler(async (req, res) => {
+    const { customerId, productId, pricePaidCents } = req.body;
 
-      res.json(history);
-    } catch (error) {
-      console.error('Error updating customer history:', error);
-      res.status(400).json({ error: error.message });
+    if (!customerId) {
+      throw ApiError.badRequest('Customer ID is required');
     }
-  });
+
+    if (!productId) {
+      throw ApiError.badRequest('Product ID is required');
+    }
+
+    const history = await pricingService.updateCustomerProductHistory(
+      customerId,
+      productId,
+      {
+        pricePaidCents: req.body.pricePaidCents,
+        quantity: req.body.quantity,
+        type: req.body.type
+      }
+    );
+
+    res.json(history);
+  }));
 
   return router;
 };
