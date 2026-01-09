@@ -54,6 +54,10 @@ function CustomerManagement() {
     notes: ''
   });
 
+  // CLV State
+  const [clvData, setClvData] = useState(null);
+  const [loadingClv, setLoadingClv] = useState(false);
+
   // Form Validation State
   const [formErrors, setFormErrors] = useState({});
   const [touched, setTouched] = useState({});
@@ -228,11 +232,36 @@ function CustomerManagement() {
       };
 
       setSelectedCustomer(safeCustomer);
+
+      // Fetch CLV data for this customer
+      fetchClvData(id);
     } catch (error) {
       logger.error('Error fetching customer details:', error);
       showNotification('Failed to fetch customer details', 'error');
     } finally {
       setLoadingCustomerId(null);
+    }
+  };
+
+  // Fetch Customer Lifetime Value data
+  const fetchClvData = async (customerId) => {
+    if (!customerId) return;
+
+    try {
+      setLoadingClv(true);
+      const response = await fetch(`${API_BASE}/customers/${customerId}/lifetime-value`);
+      const result = await response.json();
+
+      if (result.success && result.data) {
+        setClvData(result.data);
+      } else {
+        setClvData(null);
+      }
+    } catch (error) {
+      logger.error('Error fetching CLV data:', error);
+      setClvData(null);
+    } finally {
+      setLoadingClv(false);
     }
   };
 
@@ -975,7 +1004,7 @@ function CustomerManagement() {
                   <p style={{ margin: 0, color: '#6b7280', fontSize: '14px' }}>Customer Details & Quote History</p>
                 </div>
                 <button
-                  onClick={() => setSelectedCustomer(null)}
+                  onClick={() => { setSelectedCustomer(null); setClvData(null); }}
                   style={{ padding: '8px 16px', background: '#ef4444', color: 'white', border: 'none', borderRadius: '6px', fontSize: '14px', cursor: 'pointer', fontWeight: '500' }}
                 >
                   ✕ Close
@@ -1021,51 +1050,143 @@ function CustomerManagement() {
                   )}
                 </div>
 
-                {/* Customer Lifetime Value Card */}
+                {/* Customer Lifetime Value Card - Enhanced with API data */}
                 <div style={{
-                  background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                  background: clvData?.segment === 'platinum' ? 'linear-gradient(135deg, #1e293b 0%, #334155 100%)' :
+                             clvData?.segment === 'gold' ? 'linear-gradient(135deg, #b45309 0%, #d97706 100%)' :
+                             clvData?.segment === 'silver' ? 'linear-gradient(135deg, #64748b 0%, #94a3b8 100%)' :
+                             'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
                   borderRadius: '12px',
                   padding: '24px',
                   marginBottom: '24px',
-                  color: 'white'
+                  color: 'white',
+                  position: 'relative'
                 }}>
+                  {loadingClv && (
+                    <div style={{ position: 'absolute', top: '12px', right: '12px', fontSize: '12px', opacity: 0.8 }}>
+                      Loading CLV data...
+                    </div>
+                  )}
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '20px' }}>
                     <div>
                       <div style={{ fontSize: '14px', opacity: 0.9, marginBottom: '4px' }}>Customer Lifetime Value</div>
                       <div style={{ fontSize: '36px', fontWeight: 'bold' }}>
-                        {formatCurrency(selectedCustomer.customer?.lifetime_value_cents || selectedCustomer.stats?.total_spent || 0)}
+                        ${clvData?.metrics?.lifetimeValue?.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) || formatCurrency(selectedCustomer.customer?.lifetime_value_cents || selectedCustomer.stats?.total_spent || 0).replace('$', '')}
                       </div>
                     </div>
-                    <div style={{ textAlign: 'right' }}>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', alignItems: 'flex-end' }}>
+                      {/* Segment Badge */}
+                      {clvData?.segment && (
+                        <div style={{
+                          background: clvData.segment === 'platinum' ? 'linear-gradient(135deg, #a78bfa 0%, #8b5cf6 100%)' :
+                                     clvData.segment === 'gold' ? 'linear-gradient(135deg, #fbbf24 0%, #f59e0b 100%)' :
+                                     clvData.segment === 'silver' ? 'linear-gradient(135deg, #e2e8f0 0%, #cbd5e1 100%)' :
+                                     'linear-gradient(135deg, #a78bfa 0%, #7c3aed 100%)',
+                          padding: '8px 16px',
+                          borderRadius: '20px',
+                          fontSize: '14px',
+                          fontWeight: '700',
+                          textTransform: 'uppercase',
+                          letterSpacing: '0.5px',
+                          color: clvData.segment === 'silver' ? '#374151' : 'white',
+                          boxShadow: '0 2px 8px rgba(0,0,0,0.15)'
+                        }}>
+                          {clvData.segment === 'platinum' && '💎 '}
+                          {clvData.segment === 'gold' && '🥇 '}
+                          {clvData.segment === 'silver' && '🥈 '}
+                          {clvData.segment === 'bronze' && '🥉 '}
+                          {clvData.segment}
+                        </div>
+                      )}
+                      {/* Churn Risk Badge */}
+                      {clvData?.engagement?.churnRisk && clvData.engagement.churnRisk !== 'unknown' && (
+                        <div style={{
+                          background: clvData.engagement.churnRisk === 'high' ? '#ef4444' :
+                                     clvData.engagement.churnRisk === 'medium' ? '#f59e0b' : '#22c55e',
+                          padding: '6px 12px',
+                          borderRadius: '16px',
+                          fontSize: '12px',
+                          fontWeight: '600',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '4px'
+                        }}>
+                          {clvData.engagement.churnRisk === 'high' && '⚠️'}
+                          {clvData.engagement.churnRisk === 'medium' && '⏳'}
+                          {clvData.engagement.churnRisk === 'low' && '✓'}
+                          {clvData.engagement.churnRisk.charAt(0).toUpperCase() + clvData.engagement.churnRisk.slice(1)} Churn Risk
+                        </div>
+                      )}
+                      {/* Win Rate */}
                       <div style={{
                         background: 'rgba(255,255,255,0.2)',
-                        padding: '8px 16px',
-                        borderRadius: '20px',
-                        fontSize: '14px',
+                        padding: '6px 12px',
+                        borderRadius: '16px',
+                        fontSize: '12px',
                         fontWeight: '600'
                       }}>
-                        {selectedCustomer.customer?.win_rate || 0}% Win Rate
+                        {clvData?.metrics?.conversionRate?.toFixed(0) || selectedCustomer.customer?.win_rate || 0}% Conversion Rate
                       </div>
                     </div>
                   </div>
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '16px' }}>
+
+                  {/* CLV Metrics Grid */}
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '16px', marginBottom: '16px' }}>
                     <div style={{ background: 'rgba(255,255,255,0.15)', borderRadius: '8px', padding: '12px', textAlign: 'center' }}>
-                      <div style={{ fontSize: '20px', fontWeight: 'bold' }}>{selectedCustomer.customer?.total_quotes || selectedCustomer.stats?.total_quotes || 0}</div>
+                      <div style={{ fontSize: '20px', fontWeight: 'bold' }}>{clvData?.quoteStats?.totalQuotes || selectedCustomer.customer?.total_quotes || selectedCustomer.stats?.total_quotes || 0}</div>
                       <div style={{ fontSize: '11px', opacity: 0.9 }}>Total Quotes</div>
                     </div>
                     <div style={{ background: 'rgba(255,255,255,0.15)', borderRadius: '8px', padding: '12px', textAlign: 'center' }}>
-                      <div style={{ fontSize: '20px', fontWeight: 'bold', color: '#86efac' }}>{selectedCustomer.customer?.total_won_quotes || 0}</div>
-                      <div style={{ fontSize: '11px', opacity: 0.9 }}>Won</div>
+                      <div style={{ fontSize: '20px', fontWeight: 'bold', color: '#86efac' }}>{clvData?.quoteStats?.convertedQuotes || selectedCustomer.customer?.total_won_quotes || 0}</div>
+                      <div style={{ fontSize: '11px', opacity: 0.9 }}>Converted</div>
                     </div>
                     <div style={{ background: 'rgba(255,255,255,0.15)', borderRadius: '8px', padding: '12px', textAlign: 'center' }}>
-                      <div style={{ fontSize: '20px', fontWeight: 'bold', color: '#fca5a5' }}>{selectedCustomer.customer?.total_lost_quotes || 0}</div>
-                      <div style={{ fontSize: '11px', opacity: 0.9 }}>Lost</div>
+                      <div style={{ fontSize: '20px', fontWeight: 'bold' }}>${clvData?.metrics?.averageOrderValue?.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 }) || '0'}</div>
+                      <div style={{ fontSize: '11px', opacity: 0.9 }}>Avg Order</div>
                     </div>
                     <div style={{ background: 'rgba(255,255,255,0.15)', borderRadius: '8px', padding: '12px', textAlign: 'center' }}>
-                      <div style={{ fontSize: '20px', fontWeight: 'bold' }}>{formatCurrency(selectedCustomer.customer?.average_quote_value_cents || 0)}</div>
-                      <div style={{ fontSize: '11px', opacity: 0.9 }}>Avg Quote</div>
+                      <div style={{ fontSize: '20px', fontWeight: 'bold' }}>{clvData?.metrics?.totalTransactions || 0}</div>
+                      <div style={{ fontSize: '11px', opacity: 0.9 }}>Transactions</div>
                     </div>
                   </div>
+
+                  {/* Advanced CLV Metrics */}
+                  {clvData && (
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '16px', borderTop: '1px solid rgba(255,255,255,0.2)', paddingTop: '16px' }}>
+                      <div style={{ textAlign: 'center' }}>
+                        <div style={{ fontSize: '18px', fontWeight: 'bold' }}>${clvData.metrics?.predictedAnnualValue?.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 }) || '0'}</div>
+                        <div style={{ fontSize: '11px', opacity: 0.8 }}>Predicted Annual Value</div>
+                      </div>
+                      <div style={{ textAlign: 'center' }}>
+                        <div style={{ fontSize: '18px', fontWeight: 'bold' }}>{clvData.metrics?.purchaseFrequency?.toFixed(2) || '0'}/mo</div>
+                        <div style={{ fontSize: '11px', opacity: 0.8 }}>Purchase Frequency</div>
+                      </div>
+                      <div style={{ textAlign: 'center' }}>
+                        <div style={{ fontSize: '18px', fontWeight: 'bold' }}>{clvData.tenureMonths || 0} mo</div>
+                        <div style={{ fontSize: '11px', opacity: 0.8 }}>Customer Tenure</div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Last Activity Info */}
+                  {clvData?.engagement?.daysSinceLastActivity !== null && clvData?.engagement?.daysSinceLastActivity !== undefined && (
+                    <div style={{
+                      marginTop: '16px',
+                      padding: '12px',
+                      background: 'rgba(255,255,255,0.1)',
+                      borderRadius: '8px',
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      alignItems: 'center'
+                    }}>
+                      <span style={{ fontSize: '13px', opacity: 0.9 }}>Last Activity</span>
+                      <span style={{ fontSize: '13px', fontWeight: '600' }}>
+                        {clvData.engagement.daysSinceLastActivity === 0 ? 'Today' :
+                         clvData.engagement.daysSinceLastActivity === 1 ? 'Yesterday' :
+                         `${clvData.engagement.daysSinceLastActivity} days ago`}
+                      </span>
+                    </div>
+                  )}
                 </div>
 
                 {/* Customer Statistics */}
