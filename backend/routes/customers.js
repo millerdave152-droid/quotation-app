@@ -46,6 +46,27 @@ router.get('/stats/overview', asyncHandler(async (req, res) => {
 }));
 
 /**
+ * GET /api/customers/lifetime-value
+ * Get CLV summary for all customers (analytics dashboard)
+ * Query params: limit, segment (platinum|gold|silver|bronze), sortBy, sortOrder
+ */
+router.get('/lifetime-value', asyncHandler(async (req, res) => {
+  const { limit, segment, sortBy, sortOrder } = req.query;
+
+  const result = await customerService.getLifetimeValueSummary({
+    limit: limit ? parseInt(limit) : 50,
+    segment,
+    sortBy,
+    sortOrder
+  });
+
+  res.json({
+    success: true,
+    data: result
+  });
+}));
+
+/**
  * GET /api/customers/:id
  * Get single customer with quote history
  */
@@ -58,6 +79,29 @@ router.get('/:id', asyncHandler(async (req, res) => {
   }
 
   res.success(result);
+}));
+
+/**
+ * GET /api/customers/:id/lifetime-value
+ * Get Customer Lifetime Value (CLV) for a specific customer
+ */
+router.get('/:id/lifetime-value', asyncHandler(async (req, res) => {
+  const customerId = parseInt(req.params.id);
+
+  if (isNaN(customerId)) {
+    throw ApiError.badRequest('Invalid customer ID');
+  }
+
+  const clv = await customerService.calculateLifetimeValue(customerId);
+
+  if (!clv) {
+    throw ApiError.notFound('Customer');
+  }
+
+  res.json({
+    success: true,
+    data: clv
+  });
 }));
 
 /**
