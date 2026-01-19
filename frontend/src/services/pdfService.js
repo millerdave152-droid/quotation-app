@@ -1,39 +1,60 @@
 import jsPDF from 'jspdf';
 import 'jspdf-autotable';
 import logger from '../utils/logger';
-import companyConfig, { formatCustomerAddress } from '../config/companyConfig';
+import companyConfig from '../config/companyConfig';
 import { handleApiError } from '../utils/errorHandler';
 import { toast } from '../components/ui/Toast';
 
 const API_BASE = `${process.env.REACT_APP_API_URL || 'http://localhost:3001'}/api`;
+
+// Helper to get auth headers
+const getAuthHeaders = () => {
+  const token = localStorage.getItem('auth_token');
+  return {
+    'Content-Type': 'application/json',
+    ...(token && { 'Authorization': `Bearer ${token}` })
+  };
+};
 
 // ===================================
 // PREVIEW QUOTE PDF (Opens in new tab)
 // ===================================
 export const previewQuotePDF = async (quoteId, type = 'customer') => {
   try {
+    // Validate quoteId before making API call
+    if (!quoteId || quoteId === 'undefined' || quoteId === 'null') {
+      toast.error('Cannot preview PDF: Quote has not been saved yet. Please save the quote first.', 'No Quote Selected');
+      return;
+    }
+
     logger.log('Previewing quote:', quoteId, 'Type:', type);
+    const headers = getAuthHeaders();
 
     // Fetch quote data
-    const quoteResponse = await fetch(`${API_BASE}/quotations/${quoteId}`);
+    const quoteResponse = await fetch(`${API_BASE}/quotations/${quoteId}`, { headers });
     if (!quoteResponse.ok) {
       throw new Error(`Failed to fetch quote: ${quoteResponse.status}`);
     }
-    const quote = await quoteResponse.json();
+    const quoteJson = await quoteResponse.json();
+    const quote = quoteJson.data || quoteJson; // Handle wrapped response
 
     // Fetch customer data
-    const customerResponse = await fetch(`${API_BASE}/customers/${quote.customer_id}`);
+    const customerResponse = await fetch(`${API_BASE}/customers/${quote.customer_id}`, { headers });
     if (!customerResponse.ok) {
       throw new Error(`Failed to fetch customer`);
     }
-    const customer = await customerResponse.json();
+    const customerJson = await customerResponse.json();
+    // API returns { data: { customer: {...}, quotes: [...], stats: {...} } }
+    const customerData = customerJson.data || customerJson;
+    const customer = customerData.customer || customerData; // Extract nested customer object
 
     // Fetch quote items
-    const itemsResponse = await fetch(`${API_BASE}/quotations/${quoteId}/items`);
+    const itemsResponse = await fetch(`${API_BASE}/quotations/${quoteId}/items`, { headers });
     if (!itemsResponse.ok) {
       throw new Error(`Failed to fetch quote items`);
     }
-    const items = await itemsResponse.json();
+    const itemsJson = await itemsResponse.json();
+    const items = itemsJson.data || itemsJson; // Handle wrapped response
 
     if (!items || items.length === 0) {
       toast.warning('This quote has no items. Please add products before previewing.', 'Empty Quote');
@@ -61,28 +82,46 @@ export const previewQuotePDF = async (quoteId, type = 'customer') => {
 // ===================================
 export const downloadQuotePDF = async (quoteId, type = 'customer') => {
   try {
+    // Validate quoteId before making API call
+    if (!quoteId || quoteId === 'undefined' || quoteId === 'null') {
+      toast.error('Cannot download PDF: Quote has not been saved yet. Please save the quote first.', 'No Quote Selected');
+      return;
+    }
+
     logger.log('Downloading quote:', quoteId, 'Type:', type);
+    const headers = getAuthHeaders();
 
     // Fetch quote data
-    const quoteResponse = await fetch(`${API_BASE}/quotations/${quoteId}`);
+    const quoteResponse = await fetch(`${API_BASE}/quotations/${quoteId}`, { headers });
     if (!quoteResponse.ok) {
-      throw new Error(`Failed to fetch quote`);
+      throw new Error(`Failed to fetch quote: ${quoteResponse.status}`);
     }
-    const quote = await quoteResponse.json();
+    const quoteJson = await quoteResponse.json();
+    console.log('[PDF Download] Raw quote response:', quoteJson);
+    const quote = quoteJson.data || quoteJson; // Handle wrapped response
+    console.log('[PDF Download] Extracted quote:', quote);
 
     // Fetch customer data
-    const customerResponse = await fetch(`${API_BASE}/customers/${quote.customer_id}`);
+    const customerResponse = await fetch(`${API_BASE}/customers/${quote.customer_id}`, { headers });
     if (!customerResponse.ok) {
       throw new Error(`Failed to fetch customer`);
     }
-    const customer = await customerResponse.json();
+    const customerJson = await customerResponse.json();
+    console.log('[PDF Download] Raw customer response:', customerJson);
+    // API returns { data: { customer: {...}, quotes: [...], stats: {...} } }
+    const customerData = customerJson.data || customerJson;
+    const customer = customerData.customer || customerData; // Extract nested customer object
+    console.log('[PDF Download] Extracted customer:', customer);
 
     // Fetch quote items
-    const itemsResponse = await fetch(`${API_BASE}/quotations/${quoteId}/items`);
+    const itemsResponse = await fetch(`${API_BASE}/quotations/${quoteId}/items`, { headers });
     if (!itemsResponse.ok) {
       throw new Error(`Failed to fetch quote items`);
     }
-    const items = await itemsResponse.json();
+    const itemsJson = await itemsResponse.json();
+    console.log('[PDF Download] Raw items response:', itemsJson);
+    const items = itemsJson.data || itemsJson; // Handle wrapped response
+    console.log('[PDF Download] Extracted items:', items);
 
     if (!items || items.length === 0) {
       toast.warning('This quote has no items. Please add products before downloading PDF.', 'Empty Quote');
@@ -241,7 +280,26 @@ const addExpiryWarning = (doc, expiryDate, currentY) => {
 };
 
 // ===================================
-// GENERATE CUSTOMER-FACING PDF
+// ENTERPRISE COLOR SCHEME
+// ===================================
+const colors = {
+  primary: [30, 64, 175],       // Deep blue #1e40af
+  primaryLight: [59, 130, 246], // Light blue #3b82f6
+  text: [31, 41, 55],           // Near black #1f2937
+  textSecondary: [55, 65, 81],  // Dark gray #374151
+  textMuted: [107, 114, 128],   // Medium gray #6b7280
+  textLight: [156, 163, 175],   // Light gray #9ca3af
+  bgLight: [248, 250, 252],     // Off-white #f8fafc
+  bgMuted: [250, 250, 250],     // Very light #fafafa
+  border: [229, 231, 235],      // Light gray border #e5e7eb
+  borderMedium: [209, 213, 219], // Medium border #d1d5db
+  success: [16, 185, 129],      // Green #10b981
+  error: [220, 38, 38],         // Red #dc2626
+  warning: [245, 158, 11]       // Amber #f59e0b
+};
+
+// ===================================
+// GENERATE CUSTOMER-FACING PDF (Enterprise Design)
 // ===================================
 export const generateCustomerPDF = (quote, customer, items) => {
   const doc = new jsPDF();
@@ -250,330 +308,426 @@ export const generateCustomerPDF = (quote, customer, items) => {
 
   const hideModelNumbers = quote.hide_model_numbers || false;
   const expiryDate = quote.quote_expiry_date || quote.expires_at || new Date(Date.now() + 14*24*60*60*1000);
+  const { address, contact } = companyConfig;
 
-  // ========== HEADER ==========
-  const { primaryColor, headerTextColor } = companyConfig.branding;
-  doc.setFillColor(...primaryColor);
-  doc.rect(0, 0, pageWidth, 38, 'F');
+  // ========== TOP ACCENT BAR (4pt) ==========
+  doc.setFillColor(...colors.primary);
+  doc.rect(0, 0, pageWidth, 4, 'F');
 
-  // Logo placeholder (left side)
+  // ========== HEADER SECTION ==========
+  // Company name / Logo (left side)
   const { logo } = companyConfig;
   if (logo.base64) {
     try {
-      doc.addImage(logo.base64, 'PNG', 12, 7, logo.width, logo.height);
+      doc.addImage(logo.base64, 'PNG', 14, 12, logo.width || 40, logo.height || 20);
     } catch (e) {
-      // Fallback to text placeholder
-      doc.setDrawColor(...headerTextColor);
-      doc.setLineWidth(0.5);
-      doc.rect(12, 7, 22, 22, 'S');
-      doc.setFontSize(7);
-      doc.setTextColor(...headerTextColor);
-      doc.text('LOGO', 23, 19, { align: 'center' });
+      // Fallback to company name
+      doc.setFontSize(20);
+      doc.setFont(undefined, 'bold');
+      doc.setTextColor(...colors.primary);
+      doc.text(companyConfig.name, 14, 28);
     }
   } else {
-    doc.setDrawColor(...headerTextColor);
-    doc.setLineWidth(0.5);
-    doc.rect(12, 7, 22, 22, 'S');
-    doc.setFontSize(7);
-    doc.setTextColor(...headerTextColor);
-    doc.text('LOGO', 23, 19, { align: 'center' });
+    doc.setFontSize(20);
+    doc.setFont(undefined, 'bold');
+    doc.setTextColor(...colors.primary);
+    doc.text(companyConfig.name, 14, 28);
   }
 
-  // Title
-  doc.setTextColor(...headerTextColor);
-  doc.setFontSize(26);
-  doc.setFont(undefined, 'bold');
-  doc.text('QUOTATION', 105, 23, { align: 'center' });
-
-  // ========== COMPANY & QUOTE INFO ==========
-  doc.setTextColor(51, 51, 51);
-
-  // Company Info (Left)
-  const { address, contact } = companyConfig;
-  doc.setFontSize(11);
-  doc.setFont(undefined, 'bold');
-  doc.text(companyConfig.name, 14, 48);
-
+  // Company contact info (below logo/name)
+  doc.setFontSize(8);
   doc.setFont(undefined, 'normal');
-  doc.setFontSize(9);
-  doc.setTextColor(100, 100, 100);
-  doc.text(address.street, 14, 54);
-  doc.text(`${address.city}, ${address.province} ${address.postalCode}`, 14, 59);
-  doc.text(`Phone: ${contact.phone}`, 14, 64);
-  doc.text(`Email: ${contact.email}`, 14, 69);
+  doc.setTextColor(...colors.textMuted);
+  doc.text(address.street, 14, 38);
+  doc.text(`${address.city}, ${address.province} ${address.postalCode}`, 14, 43);
+  doc.text(`${contact.phone} | ${contact.email}`, 14, 48);
 
-  // Quote Info (Right) - Clean layout
-  const quoteInfoX = 138;
-  doc.setTextColor(100, 100, 100);
-  doc.setFont(undefined, 'normal');
-  doc.setFontSize(9);
+  // Quote Badge Box (right side)
+  doc.setFillColor(...colors.bgLight);
+  doc.setDrawColor(...colors.border);
+  doc.roundedRect(145, 10, 50, 45, 3, 3, 'FD');
 
-  doc.text('Quote #:', quoteInfoX, 48);
-  doc.text('Date:', quoteInfoX, 54);
-  doc.text('Status:', quoteInfoX, 60);
-  doc.text('Valid Until:', quoteInfoX, 66);
-
-  doc.setTextColor(51, 51, 51);
+  // Badge content
+  doc.setFontSize(8);
   doc.setFont(undefined, 'bold');
+  doc.setTextColor(...colors.primary);
+  doc.text('QUOTATION', 170, 18, { align: 'center' });
+
   const quoteNumber = quote.quote_number || `QT-2025-${String(quote.id).padStart(4, '0')}`;
-  doc.text(quoteNumber, 165, 48);
+  doc.setFontSize(10);
+  doc.setTextColor(...colors.text);
+  doc.text(quoteNumber, 170, 26, { align: 'center' });
+
+  doc.setFontSize(7);
   doc.setFont(undefined, 'normal');
-  doc.text(new Date(quote.created_at).toLocaleDateString('en-CA'), 165, 54);
-  doc.text(quote.status || 'DRAFT', 165, 60);
-  doc.text(new Date(expiryDate).toLocaleDateString('en-CA'), 165, 66);
+  doc.setTextColor(...colors.textMuted);
+  doc.text('Date:', 150, 35);
+  doc.text('Valid Until:', 150, 41);
+  doc.text('Status:', 150, 47);
+
+  doc.setTextColor(...colors.text);
+  doc.text(new Date(quote.created_at).toLocaleDateString('en-CA'), 190, 35, { align: 'right' });
+  doc.text(new Date(expiryDate).toLocaleDateString('en-CA'), 190, 41, { align: 'right' });
+
+  // Status with color
+  const status = quote.status?.toUpperCase() || 'DRAFT';
+  if (status === 'APPROVED' || status === 'ACCEPTED') {
+    doc.setTextColor(...colors.success);
+  } else if (status === 'REJECTED' || status === 'EXPIRED') {
+    doc.setTextColor(...colors.error);
+  } else {
+    doc.setTextColor(...colors.text);
+  }
+  doc.text(status, 190, 47, { align: 'right' });
 
   // ========== EXPIRY WARNING ==========
-  let currentY = 78;
+  let currentY = 60;
   currentY = addExpiryWarning(doc, expiryDate, currentY);
 
-  // ========== CUSTOMER INFO ==========
-  doc.setFillColor(249, 250, 251);
-
-  // Calculate customer box height
+  // ========== CUSTOMER INFO CARD (Two Column) ==========
   const customerName = customer?.name || 'Customer';
   const customerEmail = customer?.email || '';
   const customerPhone = customer?.phone || '';
   const customerAddress = customer?.address || '';
   const customerCity = customer?.city || '';
+  const customerProvince = customer?.province || '';
+  const customerPostalCode = customer?.postal_code || '';
+  const customerCompany = customer?.company || '';
 
-  let boxHeight = 24;
-  if (customerAddress) boxHeight += 5;
-  if (customerCity) boxHeight += 5;
-  if (customerPhone) boxHeight += 5;
+  // Build full city/province/postal line
+  const locationParts = [customerCity, customerProvince, customerPostalCode].filter(Boolean);
+  const customerLocation = locationParts.join(', ');
 
-  doc.rect(14, currentY, 182, boxHeight, 'F');
-  doc.setDrawColor(229, 231, 235);
-  doc.rect(14, currentY, 182, boxHeight, 'S');
+  // Calculate card height - increased to fit all contact info
+  let cardHeight = 48;
+  if (customerAddress) cardHeight += 4;
+  if (customerLocation) cardHeight += 4;
 
-  doc.setFont(undefined, 'bold');
-  doc.setFontSize(10);
-  doc.setTextColor(51, 51, 51);
-  doc.text('BILL TO:', 18, currentY + 7);
+  doc.setFillColor(...colors.bgMuted);
+  doc.setDrawColor(...colors.border);
+  doc.roundedRect(14, currentY, 182, cardHeight, 4, 4, 'FD');
 
-  doc.setFont(undefined, 'normal');
+  // Left column - BILL TO
+  const leftColX = 20;
   doc.setFontSize(9);
-  let customerY = currentY + 13;
-
   doc.setFont(undefined, 'bold');
-  doc.text(customerName, 18, customerY);
+  doc.setTextColor(...colors.primary);
+  doc.text('BILL TO', leftColX, currentY + 8);
+
+  doc.setFontSize(10);
+  doc.setTextColor(...colors.text);
+  doc.text(customerName, leftColX, currentY + 15);
+
+  doc.setFontSize(8);
   doc.setFont(undefined, 'normal');
-  customerY += 5;
+  doc.setTextColor(...colors.textSecondary);
+  let leftY = currentY + 21;
 
+  if (customerCompany) {
+    doc.text(customerCompany, leftColX, leftY);
+    leftY += 4;
+  }
   if (customerAddress) {
-    doc.text(customerAddress, 18, customerY);
-    customerY += 5;
+    doc.text(customerAddress, leftColX, leftY);
+    leftY += 4;
+  }
+  if (customerLocation) {
+    doc.text(customerLocation, leftColX, leftY);
+    leftY += 4;
   }
 
-  if (customerCity) {
-    doc.text(customerCity, 18, customerY);
-    customerY += 5;
-  }
+  // Right column - CONTACT (Billing Contact Info)
+  const rightColX = 115;
+  doc.setFontSize(9);
+  doc.setFont(undefined, 'bold');
+  doc.setTextColor(...colors.primary);
+  doc.text('CONTACT', rightColX, currentY + 8);
 
+  let rightY = currentY + 15;
+  doc.setFontSize(8);
+
+  // Contact Name (billing contact person)
+  doc.setFont(undefined, 'bold');
+  doc.setTextColor(...colors.text);
+  doc.text(customerName, rightColX, rightY);
+  rightY += 5;
+
+  // Phone
+  doc.setFont(undefined, 'normal');
+  doc.setTextColor(...colors.textSecondary);
   if (customerPhone) {
-    doc.text(`Tel: ${customerPhone}`, 18, customerY);
-    customerY += 5;
+    doc.text(`Tel: ${customerPhone}`, rightColX, rightY);
+    rightY += 5;
   }
 
+  // Email
   if (customerEmail) {
-    doc.setTextColor(59, 130, 246);
-    doc.text(customerEmail, 18, customerY);
-    doc.setTextColor(51, 51, 51);
+    doc.setTextColor(...colors.primaryLight);
+    doc.text(customerEmail, rightColX, rightY);
+    rightY += 5;
   }
 
-  currentY += boxHeight + 8;
+  // Prepared by (Sales Rep)
+  if (quote.sales_rep_name) {
+    doc.setTextColor(...colors.textMuted);
+    doc.text(`Prepared by: ${quote.sales_rep_name}`, rightColX, rightY);
+  }
 
-  // ========== ITEMS TABLE ==========
+  currentY += cardHeight + 8;
+
+  // ========== ITEMS TABLE (Enterprise Design) ==========
   const tableData = items.map(item => {
     const unitPrice = (item.sell_cents || item.unit_price_cents || 0) / 100;
     const quantity = item.quantity || 1;
     const lineTotal = (item.line_total_cents || 0) / 100 || (quantity * unitPrice);
+    const lineDiscount = (item.discount_cents || 0) / 100;
+    const discountPct = item.discount_percent || 0;
+    const sku = item.sku || item.product_code || '-';
+    const manufacturer = item.manufacturer || '-';
     const description = formatProductDescription(item, hideModelNumbers);
 
     return [
-      description,
+      sku.substring(0, 12),
+      manufacturer.substring(0, 10),
+      description.substring(0, 45),
       quantity.toString(),
       `$${unitPrice.toLocaleString('en-CA', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
+      discountPct > 0 ? `${discountPct}%` : '-',
       `$${lineTotal.toLocaleString('en-CA', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
     ];
   });
 
   doc.autoTable({
     startY: currentY,
-    head: [['Description', 'Qty', 'Unit Price', 'Amount']],
+    head: [['SKU', 'MFR', 'DESCRIPTION', 'QTY', 'PRICE', 'DISC', 'TOTAL']],
     body: tableData,
-    theme: 'striped',
+    theme: 'plain',
     headStyles: {
-      fillColor: primaryColor,
+      fillColor: colors.primary,
       textColor: 255,
       fontStyle: 'bold',
-      fontSize: 10,
-      cellPadding: 4
+      fontSize: 8,
+      cellPadding: 3,
+      valign: 'middle'
     },
     bodyStyles: {
-      fontSize: 9,
-      cellPadding: 4,
-      textColor: [51, 51, 51]
+      fontSize: 7,
+      cellPadding: 3,
+      textColor: colors.text,
+      valign: 'middle'
     },
     alternateRowStyles: {
-      fillColor: [249, 250, 251]
+      fillColor: colors.bgLight
     },
     columnStyles: {
-      0: { cellWidth: 95 },
-      1: { cellWidth: 20, halign: 'center' },
-      2: { cellWidth: 32, halign: 'right' },
-      3: { cellWidth: 35, halign: 'right', fontStyle: 'bold' }
+      0: { cellWidth: 22, halign: 'left' },           // SKU - left
+      1: { cellWidth: 20, halign: 'left' },           // MFR - left
+      2: { cellWidth: 65, halign: 'left' },           // Description - left
+      3: { cellWidth: 15, halign: 'center', fontStyle: 'bold' }, // Qty - center
+      4: { cellWidth: 25, halign: 'right' },          // Price - right
+      5: { cellWidth: 18, halign: 'center' },         // Disc - center
+      6: { cellWidth: 27, halign: 'right', fontStyle: 'bold' }   // Total - right
     },
     margin: { left: 14, right: 14 },
-    tableLineColor: [229, 231, 235],
-    tableLineWidth: 0.1
+    tableLineColor: colors.border,
+    tableLineWidth: 0.2,
+    didParseCell: function(data) {
+      // Match header alignment to body column alignment
+      if (data.section === 'head') {
+        const colIndex = data.column.index;
+        if (colIndex === 3 || colIndex === 5) {
+          data.cell.styles.halign = 'center';
+        } else if (colIndex === 4 || colIndex === 6) {
+          data.cell.styles.halign = 'right';
+        } else {
+          data.cell.styles.halign = 'left';
+        }
+      }
+      // Color discount column red
+      if (data.section === 'body' && data.column.index === 5) {
+        const val = data.cell.raw;
+        if (val && val !== '-') {
+          data.cell.styles.textColor = colors.error;
+        }
+      }
+    }
   });
 
-  // ========== TOTALS SECTION ==========
+  // ========== TOTALS CARD ==========
   const subtotal = (quote.subtotal_cents || 0) / 100;
   const discountPercent = parseFloat(quote.discount_percent) || 0;
   const discountAmount = (quote.discount_cents || 0) / 100;
+  const netAmount = subtotal - discountAmount;
   const taxRatePercent = getTaxRatePercent(quote.tax_rate);
   const taxAmount = (quote.tax_cents || 0) / 100;
   const total = (quote.total_cents || 0) / 100;
   const taxName = companyConfig.tax.taxName || 'HST';
 
-  let totalsY = doc.lastAutoTable.finalY + 8;
-  const totalsX = 130;
-  const amountX = 195;
+  let totalsY = doc.lastAutoTable.finalY + 6;
+  const totalsCardX = 120;
+  const totalsCardWidth = 76;
+  let totalsCardHeight = 48;
+  if (discountAmount > 0) totalsCardHeight += 8;
 
-  doc.setFontSize(9);
+  // Totals card background
+  doc.setFillColor(...colors.bgLight);
+  doc.setDrawColor(...colors.border);
+  doc.roundedRect(totalsCardX, totalsY, totalsCardWidth, totalsCardHeight, 3, 3, 'FD');
+
+  const labelX = totalsCardX + 5;
+  const amountX = totalsCardX + totalsCardWidth - 5;
+  let lineY = totalsY + 8;
+
+  doc.setFontSize(8);
   doc.setFont(undefined, 'normal');
-  doc.setTextColor(100, 100, 100);
 
   // Subtotal
-  doc.text('Subtotal:', totalsX, totalsY);
-  doc.setTextColor(51, 51, 51);
-  doc.text(`$${subtotal.toLocaleString('en-CA', { minimumFractionDigits: 2 })}`, amountX, totalsY, { align: 'right' });
+  doc.setTextColor(...colors.textMuted);
+  doc.text('Subtotal', labelX, lineY);
+  doc.setTextColor(...colors.text);
+  doc.text(`$${subtotal.toLocaleString('en-CA', { minimumFractionDigits: 2 })}`, amountX, lineY, { align: 'right' });
 
   // Discount (if any)
   if (discountAmount > 0) {
-    totalsY += 6;
-    doc.setTextColor(220, 38, 38);
-    doc.text(`Discount (${discountPercent}%):`, totalsX, totalsY);
-    doc.text(`-$${discountAmount.toLocaleString('en-CA', { minimumFractionDigits: 2 })}`, amountX, totalsY, { align: 'right' });
+    lineY += 8;
+    doc.setTextColor(...colors.error);
+    doc.text(`Discount (${discountPercent}%)`, labelX, lineY);
+    doc.text(`-$${discountAmount.toLocaleString('en-CA', { minimumFractionDigits: 2 })}`, amountX, lineY, { align: 'right' });
+
+    lineY += 8;
+    doc.setTextColor(...colors.textMuted);
+    doc.text('Net Amount', labelX, lineY);
+    doc.setTextColor(...colors.text);
+    doc.text(`$${netAmount.toLocaleString('en-CA', { minimumFractionDigits: 2 })}`, amountX, lineY, { align: 'right' });
   }
 
   // Tax
-  totalsY += 6;
-  doc.setTextColor(100, 100, 100);
-  doc.text(`${taxName} (${taxRatePercent.toFixed(0)}%):`, totalsX, totalsY);
-  doc.setTextColor(51, 51, 51);
-  doc.text(`$${taxAmount.toLocaleString('en-CA', { minimumFractionDigits: 2 })}`, amountX, totalsY, { align: 'right' });
+  lineY += 8;
+  doc.setTextColor(...colors.textMuted);
+  doc.text(`${taxName} (${taxRatePercent.toFixed(0)}%)`, labelX, lineY);
+  doc.setTextColor(...colors.text);
+  doc.text(`$${taxAmount.toLocaleString('en-CA', { minimumFractionDigits: 2 })}`, amountX, lineY, { align: 'right' });
 
-  // Total - Prominent display
-  totalsY += 10;
-  doc.setFillColor(249, 250, 251);
-  doc.rect(totalsX - 5, totalsY - 5, 75, 12, 'F');
+  // TOTAL DUE - Emphasized box
+  lineY += 10;
+  doc.setFillColor(...colors.primary);
+  doc.roundedRect(labelX - 2, lineY - 5, totalsCardWidth - 6, 14, 2, 2, 'F');
 
+  doc.setFontSize(9);
   doc.setFont(undefined, 'bold');
-  doc.setFontSize(12);
-  doc.setTextColor(51, 51, 51);
-  doc.text('TOTAL:', totalsX, totalsY + 3);
-  doc.setTextColor(59, 130, 246);
-  doc.text(`$${total.toLocaleString('en-CA', { minimumFractionDigits: 2 })}`, amountX, totalsY + 3, { align: 'right' });
+  doc.setTextColor(255, 255, 255);
+  doc.text('TOTAL DUE', labelX + 2, lineY + 3);
+  doc.setFontSize(11);
+  doc.text(`$${total.toLocaleString('en-CA', { minimumFractionDigits: 2 })}`, amountX - 2, lineY + 3, { align: 'right' });
 
   // ========== NOTES SECTION ==========
-  doc.setTextColor(51, 51, 51);
+  let contentY = totalsY;
+  doc.setTextColor(...colors.text);
+
   if (quote.notes && quote.notes.trim()) {
-    totalsY += 18;
+    doc.setFillColor(...colors.bgMuted);
+    doc.setDrawColor(...colors.border);
+    doc.roundedRect(14, contentY, 100, 30, 3, 3, 'FD');
+
+    doc.setFontSize(8);
     doc.setFont(undefined, 'bold');
-    doc.setFontSize(10);
-    doc.text('Notes:', 14, totalsY);
+    doc.setTextColor(...colors.primary);
+    doc.text('NOTES', 18, contentY + 7);
 
     doc.setFont(undefined, 'normal');
-    doc.setFontSize(9);
-    doc.setTextColor(100, 100, 100);
-    const splitNotes = doc.splitTextToSize(quote.notes, 180);
-    doc.text(splitNotes, 14, totalsY + 6);
-    totalsY += 6 + (splitNotes.length * 4);
+    doc.setFontSize(7);
+    doc.setTextColor(...colors.textSecondary);
+    const splitNotes = doc.splitTextToSize(quote.notes, 90);
+    doc.text(splitNotes.slice(0, 4), 18, contentY + 13);
   }
 
-  // ========== TERMS ==========
-  totalsY += 10;
-  const terms = quote.terms || companyConfig.quotes.defaultTerms || 'Payment due within 30 days. All prices in CAD.';
-  doc.setFont(undefined, 'italic');
-  doc.setFontSize(8);
-  doc.setTextColor(120, 120, 120);
-  const splitTerms = doc.splitTextToSize(terms, 180);
-  doc.text(splitTerms, 14, totalsY);
-  totalsY += splitTerms.length * 3.5;
-
-  // ========== NEXT STEPS (NEW PAGE IF NEEDED) ==========
-  let nextStepsY = totalsY + 12;
-
-  if (nextStepsY > pageHeight - 65) {
+  // ========== TERMS & CONDITIONS ==========
+  let termsY = totalsY + totalsCardHeight + 10;
+  if (termsY > pageHeight - 80) {
     doc.addPage();
-    nextStepsY = 30;
+    termsY = 20;
   }
 
-  // Next Steps Box
-  doc.setFillColor(239, 246, 255);
-  doc.rect(14, nextStepsY, 182, 28, 'F');
-  doc.setDrawColor(191, 219, 254);
-  doc.rect(14, nextStepsY, 182, 28, 'S');
+  const terms = quote.terms || companyConfig.quotes.defaultTerms || 'Payment due within 30 days. All prices in CAD.';
 
-  doc.setFontSize(10);
+  doc.setFillColor(...colors.bgLight);
+  doc.setDrawColor(...colors.border);
+  doc.roundedRect(14, termsY, 182, 28, 3, 3, 'FD');
+
+  doc.setFontSize(8);
   doc.setFont(undefined, 'bold');
-  doc.setTextColor(30, 64, 175);
-  doc.text('NEXT STEPS', 18, nextStepsY + 8);
+  doc.setTextColor(...colors.textSecondary);
+  doc.text('TERMS & CONDITIONS', 18, termsY + 7);
 
+  doc.setFontSize(7);
   doc.setFont(undefined, 'normal');
-  doc.setFontSize(9);
-  doc.setTextColor(51, 51, 51);
-  doc.text('1. Review this quotation carefully', 18, nextStepsY + 14);
-  doc.text('2. Sign below to accept', 18, nextStepsY + 19);
-  doc.text(`3. Contact us at ${contact.email} or ${contact.phone} with questions`, 18, nextStepsY + 24);
+  doc.setTextColor(...colors.textMuted);
+  const splitTerms = doc.splitTextToSize(terms, 175);
+  doc.text(splitTerms.slice(0, 3), 18, termsY + 13);
 
-  // Signature Lines
-  const signatureY = nextStepsY + 38;
-  doc.setDrawColor(180, 180, 180);
+  // ========== DUAL SIGNATURE AREA ==========
+  let signatureY = termsY + 35;
+  if (signatureY > pageHeight - 50) {
+    doc.addPage();
+    signatureY = 20;
+  }
+
+  // Company Representative (left)
+  doc.setFillColor(...colors.primary);
+  doc.rect(14, signatureY, 85, 5, 'F');
+  doc.setFontSize(7);
+  doc.setFont(undefined, 'bold');
+  doc.setTextColor(255, 255, 255);
+  doc.text('COMPANY REPRESENTATIVE', 18, signatureY + 3.5);
+
+  doc.setDrawColor(...colors.borderMedium);
   doc.setLineWidth(0.3);
-  doc.line(14, signatureY, 90, signatureY);
-  doc.line(110, signatureY, 196, signatureY);
+  doc.line(14, signatureY + 25, 99, signatureY + 25);
+  doc.setFontSize(7);
+  doc.setTextColor(...colors.textMuted);
+  doc.text('Signature', 14, signatureY + 30);
+  doc.text('Date: _______________', 14, signatureY + 36);
 
-  doc.setFontSize(8);
-  doc.setTextColor(120, 120, 120);
-  doc.text('Customer Signature', 14, signatureY + 5);
-  doc.text('Date', 110, signatureY + 5);
+  // Customer Acceptance (right)
+  doc.setFillColor(...colors.success);
+  doc.rect(111, signatureY, 85, 5, 'F');
+  doc.setTextColor(255, 255, 255);
+  doc.text('CUSTOMER ACCEPTANCE', 115, signatureY + 3.5);
 
-  // Payment Methods
-  doc.setFontSize(9);
-  doc.setTextColor(51, 51, 51);
-  doc.setFont(undefined, 'bold');
-  doc.text('Payment Methods:', 14, signatureY + 14);
-  doc.setFont(undefined, 'normal');
-  doc.setFontSize(8);
-  doc.setTextColor(100, 100, 100);
-  const paymentText = `We accept: ${companyConfig.paymentMethods.slice(0, 5).join(', ')}`;
-  doc.text(paymentText, 14, signatureY + 19);
+  doc.line(111, signatureY + 25, 196, signatureY + 25);
+  doc.setTextColor(...colors.textMuted);
+  doc.text('Signature', 111, signatureY + 30);
+  doc.text('Date: _______________', 111, signatureY + 36);
 
-  // ========== PAGE NUMBERS ==========
+  // ========== FOOTER ON ALL PAGES ==========
   const totalPages = doc.internal.getNumberOfPages();
   for (let i = 1; i <= totalPages; i++) {
     doc.setPage(i);
-    doc.setFontSize(8);
-    doc.setTextColor(150, 150, 150);
-    doc.text(`Page ${i} of ${totalPages}`, pageWidth - 14, pageHeight - 8, { align: 'right' });
-  }
 
-  // ========== FOOTER ==========
-  doc.setPage(totalPages);
-  doc.setFont(undefined, 'normal');
-  doc.setTextColor(100, 100, 100);
-  doc.setFontSize(9);
-  doc.text('Thank you for your business!', 105, pageHeight - 14, { align: 'center' });
+    // Bottom accent line
+    doc.setDrawColor(...colors.primary);
+    doc.setLineWidth(0.5);
+    doc.line(14, pageHeight - 18, pageWidth - 14, pageHeight - 18);
+
+    // Thank you message
+    doc.setFontSize(8);
+    doc.setFont(undefined, 'normal');
+    doc.setTextColor(...colors.textMuted);
+    doc.text('Thank you for your business!', 14, pageHeight - 12);
+
+    // Contact info center
+    doc.setFontSize(7);
+    doc.text(`${contact.phone} | ${contact.email}`, pageWidth / 2, pageHeight - 12, { align: 'center' });
+
+    // Page number
+    doc.text(`Page ${i} of ${totalPages}`, pageWidth - 14, pageHeight - 12, { align: 'right' });
+  }
 
   // ========== WATERMARK ==========
   if (quote.watermark_enabled !== false) {
-    const watermarkText = 'QUOTATION';
-    addWatermark(doc, watermarkText, {
+    addWatermark(doc, 'QUOTATION', {
       color: [200, 200, 200],
-      opacity: 0.06,
+      opacity: 0.04,
       rotation: -35,
       fontSize: 60
     });
@@ -583,62 +737,108 @@ export const generateCustomerPDF = (quote, customer, items) => {
 };
 
 // ===================================
-// GENERATE INTERNAL PDF
+// GENERATE INTERNAL PDF (Enterprise Design)
 // ===================================
 export const generateInternalPDF = (quote, customer, items) => {
   const doc = new jsPDF();
   const pageWidth = doc.internal.pageSize.getWidth();
   const pageHeight = doc.internal.pageSize.getHeight();
+  const { address, contact } = companyConfig;
 
-  // Header - Red for Internal
-  doc.setFillColor(185, 28, 28);
-  doc.rect(0, 0, pageWidth, 38, 'F');
+  // Internal colors (red accent)
+  const internalColors = {
+    primary: [153, 27, 27],      // Dark red #991b1b
+    accent: [185, 28, 28],       // Red #b91c1c
+    lightBg: [254, 242, 242],    // Light red bg #fef2f2
+    border: [252, 165, 165]      // Red border #fca5a5
+  };
 
-  doc.setTextColor(255, 255, 255);
-  doc.setFontSize(22);
+  // ========== TOP ACCENT BAR (4pt) - RED for Internal ==========
+  doc.setFillColor(...internalColors.accent);
+  doc.rect(0, 0, pageWidth, 4, 'F');
+
+  // ========== HEADER SECTION ==========
+  doc.setFontSize(18);
   doc.setFont(undefined, 'bold');
-  doc.text('INTERNAL QUOTATION', 105, 18, { align: 'center' });
-  doc.setFontSize(10);
-  doc.text('CONFIDENTIAL - DO NOT SHARE WITH CUSTOMER', 105, 28, { align: 'center' });
+  doc.setTextColor(...internalColors.primary);
+  doc.text('INTERNAL QUOTATION', 14, 20);
 
-  doc.setTextColor(51, 51, 51);
-
-  // Company & Quote Info
-  doc.setFontSize(10);
-  doc.setFont(undefined, 'bold');
-  doc.text(companyConfig.name, 14, 48);
+  doc.setFontSize(8);
   doc.setFont(undefined, 'normal');
-  doc.setFontSize(9);
-  doc.setTextColor(100, 100, 100);
-  doc.text('Internal Cost Analysis Document', 14, 54);
+  doc.setTextColor(...colors.textMuted);
+  doc.text(`${companyConfig.name} - Cost Analysis Document`, 14, 27);
 
-  // Quote Info (Right)
-  const quoteInfoX = 138;
-  doc.text('Quote #:', quoteInfoX, 48);
-  doc.text('Date:', quoteInfoX, 54);
-  doc.text('Status:', quoteInfoX, 60);
-  doc.text('Created By:', quoteInfoX, 66);
+  // Confidential Badge (right side)
+  doc.setFillColor(...internalColors.lightBg);
+  doc.setDrawColor(...internalColors.border);
+  doc.roundedRect(130, 10, 66, 22, 3, 3, 'FD');
 
-  doc.setTextColor(51, 51, 51);
+  doc.setFontSize(8);
   doc.setFont(undefined, 'bold');
-  doc.text(quote.quote_number || `QT-${quote.id}`, 168, 48);
+  doc.setTextColor(...internalColors.accent);
+  doc.text('CONFIDENTIAL', 163, 18, { align: 'center' });
+  doc.setFontSize(6);
   doc.setFont(undefined, 'normal');
-  doc.text(new Date(quote.created_at).toLocaleDateString('en-CA'), 168, 54);
-  doc.text(quote.status || 'DRAFT', 168, 60);
-  doc.text(quote.sales_rep_name || quote.created_by || 'System', 168, 66);
+  doc.text('DO NOT SHARE WITH CUSTOMER', 163, 25, { align: 'center' });
 
-  // Customer Info Box
-  doc.setFillColor(254, 242, 242);
-  doc.rect(14, 74, 182, 18, 'F');
+  // Quote Info Row
+  let currentY = 38;
+  doc.setFillColor(...colors.bgLight);
+  doc.setDrawColor(...colors.border);
+  doc.roundedRect(14, currentY, 182, 16, 3, 3, 'FD');
+
+  doc.setFontSize(8);
+  doc.setFont(undefined, 'normal');
+  doc.setTextColor(...colors.textMuted);
+
+  const quoteNumber = quote.quote_number || `QT-2025-${String(quote.id).padStart(4, '0')}`;
+  doc.text('Quote #:', 18, currentY + 7);
+  doc.text('Date:', 65, currentY + 7);
+  doc.text('Status:', 110, currentY + 7);
+  doc.text('Created By:', 150, currentY + 7);
+
   doc.setFont(undefined, 'bold');
-  doc.setFontSize(10);
-  doc.setTextColor(51, 51, 51);
-  doc.text('CUSTOMER:', 18, 82);
-  doc.setFont(undefined, 'normal');
-  doc.setFontSize(9);
-  doc.text(`${customer?.name || 'N/A'} | ${customer?.email || 'N/A'} | ${customer?.phone || 'N/A'}`, 55, 82);
+  doc.setTextColor(...colors.text);
+  doc.text(quoteNumber, 35, currentY + 7);
+  doc.text(new Date(quote.created_at).toLocaleDateString('en-CA'), 78, currentY + 7);
+  doc.text(quote.status?.toUpperCase() || 'DRAFT', 125, currentY + 7);
+  doc.text(quote.sales_rep_name || 'System', 173, currentY + 7);
 
-  // Items Table with Cost Analysis
+  currentY += 22;
+
+  // ========== CUSTOMER INFO CARD ==========
+  doc.setFillColor(...internalColors.lightBg);
+  doc.setDrawColor(...internalColors.border);
+  doc.roundedRect(14, currentY, 182, 26, 3, 3, 'FD');
+
+  doc.setFontSize(8);
+  doc.setFont(undefined, 'bold');
+  doc.setTextColor(...internalColors.primary);
+  doc.text('CUSTOMER', 18, currentY + 7);
+
+  // Customer name and contact
+  doc.setFont(undefined, 'normal');
+  doc.setTextColor(...colors.text);
+  const customerContactInfo = `${customer?.name || 'N/A'} | ${customer?.email || 'N/A'} | ${customer?.phone || 'N/A'}`;
+  doc.text(customerContactInfo, 50, currentY + 7);
+
+  // Customer address line
+  doc.setFontSize(7);
+  doc.setTextColor(...colors.textMuted);
+  const addressParts = [customer?.address, customer?.city, customer?.province, customer?.postal_code].filter(Boolean);
+  const fullAddress = addressParts.length > 0 ? addressParts.join(', ') : 'No address on file';
+  doc.text(fullAddress, 50, currentY + 13);
+
+  // CLV display if available
+  if (customer?.clv_total_cents || customer?.total_purchases || customer?.clv_score) {
+    const clvTotal = customer?.clv_total_cents ? `$${(customer.clv_total_cents / 100).toLocaleString('en-CA', { minimumFractionDigits: 2 })}` :
+                     customer?.clv_score ? `Score: ${customer.clv_score}` : 'N/A';
+    doc.text(`CLV: ${clvTotal} | Segment: ${customer?.clv_segment || 'N/A'}`, 18, currentY + 20);
+  }
+
+  currentY += 32;
+
+  // ========== ITEMS TABLE (Enhanced with Cost Analysis) ==========
   const tableData = items.map(item => {
     const unitPrice = (item.sell_cents || 0) / 100;
     const unitCost = (item.cost_cents || 0) / 100;
@@ -647,10 +847,14 @@ export const generateInternalPDF = (quote, customer, items) => {
     const lineCost = quantity * unitCost;
     const lineProfit = lineTotal - lineCost;
     const marginPercent = lineTotal > 0 ? (lineProfit / lineTotal * 100) : 0;
+    const sku = item.sku || item.product_code || '-';
+    const manufacturer = item.manufacturer || '-';
     const description = formatProductDescription(item, false);
 
     return [
-      description,
+      sku.substring(0, 10),
+      manufacturer.substring(0, 8),
+      description.substring(0, 35),
       quantity.toString(),
       `$${unitCost.toFixed(2)}`,
       `$${unitPrice.toFixed(2)}`,
@@ -661,148 +865,222 @@ export const generateInternalPDF = (quote, customer, items) => {
   });
 
   doc.autoTable({
-    startY: 98,
-    head: [['Description', 'Qty', 'Cost', 'Price', 'Total', 'Profit', 'Margin']],
+    startY: currentY,
+    head: [['SKU', 'MFR', 'DESCRIPTION', 'QTY', 'COST', 'PRICE', 'TOTAL', 'PROFIT', 'GP%']],
     body: tableData,
-    theme: 'grid',
+    theme: 'plain',
     headStyles: {
-      fillColor: [185, 28, 28],
+      fillColor: internalColors.accent,
       textColor: 255,
       fontStyle: 'bold',
-      fontSize: 8,
-      cellPadding: 3
+      fontSize: 7,
+      cellPadding: 2,
+      valign: 'middle'
     },
     bodyStyles: {
-      fontSize: 8,
-      cellPadding: 3
+      fontSize: 7,
+      cellPadding: 2,
+      textColor: colors.text,
+      valign: 'middle'
+    },
+    alternateRowStyles: {
+      fillColor: [254, 249, 249]
     },
     columnStyles: {
-      0: { cellWidth: 55 },
-      1: { cellWidth: 15, halign: 'center' },
-      2: { cellWidth: 22, halign: 'right' },
-      3: { cellWidth: 22, halign: 'right' },
-      4: { cellWidth: 24, halign: 'right' },
-      5: { cellWidth: 22, halign: 'right' },
-      6: { cellWidth: 22, halign: 'right' }
+      0: { cellWidth: 18, halign: 'left' },           // SKU - left
+      1: { cellWidth: 16, halign: 'left' },           // MFR - left
+      2: { cellWidth: 50, halign: 'left' },           // Description - left
+      3: { cellWidth: 12, halign: 'center', fontStyle: 'bold' }, // Qty - center
+      4: { cellWidth: 20, halign: 'right' },          // Cost - right
+      5: { cellWidth: 20, halign: 'right' },          // Price - right
+      6: { cellWidth: 22, halign: 'right', fontStyle: 'bold' },  // Total - right
+      7: { cellWidth: 20, halign: 'right' },          // Profit - right
+      8: { cellWidth: 16, halign: 'right', fontStyle: 'bold' }   // GP% - right
     },
     margin: { left: 14, right: 14 },
+    tableLineColor: colors.border,
+    tableLineWidth: 0.2,
     didParseCell: function(data) {
+      // Match header alignment to body column alignment
+      if (data.section === 'head') {
+        const colIndex = data.column.index;
+        if (colIndex === 3) {
+          data.cell.styles.halign = 'center';  // QTY centered
+        } else if (colIndex >= 4) {
+          data.cell.styles.halign = 'right';   // COST, PRICE, TOTAL, PROFIT, GP% right-aligned
+        } else {
+          data.cell.styles.halign = 'left';    // SKU, MFR, DESC left-aligned
+        }
+      }
       // Color code margin column
-      if (data.section === 'body' && data.column.index === 6) {
+      if (data.section === 'body' && data.column.index === 8) {
         const marginValue = parseFloat(data.cell.raw);
         if (marginValue < 20) {
-          data.cell.styles.textColor = [220, 38, 38]; // Red
+          data.cell.styles.textColor = colors.error;
         } else if (marginValue < 30) {
-          data.cell.styles.textColor = [234, 179, 8]; // Yellow
+          data.cell.styles.textColor = colors.warning;
         } else {
-          data.cell.styles.textColor = [22, 163, 74]; // Green
+          data.cell.styles.textColor = colors.success;
         }
-        data.cell.styles.fontStyle = 'bold';
+      }
+      // Color profit column
+      if (data.section === 'body' && data.column.index === 7) {
+        const profitStr = data.cell.raw.replace('$', '');
+        const profitVal = parseFloat(profitStr);
+        if (profitVal < 0) {
+          data.cell.styles.textColor = colors.error;
+        }
       }
     }
   });
 
-  // Financial Summary
+  // ========== FINANCIAL SUMMARY ==========
   const subtotal = (quote.subtotal_cents || 0) / 100;
   const totalCost = items.reduce((sum, item) => sum + ((item.quantity || 1) * ((item.cost_cents || 0) / 100)), 0);
   const discountAmount = (quote.discount_cents || 0) / 100;
+  const discountPercent = parseFloat(quote.discount_percent) || 0;
   const taxRatePercent = getTaxRatePercent(quote.tax_rate);
   const taxAmount = (quote.tax_cents || 0) / 100;
   const total = (quote.total_cents || 0) / 100;
   const grossProfit = subtotal - totalCost - discountAmount;
   const marginPercent = subtotal > 0 ? (grossProfit / subtotal * 100) : 0;
 
-  let summaryY = doc.lastAutoTable.finalY + 10;
+  let summaryY = doc.lastAutoTable.finalY + 8;
 
+  // Left side - Revenue Summary
+  doc.setFillColor(...colors.bgLight);
+  doc.setDrawColor(...colors.border);
+  doc.roundedRect(14, summaryY, 85, 50, 3, 3, 'FD');
+
+  doc.setFontSize(8);
   doc.setFont(undefined, 'bold');
-  doc.setFontSize(10);
-  doc.setTextColor(51, 51, 51);
-  doc.text('FINANCIAL SUMMARY', 14, summaryY);
-
-  // Two column layout for financials
-  const col1X = 14;
-  const col2X = 120;
-  summaryY += 8;
+  doc.setTextColor(...colors.primary);
+  doc.text('REVENUE SUMMARY', 18, summaryY + 8);
 
   doc.setFont(undefined, 'normal');
-  doc.setFontSize(9);
+  doc.setFontSize(7);
+  let leftY = summaryY + 16;
 
-  // Left Column - Revenue
-  doc.text('Subtotal:', col1X, summaryY);
-  doc.text(`$${subtotal.toFixed(2)}`, col1X + 50, summaryY, { align: 'right' });
+  doc.setTextColor(...colors.textMuted);
+  doc.text('Subtotal:', 18, leftY);
+  doc.setTextColor(...colors.text);
+  doc.text(`$${subtotal.toLocaleString('en-CA', { minimumFractionDigits: 2 })}`, 90, leftY, { align: 'right' });
 
   if (discountAmount > 0) {
-    summaryY += 5;
-    doc.text('Discount:', col1X, summaryY);
-    doc.text(`-$${discountAmount.toFixed(2)}`, col1X + 50, summaryY, { align: 'right' });
+    leftY += 6;
+    doc.setTextColor(...colors.error);
+    doc.text(`Discount (${discountPercent}%):`, 18, leftY);
+    doc.text(`-$${discountAmount.toLocaleString('en-CA', { minimumFractionDigits: 2 })}`, 90, leftY, { align: 'right' });
   }
 
-  summaryY += 5;
-  doc.text(`Tax (${taxRatePercent.toFixed(0)}%):`, col1X, summaryY);
-  doc.text(`$${taxAmount.toFixed(2)}`, col1X + 50, summaryY, { align: 'right' });
+  leftY += 6;
+  doc.setTextColor(...colors.textMuted);
+  doc.text(`Tax (${taxRatePercent.toFixed(0)}%):`, 18, leftY);
+  doc.setTextColor(...colors.text);
+  doc.text(`$${taxAmount.toLocaleString('en-CA', { minimumFractionDigits: 2 })}`, 90, leftY, { align: 'right' });
 
-  summaryY += 6;
+  leftY += 8;
   doc.setFont(undefined, 'bold');
-  doc.text('Total Revenue:', col1X, summaryY);
-  doc.text(`$${total.toFixed(2)}`, col1X + 50, summaryY, { align: 'right' });
-
-  // Right Column - Profit Analysis (in colored box)
-  const profitBoxY = doc.lastAutoTable.finalY + 16;
-
-  // Color based on margin
-  let boxColor;
-  if (marginPercent < 20) {
-    boxColor = [254, 226, 226]; // Light red
-  } else if (marginPercent < 30) {
-    boxColor = [254, 249, 195]; // Light yellow
-  } else {
-    boxColor = [220, 252, 231]; // Light green
-  }
-
-  doc.setFillColor(...boxColor);
-  doc.rect(col2X - 5, profitBoxY, 80, 28, 'F');
-
-  doc.setFont(undefined, 'normal');
   doc.setFontSize(9);
-  doc.setTextColor(51, 51, 51);
+  doc.text('Total Revenue:', 18, leftY);
+  doc.setTextColor(...colors.primary);
+  doc.text(`$${total.toLocaleString('en-CA', { minimumFractionDigits: 2 })}`, 90, leftY, { align: 'right' });
 
-  let profitY = profitBoxY + 7;
-  doc.text('Total Cost:', col2X, profitY);
-  doc.text(`$${totalCost.toFixed(2)}`, 190, profitY, { align: 'right' });
-
-  profitY += 6;
-  doc.setFont(undefined, 'bold');
-  doc.text('Gross Profit:', col2X, profitY);
-
-  // Color code profit
+  // Right side - Profit Analysis (color-coded)
+  let profitBoxColor;
   if (marginPercent < 20) {
-    doc.setTextColor(185, 28, 28);
+    profitBoxColor = [254, 226, 226]; // Light red
+  } else if (marginPercent < 30) {
+    profitBoxColor = [254, 249, 195]; // Light yellow
+  } else {
+    profitBoxColor = [220, 252, 231]; // Light green
+  }
+
+  doc.setFillColor(...profitBoxColor);
+  doc.setDrawColor(...colors.borderMedium);
+  doc.roundedRect(105, summaryY, 91, 50, 3, 3, 'FD');
+
+  doc.setFontSize(8);
+  doc.setFont(undefined, 'bold');
+
+  // Profit header color based on margin
+  if (marginPercent < 20) {
+    doc.setTextColor(...internalColors.primary);
   } else if (marginPercent < 30) {
     doc.setTextColor(161, 98, 7);
   } else {
     doc.setTextColor(22, 101, 52);
   }
-  doc.text(`$${grossProfit.toFixed(2)}`, 190, profitY, { align: 'right' });
+  doc.text('PROFIT ANALYSIS', 109, summaryY + 8);
 
-  profitY += 6;
-  doc.text('Margin:', col2X, profitY);
-  doc.text(`${marginPercent.toFixed(1)}%`, 190, profitY, { align: 'right' });
+  doc.setFont(undefined, 'normal');
+  doc.setFontSize(7);
+  doc.setTextColor(...colors.text);
+  let rightY = summaryY + 16;
 
-  // Page numbers
+  doc.text('Total Cost:', 109, rightY);
+  doc.text(`$${totalCost.toLocaleString('en-CA', { minimumFractionDigits: 2 })}`, 190, rightY, { align: 'right' });
+
+  rightY += 6;
+  doc.setFont(undefined, 'bold');
+  doc.text('Gross Profit:', 109, rightY);
+
+  // Color code profit value
+  if (marginPercent < 20) {
+    doc.setTextColor(...internalColors.primary);
+  } else if (marginPercent < 30) {
+    doc.setTextColor(161, 98, 7);
+  } else {
+    doc.setTextColor(22, 101, 52);
+  }
+  doc.text(`$${grossProfit.toLocaleString('en-CA', { minimumFractionDigits: 2 })}`, 190, rightY, { align: 'right' });
+
+  rightY += 10;
+  doc.setFontSize(12);
+  doc.text('MARGIN:', 109, rightY);
+  doc.text(`${marginPercent.toFixed(1)}%`, 190, rightY, { align: 'right' });
+
+  // Margin indicator bar
+  rightY += 6;
+  doc.setFillColor(...colors.border);
+  doc.roundedRect(109, rightY, 77, 4, 1, 1, 'F');
+
+  // Fill based on margin (cap at 50% for display)
+  const fillWidth = Math.min(marginPercent / 50 * 77, 77);
+  if (marginPercent < 20) {
+    doc.setFillColor(...colors.error);
+  } else if (marginPercent < 30) {
+    doc.setFillColor(...colors.warning);
+  } else {
+    doc.setFillColor(...colors.success);
+  }
+  doc.roundedRect(109, rightY, fillWidth, 4, 1, 1, 'F');
+
+  // ========== FOOTER ON ALL PAGES ==========
   const totalPages = doc.internal.getNumberOfPages();
   for (let i = 1; i <= totalPages; i++) {
     doc.setPage(i);
-    doc.setFontSize(8);
-    doc.setTextColor(150, 150, 150);
-    doc.text(`Page ${i} of ${totalPages}`, pageWidth - 14, pageHeight - 8, { align: 'right' });
-  }
 
-  // Footer
-  doc.setPage(totalPages);
-  doc.setFontSize(8);
-  doc.setFont(undefined, 'bold');
-  doc.setTextColor(185, 28, 28);
-  doc.text('CONFIDENTIAL - INTERNAL USE ONLY', 105, pageHeight - 12, { align: 'center' });
+    // Bottom accent line (red for internal)
+    doc.setDrawColor(...internalColors.accent);
+    doc.setLineWidth(0.5);
+    doc.line(14, pageHeight - 18, pageWidth - 14, pageHeight - 18);
+
+    // Confidential warning
+    doc.setFontSize(8);
+    doc.setFont(undefined, 'bold');
+    doc.setTextColor(...internalColors.accent);
+    doc.text('CONFIDENTIAL - INTERNAL USE ONLY', 14, pageHeight - 12);
+
+    // Generation timestamp
+    doc.setFontSize(6);
+    doc.setFont(undefined, 'normal');
+    doc.setTextColor(...colors.textMuted);
+    doc.text(`Generated: ${new Date().toLocaleString('en-CA')}`, pageWidth / 2, pageHeight - 12, { align: 'center' });
+
+    // Page number
+    doc.text(`Page ${i} of ${totalPages}`, pageWidth - 14, pageHeight - 12, { align: 'right' });
+  }
 
   return doc;
 };
@@ -816,7 +1094,7 @@ export const emailQuotePDF = async (quoteId, emailData) => {
 
     const response = await fetch(`${API_BASE}/quotations/${quoteId}/send-email`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: getAuthHeaders(),
       body: JSON.stringify(emailData)
     });
 
