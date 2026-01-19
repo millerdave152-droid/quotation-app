@@ -529,8 +529,7 @@ export const generateCustomerPDF = (quote, customer, items) => {
       6: { cellWidth: 27, halign: 'right', fontStyle: 'bold' }   // Total - right
     },
     margin: { left: 14, right: 14 },
-    tableLineColor: colors.border,
-    tableLineWidth: 0.2,
+    tableLineWidth: 0,  // Remove cell borders for cleaner look
     didParseCell: function(data) {
       // Match header alignment to body column alignment
       if (data.section === 'head') {
@@ -564,19 +563,18 @@ export const generateCustomerPDF = (quote, customer, items) => {
   const taxName = companyConfig.tax.taxName || 'HST';
 
   let totalsY = doc.lastAutoTable.finalY + 6;
-  const totalsCardX = 120;
-  const totalsCardWidth = 76;
-  let totalsCardHeight = 48;
-  if (discountAmount > 0) totalsCardHeight += 8;
+  const totalsCardX = 110;      // Moved left for more room
+  const totalsCardWidth = 86;   // Wider card to fit amounts
+  let totalsCardHeight = 52;    // Taller for better spacing
+  if (discountAmount > 0) totalsCardHeight += 16;
 
-  // Totals card background
+  // Totals card background (fill only, no border line)
   doc.setFillColor(...colors.bgLight);
-  doc.setDrawColor(...colors.border);
-  doc.roundedRect(totalsCardX, totalsY, totalsCardWidth, totalsCardHeight, 3, 3, 'FD');
+  doc.roundedRect(totalsCardX, totalsY, totalsCardWidth, totalsCardHeight, 3, 3, 'F');
 
-  const labelX = totalsCardX + 5;
-  const amountX = totalsCardX + totalsCardWidth - 5;
-  let lineY = totalsY + 8;
+  const labelX = totalsCardX + 6;
+  const amountX = totalsCardX + totalsCardWidth - 6;
+  let lineY = totalsY + 10;
 
   doc.setFontSize(8);
   doc.setFont(undefined, 'normal');
@@ -589,12 +587,12 @@ export const generateCustomerPDF = (quote, customer, items) => {
 
   // Discount (if any)
   if (discountAmount > 0) {
-    lineY += 8;
+    lineY += 9;
     doc.setTextColor(...colors.error);
     doc.text(`Discount (${discountPercent}%)`, labelX, lineY);
     doc.text(`-$${discountAmount.toLocaleString('en-CA', { minimumFractionDigits: 2 })}`, amountX, lineY, { align: 'right' });
 
-    lineY += 8;
+    lineY += 9;
     doc.setTextColor(...colors.textMuted);
     doc.text('Net Amount', labelX, lineY);
     doc.setTextColor(...colors.text);
@@ -602,23 +600,23 @@ export const generateCustomerPDF = (quote, customer, items) => {
   }
 
   // Tax
-  lineY += 8;
+  lineY += 9;
   doc.setTextColor(...colors.textMuted);
   doc.text(`${taxName} (${taxRatePercent.toFixed(0)}%)`, labelX, lineY);
   doc.setTextColor(...colors.text);
   doc.text(`$${taxAmount.toLocaleString('en-CA', { minimumFractionDigits: 2 })}`, amountX, lineY, { align: 'right' });
 
   // TOTAL DUE - Emphasized box
-  lineY += 10;
+  lineY += 12;
   doc.setFillColor(...colors.primary);
-  doc.roundedRect(labelX - 2, lineY - 5, totalsCardWidth - 6, 14, 2, 2, 'F');
+  doc.roundedRect(labelX - 3, lineY - 6, totalsCardWidth - 6, 16, 2, 2, 'F');
 
-  doc.setFontSize(9);
+  doc.setFontSize(8);
   doc.setFont(undefined, 'bold');
   doc.setTextColor(255, 255, 255);
-  doc.text('TOTAL DUE', labelX + 2, lineY + 3);
-  doc.setFontSize(11);
-  doc.text(`$${total.toLocaleString('en-CA', { minimumFractionDigits: 2 })}`, amountX - 2, lineY + 3, { align: 'right' });
+  doc.text('TOTAL DUE', labelX, lineY + 2);
+  doc.setFontSize(10);
+  doc.text(`$${total.toLocaleString('en-CA', { minimumFractionDigits: 2 })}`, amountX - 3, lineY + 2, { align: 'right' });
 
   // ========== NOTES SECTION ==========
   let contentY = totalsY;
@@ -898,8 +896,7 @@ export const generateInternalPDF = (quote, customer, items) => {
       8: { cellWidth: 16, halign: 'right', fontStyle: 'bold' }   // GP% - right
     },
     margin: { left: 14, right: 14 },
-    tableLineColor: colors.border,
-    tableLineWidth: 0.2,
+    tableLineWidth: 0,  // Remove cell borders for cleaner look
     didParseCell: function(data) {
       // Match header alignment to body column alignment
       if (data.section === 'head') {
