@@ -3,11 +3,12 @@
  * Displays quote details, items, revenue features, and actions
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { previewQuotePDF, downloadQuotePDF } from '../../services/pdfService';
 import { toast } from '../ui/Toast';
 import logger from '../../utils/logger';
 import VersionHistory from './VersionHistory';
+import QuotePromotionAlerts from './QuotePromotionAlerts';
 
 const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:3001';
 
@@ -61,14 +62,16 @@ const Tooltip = ({ children, text }) => {
  * StatusBadge - Displays quote status with tooltip
  */
 const StatusBadge = ({ status, createdAt, size = 'normal' }) => {
+  // Standardized color palette (WCAG 2.1 AA compliant - 4.5:1 contrast)
   const statusConfig = {
-    DRAFT: { bg: '#3b82f6', text: 'white', label: 'DRAFT' },
-    SENT: { bg: '#8b5cf6', text: 'white', label: 'SENT' },
-    WON: { bg: '#10b981', text: 'white', label: 'WON' },
-    LOST: { bg: '#ef4444', text: 'white', label: 'LOST' },
-    PENDING_APPROVAL: { bg: '#f59e0b', text: 'white', label: 'PENDING' },
-    APPROVED: { bg: '#10b981', text: 'white', label: 'APPROVED' },
-    REJECTED: { bg: '#ef4444', text: 'white', label: 'REJECTED' }
+    DRAFT: { bg: '#6b7280', text: 'white', label: 'DRAFT' },         // Gray - neutral
+    SENT: { bg: '#8b5cf6', text: 'white', label: 'SENT' },           // Purple - in progress
+    VIEWED: { bg: '#0ea5e9', text: 'white', label: 'VIEWED' },       // Sky blue - engaged
+    PENDING_APPROVAL: { bg: '#f59e0b', text: '#000000', label: 'PENDING' }, // Amber - needs attention
+    APPROVED: { bg: '#10b981', text: 'white', label: 'APPROVED' },   // Green - positive
+    WON: { bg: '#059669', text: 'white', label: 'WON' },             // Darker green - success
+    LOST: { bg: '#dc2626', text: 'white', label: 'LOST' },           // Red - negative
+    REJECTED: { bg: '#ef4444', text: 'white', label: 'REJECTED' }    // Lighter red - negative
   };
 
   const config = statusConfig[status] || { bg: '#6b7280', text: 'white', label: status };
@@ -161,7 +164,6 @@ const ExpiryBadge = ({ expiresAt, status, size = 'normal' }) => {
         <span style={{
           display: 'inline-flex',
           alignItems: 'center',
-          gap: '4px',
           padding: style.padding,
           borderRadius: '9999px',
           fontSize: style.fontSize,
@@ -170,7 +172,6 @@ const ExpiryBadge = ({ expiresAt, status, size = 'normal' }) => {
           color: 'white',
           cursor: 'default'
         }}>
-          <span style={{ fontSize: style.iconSize }}>&#128308;</span>
           EXPIRED
         </span>
       </Tooltip>
@@ -183,17 +184,15 @@ const ExpiryBadge = ({ expiresAt, status, size = 'normal' }) => {
         <span style={{
           display: 'inline-flex',
           alignItems: 'center',
-          gap: '4px',
           padding: style.padding,
           borderRadius: '9999px',
           fontSize: style.fontSize,
           fontWeight: '600',
-          background: '#f59e0b',
+          background: '#f97316',
           color: 'white',
           cursor: 'default'
         }}>
-          <span style={{ fontSize: style.iconSize }}>&#9200;</span>
-          {diffDays === 0 ? 'TODAY' : diffDays === 1 ? '1 DAY' : `${diffDays} DAYS`}
+          {diffDays === 0 ? 'EXPIRES TODAY' : diffDays === 1 ? 'EXPIRES IN 1 DAY' : `EXPIRES IN ${diffDays} DAYS`}
         </span>
       </Tooltip>
     );
@@ -250,6 +249,10 @@ const QuoteViewer = ({
   const [signatures, setSignatures] = useState([]);
   const [signaturesLoading, setSignaturesLoading] = useState(false);
 
+  // Win probability state
+  const [winProbability, setWinProbability] = useState(null);
+  const [winProbabilityLoading, setWinProbabilityLoading] = useState(false);
+
   // Fetch signatures when quote is loaded
   useEffect(() => {
     const fetchSignatures = async () => {
@@ -271,6 +274,31 @@ const QuoteViewer = ({
 
     fetchSignatures();
   }, [quote?.id]);
+
+  // Fetch win probability when quote is loaded
+  useEffect(() => {
+    const fetchWinProbability = async () => {
+      if (!quote?.id || quote.status === 'WON' || quote.status === 'LOST' || quote.status === 'EXPIRED') {
+        setWinProbability(null);
+        return;
+      }
+
+      setWinProbabilityLoading(true);
+      try {
+        const response = await fetch(`${API_URL}/api/quotations/${quote.id}/win-probability`);
+        if (response.ok) {
+          const data = await response.json();
+          setWinProbability(data.data);
+        }
+      } catch (error) {
+        logger.error('Error fetching win probability:', error);
+      } finally {
+        setWinProbabilityLoading(false);
+      }
+    };
+
+    fetchWinProbability();
+  }, [quote?.id, quote?.status]);
 
   if (!quote) return null;
 
@@ -361,6 +389,12 @@ const QuoteViewer = ({
 
   // PDF operation handlers with loading state
   const handlePdfAction = async (action, type) => {
+    // Validate quote exists and has an ID
+    if (!quote?.id) {
+      toast.error('Cannot generate PDF: Quote has not been saved yet.', 'Save Required');
+      return;
+    }
+
     const stateKey = `${action}${type.charAt(0).toUpperCase() + type.slice(1)}`;
     setPdfLoading(prev => ({ ...prev, [stateKey]: true }));
 
@@ -422,17 +456,127 @@ const QuoteViewer = ({
   const statusStyle = getStatusStyle(quote.status);
   const hasPendingApproval = quoteApprovals.some(a => a.status === 'PENDING');
 
+  // Check if quote needs approval before sending
+  const needsApproval = quote.approval_required && quote.status !== 'APPROVED';
+  const canSend = !needsApproval;
+  const pendingApprover = hasPendingApproval
+    ? quoteApprovals.find(a => a.status === 'PENDING')
+    : null;
+
   return (
     <div style={{ padding: '24px' }}>
-      {/* Spinner animation keyframes */}
+      {/* Animation keyframes */}
       <style>
         {`
           @keyframes spin {
             from { transform: rotate(0deg); }
             to { transform: rotate(360deg); }
           }
+          @keyframes pulse {
+            0%, 100% { opacity: 1; transform: scale(1); }
+            50% { opacity: 0.85; transform: scale(1.02); }
+          }
         `}
       </style>
+
+      {/* Approval Required Banner */}
+      {needsApproval && (
+        <div style={{
+          background: hasPendingApproval
+            ? 'linear-gradient(135deg, #fef3c7 0%, #fde68a 100%)'
+            : 'linear-gradient(135deg, #fee2e2 0%, #fecaca 100%)',
+          border: hasPendingApproval ? '2px solid #f59e0b' : '2px solid #ef4444',
+          borderRadius: '12px',
+          padding: '16px 24px',
+          marginBottom: '24px',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '16px',
+          boxShadow: hasPendingApproval
+            ? '0 2px 8px rgba(245, 158, 11, 0.2)'
+            : '0 2px 8px rgba(239, 68, 68, 0.2)'
+        }}>
+          <div style={{
+            width: '48px',
+            height: '48px',
+            background: hasPendingApproval ? '#f59e0b' : '#ef4444',
+            borderRadius: '50%',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            flexShrink: 0
+          }}>
+            <span style={{ fontSize: '24px' }}>{hasPendingApproval ? '\u23F3' : '\u26A0\uFE0F'}</span>
+          </div>
+          <div style={{ flex: 1 }}>
+            <div style={{
+              fontSize: '16px',
+              fontWeight: 'bold',
+              color: hasPendingApproval ? '#92400e' : '#991b1b',
+              marginBottom: '4px'
+            }}>
+              {hasPendingApproval ? 'Awaiting Manager Approval' : 'Approval Required - Low Margin'}
+            </div>
+            <div style={{ fontSize: '14px', color: hasPendingApproval ? '#a16207' : '#b91c1c' }}>
+              {hasPendingApproval ? (
+                <>Pending approval from <strong>{pendingApprover?.approver_name}</strong> ({pendingApprover?.approver_email})</>
+              ) : (
+                <>This quote has a margin of <strong>{(quote.margin_percent || 0).toFixed(1)}%</strong> and requires manager approval before it can be sent to the customer.</>
+              )}
+            </div>
+          </div>
+          {quote.margin_percent !== undefined && (
+            <div style={{
+              background: 'white',
+              padding: '8px 16px',
+              borderRadius: '8px',
+              textAlign: 'center',
+              boxShadow: '0 1px 3px rgba(0,0,0,0.1)'
+            }}>
+              <div style={{ fontSize: '12px', color: '#6b7280' }}>Margin</div>
+              <div style={{ fontSize: '20px', fontWeight: 'bold', color: '#ef4444' }}>
+                {(quote.margin_percent || 0).toFixed(1)}%
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Approved Banner */}
+      {quote.status === 'APPROVED' && (
+        <div style={{
+          background: 'linear-gradient(135deg, #d1fae5 0%, #a7f3d0 100%)',
+          border: '2px solid #10b981',
+          borderRadius: '12px',
+          padding: '16px 24px',
+          marginBottom: '24px',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '16px',
+          boxShadow: '0 2px 8px rgba(16, 185, 129, 0.2)'
+        }}>
+          <div style={{
+            width: '48px',
+            height: '48px',
+            background: '#10b981',
+            borderRadius: '50%',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            flexShrink: 0
+          }}>
+            <span style={{ fontSize: '24px', color: 'white' }}>\u2713</span>
+          </div>
+          <div style={{ flex: 1 }}>
+            <div style={{ fontSize: '16px', fontWeight: 'bold', color: '#065f46', marginBottom: '4px' }}>
+              Quote Approved
+            </div>
+            <div style={{ fontSize: '14px', color: '#047857' }}>
+              This quote has been approved{quote.approved_by ? ` by ${quote.approved_by}` : ''}. You can now send it to the customer.
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Header */}
       <div style={{
@@ -449,37 +593,42 @@ const QuoteViewer = ({
 
         <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
           <button
-            onClick={() => onSendEmail?.(quote)}
+            onClick={() => canSend ? onSendEmail?.(quote) : null}
+            disabled={!canSend}
+            title={!canSend ? 'Approval required before sending' : 'Send quote to customer'}
             style={{
               padding: '12px 24px',
-              background: '#10b981',
+              background: canSend ? '#10b981' : '#9ca3af',
               color: 'white',
               border: 'none',
               borderRadius: '8px',
               fontSize: '14px',
               fontWeight: 'bold',
-              cursor: 'pointer'
+              cursor: canSend ? 'pointer' : 'not-allowed',
+              opacity: canSend ? 1 : 0.7
             }}
           >
-            Send Email
+            {canSend ? 'Send Email' : 'Requires Approval'}
           </button>
 
-          {(quote.status === 'DRAFT' || quote.status === 'SENT') && (
+          {/* Show Request Approval when approval is required OR when quote is in draft/sent */}
+          {(needsApproval || quote.status === 'DRAFT' || quote.status === 'SENT') && (
             <button
               onClick={onRequestApproval}
               disabled={hasPendingApproval}
               style={{
                 padding: '12px 24px',
-                background: hasPendingApproval ? '#9ca3af' : '#6366f1',
+                background: hasPendingApproval ? '#9ca3af' : needsApproval ? '#ef4444' : '#6366f1',
                 color: 'white',
                 border: 'none',
                 borderRadius: '8px',
                 fontSize: '14px',
                 fontWeight: 'bold',
-                cursor: hasPendingApproval ? 'not-allowed' : 'pointer'
+                cursor: hasPendingApproval ? 'not-allowed' : 'pointer',
+                animation: needsApproval && !hasPendingApproval ? 'pulse 2s infinite' : 'none'
               }}
             >
-              Request Approval
+              {hasPendingApproval ? 'Pending Approval' : needsApproval ? 'Request Approval Now' : 'Request Approval'}
             </button>
           )}
 
@@ -510,14 +659,56 @@ const QuoteViewer = ({
         boxShadow: '0 1px 3px rgba(0,0,0,0.1)'
       }}>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '24px' }}>
+          {/* Bill To Section */}
           <div>
             <h3 style={{ fontSize: '18px', fontWeight: 'bold', marginBottom: '12px' }}>
-              Customer Information
+              Bill To
             </h3>
-            <div style={{ color: '#6b7280' }}>
-              <div style={{ marginBottom: '4px' }}>{quote.customer_name}</div>
-              <div style={{ marginBottom: '4px' }}>{quote.customer_email}</div>
-              <div>{quote.customer_phone}</div>
+            <div style={{ color: '#374151' }}>
+              <div style={{ fontWeight: '600', fontSize: '15px', marginBottom: '4px' }}>
+                {quote.customer_name || 'N/A'}
+              </div>
+              {quote.customer_company && (
+                <div style={{ marginBottom: '4px', fontStyle: 'italic' }}>
+                  {quote.customer_company}
+                </div>
+              )}
+              {quote.customer_address && (
+                <div style={{ marginBottom: '2px' }}>{quote.customer_address}</div>
+              )}
+              {(quote.customer_city || quote.customer_province || quote.customer_postal_code) && (
+                <div style={{ marginBottom: '4px' }}>
+                  {[quote.customer_city, quote.customer_province, quote.customer_postal_code]
+                    .filter(Boolean)
+                    .join(', ')}
+                </div>
+              )}
+            </div>
+
+            {/* Contact Information */}
+            <h4 style={{ fontSize: '14px', fontWeight: '600', marginTop: '16px', marginBottom: '8px', color: '#6b7280' }}>
+              Contact
+            </h4>
+            <div style={{ color: '#374151' }}>
+              {quote.customer_email && (
+                <div style={{ marginBottom: '4px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <span style={{ color: '#6b7280', width: '50px', fontSize: '13px' }}>Email:</span>
+                  <a href={`mailto:${quote.customer_email}`} style={{ color: '#3b82f6', textDecoration: 'none' }}>
+                    {quote.customer_email}
+                  </a>
+                </div>
+              )}
+              {quote.customer_phone && (
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <span style={{ color: '#6b7280', width: '50px', fontSize: '13px' }}>Phone:</span>
+                  <a href={`tel:${quote.customer_phone}`} style={{ color: '#3b82f6', textDecoration: 'none' }}>
+                    {quote.customer_phone}
+                  </a>
+                </div>
+              )}
+              {!quote.customer_email && !quote.customer_phone && (
+                <div style={{ color: '#9ca3af', fontStyle: 'italic' }}>No contact information</div>
+              )}
             </div>
           </div>
 
@@ -573,7 +764,120 @@ const QuoteViewer = ({
             </div>
           </div>
         </div>
+
+        {/* Win Probability Section */}
+        {winProbability && !['WON', 'LOST', 'EXPIRED'].includes(quote.status) && (
+          <div style={{
+            marginTop: '24px',
+            padding: '16px',
+            background: winProbability.winProbability >= 60 ? '#d1fae5' :
+                        winProbability.winProbability >= 40 ? '#fef3c7' : '#fee2e2',
+            borderRadius: '8px',
+            border: `1px solid ${winProbability.winProbability >= 60 ? '#10b981' :
+                                 winProbability.winProbability >= 40 ? '#f59e0b' : '#ef4444'}`
+          }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '16px' }}>
+              <div>
+                <h4 style={{ fontSize: '14px', fontWeight: '600', marginBottom: '8px', color: '#374151' }}>
+                  Win Probability Analysis
+                </h4>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+                  <div style={{
+                    fontSize: '32px',
+                    fontWeight: 'bold',
+                    color: winProbability.winProbability >= 60 ? '#059669' :
+                           winProbability.winProbability >= 40 ? '#d97706' : '#dc2626'
+                  }}>
+                    {winProbability.winProbability}%
+                  </div>
+                  <div style={{ width: '120px', height: '8px', background: '#e5e7eb', borderRadius: '4px', overflow: 'hidden' }}>
+                    <div style={{
+                      width: `${winProbability.winProbability}%`,
+                      height: '100%',
+                      background: winProbability.winProbability >= 60 ? '#10b981' :
+                                  winProbability.winProbability >= 40 ? '#f59e0b' : '#ef4444',
+                      transition: 'width 0.5s ease'
+                    }} />
+                  </div>
+                  <span style={{
+                    padding: '2px 8px',
+                    borderRadius: '4px',
+                    fontSize: '11px',
+                    fontWeight: '600',
+                    background: winProbability.riskLevel === 'low' ? '#d1fae5' :
+                                winProbability.riskLevel === 'medium' ? '#fef3c7' : '#fee2e2',
+                    color: winProbability.riskLevel === 'low' ? '#065f46' :
+                           winProbability.riskLevel === 'medium' ? '#92400e' : '#991b1b'
+                  }}>
+                    {winProbability.riskLevel.toUpperCase()} RISK
+                  </span>
+                </div>
+              </div>
+
+              {/* Key Factors */}
+              <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
+                {winProbability.factors?.customerTier && (
+                  <div style={{ padding: '8px 12px', background: 'white', borderRadius: '6px', fontSize: '12px' }}>
+                    <span style={{ color: '#6b7280' }}>Customer: </span>
+                    <span style={{ fontWeight: '600' }}>{winProbability.factors.customerTier.tier}</span>
+                  </div>
+                )}
+                {winProbability.factors?.quoteAge && (
+                  <div style={{ padding: '8px 12px', background: 'white', borderRadius: '6px', fontSize: '12px' }}>
+                    <span style={{ color: '#6b7280' }}>Age: </span>
+                    <span style={{ fontWeight: '600' }}>{winProbability.factors.quoteAge.daysOld} days</span>
+                  </div>
+                )}
+                {winProbability.factors?.engagement && (
+                  <div style={{ padding: '8px 12px', background: 'white', borderRadius: '6px', fontSize: '12px' }}>
+                    <span style={{ color: '#6b7280' }}>Views: </span>
+                    <span style={{ fontWeight: '600' }}>{winProbability.factors.engagement.views}</span>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Recommendations */}
+            {winProbability.recommendations?.length > 0 && (
+              <div style={{ marginTop: '12px', paddingTop: '12px', borderTop: '1px solid rgba(0,0,0,0.1)' }}>
+                <div style={{ fontSize: '12px', color: '#6b7280', marginBottom: '6px' }}>Recommendations:</div>
+                <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                  {winProbability.recommendations.slice(0, 3).map((rec, idx) => (
+                    <div key={idx} style={{
+                      padding: '6px 10px',
+                      background: 'white',
+                      borderRadius: '4px',
+                      fontSize: '11px',
+                      borderLeft: `3px solid ${rec.priority === 'high' ? '#ef4444' : '#f59e0b'}`
+                    }}>
+                      {rec.message}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {winProbabilityLoading && (
+          <div style={{ marginTop: '24px', padding: '16px', background: '#f3f4f6', borderRadius: '8px', textAlign: 'center' }}>
+            <span style={{ color: '#6b7280' }}>Loading win probability analysis...</span>
+          </div>
+        )}
       </div>
+
+      {/* Manufacturer Promotions */}
+      {quote?.id && (
+        <QuotePromotionAlerts
+          quotationId={quote.id}
+          onPromotionChange={() => {
+            // Refresh quote data when a promotion is applied/removed
+            if (window.location.reload) {
+              window.location.reload();
+            }
+          }}
+        />
+      )}
 
       {/* Quote Items */}
       <div style={{
@@ -585,36 +889,57 @@ const QuoteViewer = ({
       }}>
         <h3 style={{ fontSize: '18px', fontWeight: 'bold', marginBottom: '16px' }}>Items</h3>
 
-        <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-          <thead>
-            <tr style={{ background: '#f9fafb', borderBottom: '2px solid #e5e7eb' }}>
-              <th style={{ padding: '12px', textAlign: 'left', fontWeight: 'bold' }}>Item</th>
-              <th style={{ padding: '12px', textAlign: 'center', fontWeight: 'bold' }}>Qty</th>
-              <th style={{ padding: '12px', textAlign: 'right', fontWeight: 'bold' }}>Unit Price</th>
-              <th style={{ padding: '12px', textAlign: 'right', fontWeight: 'bold' }}>Total</th>
-            </tr>
-          </thead>
-          <tbody>
-            {quote.items?.map((item, idx) => (
-              <tr key={idx} style={{ borderBottom: '1px solid #e5e7eb' }}>
-                <td style={{ padding: '12px' }}>
-                  <div style={{ fontWeight: 'bold' }}>{item.manufacturer} - {item.model}</div>
-                  <div style={{ fontSize: '12px', color: '#6b7280' }}>SKU: {item.sku || item.model}</div>
-                  {item.description && (
-                    <div style={{ fontSize: '12px', color: '#6b7280', marginTop: '4px' }}>{item.description}</div>
-                  )}
-                </td>
-                <td style={{ padding: '12px', textAlign: 'center' }}>{item.quantity}</td>
-                <td style={{ padding: '12px', textAlign: 'right' }}>
-                  ${((item.sell_cents || item.unit_price_cents || 0) / 100).toFixed(2)}
-                </td>
-                <td style={{ padding: '12px', textAlign: 'right', fontWeight: 'bold' }}>
-                  ${((item.line_total_cents || 0) / 100).toFixed(2)}
-                </td>
+        <div style={{ overflowX: 'auto' }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: '700px' }}>
+            <thead>
+              <tr style={{ background: '#f9fafb', borderBottom: '2px solid #e5e7eb' }}>
+                <th style={{ padding: '12px 8px', textAlign: 'center', fontWeight: 'bold', fontSize: '13px', width: '100px' }}>SKU</th>
+                <th style={{ padding: '12px 8px', textAlign: 'center', fontWeight: 'bold', fontSize: '13px', width: '100px' }}>MFR</th>
+                <th style={{ padding: '12px 8px', textAlign: 'left', fontWeight: 'bold', fontSize: '13px' }}>DESCRIPTION</th>
+                <th style={{ padding: '12px 8px', textAlign: 'center', fontWeight: 'bold', fontSize: '13px', width: '60px' }}>QTY</th>
+                <th style={{ padding: '12px 8px', textAlign: 'right', fontWeight: 'bold', fontSize: '13px', width: '90px' }}>PRICE</th>
+                <th style={{ padding: '12px 8px', textAlign: 'center', fontWeight: 'bold', fontSize: '13px', width: '70px' }}>DISC</th>
+                <th style={{ padding: '12px 8px', textAlign: 'right', fontWeight: 'bold', fontSize: '13px', width: '100px' }}>TOTAL</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {quote.items?.map((item, idx) => {
+                const unitPrice = (item.sell_cents || item.unit_price_cents || 0) / 100;
+                const lineTotal = (item.line_total_cents || 0) / 100;
+                const discountPercent = item.discount_percent || 0;
+
+                return (
+                  <tr key={idx} style={{ borderBottom: '1px solid #e5e7eb' }}>
+                    <td style={{ padding: '12px 8px', textAlign: 'center', fontSize: '13px', color: '#374151' }}>
+                      {item.sku || item.model || '-'}
+                    </td>
+                    <td style={{ padding: '12px 8px', textAlign: 'center', fontSize: '13px', fontWeight: '500', color: '#374151' }}>
+                      {item.manufacturer || '-'}
+                    </td>
+                    <td style={{ padding: '12px 8px', textAlign: 'left', fontSize: '13px', color: '#374151' }}>
+                      <div style={{ fontWeight: '500' }}>{item.model || item.description || '-'}</div>
+                      {item.description && item.model && (
+                        <div style={{ fontSize: '12px', color: '#6b7280', marginTop: '2px' }}>{item.description}</div>
+                      )}
+                    </td>
+                    <td style={{ padding: '12px 8px', textAlign: 'center', fontSize: '13px', color: '#374151' }}>
+                      {item.quantity}
+                    </td>
+                    <td style={{ padding: '12px 8px', textAlign: 'right', fontSize: '13px', color: '#374151' }}>
+                      ${unitPrice.toFixed(2)}
+                    </td>
+                    <td style={{ padding: '12px 8px', textAlign: 'center', fontSize: '13px', color: discountPercent > 0 ? '#dc2626' : '#374151' }}>
+                      {discountPercent > 0 ? `${discountPercent}%` : '-'}
+                    </td>
+                    <td style={{ padding: '12px 8px', textAlign: 'right', fontSize: '13px', fontWeight: '600', color: '#374151' }}>
+                      ${lineTotal.toFixed(2)}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
 
         {/* Totals */}
         <div style={{ marginTop: '24px', paddingTop: '24px', borderTop: '2px solid #e5e7eb', textAlign: 'right' }}>
@@ -626,6 +951,12 @@ const QuoteViewer = ({
             <div style={{ marginBottom: '8px', color: '#ef4444' }}>
               <span style={{ marginRight: '40px' }}>Discount ({quote.discount_percent}%):</span>
               <span style={{ fontWeight: 'bold' }}>-${((quote.discount_cents || 0) / 100).toFixed(2)}</span>
+            </div>
+          )}
+          {quote.promo_discount_cents > 0 && (
+            <div style={{ marginBottom: '8px', color: '#059669' }}>
+              <span style={{ marginRight: '40px' }}>Manufacturer Promo:</span>
+              <span style={{ fontWeight: 'bold' }}>-${((quote.promo_discount_cents || 0) / 100).toFixed(2)}</span>
             </div>
           )}
           <div style={{ marginBottom: '8px' }}>

@@ -3,6 +3,8 @@
  * Handles all customer-related business logic
  */
 
+const LookupService = require('./LookupService');
+
 class CustomerService {
   constructor(pool, cache) {
     this.pool = pool;
@@ -185,6 +187,13 @@ class CustomerService {
 
     // Invalidate cache
     this.invalidateCache();
+
+    // Save first and last names for future autocomplete (async, don't block)
+    if (name) {
+      LookupService.saveNamesFromCustomer(name).catch(err => {
+        console.error('[CustomerService] Error saving names:', err.message);
+      });
+    }
 
     return result.rows[0];
   }
