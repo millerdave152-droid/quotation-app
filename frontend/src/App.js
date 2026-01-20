@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { BrowserRouter, Routes, Route, NavLink, Navigate, useLocation } from 'react-router-dom';
+import React, { useEffect, useState, useCallback } from 'react';
+import { BrowserRouter, Routes, Route, NavLink, Navigate, useNavigate } from 'react-router-dom';
 import { cachedFetch } from './services/apiCache';
 import { ToastProvider, useToast, setToastRef } from './components/ui';
 import { SkeletonStats, SkeletonTable } from './components/ui';
@@ -7,7 +7,16 @@ import { handleApiError } from './utils/errorHandler';
 import ErrorBoundary from './components/ErrorBoundary';
 import { MainLayout } from './components/layout';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
+import { QuoteProvider } from './contexts/QuoteContext';
+import { ProductProvider } from './contexts/ProductContext';
+import { ThemeProvider, useTheme } from './contexts/ThemeContext';
 import ProtectedRoute from './components/auth/ProtectedRoute';
+import CommandPalette from './components/ui/CommandPalette';
+import GlobalSearch from './components/ui/GlobalSearch';
+
+// Utility CSS classes for replacing inline styles
+import './styles/utilities.css';
+import './styles/theme.css';
 
 // Lazy load components - loads ONLY when tab is first clicked
 const LoginPage = React.lazy(() => import('./pages/LoginPage'));
@@ -32,9 +41,30 @@ const QuoteExpiryManager = React.lazy(() => import('./components/quotes/QuoteExp
 
 // Advanced Pricing Components
 const AdvancedPricingManager = React.lazy(() => import('./components/pricing/AdvancedPricingManager'));
+const ManufacturerPromotionsAdmin = React.lazy(() => import('./components/pricing/ManufacturerPromotionsAdmin'));
 
 // Product Visualization (Vendor Product Gallery)
 const ProductVisualization = React.lazy(() => import('./components/ProductVisualization/ProductVisualization'));
+
+// CLV Analytics Dashboard
+const CLVDashboard = React.lazy(() => import('./components/analytics/CLVDashboard'));
+
+// Purchasing Intelligence Dashboard
+const PurchasingIntelligence = React.lazy(() => import('./components/analytics/PurchasingIntelligence'));
+
+// Pipeline Analytics Dashboard
+const PipelineAnalytics = React.lazy(() => import('./components/quotations/PipelineAnalytics'));
+
+// Report Builder & Executive Dashboard
+const ReportBuilder = React.lazy(() => import('./components/reports/ReportBuilder'));
+const ExecutiveDashboard = React.lazy(() => import('./components/reports/ExecutiveDashboard'));
+
+// Model Nomenclature Training Center
+const TrainingCenter = React.lazy(() => import('./components/nomenclature/TrainingCenter'));
+const NomenclatureAdmin = React.lazy(() => import('./components/nomenclature/NomenclatureAdmin'));
+
+// Quick Search (Universal Product Finder)
+const QuickSearch = React.lazy(() => import('./components/QuickSearch'));
 
 // Dashboard component with real data and anti-flickering
 const Dashboard = () => {
@@ -258,6 +288,98 @@ const Dashboard = () => {
 // Main App with protected routes
 function App() {
   const { isAuthenticated, loading } = useAuth();
+  const { toggleTheme, setLightTheme, setDarkTheme } = useTheme();
+  const navigate = useNavigate();
+  const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
+  const [globalSearchOpen, setGlobalSearchOpen] = useState(false);
+
+  // Global keyboard shortcuts
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      // Command Palette (Ctrl+K or Cmd+K)
+      if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
+        e.preventDefault();
+        setCommandPaletteOpen(prev => !prev);
+        setGlobalSearchOpen(false);
+      }
+      // Global Search (Ctrl+Shift+F or Cmd+Shift+F)
+      if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key === 'F') {
+        e.preventDefault();
+        setGlobalSearchOpen(prev => !prev);
+        setCommandPaletteOpen(false);
+      }
+    };
+
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, []);
+
+  // Handle navigation from Command Palette
+  const handleCommandNavigate = useCallback((path, action) => {
+    if (path) {
+      navigate(path);
+    } else if (action) {
+      // Handle actions
+      switch (action) {
+        case 'new-quote':
+          navigate('/quotes/new');
+          break;
+        case 'new-customer':
+          navigate('/customers');
+          // Trigger add customer modal via URL param or state
+          setTimeout(() => {
+            const event = new CustomEvent('openAddCustomer');
+            window.dispatchEvent(event);
+          }, 100);
+          break;
+        case 'new-product':
+          navigate('/products');
+          setTimeout(() => {
+            const event = new CustomEvent('openAddProduct');
+            window.dispatchEvent(event);
+          }, 100);
+          break;
+        case 'new-order':
+          navigate('/quotes');
+          break;
+        case 'search-quotes':
+          navigate('/quotes');
+          setTimeout(() => {
+            const searchInput = document.querySelector('input[placeholder*="Search"]');
+            if (searchInput) searchInput.focus();
+          }, 100);
+          break;
+        case 'search-customers':
+          navigate('/customers');
+          setTimeout(() => {
+            const searchInput = document.querySelector('input[placeholder*="Search"]');
+            if (searchInput) searchInput.focus();
+          }, 100);
+          break;
+        case 'search-products':
+          navigate('/products');
+          setTimeout(() => {
+            const searchInput = document.querySelector('input[placeholder*="Search"]');
+            if (searchInput) searchInput.focus();
+          }, 100);
+          break;
+        case 'global-search':
+          setGlobalSearchOpen(true);
+          break;
+        case 'toggle-theme':
+          toggleTheme();
+          break;
+        case 'set-light-theme':
+          setLightTheme();
+          break;
+        case 'set-dark-theme':
+          setDarkTheme();
+          break;
+        default:
+          break;
+      }
+    }
+  }, [navigate, toggleTheme, setLightTheme, setDarkTheme]);
 
   // Show loading while checking auth state
   if (loading) {
@@ -273,7 +395,21 @@ function App() {
   }
 
   return (
-    <React.Suspense fallback={
+    <>
+      {/* Command Palette - Always available */}
+      <CommandPalette
+        isOpen={commandPaletteOpen}
+        onClose={() => setCommandPaletteOpen(false)}
+        onNavigate={handleCommandNavigate}
+      />
+
+      {/* Global Search - Ctrl+Shift+F */}
+      <GlobalSearch
+        isOpen={globalSearchOpen}
+        onClose={() => setGlobalSearchOpen(false)}
+      />
+
+      <React.Suspense fallback={
       <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh', flexDirection: 'column', background: '#f9fafb' }}>
         <div style={{ fontSize: '20px', color: '#667eea', fontWeight: '600', marginBottom: '12px' }}>Loading...</div>
         <div style={{ fontSize: '14px', color: '#6b7280' }}>Please wait</div>
@@ -303,6 +439,12 @@ function App() {
           <Route path="/quotes/new" element={<QuotationManager />} />
           <Route path="/quotes/:id" element={<QuotationManager />} />
           <Route path="/analytics" element={<RevenueAnalytics />} />
+          <Route path="/clv-dashboard" element={<CLVDashboard />} />
+          <Route path="/purchasing-intelligence" element={<PurchasingIntelligence />} />
+          <Route path="/pipeline-analytics" element={<PipelineAnalytics />} />
+          <Route path="/report-builder" element={<ReportBuilder />} />
+          <Route path="/executive-dashboard" element={<ExecutiveDashboard />} />
+          <Route path="/training-center" element={<TrainingCenter />} />
           <Route path="/marketplace/*" element={<MarketplaceManager />} />
           <Route path="/reports" element={<MarketplaceReports />} />
           <Route path="/bulk-ops" element={<BulkOperationsCenter />} />
@@ -314,13 +456,21 @@ function App() {
           <Route path="/quote-expiry" element={<QuoteExpiryManager />} />
           {/* Advanced Pricing */}
           <Route path="/pricing" element={<AdvancedPricingManager />} />
+          <Route path="/manufacturer-promotions" element={<ManufacturerPromotionsAdmin />} />
           {/* Product Visualization */}
           <Route path="/product-visualization" element={<ProductVisualization />} />
           <Route path="/product-visualization/:id" element={<ProductVisualization />} />
+          {/* Quick Search (Universal Product Finder) */}
+          <Route path="/quick-search" element={<QuickSearch />} />
           {/* Admin routes */}
           <Route path="/admin/users" element={
             <ProtectedRoute requiredRoles={['admin']}>
               <UserManagement />
+            </ProtectedRoute>
+          } />
+          <Route path="/admin/nomenclature" element={
+            <ProtectedRoute requiredRoles={['admin']}>
+              <NomenclatureAdmin />
             </ProtectedRoute>
           } />
           {/* 404 fallback */}
@@ -334,19 +484,26 @@ function App() {
         </Route>
       </Routes>
     </React.Suspense>
+    </>
   );
 }
 
-// Wrap App with BrowserRouter, ErrorBoundary, AuthProvider, and ToastProvider
+// Wrap App with BrowserRouter, ErrorBoundary, AuthProvider, QuoteProvider, ProductProvider, ThemeProvider, and ToastProvider
 const AppWithProviders = () => (
   <BrowserRouter>
     <ErrorBoundary>
-      <AuthProvider>
-        <ToastProvider position="top-right" maxToasts={5}>
-          <ToastRefSetter />
-          <App />
-        </ToastProvider>
-      </AuthProvider>
+      <ThemeProvider>
+        <AuthProvider>
+          <QuoteProvider>
+            <ProductProvider>
+              <ToastProvider position="top-right" maxToasts={5}>
+                <ToastRefSetter />
+                <App />
+              </ToastProvider>
+            </ProductProvider>
+          </QuoteProvider>
+        </AuthProvider>
+      </ThemeProvider>
     </ErrorBoundary>
   </BrowserRouter>
 );
