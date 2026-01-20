@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
+import { useLocation } from 'react-router-dom';
 import { previewQuotePDF, downloadQuotePDF } from '../services/pdfService';
 import {
   FinancingCalculator,
@@ -9,9 +10,10 @@ import {
 } from './RevenueFeatures';
 import { getSmartSuggestions, getSuggestionsSummary } from '../utils/smartSuggestions';
 import { useAuth } from '../contexts/AuthContext';
+import { useQuoteOptional } from '../contexts/QuoteContext';
 import logger from '../utils/logger';
 import { cachedFetch, invalidateCache } from '../services/apiCache';
-import { QuoteList, QuoteBuilder, QuoteViewer, CloneQuoteDialog } from './quotes';
+import { QuoteList, QuoteBuilder, QuoteViewer, CloneQuoteDialog, QuoteKanban } from './quotes';
 import Dashboard from './Dashboard';
 import { toast } from './ui/Toast';
 import companyConfig from '../config/companyConfig';
@@ -20,14 +22,17 @@ const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:3001';
 
 const QuotationManager = () => {
   // ============================================
-  // AUTHENTICATION
+  // AUTHENTICATION & CONTEXT
   // ============================================
   const { user } = useAuth();
+  const location = useLocation();
+  const quoteContext = useQuoteOptional();
 
   // ============================================
   // STATE MANAGEMENT
   // ============================================
-  const [view, setView] = useState('list'); // 'list', 'builder', 'viewer', 'analytics', 'approvals', 'followups', 'dashboard'
+  const [view, setView] = useState('list'); // 'list', 'builder', 'viewer', 'analytics', 'approvals', 'followups', 'dashboard', 'kanban'
+  const [listViewMode, setListViewMode] = useState('list'); // 'list' or 'kanban' - persisted preference
   const [quotations, setQuotations] = useState([]);
   const [selectedQuoteIds, setSelectedQuoteIds] = useState([]); // Bulk selection
   const [customers, setCustomers] = useState([]);
@@ -280,6 +285,22 @@ const QuotationManager = () => {
       isMounted.current = false;
     };
   }, []);
+
+  // Load saved view mode preference
+  useEffect(() => {
+    const savedViewMode = localStorage.getItem('quoteListViewMode');
+    if (savedViewMode === 'kanban') {
+      setListViewMode('kanban');
+      setView('kanban');
+    }
+  }, []);
+
+  // Auto-open builder when navigating from Quick Search with items in context
+  useEffect(() => {
+    if (quoteContext?.hasItems && location.pathname === '/quotes/new') {
+      createNewQuote();
+    }
+  }, [location.pathname]);
 
   // Smart suggestions calculation - FIXED to prevent infinite loops
   // Uses primitive values and lengths in dependencies to avoid reference changes
@@ -764,18 +785,19 @@ const QuotationManager = () => {
     return new Date(dateString).toLocaleDateString();
   };
 
+  // Standardized status colors (pastel backgrounds for row highlighting)
   const getStatusColor = (status) => {
     const colors = {
-      'DRAFT': { bg: '#f3f4f6', text: '#374151' },
-      'SENT': { bg: '#dbeafe', text: '#1d4ed8' },
-      'VIEWED': { bg: '#fef3c7', text: '#b45309' },
-      'PENDING_APPROVAL': { bg: '#e0e7ff', text: '#4338ca' },
-      'APPROVED': { bg: '#d1fae5', text: '#059669' },
-      'REJECTED': { bg: '#fee2e2', text: '#dc2626' },
-      'WON': { bg: '#d1fae5', text: '#059669' },
-      'LOST': { bg: '#fee2e2', text: '#dc2626' }
+      'DRAFT': { bg: '#f3f4f6', text: '#6b7280' },      // Gray - neutral
+      'SENT': { bg: '#ede9fe', text: '#7c3aed' },       // Purple tint
+      'VIEWED': { bg: '#e0f2fe', text: '#0284c7' },     // Sky blue tint
+      'PENDING_APPROVAL': { bg: '#fef3c7', text: '#b45309' }, // Amber tint
+      'APPROVED': { bg: '#d1fae5', text: '#059669' },   // Green tint
+      'WON': { bg: '#d1fae5', text: '#047857' },        // Darker green tint
+      'LOST': { bg: '#fee2e2', text: '#dc2626' },       // Red tint
+      'REJECTED': { bg: '#fee2e2', text: '#b91c1c' }    // Red tint
     };
-    return colors[status] || { bg: '#f3f4f6', text: '#374151' };
+    return colors[status] || { bg: '#f3f4f6', text: '#6b7280' };
   };
 
   const clearFilters = () => {
@@ -1042,19 +1064,25 @@ const QuotationManager = () => {
         }
       };
 
+      const token = localStorage.getItem('auth_token');
+      const headers = {
+        'Content-Type': 'application/json',
+        ...(token && { 'Authorization': `Bearer ${token}` })
+      };
+
       let res;
       if (editingQuoteId) {
         // Update existing quote
         res = await fetch(`${API_URL}/api/quotations/${editingQuoteId}`, {
           method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
+          headers,
           body: JSON.stringify(quoteData)
         });
       } else {
         // Create new quote
         res = await fetch(`${API_URL}/api/quotes`, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers,
           body: JSON.stringify(quoteData)
         });
       }
@@ -1077,7 +1105,7 @@ const QuotationManager = () => {
           action: quoteId ? {
             label: 'View Quote',
             onClick: () => {
-              viewQuote({ id: quoteId });
+              viewQuote(quoteId);
             }
           } : undefined
         }
@@ -1152,17 +1180,23 @@ const QuotationManager = () => {
         }
       };
 
+      const token = localStorage.getItem('auth_token');
+      const headers = {
+        'Content-Type': 'application/json',
+        ...(token && { 'Authorization': `Bearer ${token}` })
+      };
+
       let res;
       if (editingQuoteId) {
         res = await fetch(`${API_URL}/api/quotations/${editingQuoteId}`, {
           method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
+          headers,
           body: JSON.stringify(quoteData)
         });
       } else {
         res = await fetch(`${API_URL}/api/quotes`, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers,
           body: JSON.stringify(quoteData)
         });
       }
@@ -1491,23 +1525,49 @@ const QuotationManager = () => {
   // QUOTE OPERATIONS
   // ============================================
   const viewQuote = async (quoteId) => {
+    // Handle case where an object is passed instead of an ID
+    const id = typeof quoteId === 'object' ? quoteId?.id : quoteId;
+
+    // Validate ID
+    if (!id || id === 'undefined' || id === 'null') {
+      logger.error('viewQuote called with invalid ID:', quoteId);
+      toast.error('Cannot view quote: Invalid quote ID', 'Error');
+      return;
+    }
+
     try {
-      const res = await fetch(`${API_URL}/api/quotes/${quoteId}`);
+      // Include auth headers
+      const token = localStorage.getItem('auth_token');
+      const headers = {
+        'Content-Type': 'application/json',
+        ...(token && { 'Authorization': `Bearer ${token}` })
+      };
+
+      const res = await fetch(`${API_URL}/api/quotes/${id}`, { headers });
+      if (!res.ok) {
+        throw new Error(`Failed to fetch quote: ${res.status}`);
+      }
       const data = await res.json();
+
+      // Validate quote data has required fields
+      if (!data || !data.id) {
+        throw new Error('Invalid quote data received');
+      }
+
       setSelectedQuote(data);
 
-      // Fetch events
-      const eventsRes = await fetch(`${API_URL}/api/quotes/${quoteId}/events`);
+      // Fetch events with auth
+      const eventsRes = await fetch(`${API_URL}/api/quotes/${id}/events`, { headers });
       const eventsData = await eventsRes.json();
       setQuoteEvents(Array.isArray(eventsData) ? eventsData : []);
 
       // Fetch approvals
-      fetchQuoteApprovals(quoteId);
+      fetchQuoteApprovals(id);
 
       setView('viewer');
     } catch (err) {
       logger.error('Error fetching quote:', err);
-      alert('Error loading quote details');
+      toast.error('Error loading quote details', 'Error');
     }
   };
 
@@ -1515,9 +1575,15 @@ const QuotationManager = () => {
     if (!newEventDescription.trim() || !selectedQuote) return;
 
     try {
+      const token = localStorage.getItem('auth_token');
+      const headers = {
+        'Content-Type': 'application/json',
+        ...(token && { 'Authorization': `Bearer ${token}` })
+      };
+
       const res = await fetch(`${API_URL}/api/quotations/${selectedQuote.id}/events`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers,
         body: JSON.stringify({
           event_type: 'NOTE',
           description: newEventDescription
@@ -1526,8 +1592,8 @@ const QuotationManager = () => {
 
       if (!res.ok) throw new Error('Failed to add event');
 
-      // Refresh events
-      const eventsRes = await fetch(`${API_URL}/api/quotes/${selectedQuote.id}/events`);
+      // Refresh events with auth
+      const eventsRes = await fetch(`${API_URL}/api/quotes/${selectedQuote.id}/events`, { headers });
       const eventsData = await eventsRes.json();
       setQuoteEvents(Array.isArray(eventsData) ? eventsData : []);
 
@@ -1541,8 +1607,16 @@ const QuotationManager = () => {
 
   // Approval workflow functions
   const fetchQuoteApprovals = async (quoteId) => {
+    if (!quoteId) return;
+
     try {
-      const res = await fetch(`${API_URL}/api/quotations/${quoteId}/approvals`);
+      const token = localStorage.getItem('auth_token');
+      const headers = {
+        'Content-Type': 'application/json',
+        ...(token && { 'Authorization': `Bearer ${token}` })
+      };
+
+      const res = await fetch(`${API_URL}/api/quotations/${quoteId}/approvals`, { headers });
       const data = await res.json();
       // Ensure data is an array before setting it
       setQuoteApprovals(Array.isArray(data) ? data : []);
@@ -1552,13 +1626,42 @@ const QuotationManager = () => {
     }
   };
 
-  const openApprovalDialog = () => {
-    setApprovalRequestedBy('');
-    setApprovalRequestedByEmail('');
+  const openApprovalDialog = async () => {
+    // Pre-fill requester info from current user
+    const userName = user?.name || user?.firstName
+      ? `${user.firstName || ''} ${user.lastName || ''}`.trim()
+      : '';
+    const userEmail = user?.email || '';
+
+    setApprovalRequestedBy(userName);
+    setApprovalRequestedByEmail(userEmail);
     setApproverName('');
     setApproverEmail('');
     setApprovalComments('');
     setShowApprovalDialog(true);
+
+    // Fetch default approver from API
+    if (selectedQuote) {
+      try {
+        const token = localStorage.getItem('auth_token');
+        const res = await fetch(`${API_URL}/api/quotations/${selectedQuote.id}/default-approver`, {
+          headers: {
+            'Content-Type': 'application/json',
+            ...(token && { 'Authorization': `Bearer ${token}` })
+          }
+        });
+
+        if (res.ok) {
+          const data = await res.json();
+          if (data.data) {
+            setApproverName(data.data.name || '');
+            setApproverEmail(data.data.email || '');
+          }
+        }
+      } catch (err) {
+        logger.error('Error fetching default approver:', err);
+      }
+    }
   };
 
   const requestApproval = async () => {
@@ -1571,9 +1674,13 @@ const QuotationManager = () => {
     if (!selectedQuote) return;
 
     try {
+      const token = localStorage.getItem('auth_token');
       const res = await fetch(`${API_URL}/api/quotations/${selectedQuote.id}/request-approval`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token && { 'Authorization': `Bearer ${token}` })
+        },
         body: JSON.stringify({
           requested_by: approvalRequestedBy,
           requested_by_email: approvalRequestedByEmail,
@@ -1601,10 +1708,16 @@ const QuotationManager = () => {
 
   const fetchPendingApprovals = async (approverEmail = null) => {
     try {
+      const token = localStorage.getItem('auth_token');
       const url = approverEmail
         ? `${API_URL}/api/approvals/pending?approver_email=${encodeURIComponent(approverEmail)}`
         : `${API_URL}/api/approvals/pending`;
-      const res = await fetch(url);
+      const res = await fetch(url, {
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token && { 'Authorization': `Bearer ${token}` })
+        }
+      });
       const data = await res.json();
       setPendingApprovals(Array.isArray(data) ? data : []);
     } catch (err) {
@@ -1629,10 +1742,14 @@ const QuotationManager = () => {
     }
 
     try {
+      const token = localStorage.getItem('auth_token');
       const endpoint = approvalAction === 'approve' ? 'approve' : 'reject';
       const res = await fetch(`${API_URL}/api/approvals/${selectedApproval.id}/${endpoint}`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token && { 'Authorization': `Bearer ${token}` })
+        },
         body: JSON.stringify({ comments: approvalActionComments })
       });
 
@@ -1658,7 +1775,14 @@ const QuotationManager = () => {
 
   const editQuote = async (quoteId) => {
     try {
-      const res = await fetch(`${API_URL}/api/quotes/${quoteId}`);
+      const token = localStorage.getItem('auth_token');
+      const headers = {
+        'Content-Type': 'application/json',
+        ...(token && { 'Authorization': `Bearer ${token}` })
+      };
+
+      const res = await fetch(`${API_URL}/api/quotes/${quoteId}`, { headers });
+      if (!res.ok) throw new Error(`Failed to fetch quote: ${res.status}`);
       const data = await res.json();
 
       // Find the customer in the customers list
@@ -1816,7 +1940,41 @@ const QuotationManager = () => {
   const createNewQuote = () => {
     setView('builder');
     setSelectedCustomer(null);
-    setQuoteItems([]);
+
+    // Import items from QuoteContext if any exist (from Quick Search)
+    if (quoteContext?.quoteItems?.length > 0) {
+      const importedItems = quoteContext.quoteItems.map(item => {
+        const product = item.product || {};
+        const sellCents = item.unitPrice || product.sell_cents || product.sellCents || 0;
+        const costCents = item.cost || product.cost_cents || product.costCents || 0;
+        const msrpCents = product.msrp_cents || product.msrpCents || sellCents;
+
+        return {
+          product_id: item.productId || product.id,
+          sku: product.sku || product.model || '',
+          model: product.model || product.name || item.name || '',
+          manufacturer: product.manufacturer || product.brand || '',
+          description: product.name || product.description || '',
+          category: product.category || '',
+          quantity: item.quantity || 1,
+          cost: costCents / 100,
+          msrp: msrpCents / 100,
+          sell: sellCents / 100,
+          cost_cents: costCents,
+          msrp_cents: msrpCents,
+          sell_cents: sellCents,
+          margin_bp: 0,
+          is_service: false
+        };
+      });
+      setQuoteItems(importedItems);
+      toast.success(`Imported ${importedItems.length} item${importedItems.length !== 1 ? 's' : ''} from Quick Search`);
+      // Clear the context after importing
+      quoteContext.clearItems();
+    } else {
+      setQuoteItems([]);
+    }
+
     setDiscountPercent(0);
     setNotes('');
     setInternalNotes('');
@@ -1868,38 +2026,73 @@ const QuotationManager = () => {
 
   const updateQuoteStatus = async (quoteId, newStatus, options = {}) => {
     try {
+      const token = localStorage.getItem('auth_token');
+      const headers = {
+        'Content-Type': 'application/json',
+        ...(token && { 'Authorization': `Bearer ${token}` })
+      };
+
       const res = await fetch(`${API_URL}/api/quotes/${quoteId}/status`, {
         method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
+        headers,
         body: JSON.stringify({
           status: newStatus,
           lostReason: options.lostReason || null,
-          user_name: 'User' // Add authentication later
+          user_name: user?.name || 'User'
         })
       });
-      
+
       if (!res.ok) throw new Error('Failed to update status');
-      
-      // Refresh quote details
-      const updatedRes = await fetch(`${API_URL}/api/quotes/${quoteId}`);
+
+      // Refresh quote details with auth
+      const updatedRes = await fetch(`${API_URL}/api/quotes/${quoteId}`, { headers });
       const updatedData = await updatedRes.json();
       setSelectedQuote(updatedData);
-      
-      // Refresh events
-      const eventsRes = await fetch(`${API_URL}/api/quotes/${quoteId}/events`);
+
+      // Refresh events with auth
+      const eventsRes = await fetch(`${API_URL}/api/quotes/${quoteId}/events`, { headers });
       const eventsData = await eventsRes.json();
       setQuoteEvents(Array.isArray(eventsData) ? eventsData : []);
 
       // Refresh list
       refreshQuotesOnly(); // Only refresh quotes
 
-      alert(`Quote status updated to ${newStatus}`);
+      toast.success(`Quote status updated to ${newStatus}`, 'Status Updated');
     } catch (err) {
       logger.error('Error updating status:', err);
-      alert('Error updating quote status');
+      toast.error('Error updating quote status', 'Error');
     }
   };
-  
+
+  // Simplified status change handler for Kanban drag-and-drop
+  const handleKanbanStatusChange = async (quoteId, newStatus) => {
+    try {
+      const token = localStorage.getItem('auth_token');
+      const headers = {
+        'Content-Type': 'application/json',
+        ...(token && { 'Authorization': `Bearer ${token}` })
+      };
+
+      const res = await fetch(`${API_URL}/api/quotes/${quoteId}/status`, {
+        method: 'PATCH',
+        headers,
+        body: JSON.stringify({
+          status: newStatus,
+          user_name: user?.name || 'User'
+        })
+      });
+
+      if (!res.ok) throw new Error('Failed to update status');
+
+      // Refresh quotes list
+      refreshQuotesOnly();
+      toast.success(`Quote moved to ${newStatus}`, 'Status Updated');
+    } catch (err) {
+      logger.error('Error updating status via kanban:', err);
+      toast.error('Error updating quote status', 'Error');
+    }
+  };
+
   const deleteQuote = async (quoteId) => {
     if (!window.confirm('Are you sure you want to delete this quote? This cannot be undone.')) {
       return;
@@ -2927,6 +3120,29 @@ const QuotationManager = () => {
           filterRefreshTrigger={filterRefreshTrigger}
           activeQuickFilter={activeQuickFilter}
           onQuickFilterChange={setActiveQuickFilter}
+          listViewMode={listViewMode}
+          onViewModeChange={(mode) => {
+            setListViewMode(mode);
+            setView(mode === 'kanban' ? 'kanban' : 'list');
+            localStorage.setItem('quoteListViewMode', mode);
+          }}
+        />
+      )}
+      {view === 'kanban' && (
+        <QuoteKanban
+          quotations={sortedQuotes}
+          onViewQuote={(id) => viewQuote(id)}
+          onEditQuote={(id) => editQuote(id)}
+          onStatusChange={handleKanbanStatusChange}
+          onCreateNew={createNewQuote}
+          listViewMode={listViewMode}
+          onViewModeChange={(mode) => {
+            setListViewMode(mode);
+            setView(mode === 'kanban' ? 'kanban' : 'list');
+            localStorage.setItem('quoteListViewMode', mode);
+          }}
+          formatCurrency={formatCurrency}
+          formatDate={formatDate}
         />
       )}
       {view === 'builder' && (
@@ -3062,7 +3278,7 @@ const QuotationManager = () => {
               setShowEmailDialog(true);
             }
           }}
-          onRequestApproval={() => setShowApprovalDialog(true)}
+          onRequestApproval={openApprovalDialog}
           onAddEvent={() => setShowAddEventDialog(true)}
           showAddEventDialog={showAddEventDialog}
           setShowAddEventDialog={setShowAddEventDialog}

@@ -10,6 +10,7 @@
  * - URL-synced filters for shareable searches
  */
 import React, { useState, useEffect, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
 import SearchBar from './SearchBar';
 import FilterPanel from './FilterPanel';
 import FilterChips from './FilterChips';
@@ -18,9 +19,31 @@ import ProductResultsList from './ProductResultsList';
 import SortDropdown from './SortDropdown';
 import { useQuickSearch } from './hooks/useQuickSearch';
 import { useFilterState } from './hooks/useFilterState';
+import { useQuoteOptional } from '../../contexts/QuoteContext';
+import { useToast } from '../ui';
 import './QuickSearch.css';
 
-const QuickSearch = ({ onAddToQuote, userRole = 'sales' }) => {
+const QuickSearch = ({ onAddToQuote: onAddToQuoteProp, userRole = 'sales' }) => {
+  const navigate = useNavigate();
+  const quoteContext = useQuoteOptional();
+  const toast = useToast();
+
+  // Use provided handler or fall back to QuoteContext
+  const handleAddToQuote = useCallback((product) => {
+    if (onAddToQuoteProp) {
+      onAddToQuoteProp(product);
+      return;
+    }
+
+    if (quoteContext?.addItem) {
+      quoteContext.addItem(product, 1);
+      toast.success(`Added ${product.model || product.name} to quote`);
+    } else {
+      // No quote context available - navigate to quotes page with product
+      toast.info('Redirecting to create a new quote...');
+      navigate('/quotes/new', { state: { addProduct: product } });
+    }
+  }, [onAddToQuoteProp, quoteContext, toast, navigate]);
   const [viewMode, setViewMode] = useState('grid');
   const [showFilters, setShowFilters] = useState(true);
 
@@ -187,13 +210,42 @@ const QuickSearch = ({ onAddToQuote, userRole = 'sales' }) => {
               loading={loading}
               viewMode={viewMode}
               userRole={userRole}
-              onAddToQuote={onAddToQuote}
+              onAddToQuote={handleAddToQuote}
               pagination={pagination}
               onPageChange={handlePageChange}
             />
           )}
         </div>
       </div>
+
+      {/* Floating Quote Cart Indicator */}
+      {quoteContext?.hasItems && (
+        <div className="floating-quote-cart">
+          <div className="quote-cart-info">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2" />
+              <rect x="9" y="3" width="6" height="4" rx="1" />
+              <path d="M9 12h6" />
+              <path d="M9 16h6" />
+            </svg>
+            <span className="quote-cart-count">
+              {quoteContext.totals?.itemCount || 0} item{(quoteContext.totals?.itemCount || 0) !== 1 ? 's' : ''} in quote
+            </span>
+            <span className="quote-cart-total">
+              ${((quoteContext.totals?.subtotal || 0) / 100).toLocaleString('en-US', { minimumFractionDigits: 2 })}
+            </span>
+          </div>
+          <button
+            className="quote-cart-button"
+            onClick={() => navigate('/quotes/new')}
+          >
+            View Quote
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M5 12h14M12 5l7 7-7 7" />
+            </svg>
+          </button>
+        </div>
+      )}
     </div>
   );
 };
