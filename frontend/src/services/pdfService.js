@@ -319,7 +319,12 @@ export const generateCustomerPDF = (quote, customer, items) => {
   const { logo } = companyConfig;
   if (logo.base64) {
     try {
-      doc.addImage(logo.base64, 'PNG', 14, 12, logo.width || 40, logo.height || 20);
+      // Reset any stroke state before adding image
+      doc.setDrawColor(255, 255, 255);
+      doc.setLineWidth(0);
+      // Auto-detect image format from base64 data URI
+      const imageFormat = logo.base64.includes('image/png') ? 'PNG' : 'JPEG';
+      doc.addImage(logo.base64, imageFormat, 14, 12, logo.width || 40, logo.height || 20);
     } catch (e) {
       // Fallback to company name
       doc.setFontSize(20);
@@ -334,18 +339,19 @@ export const generateCustomerPDF = (quote, customer, items) => {
     doc.text(companyConfig.name, 14, 28);
   }
 
-  // Company contact info (below logo/name)
+  // Company contact info (below logo/name) - positioned after logo height
+  const logoBottomY = 12 + (logo.height || 20) + 4; // Logo Y + height + spacing
   doc.setFontSize(8);
   doc.setFont(undefined, 'normal');
   doc.setTextColor(...colors.textMuted);
-  doc.text(address.street, 14, 38);
-  doc.text(`${address.city}, ${address.province} ${address.postalCode}`, 14, 43);
-  doc.text(`${contact.phone} | ${contact.email}`, 14, 48);
+  doc.text(address.street, 14, logoBottomY);
+  doc.text(`${address.city}, ${address.province} ${address.postalCode}`, 14, logoBottomY + 5);
+  doc.text(`${contact.phone} | ${contact.email}`, 14, logoBottomY + 10);
 
   // Quote Badge Box (right side)
   doc.setFillColor(...colors.bgLight);
   doc.setDrawColor(...colors.border);
-  doc.roundedRect(145, 10, 50, 45, 3, 3, 'FD');
+  doc.roundedRect(145, 10, 50, 48, 3, 3, 'FD');
 
   // Badge content
   doc.setFontSize(8);
@@ -381,7 +387,7 @@ export const generateCustomerPDF = (quote, customer, items) => {
   doc.text(status, 190, 47, { align: 'right' });
 
   // ========== EXPIRY WARNING ==========
-  let currentY = 60;
+  let currentY = 65; // Adjusted for taller header with logo
   currentY = addExpiryWarning(doc, expiryDate, currentY);
 
   // ========== CUSTOMER INFO CARD (Two Column) ==========
