@@ -14,7 +14,7 @@ import { useConfirmDialog } from '../ui/ConfirmDialog';
 
 function LeadDetail({ leadId, onEdit, onUpdate, onClose }) {
   const toast = useToast();
-  const confirm = useConfirmDialog();
+  const { confirm, DialogComponent } = useConfirmDialog();
   const { lead, loading, error, refresh } = useLead(leadId);
   const [showConvertModal, setShowConvertModal] = useState(false);
   const [showAddNote, setShowAddNote] = useState(false);
@@ -404,6 +404,9 @@ function LeadDetail({ leadId, onEdit, onUpdate, onClose }) {
           onClose={() => setShowConvertModal(false)}
         />
       )}
+
+      {/* Confirm Dialog */}
+      <DialogComponent />
     </div>
   );
 }

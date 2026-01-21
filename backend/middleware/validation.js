@@ -645,11 +645,11 @@ const leadSchema = Joi.object({
   timeline: Joi.string()
     .valid('asap', '1_2_weeks', '1_3_months', '3_6_months', 'just_researching')
     .optional().allow(null),
-  move_in_date: Joi.date().iso().optional().allow(null),
+  move_in_date: Joi.date().iso().optional().allow(null, ''),
   requirements_notes: Joi.string().max(5000).optional().allow('', null),
   priority: Joi.string().valid('hot', 'warm', 'cold').default('warm'),
   assigned_to: Joi.number().integer().positive().optional().allow(null),
-  follow_up_date: Joi.date().iso().optional().allow(null),
+  follow_up_date: Joi.date().iso().optional().allow(null, ''),
   customer_id: Joi.number().integer().positive().optional().allow(null),
   requirements: Joi.array().items(
     Joi.object({
@@ -685,11 +685,11 @@ const leadUpdateSchema = Joi.object({
   timeline: Joi.string()
     .valid('asap', '1_2_weeks', '1_3_months', '3_6_months', 'just_researching')
     .optional().allow(null),
-  move_in_date: Joi.date().iso().optional().allow(null),
+  move_in_date: Joi.date().iso().optional().allow(null, ''),
   requirements_notes: Joi.string().max(5000).optional().allow('', null),
   priority: Joi.string().valid('hot', 'warm', 'cold').optional(),
   assigned_to: Joi.number().integer().positive().optional().allow(null),
-  follow_up_date: Joi.date().iso().optional().allow(null),
+  follow_up_date: Joi.date().iso().optional().allow(null, ''),
   customer_id: Joi.number().integer().positive().optional().allow(null),
   requirements: Joi.array().items(
     Joi.object({

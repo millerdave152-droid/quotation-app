@@ -12,9 +12,11 @@ import {
   generateFollowUpDraft
 } from './hooks/useLeads';
 import { useToast } from '../ui/Toast';
+import { useNavigate } from 'react-router-dom';
 
 function AIHelperPanel({ leadId, lead, onUpdate }) {
   const toast = useToast();
+  const navigate = useNavigate();
   const [loading, setLoading] = useState({
     summary: false,
     suggestions: false,
@@ -27,6 +29,44 @@ function AIHelperPanel({ leadId, lead, onUpdate }) {
   });
   const [draftTone, setDraftTone] = useState('professional');
   const [showSuggestions, setShowSuggestions] = useState(false);
+  const [selectedProducts, setSelectedProducts] = useState([]);
+
+  const toggleProductSelection = (product) => {
+    setSelectedProducts(prev => {
+      const exists = prev.find(p => p.id === product.id);
+      if (exists) {
+        return prev.filter(p => p.id !== product.id);
+      } else {
+        return [...prev, product];
+      }
+    });
+  };
+
+  const isProductSelected = (productId) => {
+    return selectedProducts.some(p => p.id === productId);
+  };
+
+  const handleCreateQuoteWithProducts = () => {
+    // Store selected products in sessionStorage for the quote creation page
+    sessionStorage.setItem('quoteProducts', JSON.stringify(selectedProducts));
+    sessionStorage.setItem('quoteFromLead', JSON.stringify({
+      leadId: lead.id,
+      leadNumber: lead.lead_number,
+      customerName: lead.contact_name,
+      customerEmail: lead.contact_email,
+      customerPhone: lead.contact_phone
+    }));
+    toast.success(`Creating quote with ${selectedProducts.length} products...`);
+    navigate('/quotes/new');
+  };
+
+  const handleAddAllFromCategory = (products) => {
+    const newProducts = products.filter(p => !isProductSelected(p.id));
+    if (newProducts.length > 0) {
+      setSelectedProducts(prev => [...prev, ...newProducts]);
+      toast.success(`Added ${newProducts.length} products`);
+    }
+  };
 
   const handleGenerateSummary = async () => {
     setLoading(prev => ({ ...prev, summary: true }));
@@ -46,12 +86,17 @@ function AIHelperPanel({ leadId, lead, onUpdate }) {
     setLoading(prev => ({ ...prev, suggestions: true }));
     try {
       const result = await generateProductSuggestions(leadId);
-      setResults(prev => ({ ...prev, suggestions: result.data?.suggestions || result.suggestions }));
+      const suggestions = result.data?.suggestions || result.suggestions;
+
+      // Set state and show results
+      setResults(prev => ({ ...prev, suggestions }));
       setShowSuggestions(true);
-      onUpdate?.();
-      toast.success('Product suggestions generated');
+      setSelectedProducts([]); // Clear any previous selections
+
+      const totalProducts = suggestions?.reduce((sum, cat) => sum + (cat.products?.length || 0), 0) || 0;
+      toast.success(`Found ${totalProducts} matching products`);
     } catch (error) {
-      toast.error(error.message);
+      toast.error(error.message || 'Failed to generate suggestions');
     } finally {
       setLoading(prev => ({ ...prev, suggestions: false }));
     }
@@ -119,7 +164,7 @@ function AIHelperPanel({ leadId, lead, onUpdate }) {
           >
             {loading.suggestions ? 'Finding products...' : 'Suggest Products'}
           </button>
-          {results.suggestions && showSuggestions && (
+          {showSuggestions && (
             <div className="ai-result">
               <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.5rem' }}>
                 <strong>Product Suggestions</strong>
@@ -130,43 +175,115 @@ function AIHelperPanel({ leadId, lead, onUpdate }) {
                   Hide
                 </button>
               </div>
-              {Array.isArray(results.suggestions) ? (
+              {/* Selected Products Summary */}
+              {selectedProducts.length > 0 && (
+                <div style={{
+                  background: '#dcfce7',
+                  border: '1px solid #22c55e',
+                  borderRadius: '6px',
+                  padding: '0.75rem',
+                  marginBottom: '1rem'
+                }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <span style={{ fontWeight: 600, color: '#166534' }}>
+                      {selectedProducts.length} product{selectedProducts.length > 1 ? 's' : ''} selected
+                    </span>
+                    <div style={{ display: 'flex', gap: '0.5rem' }}>
+                      <button
+                        className="btn btn-sm btn-secondary"
+                        onClick={() => setSelectedProducts([])}
+                      >
+                        Clear
+                      </button>
+                      <button
+                        className="btn btn-sm btn-success"
+                        onClick={handleCreateQuoteWithProducts}
+                      >
+                        Create Quote
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {Array.isArray(results.suggestions) && results.suggestions.length > 0 ? (
                 results.suggestions.map((cat, idx) => (
                   <div key={idx} style={{ marginBottom: '1rem' }}>
-                    <div style={{ fontWeight: 600, marginBottom: '0.5rem' }}>
-                      {cat.category}
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
+                      <div style={{ fontWeight: 600 }}>
+                        {cat.category}
+                      </div>
+                      {cat.products?.length > 1 && (
+                        <button
+                          className="btn btn-sm btn-secondary"
+                          onClick={() => handleAddAllFromCategory(cat.products.slice(0, 5))}
+                          style={{ fontSize: '0.7rem', padding: '0.25rem 0.5rem' }}
+                        >
+                          Add All
+                        </button>
+                      )}
                     </div>
                     <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginBottom: '0.5rem' }}>
                       {cat.reasoning}
                     </div>
                     {cat.products?.length > 0 ? (
                       <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                        {cat.products.slice(0, 3).map((product, pIdx) => (
+                        {cat.products.slice(0, 5).map((product, pIdx) => (
                           <div
                             key={pIdx}
+                            onClick={() => toggleProductSelection(product)}
                             style={{
                               padding: '0.5rem',
-                              background: 'var(--bg-secondary)',
+                              background: isProductSelected(product.id) ? '#dbeafe' : 'var(--bg-secondary)',
+                              border: isProductSelected(product.id) ? '2px solid #3b82f6' : '2px solid transparent',
                               borderRadius: '4px',
-                              fontSize: '0.85rem'
+                              fontSize: '0.85rem',
+                              cursor: 'pointer',
+                              transition: 'all 0.15s ease'
                             }}
                           >
-                            <div style={{ fontWeight: 500 }}>{product.brand} {product.model}</div>
-                            <div style={{ color: 'var(--text-secondary)' }}>
-                              ${product.price?.toFixed(2)} | {product.inStock ? 'In Stock' : 'Out of Stock'}
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                              <div style={{ flex: 1 }}>
+                                <div style={{ fontWeight: 500 }}>{product.brand} {product.model}</div>
+                                <div style={{ color: 'var(--text-secondary)', fontSize: '0.8rem' }}>
+                                  {product.name?.substring(0, 60)}{product.name?.length > 60 ? '...' : ''}
+                                </div>
+                                <div style={{ color: 'var(--text-secondary)', marginTop: '0.25rem' }}>
+                                  <strong>${product.price?.toFixed(2)}</strong> | {product.inStock ? '✓ In Stock' : '✗ Out of Stock'}
+                                </div>
+                              </div>
+                              <div style={{
+                                width: '24px',
+                                height: '24px',
+                                borderRadius: '4px',
+                                border: '2px solid ' + (isProductSelected(product.id) ? '#3b82f6' : '#d1d5db'),
+                                background: isProductSelected(product.id) ? '#3b82f6' : 'white',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                color: 'white',
+                                fontWeight: 'bold',
+                                fontSize: '0.75rem',
+                                flexShrink: 0,
+                                marginLeft: '0.5rem'
+                              }}>
+                                {isProductSelected(product.id) && '✓'}
+                              </div>
                             </div>
                           </div>
                         ))}
                       </div>
                     ) : (
                       <div style={{ fontStyle: 'italic', color: 'var(--text-secondary)' }}>
-                        No matching products found
+                        No matching products found in inventory
                       </div>
                     )}
                   </div>
                 ))
               ) : (
-                <div>No suggestions available</div>
+                <div style={{ fontStyle: 'italic', color: 'var(--text-secondary)' }}>
+                  No product requirements found. Add product requirements to the lead or include appliance types in the notes (e.g., "refrigerator", "range", "washer").
+                </div>
               )}
             </div>
           )}

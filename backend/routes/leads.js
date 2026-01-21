@@ -79,8 +79,21 @@ router.get('/:id', authenticate, asyncHandler(async (req, res) => {
  * POST /api/leads
  * Create a new lead
  */
-router.post('/', authenticate, validateJoi(leadSchemas.create), asyncHandler(async (req, res) => {
-  const lead = await leadService.createLead(req.body, req.user?.id);
+router.post('/', authenticate, asyncHandler(async (req, res) => {
+  // Validate with Joi and log errors
+  const Joi = require('joi');
+  const { leadSchemas } = require('../middleware/validation');
+  const { error, value } = leadSchemas.create.validate(req.body, { abortEarly: false, stripUnknown: true });
+
+  if (error) {
+    console.error('Lead creation validation error:', error.details);
+    return res.status(400).json({
+      error: 'Validation failed',
+      details: error.details.map(d => ({ field: d.path.join('.'), message: d.message }))
+    });
+  }
+
+  const lead = await leadService.createLead(value, req.user?.id);
 
   // Invalidate stats cache
   cache.invalidatePattern('leads:stats');
@@ -237,11 +250,11 @@ router.post('/:id/ai/suggest-products', authenticate, asyncHandler(async (req, r
     throw ApiError.notFound('Lead');
   }
 
-  // Generate product suggestions (this would be enhanced with actual AI)
+  // Generate product suggestions based on lead requirements
   const LeadAIService = require('../services/LeadAIService');
   const suggestions = await LeadAIService.suggestProducts(lead, leadService.pool);
 
-  // Save the suggestions
+  // Save the suggestions to the lead record
   await leadService.saveAIContent(id, 'ai_suggested_products', suggestions);
 
   res.success({ suggestions });
