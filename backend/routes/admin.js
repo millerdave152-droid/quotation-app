@@ -152,6 +152,7 @@ router.get('/email-jobs/:id', async (req, res) => {
       SELECT * FROM email_job_logs
       WHERE email_job_id = $1
       ORDER BY created_at DESC
+      LIMIT 1000
     `, [id]);
 
     res.json({

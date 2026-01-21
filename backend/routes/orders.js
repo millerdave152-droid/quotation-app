@@ -8,6 +8,7 @@ const express = require('express');
 const router = express.Router();
 const { ApiError, asyncHandler } = require('../middleware/errorHandler');
 const { authenticate } = require('../middleware/auth');
+const { validateJoi, orderSchemas } = require('../middleware/validation');
 
 module.exports = (pool, cache, orderService, inventoryService) => {
 
@@ -51,16 +52,8 @@ module.exports = (pool, cache, orderService, inventoryService) => {
    * POST /api/orders
    * Create a new order directly (without quote)
    */
-  router.post('/', authenticate, asyncHandler(async (req, res) => {
+  router.post('/', authenticate, validateJoi(orderSchemas.create), asyncHandler(async (req, res) => {
     const { customerId, items, deliveryDate, deliverySlotId, deliveryCents, notes, createdBy } = req.body;
-
-    if (!customerId) {
-      throw ApiError.badRequest('Customer ID is required');
-    }
-
-    if (!items || !Array.isArray(items) || items.length === 0) {
-      throw ApiError.badRequest('Order items are required');
-    }
 
     const order = await orderService.createOrder({
       customerId,
@@ -105,15 +98,11 @@ module.exports = (pool, cache, orderService, inventoryService) => {
    * PATCH /api/orders/:id/status
    * Update order status
    */
-  router.patch('/:id/status', authenticate, asyncHandler(async (req, res) => {
+  router.patch('/:id/status', authenticate, validateJoi(orderSchemas.status), asyncHandler(async (req, res) => {
     const orderId = parseInt(req.params.id);
 
     if (isNaN(orderId)) {
       throw ApiError.badRequest('Invalid order ID');
-    }
-
-    if (!req.body.status) {
-      throw ApiError.badRequest('Status is required');
     }
 
     const order = await orderService.updateOrderStatus(
@@ -129,15 +118,11 @@ module.exports = (pool, cache, orderService, inventoryService) => {
    * PATCH /api/orders/:id/payment
    * Update order payment status
    */
-  router.patch('/:id/payment', authenticate, asyncHandler(async (req, res) => {
+  router.patch('/:id/payment', authenticate, validateJoi(orderSchemas.payment), asyncHandler(async (req, res) => {
     const orderId = parseInt(req.params.id);
 
     if (isNaN(orderId)) {
       throw ApiError.badRequest('Invalid order ID');
-    }
-
-    if (!req.body.paymentStatus) {
-      throw ApiError.badRequest('Payment status is required');
     }
 
     const order = await orderService.updatePaymentStatus(

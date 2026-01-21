@@ -111,6 +111,55 @@ class ChurnAlertService {
   }
 
   /**
+   * Check if alerts were already sent today for multiple customers (batch)
+   * @param {number[]} customerIds - Array of customer IDs
+   * @returns {Promise<Set<number>>} Set of customer IDs that already had alerts today
+   */
+  async wasAlertSentTodayBatch(customerIds) {
+    if (!customerIds || customerIds.length === 0) {
+      return new Set();
+    }
+
+    const result = await pool.query(`
+      SELECT DISTINCT customer_id FROM churn_alerts
+      WHERE customer_id = ANY($1::int[])
+        AND created_at >= CURRENT_DATE
+        AND created_at < CURRENT_DATE + INTERVAL '1 day'
+    `, [customerIds]);
+
+    return new Set(result.rows.map(r => r.customer_id));
+  }
+
+  /**
+   * Log churn alerts for multiple customers at once (batch insert)
+   * @param {Array<{customerId: number, recipientEmail: string, status: string, errorMessage?: string}>} alerts
+   * @returns {Promise<number>} Number of alerts inserted
+   */
+  async logChurnAlertsBatch(alerts) {
+    if (!alerts || alerts.length === 0) {
+      return 0;
+    }
+
+    // Build multi-row INSERT using VALUES
+    const values = [];
+    const params = [];
+    let paramIndex = 1;
+
+    for (const alert of alerts) {
+      values.push(`($${paramIndex}, $${paramIndex + 1}, $${paramIndex + 2}, $${paramIndex + 3}, CURRENT_TIMESTAMP)`);
+      params.push(alert.customerId, alert.recipientEmail, alert.status, alert.errorMessage || null);
+      paramIndex += 4;
+    }
+
+    const result = await pool.query(`
+      INSERT INTO churn_alerts (customer_id, recipient_email, status, error_message, created_at)
+      VALUES ${values.join(', ')}
+    `, params);
+
+    return result.rowCount;
+  }
+
+  /**
    * Format currency for display
    * @param {number} amount - Amount in dollars
    * @returns {string}
@@ -315,35 +364,40 @@ class ChurnAlertService {
 
         const emailResult = await emailService.sendEmail(this.salesTeamEmail, subject, html);
 
+        // PERF: Batch log alerts instead of one-by-one
+        const alertLogs = highRiskCustomers.map(customer => ({
+          customerId: customer.customer_id,
+          recipientEmail: this.salesTeamEmail,
+          status: emailResult.success ? 'sent' : 'failed',
+          errorMessage: emailResult.success ? null : emailResult.error
+        }));
+        await this.logChurnAlertsBatch(alertLogs);
+
         if (emailResult.success) {
           results.alertsSent++;
-
-          // Log alert for each customer in the summary
-          for (const customer of highRiskCustomers) {
-            await this.logChurnAlert(customer.customer_id, this.salesTeamEmail, 'sent');
-          }
         } else {
           results.alertsFailed++;
           results.errors.push({ type: 'summary', error: emailResult.error });
-
-          for (const customer of highRiskCustomers) {
-            await this.logChurnAlert(customer.customer_id, this.salesTeamEmail, 'failed', emailResult.error);
-          }
         }
       }
 
       // Send individual emails if enabled
       if (sendIndividual) {
+        // PERF: Batch check which customers already had alerts today
+        const customerIds = highRiskCustomers.map(c => c.customer_id);
+        const alreadySentSet = await this.wasAlertSentTodayBatch(customerIds);
+
+        // Collect alerts to batch insert
+        const alertsToLog = [];
+
         for (const customer of highRiskCustomers) {
+          // Check if alert was already sent today (from batch result)
+          if (alreadySentSet.has(customer.customer_id)) {
+            results.alertsSkipped++;
+            continue;
+          }
+
           try {
-            // Check if alert was already sent today
-            const alreadySent = await this.wasAlertSentToday(customer.customer_id);
-
-            if (alreadySent) {
-              results.alertsSkipped++;
-              continue;
-            }
-
             const subject = `Churn Alert: ${customer.customer_name} - ${Math.round(customer.days_since_last_activity)} days inactive`;
             const html = this.generateSingleCustomerEmail(customer);
 
@@ -351,17 +405,37 @@ class ChurnAlertService {
 
             if (emailResult.success) {
               results.alertsSent++;
-              await this.logChurnAlert(customer.customer_id, this.salesTeamEmail, 'sent');
+              alertsToLog.push({
+                customerId: customer.customer_id,
+                recipientEmail: this.salesTeamEmail,
+                status: 'sent',
+                errorMessage: null
+              });
             } else {
               results.alertsFailed++;
               results.errors.push({ customerId: customer.customer_id, error: emailResult.error });
-              await this.logChurnAlert(customer.customer_id, this.salesTeamEmail, 'failed', emailResult.error);
+              alertsToLog.push({
+                customerId: customer.customer_id,
+                recipientEmail: this.salesTeamEmail,
+                status: 'failed',
+                errorMessage: emailResult.error
+              });
             }
           } catch (err) {
             results.alertsFailed++;
             results.errors.push({ customerId: customer.customer_id, error: err.message });
-            await this.logChurnAlert(customer.customer_id, this.salesTeamEmail, 'failed', err.message);
+            alertsToLog.push({
+              customerId: customer.customer_id,
+              recipientEmail: this.salesTeamEmail,
+              status: 'failed',
+              errorMessage: err.message
+            });
           }
+        }
+
+        // PERF: Batch insert all alert logs at once
+        if (alertsToLog.length > 0) {
+          await this.logChurnAlertsBatch(alertsToLog);
         }
       }
 

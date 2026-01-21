@@ -161,8 +161,84 @@ const sesClient = new SESv2Client({
 });
 
 // ============================================
-// HEALTH CHECK
+// HEALTH CHECK ENDPOINTS
 // ============================================
+
+/**
+ * GET /health - Full health check with DB and cache status
+ * Use for monitoring dashboards and alerting
+ */
+app.get('/health', async (req, res) => {
+  const startTime = Date.now();
+  const health = {
+    status: 'OK',
+    timestamp: new Date().toISOString(),
+    uptime: process.uptime(),
+    environment: process.env.NODE_ENV || 'development',
+    version: '2.0.0',
+    checks: {
+      database: { status: 'unknown' },
+      cache: { status: 'unknown' }
+    }
+  };
+
+  // Check database connection
+  try {
+    const dbStart = Date.now();
+    await pool.query('SELECT 1');
+    health.checks.database = {
+      status: 'healthy',
+      responseTime: Date.now() - dbStart
+    };
+  } catch (error) {
+    health.status = 'DEGRADED';
+    health.checks.database = {
+      status: 'unhealthy',
+      error: error.message
+    };
+  }
+
+  // Check cache status
+  try {
+    const cacheStats = cache.getStats();
+    health.checks.cache = {
+      status: 'healthy',
+      stats: {
+        short: { hits: cacheStats.short.hits, misses: cacheStats.short.misses },
+        medium: { hits: cacheStats.medium.hits, misses: cacheStats.medium.misses },
+        long: { hits: cacheStats.long.hits, misses: cacheStats.long.misses }
+      }
+    };
+  } catch (error) {
+    health.checks.cache = {
+      status: 'unhealthy',
+      error: error.message
+    };
+  }
+
+  health.responseTime = Date.now() - startTime;
+
+  const statusCode = health.status === 'OK' ? 200 : 503;
+  res.status(statusCode).json(health);
+});
+
+/**
+ * GET /ready - Kubernetes readiness probe
+ * Returns 200 only if the service is ready to accept traffic
+ */
+app.get('/ready', async (req, res) => {
+  try {
+    // Quick database check
+    await pool.query('SELECT 1');
+    res.status(200).json({ ready: true });
+  } catch (error) {
+    res.status(503).json({ ready: false, error: 'Database not available' });
+  }
+});
+
+/**
+ * GET /api/health - Legacy health endpoint (for backward compatibility)
+ */
 app.get('/api/health', (req, res) => {
   res.success({
     status: 'OK',

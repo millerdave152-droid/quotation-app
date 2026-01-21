@@ -3,6 +3,8 @@
  * Handles order creation, quote conversion, and order management
  */
 
+const { ApiError } = require('../middleware/errorHandler');
+
 class OrderService {
   constructor(pool, cache, inventoryService) {
     this.pool = pool;
@@ -64,7 +66,7 @@ class OrderService {
       `, [quotationId]);
 
       if (quoteResult.rows.length === 0) {
-        throw new Error(`Quotation ${quotationId} not found`);
+        throw ApiError.notFound('Quotation', { id: quotationId });
       }
 
       const quote = quoteResult.rows[0];
@@ -72,12 +74,12 @@ class OrderService {
       // Validate quote status
       const validStatuses = ['DRAFT', 'SENT', 'APPROVED'];
       if (!validStatuses.includes(quote.status)) {
-        throw new Error(`Cannot convert quote with status ${quote.status}. Valid statuses: ${validStatuses.join(', ')}`);
+        throw ApiError.validation(`Cannot convert quote with status ${quote.status}. Valid statuses: ${validStatuses.join(', ')}`);
       }
 
       // Check if already converted
       if (quote.converted_to_order_id) {
-        throw new Error(`Quote already converted to order ${quote.converted_to_order_id}`);
+        throw ApiError.conflict(`Quote already converted to order ${quote.converted_to_order_id}`);
       }
 
       // 2. Get quotation items
@@ -93,7 +95,7 @@ class OrderService {
       `, [quotationId]);
 
       if (itemsResult.rows.length === 0) {
-        throw new Error('Quotation has no items');
+        throw ApiError.validation('Quotation has no items');
       }
 
       // 3. Generate order number

@@ -300,7 +300,7 @@ router.post('/orders/:id/refuse', authenticate, async (req, res) => {
 // ============================================
 
 // Create shipment for an order
-router.post('/orders/:id/shipments', authenticate, async (req, res) => {
+router.post('/orders/:id/shipments', authenticate, validateJoi(marketplaceSchemas.shipment), async (req, res) => {
   try {
     const { id } = req.params;
     const { tracking_number, carrier_code, carrier_name, shipped_items } = req.body;

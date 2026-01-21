@@ -302,7 +302,7 @@ module.exports = (pool) => {
     try {
       const { id } = req.params;
       const result = await pool.query(`
-        SELECT * FROM quote_change_requests WHERE quote_id = $1 ORDER BY created_at DESC
+        SELECT * FROM quote_change_requests WHERE quote_id = $1 ORDER BY created_at DESC LIMIT 100
       `, [id]);
       res.json(result.rows);
     } catch (error) {
@@ -502,6 +502,7 @@ module.exports = (pool) => {
         SELECT * FROM quote_version_history
         WHERE quote_id = $1
         ORDER BY version DESC
+        LIMIT 100
       `, [id]);
       res.json(result.rows);
     } catch (error) {
@@ -583,7 +584,7 @@ module.exports = (pool) => {
   // Get follow-up rules
   router.get('/follow-up-rules', authenticate, async (req, res) => {
     try {
-      const result = await pool.query(`SELECT * FROM quote_follow_up_rules ORDER BY trigger_days`);
+      const result = await pool.query(`SELECT * FROM quote_follow_up_rules ORDER BY trigger_days LIMIT 100`);
       res.json(result.rows);
     } catch (error) {
       console.error('Error fetching follow-up rules:', error);
@@ -674,7 +675,7 @@ module.exports = (pool) => {
     try {
       const { id } = req.params;
       const result = await pool.query(`
-        SELECT * FROM quote_payments WHERE quote_id = $1 ORDER BY created_at DESC
+        SELECT * FROM quote_payments WHERE quote_id = $1 ORDER BY created_at DESC LIMIT 100
       `, [id]);
       res.json(result.rows);
     } catch (error) {

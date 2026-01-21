@@ -17,6 +17,17 @@ export const AuthProvider = ({ children }) => {
 
   const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:3001';
 
+  // Handle logout event from apiClient (triggered on token refresh failure)
+  useEffect(() => {
+    const handleLogoutEvent = () => {
+      setUser(null);
+      setToken(null);
+    };
+
+    window.addEventListener('auth:logout', handleLogoutEvent);
+    return () => window.removeEventListener('auth:logout', handleLogoutEvent);
+  }, []);
+
   // Fetch current user from API to get latest data (including approval threshold)
   const fetchCurrentUser = useCallback(async (authToken) => {
     try {
@@ -83,13 +94,16 @@ export const AuthProvider = ({ children }) => {
       }
 
       // API returns { success, data: { user, accessToken, refreshToken } }
-      const { user: userData, accessToken } = result.data;
+      const { user: userData, accessToken, refreshToken } = result.data;
 
       setToken(accessToken);
       setUser(userData);
 
       localStorage.setItem('auth_token', accessToken);
       localStorage.setItem('auth_user', JSON.stringify(userData));
+      if (refreshToken) {
+        localStorage.setItem('auth_refresh_token', refreshToken);
+      }
 
       return { success: true };
     } catch (error) {
@@ -103,6 +117,7 @@ export const AuthProvider = ({ children }) => {
     setToken(null);
     localStorage.removeItem('auth_token');
     localStorage.removeItem('auth_user');
+    localStorage.removeItem('auth_refresh_token');
   };
 
   const updateUser = (updatedUser) => {

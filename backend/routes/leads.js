@@ -8,6 +8,7 @@ const router = express.Router();
 const { ApiError, asyncHandler } = require('../middleware/errorHandler');
 const LeadService = require('../services/LeadService');
 const { authenticate } = require('../middleware/auth');
+const { validateJoi, leadSchemas } = require('../middleware/validation');
 
 // Module-level service instance
 let leadService = null;
@@ -78,13 +79,7 @@ router.get('/:id', authenticate, asyncHandler(async (req, res) => {
  * POST /api/leads
  * Create a new lead
  */
-router.post('/', authenticate, asyncHandler(async (req, res) => {
-  const { contact_name } = req.body;
-
-  if (!contact_name) {
-    throw ApiError.validation('Contact name is required');
-  }
-
+router.post('/', authenticate, validateJoi(leadSchemas.create), asyncHandler(async (req, res) => {
   const lead = await leadService.createLead(req.body, req.user?.id);
 
   // Invalidate stats cache
@@ -97,7 +92,7 @@ router.post('/', authenticate, asyncHandler(async (req, res) => {
  * PUT /api/leads/:id
  * Update a lead
  */
-router.put('/:id', authenticate, asyncHandler(async (req, res) => {
+router.put('/:id', authenticate, validateJoi(leadSchemas.update), asyncHandler(async (req, res) => {
   const { id } = req.params;
   const lead = await leadService.updateLead(id, req.body, req.user?.id);
 
@@ -115,13 +110,9 @@ router.put('/:id', authenticate, asyncHandler(async (req, res) => {
  * PUT /api/leads/:id/status
  * Update lead status
  */
-router.put('/:id/status', authenticate, asyncHandler(async (req, res) => {
+router.put('/:id/status', authenticate, validateJoi(leadSchemas.status), asyncHandler(async (req, res) => {
   const { id } = req.params;
   const { status, lost_reason } = req.body;
-
-  if (!status) {
-    throw ApiError.validation('Status is required');
-  }
 
   try {
     const lead = await leadService.updateStatus(id, status, lost_reason, req.user?.id);

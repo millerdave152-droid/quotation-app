@@ -10,6 +10,7 @@ const { ApiError, asyncHandler } = require('../middleware/errorHandler');
 const CustomerService = require('../services/CustomerService');
 const LookupService = require('../services/LookupService');
 const { authenticate } = require('../middleware/auth');
+const { validateJoi, customerSchemas } = require('../middleware/validation');
 
 // Module-level service instance
 let customerService = null;
@@ -215,7 +216,7 @@ router.get('/autocomplete', authenticate, asyncHandler(async (req, res) => {
  * Check for potential duplicate customers
  * Body: { name, email, phone, company }
  */
-router.post('/check-duplicates', authenticate, asyncHandler(async (req, res) => {
+router.post('/check-duplicates', authenticate, validateJoi(customerSchemas.duplicateCheck), asyncHandler(async (req, res) => {
   const { name, email, phone, company } = req.body;
 
   const duplicates = await LookupService.findPotentialDuplicates({

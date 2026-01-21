@@ -4,30 +4,34 @@
  */
 
 const NodeCache = require('node-cache');
+const cacheConfig = require('./config/cache-config');
 
-// Create cache instances with different TTLs for different data types
+// Create cache instances with configurable TTLs for different data types
 const caches = {
-  // Short-lived cache for frequently changing data (5 minutes)
+  // Short-lived cache for frequently changing data
   short: new NodeCache({
-    stdTTL: 300, // 5 minutes
+    stdTTL: cacheConfig.TTL_SHORT,
     checkperiod: 60, // Check for expired keys every 60 seconds
     useClones: false // Don't clone data (better performance)
   }),
 
-  // Medium-lived cache for moderately static data (30 minutes)
+  // Medium-lived cache for moderately static data
   medium: new NodeCache({
-    stdTTL: 1800, // 30 minutes
+    stdTTL: cacheConfig.TTL_MEDIUM,
     checkperiod: 120,
     useClones: false
   }),
 
-  // Long-lived cache for rarely changing data (2 hours)
+  // Long-lived cache for rarely changing data
   long: new NodeCache({
-    stdTTL: 7200, // 2 hours
+    stdTTL: cacheConfig.TTL_LONG,
     checkperiod: 300,
     useClones: false
   })
 };
+
+// Log cache configuration on startup
+console.log(`✓ Cache initialized: TTL_SHORT=${cacheConfig.TTL_SHORT}s, TTL_MEDIUM=${cacheConfig.TTL_MEDIUM}s, TTL_LONG=${cacheConfig.TTL_LONG}s`);
 
 /**
  * Get value from cache

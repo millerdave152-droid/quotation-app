@@ -13,6 +13,7 @@ const { ApiError, asyncHandler } = require('../middleware/errorHandler');
 const ProductService = require('../services/ProductService');
 const ProductRecommendationService = require('../services/ProductRecommendationService');
 const { authenticate } = require('../middleware/auth');
+const { validateJoi, productSchemas } = require('../middleware/validation');
 
 // Module-level dependencies
 let productService = null;
@@ -256,9 +257,7 @@ router.get('/:id', authenticate, asyncHandler(async (req, res) => {
  * POST /api/products
  * Create a new product
  */
-router.post('/', authenticate, asyncHandler(async (req, res) => {
-  const { model, manufacturer } = req.body;
-
+router.post('/', authenticate, validateJoi(productSchemas.create), asyncHandler(async (req, res) => {
   try {
     const product = await productService.createProduct(req.body);
     res.created(product);
@@ -276,7 +275,7 @@ router.post('/', authenticate, asyncHandler(async (req, res) => {
  * PUT /api/products/:id
  * Update an existing product
  */
-router.put('/:id', authenticate, asyncHandler(async (req, res) => {
+router.put('/:id', authenticate, validateJoi(productSchemas.update), asyncHandler(async (req, res) => {
   const { id } = req.params;
 
   const product = await productService.updateProduct(id, req.body);

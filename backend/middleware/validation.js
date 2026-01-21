@@ -622,6 +622,181 @@ const returnQuerySchema = marketplacePaginationSchema.keys({
   customer_email: Joi.string().email().optional()
 });
 
+// ============================================
+// LEAD VALIDATION SCHEMAS
+// ============================================
+
+const leadSchema = Joi.object({
+  contact_name: Joi.string().min(2).max(100).required()
+    .messages({ 'string.empty': 'Contact name is required' }),
+  contact_email: Joi.string().email().max(255).optional().allow('', null),
+  contact_phone: Joi.string().max(30).optional().allow('', null),
+  preferred_contact_method: Joi.string()
+    .valid('phone', 'email', 'text', 'whatsapp')
+    .optional().allow(null),
+  best_time_to_contact: Joi.string().max(100).optional().allow('', null),
+  lead_source: Joi.string()
+    .valid('walk_in', 'phone', 'website', 'referral', 'social_media', 'email', 'other')
+    .optional().allow(null),
+  source_details: Joi.string().max(500).optional().allow('', null),
+  inquiry_reason: Joi.string()
+    .valid('browsing', 'researching', 'moving', 'renovation', 'replacement', 'upgrade', 'builder_project', 'other')
+    .optional().allow(null),
+  timeline: Joi.string()
+    .valid('asap', '1_2_weeks', '1_3_months', '3_6_months', 'just_researching')
+    .optional().allow(null),
+  move_in_date: Joi.date().iso().optional().allow(null),
+  requirements_notes: Joi.string().max(5000).optional().allow('', null),
+  priority: Joi.string().valid('hot', 'warm', 'cold').default('warm'),
+  assigned_to: Joi.number().integer().positive().optional().allow(null),
+  follow_up_date: Joi.date().iso().optional().allow(null),
+  customer_id: Joi.number().integer().positive().optional().allow(null),
+  requirements: Joi.array().items(
+    Joi.object({
+      category: Joi.string().max(100).required(),
+      subcategory: Joi.string().max(100).optional().allow('', null),
+      quantity: Joi.number().integer().min(1).default(1),
+      budget_min_cents: Joi.number().integer().min(0).optional().allow(null),
+      budget_max_cents: Joi.number().integer().min(0).optional().allow(null),
+      brand_preferences: Joi.array().items(Joi.string().max(50)).optional(),
+      notes: Joi.string().max(1000).optional().allow('', null)
+    })
+  ).optional()
+});
+
+const leadUpdateSchema = Joi.object({
+  contact_name: Joi.string().min(2).max(100).optional(),
+  contact_email: Joi.string().email().max(255).optional().allow('', null),
+  contact_phone: Joi.string().max(30).optional().allow('', null),
+  preferred_contact_method: Joi.string()
+    .valid('phone', 'email', 'text', 'whatsapp')
+    .optional().allow(null),
+  best_time_to_contact: Joi.string().max(100).optional().allow('', null),
+  lead_source: Joi.string()
+    .valid('walk_in', 'phone', 'website', 'referral', 'social_media', 'email', 'other')
+    .optional().allow(null),
+  source_details: Joi.string().max(500).optional().allow('', null),
+  inquiry_reason: Joi.string()
+    .valid('browsing', 'researching', 'moving', 'renovation', 'replacement', 'upgrade', 'builder_project', 'other')
+    .optional().allow(null),
+  timeline: Joi.string()
+    .valid('asap', '1_2_weeks', '1_3_months', '3_6_months', 'just_researching')
+    .optional().allow(null),
+  move_in_date: Joi.date().iso().optional().allow(null),
+  requirements_notes: Joi.string().max(5000).optional().allow('', null),
+  priority: Joi.string().valid('hot', 'warm', 'cold').optional(),
+  assigned_to: Joi.number().integer().positive().optional().allow(null),
+  follow_up_date: Joi.date().iso().optional().allow(null),
+  customer_id: Joi.number().integer().positive().optional().allow(null)
+});
+
+const leadStatusSchema = Joi.object({
+  status: Joi.string()
+    .valid('new', 'contacted', 'qualified', 'proposal_sent', 'negotiating', 'won', 'lost')
+    .required(),
+  lost_reason: Joi.string().max(500).optional().allow('', null)
+});
+
+// ============================================
+// ORDER VALIDATION SCHEMAS
+// ============================================
+
+const orderCreateSchema = Joi.object({
+  customerId: Joi.number().integer().positive().required()
+    .messages({ 'any.required': 'Customer ID is required' }),
+  items: Joi.array().items(
+    Joi.object({
+      productId: Joi.number().integer().positive().required(),
+      quantity: Joi.number().integer().min(1).required(),
+      unitPriceCents: Joi.number().integer().min(0).optional(),
+      discountPercent: Joi.number().min(0).max(100).optional()
+    })
+  ).min(1).required()
+    .messages({ 'array.min': 'At least one item is required' }),
+  deliveryDate: Joi.date().iso().optional().allow(null),
+  deliverySlotId: Joi.number().integer().positive().optional().allow(null),
+  deliveryCents: Joi.number().integer().min(0).optional().default(0),
+  notes: Joi.string().max(2000).optional().allow('', null),
+  createdBy: Joi.string().max(100).optional().default('api')
+});
+
+const orderStatusSchema = Joi.object({
+  status: Joi.string()
+    .valid('pending', 'confirmed', 'processing', 'ready_for_delivery', 'out_for_delivery', 'delivered', 'cancelled')
+    .required(),
+  updatedBy: Joi.string().max(100).optional().default('api')
+});
+
+const orderPaymentSchema = Joi.object({
+  paymentStatus: Joi.string()
+    .valid('unpaid', 'deposit_paid', 'partially_paid', 'paid', 'refunded')
+    .required(),
+  depositPaidCents: Joi.number().integer().min(0).optional(),
+  amountPaidCents: Joi.number().integer().min(0).optional(),
+  stripePaymentIntentId: Joi.string().max(255).optional().allow('', null)
+});
+
+// ============================================
+// PRODUCT VALIDATION SCHEMAS
+// ============================================
+
+const productSchema = Joi.object({
+  model: Joi.string().min(1).max(100).required()
+    .messages({ 'string.empty': 'Model is required' }),
+  manufacturer: Joi.string().max(100).optional().allow('', null),
+  name: Joi.string().max(500).optional().allow('', null),
+  description: Joi.string().max(2000).optional().allow('', null),
+  category: Joi.string().max(255).optional().allow('', null),
+  cost_cents: Joi.number().integer().min(0).optional().default(0),
+  msrp_cents: Joi.number().integer().min(0).optional().default(0),
+  promo_cost_cents: Joi.number().integer().min(0).optional().allow(null),
+  retail_price_cents: Joi.number().integer().min(0).optional().allow(null),
+  map_price_cents: Joi.number().integer().min(0).optional().allow(null),
+  color: Joi.string().max(100).optional().allow('', null),
+  dimensions: Joi.string().max(255).optional().allow('', null),
+  weight_lbs: Joi.number().min(0).optional().allow(null),
+  warranty_months: Joi.number().integer().min(0).optional().allow(null),
+  active: Joi.boolean().optional().default(true),
+  discontinued: Joi.boolean().optional().default(false),
+  in_stock: Joi.boolean().optional(),
+  stock_quantity: Joi.number().integer().min(0).optional(),
+  lead_time_days: Joi.number().integer().min(0).optional()
+});
+
+const productUpdateSchema = Joi.object({
+  model: Joi.string().min(1).max(100).optional(),
+  manufacturer: Joi.string().max(100).optional().allow('', null),
+  name: Joi.string().max(500).optional().allow('', null),
+  description: Joi.string().max(2000).optional().allow('', null),
+  category: Joi.string().max(255).optional().allow('', null),
+  cost_cents: Joi.number().integer().min(0).optional(),
+  msrp_cents: Joi.number().integer().min(0).optional(),
+  promo_cost_cents: Joi.number().integer().min(0).optional().allow(null),
+  retail_price_cents: Joi.number().integer().min(0).optional().allow(null),
+  map_price_cents: Joi.number().integer().min(0).optional().allow(null),
+  color: Joi.string().max(100).optional().allow('', null),
+  dimensions: Joi.string().max(255).optional().allow('', null),
+  weight_lbs: Joi.number().min(0).optional().allow(null),
+  warranty_months: Joi.number().integer().min(0).optional().allow(null),
+  active: Joi.boolean().optional(),
+  discontinued: Joi.boolean().optional(),
+  in_stock: Joi.boolean().optional(),
+  stock_quantity: Joi.number().integer().min(0).optional(),
+  lead_time_days: Joi.number().integer().min(0).optional()
+});
+
+// ============================================
+// CUSTOMER VALIDATION SCHEMAS
+// ============================================
+
+const customerDuplicateCheckSchema = Joi.object({
+  name: Joi.string().max(255).optional().allow('', null),
+  email: Joi.string().email().max(255).optional().allow('', null),
+  phone: Joi.string().max(30).optional().allow('', null),
+  company: Joi.string().max(255).optional().allow('', null)
+}).or('name', 'email', 'phone', 'company')
+  .messages({ 'object.missing': 'At least one field (name, email, phone, or company) is required' });
+
 // Marketplace validation schemas export
 const marketplaceSchemas = {
   orderIdParam: orderIdParamSchema,
@@ -646,6 +821,31 @@ const marketplaceSchemas = {
   returnQuery: returnQuerySchema
 };
 
+// Lead schemas export
+const leadSchemas = {
+  create: leadSchema,
+  update: leadUpdateSchema,
+  status: leadStatusSchema
+};
+
+// Order schemas export
+const orderSchemas = {
+  create: orderCreateSchema,
+  status: orderStatusSchema,
+  payment: orderPaymentSchema
+};
+
+// Product schemas export
+const productSchemas = {
+  create: productSchema,
+  update: productUpdateSchema
+};
+
+// Customer schemas export
+const customerSchemas = {
+  duplicateCheck: customerDuplicateCheckSchema
+};
+
 module.exports = {
   validateRegister,
   validateLogin,
@@ -661,7 +861,12 @@ module.exports = {
   handleValidationErrors,
   emailNotExists,
   sanitizeCommonFields,
-  // Joi validation for marketplace
+  // Joi validation helpers
   validateJoi,
-  marketplaceSchemas
+  // Schema collections
+  marketplaceSchemas,
+  leadSchemas,
+  orderSchemas,
+  productSchemas,
+  customerSchemas
 };

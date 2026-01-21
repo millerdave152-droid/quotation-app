@@ -3,6 +3,8 @@
  * Handles all lead/inquiry capture business logic
  */
 
+const { ApiError } = require('../middleware/errorHandler');
+
 class LeadService {
   constructor(pool, cache) {
     this.pool = pool;
@@ -119,53 +121,85 @@ class LeadService {
 
   /**
    * Get a single lead by ID with full details
+   * PERF: Uses single query with JSON aggregation instead of 3 separate queries
    */
   async getLeadById(id) {
-    const leadQuery = `
+    const query = `
+      WITH lead_data AS (
+        SELECT
+          l.*,
+          c.name as customer_name,
+          c.email as customer_email,
+          c.phone as customer_phone,
+          c.company as customer_company,
+          NULLIF(TRIM(CONCAT(u.first_name, ' ', u.last_name)), '') as assigned_to_name,
+          NULLIF(TRIM(CONCAT(cb.first_name, ' ', cb.last_name)), '') as created_by_name,
+          q.quote_number
+        FROM leads l
+        LEFT JOIN customers c ON l.customer_id = c.id
+        LEFT JOIN users u ON l.assigned_to = u.id
+        LEFT JOIN users cb ON l.created_by = cb.id
+        LEFT JOIN quotations q ON l.quotation_id = q.id
+        WHERE l.id = $1
+      ),
+      requirements_agg AS (
+        SELECT
+          lead_id,
+          COALESCE(json_agg(
+            json_build_object(
+              'id', lr.id,
+              'lead_id', lr.lead_id,
+              'category', lr.category,
+              'subcategory', lr.subcategory,
+              'quantity', lr.quantity,
+              'budget_min_cents', lr.budget_min_cents,
+              'budget_max_cents', lr.budget_max_cents,
+              'brand_preferences', lr.brand_preferences,
+              'features_needed', lr.features_needed,
+              'notes', lr.notes,
+              'created_at', lr.created_at
+            ) ORDER BY lr.id
+          ) FILTER (WHERE lr.id IS NOT NULL), '[]'::json) as requirements
+        FROM lead_requirements lr
+        WHERE lr.lead_id = $1
+        GROUP BY lead_id
+      ),
+      activities_agg AS (
+        SELECT
+          la.lead_id,
+          COALESCE(json_agg(
+            json_build_object(
+              'id', la.id,
+              'lead_id', la.lead_id,
+              'activity_type', la.activity_type,
+              'description', la.description,
+              'metadata', la.metadata,
+              'performed_by', la.performed_by,
+              'performed_by_name', NULLIF(TRIM(CONCAT(u.first_name, ' ', u.last_name)), ''),
+              'created_at', la.created_at
+            ) ORDER BY la.created_at DESC
+          ) FILTER (WHERE la.id IS NOT NULL), '[]'::json) as activities
+        FROM (
+          SELECT * FROM lead_activities WHERE lead_id = $1 ORDER BY created_at DESC LIMIT 50
+        ) la
+        LEFT JOIN users u ON la.performed_by = u.id
+        GROUP BY la.lead_id
+      )
       SELECT
-        l.*,
-        c.name as customer_name,
-        c.email as customer_email,
-        c.phone as customer_phone,
-        c.company as customer_company,
-        NULLIF(TRIM(CONCAT(u.first_name, ' ', u.last_name)), '') as assigned_to_name,
-        NULLIF(TRIM(CONCAT(cb.first_name, ' ', cb.last_name)), '') as created_by_name,
-        q.quote_number
-      FROM leads l
-      LEFT JOIN customers c ON l.customer_id = c.id
-      LEFT JOIN users u ON l.assigned_to = u.id
-      LEFT JOIN users cb ON l.created_by = cb.id
-      LEFT JOIN quotations q ON l.quotation_id = q.id
-      WHERE l.id = $1
+        ld.*,
+        COALESCE(r.requirements, '[]'::json) as requirements,
+        COALESCE(a.activities, '[]'::json) as activities
+      FROM lead_data ld
+      LEFT JOIN requirements_agg r ON r.lead_id = ld.id
+      LEFT JOIN activities_agg a ON a.lead_id = ld.id
     `;
 
-    const leadResult = await this.pool.query(leadQuery, [id]);
-    if (leadResult.rows.length === 0) {
+    const result = await this.pool.query(query, [id]);
+    if (result.rows.length === 0) {
       return null;
     }
 
-    const lead = leadResult.rows[0];
-
-    // Get requirements
-    const reqResult = await this.pool.query(
-      'SELECT * FROM lead_requirements WHERE lead_id = $1 ORDER BY id',
-      [id]
-    );
-    lead.requirements = reqResult.rows;
-
-    // Get recent activities
-    const actResult = await this.pool.query(
-      `SELECT la.*, NULLIF(TRIM(CONCAT(u.first_name, ' ', u.last_name)), '') as performed_by_name
-       FROM lead_activities la
-       LEFT JOIN users u ON la.performed_by = u.id
-       WHERE la.lead_id = $1
-       ORDER BY la.created_at DESC
-       LIMIT 50`,
-      [id]
-    );
-    lead.activities = actResult.rows;
-
-    return lead;
+    return result.rows[0];
   }
 
   /**
