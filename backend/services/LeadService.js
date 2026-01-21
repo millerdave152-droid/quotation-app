@@ -155,9 +155,9 @@ class LeadService {
               'budget_min_cents', lr.budget_min_cents,
               'budget_max_cents', lr.budget_max_cents,
               'brand_preferences', lr.brand_preferences,
-              'features_needed', lr.features_needed,
-              'notes', lr.notes,
-              'created_at', lr.created_at
+              'color_preferences', lr.color_preferences,
+              'size_constraints', lr.size_constraints,
+              'notes', lr.notes
             ) ORDER BY lr.id
           ) FILTER (WHERE lr.id IS NOT NULL), '[]'::json) as requirements
         FROM lead_requirements lr

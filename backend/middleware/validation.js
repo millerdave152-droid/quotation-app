@@ -636,7 +636,7 @@ const leadSchema = Joi.object({
     .optional().allow(null),
   best_time_to_contact: Joi.string().max(100).optional().allow('', null),
   lead_source: Joi.string()
-    .valid('walk_in', 'phone', 'website', 'referral', 'social_media', 'email', 'other')
+    .valid('walk_in', 'phone', 'website', 'referral', 'realtor', 'builder', 'social_media', 'email', 'other')
     .optional().allow(null),
   source_details: Joi.string().max(500).optional().allow('', null),
   inquiry_reason: Joi.string()
@@ -659,6 +659,9 @@ const leadSchema = Joi.object({
       budget_min_cents: Joi.number().integer().min(0).optional().allow(null),
       budget_max_cents: Joi.number().integer().min(0).optional().allow(null),
       brand_preferences: Joi.array().items(Joi.string().max(50)).optional(),
+      color_preferences: Joi.array().items(Joi.string().max(50)).optional(),
+      size_constraints: Joi.string().max(255).optional().allow('', null),
+      must_have_features: Joi.array().items(Joi.string().max(100)).optional(),
       notes: Joi.string().max(1000).optional().allow('', null)
     })
   ).optional()
@@ -673,7 +676,7 @@ const leadUpdateSchema = Joi.object({
     .optional().allow(null),
   best_time_to_contact: Joi.string().max(100).optional().allow('', null),
   lead_source: Joi.string()
-    .valid('walk_in', 'phone', 'website', 'referral', 'social_media', 'email', 'other')
+    .valid('walk_in', 'phone', 'website', 'referral', 'realtor', 'builder', 'social_media', 'email', 'other')
     .optional().allow(null),
   source_details: Joi.string().max(500).optional().allow('', null),
   inquiry_reason: Joi.string()
@@ -687,12 +690,26 @@ const leadUpdateSchema = Joi.object({
   priority: Joi.string().valid('hot', 'warm', 'cold').optional(),
   assigned_to: Joi.number().integer().positive().optional().allow(null),
   follow_up_date: Joi.date().iso().optional().allow(null),
-  customer_id: Joi.number().integer().positive().optional().allow(null)
+  customer_id: Joi.number().integer().positive().optional().allow(null),
+  requirements: Joi.array().items(
+    Joi.object({
+      category: Joi.string().max(100).required(),
+      subcategory: Joi.string().max(100).optional().allow('', null),
+      quantity: Joi.number().integer().min(1).default(1),
+      budget_min_cents: Joi.number().integer().min(0).optional().allow(null),
+      budget_max_cents: Joi.number().integer().min(0).optional().allow(null),
+      brand_preferences: Joi.array().items(Joi.string().max(50)).optional(),
+      color_preferences: Joi.array().items(Joi.string().max(50)).optional(),
+      size_constraints: Joi.string().max(255).optional().allow('', null),
+      must_have_features: Joi.array().items(Joi.string().max(100)).optional(),
+      notes: Joi.string().max(1000).optional().allow('', null)
+    })
+  ).optional()
 });
 
 const leadStatusSchema = Joi.object({
   status: Joi.string()
-    .valid('new', 'contacted', 'qualified', 'proposal_sent', 'negotiating', 'won', 'lost')
+    .valid('new', 'contacted', 'qualified', 'quote_created', 'converted', 'lost')
     .required(),
   lost_reason: Joi.string().max(500).optional().allow('', null)
 });

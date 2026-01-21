@@ -151,7 +151,7 @@ function AIHelperPanel({ leadId, lead, onUpdate }) {
                               fontSize: '0.85rem'
                             }}
                           >
-                            <div style={{ fontWeight: 500 }}>{product.brand} {product.modelNumber}</div>
+                            <div style={{ fontWeight: 500 }}>{product.brand} {product.model}</div>
                             <div style={{ color: 'var(--text-secondary)' }}>
                               ${product.price?.toFixed(2)} | {product.inStock ? 'In Stock' : 'Out of Stock'}
                             </div>
