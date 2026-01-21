@@ -6,12 +6,13 @@
 const express = require('express');
 const router = express.Router();
 const pool = require('../db');
+const { authenticate } = require('../middleware/auth');
 
 /**
  * GET /api/payments/customer/:customerId
  * Get all payments for a specific customer
  */
-router.get('/customer/:customerId', async (req, res) => {
+router.get('/customer/:customerId', authenticate, async (req, res) => {
   try {
     const { customerId } = req.params;
 
@@ -43,7 +44,7 @@ router.get('/customer/:customerId', async (req, res) => {
  * GET /api/payments/customer/:customerId/summary
  * Get payment summary for a customer
  */
-router.get('/customer/:customerId/summary', async (req, res) => {
+router.get('/customer/:customerId/summary', authenticate, async (req, res) => {
   try {
     const { customerId } = req.params;
 
@@ -106,7 +107,7 @@ router.get('/customer/:customerId/summary', async (req, res) => {
  * POST /api/payments
  * Record a new payment
  */
-router.post('/', async (req, res) => {
+router.post('/', authenticate, async (req, res) => {
   try {
     const {
       customer_id,
@@ -152,8 +153,6 @@ router.post('/', async (req, res) => {
       payment_date || new Date()
     ]);
 
-    console.log(`💰 Payment recorded: $${amount} for customer ${customer_id}`);
-
     res.status(201).json({
       success: true,
       payment: result.rows[0],
@@ -172,7 +171,7 @@ router.post('/', async (req, res) => {
  * PUT /api/payments/:id
  * Update a payment record
  */
-router.put('/:id', async (req, res) => {
+router.put('/:id', authenticate, async (req, res) => {
   try {
     const { id } = req.params;
     const {
@@ -223,7 +222,7 @@ router.put('/:id', async (req, res) => {
  * DELETE /api/payments/:id
  * Delete a payment record
  */
-router.delete('/:id', async (req, res) => {
+router.delete('/:id', authenticate, async (req, res) => {
   try {
     const { id } = req.params;
 
@@ -238,8 +237,6 @@ router.delete('/:id', async (req, res) => {
         error: 'Payment not found'
       });
     }
-
-    console.log(`🗑️ Payment deleted: ${id}`);
 
     res.json({
       success: true,
@@ -258,7 +255,7 @@ router.delete('/:id', async (req, res) => {
  * PUT /api/payments/customer/:customerId/credit-limit
  * Update customer credit limit
  */
-router.put('/customer/:customerId/credit-limit', async (req, res) => {
+router.put('/customer/:customerId/credit-limit', authenticate, async (req, res) => {
   try {
     const { customerId } = req.params;
     const { credit_limit, payment_terms } = req.body;
@@ -288,8 +285,6 @@ router.put('/customer/:customerId/credit-limit', async (req, res) => {
       });
     }
 
-    console.log(`📊 Credit limit updated for customer ${customerId}: $${credit_limit}`);
-
     res.json({
       success: true,
       customer: result.rows[0],
@@ -308,7 +303,7 @@ router.put('/customer/:customerId/credit-limit', async (req, res) => {
  * GET /api/payments/stats
  * Get overall payment statistics
  */
-router.get('/stats', async (req, res) => {
+router.get('/stats', authenticate, async (req, res) => {
   try {
     const result = await pool.query(`
       SELECT

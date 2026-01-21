@@ -6,12 +6,16 @@ import ProductImportWizard from './ProductImportWizard';
 import ManufacturerTemplateManager from './ManufacturerTemplateManager';
 import { Model3DUploader } from './ProductConfigurator';
 import CategoryPicker from './CategoryPicker';
+import { ModelTooltip } from './nomenclature';
 
 const API_BASE = `${process.env.REACT_APP_API_URL || 'http://localhost:3001'}/api`;
 
 const ProductManagement = () => {
   // State Management
   const [view, setView] = useState('browser');
+  const [productViewMode, setProductViewMode] = useState(() => {
+    return localStorage.getItem('productViewMode') || 'table'; // 'table' or 'grid'
+  });
   const [products, setProducts] = useState([]);
   const [filteredProducts, setFilteredProducts] = useState([]);
   const [selectedProduct, setSelectedProduct] = useState(null);
@@ -713,6 +717,9 @@ const ProductManagement = () => {
       return {
         id: p.id,
         model: p.model,
+        manufacturer: p.manufacturer,
+        name: p.name,
+        category: p.category,
         oldCost: p.cost_cents,
         newCost: Math.max(0, newCost),
         oldMsrp: p.msrp_cents,
@@ -1163,7 +1170,18 @@ Whirlpool,WRS325SDHZ,Side-by-Side Refrigerator 25 cu ft,Refrigerators,749.99,129
                 <tbody>
                   {recentProducts.map(product => (
                     <tr key={product.id} style={{ borderBottom: '1px solid #f3f4f6' }}>
-                      <td style={{ padding: '12px', fontFamily: 'monospace', fontSize: '13px' }}>{product.model || '-'}</td>
+                      <td style={{ padding: '12px', fontFamily: 'monospace', fontSize: '13px' }}>
+                        {product.model ? (
+                          <ModelTooltip
+                            modelNumber={product.model}
+                            manufacturer={product.manufacturer}
+                            productName={product.name}
+                            category={product.category}
+                          >
+                            {product.model}
+                          </ModelTooltip>
+                        ) : '-'}
+                      </td>
                       <td style={{ padding: '12px', fontWeight: '500' }}>{product.name || '-'}</td>
                       <td style={{ padding: '12px' }}>{product.manufacturer || '-'}</td>
                       <td style={{ padding: '12px', textAlign: 'right' }}>{formatPrice(product.cost_cents)}</td>
@@ -1188,8 +1206,8 @@ Whirlpool,WRS325SDHZ,Side-by-Side Refrigerator 25 cu ft,Refrigerators,749.99,129
       {/* Enhanced Search and Filters */}
       <div style={{ background: 'white', borderRadius: '12px', padding: '20px', marginBottom: '20px', boxShadow: '0 1px 3px rgba(0,0,0,0.1)' }}>
         {/* Row 1: Search and Quick Filters */}
-        <div style={{ display: 'flex', gap: '15px', alignItems: 'flex-end', marginBottom: '15px', flexWrap: 'wrap' }}>
-          <div style={{ flex: '1', minWidth: '250px' }}>
+        <div style={{ display: 'flex', gap: '15px', alignItems: 'flex-end', marginBottom: '15px', flexWrap: 'wrap', justifyContent: 'space-between' }}>
+          <div style={{ width: '650px', minWidth: '350px', flexShrink: 1 }}>
             <label style={{ display: 'block', marginBottom: '8px', fontSize: '14px', fontWeight: '500' }}>Search</label>
             <div style={{ position: 'relative' }}>
               <input
@@ -1198,13 +1216,13 @@ Whirlpool,WRS325SDHZ,Side-by-Side Refrigerator 25 cu ft,Refrigerators,749.99,129
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 placeholder="Search by model #, name, or brand... (Press / to focus)"
-                style={{ width: '100%', padding: '10px 36px 10px 36px', border: '2px solid #e5e7eb', borderRadius: '8px', fontSize: '14px' }}
+                style={{ width: '100%', padding: '10px 36px 10px 36px', border: '2px solid #e5e7eb', borderRadius: '8px', fontSize: '14px', boxSizing: 'border-box' }}
               />
               <span style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: '#9ca3af' }}>🔍</span>
               {filtering && <span style={{ position: 'absolute', right: '12px', top: '50%', transform: 'translateY(-50%)', color: '#667eea', animation: 'spin 1s linear infinite' }}>⏳</span>}
             </div>
           </div>
-          <div style={{ display: 'flex', gap: '8px' }}>
+          <div style={{ display: 'flex', gap: '8px', flexShrink: 0, flexWrap: 'wrap' }}>
             <button
               onClick={() => setShowFavorites(!showFavorites)}
               style={{
@@ -1262,6 +1280,73 @@ Whirlpool,WRS325SDHZ,Side-by-Side Refrigerator 25 cu ft,Refrigerators,749.99,129
             >
               📥 Export{selectedIds.size > 0 ? ` (${selectedIds.size})` : ''}
             </button>
+
+            {/* View Mode Toggle */}
+            <div style={{
+              display: 'flex',
+              backgroundColor: '#f3f4f6',
+              borderRadius: '8px',
+              padding: '4px',
+            }}>
+              <button
+                onClick={() => {
+                  setProductViewMode('table');
+                  localStorage.setItem('productViewMode', 'table');
+                }}
+                style={{
+                  padding: '8px 12px',
+                  border: 'none',
+                  borderRadius: '6px',
+                  backgroundColor: productViewMode === 'table' ? 'white' : 'transparent',
+                  color: productViewMode === 'table' ? '#111827' : '#6b7280',
+                  fontSize: '13px',
+                  fontWeight: '600',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '4px',
+                  boxShadow: productViewMode === 'table' ? '0 1px 3px rgba(0,0,0,0.1)' : 'none',
+                }}
+                title="Table view"
+              >
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <line x1="8" y1="6" x2="21" y2="6"></line>
+                  <line x1="8" y1="12" x2="21" y2="12"></line>
+                  <line x1="8" y1="18" x2="21" y2="18"></line>
+                  <line x1="3" y1="6" x2="3.01" y2="6"></line>
+                  <line x1="3" y1="12" x2="3.01" y2="12"></line>
+                  <line x1="3" y1="18" x2="3.01" y2="18"></line>
+                </svg>
+              </button>
+              <button
+                onClick={() => {
+                  setProductViewMode('grid');
+                  localStorage.setItem('productViewMode', 'grid');
+                }}
+                style={{
+                  padding: '8px 12px',
+                  border: 'none',
+                  borderRadius: '6px',
+                  backgroundColor: productViewMode === 'grid' ? 'white' : 'transparent',
+                  color: productViewMode === 'grid' ? '#111827' : '#6b7280',
+                  fontSize: '13px',
+                  fontWeight: '600',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '4px',
+                  boxShadow: productViewMode === 'grid' ? '0 1px 3px rgba(0,0,0,0.1)' : 'none',
+                }}
+                title="Grid view"
+              >
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <rect x="3" y="3" width="7" height="7"></rect>
+                  <rect x="14" y="3" width="7" height="7"></rect>
+                  <rect x="14" y="14" width="7" height="7"></rect>
+                  <rect x="3" y="14" width="7" height="7"></rect>
+                </svg>
+              </button>
+            </div>
           </div>
           {hasActiveFilters() && (
             <button
@@ -1283,10 +1368,10 @@ Whirlpool,WRS325SDHZ,Side-by-Side Refrigerator 25 cu ft,Refrigerators,749.99,129
         </div>
 
         {/* Row 2: Dropdowns and Price Range */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '15px' }}>
-          <div style={{ position: 'relative' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '16px' }}>
+          <div style={{ position: 'relative', minWidth: 0 }}>
             <label style={{ display: 'block', marginBottom: '8px', fontSize: '14px', fontWeight: '500' }}>
-              Manufacturer {filterManufacturer !== 'all' && <span style={{ color: '#667eea', fontSize: '12px' }}>({getManufacturers().length})</span>}
+              Manufacturer
             </label>
             <div
               onClick={() => setShowManufacturerDropdown(!showManufacturerDropdown)}
@@ -1300,10 +1385,11 @@ Whirlpool,WRS325SDHZ,Side-by-Side Refrigerator 25 cu ft,Refrigerators,749.99,129
                 background: 'white',
                 display: 'flex',
                 justifyContent: 'space-between',
-                alignItems: 'center'
+                alignItems: 'center',
+                boxSizing: 'border-box'
               }}
             >
-              <span>{filterManufacturer === 'all' ? 'All Manufacturers' : filterManufacturer}</span>
+              <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{filterManufacturer === 'all' ? 'All Manufacturers' : filterManufacturer}</span>
               <span style={{ color: '#9ca3af' }}>{showManufacturerDropdown ? '▲' : '▼'}</span>
             </div>
             {showManufacturerDropdown && (
@@ -1358,7 +1444,7 @@ Whirlpool,WRS325SDHZ,Side-by-Side Refrigerator 25 cu ft,Refrigerators,749.99,129
               </div>
             )}
           </div>
-          <div>
+          <div style={{ minWidth: 0 }}>
             <label style={{ display: 'block', marginBottom: '8px', fontSize: '14px', fontWeight: '500' }}>Category</label>
             <CategoryPicker
               value={filterCategorySlug}
@@ -1371,7 +1457,7 @@ Whirlpool,WRS325SDHZ,Side-by-Side Refrigerator 25 cu ft,Refrigerators,749.99,129
               allowClear={true}
             />
           </div>
-          <div>
+          <div style={{ minWidth: 0 }}>
             <label style={{ display: 'block', marginBottom: '8px', fontSize: '14px', fontWeight: '500' }}>
               Price Range ({priceField === 'msrp' ? 'MSRP' : 'Cost'})
               <button
@@ -1381,30 +1467,30 @@ Whirlpool,WRS325SDHZ,Side-by-Side Refrigerator 25 cu ft,Refrigerators,749.99,129
                 Switch to {priceField === 'cost' ? 'MSRP' : 'Cost'}
               </button>
             </label>
-            <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+            <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
               <input
                 type="number"
                 value={minPrice}
                 onChange={(e) => setMinPrice(e.target.value)}
                 placeholder="Min"
-                style={{ width: '80px', padding: '10px', border: '2px solid #e5e7eb', borderRadius: '8px', fontSize: '14px' }}
+                style={{ flex: '1', minWidth: '60px', maxWidth: '80px', padding: '10px', border: '2px solid #e5e7eb', borderRadius: '8px', fontSize: '14px', boxSizing: 'border-box' }}
               />
-              <span style={{ color: '#9ca3af' }}>-</span>
+              <span style={{ color: '#9ca3af', flexShrink: 0 }}>-</span>
               <input
                 type="number"
                 value={maxPrice}
                 onChange={(e) => setMaxPrice(e.target.value)}
                 placeholder="Max"
-                style={{ width: '80px', padding: '10px', border: '2px solid #e5e7eb', borderRadius: '8px', fontSize: '14px' }}
+                style={{ flex: '1', minWidth: '60px', maxWidth: '80px', padding: '10px', border: '2px solid #e5e7eb', borderRadius: '8px', fontSize: '14px', boxSizing: 'border-box' }}
               />
             </div>
           </div>
-          <div>
+          <div style={{ minWidth: 0 }}>
             <label style={{ display: 'block', marginBottom: '8px', fontSize: '14px', fontWeight: '500' }}>Sort By</label>
             <select
               value={sortBy}
               onChange={(e) => setSortBy(e.target.value)}
-              style={{ width: '100%', padding: '10px', border: '2px solid #e5e7eb', borderRadius: '8px', fontSize: '14px' }}
+              style={{ width: '100%', padding: '10px', border: '2px solid #e5e7eb', borderRadius: '8px', fontSize: '14px', boxSizing: 'border-box' }}
             >
               <option value="updated_desc">Recently Updated</option>
               <option value="name_asc">Name (A-Z)</option>
@@ -1650,6 +1736,213 @@ Whirlpool,WRS325SDHZ,Side-by-Side Refrigerator 25 cu ft,Refrigerators,749.99,129
           </div>
         </div>
 
+        {/* Grid View */}
+        {productViewMode === 'grid' && (
+          <div style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))',
+            gap: '20px',
+            padding: '4px',
+          }}>
+            {filteredProducts.length === 0 ? (
+              <div style={{ gridColumn: '1 / -1', padding: '40px', textAlign: 'center', color: '#9ca3af' }}>
+                <div style={{ fontSize: '40px', marginBottom: '16px' }}>📭</div>
+                No products match your filters
+              </div>
+            ) : (
+              getCurrentPageProducts().map(product => {
+                const margin = product.cost_cents && product.msrp_cents
+                  ? (((product.msrp_cents - product.cost_cents) / product.msrp_cents) * 100).toFixed(1)
+                  : null;
+                const stockStatus = product.quantity_on_hand === 0 || product.quantity_on_hand === null
+                  ? 'out'
+                  : product.quantity_on_hand <= (product.reorder_point || 5)
+                    ? 'low'
+                    : 'ok';
+                const stockColors = { out: '#ef4444', low: '#f59e0b', ok: '#22c55e' };
+                const stockLabels = { out: 'Out of Stock', low: 'Low Stock', ok: 'In Stock' };
+
+                return (
+                  <div
+                    key={product.id}
+                    onClick={() => setSelectedProduct(product)}
+                    style={{
+                      backgroundColor: 'white',
+                      borderRadius: '12px',
+                      padding: '16px',
+                      boxShadow: selectedIds.has(product.id)
+                        ? '0 0 0 2px #6366f1'
+                        : '0 1px 3px rgba(0,0,0,0.1)',
+                      cursor: 'pointer',
+                      transition: 'all 0.2s ease',
+                      border: favorites.includes(product.id) ? '2px solid #f59e0b' : '1px solid #e5e7eb',
+                      position: 'relative',
+                    }}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.transform = 'translateY(-2px)';
+                      e.currentTarget.style.boxShadow = '0 4px 12px rgba(0,0,0,0.1)';
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.transform = 'none';
+                      e.currentTarget.style.boxShadow = selectedIds.has(product.id)
+                        ? '0 0 0 2px #6366f1'
+                        : '0 1px 3px rgba(0,0,0,0.1)';
+                    }}
+                  >
+                    {/* Selection checkbox */}
+                    <div style={{ position: 'absolute', top: '12px', left: '12px' }}>
+                      <input
+                        type="checkbox"
+                        checked={selectedIds.has(product.id)}
+                        onChange={(e) => {
+                          e.stopPropagation();
+                          toggleSelectProduct(product.id);
+                        }}
+                        onClick={(e) => e.stopPropagation()}
+                        style={{ width: '16px', height: '16px', cursor: 'pointer' }}
+                      />
+                    </div>
+
+                    {/* Favorite star */}
+                    <div style={{ position: 'absolute', top: '12px', right: '12px' }}>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          toggleFavorite(product.id);
+                        }}
+                        style={{
+                          background: 'none',
+                          border: 'none',
+                          cursor: 'pointer',
+                          fontSize: '18px',
+                          color: favorites.includes(product.id) ? '#f59e0b' : '#d1d5db',
+                          padding: '0',
+                        }}
+                      >
+                        {favorites.includes(product.id) ? '★' : '☆'}
+                      </button>
+                    </div>
+
+                    {/* Stock Badge */}
+                    <div style={{
+                      position: 'absolute',
+                      top: '12px',
+                      right: '44px',
+                      backgroundColor: stockColors[stockStatus],
+                      color: 'white',
+                      padding: '2px 8px',
+                      borderRadius: '12px',
+                      fontSize: '11px',
+                      fontWeight: '600',
+                    }}>
+                      {stockLabels[stockStatus]}
+                    </div>
+
+                    {/* Product Info */}
+                    <div style={{ marginTop: '32px' }}>
+                      {/* Model Number */}
+                      <div style={{
+                        fontFamily: 'monospace',
+                        fontSize: '13px',
+                        color: '#6366f1',
+                        marginBottom: '8px',
+                        fontWeight: '600',
+                      }}>
+                        {product.model || 'No Model'}
+                      </div>
+
+                      {/* Product Name */}
+                      <div style={{
+                        fontWeight: '600',
+                        fontSize: '14px',
+                        color: '#111827',
+                        marginBottom: '8px',
+                        display: '-webkit-box',
+                        WebkitLineClamp: 2,
+                        WebkitBoxOrient: 'vertical',
+                        overflow: 'hidden',
+                        lineHeight: '1.4',
+                        minHeight: '40px',
+                      }}>
+                        {product.name || 'Unnamed Product'}
+                      </div>
+
+                      {/* Brand & Category */}
+                      <div style={{
+                        fontSize: '12px',
+                        color: '#6b7280',
+                        marginBottom: '12px',
+                      }}>
+                        {product.manufacturer && (
+                          <span style={{
+                            backgroundColor: '#f3f4f6',
+                            padding: '2px 8px',
+                            borderRadius: '4px',
+                            marginRight: '8px',
+                          }}>
+                            {product.manufacturer}
+                          </span>
+                        )}
+                        {product.category && (
+                          <span>{simplifyCategory(product.category, product.manufacturer)}</span>
+                        )}
+                      </div>
+
+                      {/* Pricing */}
+                      <div style={{
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        alignItems: 'flex-end',
+                        borderTop: '1px solid #f3f4f6',
+                        paddingTop: '12px',
+                        marginTop: '8px',
+                      }}>
+                        <div>
+                          <div style={{ fontSize: '11px', color: '#9ca3af', marginBottom: '2px' }}>Cost</div>
+                          <div style={{ fontFamily: 'monospace', fontWeight: '600', color: '#374151' }}>
+                            ${product.cost_cents ? (product.cost_cents / 100).toFixed(2) : '0.00'}
+                          </div>
+                        </div>
+                        <div>
+                          <div style={{ fontSize: '11px', color: '#9ca3af', marginBottom: '2px' }}>MSRP</div>
+                          <div style={{ fontFamily: 'monospace', fontWeight: '600', color: '#111827' }}>
+                            ${product.msrp_cents ? (product.msrp_cents / 100).toFixed(2) : '0.00'}
+                          </div>
+                        </div>
+                        {margin && (
+                          <div style={{
+                            backgroundColor: parseFloat(margin) >= 20 ? '#dcfce7' : parseFloat(margin) >= 10 ? '#fef3c7' : '#fee2e2',
+                            color: parseFloat(margin) >= 20 ? '#166534' : parseFloat(margin) >= 10 ? '#92400e' : '#991b1b',
+                            padding: '4px 8px',
+                            borderRadius: '6px',
+                            fontSize: '12px',
+                            fontWeight: '600',
+                          }}>
+                            {margin}%
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Quantity */}
+                      {product.quantity_on_hand !== null && product.quantity_on_hand !== undefined && (
+                        <div style={{
+                          marginTop: '8px',
+                          fontSize: '12px',
+                          color: '#6b7280',
+                        }}>
+                          Qty: {product.quantity_on_hand}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                );
+              })
+            )}
+          </div>
+        )}
+
+        {/* Table View */}
+        {productViewMode === 'table' && (
         <div style={{ overflowX: 'auto' }}>
           <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: '900px' }}>
             <thead>
@@ -1719,7 +2012,18 @@ Whirlpool,WRS325SDHZ,Side-by-Side Refrigerator 25 cu ft,Refrigerators,749.99,129
                           {favorites.includes(product.id) ? '★' : '☆'}
                         </button>
                       </td>
-                      <td style={{ padding: '12px', fontFamily: 'monospace', fontSize: '13px' }}>{product.model || '(Not specified)'}</td>
+                      <td style={{ padding: '12px', fontFamily: 'monospace', fontSize: '13px' }}>
+                        {product.model ? (
+                          <ModelTooltip
+                            modelNumber={product.model}
+                            manufacturer={product.manufacturer}
+                            productName={product.name}
+                            category={product.category}
+                          >
+                            {product.model}
+                          </ModelTooltip>
+                        ) : '(Not specified)'}
+                      </td>
                       <td style={{ padding: '12px', fontWeight: '500', maxWidth: '250px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={product.name}>{product.name || '(Not specified)'}</td>
                       <td style={{ padding: '12px' }}>{product.manufacturer || '(Not specified)'}</td>
                       <td style={{ padding: '12px', maxWidth: '180px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={product.category}>
@@ -1853,6 +2157,7 @@ Whirlpool,WRS325SDHZ,Side-by-Side Refrigerator 25 cu ft,Refrigerators,749.99,129
             </tbody>
           </table>
         </div>
+        )}
 
         {/* Pagination Controls */}
         {getTotalPages() > 1 && (
@@ -2009,7 +2314,18 @@ Whirlpool,WRS325SDHZ,Side-by-Side Refrigerator 25 cu ft,Refrigerators,749.99,129
                 </span>
               </div>
               <div style={{ color: '#6b7280', fontFamily: 'monospace', fontSize: '14px' }}>
-                Model: <strong>{selectedProduct.model || '(Not specified)'}</strong>
+                Model: <strong>
+                  {selectedProduct.model ? (
+                    <ModelTooltip
+                      modelNumber={selectedProduct.model}
+                      manufacturer={selectedProduct.manufacturer}
+                      productName={selectedProduct.name}
+                      category={selectedProduct.category}
+                    >
+                      {selectedProduct.model}
+                    </ModelTooltip>
+                  ) : '(Not specified)'}
+                </strong>
               </div>
               {selectedProduct.description && (
                 <p style={{ color: '#4b5563', marginTop: '12px', lineHeight: '1.5' }}>
@@ -2775,7 +3091,16 @@ Whirlpool,WRS325SDHZ,Side-by-Side Refrigerator 25 cu ft,Refrigerators,749.99,129
                           {product.manufacturer}
                         </div>
                         <div style={{ fontSize: '13px', fontFamily: 'monospace' }}>
-                          {product.model}
+                          {product.model ? (
+                            <ModelTooltip
+                              modelNumber={product.model}
+                              manufacturer={product.manufacturer}
+                              productName={product.name}
+                              category={product.category}
+                            >
+                              {product.model}
+                            </ModelTooltip>
+                          ) : '-'}
                         </div>
                       </th>
                     ))}
@@ -3358,7 +3683,18 @@ Whirlpool,WRS325SDHZ,Side-by-Side Refrigerator 25 cu ft,Refrigerators,749.99,129
                     <tbody>
                       {getPreviewPrices().map((p, idx) => (
                         <tr key={p.id} style={{ borderTop: '1px solid #e5e7eb' }}>
-                          <td style={{ padding: '8px', fontFamily: 'monospace' }}>{p.model}</td>
+                          <td style={{ padding: '8px', fontFamily: 'monospace' }}>
+                            {p.model ? (
+                              <ModelTooltip
+                                modelNumber={p.model}
+                                manufacturer={p.manufacturer}
+                                productName={p.name}
+                                category={p.category}
+                              >
+                                {p.model}
+                              </ModelTooltip>
+                            ) : '-'}
+                          </td>
                           {bulkPriceConfig.field !== 'msrp' && (
                             <>
                               <td style={{ padding: '8px', textAlign: 'right' }}>{formatPrice(p.oldCost)}</td>

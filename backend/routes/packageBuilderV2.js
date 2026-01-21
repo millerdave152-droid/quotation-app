@@ -6,6 +6,7 @@
 const express = require('express');
 const router = express.Router();
 const { Pool } = require('pg');
+const { authenticate } = require('../middleware/auth');
 const FilterCountService = require('../services/FilterCountService');
 const PackageSelectionEngine = require('../services/PackageSelectionEngine');
 
@@ -30,11 +31,9 @@ const packageEngine = new PackageSelectionEngine(pool);
  * - brand: comma-separated list of brands (optional)
  * - Other filters as query params
  */
-router.get('/filter-options', async (req, res) => {
+router.get('/filter-options', authenticate, async (req, res) => {
   try {
     const { package_type = 'kitchen', ...filters } = req.query;
-
-    console.log(`📥 GET /api/package-builder-v2/filter-options - type: ${package_type}`);
 
     // Parse brand filter if provided
     const currentFilters = {};
@@ -90,12 +89,9 @@ router.get('/filter-options', async (req, res) => {
  *   }
  * }
  */
-router.post('/generate', async (req, res) => {
+router.post('/generate', authenticate, async (req, res) => {
   try {
     const { package_type = 'kitchen', filters = {} } = req.body;
-
-    console.log(`📥 POST /api/package-builder-v2/generate - type: ${package_type}`);
-    console.log('   Filters:', JSON.stringify(filters).substring(0, 200));
 
     // Get the template for this package type
     const templateResult = await pool.query(`
@@ -114,8 +110,6 @@ router.post('/generate', async (req, res) => {
 
     // Convert filters to the format expected by PackageSelectionEngine
     const answers = convertFiltersToAnswers(filters, package_type);
-
-    console.log('   Converted answers:', JSON.stringify(answers).substring(0, 200));
 
     // Generate packages using existing engine (answers, template)
     const packages = await packageEngine.generatePackages(answers, template);
@@ -141,7 +135,7 @@ router.post('/generate', async (req, res) => {
  * GET /api/package-builder-v2/categories/:packageType
  * Get the appliance categories for a package type
  */
-router.get('/categories/:packageType', async (req, res) => {
+router.get('/categories/:packageType', authenticate, async (req, res) => {
   try {
     const { packageType } = req.params;
 
@@ -172,7 +166,7 @@ router.get('/categories/:packageType', async (req, res) => {
  * GET /api/package-builder-v2/brands/:packageType
  * Get available brands with counts for a package type
  */
-router.get('/brands/:packageType', async (req, res) => {
+router.get('/brands/:packageType', authenticate, async (req, res) => {
   try {
     const { packageType } = req.params;
 
@@ -214,11 +208,9 @@ router.get('/brands/:packageType', async (req, res) => {
  * Get a quick preview of product counts for current filters
  * (Used for real-time updates without full package generation)
  */
-router.post('/preview', async (req, res) => {
+router.post('/preview', authenticate, async (req, res) => {
   try {
     const { package_type = 'kitchen', filters = {} } = req.body;
-
-    console.log(`📥 POST /api/package-builder-v2/preview - type: ${package_type}`);
 
     const categories = package_type === 'kitchen'
       ? ['refrigerator', 'range', 'dishwasher']

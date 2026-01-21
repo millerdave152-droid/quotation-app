@@ -75,19 +75,22 @@ const ToastItem = ({ toast, onDismiss }) => {
       }}
     >
       {/* Icon */}
-      <div style={{
-        width: '28px',
-        height: '28px',
-        borderRadius: '50%',
-        background: `${typeStyle.bg}15`,
-        color: typeStyle.bg,
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        fontSize: '14px',
-        fontWeight: 'bold',
-        flexShrink: 0
-      }}>
+      <div
+        style={{
+          width: '28px',
+          height: '28px',
+          borderRadius: '50%',
+          background: `${typeStyle.bg}15`,
+          color: typeStyle.bg,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          fontSize: '14px',
+          fontWeight: 'bold',
+          flexShrink: 0
+        }}
+        aria-hidden="true"
+      >
         {typeStyle.icon}
       </div>
 
@@ -109,7 +112,9 @@ const ToastItem = ({ toast, onDismiss }) => {
           lineHeight: '1.5',
           wordBreak: 'break-word'
         }}>
-          {toast.message}
+          {typeof toast.message === 'object'
+            ? (toast.message?.message || toast.message?.code || JSON.stringify(toast.message))
+            : toast.message}
         </div>
       </div>
 
@@ -171,6 +176,9 @@ const ToastContainer = ({ toasts, onDismiss, position = 'top-right' }) => {
 
   return (
     <div
+      role="region"
+      aria-label="Notifications"
+      aria-live="polite"
       style={{
         position: 'fixed',
         zIndex: 10001,
@@ -244,18 +252,26 @@ export const ToastProvider = ({ children, position = 'top-right', maxToasts = 5 
     setToasts([]);
   }, []);
 
+  // Helper to sanitize message (convert objects to strings)
+  const sanitizeMessage = (msg) => {
+    if (typeof msg === 'object' && msg !== null) {
+      return msg.message || msg.code || msg.error || JSON.stringify(msg);
+    }
+    return msg;
+  };
+
   // Convenience methods
   const success = useCallback((message, title = 'Success') =>
-    addToast({ type: 'success', message, title }), [addToast]);
+    addToast({ type: 'success', message: sanitizeMessage(message), title }), [addToast]);
 
   const error = useCallback((message, title = 'Error') =>
-    addToast({ type: 'error', message, title, duration: 8000 }), [addToast]);
+    addToast({ type: 'error', message: sanitizeMessage(message), title, duration: 8000 }), [addToast]);
 
   const warning = useCallback((message, title = 'Warning') =>
-    addToast({ type: 'warning', message, title }), [addToast]);
+    addToast({ type: 'warning', message: sanitizeMessage(message), title }), [addToast]);
 
   const info = useCallback((message, title = 'Info') =>
-    addToast({ type: 'info', message, title }), [addToast]);
+    addToast({ type: 'info', message: sanitizeMessage(message), title }), [addToast]);
 
   const value = {
     toasts,

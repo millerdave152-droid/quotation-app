@@ -8,10 +8,14 @@ const express = require('express');
 const router = express.Router();
 const { ApiError, asyncHandler } = require('../middleware/errorHandler');
 const QuoteService = require('../services/QuoteService');
+const WinProbabilityService = require('../services/WinProbabilityService');
+const ApprovalRulesService = require('../services/ApprovalRulesService');
+const { authenticate } = require('../middleware/auth');
 
 // Module-level dependencies (injected via init)
 let pool = null;
 let quoteService = null;
+let winProbabilityService = null;
 
 /**
  * Initialize the router with dependencies
@@ -21,7 +25,93 @@ let quoteService = null;
 const init = (deps) => {
   pool = deps.pool;
   quoteService = new QuoteService(deps.pool);
+  winProbabilityService = new WinProbabilityService(deps.pool);
   return router;
+};
+
+// ============================================
+// APPROVAL MARGIN CHECK HELPER
+// ============================================
+
+/**
+ * Check if a quote requires approval based on margin
+ * Called after quote create/update to auto-flag low-margin quotes
+ * @param {number} quoteId - Quote ID
+ * @param {number} userId - User ID (optional, for user-specific threshold)
+ * @returns {Object} { approvalRequired, margin, threshold }
+ */
+const checkAndUpdateApprovalRequired = async (quoteId, userId = null) => {
+  try {
+    // Get quote with item costs and prices
+    const quoteResult = await pool.query(`
+      SELECT
+        q.id,
+        q.total_cents,
+        q.created_by,
+        COALESCE(SUM(qi.unit_cost_cents * qi.quantity), 0) as total_cost_cents,
+        COALESCE(SUM(qi.unit_price_cents * qi.quantity), 0) as total_price_cents
+      FROM quotations q
+      LEFT JOIN quote_items qi ON q.id = qi.quotation_id
+      WHERE q.id = $1
+      GROUP BY q.id
+    `, [quoteId]);
+
+    if (quoteResult.rows.length === 0) {
+      return { approvalRequired: false, margin: 0, threshold: 20 };
+    }
+
+    const quote = quoteResult.rows[0];
+    const effectiveUserId = userId || quote.created_by;
+
+    // Get user's threshold
+    let threshold = ApprovalRulesService.RULES.MARGIN_THRESHOLD; // Default 20%
+
+    if (effectiveUserId) {
+      const userResult = await pool.query(`
+        SELECT approval_threshold_percent FROM users WHERE id = $1
+      `, [effectiveUserId]);
+
+      if (userResult.rows.length > 0 && userResult.rows[0].approval_threshold_percent) {
+        threshold = parseFloat(userResult.rows[0].approval_threshold_percent);
+      }
+    }
+
+    // Calculate margin
+    const totalPrice = parseInt(quote.total_price_cents) || parseInt(quote.total_cents) || 0;
+    const totalCost = parseInt(quote.total_cost_cents) || 0;
+
+    let margin = 0;
+    if (totalPrice > 0) {
+      margin = ((totalPrice - totalCost) / totalPrice) * 100;
+    }
+
+    const approvalRequired = margin < threshold && margin >= 0;
+
+    // Update quote with margin and approval flag
+    await pool.query(`
+      UPDATE quotations
+      SET margin_percent = $1,
+          approval_required = $2
+      WHERE id = $3
+    `, [margin.toFixed(2), approvalRequired, quoteId]);
+
+    // Log event if approval is required
+    if (approvalRequired) {
+      await pool.query(`
+        INSERT INTO quote_events (quotation_id, event_type, description, metadata)
+        VALUES ($1, 'APPROVAL_FLAGGED', $2, $3)
+      `, [
+        quoteId,
+        `Quote flagged for approval: margin ${margin.toFixed(1)}% below threshold ${threshold}%`,
+        JSON.stringify({ margin, threshold })
+      ]);
+    }
+
+    return { approvalRequired, margin, threshold };
+  } catch (error) {
+    console.error('Error checking approval requirement:', error);
+    return { approvalRequired: false, margin: 0, threshold: 20, error: error.message };
+  }
 };
 
 // ============================================
@@ -32,7 +122,7 @@ const init = (deps) => {
  * GET /api/quotations/stats/summary
  * Get quotation statistics summary
  */
-router.get('/stats/summary', asyncHandler(async (req, res) => {
+router.get('/stats/summary', authenticate, asyncHandler(async (req, res) => {
   const stats = await quoteService.getStatsSummary();
   res.json(stats);
 }));
@@ -43,16 +133,16 @@ router.get('/stats/summary', asyncHandler(async (req, res) => {
  * Includes: conversion rate, avg days to close, top salespeople,
  * win rate by tier, weekly activity, sales velocity
  */
-router.get('/stats/dashboard', asyncHandler(async (req, res) => {
+router.get('/stats/dashboard', authenticate, asyncHandler(async (req, res) => {
   const metrics = await quoteService.getEnhancedDashboardMetrics();
-  res.json(metrics);
+  res.success(metrics, 'Dashboard metrics retrieved');
 }));
 
 /**
  * GET /api/quotations/stats/overview
  * Get quotation overview stats
  */
-router.get('/stats/overview', asyncHandler(async (req, res) => {
+router.get('/stats/overview', authenticate, asyncHandler(async (req, res) => {
   const stats = await pool.query(`
     SELECT
       COUNT(*) as total_quotes,
@@ -85,7 +175,7 @@ router.get('/stats/overview', asyncHandler(async (req, res) => {
  * Get counts for quick filter chips
  * Returns counts for: all, each status, expiring soon, high value, no customer, recent
  */
-router.get('/stats/filter-counts', asyncHandler(async (req, res) => {
+router.get('/stats/filter-counts', authenticate, asyncHandler(async (req, res) => {
   const result = await pool.query(`
     SELECT
       -- Total count
@@ -171,7 +261,7 @@ router.get('/stats/filter-counts', asyncHandler(async (req, res) => {
  *
  * Returns matches with search_match info showing which field matched
  */
-router.get('/search', asyncHandler(async (req, res) => {
+router.get('/search', authenticate, asyncHandler(async (req, res) => {
   const { search } = req.query;
 
   if (!search || search.trim().length < 2) {
@@ -193,7 +283,7 @@ router.get('/search', asyncHandler(async (req, res) => {
  * GET /api/quotations
  * Get all quotations with search, pagination, and sorting
  */
-router.get('/', asyncHandler(async (req, res) => {
+router.get('/', authenticate, asyncHandler(async (req, res) => {
   // If search param provided, use enhanced search
   if (req.query.search && req.query.search.trim().length >= 2) {
     const result = await quoteService.searchQuotes(req.query);
@@ -207,7 +297,7 @@ router.get('/', asyncHandler(async (req, res) => {
  * GET /api/quotations/salespeople
  * Get list of salespeople for assignment dropdown
  */
-router.get('/salespeople', asyncHandler(async (req, res) => {
+router.get('/salespeople', authenticate, asyncHandler(async (req, res) => {
   try {
     // Try to get from users table first
     const usersResult = await pool.query(`
@@ -230,7 +320,6 @@ router.get('/salespeople', asyncHandler(async (req, res) => {
       })));
     }
   } catch (err) {
-    console.log('Users table query failed, using fallback:', err.message);
   }
 
   // Fallback: get unique created_by values from quotations
@@ -254,8 +343,14 @@ router.get('/salespeople', asyncHandler(async (req, res) => {
  * GET /api/quotations/:id/items
  * Get quotation items
  */
-router.get('/:id/items', asyncHandler(async (req, res) => {
+router.get('/:id/items', authenticate, asyncHandler(async (req, res) => {
   const { id } = req.params;
+
+  // Validate ID is a valid integer
+  if (!id || id === 'undefined' || id === 'null' || isNaN(parseInt(id))) {
+    throw ApiError.badRequest('Invalid quotation ID');
+  }
+
   const result = await pool.query(
     'SELECT * FROM quotation_items WHERE quotation_id = $1 ORDER BY id',
     [id]
@@ -271,7 +366,7 @@ router.get('/:id/items', asyncHandler(async (req, res) => {
  * GET /api/quotations/expiry-rules
  * Get all quote expiry rules
  */
-router.get('/expiry-rules', asyncHandler(async (req, res) => {
+router.get('/expiry-rules', authenticate, asyncHandler(async (req, res) => {
   const result = await pool.query(`
     SELECT * FROM quote_expiry_rules ORDER BY is_default DESC, channel ASC
   `);
@@ -282,7 +377,7 @@ router.get('/expiry-rules', asyncHandler(async (req, res) => {
  * GET /api/quotations/expiring
  * Get quotes expiring within specified days
  */
-router.get('/expiring', asyncHandler(async (req, res) => {
+router.get('/expiring', authenticate, asyncHandler(async (req, res) => {
   const days = parseInt(req.query.days) || 7;
   const result = await pool.query(`
     SELECT
@@ -304,7 +399,7 @@ router.get('/expiring', asyncHandler(async (req, res) => {
  * GET /api/quotations/expired
  * Get recently expired quotes
  */
-router.get('/expired', asyncHandler(async (req, res) => {
+router.get('/expired', authenticate, asyncHandler(async (req, res) => {
   const days = parseInt(req.query.days) || 30;
   const result = await pool.query(`
     SELECT
@@ -324,7 +419,7 @@ router.get('/expired', asyncHandler(async (req, res) => {
  * POST /api/quotations/:id/renew
  * Renew an expiring or expired quote
  */
-router.post('/:id/renew', asyncHandler(async (req, res) => {
+router.post('/:id/renew', authenticate, asyncHandler(async (req, res) => {
   const { id } = req.params;
   const extendDays = parseInt(req.body.extend_days) || 14;
 
@@ -365,8 +460,14 @@ router.post('/:id/renew', asyncHandler(async (req, res) => {
  * GET /api/quotations/:id
  * Get single quotation with items
  */
-router.get('/:id', asyncHandler(async (req, res) => {
+router.get('/:id', authenticate, asyncHandler(async (req, res) => {
   const { id } = req.params;
+
+  // Validate ID is a valid integer
+  if (!id || id === 'undefined' || id === 'null' || isNaN(parseInt(id))) {
+    throw ApiError.badRequest('Invalid quotation ID');
+  }
+
   const quote = await quoteService.getQuoteById(id);
 
   if (!quote) {
@@ -380,8 +481,14 @@ router.get('/:id', asyncHandler(async (req, res) => {
  * POST /api/quotations
  * Create new quotation
  */
-router.post('/', asyncHandler(async (req, res) => {
+router.post('/', authenticate, asyncHandler(async (req, res) => {
   const quote = await quoteService.createQuote(req.body);
+
+  // Check if approval is required based on margin
+  const approvalCheck = await checkAndUpdateApprovalRequired(quote.id, req.user?.id);
+  quote.approval_required = approvalCheck.approvalRequired;
+  quote.margin_percent = approvalCheck.margin;
+
   res.created(quote);
 }));
 
@@ -389,13 +496,18 @@ router.post('/', asyncHandler(async (req, res) => {
  * PUT /api/quotations/:id
  * Update quotation
  */
-router.put('/:id', asyncHandler(async (req, res) => {
+router.put('/:id', authenticate, asyncHandler(async (req, res) => {
   const { id } = req.params;
   const quote = await quoteService.updateQuote(id, req.body);
 
   if (!quote) {
     throw ApiError.notFound('Quotation');
   }
+
+  // Re-check approval requirement after update
+  const approvalCheck = await checkAndUpdateApprovalRequired(id, req.user?.id);
+  quote.approval_required = approvalCheck.approvalRequired;
+  quote.margin_percent = approvalCheck.margin;
 
   res.success(quote, { message: 'Quotation updated successfully' });
 }));
@@ -409,12 +521,30 @@ router.put('/:id', asyncHandler(async (req, res) => {
  * - lostReason: string (optional) - Reason for marking as lost
  * - skipValidation: boolean (optional) - Skip transition validation (admin only)
  */
-router.patch('/:id/status', asyncHandler(async (req, res) => {
+router.patch('/:id/status', authenticate, asyncHandler(async (req, res) => {
   const { id } = req.params;
   const { status, lostReason, skipValidation } = req.body;
 
   if (!status) {
     throw ApiError.validation('Status is required');
+  }
+
+  // APPROVAL GATE: Block sending if approval required but not approved
+  if (status === 'SENT') {
+    const approvalCheck = await pool.query(`
+      SELECT approval_required, status as current_status
+      FROM quotations WHERE id = $1
+    `, [id]);
+
+    if (approvalCheck.rows.length > 0) {
+      const quote = approvalCheck.rows[0];
+      if (quote.approval_required && quote.current_status !== 'APPROVED') {
+        throw ApiError.forbidden(
+          'This quote requires approval before sending. Please request manager approval first.',
+          { code: 'APPROVAL_REQUIRED' }
+        );
+      }
+    }
   }
 
   try {
@@ -441,7 +571,7 @@ router.patch('/:id/status', asyncHandler(async (req, res) => {
  * GET /api/quotations/:id/allowed-transitions
  * Get allowed status transitions for a quote
  */
-router.get('/:id/allowed-transitions', asyncHandler(async (req, res) => {
+router.get('/:id/allowed-transitions', authenticate, asyncHandler(async (req, res) => {
   const { id } = req.params;
 
   const quote = await quoteService.getQuoteById(id);
@@ -466,11 +596,117 @@ router.get('/:id/allowed-transitions', asyncHandler(async (req, res) => {
   });
 }));
 
+// ============================================
+// APPROVAL HELPERS
+// ============================================
+
+/**
+ * GET /api/quotations/:id/default-approver
+ * Get the default approver (manager) for a quote based on the user's hierarchy
+ */
+router.get('/:id/default-approver', authenticate, asyncHandler(async (req, res) => {
+  const userId = req.user?.id;
+
+  if (!userId) {
+    throw ApiError.unauthorized('User not authenticated');
+  }
+
+  // Get user's manager who can approve quotes
+  const result = await pool.query(`
+    SELECT m.id, m.first_name, m.last_name,
+           CONCAT(m.first_name, ' ', m.last_name) as name,
+           m.email
+    FROM users u
+    JOIN users m ON u.manager_id = m.id
+    WHERE u.id = $1 AND m.can_approve_quotes = true
+  `, [userId]);
+
+  if (result.rows.length > 0) {
+    return res.success(result.rows[0]);
+  }
+
+  // Fallback: find any user who can approve quotes
+  const fallback = await pool.query(`
+    SELECT id, first_name, last_name,
+           CONCAT(first_name, ' ', last_name) as name,
+           email
+    FROM users
+    WHERE can_approve_quotes = true AND is_active = true
+    ORDER BY role DESC
+    LIMIT 1
+  `);
+
+  if (fallback.rows.length > 0) {
+    return res.success(fallback.rows[0]);
+  }
+
+  // No approver found
+  res.success(null, { message: 'No approver configured. Please contact an administrator.' });
+}));
+
+/**
+ * GET /api/quotations/:id/approval-status
+ * Get the approval status and requirements for a quote
+ */
+router.get('/:id/approval-status', authenticate, asyncHandler(async (req, res) => {
+  const { id } = req.params;
+
+  const result = await pool.query(`
+    SELECT
+      q.id,
+      q.quote_number,
+      q.approval_required,
+      q.margin_percent,
+      q.status,
+      qa.id as approval_id,
+      qa.status as approval_status,
+      qa.requested_at,
+      qa.resolved_at,
+      qa.comments,
+      u.first_name || ' ' || u.last_name as approver_name,
+      u.email as approver_email
+    FROM quotations q
+    LEFT JOIN quote_approvals qa ON q.id = qa.quotation_id AND qa.status = 'PENDING'
+    LEFT JOIN users u ON qa.approver_id = u.id
+    WHERE q.id = $1
+  `, [id]);
+
+  if (result.rows.length === 0) {
+    throw ApiError.notFound('Quotation');
+  }
+
+  const quote = result.rows[0];
+
+  // Get user's threshold for context
+  const userResult = await pool.query(`
+    SELECT approval_threshold_percent FROM users WHERE id = $1
+  `, [req.user?.id]);
+
+  const threshold = userResult.rows[0]?.approval_threshold_percent ||
+                   ApprovalRulesService.RULES.MARGIN_THRESHOLD;
+
+  res.success({
+    quoteId: quote.id,
+    quoteNumber: quote.quote_number,
+    approvalRequired: quote.approval_required,
+    marginPercent: parseFloat(quote.margin_percent) || 0,
+    threshold: threshold,
+    currentStatus: quote.status,
+    canSend: !quote.approval_required || quote.status === 'APPROVED',
+    pendingApproval: quote.approval_status === 'PENDING' ? {
+      approvalId: quote.approval_id,
+      approverName: quote.approver_name,
+      approverEmail: quote.approver_email,
+      requestedAt: quote.requested_at
+    } : null
+  });
+}));
+
 /**
  * POST /api/quotations/:id/recalculate
  * Recalculate totals for an existing quote from its items
  */
-router.post('/:id/recalculate', asyncHandler(async (req, res) => {
+router.post('/:id/recalculate', authenticate, asyncHandler(async (req, res) => {
   const { id } = req.params;
 
   // Get the quote with items
@@ -520,7 +756,7 @@ router.post('/:id/recalculate', asyncHandler(async (req, res) => {
  *
  * Returns the newly created quote with its new quote number
  */
-router.post('/:id/clone', asyncHandler(async (req, res) => {
+router.post('/:id/clone', authenticate, asyncHandler(async (req, res) => {
   const { id } = req.params;
   const { newCustomerId = null, includeInternalNotes = false } = req.body;
 
@@ -548,7 +784,7 @@ router.post('/:id/clone', asyncHandler(async (req, res) => {
  * DELETE /api/quotations/:id
  * Delete quotation
  */
-router.delete('/:id', asyncHandler(async (req, res) => {
+router.delete('/:id', authenticate, asyncHandler(async (req, res) => {
   const { id } = req.params;
   const result = await quoteService.deleteQuote(id);
 
@@ -567,7 +803,7 @@ router.delete('/:id', asyncHandler(async (req, res) => {
  * GET /api/quotations/:id/versions
  * Get version history for a quote
  */
-router.get('/:id/versions', asyncHandler(async (req, res) => {
+router.get('/:id/versions', authenticate, asyncHandler(async (req, res) => {
   const { id } = req.params;
   const { limit = 50 } = req.query;
 
@@ -582,7 +818,7 @@ router.get('/:id/versions', asyncHandler(async (req, res) => {
  * GET /api/quotations/:id/versions/:version
  * Get a specific version of a quote
  */
-router.get('/:id/versions/:version', asyncHandler(async (req, res) => {
+router.get('/:id/versions/:version', authenticate, asyncHandler(async (req, res) => {
   const { id, version } = req.params;
 
   const versionData = await quoteService.getQuoteVersion(
@@ -602,7 +838,7 @@ router.get('/:id/versions/:version', asyncHandler(async (req, res) => {
  * Compare two versions of a quote
  * Query params: v1, v2 (version numbers)
  */
-router.get('/:id/versions/compare', asyncHandler(async (req, res) => {
+router.get('/:id/versions/compare', authenticate, asyncHandler(async (req, res) => {
   const { id } = req.params;
   const { v1, v2 } = req.query;
 
@@ -623,7 +859,7 @@ router.get('/:id/versions/compare', asyncHandler(async (req, res) => {
  * POST /api/quotations/:id/versions
  * Create a version snapshot manually
  */
-router.post('/:id/versions', asyncHandler(async (req, res) => {
+router.post('/:id/versions', authenticate, asyncHandler(async (req, res) => {
   const { id } = req.params;
   const { changeType = 'manual', changeSummary = 'Manual version snapshot', changedBy = 'User' } = req.body;
 
@@ -644,7 +880,7 @@ router.post('/:id/versions', asyncHandler(async (req, res) => {
  * POST /api/quotations/:id/versions/:version/restore
  * Restore a quote to a previous version
  */
-router.post('/:id/versions/:version/restore', asyncHandler(async (req, res) => {
+router.post('/:id/versions/:version/restore', authenticate, asyncHandler(async (req, res) => {
   const { id, version } = req.params;
   const { restoredBy = 'User' } = req.body;
 
@@ -668,7 +904,7 @@ router.post('/:id/versions/:version/restore', asyncHandler(async (req, res) => {
  * GET /api/quotations/:id/events
  * Get quote events
  */
-router.get('/:id/events', asyncHandler(async (req, res) => {
+router.get('/:id/events', authenticate, asyncHandler(async (req, res) => {
   const { id } = req.params;
   const events = await quoteService.getQuoteEvents(id);
   res.json(events);
@@ -678,7 +914,7 @@ router.get('/:id/events', asyncHandler(async (req, res) => {
  * POST /api/quotations/:id/events
  * Add quote event
  */
-router.post('/:id/events', asyncHandler(async (req, res) => {
+router.post('/:id/events', authenticate, asyncHandler(async (req, res) => {
   const { id } = req.params;
   const { event_type, description } = req.body;
 
@@ -697,7 +933,7 @@ router.post('/:id/events', asyncHandler(async (req, res) => {
  * POST /api/quotations/:quoteId/delivery
  * Add delivery to quote
  */
-router.post('/:quoteId/delivery', asyncHandler(async (req, res) => {
+router.post('/:quoteId/delivery', authenticate, asyncHandler(async (req, res) => {
   const { quoteId } = req.params;
   const {
     delivery_type,
@@ -749,7 +985,7 @@ router.post('/:quoteId/delivery', asyncHandler(async (req, res) => {
  * GET /api/quotations/:quoteId/delivery
  * Get quote delivery info
  */
-router.get('/:quoteId/delivery', asyncHandler(async (req, res) => {
+router.get('/:quoteId/delivery', authenticate, asyncHandler(async (req, res) => {
   const { quoteId } = req.params;
   const result = await pool.query(
     'SELECT * FROM quote_delivery WHERE quote_id = $1',
@@ -766,7 +1002,7 @@ router.get('/:quoteId/delivery', asyncHandler(async (req, res) => {
  * POST /api/quotations/:quoteId/warranties
  * Add warranty to quote
  */
-router.post('/:quoteId/warranties', asyncHandler(async (req, res) => {
+router.post('/:quoteId/warranties', authenticate, asyncHandler(async (req, res) => {
   const { quoteId } = req.params;
   const { product_id, warranty_type, warranty_years, warranty_cost_cents, coverage_details } = req.body;
 
@@ -782,7 +1018,7 @@ router.post('/:quoteId/warranties', asyncHandler(async (req, res) => {
  * GET /api/quotations/:quoteId/warranties
  * Get quote warranties
  */
-router.get('/:quoteId/warranties', asyncHandler(async (req, res) => {
+router.get('/:quoteId/warranties', authenticate, asyncHandler(async (req, res) => {
   const { quoteId } = req.params;
   const result = await pool.query(`
     SELECT qw.*, p.model, p.manufacturer
@@ -802,7 +1038,7 @@ router.get('/:quoteId/warranties', asyncHandler(async (req, res) => {
  * POST /api/quotations/:quoteId/financing
  * Add financing to quote
  */
-router.post('/:quoteId/financing', asyncHandler(async (req, res) => {
+router.post('/:quoteId/financing', authenticate, asyncHandler(async (req, res) => {
   const { quoteId } = req.params;
   const {
     financing_type, provider, financed_amount_cents, down_payment_cents,
@@ -837,7 +1073,7 @@ router.post('/:quoteId/financing', asyncHandler(async (req, res) => {
  * GET /api/quotations/:quoteId/financing
  * Get quote financing
  */
-router.get('/:quoteId/financing', asyncHandler(async (req, res) => {
+router.get('/:quoteId/financing', authenticate, asyncHandler(async (req, res) => {
   const { quoteId } = req.params;
   const result = await pool.query(
     'SELECT * FROM quote_financing WHERE quote_id = $1',
@@ -854,7 +1090,7 @@ router.get('/:quoteId/financing', asyncHandler(async (req, res) => {
  * POST /api/quotations/:quoteId/rebates
  * Add rebate to quote
  */
-router.post('/:quoteId/rebates', asyncHandler(async (req, res) => {
+router.post('/:quoteId/rebates', authenticate, asyncHandler(async (req, res) => {
   const { quoteId } = req.params;
   const { product_id, rebate_type, rebate_name, rebate_amount_cents, rebate_code, expiry_date } = req.body;
 
@@ -870,7 +1106,7 @@ router.post('/:quoteId/rebates', asyncHandler(async (req, res) => {
  * GET /api/quotations/:quoteId/rebates
  * Get quote rebates
  */
-router.get('/:quoteId/rebates', asyncHandler(async (req, res) => {
+router.get('/:quoteId/rebates', authenticate, asyncHandler(async (req, res) => {
   const { quoteId } = req.params;
   const result = await pool.query(`
     SELECT qr.*, p.model, p.manufacturer
@@ -890,7 +1126,7 @@ router.get('/:quoteId/rebates', asyncHandler(async (req, res) => {
  * POST /api/quotations/:quoteId/trade-ins
  * Add trade-in to quote
  */
-router.post('/:quoteId/trade-ins', asyncHandler(async (req, res) => {
+router.post('/:quoteId/trade-ins', authenticate, asyncHandler(async (req, res) => {
   const { quoteId } = req.params;
   const {
     item_type, brand, model, age_years, condition,
@@ -911,7 +1147,7 @@ router.post('/:quoteId/trade-ins', asyncHandler(async (req, res) => {
  * GET /api/quotations/:quoteId/trade-ins
  * Get quote trade-ins
  */
-router.get('/:quoteId/trade-ins', asyncHandler(async (req, res) => {
+router.get('/:quoteId/trade-ins', authenticate, asyncHandler(async (req, res) => {
   const { quoteId } = req.params;
   const result = await pool.query(
     'SELECT * FROM quote_trade_ins WHERE quote_id = $1 ORDER BY created_at',
@@ -928,7 +1164,7 @@ router.get('/:quoteId/trade-ins', asyncHandler(async (req, res) => {
  * POST /api/quotations/:quoteId/sales-rep
  * Assign sales rep to quote
  */
-router.post('/:quoteId/sales-rep', asyncHandler(async (req, res) => {
+router.post('/:quoteId/sales-rep', authenticate, asyncHandler(async (req, res) => {
   const { quoteId } = req.params;
   const { sales_rep_id, commission_rate, commission_amount_cents, notes } = req.body;
 
@@ -951,7 +1187,7 @@ router.post('/:quoteId/sales-rep', asyncHandler(async (req, res) => {
  * GET /api/quotations/:quoteId/sales-rep
  * Get quote sales rep
  */
-router.get('/:quoteId/sales-rep', asyncHandler(async (req, res) => {
+router.get('/:quoteId/sales-rep', authenticate, asyncHandler(async (req, res) => {
   const { quoteId } = req.params;
   const result = await pool.query(`
     SELECT qsr.*, u.name as sales_rep_name, u.email as sales_rep_email
@@ -971,7 +1207,7 @@ router.get('/:quoteId/sales-rep', asyncHandler(async (req, res) => {
  * Add staff signature to quote
  * Body: { signature_data, signer_name, legal_text? }
  */
-router.post('/:quoteId/staff-signature', asyncHandler(async (req, res) => {
+router.post('/:quoteId/staff-signature', authenticate, asyncHandler(async (req, res) => {
   const { quoteId } = req.params;
   const { signature_data, signer_name, legal_text } = req.body;
 
@@ -1033,7 +1269,7 @@ router.post('/:quoteId/staff-signature', asyncHandler(async (req, res) => {
  * GET /api/quotations/:quoteId/signatures
  * Get all signatures for a quote
  */
-router.get('/:quoteId/signatures', asyncHandler(async (req, res) => {
+router.get('/:quoteId/signatures', authenticate, asyncHandler(async (req, res) => {
   const { quoteId } = req.params;
 
   const result = await pool.query(`
@@ -1062,7 +1298,7 @@ router.get('/:quoteId/signatures', asyncHandler(async (req, res) => {
  * DELETE /api/quotations/:quoteId/signatures/:signatureId
  * Delete a signature (admin only)
  */
-router.delete('/:quoteId/signatures/:signatureId', asyncHandler(async (req, res) => {
+router.delete('/:quoteId/signatures/:signatureId', authenticate, asyncHandler(async (req, res) => {
   const { quoteId, signatureId } = req.params;
 
   const result = await pool.query(`
@@ -1100,7 +1336,7 @@ router.delete('/:quoteId/signatures/:signatureId', asyncHandler(async (req, res)
  * Bulk update status for multiple quotes
  * Body: { quoteIds: number[], status: string }
  */
-router.post('/bulk/status', asyncHandler(async (req, res) => {
+router.post('/bulk/status', authenticate, asyncHandler(async (req, res) => {
   const { quoteIds, status } = req.body;
 
   if (!Array.isArray(quoteIds) || quoteIds.length === 0) {
@@ -1167,7 +1403,7 @@ router.post('/bulk/status', asyncHandler(async (req, res) => {
  * Bulk extend expiry date for multiple quotes
  * Body: { quoteIds: number[], days: number }
  */
-router.post('/bulk/extend-expiry', asyncHandler(async (req, res) => {
+router.post('/bulk/extend-expiry', authenticate, asyncHandler(async (req, res) => {
   const { quoteIds, days } = req.body;
 
   if (!Array.isArray(quoteIds) || quoteIds.length === 0) {
@@ -1232,7 +1468,7 @@ router.post('/bulk/extend-expiry', asyncHandler(async (req, res) => {
  * Bulk assign salesperson to multiple quotes
  * Body: { quoteIds: number[], salesRepId: number, salesRepName: string }
  */
-router.post('/bulk/assign', asyncHandler(async (req, res) => {
+router.post('/bulk/assign', authenticate, asyncHandler(async (req, res) => {
   const { quoteIds, salesRepId, salesRepName } = req.body;
 
   if (!Array.isArray(quoteIds) || quoteIds.length === 0) {
@@ -1304,7 +1540,7 @@ router.post('/bulk/assign', asyncHandler(async (req, res) => {
  * Bulk delete multiple quotes
  * Body: { quoteIds: number[] }
  */
-router.delete('/bulk', asyncHandler(async (req, res) => {
+router.delete('/bulk', authenticate, asyncHandler(async (req, res) => {
   const { quoteIds } = req.body;
 
   if (!Array.isArray(quoteIds) || quoteIds.length === 0) {
@@ -1362,7 +1598,7 @@ router.delete('/bulk', asyncHandler(async (req, res) => {
  * Export multiple quotes to CSV
  * Body: { quoteIds: number[] }
  */
-router.post('/bulk/export', asyncHandler(async (req, res) => {
+router.post('/bulk/export', authenticate, asyncHandler(async (req, res) => {
   const { quoteIds } = req.body;
 
   if (!Array.isArray(quoteIds) || quoteIds.length === 0) {
@@ -1492,7 +1728,7 @@ router.post('/bulk/export', asyncHandler(async (req, res) => {
  * Send bulk email to customers of selected quotes
  * Body: { quoteIds: number[], subject: string, message: string, updateStatus: boolean, attachPdf: boolean }
  */
-router.post('/bulk/email', asyncHandler(async (req, res) => {
+router.post('/bulk/email', authenticate, asyncHandler(async (req, res) => {
   const { quoteIds, subject, message, updateStatus = true, attachPdf = false } = req.body;
 
   if (!Array.isArray(quoteIds) || quoteIds.length === 0) {
@@ -1741,6 +1977,63 @@ router.post('/bulk/email', asyncHandler(async (req, res) => {
   }, {
     message: `Sent ${results.success.length} emails${attachPdf ? ' with PDF attachments' : ''}, ${results.failed.length} failed, ${results.skipped.length} skipped`
   });
+}));
+
+// ============================================
+// WIN PROBABILITY ROUTES
+// ============================================
+
+/**
+ * GET /api/quotations/:id/win-probability
+ * Get win probability analysis for a specific quote
+ */
+router.get('/:id/win-probability', authenticate, asyncHandler(async (req, res) => {
+  const quoteId = parseInt(req.params.id);
+
+  if (isNaN(quoteId)) {
+    throw ApiError.badRequest('Invalid quote ID');
+  }
+
+  const probability = await winProbabilityService.calculateWinProbability(quoteId);
+  res.json({ success: true, data: probability });
+}));
+
+/**
+ * POST /api/quotations/win-probability/bulk
+ * Get win probability for multiple quotes
+ */
+router.post('/win-probability/bulk', authenticate, asyncHandler(async (req, res) => {
+  const { quoteIds } = req.body;
+
+  if (!quoteIds || !Array.isArray(quoteIds)) {
+    throw ApiError.badRequest('quoteIds array is required');
+  }
+
+  if (quoteIds.length > 50) {
+    throw ApiError.badRequest('Maximum 50 quotes per request');
+  }
+
+  const probabilities = await winProbabilityService.getBulkWinProbability(quoteIds);
+  res.json({ success: true, data: probabilities });
+}));
+
+/**
+ * GET /api/quotations/analytics/pipeline-win-rates
+ * Get win rates by pipeline stage
+ */
+router.get('/analytics/pipeline-win-rates', authenticate, asyncHandler(async (req, res) => {
+  const winRates = await winProbabilityService.getPipelineWinRates();
+  res.json({ success: true, data: winRates });
+}));
+
+/**
+ * GET /api/quotations/analytics/at-risk
+ * Get quotes at risk of being lost
+ */
+router.get('/analytics/at-risk', authenticate, asyncHandler(async (req, res) => {
+  const limit = parseInt(req.query.limit) || 20;
+  const atRiskQuotes = await winProbabilityService.getAtRiskQuotes(limit);
+  res.json({ success: true, data: atRiskQuotes });
 }));
 
 module.exports = { router, init };

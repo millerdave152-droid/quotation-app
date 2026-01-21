@@ -7,6 +7,7 @@
 const express = require('express');
 const router = express.Router();
 const { ApiError, asyncHandler } = require('../middleware/errorHandler');
+const { authenticate } = require('../middleware/auth');
 
 module.exports = (pool, cache, deliveryService) => {
 
@@ -18,7 +19,7 @@ module.exports = (pool, cache, deliveryService) => {
    * GET /api/delivery/zones
    * List delivery zones
    */
-  router.get('/zones', asyncHandler(async (req, res) => {
+  router.get('/zones', authenticate, asyncHandler(async (req, res) => {
     const activeOnly = req.query.activeOnly !== 'false';
     const zones = await deliveryService.getZones(activeOnly);
     res.json(zones);
@@ -28,7 +29,7 @@ module.exports = (pool, cache, deliveryService) => {
    * POST /api/delivery/zones
    * Create a delivery zone
    */
-  router.post('/zones', asyncHandler(async (req, res) => {
+  router.post('/zones', authenticate, asyncHandler(async (req, res) => {
     const { name, postalCodes } = req.body;
 
     if (!name) {
@@ -43,7 +44,7 @@ module.exports = (pool, cache, deliveryService) => {
    * PATCH /api/delivery/zones/:id
    * Update a delivery zone
    */
-  router.patch('/zones/:id', asyncHandler(async (req, res) => {
+  router.patch('/zones/:id', authenticate, asyncHandler(async (req, res) => {
     const zoneId = parseInt(req.params.id);
 
     if (isNaN(zoneId)) {
@@ -58,7 +59,7 @@ module.exports = (pool, cache, deliveryService) => {
    * GET /api/delivery/zones/lookup
    * Look up zone by postal code
    */
-  router.get('/zones/lookup', asyncHandler(async (req, res) => {
+  router.get('/zones/lookup', authenticate, asyncHandler(async (req, res) => {
     const { postalCode } = req.query;
 
     if (!postalCode) {
@@ -82,7 +83,7 @@ module.exports = (pool, cache, deliveryService) => {
    * GET /api/delivery/slots
    * Get available delivery slots
    */
-  router.get('/slots', asyncHandler(async (req, res) => {
+  router.get('/slots', authenticate, asyncHandler(async (req, res) => {
     const slots = await deliveryService.getAvailableSlots({
       postalCode: req.query.postalCode,
       zoneId: req.query.zoneId ? parseInt(req.query.zoneId) : null,
@@ -98,7 +99,7 @@ module.exports = (pool, cache, deliveryService) => {
    * POST /api/delivery/slots/generate
    * Generate delivery slots for a date range
    */
-  router.post('/slots/generate', asyncHandler(async (req, res) => {
+  router.post('/slots/generate', authenticate, asyncHandler(async (req, res) => {
     const { startDate, endDate } = req.body;
 
     if (!startDate || !endDate) {
@@ -118,7 +119,7 @@ module.exports = (pool, cache, deliveryService) => {
    * POST /api/delivery/slots/:id/block
    * Block a delivery slot
    */
-  router.post('/slots/:id/block', asyncHandler(async (req, res) => {
+  router.post('/slots/:id/block', authenticate, asyncHandler(async (req, res) => {
     const slotId = parseInt(req.params.id);
 
     if (isNaN(slotId)) {
@@ -138,7 +139,7 @@ module.exports = (pool, cache, deliveryService) => {
    * POST /api/delivery/slots/:id/unblock
    * Unblock a delivery slot
    */
-  router.post('/slots/:id/unblock', asyncHandler(async (req, res) => {
+  router.post('/slots/:id/unblock', authenticate, asyncHandler(async (req, res) => {
     const slotId = parseInt(req.params.id);
 
     if (isNaN(slotId)) {
@@ -157,7 +158,7 @@ module.exports = (pool, cache, deliveryService) => {
    * GET /api/delivery/bookings
    * List delivery bookings
    */
-  router.get('/bookings', asyncHandler(async (req, res) => {
+  router.get('/bookings', authenticate, asyncHandler(async (req, res) => {
     const result = await deliveryService.getBookings({
       zoneId: req.query.zoneId ? parseInt(req.query.zoneId) : null,
       status: req.query.status,
@@ -180,7 +181,7 @@ module.exports = (pool, cache, deliveryService) => {
    * GET /api/delivery/bookings/:id
    * Get booking by ID
    */
-  router.get('/bookings/:id', asyncHandler(async (req, res) => {
+  router.get('/bookings/:id', authenticate, asyncHandler(async (req, res) => {
     const bookingId = parseInt(req.params.id);
 
     if (isNaN(bookingId)) {
@@ -200,7 +201,7 @@ module.exports = (pool, cache, deliveryService) => {
    * POST /api/delivery/bookings
    * Create a delivery booking
    */
-  router.post('/bookings', asyncHandler(async (req, res) => {
+  router.post('/bookings', authenticate, asyncHandler(async (req, res) => {
     const { slotId } = req.body;
 
     if (!slotId) {
@@ -236,7 +237,7 @@ module.exports = (pool, cache, deliveryService) => {
    * PATCH /api/delivery/bookings/:id/status
    * Update booking status
    */
-  router.patch('/bookings/:id/status', asyncHandler(async (req, res) => {
+  router.patch('/bookings/:id/status', authenticate, asyncHandler(async (req, res) => {
     const bookingId = parseInt(req.params.id);
 
     if (isNaN(bookingId)) {
@@ -268,7 +269,7 @@ module.exports = (pool, cache, deliveryService) => {
    * POST /api/delivery/bookings/:id/cancel
    * Cancel a booking
    */
-  router.post('/bookings/:id/cancel', asyncHandler(async (req, res) => {
+  router.post('/bookings/:id/cancel', authenticate, asyncHandler(async (req, res) => {
     const bookingId = parseInt(req.params.id);
 
     if (isNaN(bookingId)) {
@@ -287,7 +288,7 @@ module.exports = (pool, cache, deliveryService) => {
    * POST /api/delivery/calculate-fee
    * Calculate delivery fee
    */
-  router.post('/calculate-fee', asyncHandler(async (req, res) => {
+  router.post('/calculate-fee', authenticate, asyncHandler(async (req, res) => {
     const { postalCode, orderTotalCents } = req.body;
 
     if (!postalCode) {

@@ -1,14 +1,20 @@
 /**
  * Analytics Routes Module
  * Handles revenue analytics and feature adoption metrics
+ *
+ * OPTIMIZED: Added caching for expensive analytics queries
  */
 
 const express = require('express');
 const router = express.Router();
 const { ApiError, asyncHandler } = require('../middleware/errorHandler');
+const cache = require('../cache');
+const { authenticate } = require('../middleware/auth');
+const RevenueForecastService = require('../services/RevenueForecastService');
 
 // Module-level dependencies (injected via init)
 let pool = null;
+let forecastService = null;
 
 /**
  * Initialize the router with dependencies
@@ -17,6 +23,7 @@ let pool = null;
  */
 const init = (deps) => {
   pool = deps.pool;
+  forecastService = new RevenueForecastService(pool);
   return router;
 };
 
@@ -27,8 +34,10 @@ const init = (deps) => {
 /**
  * GET /api/analytics/revenue-features
  * Get revenue features analytics
+ *
+ * OPTIMIZED: Cached for 5 minutes to reduce database load
  */
-router.get('/revenue-features', asyncHandler(async (req, res) => {
+router.get('/revenue-features', authenticate, asyncHandler(async (req, res) => {
   const { startDate, endDate, period = '30' } = req.query;
 
   // Calculate date range (default to last 30 days)
@@ -36,75 +45,94 @@ router.get('/revenue-features', asyncHandler(async (req, res) => {
   const end = endDate ? new Date(endDate) : new Date();
   const start = startDate ? new Date(startDate) : new Date(end.getTime() - (days * 24 * 60 * 60 * 1000));
 
-  // Get all quotes in date range
-  const totalQuotesResult = await pool.query(
-    'SELECT COUNT(*) as count FROM quotations WHERE created_at >= $1 AND created_at <= $2',
-    [start, end]
-  );
-  const totalQuotes = parseInt(totalQuotesResult.rows[0].count);
+  // Try to get from cache
+  const cacheKey = `analytics:revenue-features:${start.toISOString().slice(0,10)}:${end.toISOString().slice(0,10)}:${days}`;
+  const cached = cache.get('short', cacheKey);
+  if (cached) {
+    return res.success(cached);
+  }
 
-  // Get financing data
-  const financingResult = await pool.query(
-    `SELECT COUNT(DISTINCT qf.quote_id) as count,
-            SUM(qf.financed_amount_cents) as total_financed,
-            SUM(qf.total_interest_cents) as total_interest
-     FROM quote_financing qf
-     JOIN quotations q ON qf.quote_id = q.id
-     WHERE q.created_at >= $1 AND q.created_at <= $2`,
-    [start, end]
-  );
+  // PERF: Combined CTE query - 6 queries reduced to 1
+  const result = await pool.query(`
+    WITH date_range AS (
+      SELECT $1::timestamp AS start_date, $2::timestamp AS end_date
+    ),
+    total_quotes AS (
+      SELECT COUNT(*) as count
+      FROM quotations, date_range
+      WHERE created_at >= start_date AND created_at <= end_date
+    ),
+    financing_agg AS (
+      SELECT
+        COUNT(DISTINCT qf.quote_id) as count,
+        COALESCE(SUM(qf.financed_amount_cents), 0) as total_financed,
+        COALESCE(SUM(qf.total_interest_cents), 0) as total_interest
+      FROM quote_financing qf
+      JOIN quotations q ON qf.quote_id = q.id, date_range
+      WHERE q.created_at >= start_date AND q.created_at <= end_date
+    ),
+    warranties_agg AS (
+      SELECT
+        COUNT(DISTINCT qw.quote_id) as count,
+        COALESCE(SUM(qw.warranty_cost_cents), 0) as total_revenue
+      FROM quote_warranties qw
+      JOIN quotations q ON qw.quote_id = q.id, date_range
+      WHERE q.created_at >= start_date AND q.created_at <= end_date
+    ),
+    delivery_agg AS (
+      SELECT
+        COUNT(DISTINCT qd.quote_id) as count,
+        COALESCE(SUM(qd.total_delivery_cost_cents), 0) as total_revenue
+      FROM quote_delivery qd
+      JOIN quotations q ON qd.quote_id = q.id, date_range
+      WHERE q.created_at >= start_date AND q.created_at <= end_date
+    ),
+    rebates_agg AS (
+      SELECT
+        COUNT(DISTINCT qr.quote_id) as count,
+        COALESCE(SUM(qr.rebate_amount_cents), 0) as total_rebates
+      FROM quote_rebates qr
+      JOIN quotations q ON qr.quote_id = q.id, date_range
+      WHERE q.created_at >= start_date AND q.created_at <= end_date
+    ),
+    trade_ins_agg AS (
+      SELECT
+        COUNT(DISTINCT qt.quote_id) as count,
+        COALESCE(SUM(qt.trade_in_value_cents), 0) as total_value
+      FROM quote_trade_ins qt
+      JOIN quotations q ON qt.quote_id = q.id, date_range
+      WHERE q.created_at >= start_date AND q.created_at <= end_date
+    )
+    SELECT
+      (SELECT count FROM total_quotes) as total_quotes,
+      (SELECT count FROM financing_agg) as financing_count,
+      (SELECT total_financed FROM financing_agg) as financing_total_financed,
+      (SELECT total_interest FROM financing_agg) as financing_interest,
+      (SELECT count FROM warranties_agg) as warranties_count,
+      (SELECT total_revenue FROM warranties_agg) as warranties_revenue,
+      (SELECT count FROM delivery_agg) as delivery_count,
+      (SELECT total_revenue FROM delivery_agg) as delivery_revenue,
+      (SELECT count FROM rebates_agg) as rebates_count,
+      (SELECT total_rebates FROM rebates_agg) as rebates_value,
+      (SELECT count FROM trade_ins_agg) as trade_ins_count,
+      (SELECT total_value FROM trade_ins_agg) as trade_ins_value
+  `, [start, end]);
 
-  // Get warranties data
-  const warrantiesResult = await pool.query(
-    `SELECT COUNT(DISTINCT qw.quote_id) as count,
-            SUM(qw.warranty_cost_cents) as total_revenue
-     FROM quote_warranties qw
-     JOIN quotations q ON qw.quote_id = q.id
-     WHERE q.created_at >= $1 AND q.created_at <= $2`,
-    [start, end]
-  );
+  const row = result.rows[0];
 
-  // Get delivery data
-  const deliveryResult = await pool.query(
-    `SELECT COUNT(DISTINCT qd.quote_id) as count,
-            SUM(qd.total_delivery_cost_cents) as total_revenue
-     FROM quote_delivery qd
-     JOIN quotations q ON qd.quote_id = q.id
-     WHERE q.created_at >= $1 AND q.created_at <= $2`,
-    [start, end]
-  );
+  // Calculate analytics from combined result
+  const totalQuotes = parseInt(row.total_quotes) || 0;
+  const financingCount = parseInt(row.financing_count) || 0;
+  const warrantiesCount = parseInt(row.warranties_count) || 0;
+  const deliveryCount = parseInt(row.delivery_count) || 0;
+  const rebatesCount = parseInt(row.rebates_count) || 0;
+  const tradeInsCount = parseInt(row.trade_ins_count) || 0;
 
-  // Get rebates data
-  const rebatesResult = await pool.query(
-    `SELECT COUNT(DISTINCT qr.quote_id) as count,
-            SUM(qr.rebate_amount_cents) as total_rebates
-     FROM quote_rebates qr
-     JOIN quotations q ON qr.quote_id = q.id
-     WHERE q.created_at >= $1 AND q.created_at <= $2`,
-    [start, end]
-  );
-
-  // Get trade-ins data
-  const tradeInsResult = await pool.query(
-    `SELECT COUNT(DISTINCT qt.quote_id) as count,
-            SUM(qt.trade_in_value_cents) as total_value
-     FROM quote_trade_ins qt
-     JOIN quotations q ON qt.quote_id = q.id
-     WHERE q.created_at >= $1 AND q.created_at <= $2`,
-    [start, end]
-  );
-
-  // Calculate analytics
-  const financingCount = parseInt(financingResult.rows[0].count) || 0;
-  const warrantiesCount = parseInt(warrantiesResult.rows[0].count) || 0;
-  const deliveryCount = parseInt(deliveryResult.rows[0].count) || 0;
-  const rebatesCount = parseInt(rebatesResult.rows[0].count) || 0;
-  const tradeInsCount = parseInt(tradeInsResult.rows[0].count) || 0;
-
-  const warrantiesRevenue = parseInt(warrantiesResult.rows[0].total_revenue) || 0;
-  const deliveryRevenue = parseInt(deliveryResult.rows[0].total_revenue) || 0;
-  const tradeInsValue = parseInt(tradeInsResult.rows[0].total_value) || 0;
-  const rebatesValue = parseInt(rebatesResult.rows[0].total_rebates) || 0;
+  const financingInterest = parseInt(row.financing_interest) || 0;
+  const warrantiesRevenue = parseInt(row.warranties_revenue) || 0;
+  const deliveryRevenue = parseInt(row.delivery_revenue) || 0;
+  const rebatesValue = parseInt(row.rebates_value) || 0;
+  const tradeInsValue = parseInt(row.trade_ins_value) || 0;
 
   const totalRevenue = warrantiesRevenue + deliveryRevenue;
   const totalFeaturesCount = financingCount + warrantiesCount + deliveryCount + rebatesCount + tradeInsCount;
@@ -130,7 +158,7 @@ router.get('/revenue-features', asyncHandler(async (req, res) => {
       tradeIns: tradeInsCount
     },
     revenue: {
-      financing: parseInt(financingResult.rows[0].total_interest) || 0,
+      financing: financingInterest,
       warranties: warrantiesRevenue,
       delivery: deliveryRevenue,
       rebates: rebatesValue,
@@ -146,79 +174,198 @@ router.get('/revenue-features', asyncHandler(async (req, res) => {
     trends: []
   };
 
+  // Cache the result for 5 minutes
+  cache.set('short', cacheKey, analytics);
+
   res.success(analytics);
 }));
 
 /**
  * GET /api/analytics/top-features
  * Get top performing revenue features
+ *
+ * OPTIMIZED: Uses single query with aggregations instead of N+1 pattern
+ * OPTIMIZED: Cached for 5 minutes
  */
-router.get('/top-features', asyncHandler(async (req, res) => {
+router.get('/top-features', authenticate, asyncHandler(async (req, res) => {
   const { limit = 10 } = req.query;
 
-  // Get recent quotes with any revenue features
-  const quotesResult = await pool.query(
-    `SELECT DISTINCT q.id, q.quotation_number, q.total_cents, q.created_at, q.customer_name
+  // Try to get from cache
+  const cacheKey = `analytics:top-features:${limit}`;
+  const cached = cache.get('short', cacheKey);
+  if (cached) {
+    return res.success(cached);
+  }
+
+  // Single optimized query that fetches all feature counts in one go
+  // Eliminates N+1 pattern (was making 5 queries per quote)
+  const result = await pool.query(
+    `SELECT
+       q.id as quote_id,
+       q.quotation_number as quote_number,
+       q.customer_name,
+       q.created_at as date,
+       q.total_cents as total,
+       COALESCE(qf.financing_count, 0) > 0 as has_financing,
+       COALESCE(qw.warranties_count, 0)::int as warranties_count,
+       COALESCE(qd.delivery_count, 0) > 0 as has_delivery,
+       COALESCE(qr.rebates_count, 0)::int as rebates_count,
+       COALESCE(qt.trade_ins_count, 0)::int as trade_ins_count
      FROM quotations q
-     LEFT JOIN quote_financing qf ON q.id = qf.quote_id
-     LEFT JOIN quote_warranties qw ON q.id = qw.quote_id
-     LEFT JOIN quote_delivery qd ON q.id = qd.quote_id
-     LEFT JOIN quote_rebates qr ON q.id = qr.quote_id
-     LEFT JOIN quote_trade_ins qt ON q.id = qt.quote_id
-     WHERE qf.id IS NOT NULL OR qw.id IS NOT NULL OR qd.id IS NOT NULL
-           OR qr.id IS NOT NULL OR qt.id IS NOT NULL
+     LEFT JOIN (
+       SELECT quote_id, COUNT(*) as financing_count FROM quote_financing GROUP BY quote_id
+     ) qf ON q.id = qf.quote_id
+     LEFT JOIN (
+       SELECT quote_id, COUNT(*) as warranties_count FROM quote_warranties GROUP BY quote_id
+     ) qw ON q.id = qw.quote_id
+     LEFT JOIN (
+       SELECT quote_id, COUNT(*) as delivery_count FROM quote_delivery GROUP BY quote_id
+     ) qd ON q.id = qd.quote_id
+     LEFT JOIN (
+       SELECT quote_id, COUNT(*) as rebates_count FROM quote_rebates GROUP BY quote_id
+     ) qr ON q.id = qr.quote_id
+     LEFT JOIN (
+       SELECT quote_id, COUNT(*) as trade_ins_count FROM quote_trade_ins GROUP BY quote_id
+     ) qt ON q.id = qt.quote_id
+     WHERE qf.quote_id IS NOT NULL OR qw.quote_id IS NOT NULL OR qd.quote_id IS NOT NULL
+           OR qr.quote_id IS NOT NULL OR qt.quote_id IS NOT NULL
      ORDER BY q.created_at DESC
      LIMIT $1`,
     [limit]
   );
 
-  // For each quote, get the detailed feature information
-  const features = await Promise.all(quotesResult.rows.map(async (quote) => {
-    const quoteId = quote.id;
-
-    // Check for each feature type
-    const hasFinancing = (await pool.query(
-      'SELECT COUNT(*) as count FROM quote_financing WHERE quote_id = $1',
-      [quoteId]
-    )).rows[0].count > 0;
-
-    const warrantiesCount = parseInt((await pool.query(
-      'SELECT COUNT(*) as count FROM quote_warranties WHERE quote_id = $1',
-      [quoteId]
-    )).rows[0].count);
-
-    const hasDelivery = (await pool.query(
-      'SELECT COUNT(*) as count FROM quote_delivery WHERE quote_id = $1',
-      [quoteId]
-    )).rows[0].count > 0;
-
-    const rebatesCount = parseInt((await pool.query(
-      'SELECT COUNT(*) as count FROM quote_rebates WHERE quote_id = $1',
-      [quoteId]
-    )).rows[0].count);
-
-    const tradeInsCount = parseInt((await pool.query(
-      'SELECT COUNT(*) as count FROM quote_trade_ins WHERE quote_id = $1',
-      [quoteId]
-    )).rows[0].count);
-
-    return {
-      quoteId: quote.id,
-      quoteNumber: quote.quotation_number,
-      customerName: quote.customer_name,
-      date: quote.created_at,
-      total: quote.total_cents,
-      features: {
-        financing: hasFinancing,
-        warranties: warrantiesCount,
-        delivery: hasDelivery,
-        rebates: rebatesCount,
-        tradeIns: tradeInsCount
-      }
-    };
+  // Format response
+  const features = result.rows.map(row => ({
+    quoteId: row.quote_id,
+    quoteNumber: row.quote_number,
+    customerName: row.customer_name,
+    date: row.date,
+    total: row.total,
+    features: {
+      financing: row.has_financing,
+      warranties: row.warranties_count,
+      delivery: row.has_delivery,
+      rebates: row.rebates_count,
+      tradeIns: row.trade_ins_count
+    }
   }));
 
+  // Cache the result for 5 minutes
+  cache.set('short', cacheKey, features);
+
   res.success(features);
+}));
+
+// ============================================
+// REVENUE FORECASTING ROUTES
+// ============================================
+
+/**
+ * GET /api/analytics/forecast/revenue
+ * Get revenue forecast for specified days (30/60/90)
+ */
+router.get('/forecast/revenue', authenticate, asyncHandler(async (req, res) => {
+  const days = parseInt(req.query.days) || 30;
+
+  if (![30, 60, 90].includes(days)) {
+    throw ApiError.badRequest('Days must be 30, 60, or 90');
+  }
+
+  // Try to get from cache
+  const cacheKey = `analytics:forecast:revenue:${days}`;
+  const cached = cache.get('short', cacheKey);
+  if (cached) {
+    return res.json({ success: true, data: cached });
+  }
+
+  const forecast = await forecastService.getRevenueForecast(days);
+
+  // Cache for 15 minutes (forecasts don't change rapidly)
+  cache.set('short', cacheKey, forecast);
+
+  res.json({ success: true, data: forecast });
+}));
+
+/**
+ * GET /api/analytics/forecast/pipeline
+ * Get pipeline-based revenue forecast
+ */
+router.get('/forecast/pipeline', authenticate, asyncHandler(async (req, res) => {
+  // Try to get from cache
+  const cacheKey = 'analytics:forecast:pipeline';
+  const cached = cache.get('short', cacheKey);
+  if (cached) {
+    return res.json({ success: true, data: cached });
+  }
+
+  const forecast = await forecastService.getPipelineForecast();
+
+  // Cache for 5 minutes
+  cache.set('short', cacheKey, forecast);
+
+  res.json({ success: true, data: forecast });
+}));
+
+/**
+ * GET /api/analytics/forecast/summary
+ * Get combined forecast summary with all metrics
+ */
+router.get('/forecast/summary', authenticate, asyncHandler(async (req, res) => {
+  // Try to get from cache
+  const cacheKey = 'analytics:forecast:summary';
+  const cached = cache.get('short', cacheKey);
+  if (cached) {
+    return res.json({ success: true, data: cached });
+  }
+
+  const summary = await forecastService.getForecastSummary();
+
+  // Cache for 10 minutes
+  cache.set('short', cacheKey, summary);
+
+  res.json({ success: true, data: summary });
+}));
+
+/**
+ * GET /api/analytics/seasonality
+ * Get seasonality analysis patterns
+ */
+router.get('/seasonality', authenticate, asyncHandler(async (req, res) => {
+  // Try to get from cache
+  const cacheKey = 'analytics:seasonality';
+  const cached = cache.get('short', cacheKey);
+  if (cached) {
+    return res.json({ success: true, data: cached });
+  }
+
+  const seasonality = await forecastService.getSeasonalityAnalysis();
+
+  // Cache for 1 hour (seasonality patterns are stable)
+  cache.set('long', cacheKey, seasonality);
+
+  res.json({ success: true, data: seasonality });
+}));
+
+/**
+ * GET /api/analytics/sales-velocity
+ * Get sales velocity metrics by salesperson
+ */
+router.get('/sales-velocity', authenticate, asyncHandler(async (req, res) => {
+  const days = parseInt(req.query.days) || 30;
+
+  // Try to get from cache
+  const cacheKey = `analytics:sales-velocity:${days}`;
+  const cached = cache.get('short', cacheKey);
+  if (cached) {
+    return res.json({ success: true, data: cached });
+  }
+
+  const velocity = await forecastService.getSalesVelocity(days);
+
+  // Cache for 5 minutes
+  cache.set('short', cacheKey, velocity);
+
+  res.json({ success: true, data: velocity });
 }));
 
 module.exports = { router, init };

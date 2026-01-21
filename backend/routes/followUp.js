@@ -1,9 +1,10 @@
 const express = require('express');
 const router = express.Router();
 const pool = require('../db');
+const { authenticate } = require('../middleware/auth');
 
 // Get all follow-up reminders for a quote
-router.get('/quotations/:id/follow-ups', async (req, res) => {
+router.get('/quotations/:id/follow-ups', authenticate, async (req, res) => {
   try {
     const { id } = req.params;
 
@@ -24,7 +25,7 @@ router.get('/quotations/:id/follow-ups', async (req, res) => {
 });
 
 // Get all pending follow-ups across all quotes
-router.get('/follow-ups/pending', async (req, res) => {
+router.get('/follow-ups/pending', authenticate, async (req, res) => {
   try {
     const result = await pool.query(
       `SELECT fr.*, q.quote_number, q.customer_name, et.name as template_name
@@ -43,7 +44,7 @@ router.get('/follow-ups/pending', async (req, res) => {
 });
 
 // Schedule a new follow-up reminder
-router.post('/quotations/:id/follow-ups', async (req, res) => {
+router.post('/quotations/:id/follow-ups', authenticate, async (req, res) => {
   try {
     const { id } = req.params;
     const { reminder_type, scheduled_for, email_template_id } = req.body;
@@ -64,7 +65,7 @@ router.post('/quotations/:id/follow-ups', async (req, res) => {
 });
 
 // Mark follow-up as sent
-router.put('/follow-ups/:id/sent', async (req, res) => {
+router.put('/follow-ups/:id/sent', authenticate, async (req, res) => {
   try {
     const { id } = req.params;
 
@@ -94,7 +95,7 @@ router.put('/follow-ups/:id/sent', async (req, res) => {
 });
 
 // Cancel a follow-up
-router.delete('/follow-ups/:id', async (req, res) => {
+router.delete('/follow-ups/:id', authenticate, async (req, res) => {
   try {
     const { id } = req.params;
 
@@ -114,7 +115,7 @@ router.delete('/follow-ups/:id', async (req, res) => {
 });
 
 // Log a quote interaction
-router.post('/quotations/:id/interactions', async (req, res) => {
+router.post('/quotations/:id/interactions', authenticate, async (req, res) => {
   try {
     const { id } = req.params;
     const { interaction_type, notes, next_action, next_action_date, created_by } = req.body;
@@ -143,7 +144,7 @@ router.post('/quotations/:id/interactions', async (req, res) => {
 });
 
 // Get all interactions for a quote
-router.get('/quotations/:id/interactions', async (req, res) => {
+router.get('/quotations/:id/interactions', authenticate, async (req, res) => {
   try {
     const { id } = req.params;
 
@@ -162,7 +163,7 @@ router.get('/quotations/:id/interactions', async (req, res) => {
 });
 
 // Get quotes needing follow-up (no activity in X days)
-router.get('/follow-ups/stale-quotes', async (req, res) => {
+router.get('/follow-ups/stale-quotes', authenticate, async (req, res) => {
   try {
     const { days = 7 } = req.query;
 
@@ -185,7 +186,7 @@ router.get('/follow-ups/stale-quotes', async (req, res) => {
 });
 
 // Get follow-up dashboard stats
-router.get('/follow-ups/stats', async (req, res) => {
+router.get('/follow-ups/stats', authenticate, async (req, res) => {
   try {
     const stats = await pool.query(`
       SELECT

@@ -1,0 +1,163 @@
+{
+  "_README": {
+    "description": "WhirlpoolCentral Product Import Template",
+    "instructions": [
+      "1. Copy the 'products' array structure for each product",
+      "2. Fill in the required fields: vendor, modelNumber, name",
+      "3. Add optional fields as available: category, brand, msrp, dealerPrice, imageUrls",
+      "4. When ready, copy ONLY the 'products' array contents to the Bulk Import feature",
+      "5. Do NOT include this _README section in your import"
+    ],
+    "required_fields": ["vendor", "modelNumber", "name"],
+    "recommended_fields": ["category", "subcategory", "brand", "msrp", "dealerPrice"],
+    "optional_fields": ["description", "specifications", "features", "imageUrls"]
+  },
+  "categories": {
+    "Laundry": ["Front Load Washers", "Top Load Washers", "Electric Dryers", "Gas Dryers", "Washer/Dryer Combos", "Pedestals"],
+    "Refrigeration": ["French Door", "Side-by-Side", "Top Freezer", "Bottom Freezer", "Compact", "Freezers"],
+    "Cooking": ["Ranges", "Wall Ovens", "Cooktops", "Range Hoods", "Microwaves", "Warming Drawers"],
+    "Cleaning": ["Built-In Dishwashers", "Portable Dishwashers", "Dishwasher Accessories"]
+  },
+  "brands": ["Whirlpool", "Maytag", "KitchenAid", "Amana", "JennAir", "Gladiator"],
+  "products": [
+    {
+      "vendor": "Whirlpool",
+      "modelNumber": "WFW9620HW",
+      "name": "5.0 cu. ft. Smart Front Load Washer with Load & Go XL Plus Dispenser",
+      "description": "Smart washer with Load & Go XL Plus dispenser holds enough detergent for 40 loads",
+      "category": "Laundry",
+      "subcategory": "Front Load Washers",
+      "brand": "Whirlpool",
+      "msrp": 1299.99,
+      "dealerPrice": 999.99,
+      "specifications": {
+        "Capacity (cu. ft.)": "5.0",
+        "Width": "27 inches",
+        "Height": "38.625 inches",
+        "Depth": "31.5625 inches",
+        "Energy Star Certified": "Yes",
+        "Number of Wash Cycles": "37",
+        "Steam Function": "Yes"
+      },
+      "features": [
+        "Load & Go XL Plus Dispenser",
+        "Steam Clean Option",
+        "37 Wash Cycles",
+        "WiFi Connected",
+        "Intuitive Controls",
+        "Sanitize Cycle"
+      ],
+      "imageUrls": []
+    },
+    {
+      "vendor": "Whirlpool",
+      "modelNumber": "WED9620HW",
+      "name": "7.4 cu. ft. Smart Electric Dryer with Steam Refresh Cycle",
+      "description": "Smart electric dryer with advanced moisture sensing and Steam Refresh cycle",
+      "category": "Laundry",
+      "subcategory": "Electric Dryers",
+      "brand": "Whirlpool",
+      "msrp": 1199.99,
+      "dealerPrice": 899.99,
+      "specifications": {
+        "Capacity (cu. ft.)": "7.4",
+        "Width": "27 inches",
+        "Height": "38.625 inches",
+        "Depth": "30.125 inches",
+        "Energy Star Certified": "Yes",
+        "Number of Dry Cycles": "36",
+        "Steam Function": "Yes"
+      },
+      "features": [
+        "Steam Refresh Cycle",
+        "Advanced Moisture Sensing",
+        "Wrinkle Shield Option",
+        "WiFi Connected",
+        "Intuitive Controls"
+      ],
+      "imageUrls": []
+    },
+    {
+      "vendor": "Whirlpool",
+      "modelNumber": "WRF555SDFZ",
+      "name": "36-inch Wide French Door Refrigerator - 25 cu. ft.",
+      "description": "French door refrigerator with external water and ice dispenser",
+      "category": "Refrigeration",
+      "subcategory": "French Door",
+      "brand": "Whirlpool",
+      "msrp": 2199.99,
+      "dealerPrice": 1699.99,
+      "specifications": {
+        "Total Capacity (cu. ft.)": "25",
+        "Width": "35.625 inches",
+        "Height": "70.125 inches",
+        "Depth": "35.625 inches",
+        "Energy Star Certified": "Yes",
+        "Ice Maker": "Yes",
+        "Water Dispenser": "External"
+      },
+      "features": [
+        "External Water & Ice Dispenser",
+        "Adaptive Defrost",
+        "LED Interior Lighting",
+        "Humidity-Controlled Crispers",
+        "Fingerprint Resistant Finish"
+      ],
+      "imageUrls": []
+    },
+    {
+      "vendor": "Maytag",
+      "modelNumber": "MDB8959SKZ",
+      "name": "Top Control Dishwasher with Third Level Rack",
+      "description": "Top control dishwasher with powerful wash cycle and third level rack",
+      "category": "Cleaning",
+      "subcategory": "Built-In Dishwashers",
+      "brand": "Maytag",
+      "msrp": 999.99,
+      "dealerPrice": 749.99,
+      "specifications": {
+        "Width": "23.875 inches",
+        "Height": "33.875 inches",
+        "Depth": "24.5 inches",
+        "Energy Star Certified": "Yes",
+        "Number of Place Settings": "15",
+        "Noise Level (dBA)": "47"
+      },
+      "features": [
+        "Third Level Rack",
+        "PowerBlast Cycle",
+        "Dual Power Filtration",
+        "Fingerprint Resistant",
+        "Heated Dry Option"
+      ],
+      "imageUrls": []
+    },
+    {
+      "vendor": "KitchenAid",
+      "modelNumber": "KFGC500JMH",
+      "name": "30-Inch 4-Burner Gas Range with Convection Oven",
+      "description": "Professional-style gas range with convection oven and smart features",
+      "category": "Cooking",
+      "subcategory": "Ranges",
+      "brand": "KitchenAid",
+      "msrp": 3299.99,
+      "dealerPrice": 2499.99,
+      "specifications": {
+        "Width": "29.875 inches",
+        "Height": "36 inches",
+        "Depth": "28.5 inches",
+        "Oven Capacity (cu. ft.)": "5.1",
+        "Number of Burners": "4",
+        "Convection": "Yes"
+      },
+      "features": [
+        "Even-Heat True Convection",
+        "Smart Capabilities",
+        "Commercial-Style Design",
+        "Two 20K BTU Ultra Power Burners",
+        "Steam Rack"
+      ],
+      "imageUrls": []
+    }
+  ]
+}

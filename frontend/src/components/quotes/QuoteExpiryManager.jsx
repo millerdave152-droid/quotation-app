@@ -35,7 +35,7 @@ const QuoteExpiryManager = () => {
   const fetchData = async () => {
     setLoading(true);
     try {
-      const token = localStorage.getItem('token');
+      const token = localStorage.getItem('auth_token');
       const headers = { 'Authorization': `Bearer ${token}` };
 
       const [rulesRes, expiringRes, expiredRes] = await Promise.all([
@@ -83,7 +83,7 @@ const QuoteExpiryManager = () => {
 
   const handleSaveRule = async () => {
     try {
-      const token = localStorage.getItem('token');
+      const token = localStorage.getItem('auth_token');
       const url = editingRule
         ? `${API_URL}/api/quotations/expiry-rules/${editingRule.id}`
         : `${API_URL}/api/quotations/expiry-rules`;
@@ -118,7 +118,7 @@ const QuoteExpiryManager = () => {
     if (!window.confirm('Delete this expiry rule?')) return;
 
     try {
-      const token = localStorage.getItem('token');
+      const token = localStorage.getItem('auth_token');
       const response = await fetch(`${API_URL}/api/quotations/expiry-rules/${ruleId}`, {
         method: 'DELETE',
         headers: { 'Authorization': `Bearer ${token}` }
@@ -137,7 +137,7 @@ const QuoteExpiryManager = () => {
 
   const handleRenewQuote = async (quoteId, extendDays = 14) => {
     try {
-      const token = localStorage.getItem('token');
+      const token = localStorage.getItem('auth_token');
       const response = await fetch(`${API_URL}/api/quotations/${quoteId}/renew`, {
         method: 'POST',
         headers: {

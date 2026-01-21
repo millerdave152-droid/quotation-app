@@ -570,10 +570,8 @@ class FilterCountService {
         const result = await this.pool.query(query, params);
         productsByCategory[category] = result.rows;
         allProducts = allProducts.concat(result.rows);
-        console.log(`   FilterCountService: ${category} -> ${result.rows.length} products (category_id: ${categoryId})`);
       } else {
         // FALLBACK: Legacy pattern matching for unmigrated categories
-        console.log(`   [LEGACY] FilterCountService: Using pattern matching for ${category}`);
         let baseQuery = `
           SELECT p.id, p.model, p.manufacturer, p.category, p.name, p.msrp_cents
           FROM products p

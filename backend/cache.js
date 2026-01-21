@@ -110,6 +110,31 @@ const getStats = () => {
 };
 
 /**
+ * Invalidate all cache keys matching a pattern prefix
+ * Searches all cache types (short, medium, long) and deletes matching keys
+ * @param {string} pattern - Key prefix to match (e.g., 'customers:' or 'products:*')
+ */
+const invalidatePattern = (pattern) => {
+  // Remove trailing asterisk if present (for compatibility with wildcard patterns)
+  const prefix = pattern.replace(/\*$/, '');
+  let deletedCount = 0;
+
+  Object.entries(caches).forEach(([type, cache]) => {
+    const keys = cache.keys();
+    keys.forEach(key => {
+      if (key.startsWith(prefix)) {
+        cache.del(key);
+        deletedCount++;
+      }
+    });
+  });
+
+  if (deletedCount > 0) {
+    console.log(`✓ Invalidated ${deletedCount} cache entries matching '${prefix}'`);
+  }
+};
+
+/**
  * Wrapper function to cache database query results
  * @param {string} key - Cache key
  * @param {string} cacheType - 'short', 'medium', or 'long'
@@ -185,5 +210,6 @@ module.exports = {
   clear,
   getStats,
   cacheQuery,
+  invalidatePattern,
   invalidate
 };

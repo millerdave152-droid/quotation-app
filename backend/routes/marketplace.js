@@ -3,6 +3,7 @@ const router = express.Router();
 const pool = require('../db');
 const miraklService = require('../services/miraklService');
 const { validateJoi, marketplaceSchemas } = require('../middleware/validation');
+const { authenticate } = require('../middleware/auth');
 
 // Helper to generate unique return/refund numbers
 const generateReturnNumber = () => `RET-${Date.now()}-${Math.random().toString(36).substr(2, 6).toUpperCase()}`;
@@ -13,11 +14,14 @@ const generateRefundNumber = () => `REF-${Date.now()}-${Math.random().toString(3
 // ============================================
 
 // Get all marketplace orders
-router.get('/orders', async (req, res) => {
+router.get('/orders', authenticate, async (req, res) => {
   try {
     const { status, limit = 50, offset = 0 } = req.query;
 
-    let query = 'SELECT * FROM marketplace_orders WHERE 1=1';
+    // PERF: Specify columns instead of SELECT * to reduce data transfer
+    let query = `SELECT id, order_id, order_state, order_date, total_price_cents,
+      customer_name, customer_email, shipping_address, items_count, created_at, updated_at
+    FROM marketplace_orders WHERE 1=1`;
     const params = [];
     let paramIndex = 1;
 
@@ -51,12 +55,16 @@ router.get('/orders', async (req, res) => {
 });
 
 // Get single marketplace order
-router.get('/orders/:id', async (req, res) => {
+router.get('/orders/:id', authenticate, async (req, res) => {
   try {
     const { id } = req.params;
 
+    // PERF: Specify columns instead of SELECT * to reduce data transfer
     const orderQuery = await pool.query(
-      'SELECT * FROM marketplace_orders WHERE id = $1',
+      `SELECT id, order_id, order_state, order_date, total_price_cents,
+        customer_name, customer_email, shipping_address, items_count,
+        shipping_carrier, tracking_number, created_at, updated_at
+      FROM marketplace_orders WHERE id = $1`,
       [id]
     );
 
@@ -91,15 +99,11 @@ router.get('/orders/:id', async (req, res) => {
 });
 
 // Pull orders from Mirakl (GET endpoint for frontend button)
-router.get('/pull-orders', async (req, res) => {
+router.get('/pull-orders', authenticate, async (req, res) => {
   try {
-    console.log('📥 Pulling orders from Mirakl...');
-
     const miraklOrders = await miraklService.getOrders({
       order_state_codes: 'WAITING_ACCEPTANCE,SHIPPING,SHIPPED'
     });
-
-    console.log(`📋 Retrieved ${miraklOrders.length} orders from Mirakl`);
 
     let imported = 0;
     let failed = 0;
@@ -114,8 +118,6 @@ router.get('/pull-orders', async (req, res) => {
       }
     }
 
-    console.log(`✅ Order pull complete: ${imported} imported, ${failed} failed`);
-
     res.json({
       success: true,
       imported: imported,
@@ -129,13 +131,11 @@ router.get('/pull-orders', async (req, res) => {
 });
 
 // Sync orders from Mirakl (with database transaction support)
-router.post('/orders/sync', validateJoi(marketplaceSchemas.orderSync), async (req, res) => {
+router.post('/orders/sync', authenticate, validateJoi(marketplaceSchemas.orderSync), async (req, res) => {
   const client = await pool.connect();
   const syncStartTime = new Date();
 
   try {
-    console.log('🔄 Starting order sync from Mirakl...');
-
     const { start_date, order_state_codes } = req.body;
 
     // Start transaction
@@ -155,8 +155,6 @@ router.post('/orders/sync', validateJoi(marketplaceSchemas.orderSync), async (re
       start_date,
       order_state_codes
     });
-
-    console.log(`📥 Retrieved ${miraklOrders.length} orders from Mirakl`);
 
     const results = {
       total: miraklOrders.length,
@@ -209,8 +207,6 @@ router.post('/orders/sync', validateJoi(marketplaceSchemas.orderSync), async (re
     // Commit transaction
     await client.query('COMMIT');
 
-    console.log(`✅ Order sync complete: ${results.succeeded} succeeded, ${results.failed} failed (${durationMs}ms)`);
-
     res.json({
       ...results,
       sync_id: syncLogId,
@@ -227,11 +223,9 @@ router.post('/orders/sync', validateJoi(marketplaceSchemas.orderSync), async (re
 });
 
 // Accept an order
-router.post('/orders/:id/accept', async (req, res) => {
+router.post('/orders/:id/accept', authenticate, async (req, res) => {
   try {
     const { id } = req.params;
-
-    console.log(`✅ Accepting order ${id}...`);
 
     // Get order from database
     const orderQuery = await pool.query(
@@ -257,8 +251,6 @@ router.post('/orders/:id/accept', async (req, res) => {
       [id]
     );
 
-    console.log('✅ Order accepted successfully');
-
     res.json({ message: 'Order accepted successfully' });
   } catch (error) {
     console.error('❌ Error accepting order:', error);
@@ -267,12 +259,10 @@ router.post('/orders/:id/accept', async (req, res) => {
 });
 
 // Refuse an order
-router.post('/orders/:id/refuse', async (req, res) => {
+router.post('/orders/:id/refuse', authenticate, async (req, res) => {
   try {
     const { id } = req.params;
     const { reason } = req.body;
-
-    console.log(`❌ Refusing order ${id}...`);
 
     // Get order from database
     const orderQuery = await pool.query(
@@ -298,8 +288,6 @@ router.post('/orders/:id/refuse', async (req, res) => {
       [id]
     );
 
-    console.log('✅ Order refused successfully');
-
     res.json({ message: 'Order refused successfully' });
   } catch (error) {
     console.error('❌ Error refusing order:', error);
@@ -312,12 +300,10 @@ router.post('/orders/:id/refuse', async (req, res) => {
 // ============================================
 
 // Create shipment for an order
-router.post('/orders/:id/shipments', async (req, res) => {
+router.post('/orders/:id/shipments', authenticate, async (req, res) => {
   try {
     const { id } = req.params;
     const { tracking_number, carrier_code, carrier_name, shipped_items } = req.body;
-
-    console.log(`📦 Creating shipment for order ${id}...`);
 
     // Get order
     const orderQuery = await pool.query(
@@ -357,8 +343,6 @@ router.post('/orders/:id/shipments', async (req, res) => {
       [id]
     );
 
-    console.log('✅ Shipment created successfully');
-
     res.status(201).json(result.rows[0]);
   } catch (error) {
     console.error('❌ Error creating shipment:', error);
@@ -371,10 +355,8 @@ router.post('/orders/:id/shipments', async (req, res) => {
 // ============================================
 
 // Sync all active products to Mirakl (inventory sync)
-router.post('/sync-offers', async (req, res) => {
+router.post('/sync-offers', authenticate, async (req, res) => {
   try {
-    console.log('🔄 Starting inventory sync to Mirakl...');
-
     // Get all active products that need syncing
     // INCREASED LIMIT: Process up to 500 products, prioritizing unsynced ones
     const productsQuery = await pool.query(`
@@ -392,8 +374,6 @@ router.post('/sync-offers', async (req, res) => {
     if (products.length === 0) {
       return res.json({ success: true, synced: 0, message: 'No products to sync' });
     }
-
-    console.log(`📋 Found ${products.length} products to sync`);
 
     let succeeded = 0;
     let failed = 0;
@@ -413,8 +393,6 @@ router.post('/sync-offers', async (req, res) => {
       }
     }
 
-    console.log(`✅ Inventory sync complete: ${succeeded} succeeded, ${failed} failed`);
-
     res.json({
       success: true,
       synced: succeeded,
@@ -429,11 +407,9 @@ router.post('/sync-offers', async (req, res) => {
 });
 
 // Sync single product to Mirakl
-router.post('/products/:id/sync', async (req, res) => {
+router.post('/products/:id/sync', authenticate, async (req, res) => {
   try {
     const { id } = req.params;
-
-    console.log(`🔄 Syncing product ${id} to Mirakl...`);
 
     const result = await miraklService.syncProductToMirakl(id);
 
@@ -448,15 +424,13 @@ router.post('/products/:id/sync', async (req, res) => {
 });
 
 // Bulk sync products to Mirakl
-router.post('/products/sync-bulk', async (req, res) => {
+router.post('/products/sync-bulk', authenticate, async (req, res) => {
   try {
     const { product_ids } = req.body;
 
     if (!product_ids || !Array.isArray(product_ids)) {
       return res.status(400).json({ error: 'product_ids array is required' });
     }
-
-    console.log(`🔄 Bulk syncing ${product_ids.length} products...`);
 
     const results = {
       total: product_ids.length,
@@ -478,8 +452,6 @@ router.post('/products/sync-bulk', async (req, res) => {
       }
     }
 
-    console.log(`✅ Bulk sync complete: ${results.succeeded} succeeded, ${results.failed} failed`);
-
     res.json(results);
   } catch (error) {
     console.error('❌ Error in bulk sync:', error);
@@ -488,13 +460,10 @@ router.post('/products/sync-bulk', async (req, res) => {
 });
 
 // Batch sync products using bulk API (more efficient, avoids rate limits)
-router.post('/products/batch-sync', async (req, res) => {
+router.post('/products/batch-sync', authenticate, async (req, res) => {
   try {
     const batchSize = req.body.batch_size || 100; // Mirakl supports up to 100 offers per request
     const delayBetweenBatches = req.body.delay_ms || 5000; // 5 second delay between batches
-
-    console.log('🔄 Starting BATCH sync of unsynced products...');
-    console.log(`   Batch size: ${batchSize}, Delay: ${delayBetweenBatches}ms`);
 
     // Get all unsynced products
     const productsQuery = await pool.query(`
@@ -515,8 +484,6 @@ router.post('/products/batch-sync', async (req, res) => {
       });
     }
 
-    console.log(`📋 Found ${products.length} unsynced products to batch sync`);
-
     let totalSucceeded = 0;
     let totalFailed = 0;
     const errors = [];
@@ -528,8 +495,6 @@ router.post('/products/batch-sync', async (req, res) => {
       const batchNum = Math.floor(i / batchSize) + 1;
       const totalBatches = Math.ceil(products.length / batchSize);
 
-      console.log(`\n📦 Processing batch ${batchNum}/${totalBatches} (${batch.length} products)...`);
-
       const result = await miraklService.batchImportOffers(batch);
 
       if (result.success) {
@@ -540,7 +505,6 @@ router.post('/products/batch-sync', async (req, res) => {
           [productIds]
         );
         totalSucceeded += batch.length;
-        console.log(`   ✅ Batch ${batchNum} succeeded: ${batch.length} products synced`);
       } else {
         totalFailed += batch.length;
         errors.push({
@@ -548,17 +512,13 @@ router.post('/products/batch-sync', async (req, res) => {
           error: result.error,
           details: result.details
         });
-        console.log(`   ❌ Batch ${batchNum} failed: ${result.error}`);
       }
 
       // Delay between batches
       if (i + batchSize < products.length) {
-        console.log(`   ⏱️  Waiting ${delayBetweenBatches}ms before next batch...`);
         await delay(delayBetweenBatches);
       }
     }
-
-    console.log(`\n✅ Batch sync complete: ${totalSucceeded} succeeded, ${totalFailed} failed`);
 
     res.json({
       success: true,
@@ -576,11 +536,9 @@ router.post('/products/batch-sync', async (req, res) => {
 });
 
 // Set default stock quantity for products with zero stock
-router.post('/products/set-default-stock', async (req, res) => {
+router.post('/products/set-default-stock', authenticate, async (req, res) => {
   try {
     const { default_stock = 10, manufacturer } = req.body;
-
-    console.log(`📦 Setting default stock quantity to ${default_stock}...`);
 
     let query = `
       UPDATE products
@@ -599,8 +557,6 @@ router.post('/products/set-default-stock', async (req, res) => {
 
     const result = await pool.query(query, params);
 
-    console.log(`✅ Updated ${result.rowCount} products with default stock`);
-
     res.json({
       success: true,
       updated_count: result.rowCount,
@@ -614,15 +570,12 @@ router.post('/products/set-default-stock', async (req, res) => {
 });
 
 // Sync ALL unsynced products to Mirakl (no limit - for catch-up)
-router.post('/products/sync-all-unsynced', async (req, res) => {
+router.post('/products/sync-all-unsynced', authenticate, async (req, res) => {
   try {
     // Rate limiting settings - Mirakl typically allows ~60-120 requests/minute
     const requestDelayMs = req.body.delay_ms || 500; // 500ms = 120 requests/min
     const retryDelayMs = 5000; // Wait 5 seconds on rate limit before retry
     const maxRetries = 3;
-
-    console.log('🔄 Starting full sync of ALL unsynced products to Mirakl...');
-    console.log(`⏱️  Request delay: ${requestDelayMs}ms between requests`);
 
     // Get ALL active products that have never been synced
     const productsQuery = await pool.query(`
@@ -642,8 +595,6 @@ router.post('/products/sync-all-unsynced', async (req, res) => {
         message: 'All products are already synced'
       });
     }
-
-    console.log(`📋 Found ${products.length} unsynced products to process`);
 
     let succeeded = 0;
     let failed = 0;
@@ -667,7 +618,6 @@ router.post('/products/sync-all-unsynced', async (req, res) => {
         if (isRateLimited && retries < maxRetries) {
           rateLimited++;
           const waitTime = retryDelayMs * (retries + 1); // Exponential backoff
-          console.log(`⏳ Rate limited, waiting ${waitTime}ms before retry ${retries + 1}...`);
           await delay(waitTime);
           return syncWithRetry(productId, retries + 1);
         }
@@ -698,15 +648,12 @@ router.post('/products/sync-all-unsynced', async (req, res) => {
       }
 
       processed += batch.length;
-      console.log(`   Progress: ${processed}/${products.length} (${succeeded} succeeded, ${failed} failed, ${rateLimited} rate-limit retries)`);
 
       // Extra delay between batches
       if (i + batchSize < products.length) {
         await delay(2000);
       }
     }
-
-    console.log(`✅ Full sync complete: ${succeeded} succeeded, ${failed} failed out of ${products.length}`);
 
     res.json({
       success: true,
@@ -728,7 +675,7 @@ router.post('/products/sync-all-unsynced', async (req, res) => {
 // ============================================
 
 // Get sync logs
-router.get('/sync-logs', async (req, res) => {
+router.get('/sync-logs', authenticate, async (req, res) => {
   try {
     const { sync_type, status, limit = 50, offset = 0 } = req.query;
 
@@ -761,7 +708,7 @@ router.get('/sync-logs', async (req, res) => {
 });
 
 // Get sync stats
-router.get('/sync-stats', async (req, res) => {
+router.get('/sync-stats', authenticate, async (req, res) => {
   try {
     const stats = await pool.query(`
       SELECT
@@ -788,11 +735,9 @@ router.get('/sync-stats', async (req, res) => {
 // ============================================
 
 // Webhook receiver for Mirakl events
-router.post('/webhooks/mirakl', async (req, res) => {
+router.post('/webhooks/mirakl', authenticate, async (req, res) => {
   try {
     const webhookData = req.body;
-
-    console.log('📨 Received Mirakl webhook:', webhookData.event_type);
 
     // Save webhook event to database
     await pool.query(
@@ -812,17 +757,14 @@ router.post('/webhooks/mirakl', async (req, res) => {
     switch (webhookData.event_type) {
       case 'ORDER_CREATED':
       case 'ORDER_UPDATED':
-        // Trigger order sync
-        console.log('🔄 Triggering order sync...');
         // Could trigger background job here
         break;
 
       case 'ORDER_CANCELLED':
-        console.log('❌ Order cancelled:', webhookData.order_id);
         break;
 
       default:
-        console.log('ℹ️ Unhandled webhook event:', webhookData.event_type);
+        break;
     }
 
     // Always respond with 200 to acknowledge receipt
@@ -839,7 +781,7 @@ router.post('/webhooks/mirakl', async (req, res) => {
 // ============================================
 
 // Get marketplace credentials (masked)
-router.get('/credentials', async (req, res) => {
+router.get('/credentials', authenticate, async (req, res) => {
   try {
     const result = await pool.query(
       `SELECT id, marketplace_name, environment, shop_id, is_active, last_validated_at, created_at
@@ -855,7 +797,7 @@ router.get('/credentials', async (req, res) => {
 });
 
 // Update marketplace credentials
-router.put('/credentials/:id', async (req, res) => {
+router.put('/credentials/:id', authenticate, async (req, res) => {
   try {
     const { id } = req.params;
     const { api_key, api_secret, shop_id, is_active } = req.body;
@@ -876,8 +818,6 @@ router.put('/credentials/:id', async (req, res) => {
       return res.status(404).json({ error: 'Credentials not found' });
     }
 
-    console.log('✅ Credentials updated');
-
     res.json(result.rows[0]);
   } catch (error) {
     console.error('❌ Error updating credentials:', error);
@@ -890,7 +830,7 @@ router.put('/credentials/:id', async (req, res) => {
 // ============================================
 
 // Get sync scheduler status
-router.get('/sync-status', async (req, res) => {
+router.get('/sync-status', authenticate, async (req, res) => {
   try {
     // Get recent sync activity
     const recentSyncs = await pool.query(`
@@ -958,7 +898,7 @@ router.get('/sync-status', async (req, res) => {
 });
 
 // Detailed sync diagnostics - helps debug why products aren't syncing
-router.get('/sync-diagnostics', async (req, res) => {
+router.get('/sync-diagnostics', authenticate, async (req, res) => {
   try {
     // Get breakdown of product sync status
     const productBreakdown = await pool.query(`
@@ -1070,7 +1010,7 @@ function generateSyncRecommendations(stats, env) {
 // ============================================
 
 // Get all Best Buy categories (alias for /categories for frontend compatibility)
-router.get('/categories', async (req, res) => {
+router.get('/categories', authenticate, async (req, res) => {
   try {
     const { group } = req.query;
 
@@ -1111,7 +1051,7 @@ router.get('/categories', async (req, res) => {
 });
 
 // Get all Best Buy categories (legacy endpoint)
-router.get('/bestbuy-categories', async (req, res) => {
+router.get('/bestbuy-categories', authenticate, async (req, res) => {
   try {
     const { group } = req.query;
 
@@ -1152,7 +1092,7 @@ router.get('/bestbuy-categories', async (req, res) => {
 });
 
 // Get unmapped products (products without bestbuy_category_code)
-router.get('/products/unmapped', async (req, res) => {
+router.get('/products/unmapped', authenticate, async (req, res) => {
   try {
     const { search, manufacturer, limit = 50, offset = 0 } = req.query;
 
@@ -1200,7 +1140,7 @@ router.get('/products/unmapped', async (req, res) => {
 });
 
 // Get mapped products (products with bestbuy_category_code)
-router.get('/products/mapped', async (req, res) => {
+router.get('/products/mapped', authenticate, async (req, res) => {
   try {
     const { category_code, search, limit = 50, offset = 0 } = req.query;
 
@@ -1252,7 +1192,7 @@ router.get('/products/mapped', async (req, res) => {
 });
 
 // Map a single product to a Best Buy category
-router.post('/products/:id/map-category', async (req, res) => {
+router.post('/products/:id/map-category', authenticate, async (req, res) => {
   try {
     const { id } = req.params;
     const { category_code } = req.body;
@@ -1284,8 +1224,6 @@ router.post('/products/:id/map-category', async (req, res) => {
       return res.status(404).json({ error: 'Product not found' });
     }
 
-    console.log(`✅ Product ${id} mapped to category ${category_code}`);
-
     res.json({
       success: true,
       product: result.rows[0],
@@ -1298,7 +1236,7 @@ router.post('/products/:id/map-category', async (req, res) => {
 });
 
 // Bulk map products to a category
-router.post('/products/bulk-map', async (req, res) => {
+router.post('/products/bulk-map', authenticate, async (req, res) => {
   try {
     const { product_ids, category_code } = req.body;
 
@@ -1329,8 +1267,6 @@ router.post('/products/bulk-map', async (req, res) => {
       [category_code, product_ids]
     );
 
-    console.log(`✅ ${result.rows.length} products mapped to category ${category_code}`);
-
     res.json({
       success: true,
       mapped_count: result.rows.length,
@@ -1344,7 +1280,7 @@ router.post('/products/bulk-map', async (req, res) => {
 });
 
 // Get mapping statistics
-router.get('/mapping-stats', async (req, res) => {
+router.get('/mapping-stats', authenticate, async (req, res) => {
   try {
     // Total products
     const totalProducts = await pool.query('SELECT COUNT(*) FROM products');
@@ -1405,7 +1341,7 @@ router.get('/mapping-stats', async (req, res) => {
 });
 
 // Remove category mapping from a product
-router.delete('/products/:id/map-category', async (req, res) => {
+router.delete('/products/:id/map-category', authenticate, async (req, res) => {
   try {
     const { id } = req.params;
 
@@ -1420,8 +1356,6 @@ router.delete('/products/:id/map-category', async (req, res) => {
     if (result.rows.length === 0) {
       return res.status(404).json({ error: 'Product not found' });
     }
-
-    console.log(`✅ Category mapping removed from product ${id}`);
 
     res.json({
       success: true,
@@ -1438,7 +1372,7 @@ router.delete('/products/:id/map-category', async (req, res) => {
 // ============================================
 
 // Get comprehensive dashboard analytics
-router.get('/dashboard-analytics', async (req, res) => {
+router.get('/dashboard-analytics', authenticate, async (req, res) => {
   try {
     // Revenue and order metrics
     const revenueStats = await pool.query(`
@@ -1512,7 +1446,7 @@ router.get('/dashboard-analytics', async (req, res) => {
 });
 
 // Get sales chart data (last 30 days)
-router.get('/sales-chart', async (req, res) => {
+router.get('/sales-chart', authenticate, async (req, res) => {
   try {
     const salesData = await pool.query(`
       SELECT
@@ -1557,7 +1491,7 @@ router.get('/sales-chart', async (req, res) => {
 });
 
 // Get top selling products
-router.get('/top-products', async (req, res) => {
+router.get('/top-products', authenticate, async (req, res) => {
   try {
     const { limit = 10 } = req.query;
 
@@ -1585,7 +1519,7 @@ router.get('/top-products', async (req, res) => {
 });
 
 // Get sales by category
-router.get('/sales-by-category', async (req, res) => {
+router.get('/sales-by-category', authenticate, async (req, res) => {
   try {
     const salesByCategory = await pool.query(`
       SELECT
@@ -1610,7 +1544,7 @@ router.get('/sales-by-category', async (req, res) => {
 });
 
 // Get inventory health metrics
-router.get('/inventory-health', async (req, res) => {
+router.get('/inventory-health', authenticate, async (req, res) => {
   try {
     // Low stock, out of stock, overstocked counts
     // Note: Using a placeholder for quantity since the schema may vary
@@ -1647,7 +1581,7 @@ router.get('/inventory-health', async (req, res) => {
 });
 
 // Get recent activity feed
-router.get('/activity-feed', async (req, res) => {
+router.get('/activity-feed', authenticate, async (req, res) => {
   try {
     const { limit = 20 } = req.query;
 
@@ -1757,7 +1691,7 @@ router.get('/activity-feed', async (req, res) => {
 });
 
 // Get orders by state for dashboard
-router.get('/orders-by-state', async (req, res) => {
+router.get('/orders-by-state', authenticate, async (req, res) => {
   try {
     const ordersByState = await pool.query(`
       SELECT
@@ -1780,7 +1714,7 @@ router.get('/orders-by-state', async (req, res) => {
 // ============================================
 
 // Get all notifications with pagination
-router.get('/notifications', async (req, res) => {
+router.get('/notifications', authenticate, async (req, res) => {
   try {
     const { page = 1, limit = 20, unread_only = false } = req.query;
     const offset = (page - 1) * limit;
@@ -1826,7 +1760,7 @@ router.get('/notifications', async (req, res) => {
 });
 
 // Get unread notification count
-router.get('/notifications/unread-count', async (req, res) => {
+router.get('/notifications/unread-count', authenticate, async (req, res) => {
   try {
     const result = await pool.query(`
       SELECT COUNT(*) as count FROM marketplace_notifications WHERE read = false AND dismissed = false
@@ -1839,7 +1773,7 @@ router.get('/notifications/unread-count', async (req, res) => {
 });
 
 // Mark notification as read
-router.put('/notifications/:id/read', async (req, res) => {
+router.put('/notifications/:id/read', authenticate, async (req, res) => {
   try {
     const { id } = req.params;
     const result = await pool.query(`
@@ -1861,7 +1795,7 @@ router.put('/notifications/:id/read', async (req, res) => {
 });
 
 // Mark all notifications as read
-router.put('/notifications/mark-all-read', async (req, res) => {
+router.put('/notifications/mark-all-read', authenticate, async (req, res) => {
   try {
     await pool.query(`
       UPDATE marketplace_notifications
@@ -1876,7 +1810,7 @@ router.put('/notifications/mark-all-read', async (req, res) => {
 });
 
 // Dismiss notification
-router.put('/notifications/:id/dismiss', async (req, res) => {
+router.put('/notifications/:id/dismiss', authenticate, async (req, res) => {
   try {
     const { id } = req.params;
     await pool.query(`
@@ -1911,7 +1845,7 @@ async function createNotification(type, title, message, orderId = null, miraklOr
 // ============================================
 
 // Get all settings
-router.get('/order-settings', async (req, res) => {
+router.get('/order-settings', authenticate, async (req, res) => {
   try {
     const result = await pool.query(`SELECT * FROM marketplace_order_settings ORDER BY setting_key`);
 
@@ -1929,7 +1863,7 @@ router.get('/order-settings', async (req, res) => {
 });
 
 // Update a setting
-router.put('/order-settings/:key', async (req, res) => {
+router.put('/order-settings/:key', authenticate, async (req, res) => {
   try {
     const { key } = req.params;
     const { value } = req.body;
@@ -1957,7 +1891,7 @@ router.put('/order-settings/:key', async (req, res) => {
 // ============================================
 
 // Batch accept orders
-router.post('/orders/batch-accept', async (req, res) => {
+router.post('/orders/batch-accept', authenticate, async (req, res) => {
   try {
     const { order_ids } = req.body;
 
@@ -1970,19 +1904,25 @@ router.post('/orders/batch-accept', async (req, res) => {
       failed: []
     };
 
+    // OPTIMIZED: Batch fetch all orders at once instead of N+1 pattern
+    const ordersResult = await pool.query(
+      `SELECT * FROM marketplace_orders WHERE id = ANY($1)`,
+      [order_ids]
+    );
+    const ordersMap = new Map(ordersResult.rows.map(o => [o.id, o]));
+
+    // Track successful order IDs for batch update
+    const successfulOrderIds = [];
+    const successfulOrders = [];
+
     for (const orderId of order_ids) {
       try {
-        // Get the order
-        const orderResult = await pool.query(
-          `SELECT * FROM marketplace_orders WHERE id = $1`, [orderId]
-        );
+        const order = ordersMap.get(orderId);
 
-        if (orderResult.rows.length === 0) {
+        if (!order) {
           results.failed.push({ id: orderId, error: 'Order not found' });
           continue;
         }
-
-        const order = orderResult.rows[0];
 
         // Check if order can be accepted
         if (order.order_state !== 'WAITING_ACCEPTANCE') {
@@ -1993,32 +1933,37 @@ router.post('/orders/batch-accept', async (req, res) => {
         // Call Mirakl API to accept
         try {
           await miraklService.acceptOrder(order.mirakl_order_id);
-
-          // Update local state
-          await pool.query(`
-            UPDATE marketplace_orders
-            SET order_state = 'SHIPPING',
-                acceptance_decision_date = CURRENT_TIMESTAMP,
-                updated_at = CURRENT_TIMESTAMP
-            WHERE id = $1
-          `, [orderId]);
-
+          successfulOrderIds.push(orderId);
+          successfulOrders.push(order);
           results.success.push({ id: orderId, mirakl_order_id: order.mirakl_order_id });
-
-          // Create notification
-          await createNotification(
-            'order_accepted',
-            'Order Accepted',
-            `Order #${order.mirakl_order_id.substring(0, 8)} has been accepted`,
-            orderId,
-            order.mirakl_order_id,
-            'normal'
-          );
         } catch (apiError) {
           results.failed.push({ id: orderId, error: apiError.message || 'Mirakl API error' });
         }
       } catch (err) {
         results.failed.push({ id: orderId, error: err.message });
+      }
+    }
+
+    // OPTIMIZED: Batch update all successful orders at once
+    if (successfulOrderIds.length > 0) {
+      await pool.query(`
+        UPDATE marketplace_orders
+        SET order_state = 'SHIPPING',
+            acceptance_decision_date = CURRENT_TIMESTAMP,
+            updated_at = CURRENT_TIMESTAMP
+        WHERE id = ANY($1)
+      `, [successfulOrderIds]);
+
+      // Create notifications for all successful orders
+      for (const order of successfulOrders) {
+        await createNotification(
+          'order_accepted',
+          'Order Accepted',
+          `Order #${order.mirakl_order_id.substring(0, 8)} has been accepted`,
+          order.id,
+          order.mirakl_order_id,
+          'normal'
+        );
       }
     }
 
@@ -2035,7 +1980,7 @@ router.post('/orders/batch-accept', async (req, res) => {
 });
 
 // Batch reject orders
-router.post('/orders/batch-reject', async (req, res) => {
+router.post('/orders/batch-reject', authenticate, async (req, res) => {
   try {
     const { order_ids, reason } = req.body;
 
@@ -2049,19 +1994,25 @@ router.post('/orders/batch-reject', async (req, res) => {
       failed: []
     };
 
+    // OPTIMIZED: Batch fetch all orders at once instead of N+1 pattern
+    const ordersResult = await pool.query(
+      `SELECT * FROM marketplace_orders WHERE id = ANY($1)`,
+      [order_ids]
+    );
+    const ordersMap = new Map(ordersResult.rows.map(o => [o.id, o]));
+
+    // Track successful order IDs for batch update
+    const successfulOrderIds = [];
+    const successfulOrders = [];
+
     for (const orderId of order_ids) {
       try {
-        // Get the order
-        const orderResult = await pool.query(
-          `SELECT * FROM marketplace_orders WHERE id = $1`, [orderId]
-        );
+        const order = ordersMap.get(orderId);
 
-        if (orderResult.rows.length === 0) {
+        if (!order) {
           results.failed.push({ id: orderId, error: 'Order not found' });
           continue;
         }
-
-        const order = orderResult.rows[0];
 
         // Check if order can be rejected
         if (order.order_state !== 'WAITING_ACCEPTANCE') {
@@ -2072,32 +2023,37 @@ router.post('/orders/batch-reject', async (req, res) => {
         // Call Mirakl API to reject
         try {
           await miraklService.rejectOrder(order.mirakl_order_id, rejectReason);
-
-          // Update local state
-          await pool.query(`
-            UPDATE marketplace_orders
-            SET order_state = 'REFUSED',
-                canceled_date = CURRENT_TIMESTAMP,
-                updated_at = CURRENT_TIMESTAMP
-            WHERE id = $1
-          `, [orderId]);
-
+          successfulOrderIds.push(orderId);
+          successfulOrders.push(order);
           results.success.push({ id: orderId, mirakl_order_id: order.mirakl_order_id });
-
-          // Create notification
-          await createNotification(
-            'order_rejected',
-            'Order Rejected',
-            `Order #${order.mirakl_order_id.substring(0, 8)} has been rejected: ${rejectReason}`,
-            orderId,
-            order.mirakl_order_id,
-            'normal'
-          );
         } catch (apiError) {
           results.failed.push({ id: orderId, error: apiError.message || 'Mirakl API error' });
         }
       } catch (err) {
         results.failed.push({ id: orderId, error: err.message });
+      }
+    }
+
+    // OPTIMIZED: Batch update all rejected orders at once
+    if (successfulOrderIds.length > 0) {
+      await pool.query(`
+        UPDATE marketplace_orders
+        SET order_state = 'REFUSED',
+            canceled_date = CURRENT_TIMESTAMP,
+            updated_at = CURRENT_TIMESTAMP
+        WHERE id = ANY($1)
+      `, [successfulOrderIds]);
+
+      // Create notifications for all rejected orders
+      for (const order of successfulOrders) {
+        await createNotification(
+          'order_rejected',
+          'Order Rejected',
+          `Order #${order.mirakl_order_id.substring(0, 8)} has been rejected: ${rejectReason}`,
+          order.id,
+          order.mirakl_order_id,
+          'normal'
+        );
       }
     }
 
@@ -2114,7 +2070,7 @@ router.post('/orders/batch-reject', async (req, res) => {
 });
 
 // Export orders as CSV
-router.post('/orders/export', async (req, res) => {
+router.post('/orders/export', authenticate, async (req, res) => {
   try {
     const { order_ids, format = 'csv' } = req.body;
 
@@ -2179,7 +2135,7 @@ router.post('/orders/export', async (req, res) => {
 });
 
 // Generate packing slip data for orders
-router.post('/orders/packing-slips', async (req, res) => {
+router.post('/orders/packing-slips', authenticate, async (req, res) => {
   try {
     const { order_ids } = req.body;
 
@@ -2198,22 +2154,33 @@ router.post('/orders/packing-slips', async (req, res) => {
       ORDER BY mo.order_date DESC
     `, [order_ids]);
 
-    // Get order items for each order
-    const packingSlips = [];
-    for (const order of orders.rows) {
-      const items = await pool.query(`
-        SELECT
-          oi.*,
-          oi.unit_price_cents / 100.0 as unit_price,
-          oi.total_price_cents / 100.0 as total_price,
-          p.name as product_name,
-          p.manufacturer
-        FROM marketplace_order_items oi
-        LEFT JOIN products p ON oi.product_id = p.id
-        WHERE oi.order_id = $1
-      `, [order.id]);
+    // OPTIMIZED: Batch fetch all order items at once instead of N+1 pattern
+    const allItems = await pool.query(`
+      SELECT
+        oi.*,
+        oi.unit_price_cents / 100.0 as unit_price,
+        oi.total_price_cents / 100.0 as total_price,
+        p.name as product_name,
+        p.manufacturer
+      FROM marketplace_order_items oi
+      LEFT JOIN products p ON oi.product_id = p.id
+      WHERE oi.order_id = ANY($1)
+      ORDER BY oi.order_id
+    `, [order_ids]);
 
-      packingSlips.push({
+    // Group items by order_id
+    const itemsByOrder = new Map();
+    for (const item of allItems.rows) {
+      if (!itemsByOrder.has(item.order_id)) {
+        itemsByOrder.set(item.order_id, []);
+      }
+      itemsByOrder.get(item.order_id).push(item);
+    }
+
+    // Build packing slips
+    const packingSlips = orders.rows.map(order => {
+      const items = itemsByOrder.get(order.id) || [];
+      return {
         order_id: order.id,
         mirakl_order_id: order.mirakl_order_id,
         order_date: order.order_date,
@@ -2223,15 +2190,15 @@ router.post('/orders/packing-slips', async (req, res) => {
         },
         shipping_address: order.shipping_address,
         billing_address: order.billing_address,
-        items: items.rows,
+        items: items,
         totals: {
-          subtotal: items.rows.reduce((sum, item) => sum + parseFloat(item.total_price || 0), 0),
+          subtotal: items.reduce((sum, item) => sum + parseFloat(item.total_price || 0), 0),
           shipping: parseFloat(order.shipping_price || 0),
           tax: parseFloat(order.tax || 0),
           total: parseFloat(order.total_price || 0)
         }
-      });
-    }
+      };
+    });
 
     res.json(packingSlips);
   } catch (error) {
@@ -2245,7 +2212,7 @@ router.post('/orders/packing-slips', async (req, res) => {
 // ============================================
 
 // Get all auto-rules
-router.get('/auto-rules', async (req, res) => {
+router.get('/auto-rules', authenticate, async (req, res) => {
   try {
     const result = await pool.query(`
       SELECT * FROM marketplace_auto_rules
@@ -2259,7 +2226,7 @@ router.get('/auto-rules', async (req, res) => {
 });
 
 // Get single auto-rule
-router.get('/auto-rules/:id', async (req, res) => {
+router.get('/auto-rules/:id', authenticate, async (req, res) => {
   try {
     const { id } = req.params;
     const result = await pool.query(`SELECT * FROM marketplace_auto_rules WHERE id = $1`, [id]);
@@ -2276,7 +2243,7 @@ router.get('/auto-rules/:id', async (req, res) => {
 });
 
 // Create auto-rule
-router.post('/auto-rules', async (req, res) => {
+router.post('/auto-rules', authenticate, async (req, res) => {
   try {
     const { name, description, rule_type, conditions, action, action_params, priority, enabled } = req.body;
 
@@ -2307,7 +2274,7 @@ router.post('/auto-rules', async (req, res) => {
 });
 
 // Update auto-rule
-router.put('/auto-rules/:id', async (req, res) => {
+router.put('/auto-rules/:id', authenticate, async (req, res) => {
   try {
     const { id } = req.params;
     const { name, description, rule_type, conditions, action, action_params, priority, enabled } = req.body;
@@ -2350,7 +2317,7 @@ router.put('/auto-rules/:id', async (req, res) => {
 });
 
 // Toggle auto-rule enabled status
-router.put('/auto-rules/:id/toggle', async (req, res) => {
+router.put('/auto-rules/:id/toggle', authenticate, async (req, res) => {
   try {
     const { id } = req.params;
 
@@ -2373,7 +2340,7 @@ router.put('/auto-rules/:id/toggle', async (req, res) => {
 });
 
 // Delete auto-rule
-router.delete('/auto-rules/:id', async (req, res) => {
+router.delete('/auto-rules/:id', authenticate, async (req, res) => {
   try {
     const { id } = req.params;
 
@@ -2391,7 +2358,7 @@ router.delete('/auto-rules/:id', async (req, res) => {
 });
 
 // Get rule logs
-router.get('/auto-rules/:id/logs', async (req, res) => {
+router.get('/auto-rules/:id/logs', authenticate, async (req, res) => {
   try {
     const { id } = req.params;
     const { limit = 50 } = req.query;
@@ -2491,12 +2458,20 @@ function evaluateCondition(condition, order, orderItems) {
       fieldValue = orderItems.reduce((sum, item) => sum + item.quantity, 0);
       break;
     case 'all_items_in_stock':
-      // TODO: Check inventory for all items
-      fieldValue = true;
+      // Check if all items have sufficient stock
+      fieldValue = orderItems.every(item => {
+        const qtyOnHand = item.qty_on_hand ?? item.stock ?? item.inventory ?? null;
+        if (qtyOnHand === null) return true; // Default to true if inventory data unavailable
+        return qtyOnHand >= (item.quantity || 1);
+      });
       break;
     case 'any_item_out_of_stock':
-      // TODO: Check inventory for any out of stock items
-      fieldValue = false;
+      // Check if any item is out of stock
+      fieldValue = orderItems.some(item => {
+        const qtyOnHand = item.qty_on_hand ?? item.stock ?? item.inventory ?? null;
+        if (qtyOnHand === null) return false; // Default to false if inventory data unavailable
+        return qtyOnHand < (item.quantity || 1);
+      });
       break;
     case 'category_is':
       fieldValue = orderItems.some(item => item.bestbuy_category_code === value);
@@ -2645,7 +2620,7 @@ async function checkForNewOrders() {
 }
 
 // Manual trigger to check for new orders
-router.post('/check-new-orders', async (req, res) => {
+router.post('/check-new-orders', authenticate, async (req, res) => {
   try {
     const result = await checkForNewOrders();
     res.json({ success: true, ...result });
@@ -2656,7 +2631,7 @@ router.post('/check-new-orders', async (req, res) => {
 });
 
 // Get order detail with items
-router.get('/orders/:id/detail', async (req, res) => {
+router.get('/orders/:id/detail', authenticate, async (req, res) => {
   try {
     const { id } = req.params;
 
@@ -2726,7 +2701,7 @@ router.get('/orders/:id/detail', async (req, res) => {
 const inventorySyncScheduler = require('../services/inventorySyncScheduler');
 
 // Get sync settings
-router.get('/sync-settings', async (req, res) => {
+router.get('/sync-settings', authenticate, async (req, res) => {
   try {
     const settings = await inventorySyncScheduler.getSyncSettings();
     res.json(settings);
@@ -2737,7 +2712,7 @@ router.get('/sync-settings', async (req, res) => {
 });
 
 // Update sync setting
-router.put('/sync-settings/:key', async (req, res) => {
+router.put('/sync-settings/:key', authenticate, async (req, res) => {
   try {
     const { key } = req.params;
     const { value } = req.body;
@@ -2757,7 +2732,7 @@ router.put('/sync-settings/:key', async (req, res) => {
 });
 
 // Manual trigger inventory sync (OUTBOUND - push to Best Buy)
-router.post('/run-inventory-sync', async (req, res) => {
+router.post('/run-inventory-sync', authenticate, async (req, res) => {
   try {
     const forceFullSync = req.body?.forceFullSync || false;
     const result = await inventorySyncScheduler.runSync({ forceFullSync });
@@ -2769,13 +2744,10 @@ router.post('/run-inventory-sync', async (req, res) => {
 });
 
 // Pull offers FROM Best Buy INTO local system (INBOUND)
-router.post('/pull-offers-from-bestbuy', async (req, res) => {
+router.post('/pull-offers-from-bestbuy', authenticate, async (req, res) => {
   try {
-    console.log('📥 Starting inbound sync - pulling offers from Best Buy...');
-
     // Fetch all offers from Best Buy
     const offers = await miraklService.getOffers({ max: 1000 });
-    console.log(`📦 Fetched ${offers.length} offers from Best Buy`);
 
     let imported = 0;
     let updated = 0;
@@ -2875,8 +2847,6 @@ router.post('/pull-offers-from-bestbuy', async (req, res) => {
       endTime: new Date()
     });
 
-    console.log(`✅ Inbound sync complete: ${imported} imported, ${updated} updated, ${failed} failed`);
-
     res.json({
       success: true,
       total_offers: offers.length,
@@ -2893,7 +2863,7 @@ router.post('/pull-offers-from-bestbuy', async (req, res) => {
 });
 
 // Get sync history
-router.get('/sync-history', async (req, res) => {
+router.get('/sync-history', authenticate, async (req, res) => {
   try {
     const { limit = 20 } = req.query;
     const history = await inventorySyncScheduler.getSyncHistory(parseInt(limit));
@@ -2905,7 +2875,7 @@ router.get('/sync-history', async (req, res) => {
 });
 
 // Preview prices before applying
-router.get('/preview-prices', async (req, res) => {
+router.get('/preview-prices', authenticate, async (req, res) => {
   try {
     const { product_ids, limit = 50 } = req.query;
     const productIds = product_ids ? product_ids.split(',').map(id => parseInt(id)) : null;
@@ -2922,7 +2892,7 @@ router.get('/preview-prices', async (req, res) => {
 // ============================================
 
 // Get all price rules
-router.get('/price-rules', async (req, res) => {
+router.get('/price-rules', authenticate, async (req, res) => {
   try {
     const result = await pool.query(`
       SELECT pr.*,
@@ -2938,7 +2908,7 @@ router.get('/price-rules', async (req, res) => {
 });
 
 // Get single price rule
-router.get('/price-rules/:id', async (req, res) => {
+router.get('/price-rules/:id', authenticate, async (req, res) => {
   try {
     const { id } = req.params;
     const result = await pool.query('SELECT * FROM marketplace_price_rules WHERE id = $1', [id]);
@@ -2955,7 +2925,7 @@ router.get('/price-rules/:id', async (req, res) => {
 });
 
 // Create price rule
-router.post('/price-rules', async (req, res) => {
+router.post('/price-rules', authenticate, async (req, res) => {
   try {
     const {
       name,
@@ -2986,7 +2956,7 @@ router.post('/price-rules', async (req, res) => {
 });
 
 // Update price rule
-router.put('/price-rules/:id', async (req, res) => {
+router.put('/price-rules/:id', authenticate, async (req, res) => {
   try {
     const { id } = req.params;
     const {
@@ -3034,7 +3004,7 @@ router.put('/price-rules/:id', async (req, res) => {
 });
 
 // Toggle price rule enabled/disabled
-router.put('/price-rules/:id/toggle', async (req, res) => {
+router.put('/price-rules/:id/toggle', authenticate, async (req, res) => {
   try {
     const { id } = req.params;
 
@@ -3057,7 +3027,7 @@ router.put('/price-rules/:id/toggle', async (req, res) => {
 });
 
 // Delete price rule
-router.delete('/price-rules/:id', async (req, res) => {
+router.delete('/price-rules/:id', authenticate, async (req, res) => {
   try {
     const { id } = req.params;
 
@@ -3082,7 +3052,7 @@ router.delete('/price-rules/:id', async (req, res) => {
 // ============================================
 
 // Get global stock buffer
-router.get('/stock-buffer', async (req, res) => {
+router.get('/stock-buffer', authenticate, async (req, res) => {
   try {
     const buffer = await inventorySyncScheduler.getGlobalStockBuffer();
     res.json({ global_buffer: buffer });
@@ -3093,7 +3063,7 @@ router.get('/stock-buffer', async (req, res) => {
 });
 
 // Update global stock buffer
-router.put('/stock-buffer', async (req, res) => {
+router.put('/stock-buffer', authenticate, async (req, res) => {
   try {
     const { value } = req.body;
 
@@ -3110,7 +3080,7 @@ router.put('/stock-buffer', async (req, res) => {
 });
 
 // Update product-specific stock buffer
-router.put('/products/:id/stock-buffer', async (req, res) => {
+router.put('/products/:id/stock-buffer', authenticate, async (req, res) => {
   try {
     const { id } = req.params;
     const { buffer } = req.body;
@@ -3141,7 +3111,7 @@ router.put('/products/:id/stock-buffer', async (req, res) => {
 });
 
 // Bulk update stock buffers
-router.put('/products/bulk-stock-buffer', async (req, res) => {
+router.put('/products/bulk-stock-buffer', authenticate, async (req, res) => {
   try {
     const { product_ids, buffer } = req.body;
 
@@ -3170,7 +3140,7 @@ router.put('/products/bulk-stock-buffer', async (req, res) => {
 });
 
 // Get products with marketplace info for inventory management
-router.get('/inventory-products', async (req, res) => {
+router.get('/inventory-products', authenticate, async (req, res) => {
   try {
     const { page = 1, limit = 50, search = '', category = '' } = req.query;
     const offset = (parseInt(page) - 1) * parseInt(limit);
@@ -3253,7 +3223,7 @@ router.get('/inventory-products', async (req, res) => {
 // ============================================
 
 // Match order to customer
-router.post('/orders/:id/match-customer', async (req, res) => {
+router.post('/orders/:id/match-customer', authenticate, async (req, res) => {
   try {
     const { id } = req.params;
     const { customer_id, create_new } = req.body;
@@ -3323,7 +3293,7 @@ router.post('/orders/:id/match-customer', async (req, res) => {
 });
 
 // Auto-match order to customer by email
-router.post('/orders/:id/auto-match', async (req, res) => {
+router.post('/orders/:id/auto-match', authenticate, async (req, res) => {
   try {
     const { id } = req.params;
 
@@ -3377,7 +3347,7 @@ router.post('/orders/:id/auto-match', async (req, res) => {
 });
 
 // Find potential customer matches for an order
-router.get('/orders/:id/customer-matches', async (req, res) => {
+router.get('/orders/:id/customer-matches', authenticate, async (req, res) => {
   try {
     const { id } = req.params;
 
@@ -3421,7 +3391,7 @@ router.get('/orders/:id/customer-matches', async (req, res) => {
 });
 
 // Create quote from marketplace order
-router.post('/orders/:id/create-quote', async (req, res) => {
+router.post('/orders/:id/create-quote', authenticate, async (req, res) => {
   const client = await pool.connect();
 
   try {
@@ -3591,7 +3561,7 @@ router.post('/orders/:id/create-quote', async (req, res) => {
 });
 
 // Get customer's marketplace orders
-router.get('/customers/:customerId/orders', async (req, res) => {
+router.get('/customers/:customerId/orders', authenticate, async (req, res) => {
   try {
     const { customerId } = req.params;
 
@@ -3613,7 +3583,7 @@ router.get('/customers/:customerId/orders', async (req, res) => {
 });
 
 // Get customer's unified order history (quotes + marketplace orders)
-router.get('/customers/:customerId/unified-history', async (req, res) => {
+router.get('/customers/:customerId/unified-history', authenticate, async (req, res) => {
   try {
     const { customerId } = req.params;
 
@@ -3706,7 +3676,7 @@ async function updateCustomerMarketplaceStats(customerId) {
 }
 
 // Update order list to include customer match info
-router.get('/orders-with-customers', async (req, res) => {
+router.get('/orders-with-customers', authenticate, async (req, res) => {
   try {
     const { status, limit = 50, offset = 0 } = req.query;
 
@@ -3749,7 +3719,7 @@ router.get('/orders-with-customers', async (req, res) => {
 // ============================================
 
 // Sales Report - Summary and Daily Breakdown
-router.get('/reports/sales', async (req, res) => {
+router.get('/reports/sales', authenticate, async (req, res) => {
   try {
     const { start_date, end_date, category, product_id } = req.query;
 
@@ -3852,7 +3822,7 @@ router.get('/reports/sales', async (req, res) => {
 });
 
 // Inventory Report - Current Stock and Sync History
-router.get('/reports/inventory', async (req, res) => {
+router.get('/reports/inventory', authenticate, async (req, res) => {
   try {
     // Current inventory by category
     const inventoryByCategoryQuery = await pool.query(`
@@ -3938,7 +3908,7 @@ router.get('/reports/inventory', async (req, res) => {
 });
 
 // Order Report - All Orders with Filters
-router.get('/reports/orders', async (req, res) => {
+router.get('/reports/orders', authenticate, async (req, res) => {
   try {
     const {
       start_date, end_date, status,
@@ -4010,7 +3980,7 @@ router.get('/reports/orders', async (req, res) => {
 });
 
 // Customer Report - Top Customers and New vs Returning
-router.get('/reports/customers', async (req, res) => {
+router.get('/reports/customers', authenticate, async (req, res) => {
   try {
     const { start_date, end_date } = req.query;
 
@@ -4096,7 +4066,7 @@ router.get('/reports/customers', async (req, res) => {
 });
 
 // Profit & Margin Report
-router.get('/reports/profit', async (req, res) => {
+router.get('/reports/profit', authenticate, async (req, res) => {
   try {
     const { start_date, end_date } = req.query;
 
@@ -4256,7 +4226,7 @@ router.get('/reports/profit', async (req, res) => {
 });
 
 // Reports Dashboard Summary - Quick overview of all reports
-router.get('/reports/dashboard', async (req, res) => {
+router.get('/reports/dashboard', authenticate, async (req, res) => {
   try {
     // Today's stats
     const today = new Date().toISOString().split('T')[0];
@@ -4337,7 +4307,7 @@ router.get('/reports/dashboard', async (req, res) => {
 });
 
 // Export Report Data (CSV format)
-router.get('/reports/export/:type', async (req, res) => {
+router.get('/reports/export/:type', authenticate, async (req, res) => {
   try {
     const { type } = req.params;
     const { start_date, end_date } = req.query;
@@ -4449,7 +4419,7 @@ router.get('/reports/export/:type', async (req, res) => {
 // ============================================
 
 // Get products for bulk operations (with pagination and filters)
-router.get('/bulk/products', async (req, res) => {
+router.get('/bulk/products', authenticate, async (req, res) => {
   try {
     const { page = 1, limit = 50, category, enabled, search } = req.query;
     const offset = (page - 1) * limit;
@@ -4515,7 +4485,7 @@ router.get('/bulk/products', async (req, res) => {
 });
 
 // Bulk enable/disable products on marketplace
-router.post('/bulk/toggle-enabled', async (req, res) => {
+router.post('/bulk/toggle-enabled', authenticate, async (req, res) => {
   const client = await pool.connect();
   try {
     const { product_ids, enabled, user_name = 'System' } = req.body;
@@ -4581,7 +4551,7 @@ router.post('/bulk/toggle-enabled', async (req, res) => {
 });
 
 // Bulk category assignment
-router.post('/bulk/assign-category', async (req, res) => {
+router.post('/bulk/assign-category', authenticate, async (req, res) => {
   const client = await pool.connect();
   try {
     const { product_ids, category_code, user_name = 'System' } = req.body;
@@ -4644,7 +4614,7 @@ router.post('/bulk/assign-category', async (req, res) => {
 });
 
 // Bulk price adjustment
-router.post('/bulk/adjust-prices', async (req, res) => {
+router.post('/bulk/adjust-prices', authenticate, async (req, res) => {
   const client = await pool.connect();
   try {
     const { product_ids, adjustment_type, adjustment_value, user_name = 'System' } = req.body;
@@ -4727,7 +4697,7 @@ router.post('/bulk/adjust-prices', async (req, res) => {
 });
 
 // Export product mappings to CSV
-router.get('/bulk/export-mappings', async (req, res) => {
+router.get('/bulk/export-mappings', authenticate, async (req, res) => {
   try {
     const result = await pool.query(`
       SELECT
@@ -4768,7 +4738,7 @@ router.get('/bulk/export-mappings', async (req, res) => {
 });
 
 // Import product mappings from CSV
-router.post('/bulk/import-mappings', async (req, res) => {
+router.post('/bulk/import-mappings', authenticate, async (req, res) => {
   const client = await pool.connect();
   try {
     const { mappings, user_name = 'System' } = req.body;
@@ -4830,7 +4800,7 @@ router.post('/bulk/import-mappings', async (req, res) => {
 });
 
 // Get bulk operations history
-router.get('/bulk/history', async (req, res) => {
+router.get('/bulk/history', authenticate, async (req, res) => {
   try {
     const { limit = 20 } = req.query;
 
@@ -4852,7 +4822,7 @@ router.get('/bulk/history', async (req, res) => {
 // ============================================
 
 // Get sync errors (with filters)
-router.get('/errors', async (req, res) => {
+router.get('/errors', authenticate, async (req, res) => {
   try {
     const { status = 'all', error_type, product_id, page = 1, limit = 50 } = req.query;
     const offset = (page - 1) * limit;
@@ -4919,7 +4889,7 @@ router.get('/errors', async (req, res) => {
 });
 
 // Retry failed sync
-router.post('/errors/:id/retry', async (req, res) => {
+router.post('/errors/:id/retry', authenticate, async (req, res) => {
   const client = await pool.connect();
   try {
     const { id } = req.params;
@@ -4967,7 +4937,7 @@ router.post('/errors/:id/retry', async (req, res) => {
 });
 
 // Ignore/dismiss error
-router.post('/errors/:id/ignore', async (req, res) => {
+router.post('/errors/:id/ignore', authenticate, async (req, res) => {
   try {
     const { id } = req.params;
     const { user_name = 'System' } = req.body;
@@ -4986,7 +4956,7 @@ router.post('/errors/:id/ignore', async (req, res) => {
 });
 
 // Bulk ignore errors
-router.post('/errors/bulk-ignore', async (req, res) => {
+router.post('/errors/bulk-ignore', authenticate, async (req, res) => {
   try {
     const { error_ids, user_name = 'System' } = req.body;
 
@@ -5008,7 +4978,7 @@ router.post('/errors/bulk-ignore', async (req, res) => {
 // ============================================
 
 // Get competitor prices for a product
-router.get('/competitors/:productId', async (req, res) => {
+router.get('/competitors/:productId', authenticate, async (req, res) => {
   try {
     const { productId } = req.params;
 
@@ -5028,7 +4998,7 @@ router.get('/competitors/:productId', async (req, res) => {
 });
 
 // Add/Update competitor price
-router.post('/competitors', async (req, res) => {
+router.post('/competitors', authenticate, async (req, res) => {
   try {
     const { product_id, competitor_name, competitor_price, competitor_url, notes } = req.body;
 
@@ -5065,7 +5035,7 @@ router.post('/competitors', async (req, res) => {
 });
 
 // Get all products with lower competitor prices
-router.get('/competitors/alerts/lower-prices', async (req, res) => {
+router.get('/competitors/alerts/lower-prices', authenticate, async (req, res) => {
   try {
     const result = await pool.query(`
       SELECT
@@ -5091,7 +5061,7 @@ router.get('/competitors/alerts/lower-prices', async (req, res) => {
 // ============================================
 
 // Calculate and get current health score
-router.get('/health-score', async (req, res) => {
+router.get('/health-score', authenticate, async (req, res) => {
   try {
     // Calculate metrics
     const syncStats = await pool.query(`
@@ -5230,7 +5200,7 @@ router.get('/health-score', async (req, res) => {
 });
 
 // Get health score history
-router.get('/health-score/history', async (req, res) => {
+router.get('/health-score/history', authenticate, async (req, res) => {
   try {
     const { days = 30 } = req.query;
 
@@ -5252,7 +5222,7 @@ router.get('/health-score/history', async (req, res) => {
 // ============================================
 
 // Get audit log entries
-router.get('/audit-log', async (req, res) => {
+router.get('/audit-log', authenticate, async (req, res) => {
   try {
     const { action_type, entity_type, user_name, page = 1, limit = 50, start_date, end_date } = req.query;
     const offset = (page - 1) * limit;
@@ -5326,7 +5296,7 @@ router.get('/audit-log', async (req, res) => {
 });
 
 // Add audit log entry (utility endpoint)
-router.post('/audit-log', async (req, res) => {
+router.post('/audit-log', authenticate, async (req, res) => {
   try {
     const { action_type, entity_type, entity_id, entity_name, user_name, old_values, new_values, description } = req.body;
 
@@ -5349,7 +5319,7 @@ router.post('/audit-log', async (req, res) => {
 // ============================================
 
 // Get all returns with filtering and pagination
-router.get('/returns', async (req, res) => {
+router.get('/returns', authenticate, async (req, res) => {
   try {
     const { status, return_type, start_date, end_date, customer_email, limit = 50, offset = 0 } = req.query;
 
@@ -5422,7 +5392,7 @@ router.get('/returns', async (req, res) => {
 });
 
 // Get single return with items
-router.get('/returns/:id', async (req, res) => {
+router.get('/returns/:id', authenticate, async (req, res) => {
   try {
     const { id } = req.params;
 
@@ -5472,7 +5442,7 @@ router.get('/returns/:id', async (req, res) => {
 });
 
 // Create a new return request
-router.post('/returns', validateJoi(marketplaceSchemas.createReturn), async (req, res) => {
+router.post('/returns', authenticate, validateJoi(marketplaceSchemas.createReturn), async (req, res) => {
   const client = await pool.connect();
 
   try {
@@ -5593,7 +5563,7 @@ router.post('/returns', validateJoi(marketplaceSchemas.createReturn), async (req
 });
 
 // Update return status
-router.put('/returns/:id', validateJoi(marketplaceSchemas.updateReturn), async (req, res) => {
+router.put('/returns/:id', authenticate, validateJoi(marketplaceSchemas.updateReturn), async (req, res) => {
   const client = await pool.connect();
 
   try {
@@ -5710,7 +5680,7 @@ router.put('/returns/:id', validateJoi(marketplaceSchemas.updateReturn), async (
 });
 
 // Approve a return
-router.post('/returns/:id/approve', async (req, res) => {
+router.post('/returns/:id/approve', authenticate, async (req, res) => {
   const client = await pool.connect();
 
   try {
@@ -5764,7 +5734,7 @@ router.post('/returns/:id/approve', async (req, res) => {
 });
 
 // Reject a return
-router.post('/returns/:id/reject', async (req, res) => {
+router.post('/returns/:id/reject', authenticate, async (req, res) => {
   const client = await pool.connect();
 
   try {
@@ -5818,7 +5788,7 @@ router.post('/returns/:id/reject', async (req, res) => {
 });
 
 // Mark return as received
-router.post('/returns/:id/receive', async (req, res) => {
+router.post('/returns/:id/receive', authenticate, async (req, res) => {
   const client = await pool.connect();
 
   try {
@@ -5889,7 +5859,7 @@ router.post('/returns/:id/receive', async (req, res) => {
 // ============================================
 
 // Get all refunds
-router.get('/refunds', async (req, res) => {
+router.get('/refunds', authenticate, async (req, res) => {
   try {
     const { status, limit = 50, offset = 0 } = req.query;
 
@@ -5933,7 +5903,7 @@ router.get('/refunds', async (req, res) => {
 });
 
 // Process a refund
-router.post('/refunds', validateJoi(marketplaceSchemas.processRefund), async (req, res) => {
+router.post('/refunds', authenticate, validateJoi(marketplaceSchemas.processRefund), async (req, res) => {
   const client = await pool.connect();
 
   try {
@@ -5996,7 +5966,7 @@ router.post('/refunds', validateJoi(marketplaceSchemas.processRefund), async (re
 });
 
 // Update refund status (mark as processed)
-router.put('/refunds/:id/process', async (req, res) => {
+router.put('/refunds/:id/process', authenticate, async (req, res) => {
   const client = await pool.connect();
 
   try {
@@ -6038,7 +6008,7 @@ router.put('/refunds/:id/process', async (req, res) => {
 });
 
 // Get return settings
-router.get('/return-settings', async (req, res) => {
+router.get('/return-settings', authenticate, async (req, res) => {
   try {
     const result = await pool.query(`
       SELECT setting_key, setting_value, description
@@ -6063,7 +6033,7 @@ router.get('/return-settings', async (req, res) => {
 });
 
 // Update return settings
-router.put('/return-settings/:key', async (req, res) => {
+router.put('/return-settings/:key', authenticate, async (req, res) => {
   try {
     const { key } = req.params;
     const { value } = req.body;
@@ -6090,7 +6060,7 @@ router.put('/return-settings/:key', async (req, res) => {
 });
 
 // Returns analytics/dashboard
-router.get('/returns/analytics', async (req, res) => {
+router.get('/returns/analytics', authenticate, async (req, res) => {
   try {
     const { start_date, end_date } = req.query;
 
@@ -6158,7 +6128,7 @@ router.get('/returns/analytics', async (req, res) => {
 // ============================================
 
 // Bulk create shipments
-router.post('/bulk/shipments', validateJoi(marketplaceSchemas.bulkShipment), async (req, res) => {
+router.post('/bulk/shipments', authenticate, validateJoi(marketplaceSchemas.bulkShipment), async (req, res) => {
   const client = await pool.connect();
 
   try {
@@ -6238,7 +6208,7 @@ router.post('/bulk/shipments', validateJoi(marketplaceSchemas.bulkShipment), asy
 });
 
 // Bulk stock update
-router.post('/bulk/stock-update', validateJoi(marketplaceSchemas.bulkStockUpdate), async (req, res) => {
+router.post('/bulk/stock-update', authenticate, validateJoi(marketplaceSchemas.bulkStockUpdate), async (req, res) => {
   const client = await pool.connect();
 
   try {

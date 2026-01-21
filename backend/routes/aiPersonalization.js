@@ -12,6 +12,7 @@
 const express = require('express');
 const router = express.Router();
 const aiService = require('../services/AIPersonalizationService');
+const { authenticate } = require('../middleware/auth');
 
 // ==================== DYNAMIC PRICING ====================
 
@@ -19,7 +20,7 @@ const aiService = require('../services/AIPersonalizationService');
  * POST /api/ai/dynamic-pricing/calculate
  * Calculate dynamic price adjustment for a product
  */
-router.post('/dynamic-pricing/calculate', async (req, res) => {
+router.post('/dynamic-pricing/calculate', authenticate, async (req, res) => {
   try {
     const { productId, quantity, customerId, quoteItems } = req.body;
 
@@ -44,7 +45,7 @@ router.post('/dynamic-pricing/calculate', async (req, res) => {
  * GET /api/ai/dynamic-pricing/rules
  * Get all dynamic pricing rules
  */
-router.get('/dynamic-pricing/rules', async (req, res) => {
+router.get('/dynamic-pricing/rules', authenticate, async (req, res) => {
   try {
     const { isActive, ruleType } = req.query;
 
@@ -66,7 +67,7 @@ router.get('/dynamic-pricing/rules', async (req, res) => {
  * GET /api/ai/upsell/recommendations/:productId
  * Get upsell recommendations for a product
  */
-router.get('/upsell/recommendations/:productId', async (req, res) => {
+router.get('/upsell/recommendations/:productId', authenticate, async (req, res) => {
   try {
     const { productId } = req.params;
     const { customerId, limit } = req.query;
@@ -92,7 +93,7 @@ router.get('/upsell/recommendations/:productId', async (req, res) => {
  * POST /api/ai/upsell/for-quote
  * Get upsell recommendations for all items in a quote
  */
-router.post('/upsell/for-quote', async (req, res) => {
+router.post('/upsell/for-quote', authenticate, async (req, res) => {
   try {
     const { quoteItems, customerId, limit = 3 } = req.body;
 
@@ -139,7 +140,7 @@ router.post('/upsell/for-quote', async (req, res) => {
  * POST /api/ai/suggestions/quote
  * Get smart suggestions for the current quote
  */
-router.post('/suggestions/quote', async (req, res) => {
+router.post('/suggestions/quote', authenticate, async (req, res) => {
   try {
     const { quoteItems, customerId } = req.body;
 
@@ -161,7 +162,7 @@ router.post('/suggestions/quote', async (req, res) => {
  * POST /api/ai/behavior/track
  * Track customer behavior event
  */
-router.post('/behavior/track', async (req, res) => {
+router.post('/behavior/track', authenticate, async (req, res) => {
   try {
     const { customerId, eventType, productId, category, manufacturer, sessionId, eventData } = req.body;
 
@@ -188,7 +189,7 @@ router.post('/behavior/track', async (req, res) => {
  * POST /api/ai/recommendations/interact
  * Record recommendation interaction (view/accept)
  */
-router.post('/recommendations/interact', async (req, res) => {
+router.post('/recommendations/interact', authenticate, async (req, res) => {
   try {
     const { recommendationId, accepted } = req.body;
 
@@ -211,7 +212,7 @@ router.post('/recommendations/interact', async (req, res) => {
  * GET /api/ai/affinity/:productId
  * Get product affinities
  */
-router.get('/affinity/:productId', async (req, res) => {
+router.get('/affinity/:productId', authenticate, async (req, res) => {
   try {
     const affinities = await aiService.getProductAffinities(parseInt(req.params.productId));
     res.json(affinities);
@@ -225,7 +226,7 @@ router.get('/affinity/:productId', async (req, res) => {
  * POST /api/ai/affinity
  * Create/update product affinity
  */
-router.post('/affinity', async (req, res) => {
+router.post('/affinity', authenticate, async (req, res) => {
   try {
     const { sourceProductId, targetProductId, affinityType, score } = req.body;
 
@@ -254,7 +255,7 @@ router.post('/affinity', async (req, res) => {
  * GET /api/ai/upsell/rules
  * Get all upsell rules
  */
-router.get('/upsell/rules', async (req, res) => {
+router.get('/upsell/rules', authenticate, async (req, res) => {
   try {
     const rules = await aiService.getUpsellRules();
     res.json(rules);
@@ -268,7 +269,7 @@ router.get('/upsell/rules', async (req, res) => {
  * POST /api/ai/upsell/rules
  * Create upsell rule
  */
-router.post('/upsell/rules', async (req, res) => {
+router.post('/upsell/rules', authenticate, async (req, res) => {
   try {
     const rule = await aiService.createUpsellRule(req.body);
     res.status(201).json(rule);
@@ -282,7 +283,7 @@ router.post('/upsell/rules', async (req, res) => {
  * PUT /api/ai/upsell/rules/:id
  * Update upsell rule
  */
-router.put('/upsell/rules/:id', async (req, res) => {
+router.put('/upsell/rules/:id', authenticate, async (req, res) => {
   try {
     const rule = await aiService.updateUpsellRule(req.params.id, req.body);
 
@@ -301,7 +302,7 @@ router.put('/upsell/rules/:id', async (req, res) => {
  * DELETE /api/ai/upsell/rules/:id
  * Delete upsell rule
  */
-router.delete('/upsell/rules/:id', async (req, res) => {
+router.delete('/upsell/rules/:id', authenticate, async (req, res) => {
   try {
     const deleted = await aiService.deleteUpsellRule(req.params.id);
 

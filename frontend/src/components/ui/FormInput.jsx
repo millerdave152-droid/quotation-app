@@ -139,9 +139,12 @@ const FormInput = ({
         >
           {label}
           {required && (
-            <span style={{ color: '#ef4444', marginLeft: '4px' }} aria-hidden="true">
-              *
-            </span>
+            <>
+              <span style={{ color: '#ef4444', marginLeft: '4px' }} aria-hidden="true">
+                *
+              </span>
+              <span className="sr-only">(required)</span>
+            </>
           )}
         </label>
       )}
@@ -188,13 +191,18 @@ const FormInput = ({
 
       {/* Character count for textarea */}
       {type === 'textarea' && maxLength && (
-        <div style={{
-          display: 'flex',
-          justifyContent: 'flex-end',
-          marginTop: '4px',
-          fontSize: '12px',
-          color: value?.length > maxLength * 0.9 ? '#ef4444' : '#9ca3af'
-        }}>
+        <div
+          style={{
+            display: 'flex',
+            justifyContent: 'flex-end',
+            marginTop: '4px',
+            fontSize: '12px',
+            color: value?.length > maxLength * 0.9 ? '#ef4444' : '#9ca3af'
+          }}
+          aria-live="polite"
+          aria-atomic="true"
+        >
+          <span className="sr-only">Character count: </span>
           {value?.length || 0} / {maxLength}
         </div>
       )}

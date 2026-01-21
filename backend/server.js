@@ -32,6 +32,7 @@ const { init: initImportTemplateRoutes } = require('./routes/importTemplates');
 const { init: initNomenclatureRoutes } = require('./routes/nomenclature');
 const { init: initInsightsRoutes } = require('./routes/insights');
 const { init: initReportsRoutes } = require('./routes/reports');
+const { init: initLeadsRoutes } = require('./routes/leads');
 
 // Standardized API response utilities
 const { attachResponseHelpers } = require('./utils/apiResponse');
@@ -269,6 +270,12 @@ console.log('✅ Insights routes loaded (AI-powered business insights)');
 // ============================================
 app.use('/api/reports', initReportsRoutes({ pool }));
 console.log('✅ Reports routes loaded (report builder & scheduling)');
+
+// ============================================
+// LEADS / INQUIRY CAPTURE
+// ============================================
+app.use('/api/leads', initLeadsRoutes({ pool, cache }));
+console.log('✅ Leads routes loaded (inquiry capture system)');
 
 // ============================================
 // QUOTATIONS (Modular)

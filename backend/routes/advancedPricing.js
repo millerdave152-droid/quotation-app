@@ -8,6 +8,7 @@ const express = require('express');
 const router = express.Router();
 const advancedPricingService = require('../services/AdvancedPricingService');
 const { ApiError, asyncHandler } = require('../middleware/errorHandler');
+const { authenticate } = require('../middleware/auth');
 
 // ==================== VOLUME DISCOUNT RULES ====================
 
@@ -15,7 +16,7 @@ const { ApiError, asyncHandler } = require('../middleware/errorHandler');
  * GET /api/pricing/volume-rules
  * Get all volume discount rules
  */
-router.get('/volume-rules', asyncHandler(async (req, res) => {
+router.get('/volume-rules', authenticate, asyncHandler(async (req, res) => {
   const { isActive, scopeType, includeExpired } = req.query;
 
   const rules = await advancedPricingService.getVolumeDiscountRules({
@@ -31,7 +32,7 @@ router.get('/volume-rules', asyncHandler(async (req, res) => {
  * GET /api/pricing/volume-rules/:id
  * Get a single volume discount rule
  */
-router.get('/volume-rules/:id', asyncHandler(async (req, res) => {
+router.get('/volume-rules/:id', authenticate, asyncHandler(async (req, res) => {
   const rule = await advancedPricingService.getVolumeDiscountRuleById(req.params.id);
 
   if (!rule) {
@@ -45,7 +46,7 @@ router.get('/volume-rules/:id', asyncHandler(async (req, res) => {
  * POST /api/pricing/volume-rules
  * Create a new volume discount rule
  */
-router.post('/volume-rules', asyncHandler(async (req, res) => {
+router.post('/volume-rules', authenticate, asyncHandler(async (req, res) => {
   const { name, tiers } = req.body;
 
   if (!name) {
@@ -87,7 +88,7 @@ router.post('/volume-rules', asyncHandler(async (req, res) => {
  * PUT /api/pricing/volume-rules/:id
  * Update a volume discount rule
  */
-router.put('/volume-rules/:id', asyncHandler(async (req, res) => {
+router.put('/volume-rules/:id', authenticate, asyncHandler(async (req, res) => {
   const rule = await advancedPricingService.updateVolumeDiscountRule(req.params.id, req.body);
 
   if (!rule) {
@@ -101,7 +102,7 @@ router.put('/volume-rules/:id', asyncHandler(async (req, res) => {
  * DELETE /api/pricing/volume-rules/:id
  * Delete a volume discount rule
  */
-router.delete('/volume-rules/:id', asyncHandler(async (req, res) => {
+router.delete('/volume-rules/:id', authenticate, asyncHandler(async (req, res) => {
   const deleted = await advancedPricingService.deleteVolumeDiscountRule(req.params.id);
 
   if (!deleted) {
@@ -115,7 +116,7 @@ router.delete('/volume-rules/:id', asyncHandler(async (req, res) => {
  * GET /api/pricing/volume-rules/applicable/:productId
  * Get applicable volume discount rules for a product
  */
-router.get('/volume-rules/applicable/:productId', asyncHandler(async (req, res) => {
+router.get('/volume-rules/applicable/:productId', authenticate, asyncHandler(async (req, res) => {
   const productId = parseInt(req.params.productId);
 
   if (isNaN(productId)) {
@@ -139,7 +140,7 @@ router.get('/volume-rules/applicable/:productId', asyncHandler(async (req, res) 
  * GET /api/pricing/promotions
  * Get all promotions
  */
-router.get('/promotions', asyncHandler(async (req, res) => {
+router.get('/promotions', authenticate, asyncHandler(async (req, res) => {
   const { isActive, promoType, includeExpired } = req.query;
 
   const promotions = await advancedPricingService.getPromotions({
@@ -155,7 +156,7 @@ router.get('/promotions', asyncHandler(async (req, res) => {
  * GET /api/pricing/promotions/active
  * Get currently active auto-apply promotions
  */
-router.get('/promotions/active', asyncHandler(async (req, res) => {
+router.get('/promotions/active', authenticate, asyncHandler(async (req, res) => {
   const { productIds, customerId } = req.query;
 
   const productIdArray = productIds ? productIds.split(',').map(id => parseInt(id)) : [];
@@ -168,7 +169,7 @@ router.get('/promotions/active', asyncHandler(async (req, res) => {
  * POST /api/pricing/promotions
  * Create a new promotion
  */
-router.post('/promotions', asyncHandler(async (req, res) => {
+router.post('/promotions', authenticate, asyncHandler(async (req, res) => {
   const { promo_name, discount_type, discount_value, start_date, end_date } = req.body;
 
   if (!promo_name) {
@@ -211,7 +212,7 @@ router.post('/promotions', asyncHandler(async (req, res) => {
  * PUT /api/pricing/promotions/:id
  * Update a promotion
  */
-router.put('/promotions/:id', asyncHandler(async (req, res) => {
+router.put('/promotions/:id', authenticate, asyncHandler(async (req, res) => {
   const promotion = await advancedPricingService.updatePromotion(req.params.id, req.body);
 
   if (!promotion) {
@@ -225,7 +226,7 @@ router.put('/promotions/:id', asyncHandler(async (req, res) => {
  * DELETE /api/pricing/promotions/:id
  * Delete a promotion
  */
-router.delete('/promotions/:id', asyncHandler(async (req, res) => {
+router.delete('/promotions/:id', authenticate, asyncHandler(async (req, res) => {
   const deleted = await advancedPricingService.deletePromotion(req.params.id);
 
   if (!deleted) {
@@ -239,7 +240,7 @@ router.delete('/promotions/:id', asyncHandler(async (req, res) => {
  * POST /api/pricing/promotions/validate-code
  * Validate a promo code
  */
-router.post('/promotions/validate-code', asyncHandler(async (req, res) => {
+router.post('/promotions/validate-code', authenticate, asyncHandler(async (req, res) => {
   const { code, customerId, cartTotal, cartItems } = req.body;
 
   if (!code) {
@@ -260,7 +261,7 @@ router.post('/promotions/validate-code', asyncHandler(async (req, res) => {
  * GET /api/pricing/promotions/:id/usage
  * Get promotion usage history
  */
-router.get('/promotions/:id/usage', asyncHandler(async (req, res) => {
+router.get('/promotions/:id/usage', authenticate, asyncHandler(async (req, res) => {
   const usage = await advancedPricingService.getPromotionUsage(req.params.id);
   res.json(usage);
 }));
@@ -271,7 +272,7 @@ router.get('/promotions/:id/usage', asyncHandler(async (req, res) => {
  * POST /api/pricing/calculate
  * Calculate price for a single product
  */
-router.post('/calculate', asyncHandler(async (req, res) => {
+router.post('/calculate', authenticate, asyncHandler(async (req, res) => {
   const { productId, quantity, customerId, promoCode } = req.body;
 
   if (!productId || !quantity) {
@@ -292,7 +293,7 @@ router.post('/calculate', asyncHandler(async (req, res) => {
  * POST /api/pricing/calculate-quote
  * Calculate totals for a quote
  */
-router.post('/calculate-quote', asyncHandler(async (req, res) => {
+router.post('/calculate-quote', authenticate, asyncHandler(async (req, res) => {
   const { items, customerId, promoCode } = req.body;
 
   if (!items || items.length === 0) {
@@ -319,7 +320,7 @@ router.post('/calculate-quote', asyncHandler(async (req, res) => {
  * GET /api/pricing/stacking-policy
  * Get the active stacking policy
  */
-router.get('/stacking-policy', asyncHandler(async (req, res) => {
+router.get('/stacking-policy', authenticate, asyncHandler(async (req, res) => {
   const policy = await advancedPricingService.getStackingPolicy();
   res.json(policy);
 }));

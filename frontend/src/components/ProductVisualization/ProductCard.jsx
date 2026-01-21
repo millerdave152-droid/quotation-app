@@ -325,4 +325,5 @@ function ProductCard({ product, viewMode = 'grid', onClick }) {
   );
 }
 
-export default ProductCard;
+// PERF: Memoize to prevent unnecessary re-renders in 7000+ product lists
+export default React.memo(ProductCard);

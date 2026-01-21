@@ -7,6 +7,7 @@
 const express = require('express');
 const router = express.Router();
 const { ApiError, asyncHandler } = require('../middleware/errorHandler');
+const { authenticate } = require('../middleware/auth');
 
 module.exports = (pool, cache, orderService, inventoryService) => {
 
@@ -14,7 +15,7 @@ module.exports = (pool, cache, orderService, inventoryService) => {
    * GET /api/orders
    * List orders with filters
    */
-  router.get('/', asyncHandler(async (req, res) => {
+  router.get('/', authenticate, asyncHandler(async (req, res) => {
     const result = await orderService.getOrders({
       customerId: req.query.customerId,
       status: req.query.status,
@@ -36,7 +37,7 @@ module.exports = (pool, cache, orderService, inventoryService) => {
    * GET /api/orders/:id
    * Get order by ID
    */
-  router.get('/:id', asyncHandler(async (req, res) => {
+  router.get('/:id', authenticate, asyncHandler(async (req, res) => {
     const order = await orderService.getOrderById(parseInt(req.params.id));
 
     if (!order) {
@@ -50,7 +51,7 @@ module.exports = (pool, cache, orderService, inventoryService) => {
    * POST /api/orders
    * Create a new order directly (without quote)
    */
-  router.post('/', asyncHandler(async (req, res) => {
+  router.post('/', authenticate, asyncHandler(async (req, res) => {
     const { customerId, items, deliveryDate, deliverySlotId, deliveryCents, notes, createdBy } = req.body;
 
     if (!customerId) {
@@ -78,7 +79,7 @@ module.exports = (pool, cache, orderService, inventoryService) => {
    * POST /api/orders/from-quote/:quoteId
    * Convert a quotation to an order
    */
-  router.post('/from-quote/:quoteId', asyncHandler(async (req, res) => {
+  router.post('/from-quote/:quoteId', authenticate, asyncHandler(async (req, res) => {
     const quoteId = parseInt(req.params.quoteId);
 
     if (isNaN(quoteId)) {
@@ -104,7 +105,7 @@ module.exports = (pool, cache, orderService, inventoryService) => {
    * PATCH /api/orders/:id/status
    * Update order status
    */
-  router.patch('/:id/status', asyncHandler(async (req, res) => {
+  router.patch('/:id/status', authenticate, asyncHandler(async (req, res) => {
     const orderId = parseInt(req.params.id);
 
     if (isNaN(orderId)) {
@@ -128,7 +129,7 @@ module.exports = (pool, cache, orderService, inventoryService) => {
    * PATCH /api/orders/:id/payment
    * Update order payment status
    */
-  router.patch('/:id/payment', asyncHandler(async (req, res) => {
+  router.patch('/:id/payment', authenticate, asyncHandler(async (req, res) => {
     const orderId = parseInt(req.params.id);
 
     if (isNaN(orderId)) {
@@ -156,7 +157,7 @@ module.exports = (pool, cache, orderService, inventoryService) => {
    * POST /api/orders/:id/cancel
    * Cancel an order
    */
-  router.post('/:id/cancel', asyncHandler(async (req, res) => {
+  router.post('/:id/cancel', authenticate, asyncHandler(async (req, res) => {
     const orderId = parseInt(req.params.id);
 
     if (isNaN(orderId)) {
@@ -176,7 +177,7 @@ module.exports = (pool, cache, orderService, inventoryService) => {
    * GET /api/orders/by-quote/:quoteId
    * Get order by quotation ID
    */
-  router.get('/by-quote/:quoteId', asyncHandler(async (req, res) => {
+  router.get('/by-quote/:quoteId', authenticate, asyncHandler(async (req, res) => {
     const quoteId = parseInt(req.params.quoteId);
 
     if (isNaN(quoteId)) {

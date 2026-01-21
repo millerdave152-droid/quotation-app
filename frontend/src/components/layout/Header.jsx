@@ -4,15 +4,19 @@ import { useAuth } from '../../contexts/AuthContext';
 import companyConfig from '../../config/companyConfig';
 import NotificationBadge from './NotificationBadge';
 import NotificationDropdown from './NotificationDropdown';
+import ThemeToggle from '../ui/ThemeToggle';
 
 // Header Action Button Component
-const HeaderButton = ({ icon, badge, onClick, title }) => {
+const HeaderButton = ({ icon, badge, onClick, title, ariaExpanded, ariaHaspopup }) => {
   const [isHovered, setIsHovered] = useState(false);
 
   return (
     <button
       onClick={onClick}
       title={title}
+      aria-label={badge > 0 ? `${title}, ${badge} notifications` : title}
+      aria-expanded={ariaExpanded}
+      aria-haspopup={ariaHaspopup}
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
       style={{
@@ -30,24 +34,27 @@ const HeaderButton = ({ icon, badge, onClick, title }) => {
         transition: 'background 0.2s ease',
       }}
     >
-      {icon}
+      <span aria-hidden="true">{icon}</span>
       {badge > 0 && (
-        <span style={{
-          position: 'absolute',
-          top: '4px',
-          right: '4px',
-          minWidth: '16px',
-          height: '16px',
-          borderRadius: '8px',
-          background: '#ef4444',
-          color: 'white',
-          fontSize: '10px',
-          fontWeight: 'bold',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          padding: '0 4px',
-        }}>
+        <span
+          style={{
+            position: 'absolute',
+            top: '4px',
+            right: '4px',
+            minWidth: '16px',
+            height: '16px',
+            borderRadius: '8px',
+            background: '#ef4444',
+            color: 'white',
+            fontSize: '10px',
+            fontWeight: 'bold',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: '0 4px',
+          }}
+          aria-hidden="true"
+        >
           {badge > 99 ? '99+' : badge}
         </span>
       )}
@@ -103,6 +110,9 @@ const UserDropdown = ({ user, onLogout }) => {
     <div ref={dropdownRef} style={{ position: 'relative' }}>
       <button
         onClick={() => setIsOpen(!isOpen)}
+        aria-expanded={isOpen}
+        aria-haspopup="menu"
+        aria-label={`User menu for ${getDisplayName(user)}`}
         style={{
           display: 'flex',
           alignItems: 'center',
@@ -115,24 +125,27 @@ const UserDropdown = ({ user, onLogout }) => {
           transition: 'all 0.2s ease',
         }}
       >
-        <div style={{
-          width: '32px',
-          height: '32px',
-          borderRadius: '50%',
-          background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-          color: 'white',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          fontSize: '12px',
-          fontWeight: 'bold',
-        }}>
+        <div
+          style={{
+            width: '32px',
+            height: '32px',
+            borderRadius: '50%',
+            background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+            color: 'white',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            fontSize: '12px',
+            fontWeight: 'bold',
+          }}
+          aria-hidden="true"
+        >
           {getInitials(user)}
         </div>
         <span style={{ fontSize: '14px', fontWeight: '500', color: '#374151' }}>
           {getDisplayName(user)}
         </span>
-        <span style={{ fontSize: '12px', color: '#9ca3af' }}>▼</span>
+        <span style={{ fontSize: '12px', color: '#9ca3af' }} aria-hidden="true">▼</span>
       </button>
 
       {isOpen && (
@@ -171,13 +184,14 @@ const UserDropdown = ({ user, onLogout }) => {
           </div>
 
           {/* Menu Items */}
-          <div style={{ padding: '8px' }}>
+          <div style={{ padding: '8px' }} role="menu" aria-label="User actions">
             {menuItems.map((item, index) => (
               item.divider ? (
-                <div key={index} style={{ height: '1px', background: '#e5e7eb', margin: '8px 0' }} />
+                <div key={index} role="separator" style={{ height: '1px', background: '#e5e7eb', margin: '8px 0' }} />
               ) : (
                 <button
                   key={index}
+                  role="menuitem"
                   onClick={() => {
                     item.action();
                     setIsOpen(false);
@@ -199,7 +213,7 @@ const UserDropdown = ({ user, onLogout }) => {
                   onMouseEnter={(e) => e.target.style.background = '#f3f4f6'}
                   onMouseLeave={(e) => e.target.style.background = 'transparent'}
                 >
-                  <span>{item.icon}</span>
+                  <span aria-hidden="true">{item.icon}</span>
                   <span>{item.label}</span>
                 </button>
               )
@@ -239,36 +253,45 @@ const GlobalSearch = ({ isMobile }) => {
         icon="🔍"
         onClick={() => setIsExpanded(true)}
         title="Search"
+        ariaExpanded={false}
       />
     );
   }
 
   return (
-    <form onSubmit={handleSearch} style={{
-      display: 'flex',
-      alignItems: 'center',
-      flex: isMobile ? 1 : '0 1 500px',
-      maxWidth: '500px',
-      background: '#f3f4f6',
-      borderRadius: '10px',
-      border: '1px solid #e5e7eb',
-      overflow: 'hidden',
-      transition: 'all 0.2s ease',
-    }}>
+    <form
+      onSubmit={handleSearch}
+      role="search"
+      aria-label="Global search"
+      style={{
+        display: 'flex',
+        alignItems: 'center',
+        flex: isMobile ? 1 : '0 1 500px',
+        maxWidth: '500px',
+        background: '#f3f4f6',
+        borderRadius: '10px',
+        border: '1px solid #e5e7eb',
+        overflow: 'hidden',
+        transition: 'all 0.2s ease',
+      }}
+    >
       <div style={{
         display: 'flex',
         alignItems: 'center',
         padding: '0 12px',
         color: '#9ca3af',
-      }}>
+      }} aria-hidden="true">
         🔍
       </div>
 
+      <label htmlFor="global-search" className="sr-only">Search</label>
       <input
-        type="text"
+        id="global-search"
+        type="search"
         placeholder="Search..."
         value={searchTerm}
         onChange={(e) => setSearchTerm(e.target.value)}
+        aria-label="Search products, customers, and quotes"
         style={{
           flex: 1,
           padding: '10px 0',
@@ -280,9 +303,12 @@ const GlobalSearch = ({ isMobile }) => {
         }}
       />
 
+      <label htmlFor="search-category" className="sr-only">Search category</label>
       <select
+        id="search-category"
         value={category}
         onChange={(e) => setCategory(e.target.value)}
+        aria-label="Select search category"
         style={{
           padding: '10px 12px',
           border: 'none',
@@ -303,6 +329,7 @@ const GlobalSearch = ({ isMobile }) => {
         <button
           type="button"
           onClick={() => setIsExpanded(false)}
+          aria-label="Close search"
           style={{
             padding: '10px 12px',
             border: 'none',
@@ -311,7 +338,7 @@ const GlobalSearch = ({ isMobile }) => {
             color: '#6b7280',
           }}
         >
-          ✕
+          <span aria-hidden="true">✕</span>
         </button>
       )}
     </form>
@@ -488,6 +515,8 @@ const HelpPanel = ({ isOpen, onClose, dropdownRef }) => {
   return (
     <div
       ref={dropdownRef}
+      role="menu"
+      aria-label="Help and support options"
       style={{
         position: 'absolute',
         top: '100%',
@@ -507,21 +536,23 @@ const HelpPanel = ({ isOpen, onClose, dropdownRef }) => {
         borderBottom: '1px solid #e5e7eb',
         fontWeight: '600',
         color: '#111827',
-      }}>
+      }} id="help-panel-title">
         Help & Support
       </div>
-      <div style={{ padding: '8px' }}>
+      <div style={{ padding: '8px' }} aria-labelledby="help-panel-title">
         {helpItems.map((item, index) => (
           item.divider ? (
-            <div key={index} style={{ height: '1px', background: '#e5e7eb', margin: '8px 0' }} />
+            <div key={index} role="separator" style={{ height: '1px', background: '#e5e7eb', margin: '8px 0' }} />
           ) : (
             <button
               key={index}
+              role="menuitem"
               onClick={() => {
                 if (item.action) item.action();
                 onClose();
               }}
               disabled={item.disabled}
+              aria-disabled={item.disabled}
               style={{
                 width: '100%',
                 display: 'flex',
@@ -540,9 +571,9 @@ const HelpPanel = ({ isOpen, onClose, dropdownRef }) => {
               onMouseEnter={(e) => !item.disabled && (e.target.style.background = '#f3f4f6')}
               onMouseLeave={(e) => e.target.style.background = 'transparent'}
             >
-              <span>{item.icon}</span>
+              <span aria-hidden="true">{item.icon}</span>
               <span>{item.label}</span>
-              {item.disabled && <span style={{ marginLeft: 'auto', fontSize: '10px' }}>Soon</span>}
+              {item.disabled && <span style={{ marginLeft: 'auto', fontSize: '10px' }} aria-label="Coming soon">Soon</span>}
             </button>
           )
         ))}
@@ -569,6 +600,8 @@ const AppsMenu = ({ isOpen, onClose, dropdownRef }) => {
   return (
     <div
       ref={dropdownRef}
+      role="menu"
+      aria-label="Quick access applications"
       style={{
         position: 'absolute',
         top: '100%',
@@ -583,23 +616,31 @@ const AppsMenu = ({ isOpen, onClose, dropdownRef }) => {
         zIndex: 1001,
       }}
     >
-      <div style={{
-        padding: '12px 16px',
-        borderBottom: '1px solid #e5e7eb',
-        fontWeight: '600',
-        color: '#111827',
-      }}>
+      <div
+        style={{
+          padding: '12px 16px',
+          borderBottom: '1px solid #e5e7eb',
+          fontWeight: '600',
+          color: '#111827',
+        }}
+        id="apps-menu-title"
+      >
         Quick Access
       </div>
-      <div style={{
-        padding: '16px',
-        display: 'grid',
-        gridTemplateColumns: 'repeat(3, 1fr)',
-        gap: '12px',
-      }}>
+      <div
+        style={{
+          padding: '16px',
+          display: 'grid',
+          gridTemplateColumns: 'repeat(3, 1fr)',
+          gap: '12px',
+        }}
+        aria-labelledby="apps-menu-title"
+      >
         {apps.map((app, index) => (
           <button
             key={index}
+            role="menuitem"
+            aria-label={`Go to ${app.label}`}
             onClick={() => {
               navigate(app.path);
               onClose();
@@ -619,16 +660,19 @@ const AppsMenu = ({ isOpen, onClose, dropdownRef }) => {
             onMouseEnter={(e) => e.currentTarget.style.background = '#f3f4f6'}
             onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
           >
-            <div style={{
-              width: '40px',
-              height: '40px',
-              borderRadius: '10px',
-              background: `${app.color}15`,
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              fontSize: '20px',
-            }}>
+            <div
+              style={{
+                width: '40px',
+                height: '40px',
+                borderRadius: '10px',
+                background: `${app.color}15`,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                fontSize: '20px',
+              }}
+              aria-hidden="true"
+            >
               {app.icon}
             </div>
             <span style={{ fontSize: '11px', color: '#374151', fontWeight: '500' }}>
@@ -675,20 +719,24 @@ const Header = ({ isMobile }) => {
   };
 
   return (
-    <header style={{
-      position: 'sticky',
-      top: 0,
-      left: 0,
-      right: 0,
-      height: '64px',
-      background: 'linear-gradient(to right, #f8fafc, #ffffff)',
-      boxShadow: '0 1px 3px rgba(0, 0, 0, 0.08)',
-      display: 'flex',
-      alignItems: 'center',
-      padding: '0 24px',
-      zIndex: 1000,
-      gap: '16px',
-    }}>
+    <header
+      role="banner"
+      aria-label="Main header"
+      style={{
+        position: 'sticky',
+        top: 0,
+        left: 0,
+        right: 0,
+        height: '64px',
+        background: 'linear-gradient(to right, #f8fafc, #ffffff)',
+        boxShadow: '0 1px 3px rgba(0, 0, 0, 0.08)',
+        display: 'flex',
+        alignItems: 'center',
+        padding: '0 24px',
+        zIndex: 1000,
+        gap: '16px',
+      }}
+    >
       {/* Left: Logo and Title */}
       <div style={{
         display: 'flex',
@@ -785,6 +833,8 @@ const Header = ({ isMobile }) => {
               <HeaderButton
                 icon="❓"
                 title="Help"
+                ariaExpanded={helpOpen}
+                ariaHaspopup="menu"
                 onClick={() => {
                   setHelpOpen(!helpOpen);
                   setNotificationOpen(false);
@@ -802,7 +852,9 @@ const Header = ({ isMobile }) => {
             <div ref={appsRef} style={{ position: 'relative' }}>
               <HeaderButton
                 icon="⊞"
-                title="Apps"
+                title="Quick Access Apps"
+                ariaExpanded={appsOpen}
+                ariaHaspopup="menu"
                 onClick={() => {
                   setAppsOpen(!appsOpen);
                   setNotificationOpen(false);
@@ -817,6 +869,10 @@ const Header = ({ isMobile }) => {
             </div>
           </>
         )}
+
+        {/* Theme Toggle */}
+        <ThemeToggle size="default" />
+
         <div style={{ width: '1px', height: '24px', background: '#e5e7eb', margin: '0 8px' }} />
         <UserDropdown user={user} onLogout={handleLogout} />
       </div>

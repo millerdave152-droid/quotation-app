@@ -100,18 +100,24 @@ const CloneQuoteDialog = ({
   if (!isOpen) return null;
 
   return (
-    <div style={{
-      position: 'fixed',
-      top: 0,
-      left: 0,
-      right: 0,
-      bottom: 0,
-      background: 'rgba(0,0,0,0.5)',
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'center',
-      zIndex: 1000
-    }}>
+    <div
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="clone-dialog-title"
+      aria-describedby="clone-dialog-description"
+      style={{
+        position: 'fixed',
+        top: 0,
+        left: 0,
+        right: 0,
+        bottom: 0,
+        background: 'rgba(0,0,0,0.5)',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        zIndex: 1000
+      }}
+    >
       <div style={{
         background: 'white',
         borderRadius: '12px',
@@ -132,15 +138,16 @@ const CloneQuoteDialog = ({
           alignItems: 'center'
         }}>
           <div>
-            <h2 style={{ margin: 0, fontSize: '20px', fontWeight: '600' }}>
+            <h2 id="clone-dialog-title" style={{ margin: 0, fontSize: '20px', fontWeight: '600' }}>
               Clone Quote
             </h2>
-            <p style={{ margin: '4px 0 0', fontSize: '14px', color: '#6b7280' }}>
+            <p id="clone-dialog-description" style={{ margin: '4px 0 0', fontSize: '14px', color: '#6b7280' }}>
               {quote?.quote_number || quote?.quotation_number}
             </p>
           </div>
           <button
             onClick={onClose}
+            aria-label="Close clone dialog"
             style={{
               background: 'none',
               border: 'none',
@@ -150,7 +157,7 @@ const CloneQuoteDialog = ({
               padding: '4px'
             }}
           >
-            &times;
+            <span aria-hidden="true">&times;</span>
           </button>
         </div>
 
@@ -173,16 +180,17 @@ const CloneQuoteDialog = ({
           </div>
 
           {/* Clone Type Selection */}
-          <div style={{ marginBottom: '20px' }}>
-            <label style={{
+          <fieldset style={{ marginBottom: '20px', border: 'none', padding: 0, margin: 0 }}>
+            <legend style={{
               display: 'block',
               fontSize: '14px',
               fontWeight: '500',
               marginBottom: '12px',
-              color: '#374151'
+              color: '#374151',
+              padding: 0
             }}>
               Clone Options
-            </label>
+            </legend>
 
             {/* Same Customer Option */}
             <label style={{
@@ -199,15 +207,17 @@ const CloneQuoteDialog = ({
               <input
                 type="radio"
                 name="cloneType"
+                id="clone-same-customer"
                 checked={cloneType === 'same'}
                 onChange={() => setCloneType('same')}
+                aria-describedby="clone-same-desc"
                 style={{ marginTop: '2px', marginRight: '12px' }}
               />
               <div>
                 <div style={{ fontWeight: '500', fontSize: '14px' }}>
                   Clone for same customer
                 </div>
-                <div style={{ fontSize: '12px', color: '#6b7280', marginTop: '2px' }}>
+                <div id="clone-same-desc" style={{ fontSize: '12px', color: '#6b7280', marginTop: '2px' }}>
                   Create a revised version for {quote?.customer_name || 'the same customer'}
                 </div>
               </div>
@@ -227,38 +237,46 @@ const CloneQuoteDialog = ({
               <input
                 type="radio"
                 name="cloneType"
+                id="clone-new-customer"
                 checked={cloneType === 'new'}
                 onChange={() => setCloneType('new')}
+                aria-describedby="clone-new-desc"
                 style={{ marginTop: '2px', marginRight: '12px' }}
               />
               <div>
                 <div style={{ fontWeight: '500', fontSize: '14px' }}>
                   Clone for different customer
                 </div>
-                <div style={{ fontSize: '12px', color: '#6b7280', marginTop: '2px' }}>
+                <div id="clone-new-desc" style={{ fontSize: '12px', color: '#6b7280', marginTop: '2px' }}>
                   Use this quote as a template for a new customer
                 </div>
               </div>
             </label>
-          </div>
+          </fieldset>
 
           {/* Customer Selector (when new customer selected) */}
           {cloneType === 'new' && (
             <div style={{ marginBottom: '20px' }}>
-              <label style={{
-                display: 'block',
-                fontSize: '14px',
-                fontWeight: '500',
-                marginBottom: '8px',
-                color: '#374151'
-              }}>
-                Select Customer *
+              <label
+                htmlFor="customer-search"
+                style={{
+                  display: 'block',
+                  fontSize: '14px',
+                  fontWeight: '500',
+                  marginBottom: '8px',
+                  color: '#374151'
+                }}
+              >
+                Select Customer <span aria-hidden="true">*</span><span className="sr-only">(required)</span>
               </label>
               <input
-                type="text"
+                id="customer-search"
+                type="search"
                 placeholder="Search customers by name, email, or phone..."
                 value={customerSearchTerm}
                 onChange={(e) => setCustomerSearchTerm(e.target.value)}
+                aria-required="true"
+                aria-describedby="customer-list-status"
                 style={{
                   width: '100%',
                   padding: '10px 12px',
@@ -268,26 +286,45 @@ const CloneQuoteDialog = ({
                   marginBottom: '8px'
                 }}
               />
-              <div style={{
-                maxHeight: '150px',
-                overflowY: 'auto',
-                border: '1px solid #e5e7eb',
-                borderRadius: '6px'
-              }}>
+              <div
+                role="listbox"
+                aria-label="Customer list"
+                id="customer-list-status"
+                tabIndex={0}
+                style={{
+                  maxHeight: '150px',
+                  overflowY: 'auto',
+                  border: '1px solid #e5e7eb',
+                  borderRadius: '6px'
+                }}
+              >
                 {filteredCustomers.length === 0 ? (
-                  <div style={{
-                    padding: '12px',
-                    textAlign: 'center',
-                    color: '#6b7280',
-                    fontSize: '13px'
-                  }}>
+                  <div
+                    style={{
+                      padding: '12px',
+                      textAlign: 'center',
+                      color: '#6b7280',
+                      fontSize: '13px'
+                    }}
+                    role="option"
+                    aria-selected="false"
+                  >
                     No customers found
                   </div>
                 ) : (
                   filteredCustomers.map(customer => (
                     <div
                       key={customer.id}
+                      role="option"
+                      aria-selected={selectedCustomerId === customer.id}
+                      tabIndex={0}
                       onClick={() => setSelectedCustomerId(customer.id)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' || e.key === ' ') {
+                          e.preventDefault();
+                          setSelectedCustomerId(customer.id);
+                        }
+                      }}
                       style={{
                         padding: '10px 12px',
                         cursor: 'pointer',
@@ -312,7 +349,7 @@ const CloneQuoteDialog = ({
                         gap: '8px'
                       }}>
                         {selectedCustomerId === customer.id && (
-                          <span style={{ color: '#3b82f6' }}>&#10003;</span>
+                          <span style={{ color: '#3b82f6' }} aria-hidden="true">&#10003;</span>
                         )}
                         <div>
                           <div style={{ fontWeight: '500', fontSize: '14px' }}>
@@ -352,8 +389,10 @@ const CloneQuoteDialog = ({
             }}>
               <input
                 type="checkbox"
+                id="include-internal-notes"
                 checked={includeInternalNotes}
                 onChange={(e) => setIncludeInternalNotes(e.target.checked)}
+                aria-describedby="internal-notes-desc"
                 style={{ width: '16px', height: '16px' }}
               />
               <span style={{ fontSize: '14px' }}>
@@ -422,31 +461,40 @@ const CloneQuoteDialog = ({
 
           {/* Error Message */}
           {error && (
-            <div style={{
-              marginTop: '16px',
-              padding: '12px',
-              background: '#fef2f2',
-              border: '1px solid #fecaca',
-              borderRadius: '6px',
-              color: '#dc2626',
-              fontSize: '13px'
-            }}>
+            <div
+              role="alert"
+              aria-live="assertive"
+              style={{
+                marginTop: '16px',
+                padding: '12px',
+                background: '#fef2f2',
+                border: '1px solid #fecaca',
+                borderRadius: '6px',
+                color: '#dc2626',
+                fontSize: '13px'
+              }}
+            >
               {error}
             </div>
           )}
         </div>
 
         {/* Footer */}
-        <div style={{
-          padding: '16px 24px',
-          borderTop: '1px solid #e5e7eb',
-          display: 'flex',
-          justifyContent: 'flex-end',
-          gap: '12px'
-        }}>
+        <div
+          style={{
+            padding: '16px 24px',
+            borderTop: '1px solid #e5e7eb',
+            display: 'flex',
+            justifyContent: 'flex-end',
+            gap: '12px'
+          }}
+          role="group"
+          aria-label="Dialog actions"
+        >
           <button
             onClick={onClose}
             disabled={loading}
+            aria-label="Cancel and close"
             style={{
               padding: '10px 20px',
               border: '1px solid #d1d5db',
@@ -464,6 +512,8 @@ const CloneQuoteDialog = ({
           <button
             onClick={handleClone}
             disabled={loading || (cloneType === 'new' && !selectedCustomerId)}
+            aria-busy={loading}
+            aria-label={loading ? 'Cloning quote...' : 'Clone quote'}
             style={{
               padding: '10px 24px',
               border: 'none',
@@ -484,14 +534,17 @@ const CloneQuoteDialog = ({
           >
             {loading ? (
               <>
-                <span style={{
-                  width: '16px',
-                  height: '16px',
-                  border: '2px solid white',
-                  borderTopColor: 'transparent',
-                  borderRadius: '50%',
-                  animation: 'spin 1s linear infinite'
-                }} />
+                <span
+                  style={{
+                    width: '16px',
+                    height: '16px',
+                    border: '2px solid white',
+                    borderTopColor: 'transparent',
+                    borderRadius: '50%',
+                    animation: 'spin 1s linear infinite'
+                  }}
+                  aria-hidden="true"
+                />
                 Cloning...
               </>
             ) : (

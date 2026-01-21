@@ -104,8 +104,6 @@ router.post('/register', authLimiter, validateRegister, async (req, res) => {
       [userId, refreshToken, tokenExpiry]
     );
 
-    console.log(`New user registered: ${email} (ID: ${userId})`);
-
     res.status(201).json({
       success: true,
       message: 'User registered successfully',
@@ -164,8 +162,6 @@ router.post('/login', authLimiter, validateLogin, async (req, res) => {
     if (user.locked_until && new Date(user.locked_until) > new Date()) {
       const lockTimeRemaining = Math.ceil((new Date(user.locked_until) - new Date()) / 1000 / 60);
 
-      console.warn(`Login attempt on locked account: ${email}`);
-
       return res.status(423).json({
         success: false,
         message: `Account is locked due to too many failed login attempts. Please try again in ${lockTimeRemaining} minutes.`,
@@ -204,8 +200,6 @@ router.post('/login', authLimiter, validateLogin, async (req, res) => {
          VALUES ($1, 'login_failed', 'user', $2, $3, $4, $5, CURRENT_TIMESTAMP)`,
         [user.id, user.id, req.ip, req.get('user-agent'), JSON.stringify({ failedAttempts, isLocked })]
       );
-
-      console.warn(`Failed login attempt for ${email}. Attempts: ${failedAttempts}`);
 
       if (isLocked) {
         return res.status(423).json({
@@ -255,8 +249,6 @@ router.post('/login', authLimiter, validateLogin, async (req, res) => {
        VALUES ($1, 'login_success', 'user', $2, $3, $4, CURRENT_TIMESTAMP)`,
       [user.id, user.id, req.ip, req.get('user-agent')]
     );
-
-    console.log(`User logged in: ${email} (ID: ${user.id})`);
 
     res.json({
       success: true,
@@ -351,8 +343,6 @@ router.post('/refresh', validateRefreshToken, async (req, res) => {
       [tokenData.id]
     );
 
-    console.log(`Access token refreshed for user: ${user.email} (ID: ${user.id})`);
-
     res.json({
       success: true,
       message: 'Token refreshed successfully',
@@ -402,8 +392,6 @@ router.post('/logout', authenticate, async (req, res) => {
        VALUES ($1, 'logout', 'user', $2, $3, $4, CURRENT_TIMESTAMP)`,
       [req.user.id, req.user.id, req.ip, req.get('user-agent')]
     );
-
-    console.log(`User logged out: ${req.user.email} (ID: ${req.user.id})`);
 
     res.json({
       success: true,
@@ -550,8 +538,6 @@ router.put('/change-password', authenticate, validateChangePassword, async (req,
 
     await client.query('COMMIT');
 
-    console.log(`Password changed for user: ${user.email} (ID: ${user.id})`);
-
     res.json({
       success: true,
       message: 'Password changed successfully. Please login again with your new password.'
@@ -628,8 +614,6 @@ router.delete('/sessions/:id', authenticate, async (req, res) => {
         message: 'Session not found'
       });
     }
-
-    console.log(`Session revoked: ${sessionId} for user: ${req.user.email}`);
 
     res.json({
       success: true,

@@ -66,9 +66,13 @@ const NomenclatureAdmin = React.lazy(() => import('./components/nomenclature/Nom
 // Quick Search (Universal Product Finder)
 const QuickSearch = React.lazy(() => import('./components/QuickSearch'));
 
+// Leads / Inquiry Capture
+const LeadCapture = React.lazy(() => import('./components/leads/LeadCapture'));
+
 // Dashboard component with real data and anti-flickering
 const Dashboard = () => {
   const [stats, setStats] = React.useState(null);
+  const [leadStats, setLeadStats] = React.useState(null);
   const [loading, setLoading] = React.useState(true);
 
   // Anti-flickering refs - CRITICAL for preventing remount loops
@@ -82,12 +86,32 @@ const Dashboard = () => {
     if (!loadedOnce.current) {
       loadedOnce.current = true;
       fetchDashboardStats();
+      fetchLeadStats();
     }
 
     return () => {
       isMounted.current = false;
     };
   }, []);
+
+  const fetchLeadStats = async () => {
+    try {
+      const token = localStorage.getItem('auth_token');
+      const response = await fetch('/api/leads/stats', {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+      if (response.ok) {
+        const data = await response.json();
+        if (isMounted.current) {
+          setLeadStats(data.data || data);
+        }
+      }
+    } catch (error) {
+      console.error('Error fetching lead stats:', error);
+    }
+  };
 
   const fetchDashboardStats = async () => {
     if (!isMounted.current) return;
@@ -202,6 +226,38 @@ const Dashboard = () => {
             <div style={{ fontSize: '13px', color: '#6b7280', fontWeight: '500' }}>Lost</div>
           </div>
         </div>
+
+        {/* Leads Overview */}
+        {leadStats && (
+          <div style={{ background: 'white', borderRadius: '12px', boxShadow: '0 1px 3px rgba(0,0,0,0.1)', padding: '24px', marginBottom: '30px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+              <h3 style={{ margin: 0, fontSize: '18px', fontWeight: '600', color: '#111827' }}>📝 Leads Pipeline</h3>
+              <a href="/leads" style={{ fontSize: '14px', color: '#667eea', textDecoration: 'none', fontWeight: '500' }}>View All →</a>
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(100px, 1fr))', gap: '16px' }}>
+              <div style={{ textAlign: 'center', padding: '12px', background: '#f0f9ff', borderRadius: '8px' }}>
+                <div style={{ fontSize: '24px', fontWeight: 'bold', color: '#0284c7' }}>{leadStats.total || 0}</div>
+                <div style={{ fontSize: '12px', color: '#6b7280', marginTop: '4px' }}>Total</div>
+              </div>
+              <div style={{ textAlign: 'center', padding: '12px', background: '#dbeafe', borderRadius: '8px' }}>
+                <div style={{ fontSize: '24px', fontWeight: 'bold', color: '#1d4ed8' }}>{leadStats.new_count || 0}</div>
+                <div style={{ fontSize: '12px', color: '#6b7280', marginTop: '4px' }}>New</div>
+              </div>
+              <div style={{ textAlign: 'center', padding: '12px', background: '#fef3c7', borderRadius: '8px' }}>
+                <div style={{ fontSize: '24px', fontWeight: 'bold', color: '#d97706' }}>{leadStats.hot_count || 0}</div>
+                <div style={{ fontSize: '12px', color: '#6b7280', marginTop: '4px' }}>Hot</div>
+              </div>
+              <div style={{ textAlign: 'center', padding: '12px', background: '#dcfce7', borderRadius: '8px' }}>
+                <div style={{ fontSize: '24px', fontWeight: 'bold', color: '#15803d' }}>{leadStats.qualified_count || 0}</div>
+                <div style={{ fontSize: '12px', color: '#6b7280', marginTop: '4px' }}>Qualified</div>
+              </div>
+              <div style={{ textAlign: 'center', padding: '12px', background: '#fef2f2', borderRadius: '8px' }}>
+                <div style={{ fontSize: '24px', fontWeight: 'bold', color: '#dc2626' }}>{(leadStats.follow_up_today || 0) + (leadStats.overdue_follow_ups || 0)}</div>
+                <div style={{ fontSize: '12px', color: '#6b7280', marginTop: '4px' }}>Follow-ups</div>
+              </div>
+            </div>
+          </div>
+        )}
 
         <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '30px', marginBottom: '30px' }}>
           {/* Recent Quotes */}
@@ -462,6 +518,9 @@ function App() {
           <Route path="/product-visualization/:id" element={<ProductVisualization />} />
           {/* Quick Search (Universal Product Finder) */}
           <Route path="/quick-search" element={<QuickSearch />} />
+          {/* Leads / Inquiry Capture */}
+          <Route path="/leads" element={<LeadCapture />} />
+          <Route path="/leads/:id" element={<LeadCapture />} />
           {/* Admin routes */}
           <Route path="/admin/users" element={
             <ProtectedRoute requiredRoles={['admin']}>

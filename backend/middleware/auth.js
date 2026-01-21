@@ -185,8 +185,11 @@ const requireRole = (...allowedRoles) => {
         });
       }
 
-      // Check if user has required role
-      if (!allowedRoles.includes(req.user.role)) {
+      // Check if user has required role (case-insensitive comparison)
+      const userRole = req.user.role?.toLowerCase();
+      const hasRole = allowedRoles.some(role => role.toLowerCase() === userRole);
+
+      if (!hasRole) {
         console.warn(
           `Access denied for user ${req.user.email} (role: ${req.user.role}). Required roles: ${allowedRoles.join(', ')}`
         );

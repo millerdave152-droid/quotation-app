@@ -11,9 +11,12 @@ const csv = require('csv-parser');
 const { Readable } = require('stream');
 const { ApiError, asyncHandler } = require('../middleware/errorHandler');
 const ProductService = require('../services/ProductService');
+const ProductRecommendationService = require('../services/ProductRecommendationService');
+const { authenticate } = require('../middleware/auth');
 
 // Module-level dependencies
 let productService = null;
+let recommendationService = null;
 let pool = null;
 let cache = null;
 let upload = null;
@@ -30,6 +33,7 @@ const init = (deps) => {
   cache = deps.cache;
   upload = deps.upload;
   productService = new ProductService(deps.pool, deps.cache);
+  recommendationService = new ProductRecommendationService(deps.pool);
   return router;
 };
 
@@ -41,7 +45,7 @@ const init = (deps) => {
  * GET /api/products
  * Get all products with search, filter, and pagination
  */
-router.get('/', asyncHandler(async (req, res) => {
+router.get('/', authenticate, asyncHandler(async (req, res) => {
   const result = await productService.getProducts(req.query);
   res.json(result.products || result);
 }));
@@ -50,7 +54,7 @@ router.get('/', asyncHandler(async (req, res) => {
  * GET /api/products/stats
  * Get product statistics
  */
-router.get('/stats', asyncHandler(async (req, res) => {
+router.get('/stats', authenticate, asyncHandler(async (req, res) => {
   const stats = await productService.getStatsOverview();
   res.success(stats.overview);
 }));
@@ -59,7 +63,7 @@ router.get('/stats', asyncHandler(async (req, res) => {
  * GET /api/products/favorites
  * Get user's favorite products
  */
-router.get('/favorites', asyncHandler(async (req, res) => {
+router.get('/favorites', authenticate, asyncHandler(async (req, res) => {
   const userId = req.query.user_id || 1;
   const favorites = await productService.getFavorites(userId);
   res.json(favorites);
@@ -69,8 +73,11 @@ router.get('/favorites', asyncHandler(async (req, res) => {
  * GET /api/products/categories
  * Get all unique categories (legacy raw strings)
  */
-router.get('/categories', asyncHandler(async (req, res) => {
-  const categories = await productService.getCategories();
+router.get('/categories', authenticate, asyncHandler(async (req, res) => {
+  // PERF: Cache categories list (static data)
+  const categories = await cache.cacheQuery('products:categories', 'long', async () => {
+    return productService.getCategories();
+  });
   res.json(categories);
 }));
 
@@ -78,8 +85,11 @@ router.get('/categories', asyncHandler(async (req, res) => {
  * GET /api/products/categories/hierarchy
  * Get normalized category hierarchy with product counts
  */
-router.get('/categories/hierarchy', asyncHandler(async (req, res) => {
-  const hierarchy = await productService.getCategoryHierarchy();
+router.get('/categories/hierarchy', authenticate, asyncHandler(async (req, res) => {
+  // PERF: Cache category hierarchy (static data)
+  const hierarchy = await cache.cacheQuery('products:categories:hierarchy', 'long', async () => {
+    return productService.getCategoryHierarchy();
+  });
   res.json({
     success: true,
     categories: hierarchy
@@ -90,8 +100,11 @@ router.get('/categories/hierarchy', asyncHandler(async (req, res) => {
  * GET /api/products/categories/main
  * Get flat list of main level-2 categories
  */
-router.get('/categories/main', asyncHandler(async (req, res) => {
-  const categories = await productService.getMainCategories();
+router.get('/categories/main', authenticate, asyncHandler(async (req, res) => {
+  // PERF: Cache main categories (static data)
+  const categories = await cache.cacheQuery('products:categories:main', 'long', async () => {
+    return productService.getMainCategories();
+  });
   res.json({
     success: true,
     categories
@@ -102,7 +115,7 @@ router.get('/categories/main', asyncHandler(async (req, res) => {
  * GET /api/products/categories/:slug
  * Get category by slug with subcategories
  */
-router.get('/categories/:slug', asyncHandler(async (req, res) => {
+router.get('/categories/:slug', authenticate, asyncHandler(async (req, res) => {
   const { slug } = req.params;
   const category = await productService.getCategoryBySlug(slug);
 
@@ -120,8 +133,11 @@ router.get('/categories/:slug', asyncHandler(async (req, res) => {
  * GET /api/products/manufacturers
  * Get all unique manufacturers
  */
-router.get('/manufacturers', asyncHandler(async (req, res) => {
-  const manufacturers = await productService.getManufacturers();
+router.get('/manufacturers', authenticate, asyncHandler(async (req, res) => {
+  // PERF: Cache manufacturers list (rarely changes)
+  const manufacturers = await cache.cacheQuery('products:manufacturers', 'medium', async () => {
+    return productService.getManufacturers();
+  });
   res.json(manufacturers);
 }));
 
@@ -129,30 +145,33 @@ router.get('/manufacturers', asyncHandler(async (req, res) => {
  * GET /api/products/tags
  * Get all product tags grouped by type
  */
-router.get('/tags', asyncHandler(async (req, res) => {
-  const result = await pool.query(`
-    SELECT pt.*,
-           COUNT(ptm.product_id) as product_count
-    FROM product_tags pt
-    LEFT JOIN product_tag_mappings ptm ON pt.id = ptm.tag_id
-    WHERE pt.is_active = true
-    GROUP BY pt.id
-    ORDER BY pt.tag_type, pt.display_order, pt.name
-  `);
+router.get('/tags', authenticate, asyncHandler(async (req, res) => {
+  // PERF: Cache tags list (rarely changes)
+  const grouped = await cache.cacheQuery('products:tags', 'medium', async () => {
+    const result = await pool.query(`
+      SELECT pt.*,
+             COUNT(ptm.product_id) as product_count
+      FROM product_tags pt
+      LEFT JOIN product_tag_mappings ptm ON pt.id = ptm.tag_id
+      WHERE pt.is_active = true
+      GROUP BY pt.id
+      ORDER BY pt.tag_type, pt.display_order, pt.name
+    `);
 
-  // Group by tag_type
-  const grouped = result.rows.reduce((acc, tag) => {
-    const type = tag.tag_type;
-    if (!acc[type]) acc[type] = [];
-    acc[type].push({
-      id: tag.id,
-      name: tag.name,
-      color: tag.color,
-      icon: tag.icon,
-      productCount: parseInt(tag.product_count) || 0
-    });
-    return acc;
-  }, {});
+    // Group by tag_type
+    return result.rows.reduce((acc, tag) => {
+      const type = tag.tag_type;
+      if (!acc[type]) acc[type] = [];
+      acc[type].push({
+        id: tag.id,
+        name: tag.name,
+        color: tag.color,
+        icon: tag.icon,
+        productCount: parseInt(tag.product_count) || 0
+      });
+      return acc;
+    }, {});
+  });
 
   res.json(grouped);
 }));
@@ -161,7 +180,7 @@ router.get('/tags', asyncHandler(async (req, res) => {
  * GET /api/products/by-tag/:tagId
  * Get products with a specific tag
  */
-router.get('/by-tag/:tagId', asyncHandler(async (req, res) => {
+router.get('/by-tag/:tagId', authenticate, asyncHandler(async (req, res) => {
   const { tagId } = req.params;
   const { limit = 100, offset = 0 } = req.query;
 
@@ -181,7 +200,7 @@ router.get('/by-tag/:tagId', asyncHandler(async (req, res) => {
  * GET /api/products/search
  * Search products for autocomplete
  */
-router.get('/search', asyncHandler(async (req, res) => {
+router.get('/search', authenticate, asyncHandler(async (req, res) => {
   const { q, limit = 10 } = req.query;
   const results = await productService.searchForAutocomplete(q || '', limit);
   res.json(results);
@@ -191,7 +210,7 @@ router.get('/search', asyncHandler(async (req, res) => {
  * GET /api/products/recent
  * Get recently updated products
  */
-router.get('/recent', asyncHandler(async (req, res) => {
+router.get('/recent', authenticate, asyncHandler(async (req, res) => {
   const limit = req.query.limit || 10;
   const result = await pool.query(`
     SELECT * FROM products
@@ -205,7 +224,7 @@ router.get('/recent', asyncHandler(async (req, res) => {
  * GET /api/products/recently-quoted
  * Get products recently used in quotations
  */
-router.get('/recently-quoted', asyncHandler(async (req, res) => {
+router.get('/recently-quoted', authenticate, asyncHandler(async (req, res) => {
   const limit = req.query.limit || 10;
   const result = await pool.query(`
     SELECT p.*, MAX(qi.created_at) as last_used
@@ -222,7 +241,7 @@ router.get('/recently-quoted', asyncHandler(async (req, res) => {
  * GET /api/products/:id
  * Get single product by ID
  */
-router.get('/:id', asyncHandler(async (req, res) => {
+router.get('/:id', authenticate, asyncHandler(async (req, res) => {
   const { id } = req.params;
   const product = await productService.getProductById(id);
 
@@ -237,14 +256,11 @@ router.get('/:id', asyncHandler(async (req, res) => {
  * POST /api/products
  * Create a new product
  */
-router.post('/', asyncHandler(async (req, res) => {
+router.post('/', authenticate, asyncHandler(async (req, res) => {
   const { model, manufacturer } = req.body;
-
-  console.log('➕ CREATE PRODUCT REQUEST:', { model, manufacturer });
 
   try {
     const product = await productService.createProduct(req.body);
-    console.log('✅ Product created successfully:', product.id);
     res.created(product);
   } catch (error) {
     if (error.code === '23505' && error.constraint && error.constraint.includes('model')) {
@@ -260,10 +276,8 @@ router.post('/', asyncHandler(async (req, res) => {
  * PUT /api/products/:id
  * Update an existing product
  */
-router.put('/:id', asyncHandler(async (req, res) => {
+router.put('/:id', authenticate, asyncHandler(async (req, res) => {
   const { id } = req.params;
-
-  console.log('📝 UPDATE PRODUCT REQUEST:', { id });
 
   const product = await productService.updateProduct(id, req.body);
 
@@ -271,7 +285,6 @@ router.put('/:id', asyncHandler(async (req, res) => {
     throw ApiError.notFound('Product');
   }
 
-  console.log('✅ Product updated successfully:', product.id);
   res.success(product);
 }));
 
@@ -279,7 +292,7 @@ router.put('/:id', asyncHandler(async (req, res) => {
  * DELETE /api/products/:id
  * Delete a product
  */
-router.delete('/:id', asyncHandler(async (req, res) => {
+router.delete('/:id', authenticate, asyncHandler(async (req, res) => {
   const { id } = req.params;
   const result = await productService.deleteProduct(id);
 
@@ -294,7 +307,7 @@ router.delete('/:id', asyncHandler(async (req, res) => {
  * POST /api/products/favorites/:productId
  * Add product to favorites
  */
-router.post('/favorites/:productId', asyncHandler(async (req, res) => {
+router.post('/favorites/:productId', authenticate, asyncHandler(async (req, res) => {
   const { productId } = req.params;
   const userId = req.body.user_id || 1;
 
@@ -310,7 +323,7 @@ router.post('/favorites/:productId', asyncHandler(async (req, res) => {
  * DELETE /api/products/favorites/:productId
  * Remove product from favorites
  */
-router.delete('/favorites/:productId', asyncHandler(async (req, res) => {
+router.delete('/favorites/:productId', authenticate, asyncHandler(async (req, res) => {
   const { productId } = req.params;
   const userId = req.query.user_id || 1;
 
@@ -326,7 +339,7 @@ router.delete('/favorites/:productId', asyncHandler(async (req, res) => {
  * POST /api/products/import-csv
  * Import products from CSV file
  */
-router.post('/import-csv', (req, res, next) => {
+router.post('/import-csv', authenticate, (req, res, next) => {
   upload.single('csvfile')(req, res, (err) => {
     if (err) return next(err);
     handleCsvImport(req, res).catch(next);
@@ -334,16 +347,12 @@ router.post('/import-csv', (req, res, next) => {
 });
 
 async function handleCsvImport(req, res) {
-  console.log('📥 CSV Import Started');
-
   if (!req.file) {
     throw ApiError.badRequest('No file uploaded');
   }
 
   const filename = req.file.originalname;
   const startTime = Date.now();
-
-  console.log(`📄 Processing file: ${filename}`);
 
   const results = [];
   const errors = [];
@@ -385,8 +394,6 @@ async function handleCsvImport(req, res) {
       .on('error', (err) => reject(err));
   });
 
-  console.log(`✓ Parsed ${successful} valid rows`);
-
   // Import to database
   const client = await pool.connect();
   try {
@@ -394,10 +401,6 @@ async function handleCsvImport(req, res) {
 
     for (let i = 0; i < results.length; i++) {
       const row = results[i];
-
-      if (i % 100 === 0) {
-        console.log(`Processed ${i}/${results.length} products...`);
-      }
 
       try {
         const costCents = Math.round(parseFloat(row.actual_cost) * 100) || 0;
@@ -439,7 +442,6 @@ async function handleCsvImport(req, res) {
     }
 
     await client.query('COMMIT');
-    console.log(`✅ Import committed to database`);
   } catch (err) {
     await client.query('ROLLBACK');
     throw err;
@@ -462,9 +464,6 @@ async function handleCsvImport(req, res) {
   const duration = ((Date.now() - startTime) / 1000).toFixed(2);
   productService.invalidateCache();
 
-  console.log('✅ IMPORT COMPLETED');
-  console.log(`   Total: ${totalRows}, New: ${inserted}, Updated: ${updated}`);
-
   res.success({
     filename,
     total: totalRows,
@@ -485,7 +484,7 @@ async function handleCsvImport(req, res) {
  * POST /api/products/import-universal
  * Import products from CSV or Excel file
  */
-router.post('/import-universal', (req, res, next) => {
+router.post('/import-universal', authenticate, (req, res, next) => {
   upload.single('file')(req, res, (err) => {
     if (err) return next(err);
     handleUniversalImport(req, res).catch(next);
@@ -493,8 +492,6 @@ router.post('/import-universal', (req, res, next) => {
 });
 
 async function handleUniversalImport(req, res) {
-  console.log('📥 Universal Product Import Started');
-
   if (!req.file) {
     throw ApiError.badRequest('No file uploaded');
   }
@@ -508,14 +505,12 @@ async function handleUniversalImport(req, res) {
   try {
     if (req.body.columnMappings) {
       columnMappings = JSON.parse(req.body.columnMappings);
-      console.log('📋 Using custom column mappings from wizard');
     }
   } catch (e) {
     console.warn('Could not parse columnMappings:', e.message);
   }
 
   const headerRowIndex = parseInt(req.body.headerRowIndex) || 1;
-  console.log(`📄 Processing file: ${filename} (type: ${fileExt}, headerRow: ${headerRowIndex})`);
 
   let records = [];
   const errors = [];
@@ -546,9 +541,6 @@ async function handleUniversalImport(req, res) {
       const headers = data[adjustedHeaderIndex] || [];
       const dataRows = data.slice(adjustedHeaderIndex + 1);
 
-      console.log(`📊 Sheet starts at row ${sheetStartRow}, header at row ${headerRowIndex} (index ${adjustedHeaderIndex})`);
-      console.log(`📊 Headers found: ${headers.slice(0, 5).join(', ')}...`);
-
       // Fix blank headers - generate fallback names and detect model column
       const fixedHeaders = headers.map((h, i) => {
         if (!h || h.toString().trim() === '') {
@@ -564,10 +556,7 @@ async function handleUniversalImport(req, res) {
 
       if (fixedHeaders[0].startsWith('_Column_') && looksLikeModel) {
         fixedHeaders[0] = 'Model';  // Rename to Model if it looks like model data
-        console.log(`📊 First column has blank header but looks like Model data - auto-mapping`);
       }
-
-      console.log(`📊 Fixed headers: ${fixedHeaders.slice(0, 5).join(', ')}...`);
 
       records = dataRows.map(row => {
         const obj = {};
@@ -581,7 +570,6 @@ async function handleUniversalImport(req, res) {
     } else {
       records = XLSX.utils.sheet_to_json(sheet, { defval: '' });
     }
-    console.log(`📊 Parsed ${records.length} non-empty rows from Excel sheet: ${sheetName}`);
   } else if (fileExt === '.csv') {
     const stream = Readable.from(req.file.buffer.toString());
     records = await new Promise((resolve, reject) => {
@@ -592,7 +580,6 @@ async function handleUniversalImport(req, res) {
         .on('end', () => resolve(rows))
         .on('error', (err) => reject(err));
     });
-    console.log(`📊 Parsed ${records.length} rows from CSV`);
   } else {
     throw ApiError.badRequest(`Unsupported file type: ${fileExt}. Please use .csv, .xlsx, or .xls`);
   }
@@ -744,17 +731,11 @@ async function handleUniversalImport(req, res) {
     };
   }).filter(Boolean);
 
-  console.log(`✓ Normalized ${normalizedRecords.length} valid records`);
-
   // Import to database - use individual transactions per row to prevent cascade failures
   const client = await pool.connect();
   try {
     for (let i = 0; i < normalizedRecords.length; i++) {
       const row = normalizedRecords[i];
-
-      if (i % 100 === 0 && i > 0) {
-        console.log(`Processed ${i}/${normalizedRecords.length} products...`);
-      }
 
       try {
         const result = await client.query(`
@@ -797,8 +778,6 @@ async function handleUniversalImport(req, res) {
         failed++;
       }
     }
-
-    console.log(`✅ Universal import completed`);
   } finally {
     client.release();
   }
@@ -818,9 +797,6 @@ async function handleUniversalImport(req, res) {
   const duration = ((Date.now() - startTime) / 1000).toFixed(2);
   productService.invalidateCache();
 
-  console.log('✅ UNIVERSAL IMPORT COMPLETED');
-  console.log(`   Total: ${totalRows}, New: ${inserted}, Updated: ${updated}`);
-
   res.success({
     filename,
     fileType: fileExt,
@@ -833,5 +809,130 @@ async function handleUniversalImport(req, res) {
     hasMoreErrors: errors.length > 10
   }, { message: 'Universal import completed successfully', meta: { duration: `${duration}s` } });
 }
+
+// ============================================
+// PRODUCT RECOMMENDATION ROUTES
+// ============================================
+
+/**
+ * GET /api/products/recommendations/trending
+ * Get trending products based on recent sales
+ */
+router.get('/recommendations/trending', authenticate, asyncHandler(async (req, res) => {
+  const { days = 30, limit = 10 } = req.query;
+  const trending = await recommendationService.getTrendingProducts(parseInt(days), parseInt(limit));
+  res.json({ success: true, data: trending });
+}));
+
+/**
+ * GET /api/products/:id/recommendations
+ * Get all recommendations for a specific product
+ */
+router.get('/:id/recommendations', authenticate, asyncHandler(async (req, res) => {
+  const productId = parseInt(req.params.id);
+
+  if (isNaN(productId)) {
+    throw ApiError.badRequest('Invalid product ID');
+  }
+
+  const recommendations = await recommendationService.getAllRecommendations(productId);
+  res.json({ success: true, data: recommendations });
+}));
+
+/**
+ * GET /api/products/:id/recommendations/frequently-bought-together
+ * Get products frequently purchased together
+ */
+router.get('/:id/recommendations/frequently-bought-together', authenticate, asyncHandler(async (req, res) => {
+  const productId = parseInt(req.params.id);
+  const { limit = 5 } = req.query;
+
+  if (isNaN(productId)) {
+    throw ApiError.badRequest('Invalid product ID');
+  }
+
+  const recommendations = await recommendationService.getFrequentlyBoughtTogether(productId, parseInt(limit));
+  res.json({ success: true, data: recommendations });
+}));
+
+/**
+ * GET /api/products/:id/recommendations/customers-also-bought
+ * Get "customers who bought X also bought Y" recommendations
+ */
+router.get('/:id/recommendations/customers-also-bought', authenticate, asyncHandler(async (req, res) => {
+  const productId = parseInt(req.params.id);
+  const { limit = 5 } = req.query;
+
+  if (isNaN(productId)) {
+    throw ApiError.badRequest('Invalid product ID');
+  }
+
+  const recommendations = await recommendationService.getCustomersAlsoBought(productId, parseInt(limit));
+  res.json({ success: true, data: recommendations });
+}));
+
+/**
+ * GET /api/products/:id/recommendations/complementary
+ * Get complementary product recommendations
+ */
+router.get('/:id/recommendations/complementary', authenticate, asyncHandler(async (req, res) => {
+  const productId = parseInt(req.params.id);
+  const { limit = 5 } = req.query;
+
+  if (isNaN(productId)) {
+    throw ApiError.badRequest('Invalid product ID');
+  }
+
+  const recommendations = await recommendationService.getComplementaryProducts(productId, parseInt(limit));
+  res.json({ success: true, data: recommendations });
+}));
+
+/**
+ * GET /api/products/:id/recommendations/alternatives
+ * Get alternative products (similar specs, different brand)
+ */
+router.get('/:id/recommendations/alternatives', authenticate, asyncHandler(async (req, res) => {
+  const productId = parseInt(req.params.id);
+  const { limit = 5 } = req.query;
+
+  if (isNaN(productId)) {
+    throw ApiError.badRequest('Invalid product ID');
+  }
+
+  const recommendations = await recommendationService.getAlternativeProducts(productId, parseInt(limit));
+  res.json({ success: true, data: recommendations });
+}));
+
+/**
+ * GET /api/products/:id/recommendations/bundle
+ * Get bundle suggestion for a product
+ */
+router.get('/:id/recommendations/bundle', authenticate, asyncHandler(async (req, res) => {
+  const productId = parseInt(req.params.id);
+  const { maxSize = 3 } = req.query;
+
+  if (isNaN(productId)) {
+    throw ApiError.badRequest('Invalid product ID');
+  }
+
+  const bundle = await recommendationService.getBundleSuggestions(productId, parseInt(maxSize));
+  res.json({ success: true, data: bundle });
+}));
+
+/**
+ * GET /api/products/recommendations/personalized/:customerId
+ * Get personalized recommendations for a customer
+ */
+router.get('/recommendations/personalized/:customerId', authenticate, asyncHandler(async (req, res) => {
+  const customerId = parseInt(req.params.customerId);
+  const { limit = 10 } = req.query;
+
+  if (isNaN(customerId)) {
+    throw ApiError.badRequest('Invalid customer ID');
+  }
+
+  const recommendations = await recommendationService.getPersonalizedRecommendations(customerId, parseInt(limit));
+  res.json({ success: true, data: recommendations });
+}));
 
 module.exports = { router, init };

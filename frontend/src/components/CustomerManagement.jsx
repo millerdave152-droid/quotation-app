@@ -1,14 +1,27 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import CustomerCreditTracking from './CustomerCreditTracking';
 import CustomerOrderHistory from './CustomerOrderHistory';
+import AutocompleteInput from './ui/AutocompleteInput';
+import EmailInput from './ui/EmailInput';
+import PhoneInput from './ui/PhoneInput';
 import logger from '../utils/logger';
 import { useDebounce } from '../utils/useDebounce';
 import { cachedFetch, invalidateCache } from '../services/apiCache';
 import { useToast } from './ui/Toast';
 import { useConfirmDialog } from './ui/ConfirmDialog';
 import { SkeletonTable, SkeletonStats } from './ui/LoadingSkeleton';
+import * as lookupService from '../services/lookupService';
 
 const API_BASE = `${process.env.REACT_APP_API_URL || 'http://localhost:3001'}/api`;
+
+// Helper to get auth headers
+const getAuthHeaders = () => {
+  const token = localStorage.getItem('auth_token');
+  return {
+    'Content-Type': 'application/json',
+    ...(token && { 'Authorization': `Bearer ${token}` })
+  };
+};
 
 function CustomerManagement() {
   // State Management
@@ -20,6 +33,7 @@ function CustomerManagement() {
   const [selectedCustomer, setSelectedCustomer] = useState(null);
   const [notification, setNotification] = useState(null);
   const [loadingCustomerId, setLoadingCustomerId] = useState(null); // Track which customer is being loaded
+  const [viewMode, setViewMode] = useState('table'); // 'table' or 'card'
 
   // Search and Filter State
   const [searchTerm, setSearchTerm] = useState('');
@@ -41,9 +55,21 @@ function CustomerManagement() {
   const [availableCities, setAvailableCities] = useState([]);
   const [loadingPostalCode, setLoadingPostalCode] = useState(false);
 
+  // New Form Enhancement State
+  const [noEmail, setNoEmail] = useState(false);
+  const [noCompany, setNoCompany] = useState(false);
+  const [duplicateWarning, setDuplicateWarning] = useState(null);
+  const [potentialDuplicates, setPotentialDuplicates] = useState([]);
+
+  // Popular names for quick pick buttons
+  const [popularFirstNames, setPopularFirstNames] = useState(['John', 'Michael', 'David', 'Chris', 'James']);
+  const [popularLastNames, setPopularLastNames] = useState(['Smith', 'Brown', 'Wilson', 'Taylor', 'Lee']);
+
   // Form Data
   const [formData, setFormData] = useState({
-    name: '',
+    firstName: '',
+    lastName: '',
+    name: '', // Combined full name - computed from firstName + lastName
     email: '',
     phone: '',
     company: '',
@@ -62,14 +88,25 @@ function CustomerManagement() {
   const [formErrors, setFormErrors] = useState({});
   const [touched, setTouched] = useState({});
 
-  // Validation rules
-  const validateField = (name, value) => {
+  // Validation rules - accepts skipEmail option for "no email" checkbox
+  const validateField = (name, value, options = {}) => {
     switch (name) {
+      case 'firstName':
+        if (!value || value.trim() === '') return 'First name is required';
+        if (value.length < 2) return 'First name must be at least 2 characters';
+        return '';
+      case 'lastName':
+        if (!value || value.trim() === '') return 'Last name is required';
+        if (value.length < 2) return 'Last name must be at least 2 characters';
+        return '';
       case 'name':
+        // Validate combined name (legacy support)
         if (!value || value.trim() === '') return 'Name is required';
         if (value.length < 2) return 'Name must be at least 2 characters';
         return '';
       case 'email':
+        // Skip email validation if "no email provided" is checked
+        if (options.skipEmail || noEmail) return '';
         if (!value || value.trim() === '') return 'Email is required';
         if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)) return 'Please enter a valid email address';
         return '';
@@ -86,8 +123,10 @@ function CustomerManagement() {
 
   const validateForm = () => {
     const errors = {};
-    Object.keys(formData).forEach(field => {
-      const error = validateField(field, formData[field]);
+    // Validate specific fields that require validation
+    const fieldsToValidate = ['firstName', 'lastName', 'email', 'phone', 'postal_code'];
+    fieldsToValidate.forEach(field => {
+      const error = validateField(field, formData[field], { skipEmail: noEmail });
       if (error) errors[field] = error;
     });
     setFormErrors(errors);
@@ -98,6 +137,130 @@ function CustomerManagement() {
     setTouched(prev => ({ ...prev, [name]: true }));
     const error = validateField(name, formData[name]);
     setFormErrors(prev => ({ ...prev, [name]: error }));
+  };
+
+  // Load popular names on mount
+  useEffect(() => {
+    const loadPopularNames = async () => {
+      try {
+        const [firstNames, lastNames] = await Promise.all([
+          lookupService.getPopularNames('first', 5),
+          lookupService.getPopularNames('last', 5)
+        ]);
+        if (firstNames.length > 0) setPopularFirstNames(firstNames);
+        if (lastNames.length > 0) setPopularLastNames(lastNames);
+      } catch (err) {
+        // Keep default names on error
+        logger.warn('Failed to load popular names:', err);
+      }
+    };
+    loadPopularNames();
+  }, []);
+
+  // Autocomplete fetch functions
+  const fetchCitySuggestions = useCallback(async (query) => {
+    return lookupService.searchCities(query, formData.province || null, 10);
+  }, [formData.province]);
+
+  // Fuzzy search for first names
+  const fetchFirstNameSuggestions = useCallback(async (query) => {
+    const names = await lookupService.fuzzySearchNames(query, 'first', 10);
+    return names.map(n => ({
+      ...n,
+      label: n.name,
+      sublabel: n.matchType === 'phonetic' ? 'Similar sound' :
+                n.matchType === 'variation' ? 'Common variation' :
+                n.matchType === 'fuzzy' ? 'Similar spelling' : null
+    }));
+  }, []);
+
+  // Fuzzy search for last names
+  const fetchLastNameSuggestions = useCallback(async (query) => {
+    const names = await lookupService.fuzzySearchNames(query, 'last', 10);
+    return names.map(n => ({
+      ...n,
+      label: n.name,
+      sublabel: n.matchType === 'phonetic' ? 'Similar sound' :
+                n.matchType === 'variation' ? 'Common variation' :
+                n.matchType === 'fuzzy' ? 'Similar spelling' : null
+    }));
+  }, []);
+
+  // Company autocomplete
+  const fetchCompanySuggestions = useCallback(async (query) => {
+    const companies = await lookupService.searchCompanies(query, 10);
+    return companies.map(c => ({ name: c, label: c }));
+  }, []);
+
+  // Handle first name selection from autocomplete
+  const handleFirstNameSelect = (suggestion) => {
+    const firstName = suggestion.name || suggestion.label;
+    setFormData(prev => ({
+      ...prev,
+      firstName,
+      name: `${firstName} ${prev.lastName}`.trim()
+    }));
+  };
+
+  // Handle last name selection from autocomplete
+  const handleLastNameSelect = (suggestion) => {
+    const lastName = suggestion.name || suggestion.label;
+    setFormData(prev => ({
+      ...prev,
+      lastName,
+      name: `${prev.firstName} ${lastName}`.trim()
+    }));
+  };
+
+  // Handle quick pick name button click
+  const handleQuickPickName = (name, type) => {
+    if (type === 'first') {
+      setFormData(prev => ({
+        ...prev,
+        firstName: name,
+        name: `${name} ${prev.lastName}`.trim()
+      }));
+      setTouched(prev => ({ ...prev, firstName: true }));
+    } else {
+      setFormData(prev => ({
+        ...prev,
+        lastName: name,
+        name: `${prev.firstName} ${name}`.trim()
+      }));
+      setTouched(prev => ({ ...prev, lastName: true }));
+    }
+  };
+
+  // Handle company selection from autocomplete
+  const handleCompanySelect = (suggestion) => {
+    setFormData(prev => ({ ...prev, company: suggestion.name || suggestion.label }));
+  };
+
+  // Handle city selection from autocomplete
+  const handleCitySelect = (city) => {
+    setFormData(prev => ({
+      ...prev,
+      city: city.city_name,
+      province: city.province_code
+    }));
+  };
+
+  // Handle "No email provided" toggle
+  const handleNoEmailToggle = (checked) => {
+    setNoEmail(checked);
+    if (checked) {
+      setFormData(prev => ({ ...prev, email: '' }));
+      setFormErrors(prev => ({ ...prev, email: '' }));
+    }
+  };
+
+  // Handle "No Company / Individual" toggle
+  const handleNoCompanyToggle = (e) => {
+    const checked = e.target.checked;
+    setNoCompany(checked);
+    if (checked) {
+      setFormData(prev => ({ ...prev, company: '' }));
+    }
   };
 
   // Anti-flickering refs
@@ -183,7 +346,9 @@ function CustomerManagement() {
 
     try {
       setLoadingCustomerId(id);
-      const response = await fetch(`${API_BASE}/customers/${id}`);
+      const response = await fetch(`${API_BASE}/customers/${id}`, {
+        headers: getAuthHeaders()
+      });
       const result = await response.json();
 
       // Handle API response structure: { success, data: { customer, stats, quotes } }
@@ -249,7 +414,9 @@ function CustomerManagement() {
 
     try {
       setLoadingClv(true);
-      const response = await fetch(`${API_BASE}/customers/${customerId}/lifetime-value`);
+      const response = await fetch(`${API_BASE}/customers/${customerId}/lifetime-value`, {
+        headers: getAuthHeaders()
+      });
       const result = await response.json();
 
       if (result.success && result.data) {
@@ -347,6 +514,8 @@ function CustomerManagement() {
 
   const resetForm = () => {
     setFormData({
+      firstName: '',
+      lastName: '',
       name: '',
       email: '',
       phone: '',
@@ -362,6 +531,11 @@ function CustomerManagement() {
     setAvailableCities([]);
     setShowAddForm(false);
     setEditingCustomer(null);
+    // Reset new form enhancement state
+    setNoEmail(false);
+    setNoCompany(false);
+    setDuplicateWarning(null);
+    setPotentialDuplicates([]);
   };
 
   const handleSubmit = async (e) => {
@@ -390,10 +564,22 @@ function CustomerManagement() {
 
       const method = editingCustomer ? 'PUT' : 'POST';
 
+      // Prepare data - combine first/last name and handle checkboxes
+      const submitData = {
+        ...formData,
+        // Combine firstName and lastName into name field
+        name: `${formData.firstName} ${formData.lastName}`.trim(),
+        email: noEmail ? null : formData.email,
+        company: noCompany ? null : formData.company
+      };
+      // Remove firstName/lastName from submitData as backend expects 'name'
+      delete submitData.firstName;
+      delete submitData.lastName;
+
       const response = await fetch(url, {
         method,
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(formData)
+        headers: getAuthHeaders(),
+        body: JSON.stringify(submitData)
       });
 
       if (response.ok) {
@@ -404,6 +590,8 @@ function CustomerManagement() {
           'success'
         );
         resetForm();
+        // Invalidate customer cache so other components get fresh data
+        invalidateCache('/api/customers');
         await fetchCustomers();
         await fetchStats();
       } else {
@@ -434,8 +622,15 @@ function CustomerManagement() {
       return;
     }
 
+    // Split existing name into firstName and lastName
+    const nameParts = (customer.name || '').trim().split(/\s+/);
+    const firstName = nameParts[0] || '';
+    const lastName = nameParts.slice(1).join(' ') || '';
+
     setEditingCustomer(customer);
     setFormData({
+      firstName,
+      lastName,
       name: customer.name || '',
       email: customer.email || '',
       phone: customer.phone || '',
@@ -446,6 +641,12 @@ function CustomerManagement() {
       postal_code: customer.postal_code || '',
       notes: customer.notes || ''
     });
+
+    // Set noEmail if customer has no email
+    setNoEmail(!customer.email);
+
+    // Set noCompany if customer has no company
+    setNoCompany(!customer.company);
 
     // Load cities for the customer's province
     if (customer.province) {
@@ -470,12 +671,15 @@ function CustomerManagement() {
 
     try {
       const response = await fetch(`${API_BASE}/customers/${id}`, {
-        method: 'DELETE'
+        method: 'DELETE',
+        headers: getAuthHeaders()
       });
 
       if (response.ok) {
         showNotification('Customer deleted successfully', 'success');
         setSelectedCustomer(null);
+        // Invalidate customer cache so other components get fresh data
+        invalidateCache('/api/customers');
         // Refetch customers and stats after deletion
         await fetchCustomers();
         await fetchStats();
@@ -584,111 +788,288 @@ function CustomerManagement() {
         {showAddForm && (
           <div style={{ background: 'white', borderRadius: '12px', padding: '30px', marginBottom: '30px', boxShadow: '0 1px 3px rgba(0,0,0,0.1)' }}>
             <h2 style={{ margin: '0 0 20px 0', fontSize: '20px', fontWeight: '600' }}>
-              {editingCustomer ? '✏️ Edit Customer' : '➕ Add New Customer'}
+              {editingCustomer ? 'Edit Customer' : 'Add New Customer'}
             </h2>
             <form onSubmit={handleSubmit}>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px', marginBottom: '20px' }}>
-                <div>
-                  <label style={{ display: 'block', marginBottom: '8px', fontSize: '14px', fontWeight: '500', color: '#374151' }}>Name <span style={{ color: '#ef4444' }}>*</span></label>
-                  <input
-                    type="text"
-                    name="name"
-                    value={formData.name}
-                    onChange={handleInputChange}
-                    onBlur={() => handleFieldBlur('name')}
-                    aria-invalid={touched.name && formErrors.name ? 'true' : 'false'}
-                    aria-describedby={formErrors.name ? 'name-error' : undefined}
-                    style={{
-                      width: '100%',
-                      padding: '12px',
-                      border: `2px solid ${touched.name && formErrors.name ? '#ef4444' : '#e5e7eb'}`,
-                      borderRadius: '8px',
-                      fontSize: '14px',
-                      outline: 'none'
-                    }}
-                  />
-                  {touched.name && formErrors.name && (
-                    <div id="name-error" role="alert" style={{ color: '#ef4444', fontSize: '13px', marginTop: '4px', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                      <span>✕</span> {formErrors.name}
-                    </div>
-                  )}
+              {/* Duplicate Warning Banner */}
+              {duplicateWarning && (
+                <div style={{
+                  background: '#fef3c7',
+                  border: '1px solid #f59e0b',
+                  borderRadius: '8px',
+                  padding: '12px 16px',
+                  marginBottom: '20px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '12px'
+                }}>
+                  <span style={{ fontSize: '20px' }}>!</span>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontWeight: '500', color: '#92400e' }}>{duplicateWarning}</div>
+                    {potentialDuplicates.length > 0 && (
+                      <div style={{ fontSize: '13px', color: '#b45309', marginTop: '4px' }}>
+                        {potentialDuplicates[0].email && `Email: ${potentialDuplicates[0].email}`}
+                        {potentialDuplicates[0].phone && ` | Phone: ${potentialDuplicates[0].phone}`}
+                        {potentialDuplicates[0].company && ` | Company: ${potentialDuplicates[0].company}`}
+                      </div>
+                    )}
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => { setDuplicateWarning(null); setPotentialDuplicates([]); }}
+                    style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '4px', color: '#92400e' }}
+                  >
+                    X
+                  </button>
                 </div>
-                <div>
-                  <label style={{ display: 'block', marginBottom: '8px', fontSize: '14px', fontWeight: '500', color: '#374151' }}>Email <span style={{ color: '#ef4444' }}>*</span></label>
-                  <input
-                    type="email"
+              )}
+
+              {/* Row 1: First Name and Last Name with Quick Pick buttons */}
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '16px' }}>
+                {/* First Name with Fuzzy Autocomplete and Quick Pick */}
+                <div style={{ minWidth: 0 }}>
+                  <div style={{ marginBottom: '8px' }}>
+                    <label style={{ fontSize: '14px', fontWeight: '500', color: '#374151' }}>
+                      First Name <span style={{ color: '#ef4444' }}>*</span>
+                    </label>
+                  </div>
+                  <div style={{ display: 'flex', gap: '8px', alignItems: 'flex-start' }}>
+                    <div style={{ flex: 1 }}>
+                      <AutocompleteInput
+                        value={formData.firstName}
+                        onChange={(val) => {
+                          setFormData(prev => ({
+                            ...prev,
+                            firstName: val,
+                            name: `${val} ${prev.lastName}`.trim()
+                          }));
+                          if (val.length < 2) {
+                            setDuplicateWarning(null);
+                            setPotentialDuplicates([]);
+                          }
+                        }}
+                        onSelect={handleFirstNameSelect}
+                        fetchSuggestions={fetchFirstNameSuggestions}
+                        placeholder="First name..."
+                        minChars={1}
+                        renderSuggestion={(item) => (
+                          <div style={{ display: 'flex', flexDirection: 'column' }}>
+                            <span>{item.label}</span>
+                            {item.sublabel && (
+                              <span style={{ fontSize: '11px', color: '#9ca3af', fontStyle: 'italic' }}>{item.sublabel}</span>
+                            )}
+                          </div>
+                        )}
+                        error={touched.firstName && formErrors.firstName ? formErrors.firstName : null}
+                      />
+                    </div>
+                  </div>
+                  {/* Quick Pick First Name Buttons */}
+                  <div style={{ display: 'flex', gap: '6px', marginTop: '8px', flexWrap: 'wrap' }}>
+                    {popularFirstNames.map(name => (
+                      <button
+                        key={name}
+                        type="button"
+                        onClick={() => handleQuickPickName(name, 'first')}
+                        style={{
+                          padding: '4px 10px',
+                          fontSize: '12px',
+                          background: formData.firstName === name ? '#667eea' : '#f3f4f6',
+                          color: formData.firstName === name ? 'white' : '#374151',
+                          border: '1px solid #e5e7eb',
+                          borderRadius: '16px',
+                          cursor: 'pointer',
+                          transition: 'all 0.15s'
+                        }}
+                      >
+                        {name}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Last Name with Fuzzy Autocomplete and Quick Pick */}
+                <div style={{ minWidth: 0 }}>
+                  <div style={{ marginBottom: '8px' }}>
+                    <label style={{ fontSize: '14px', fontWeight: '500', color: '#374151' }}>
+                      Last Name <span style={{ color: '#ef4444' }}>*</span>
+                    </label>
+                  </div>
+                  <div style={{ display: 'flex', gap: '8px', alignItems: 'flex-start' }}>
+                    <div style={{ flex: 1 }}>
+                      <AutocompleteInput
+                        value={formData.lastName}
+                        onChange={(val) => {
+                          setFormData(prev => ({
+                            ...prev,
+                            lastName: val,
+                            name: `${prev.firstName} ${val}`.trim()
+                          }));
+                        }}
+                        onSelect={handleLastNameSelect}
+                        fetchSuggestions={fetchLastNameSuggestions}
+                        placeholder="Last name..."
+                        minChars={1}
+                        renderSuggestion={(item) => (
+                          <div style={{ display: 'flex', flexDirection: 'column' }}>
+                            <span>{item.label}</span>
+                            {item.sublabel && (
+                              <span style={{ fontSize: '11px', color: '#9ca3af', fontStyle: 'italic' }}>{item.sublabel}</span>
+                            )}
+                          </div>
+                        )}
+                        error={touched.lastName && formErrors.lastName ? formErrors.lastName : null}
+                      />
+                    </div>
+                  </div>
+                  {/* Quick Pick Last Name Buttons */}
+                  <div style={{ display: 'flex', gap: '6px', marginTop: '8px', flexWrap: 'wrap' }}>
+                    {popularLastNames.map(name => (
+                      <button
+                        key={name}
+                        type="button"
+                        onClick={() => handleQuickPickName(name, 'last')}
+                        style={{
+                          padding: '4px 10px',
+                          fontSize: '12px',
+                          background: formData.lastName === name ? '#667eea' : '#f3f4f6',
+                          color: formData.lastName === name ? 'white' : '#374151',
+                          border: '1px solid #e5e7eb',
+                          borderRadius: '16px',
+                          cursor: 'pointer',
+                          transition: 'all 0.15s'
+                        }}
+                      >
+                        {name}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              {/* Full Name Preview */}
+              {(formData.firstName || formData.lastName) && (
+                <div style={{
+                  background: '#f0fdf4',
+                  border: '1px solid #bbf7d0',
+                  borderRadius: '6px',
+                  padding: '8px 12px',
+                  marginBottom: '16px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '8px'
+                }}>
+                  <span style={{ color: '#16a34a', fontSize: '14px' }}>Full Name:</span>
+                  <span style={{ fontWeight: '500', color: '#166534' }}>
+                    {`${formData.firstName} ${formData.lastName}`.trim() || '...'}
+                  </span>
+                </div>
+              )}
+
+              {/* Row 2: Email (split layout) and Phone (with area code dropdown) */}
+              <div style={{ display: 'grid', gridTemplateColumns: '1.5fr 1fr', gap: '16px', marginBottom: '16px' }}>
+                {/* Email Field with Split Layout */}
+                <div style={{ minWidth: 0 }}>
+                  <label style={{ display: 'block', marginBottom: '8px', fontSize: '14px', fontWeight: '500', color: '#374151' }}>
+                    Email {!noEmail && <span style={{ color: '#ef4444' }}>*</span>}
+                  </label>
+                  <EmailInput
                     name="email"
                     value={formData.email}
                     onChange={handleInputChange}
                     onBlur={() => handleFieldBlur('email')}
-                    aria-invalid={touched.email && formErrors.email ? 'true' : 'false'}
-                    aria-describedby={formErrors.email ? 'email-error' : undefined}
-                    style={{
-                      width: '100%',
-                      padding: '12px',
-                      border: `2px solid ${touched.email && formErrors.email ? '#ef4444' : '#e5e7eb'}`,
-                      borderRadius: '8px',
-                      fontSize: '14px',
-                      outline: 'none'
-                    }}
+                    noEmailChecked={noEmail}
+                    onNoEmailChange={handleNoEmailToggle}
+                    showNoEmailOption={true}
+                    disabled={false}
+                    error={touched.email && formErrors.email}
                   />
                   {touched.email && formErrors.email && (
-                    <div id="email-error" role="alert" style={{ color: '#ef4444', fontSize: '13px', marginTop: '4px', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                      <span>✕</span> {formErrors.email}
+                    <div id="email-error" role="alert" style={{ color: '#ef4444', fontSize: '12px', marginTop: '4px' }}>
+                      {formErrors.email}
                     </div>
                   )}
                 </div>
-                <div>
+
+                {/* Phone with Area Code Dropdown */}
+                <div style={{ minWidth: 0 }}>
                   <label style={{ display: 'block', marginBottom: '8px', fontSize: '14px', fontWeight: '500', color: '#374151' }}>Phone</label>
-                  <input
-                    type="tel"
+                  <PhoneInput
                     name="phone"
                     value={formData.phone}
                     onChange={handleInputChange}
                     onBlur={() => handleFieldBlur('phone')}
-                    aria-invalid={touched.phone && formErrors.phone ? 'true' : 'false'}
-                    aria-describedby={formErrors.phone ? 'phone-error' : undefined}
-                    placeholder="(555) 123-4567"
-                    style={{
-                      width: '100%',
-                      padding: '12px',
-                      border: `2px solid ${touched.phone && formErrors.phone ? '#ef4444' : '#e5e7eb'}`,
-                      borderRadius: '8px',
-                      fontSize: '14px',
-                      outline: 'none'
-                    }}
+                    error={touched.phone && formErrors.phone}
                   />
                   {touched.phone && formErrors.phone && (
-                    <div id="phone-error" role="alert" style={{ color: '#ef4444', fontSize: '13px', marginTop: '4px', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                      <span>✕</span> {formErrors.phone}
+                    <div id="phone-error" role="alert" style={{ color: '#ef4444', fontSize: '12px', marginTop: '4px' }}>
+                      {formErrors.phone}
                     </div>
                   )}
                 </div>
-                <div>
-                  <label style={{ display: 'block', marginBottom: '8px', fontSize: '14px', fontWeight: '500', color: '#374151' }}>Company</label>
-                  <input
-                    type="text"
-                    name="company"
+              </div>
+
+              {/* Row 3: Company with "No Company" option */}
+              <div style={{ marginBottom: '16px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                  <label style={{ fontSize: '14px', fontWeight: '500', color: '#374151' }}>Company</label>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px', color: '#6b7280', cursor: 'pointer' }}>
+                    <input
+                      type="checkbox"
+                      checked={noCompany}
+                      onChange={handleNoCompanyToggle}
+                      style={{ width: '14px', height: '14px', accentColor: '#667eea' }}
+                    />
+                    Individual (No Company)
+                  </label>
+                </div>
+                {noCompany ? (
+                  <div style={{
+                    width: '100%',
+                    padding: '10px 12px',
+                    border: '2px solid #e5e7eb',
+                    borderRadius: '8px',
+                    fontSize: '14px',
+                    background: '#f3f4f6',
+                    color: '#6b7280',
+                    boxSizing: 'border-box'
+                  }}>
+                    Individual Customer
+                  </div>
+                ) : (
+                  <AutocompleteInput
                     value={formData.company}
-                    onChange={handleInputChange}
-                    style={{ width: '100%', padding: '12px', border: '2px solid #e5e7eb', borderRadius: '8px', fontSize: '14px' }}
+                    onChange={(val) => setFormData(prev => ({ ...prev, company: val }))}
+                    onSelect={handleCompanySelect}
+                    fetchSuggestions={fetchCompanySuggestions}
+                    placeholder="Company name..."
+                    minChars={2}
+                    renderSuggestion={(item) => (
+                      <span>{item.label}</span>
+                    )}
                   />
-                </div>
-                <div style={{ gridColumn: '1 / -1' }}>
-                  <label style={{ display: 'block', marginBottom: '8px', fontSize: '14px', fontWeight: '500', color: '#374151' }}>Address</label>
-                  <input
-                    type="text"
-                    name="address"
-                    value={formData.address}
-                    onChange={handleInputChange}
-                    placeholder="123 Main Street"
-                    style={{ width: '100%', padding: '12px', border: '2px solid #e5e7eb', borderRadius: '8px', fontSize: '14px' }}
-                  />
-                </div>
-                <div>
+                )}
+              </div>
+
+              {/* Row 4: Address (full width) */}
+              <div style={{ marginBottom: '16px' }}>
+                <label style={{ display: 'block', marginBottom: '8px', fontSize: '14px', fontWeight: '500', color: '#374151' }}>Address</label>
+                <input
+                  type="text"
+                  name="address"
+                  value={formData.address}
+                  onChange={handleInputChange}
+                  placeholder="123 Main Street"
+                  style={{ width: '100%', padding: '10px 12px', border: '2px solid #e5e7eb', borderRadius: '8px', fontSize: '14px', boxSizing: 'border-box' }}
+                />
+              </div>
+
+              {/* Row 3: Postal Code, Province, City */}
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1.5fr', gap: '16px', marginBottom: '16px' }}>
+                <div style={{ minWidth: 0 }}>
                   <label style={{ display: 'block', marginBottom: '8px', fontSize: '14px', fontWeight: '500', color: '#374151' }}>
-                    📮 Postal Code
-                    {loadingPostalCode && <span style={{ marginLeft: '8px', color: '#667eea', fontSize: '12px' }}>⏳ Looking up...</span>}
+                    Postal Code
+                    {loadingPostalCode && <span style={{ marginLeft: '8px', color: '#667eea', fontSize: '12px' }}>Looking up...</span>}
                   </label>
                   <input
                     type="text"
@@ -698,19 +1079,19 @@ function CustomerManagement() {
                     onBlur={(e) => handlePostalCodeLookup(e.target.value)}
                     placeholder="A1A 1A1"
                     maxLength="7"
-                    style={{ width: '100%', padding: '12px', border: '2px solid #e5e7eb', borderRadius: '8px', fontSize: '14px' }}
+                    style={{ width: '100%', padding: '10px 12px', border: '2px solid #e5e7eb', borderRadius: '8px', fontSize: '14px', boxSizing: 'border-box' }}
                   />
-                  <div style={{ fontSize: '12px', color: '#6b7280', marginTop: '4px' }}>
-                    Enter postal code and we'll auto-fill city and province
+                  <div style={{ fontSize: '11px', color: '#6b7280', marginTop: '4px' }}>
+                    Enter postal code to auto-fill city and province
                   </div>
                 </div>
-                <div>
+                <div style={{ minWidth: 0 }}>
                   <label style={{ display: 'block', marginBottom: '8px', fontSize: '14px', fontWeight: '500', color: '#374151' }}>Province</label>
                   <select
                     name="province"
                     value={formData.province}
                     onChange={handleInputChange}
-                    style={{ width: '100%', padding: '12px', border: '2px solid #e5e7eb', borderRadius: '8px', fontSize: '14px' }}
+                    style={{ width: '100%', padding: '10px 12px', border: '2px solid #e5e7eb', borderRadius: '8px', fontSize: '14px', boxSizing: 'border-box', background: 'white' }}
                   >
                     <option value="">Select Province</option>
                     <option value="ON">Ontario</option>
@@ -728,45 +1109,42 @@ function CustomerManagement() {
                     <option value="NU">Nunavut</option>
                   </select>
                 </div>
-                <div>
-                  <label style={{ display: 'block', marginBottom: '8px', fontSize: '14px', fontWeight: '500', color: '#374151' }}>
-                    City
-                    {availableCities.length > 0 && <span style={{ marginLeft: '8px', color: '#667eea', fontSize: '12px' }}>({availableCities.length} options)</span>}
-                  </label>
-                  {availableCities.length > 0 ? (
-                    <select
-                      name="city"
-                      value={formData.city}
-                      onChange={handleInputChange}
-                      style={{ width: '100%', padding: '12px', border: '2px solid #e5e7eb', borderRadius: '8px', fontSize: '14px' }}
-                    >
-                      <option value="">Select City</option>
-                      {availableCities.map(city => (
-                        <option key={city} value={city}>{city}</option>
-                      ))}
-                    </select>
-                  ) : (
-                    <input
-                      type="text"
-                      name="city"
-                      value={formData.city}
-                      onChange={handleInputChange}
-                      placeholder="Toronto"
-                      style={{ width: '100%', padding: '12px', border: '2px solid #e5e7eb', borderRadius: '8px', fontSize: '14px' }}
-                    />
-                  )}
-                </div>
-                <div style={{ gridColumn: '1 / -1' }}>
-                  <label style={{ display: 'block', marginBottom: '8px', fontSize: '14px', fontWeight: '500', color: '#374151' }}>Notes</label>
-                  <textarea
-                    name="notes"
-                    value={formData.notes}
-                    onChange={handleInputChange}
-                    rows="3"
-                    placeholder="Additional notes about this customer..."
-                    style={{ width: '100%', padding: '12px', border: '2px solid #e5e7eb', borderRadius: '8px', fontSize: '14px', resize: 'vertical' }}
+                {/* City Field with Autocomplete */}
+                <div style={{ minWidth: 0 }}>
+                  <AutocompleteInput
+                    label="City"
+                    value={formData.city}
+                    onChange={(val) => setFormData(prev => ({ ...prev, city: val }))}
+                    onSelect={handleCitySelect}
+                    fetchSuggestions={fetchCitySuggestions}
+                    placeholder="Start typing city name..."
+                    minChars={2}
+                    allowFreeText={true}
+                    renderSuggestion={(city) => (
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <span>{city.city_name}</span>
+                        <span style={{ fontSize: '12px', color: '#6b7280' }}>
+                          {city.province_code}
+                          {city.population > 0 && ` (pop: ${city.population.toLocaleString()})`}
+                        </span>
+                      </div>
+                    )}
+                    helperText={formData.province ? `Showing cities in ${formData.province}` : 'Type to search all Canadian cities'}
                   />
                 </div>
+              </div>
+
+              {/* Row 4: Notes (full width) */}
+              <div style={{ marginBottom: '20px' }}>
+                <label style={{ display: 'block', marginBottom: '8px', fontSize: '14px', fontWeight: '500', color: '#374151' }}>Notes</label>
+                <textarea
+                  name="notes"
+                  value={formData.notes}
+                  onChange={handleInputChange}
+                  rows="3"
+                  placeholder="Additional notes about this customer..."
+                  style={{ width: '100%', padding: '10px 12px', border: '2px solid #e5e7eb', borderRadius: '8px', fontSize: '14px', resize: 'vertical', boxSizing: 'border-box' }}
+                />
               </div>
               <div style={{ display: 'flex', gap: '12px' }}>
                 <button
@@ -787,54 +1165,104 @@ function CustomerManagement() {
           </div>
         )}
 
-        {/* Search and Filters */}
+        {/* Search, Filters, and View Toggle */}
         <div style={{ background: 'white', borderRadius: '12px', padding: '20px', marginBottom: '20px', boxShadow: '0 1px 3px rgba(0,0,0,0.1)' }}>
-          <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr', gap: '16px' }}>
-            <div>
-              <label style={{ display: 'block', marginBottom: '8px', fontSize: '14px', fontWeight: '500', color: '#374151' }}>
-                🔍 Search Customers
-              </label>
-              <input
-                type="text"
-                value={searchTerm}
-                onChange={(e) => handleSearch(e.target.value)}
-                placeholder="Search by name, email, company, phone..."
-                style={{ width: '100%', padding: '12px', border: '2px solid #e5e7eb', borderRadius: '8px', fontSize: '14px' }}
-              />
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', gap: '20px', flexWrap: 'wrap' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'minmax(250px, 2fr) minmax(140px, 1fr) minmax(140px, 1fr)', gap: '16px', flex: 1, minWidth: 0 }}>
+              <div style={{ minWidth: 0 }}>
+                <label style={{ display: 'block', marginBottom: '8px', fontSize: '14px', fontWeight: '500', color: '#374151' }}>
+                  Search Customers
+                </label>
+                <input
+                  type="text"
+                  value={searchTerm}
+                  onChange={(e) => handleSearch(e.target.value)}
+                  placeholder="Search by name, email, company, phone..."
+                  style={{ width: '100%', padding: '12px', border: '2px solid #e5e7eb', borderRadius: '8px', fontSize: '14px', boxSizing: 'border-box' }}
+                />
+              </div>
+              <div style={{ minWidth: 0 }}>
+                <label style={{ display: 'block', marginBottom: '8px', fontSize: '14px', fontWeight: '500', color: '#374151' }}>
+                  City
+                </label>
+                <input
+                  type="text"
+                  value={cityFilter}
+                  onChange={(e) => { setCityFilter(e.target.value); setCurrentPage(1); }}
+                  placeholder="Filter by city..."
+                  style={{ width: '100%', padding: '12px', border: '2px solid #e5e7eb', borderRadius: '8px', fontSize: '14px', boxSizing: 'border-box' }}
+                />
+              </div>
+              <div style={{ minWidth: 0 }}>
+                <label style={{ display: 'block', marginBottom: '8px', fontSize: '14px', fontWeight: '500', color: '#374151' }}>
+                  Province
+                </label>
+                <select
+                  value={provinceFilter}
+                  onChange={(e) => { setProvinceFilter(e.target.value); setCurrentPage(1); }}
+                  style={{ width: '100%', padding: '12px', border: '2px solid #e5e7eb', borderRadius: '8px', fontSize: '14px', boxSizing: 'border-box' }}
+                >
+                  <option value="">All Provinces</option>
+                  <option value="ON">Ontario</option>
+                  <option value="QC">Quebec</option>
+                  <option value="BC">British Columbia</option>
+                  <option value="AB">Alberta</option>
+                  <option value="MB">Manitoba</option>
+                  <option value="SK">Saskatchewan</option>
+                  <option value="NS">Nova Scotia</option>
+                  <option value="NB">New Brunswick</option>
+                </select>
+              </div>
             </div>
-            <div>
-              <label style={{ display: 'block', marginBottom: '8px', fontSize: '14px', fontWeight: '500', color: '#374151' }}>
-                Filter by City
-              </label>
-              <input
-                type="text"
-                value={cityFilter}
-                onChange={(e) => { setCityFilter(e.target.value); setCurrentPage(1); }}
-                placeholder="Enter city..."
-                style={{ width: '100%', padding: '12px', border: '2px solid #e5e7eb', borderRadius: '8px', fontSize: '14px' }}
-              />
-            </div>
-            <div>
-              <label style={{ display: 'block', marginBottom: '8px', fontSize: '14px', fontWeight: '500', color: '#374151' }}>
-                Filter by Province
-              </label>
-              <select
-                value={provinceFilter}
-                onChange={(e) => { setProvinceFilter(e.target.value); setCurrentPage(1); }}
-                style={{ width: '100%', padding: '12px', border: '2px solid #e5e7eb', borderRadius: '8px', fontSize: '14px' }}
-              >
-                <option value="">All Provinces</option>
-                <option value="ON">Ontario</option>
-                <option value="QC">Quebec</option>
-                <option value="BC">British Columbia</option>
-                <option value="AB">Alberta</option>
-                <option value="MB">Manitoba</option>
-                <option value="SK">Saskatchewan</option>
-                <option value="NS">Nova Scotia</option>
-                <option value="NB">New Brunswick</option>
-              </select>
+
+            {/* View Mode Toggle */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <span style={{ fontSize: '14px', fontWeight: '500', color: '#374151' }}>View:</span>
+              <div style={{ display: 'flex', background: '#f3f4f6', borderRadius: '8px', padding: '4px' }}>
+                <button
+                  onClick={() => setViewMode('table')}
+                  style={{
+                    padding: '8px 14px',
+                    background: viewMode === 'table' ? 'white' : 'transparent',
+                    color: viewMode === 'table' ? '#667eea' : '#6b7280',
+                    border: 'none',
+                    borderRadius: '6px',
+                    fontSize: '13px',
+                    fontWeight: '600',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                    boxShadow: viewMode === 'table' ? '0 1px 3px rgba(0,0,0,0.1)' : 'none',
+                    transition: 'all 0.15s ease'
+                  }}
+                >
+                  <span style={{ fontSize: '16px' }}>☰</span> Table
+                </button>
+                <button
+                  onClick={() => setViewMode('card')}
+                  style={{
+                    padding: '8px 14px',
+                    background: viewMode === 'card' ? 'white' : 'transparent',
+                    color: viewMode === 'card' ? '#667eea' : '#6b7280',
+                    border: 'none',
+                    borderRadius: '6px',
+                    fontSize: '13px',
+                    fontWeight: '600',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                    boxShadow: viewMode === 'card' ? '0 1px 3px rgba(0,0,0,0.1)' : 'none',
+                    transition: 'all 0.15s ease'
+                  }}
+                >
+                  <span style={{ fontSize: '16px' }}>⊞</span> Cards
+                </button>
+              </div>
             </div>
           </div>
+
           {(searchTerm || cityFilter || provinceFilter) && (
             <div style={{ marginTop: '12px', display: 'flex', gap: '8px', alignItems: 'center' }}>
               <span style={{ fontSize: '14px', color: '#6b7280' }}>Filters active:</span>
@@ -842,14 +1270,153 @@ function CustomerManagement() {
                 onClick={() => { setSearchTerm(''); setCityFilter(''); setProvinceFilter(''); setCurrentPage(1); }}
                 style={{ padding: '6px 12px', background: '#ef4444', color: 'white', border: 'none', borderRadius: '6px', fontSize: '12px', cursor: 'pointer' }}
               >
-                ✕ Clear All Filters
+                ✕ Clear All
               </button>
             </div>
           )}
         </div>
 
-        {/* Customers Table */}
-        <div style={{ background: 'white', borderRadius: '12px', boxShadow: '0 1px 3px rgba(0,0,0,0.1)', overflow: 'hidden' }}>
+        {/* Customers Display */}
+        {viewMode === 'card' ? (
+          /* Card View */
+          <div style={{ marginBottom: '20px' }}>
+            {loading ? (
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '20px' }}>
+                {Array.from({ length: 8 }).map((_, i) => (
+                  <div key={`skeleton-${i}`} style={{ background: 'white', borderRadius: '12px', padding: '20px', boxShadow: '0 1px 3px rgba(0,0,0,0.1)' }}>
+                    <div style={{ background: 'linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%)', height: '20px', width: '60%', borderRadius: '4px', marginBottom: '12px' }} />
+                    <div style={{ background: 'linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%)', height: '16px', width: '80%', borderRadius: '4px', marginBottom: '8px' }} />
+                    <div style={{ background: 'linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%)', height: '16px', width: '50%', borderRadius: '4px' }} />
+                  </div>
+                ))}
+              </div>
+            ) : customers.length === 0 ? (
+              <div style={{ background: 'white', borderRadius: '12px', padding: '60px', textAlign: 'center', boxShadow: '0 1px 3px rgba(0,0,0,0.1)' }}>
+                <div style={{ fontSize: '48px', marginBottom: '16px' }}>📭</div>
+                <div style={{ color: '#9ca3af', fontSize: '16px' }}>
+                  {searchTerm || cityFilter || provinceFilter ? 'No customers match your filters' : 'No customers yet. Add your first customer!'}
+                </div>
+              </div>
+            ) : (
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '20px' }}>
+                {customers.filter(c => c && c.id).map(customer => {
+                  // CLV tier determination (if customer has CLV data)
+                  const clv = customer.lifetime_value || customer.lifetimeValue || 0;
+                  const clvTier = clv >= 50000 ? 'platinum' : clv >= 20000 ? 'gold' : clv >= 5000 ? 'silver' : 'bronze';
+                  const tierConfig = {
+                    platinum: { color: '#1e293b', bg: '#f1f5f9', icon: '👑', label: 'Platinum' },
+                    gold: { color: '#b45309', bg: '#fef3c7', icon: '🥇', label: 'Gold' },
+                    silver: { color: '#64748b', bg: '#f1f5f9', icon: '🥈', label: 'Silver' },
+                    bronze: { color: '#78716c', bg: '#fef3c7', icon: '🥉', label: 'Bronze' }
+                  };
+                  const tier = tierConfig[clvTier];
+
+                  return (
+                    <div
+                      key={customer.id}
+                      style={{
+                        background: 'white',
+                        borderRadius: '12px',
+                        padding: '20px',
+                        boxShadow: '0 1px 3px rgba(0,0,0,0.1)',
+                        border: `2px solid ${clv > 0 ? tier.color + '30' : '#e5e7eb'}`,
+                        transition: 'transform 0.2s ease, box-shadow 0.2s ease',
+                        cursor: 'pointer'
+                      }}
+                      onMouseEnter={(e) => {
+                        e.currentTarget.style.transform = 'translateY(-4px)';
+                        e.currentTarget.style.boxShadow = '0 8px 20px rgba(0,0,0,0.12)';
+                      }}
+                      onMouseLeave={(e) => {
+                        e.currentTarget.style.transform = 'translateY(0)';
+                        e.currentTarget.style.boxShadow = '0 1px 3px rgba(0,0,0,0.1)';
+                      }}
+                      onClick={() => fetchCustomerDetails(customer.id)}
+                    >
+                      {/* Header with name and CLV badge */}
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '12px' }}>
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <h3 style={{ margin: 0, fontSize: '16px', fontWeight: '600', color: '#111827', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                            {customer.name || 'Unnamed Customer'}
+                          </h3>
+                          {customer.company && (
+                            <div style={{ fontSize: '13px', color: '#6b7280', marginTop: '2px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                              {customer.company}
+                            </div>
+                          )}
+                        </div>
+                        {clv > 0 && (
+                          <span style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '4px',
+                            padding: '4px 8px',
+                            background: tier.bg,
+                            color: tier.color,
+                            borderRadius: '12px',
+                            fontSize: '11px',
+                            fontWeight: '600',
+                            flexShrink: 0
+                          }}>
+                            {tier.icon} {tier.label}
+                          </span>
+                        )}
+                      </div>
+
+                      {/* Contact info */}
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', marginBottom: '12px' }}>
+                        {customer.email && (
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px', color: '#374151' }}>
+                            <span style={{ color: '#9ca3af' }}>✉️</span>
+                            <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{customer.email}</span>
+                          </div>
+                        )}
+                        {customer.phone && (
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px', color: '#374151' }}>
+                            <span style={{ color: '#9ca3af' }}>📞</span>
+                            {customer.phone}
+                          </div>
+                        )}
+                        {customer.city && (
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px', color: '#374151' }}>
+                            <span style={{ color: '#9ca3af' }}>📍</span>
+                            {customer.city}{customer.province ? `, ${customer.province}` : ''}
+                          </div>
+                        )}
+                      </div>
+
+                      {/* CLV value if available */}
+                      {clv > 0 && (
+                        <div style={{ background: '#f9fafb', borderRadius: '8px', padding: '10px', marginBottom: '12px' }}>
+                          <div style={{ fontSize: '12px', color: '#6b7280', marginBottom: '4px' }}>Lifetime Value</div>
+                          <div style={{ fontSize: '18px', fontWeight: 'bold', color: '#10b981' }}>{formatCurrency(clv * 100)}</div>
+                        </div>
+                      )}
+
+                      {/* Action buttons */}
+                      <div style={{ display: 'flex', gap: '8px' }}>
+                        <button
+                          onClick={(e) => { e.stopPropagation(); handleEdit(customer); }}
+                          style={{ flex: 1, padding: '8px', background: '#3b82f6', color: 'white', border: 'none', borderRadius: '6px', fontSize: '12px', fontWeight: '500', cursor: 'pointer' }}
+                        >
+                          Edit
+                        </button>
+                        <button
+                          onClick={(e) => { e.stopPropagation(); handleDelete(customer.id); }}
+                          style={{ flex: 1, padding: '8px', background: '#ef4444', color: 'white', border: 'none', borderRadius: '6px', fontSize: '12px', fontWeight: '500', cursor: 'pointer' }}
+                        >
+                          Delete
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        ) : (
+          /* Table View */
+          <div style={{ background: 'white', borderRadius: '12px', boxShadow: '0 1px 3px rgba(0,0,0,0.1)', overflow: 'hidden' }}>
           <div style={{ overflowX: 'auto' }}>
             <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: '800px' }}>
               <thead>
@@ -991,6 +1558,35 @@ function CustomerManagement() {
             </div>
           )}
         </div>
+        )}
+
+        {/* Pagination - shared for both views */}
+        {totalPages > 1 && viewMode === 'card' && (
+          <div style={{ background: 'white', borderRadius: '12px', padding: '20px', boxShadow: '0 1px 3px rgba(0,0,0,0.1)', marginBottom: '20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <div style={{ fontSize: '14px', color: '#6b7280' }}>
+              Showing {((currentPage - 1) * itemsPerPage) + 1} to {Math.min(currentPage * itemsPerPage, totalCount)} of {totalCount} customers
+            </div>
+            <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+              <button
+                onClick={() => setCurrentPage(Math.max(1, currentPage - 1))}
+                disabled={currentPage === 1}
+                style={{ padding: '8px 16px', background: currentPage === 1 ? '#e5e7eb' : '#667eea', color: currentPage === 1 ? '#9ca3af' : 'white', border: 'none', borderRadius: '6px', fontSize: '14px', cursor: currentPage === 1 ? 'not-allowed' : 'pointer' }}
+              >
+                Previous
+              </button>
+              <span style={{ fontSize: '14px', color: '#374151', padding: '0 12px' }}>
+                Page {currentPage} of {totalPages}
+              </span>
+              <button
+                onClick={() => setCurrentPage(Math.min(totalPages, currentPage + 1))}
+                disabled={currentPage === totalPages}
+                style={{ padding: '8px 16px', background: currentPage === totalPages ? '#e5e7eb' : '#667eea', color: currentPage === totalPages ? '#9ca3af' : 'white', border: 'none', borderRadius: '6px', fontSize: '14px', cursor: currentPage === totalPages ? 'not-allowed' : 'pointer' }}
+              >
+                Next
+              </button>
+            </div>
+          </div>
+        )}
 
         {/* Customer Detail Modal */}
         {selectedCustomer && selectedCustomer.customer && (
@@ -1013,20 +1609,20 @@ function CustomerManagement() {
 
               <div style={{ padding: '30px' }}>
                 {/* Customer Info */}
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px', marginBottom: '30px' }}>
-                  <div>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '20px', marginBottom: '30px' }}>
+                  <div style={{ minWidth: 0 }}>
                     <div style={{ fontSize: '12px', color: '#6b7280', fontWeight: '600', marginBottom: '4px' }}>EMAIL</div>
-                    <div style={{ fontSize: '14px', color: '#111827' }}>{selectedCustomer?.customer?.email || '-'}</div>
+                    <div style={{ fontSize: '14px', color: '#111827', wordBreak: 'break-word' }}>{selectedCustomer?.customer?.email || '-'}</div>
                   </div>
-                  <div>
+                  <div style={{ minWidth: 0 }}>
                     <div style={{ fontSize: '12px', color: '#6b7280', fontWeight: '600', marginBottom: '4px' }}>PHONE</div>
                     <div style={{ fontSize: '14px', color: '#111827' }}>{selectedCustomer?.customer?.phone || '-'}</div>
                   </div>
-                  <div>
+                  <div style={{ minWidth: 0 }}>
                     <div style={{ fontSize: '12px', color: '#6b7280', fontWeight: '600', marginBottom: '4px' }}>COMPANY</div>
-                    <div style={{ fontSize: '14px', color: '#111827' }}>{selectedCustomer?.customer?.company || '-'}</div>
+                    <div style={{ fontSize: '14px', color: '#111827', wordBreak: 'break-word' }}>{selectedCustomer?.customer?.company || '-'}</div>
                   </div>
-                  <div>
+                  <div style={{ minWidth: 0 }}>
                     <div style={{ fontSize: '12px', color: '#6b7280', fontWeight: '600', marginBottom: '4px' }}>CITY & PROVINCE</div>
                     <div style={{ fontSize: '14px', color: '#111827' }}>
                       {selectedCustomer?.customer?.city && selectedCustomer?.customer?.province
@@ -1035,15 +1631,15 @@ function CustomerManagement() {
                     </div>
                   </div>
                   {selectedCustomer?.customer?.address && (
-                    <div style={{ gridColumn: '1 / -1' }}>
+                    <div style={{ gridColumn: '1 / -1', minWidth: 0 }}>
                       <div style={{ fontSize: '12px', color: '#6b7280', fontWeight: '600', marginBottom: '4px' }}>ADDRESS</div>
-                      <div style={{ fontSize: '14px', color: '#111827' }}>{selectedCustomer.customer?.address}</div>
+                      <div style={{ fontSize: '14px', color: '#111827', wordBreak: 'break-word' }}>{selectedCustomer.customer?.address}</div>
                     </div>
                   )}
                   {selectedCustomer?.customer?.notes && (
-                    <div style={{ gridColumn: '1 / -1' }}>
+                    <div style={{ gridColumn: '1 / -1', minWidth: 0 }}>
                       <div style={{ fontSize: '12px', color: '#6b7280', fontWeight: '600', marginBottom: '4px' }}>NOTES</div>
-                      <div style={{ fontSize: '14px', color: '#111827', background: '#f9fafb', padding: '12px', borderRadius: '6px' }}>
+                      <div style={{ fontSize: '14px', color: '#111827', background: '#f9fafb', padding: '12px', borderRadius: '6px', wordBreak: 'break-word' }}>
                         {selectedCustomer.customer?.notes}
                       </div>
                     </div>
@@ -1131,20 +1727,20 @@ function CustomerManagement() {
                   </div>
 
                   {/* CLV Metrics Grid */}
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '16px', marginBottom: '16px' }}>
-                    <div style={{ background: 'rgba(255,255,255,0.15)', borderRadius: '8px', padding: '12px', textAlign: 'center' }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(100px, 1fr))', gap: '12px', marginBottom: '16px' }}>
+                    <div style={{ background: 'rgba(255,255,255,0.15)', borderRadius: '8px', padding: '12px', textAlign: 'center', minWidth: 0 }}>
                       <div style={{ fontSize: '20px', fontWeight: 'bold' }}>{clvData?.quoteStats?.totalQuotes || selectedCustomer.customer?.total_quotes || selectedCustomer.stats?.total_quotes || 0}</div>
                       <div style={{ fontSize: '11px', opacity: 0.9 }}>Total Quotes</div>
                     </div>
-                    <div style={{ background: 'rgba(255,255,255,0.15)', borderRadius: '8px', padding: '12px', textAlign: 'center' }}>
+                    <div style={{ background: 'rgba(255,255,255,0.15)', borderRadius: '8px', padding: '12px', textAlign: 'center', minWidth: 0 }}>
                       <div style={{ fontSize: '20px', fontWeight: 'bold', color: '#86efac' }}>{clvData?.quoteStats?.convertedQuotes || selectedCustomer.customer?.total_won_quotes || 0}</div>
                       <div style={{ fontSize: '11px', opacity: 0.9 }}>Converted</div>
                     </div>
-                    <div style={{ background: 'rgba(255,255,255,0.15)', borderRadius: '8px', padding: '12px', textAlign: 'center' }}>
+                    <div style={{ background: 'rgba(255,255,255,0.15)', borderRadius: '8px', padding: '12px', textAlign: 'center', minWidth: 0 }}>
                       <div style={{ fontSize: '20px', fontWeight: 'bold' }}>${clvData?.metrics?.averageOrderValue?.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 }) || '0'}</div>
                       <div style={{ fontSize: '11px', opacity: 0.9 }}>Avg Order</div>
                     </div>
-                    <div style={{ background: 'rgba(255,255,255,0.15)', borderRadius: '8px', padding: '12px', textAlign: 'center' }}>
+                    <div style={{ background: 'rgba(255,255,255,0.15)', borderRadius: '8px', padding: '12px', textAlign: 'center', minWidth: 0 }}>
                       <div style={{ fontSize: '20px', fontWeight: 'bold' }}>{clvData?.metrics?.totalTransactions || 0}</div>
                       <div style={{ fontSize: '11px', opacity: 0.9 }}>Transactions</div>
                     </div>
@@ -1152,18 +1748,18 @@ function CustomerManagement() {
 
                   {/* Advanced CLV Metrics */}
                   {clvData && (
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '16px', borderTop: '1px solid rgba(255,255,255,0.2)', paddingTop: '16px' }}>
-                      <div style={{ textAlign: 'center' }}>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(120px, 1fr))', gap: '12px', borderTop: '1px solid rgba(255,255,255,0.2)', paddingTop: '16px' }}>
+                      <div style={{ textAlign: 'center', minWidth: 0 }}>
                         <div style={{ fontSize: '18px', fontWeight: 'bold' }}>${clvData.metrics?.predictedAnnualValue?.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 }) || '0'}</div>
-                        <div style={{ fontSize: '11px', opacity: 0.8 }}>Predicted Annual Value</div>
+                        <div style={{ fontSize: '11px', opacity: 0.8 }}>Predicted Annual</div>
                       </div>
-                      <div style={{ textAlign: 'center' }}>
+                      <div style={{ textAlign: 'center', minWidth: 0 }}>
                         <div style={{ fontSize: '18px', fontWeight: 'bold' }}>{clvData.metrics?.purchaseFrequency?.toFixed(2) || '0'}/mo</div>
-                        <div style={{ fontSize: '11px', opacity: 0.8 }}>Purchase Frequency</div>
+                        <div style={{ fontSize: '11px', opacity: 0.8 }}>Purchase Freq</div>
                       </div>
-                      <div style={{ textAlign: 'center' }}>
+                      <div style={{ textAlign: 'center', minWidth: 0 }}>
                         <div style={{ fontSize: '18px', fontWeight: 'bold' }}>{clvData.tenureMonths || 0} mo</div>
-                        <div style={{ fontSize: '11px', opacity: 0.8 }}>Customer Tenure</div>
+                        <div style={{ fontSize: '11px', opacity: 0.8 }}>Tenure</div>
                       </div>
                     </div>
                   )}
@@ -1190,21 +1786,21 @@ function CustomerManagement() {
                 </div>
 
                 {/* Customer Statistics */}
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '16px', marginBottom: '24px' }}>
-                  <div style={{ background: '#f0f9ff', borderRadius: '8px', padding: '16px', textAlign: 'center' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: '16px', marginBottom: '24px' }}>
+                  <div style={{ background: '#f0f9ff', borderRadius: '8px', padding: '16px', textAlign: 'center', minWidth: 0 }}>
                     <div style={{ fontSize: '24px', fontWeight: 'bold', color: '#0284c7' }}>{selectedCustomer.stats?.total_quotes}</div>
                     <div style={{ fontSize: '12px', color: '#6b7280', marginTop: '4px' }}>Total Quotes</div>
                   </div>
-                  <div style={{ background: '#f0fdf4', borderRadius: '8px', padding: '16px', textAlign: 'center' }}>
-                    <div style={{ fontSize: '24px', fontWeight: 'bold', color: '#16a34a' }}>{formatCurrency(selectedCustomer.stats?.total_spent)}</div>
+                  <div style={{ background: '#f0fdf4', borderRadius: '8px', padding: '16px', textAlign: 'center', minWidth: 0 }}>
+                    <div style={{ fontSize: '20px', fontWeight: 'bold', color: '#16a34a' }}>{formatCurrency(selectedCustomer.stats?.total_spent)}</div>
                     <div style={{ fontSize: '12px', color: '#6b7280', marginTop: '4px' }}>Won Revenue</div>
                   </div>
-                  <div style={{ background: '#fef3c7', borderRadius: '8px', padding: '16px', textAlign: 'center' }}>
+                  <div style={{ background: '#fef3c7', borderRadius: '8px', padding: '16px', textAlign: 'center', minWidth: 0 }}>
                     <div style={{ fontSize: '24px', fontWeight: 'bold', color: '#d97706' }}>{selectedCustomer.customer?.marketplace_orders_count || 0}</div>
                     <div style={{ fontSize: '12px', color: '#6b7280', marginTop: '4px' }}>Marketplace Orders</div>
                   </div>
-                  <div style={{ background: '#fef9c3', borderRadius: '8px', padding: '16px', textAlign: 'center' }}>
-                    <div style={{ fontSize: '24px', fontWeight: 'bold', color: '#854d0e' }}>{formatCurrency(selectedCustomer.customer?.marketplace_revenue_cents || 0)}</div>
+                  <div style={{ background: '#fef9c3', borderRadius: '8px', padding: '16px', textAlign: 'center', minWidth: 0 }}>
+                    <div style={{ fontSize: '20px', fontWeight: 'bold', color: '#854d0e' }}>{formatCurrency(selectedCustomer.customer?.marketplace_revenue_cents || 0)}</div>
                     <div style={{ fontSize: '12px', color: '#6b7280', marginTop: '4px' }}>Marketplace Revenue</div>
                   </div>
                 </div>
@@ -1217,11 +1813,12 @@ function CustomerManagement() {
                     padding: '16px',
                     marginBottom: '24px',
                     display: 'flex',
+                    flexWrap: 'wrap',
                     justifyContent: 'space-between',
-                    alignItems: 'center'
+                    alignItems: 'center',
+                    gap: '16px'
                   }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                      <span style={{ fontSize: '20px' }}>📅</span>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px', minWidth: 0 }}>
                       <div>
                         <div style={{ fontSize: '12px', color: '#6b7280', fontWeight: '500' }}>First Quote</div>
                         <div style={{ fontSize: '14px', fontWeight: '600', color: '#111827' }}>
@@ -1229,15 +1826,14 @@ function CustomerManagement() {
                         </div>
                       </div>
                     </div>
-                    <div style={{ flex: 1, margin: '0 24px', borderTop: '2px dashed #d1d5db' }} />
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                    <div style={{ flex: '1 1 50px', minWidth: '50px', borderTop: '2px dashed #d1d5db' }} />
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px', minWidth: 0 }}>
                       <div style={{ textAlign: 'right' }}>
                         <div style={{ fontSize: '12px', color: '#6b7280', fontWeight: '500' }}>Last Quote</div>
                         <div style={{ fontSize: '14px', fontWeight: '600', color: '#111827' }}>
                           {formatDate(selectedCustomer.customer?.last_quote_date)}
                         </div>
                       </div>
-                      <span style={{ fontSize: '20px' }}>📋</span>
                     </div>
                   </div>
                 )}
@@ -1251,18 +1847,20 @@ function CustomerManagement() {
                     marginBottom: '20px',
                     color: 'white',
                     display: 'flex',
+                    flexWrap: 'wrap',
                     justifyContent: 'space-between',
-                    alignItems: 'center'
+                    alignItems: 'center',
+                    gap: '16px'
                   }}>
-                    <div>
+                    <div style={{ minWidth: 0 }}>
                       <div style={{ fontSize: '14px', opacity: 0.9 }}>Combined Total Revenue</div>
-                      <div style={{ fontSize: '28px', fontWeight: 'bold', marginTop: '4px' }}>
+                      <div style={{ fontSize: '24px', fontWeight: 'bold', marginTop: '4px' }}>
                         {formatCurrency((selectedCustomer.stats?.total_spent || 0) + (selectedCustomer.customer?.marketplace_revenue_cents || 0))}
                       </div>
                     </div>
-                    <div style={{ textAlign: 'right' }}>
+                    <div style={{ textAlign: 'right', minWidth: 0 }}>
                       <div style={{ fontSize: '14px', opacity: 0.9 }}>Total Orders</div>
-                      <div style={{ fontSize: '28px', fontWeight: 'bold', marginTop: '4px' }}>
+                      <div style={{ fontSize: '24px', fontWeight: 'bold', marginTop: '4px' }}>
                         {(selectedCustomer.stats?.total_quotes || 0) + (selectedCustomer.customer?.marketplace_orders_count || 0)}
                       </div>
                     </div>

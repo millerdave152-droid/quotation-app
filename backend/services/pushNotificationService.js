@@ -97,7 +97,6 @@ class PushNotificationService {
 
       // If subscription is no longer valid, remove it
       if (error.statusCode === 410 || error.statusCode === 404) {
-        console.log('Subscription expired, removing:', subscription.endpoint);
         await this.unsubscribe(subscription.endpoint);
       }
 

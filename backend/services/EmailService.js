@@ -55,7 +55,6 @@ class EmailService {
       });
 
       await this.sesClient.send(command);
-      console.log(`Email sent to ${to}: ${subject}`);
       return { success: true };
     } catch (err) {
       console.error(`Failed to send email to ${to}:`, err.message);

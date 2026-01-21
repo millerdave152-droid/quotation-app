@@ -5,6 +5,15 @@ import SearchBar from './SearchBar';
 
 const API_BASE = '/api';
 
+// Helper to get auth headers
+const getAuthHeaders = () => {
+  const token = localStorage.getItem('auth_token');
+  return {
+    'Content-Type': 'application/json',
+    ...(token && { 'Authorization': `Bearer ${token}` })
+  };
+};
+
 /**
  * ProductBrowser - Grid/list view for browsing vendor products
  * Features: filtering, search, sorting, pagination
@@ -42,9 +51,10 @@ function ProductBrowser({ onProductSelect }) {
 
   const fetchFilterOptions = async () => {
     try {
+      const headers = getAuthHeaders();
       const [catRes, brandRes] = await Promise.all([
-        fetch(`${API_BASE}/vendor-products/categories`),
-        fetch(`${API_BASE}/vendor-products/brands`)
+        fetch(`${API_BASE}/vendor-products/categories`, { headers }),
+        fetch(`${API_BASE}/vendor-products/brands`, { headers })
       ]);
 
       if (catRes.ok) {
@@ -77,7 +87,9 @@ function ProductBrowser({ onProductSelect }) {
       if (selectedBrand) params.append('brand', selectedBrand);
       if (searchQuery) params.append('search', searchQuery);
 
-      const response = await fetch(`${API_BASE}/vendor-products?${params}`);
+      const response = await fetch(`${API_BASE}/vendor-products?${params}`, {
+        headers: getAuthHeaders()
+      });
 
       if (!response.ok) {
         throw new Error('Failed to fetch products');

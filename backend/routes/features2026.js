@@ -8,6 +8,7 @@ const express = require('express');
 const router = express.Router();
 const crypto = require('crypto');
 const multer = require('multer');
+const { authenticate } = require('../middleware/auth');
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } });
 
 module.exports = (pool) => {
@@ -17,7 +18,7 @@ module.exports = (pool) => {
   // =====================================================
 
   // Get products with stock status
-  router.get('/products/stock-status', async (req, res) => {
+  router.get('/products/stock-status', authenticate, async (req, res) => {
     try {
       const { in_stock, orderable } = req.query;
       let query = `
@@ -47,7 +48,7 @@ module.exports = (pool) => {
   });
 
   // Update product stock status
-  router.put('/products/:id/stock', async (req, res) => {
+  router.put('/products/:id/stock', authenticate, async (req, res) => {
     try {
       const { id } = req.params;
       const { in_stock, lead_time_days, orderable_from_manufacturer, stock_status, estimated_arrival_date } = req.body;
@@ -75,7 +76,7 @@ module.exports = (pool) => {
   });
 
   // Bulk update stock status
-  router.post('/products/bulk-stock-update', async (req, res) => {
+  router.post('/products/bulk-stock-update', authenticate, async (req, res) => {
     try {
       const { product_ids, updates } = req.body;
 
@@ -101,7 +102,7 @@ module.exports = (pool) => {
   // =====================================================
 
   // Generate acceptance token for quote
-  router.post('/quotes/:id/generate-acceptance-link', async (req, res) => {
+  router.post('/quotes/:id/generate-acceptance-link', authenticate, async (req, res) => {
     try {
       const { id } = req.params;
       const token = crypto.randomBytes(32).toString('hex');
@@ -125,7 +126,7 @@ module.exports = (pool) => {
   });
 
   // Verify acceptance token
-  router.get('/quotes/verify-token/:token', async (req, res) => {
+  router.get('/quotes/verify-token/:token', authenticate, async (req, res) => {
     try {
       const { token } = req.params;
 
@@ -157,7 +158,7 @@ module.exports = (pool) => {
   });
 
   // Submit signature
-  router.post('/quotes/:id/sign', async (req, res) => {
+  router.post('/quotes/:id/sign', authenticate, async (req, res) => {
     try {
       const { id } = req.params;
       const { signature_data, signer_name, signer_email, token, legal_text } = req.body;
@@ -197,7 +198,7 @@ module.exports = (pool) => {
   });
 
   // Get quote signatures
-  router.get('/quotes/:id/signatures', async (req, res) => {
+  router.get('/quotes/:id/signatures', authenticate, async (req, res) => {
     try {
       const { id } = req.params;
       const result = await pool.query(`
@@ -215,7 +216,7 @@ module.exports = (pool) => {
   // =====================================================
 
   // Generate portal access for customer
-  router.post('/customers/:id/portal-access', async (req, res) => {
+  router.post('/customers/:id/portal-access', authenticate, async (req, res) => {
     try {
       const { id } = req.params;
       const accessToken = crypto.randomBytes(24).toString('hex');
@@ -239,7 +240,7 @@ module.exports = (pool) => {
   });
 
   // Access portal with token
-  router.get('/portal/:token', async (req, res) => {
+  router.get('/portal/:token', authenticate, async (req, res) => {
     try {
       const { token } = req.params;
 
@@ -278,7 +279,7 @@ module.exports = (pool) => {
   });
 
   // Submit change request from portal
-  router.post('/portal/quotes/:id/change-request', async (req, res) => {
+  router.post('/portal/quotes/:id/change-request', authenticate, async (req, res) => {
     try {
       const { id } = req.params;
       const { customer_id, request_type, description } = req.body;
@@ -297,7 +298,7 @@ module.exports = (pool) => {
   });
 
   // Get change requests for quote
-  router.get('/quotes/:id/change-requests', async (req, res) => {
+  router.get('/quotes/:id/change-requests', authenticate, async (req, res) => {
     try {
       const { id } = req.params;
       const result = await pool.query(`
@@ -311,7 +312,7 @@ module.exports = (pool) => {
   });
 
   // Add comment to quote
-  router.post('/quotes/:id/comments', async (req, res) => {
+  router.post('/quotes/:id/comments', authenticate, async (req, res) => {
     try {
       const { id } = req.params;
       const { comment_text, is_internal, created_by, customer_id } = req.body;
@@ -334,7 +335,7 @@ module.exports = (pool) => {
   // =====================================================
 
   // Get all templates
-  router.get('/quote-templates', async (req, res) => {
+  router.get('/quote-templates', authenticate, async (req, res) => {
     try {
       const result = await pool.query(`
         SELECT t.*,
@@ -350,7 +351,7 @@ module.exports = (pool) => {
   });
 
   // Get template by ID
-  router.get('/quote-templates/:id', async (req, res) => {
+  router.get('/quote-templates/:id', authenticate, async (req, res) => {
     try {
       const { id } = req.params;
 
@@ -375,7 +376,7 @@ module.exports = (pool) => {
   });
 
   // Create template
-  router.post('/quote-templates', async (req, res) => {
+  router.post('/quote-templates', authenticate, async (req, res) => {
     try {
       const { name, description, category, template_data, default_terms, default_validity_days, items } = req.body;
 
@@ -406,7 +407,7 @@ module.exports = (pool) => {
   });
 
   // Create quote from template
-  router.post('/quote-templates/:id/create-quote', async (req, res) => {
+  router.post('/quote-templates/:id/create-quote', authenticate, async (req, res) => {
     try {
       const { id } = req.params;
       const { customer_id } = req.body;
@@ -457,7 +458,7 @@ module.exports = (pool) => {
   // =====================================================
 
   // Create new version of quote
-  router.post('/quotes/:id/create-version', async (req, res) => {
+  router.post('/quotes/:id/create-version', authenticate, async (req, res) => {
     try {
       const { id } = req.params;
       const { version_notes, changed_by } = req.body;
@@ -494,7 +495,7 @@ module.exports = (pool) => {
   });
 
   // Get version history
-  router.get('/quotes/:id/versions', async (req, res) => {
+  router.get('/quotes/:id/versions', authenticate, async (req, res) => {
     try {
       const { id } = req.params;
       const result = await pool.query(`
@@ -514,7 +515,7 @@ module.exports = (pool) => {
   // =====================================================
 
   // Generate public access link
-  router.post('/quotes/:id/public-link', async (req, res) => {
+  router.post('/quotes/:id/public-link', authenticate, async (req, res) => {
     try {
       const { id } = req.params;
       const publicToken = crypto.randomBytes(16).toString('hex');
@@ -538,7 +539,7 @@ module.exports = (pool) => {
   });
 
   // View quote by public token
-  router.get('/public/quotes/:token', async (req, res) => {
+  router.get('/public/quotes/:token', authenticate, async (req, res) => {
     try {
       const { token } = req.params;
 
@@ -580,7 +581,7 @@ module.exports = (pool) => {
   // =====================================================
 
   // Get follow-up rules
-  router.get('/follow-up-rules', async (req, res) => {
+  router.get('/follow-up-rules', authenticate, async (req, res) => {
     try {
       const result = await pool.query(`SELECT * FROM quote_follow_up_rules ORDER BY trigger_days`);
       res.json(result.rows);
@@ -591,7 +592,7 @@ module.exports = (pool) => {
   });
 
   // Create/update follow-up rule
-  router.post('/follow-up-rules', async (req, res) => {
+  router.post('/follow-up-rules', authenticate, async (req, res) => {
     try {
       const { name, description, trigger_days, applies_to_status, is_active } = req.body;
 
@@ -609,7 +610,7 @@ module.exports = (pool) => {
   });
 
   // Get pending follow-ups
-  router.get('/follow-ups/pending', async (req, res) => {
+  router.get('/follow-ups/pending', authenticate, async (req, res) => {
     try {
       const result = await pool.query(`
         SELECT f.*, q.quotation_number, q.customer_id, c.name as customer_name, c.email as customer_email
@@ -627,7 +628,7 @@ module.exports = (pool) => {
   });
 
   // Schedule follow-up for quote
-  router.post('/quotes/:id/schedule-followup', async (req, res) => {
+  router.post('/quotes/:id/schedule-followup', authenticate, async (req, res) => {
     try {
       const { id } = req.params;
       const { scheduled_date, email_subject, email_body } = req.body;
@@ -646,7 +647,7 @@ module.exports = (pool) => {
   });
 
   // Mark follow-up as sent
-  router.put('/follow-ups/:id/sent', async (req, res) => {
+  router.put('/follow-ups/:id/sent', authenticate, async (req, res) => {
     try {
       const { id } = req.params;
 
@@ -669,7 +670,7 @@ module.exports = (pool) => {
   // =====================================================
 
   // Get quote payments
-  router.get('/quotes/:id/payments', async (req, res) => {
+  router.get('/quotes/:id/payments', authenticate, async (req, res) => {
     try {
       const { id } = req.params;
       const result = await pool.query(`
@@ -683,7 +684,7 @@ module.exports = (pool) => {
   });
 
   // Record payment (manual or from webhook)
-  router.post('/quotes/:id/payments', async (req, res) => {
+  router.post('/quotes/:id/payments', authenticate, async (req, res) => {
     try {
       const { id } = req.params;
       const { payment_type, amount_cents, payment_method, notes, provider_transaction_id } = req.body;
@@ -702,7 +703,7 @@ module.exports = (pool) => {
   });
 
   // Get payment settings
-  router.get('/payment-settings', async (req, res) => {
+  router.get('/payment-settings', authenticate, async (req, res) => {
     try {
       const result = await pool.query(`
         SELECT id, provider, is_active, is_test_mode, settings, created_at
@@ -720,7 +721,7 @@ module.exports = (pool) => {
   // =====================================================
 
   // Get quote attachments
-  router.get('/quotes/:id/attachments', async (req, res) => {
+  router.get('/quotes/:id/attachments', authenticate, async (req, res) => {
     try {
       const { id } = req.params;
       const result = await pool.query(`
@@ -735,7 +736,7 @@ module.exports = (pool) => {
   });
 
   // Upload attachment
-  router.post('/quotes/:id/attachments', upload.single('file'), async (req, res) => {
+  router.post('/quotes/:id/attachments', authenticate, upload.single('file'), async (req, res) => {
     try {
       const { id } = req.params;
       const { product_id, attachment_type, description, include_in_pdf } = req.body;
@@ -758,7 +759,7 @@ module.exports = (pool) => {
   });
 
   // Delete attachment
-  router.delete('/attachments/:id', async (req, res) => {
+  router.delete('/attachments/:id', authenticate, async (req, res) => {
     try {
       const { id } = req.params;
       await pool.query(`DELETE FROM quote_attachments WHERE id = $1`, [id]);
@@ -770,7 +771,7 @@ module.exports = (pool) => {
   });
 
   // Get product spec sheets
-  router.get('/products/:id/spec-sheets', async (req, res) => {
+  router.get('/products/:id/spec-sheets', authenticate, async (req, res) => {
     try {
       const { id } = req.params;
       const result = await pool.query(`
@@ -789,7 +790,7 @@ module.exports = (pool) => {
   // =====================================================
 
   // Get price books
-  router.get('/price-books', async (req, res) => {
+  router.get('/price-books', authenticate, async (req, res) => {
     try {
       const result = await pool.query(`
         SELECT * FROM price_books ORDER BY effective_date DESC
@@ -802,7 +803,7 @@ module.exports = (pool) => {
   });
 
   // Create price book
-  router.post('/price-books', async (req, res) => {
+  router.post('/price-books', authenticate, async (req, res) => {
     try {
       const { name, manufacturer, effective_date, expiry_date, notes } = req.body;
 
@@ -820,7 +821,7 @@ module.exports = (pool) => {
   });
 
   // Get price change notifications
-  router.get('/price-notifications', async (req, res) => {
+  router.get('/price-notifications', authenticate, async (req, res) => {
     try {
       const { acknowledged } = req.query;
 
@@ -846,7 +847,7 @@ module.exports = (pool) => {
   });
 
   // Acknowledge price notification
-  router.put('/price-notifications/:id/acknowledge', async (req, res) => {
+  router.put('/price-notifications/:id/acknowledge', authenticate, async (req, res) => {
     try {
       const { id } = req.params;
       const { acknowledged_by } = req.body;
@@ -866,7 +867,7 @@ module.exports = (pool) => {
   });
 
   // Get scheduled price updates
-  router.get('/scheduled-price-updates', async (req, res) => {
+  router.get('/scheduled-price-updates', authenticate, async (req, res) => {
     try {
       const result = await pool.query(`
         SELECT * FROM scheduled_price_updates ORDER BY manufacturer

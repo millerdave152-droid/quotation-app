@@ -68,19 +68,23 @@ class QuickSearchService {
       whereConditions.push(`p.product_status != 'discontinued'`);
     }
 
-    // Brand/Manufacturer filter
+    // Brand/Manufacturer filter (case-insensitive)
     if (filters.brands && filters.brands.length > 0) {
       const brands = Array.isArray(filters.brands) ? filters.brands : [filters.brands];
-      whereConditions.push(`p.manufacturer = ANY($${paramIndex}::varchar[])`);
-      queryParams.push(brands);
+      whereConditions.push(`UPPER(p.manufacturer) = ANY($${paramIndex}::varchar[])`);
+      queryParams.push(brands.map(b => b.toUpperCase()));
       paramIndex++;
     }
 
-    // Category filter
+    // Category filter (with legacy text fallback for products without category_id)
     if (filters.categoryId) {
-      whereConditions.push(`(p.category_id = $${paramIndex} OR p.subcategory_id IN (
-        SELECT id FROM categories WHERE parent_id = $${paramIndex}
-      ))`);
+      whereConditions.push(`(
+        p.category_id = $${paramIndex}
+        OR p.subcategory_id IN (SELECT id FROM categories WHERE parent_id = $${paramIndex})
+        OR (p.category_id IS NULL AND LOWER(p.category) LIKE '%' || LOWER((
+          SELECT name FROM categories WHERE id = $${paramIndex}
+        )) || '%')
+      )`);
       queryParams.push(parseInt(filters.categoryId));
       paramIndex++;
     }
@@ -120,11 +124,11 @@ class QuickSearchService {
       }
     }
 
-    // Color/Finish filter
+    // Color/Finish filter (case-insensitive)
     if (filters.colors && filters.colors.length > 0) {
       const colors = Array.isArray(filters.colors) ? filters.colors : [filters.colors];
-      whereConditions.push(`p.color = ANY($${paramIndex}::varchar[])`);
-      queryParams.push(colors);
+      whereConditions.push(`UPPER(p.color) = ANY($${paramIndex}::varchar[])`);
+      queryParams.push(colors.map(c => c.toUpperCase()));
       paramIndex++;
     }
 
@@ -481,13 +485,13 @@ class QuickSearchService {
       }
 
       if (excludeFilter !== 'brands' && baseFilters.brands?.length) {
-        conditions.push(`manufacturer = ANY($${idx}::varchar[])`);
-        params.push(baseFilters.brands);
+        conditions.push(`UPPER(manufacturer) = ANY($${idx}::varchar[])`);
+        params.push(baseFilters.brands.map(b => b.toUpperCase()));
         idx++;
       }
 
       if (excludeFilter !== 'categoryId' && baseFilters.categoryId) {
-        conditions.push(`(category_id = $${idx} OR subcategory_id IN (SELECT id FROM categories WHERE parent_id = $${idx}))`);
+        conditions.push(`(category_id = $${idx} OR subcategory_id IN (SELECT id FROM categories WHERE parent_id = $${idx}) OR (category_id IS NULL AND LOWER(category) LIKE '%' || LOWER((SELECT name FROM categories WHERE id = $${idx})) || '%'))`);
         params.push(parseInt(baseFilters.categoryId));
         idx++;
       }
@@ -504,13 +508,14 @@ class QuickSearchService {
       };
     };
 
-    // Get brand counts
+    // Get brand counts (case-normalized)
     const brandQuery = buildWhereClause('brands');
     const brandResult = await this.pool.query(`
-      SELECT manufacturer as value, COUNT(*) as count
+      SELECT UPPER(manufacturer) as value, COUNT(*) as count
       FROM products
       ${brandQuery.where}
-      GROUP BY manufacturer
+      GROUP BY UPPER(manufacturer)
+      HAVING UPPER(manufacturer) IS NOT NULL
       ORDER BY count DESC
       LIMIT 20
     `, brandQuery.params);
@@ -524,25 +529,30 @@ class QuickSearchService {
       GROUP BY product_status
     `, statusQuery.params);
 
-    // Get category counts
-    const categoryQuery = buildWhereClause('categoryId');
+    // Get category counts (level 2 categories with legacy text fallback)
+    // Note: We don't apply baseFilters here since category dropdown should show all categories
     const categoryResult = await this.pool.query(`
-      SELECT c.id as value, c.name as label, COUNT(p.id) as count
+      SELECT c.id as value, c.name as label, COUNT(DISTINCT p.id) as count
       FROM categories c
-      LEFT JOIN products p ON p.category_id = c.id OR p.subcategory_id = c.id
-      ${categoryQuery.where ? `AND ${categoryQuery.where.replace('WHERE', '')}` : ''}
-      WHERE c.parent_id IS NULL
+      LEFT JOIN products p ON (
+        (p.category_id = c.id
+         OR EXISTS (SELECT 1 FROM categories sub WHERE sub.parent_id = c.id AND p.subcategory_id = sub.id)
+         OR (p.category_id IS NULL AND LOWER(p.category) LIKE '%' || LOWER(c.name) || '%')
+        )
+        AND p.product_status != 'discontinued'
+      )
+      WHERE c.level = 2 AND c.is_active = true
       GROUP BY c.id, c.name
-      HAVING COUNT(p.id) > 0
+      HAVING COUNT(DISTINCT p.id) > 0
       ORDER BY count DESC
-    `, categoryQuery.params);
+    `);
 
-    // Get color counts (from existing products)
+    // Get color counts (normalized, from existing products)
     const colorResult = await this.pool.query(`
-      SELECT DISTINCT color as value, COUNT(*) as count
+      SELECT INITCAP(LOWER(TRIM(color))) as value, COUNT(*) as count
       FROM products
-      WHERE color IS NOT NULL AND product_status != 'discontinued'
-      GROUP BY color
+      WHERE color IS NOT NULL AND color != '' AND product_status != 'discontinued'
+      GROUP BY INITCAP(LOWER(TRIM(color)))
       ORDER BY count DESC
       LIMIT 10
     `);

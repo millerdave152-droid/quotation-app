@@ -7,6 +7,7 @@
 const express = require('express');
 const router = express.Router();
 const { ApiError, asyncHandler } = require('../middleware/errorHandler');
+const { authenticate } = require('../middleware/auth');
 
 module.exports = (pool, cache, stripeService) => {
 
@@ -26,7 +27,7 @@ module.exports = (pool, cache, stripeService) => {
    * POST /api/stripe/create-checkout
    * Create a Stripe checkout session for an invoice
    */
-  router.post('/create-checkout', asyncHandler(async (req, res) => {
+  router.post('/create-checkout', authenticate, asyncHandler(async (req, res) => {
     if (!stripeService.isConfigured()) {
       throw ApiError.badRequest('Stripe is not configured');
     }
@@ -61,7 +62,7 @@ module.exports = (pool, cache, stripeService) => {
    * POST /api/stripe/payment-link
    * Generate a payment link for a quotation
    */
-  router.post('/payment-link', asyncHandler(async (req, res) => {
+  router.post('/payment-link', authenticate, asyncHandler(async (req, res) => {
     const { quotationId } = req.body;
 
     if (!quotationId) {
@@ -84,7 +85,7 @@ module.exports = (pool, cache, stripeService) => {
    * GET /api/stripe/payment-link/:token
    * Get payment link details by token
    */
-  router.get('/payment-link/:token', asyncHandler(async (req, res) => {
+  router.get('/payment-link/:token', authenticate, asyncHandler(async (req, res) => {
     const { token } = req.params;
 
     if (!token) {
@@ -104,7 +105,7 @@ module.exports = (pool, cache, stripeService) => {
    * POST /api/stripe/payment-link/:token/process
    * Process payment via payment link
    */
-  router.post('/payment-link/:token/process', asyncHandler(async (req, res) => {
+  router.post('/payment-link/:token/process', authenticate, asyncHandler(async (req, res) => {
     if (!stripeService.isConfigured()) {
       throw ApiError.badRequest('Stripe is not configured');
     }
@@ -122,6 +123,7 @@ module.exports = (pool, cache, stripeService) => {
   /**
    * POST /api/stripe/webhook
    * Handle Stripe webhooks
+   * NOTE: No authentication - webhooks are called directly by Stripe
    */
   router.post('/webhook', express.raw({ type: 'application/json' }), asyncHandler(async (req, res) => {
     const signature = req.headers['stripe-signature'];
@@ -138,7 +140,7 @@ module.exports = (pool, cache, stripeService) => {
    * GET /api/stripe/payment-status/:paymentIntentId
    * Check payment status
    */
-  router.get('/payment-status/:paymentIntentId', asyncHandler(async (req, res) => {
+  router.get('/payment-status/:paymentIntentId', authenticate, asyncHandler(async (req, res) => {
     if (!stripeService.isConfigured()) {
       throw ApiError.badRequest('Stripe is not configured');
     }
@@ -157,7 +159,7 @@ module.exports = (pool, cache, stripeService) => {
    * POST /api/stripe/refund
    * Refund a payment
    */
-  router.post('/refund', asyncHandler(async (req, res) => {
+  router.post('/refund', authenticate, asyncHandler(async (req, res) => {
     if (!stripeService.isConfigured()) {
       throw ApiError.badRequest('Stripe is not configured');
     }
@@ -181,7 +183,7 @@ module.exports = (pool, cache, stripeService) => {
    * GET /api/stripe/config
    * Get Stripe configuration status (public info only)
    */
-  router.get('/config', asyncHandler(async (req, res) => {
+  router.get('/config', authenticate, asyncHandler(async (req, res) => {
     res.json({
       configured: stripeService.isConfigured(),
       mode: process.env.STRIPE_MODE || 'test',

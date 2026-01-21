@@ -11,13 +11,14 @@
 
 const express = require('express');
 const router = express.Router();
+const { authenticate } = require('../middleware/auth');
 
 module.exports = function(pool, productService) {
   /**
    * GET /api/categories
    * Returns full category hierarchy with product counts
    */
-  router.get('/', async (req, res) => {
+  router.get('/', authenticate, async (req, res) => {
     try {
       const hierarchy = await productService.getCategoryHierarchy();
       res.json({
@@ -37,7 +38,7 @@ module.exports = function(pool, productService) {
    * GET /api/categories/main
    * Returns flat list of level-2 categories (main categories)
    */
-  router.get('/main', async (req, res) => {
+  router.get('/main', authenticate, async (req, res) => {
     try {
       const categories = await productService.getMainCategories();
       res.json({
@@ -57,7 +58,7 @@ module.exports = function(pool, productService) {
    * GET /api/categories/legacy
    * Returns legacy raw category strings (for backward compatibility)
    */
-  router.get('/legacy', async (req, res) => {
+  router.get('/legacy', authenticate, async (req, res) => {
     try {
       const categories = await productService.getCategories();
       res.json({
@@ -77,7 +78,7 @@ module.exports = function(pool, productService) {
    * GET /api/categories/:slug
    * Returns single category by slug with subcategories
    */
-  router.get('/:slug', async (req, res) => {
+  router.get('/:slug', authenticate, async (req, res) => {
     try {
       const { slug } = req.params;
       const category = await productService.getCategoryBySlug(slug);
@@ -106,7 +107,7 @@ module.exports = function(pool, productService) {
    * GET /api/categories/:slug/subcategories
    * Returns subcategories for a category
    */
-  router.get('/:slug/subcategories', async (req, res) => {
+  router.get('/:slug/subcategories', authenticate, async (req, res) => {
     try {
       const { slug } = req.params;
       const category = await productService.getCategoryBySlug(slug);
@@ -141,7 +142,7 @@ module.exports = function(pool, productService) {
    * GET /api/categories/:slug/products
    * Returns products in a category (including subcategories)
    */
-  router.get('/:slug/products', async (req, res) => {
+  router.get('/:slug/products', authenticate, async (req, res) => {
     try {
       const { slug } = req.params;
       const {
@@ -198,7 +199,7 @@ module.exports = function(pool, productService) {
    * GET /api/categories/id/:id
    * Returns category by ID
    */
-  router.get('/id/:id', async (req, res) => {
+  router.get('/id/:id', authenticate, async (req, res) => {
     try {
       const { id } = req.params;
 

@@ -2,6 +2,15 @@ import React, { useState, useEffect, useCallback } from 'react';
 
 const API_BASE = `${process.env.REACT_APP_API_URL || 'http://localhost:3001'}/api`;
 
+// Helper to get auth headers
+const getAuthHeaders = () => {
+  const token = localStorage.getItem('auth_token');
+  return {
+    'Content-Type': 'application/json',
+    'Authorization': token ? `Bearer ${token}` : ''
+  };
+};
+
 /**
  * MarketplaceReports Component
  * Full reporting system for marketplace analytics
@@ -70,7 +79,9 @@ function MarketplaceReports() {
   // Fetch dashboard data
   const fetchDashboard = useCallback(async () => {
     try {
-      const response = await fetch(`${API_BASE}/marketplace/reports/dashboard`);
+      const response = await fetch(`${API_BASE}/marketplace/reports/dashboard`, {
+        headers: getAuthHeaders()
+      });
       if (!response.ok) throw new Error('Failed to fetch dashboard');
       const data = await response.json();
       setDashboardData(data);
@@ -86,7 +97,8 @@ function MarketplaceReports() {
     try {
       const params = getDateParams();
       const response = await fetch(
-        `${API_BASE}/marketplace/reports/sales?start_date=${params.start_date}&end_date=${params.end_date}`
+        `${API_BASE}/marketplace/reports/sales?start_date=${params.start_date}&end_date=${params.end_date}`,
+        { headers: getAuthHeaders() }
       );
       if (!response.ok) throw new Error('Failed to fetch sales report');
       const data = await response.json();
@@ -103,7 +115,9 @@ function MarketplaceReports() {
   const fetchInventoryReport = useCallback(async () => {
     setLoading(true);
     try {
-      const response = await fetch(`${API_BASE}/marketplace/reports/inventory`);
+      const response = await fetch(`${API_BASE}/marketplace/reports/inventory`, {
+        headers: getAuthHeaders()
+      });
       if (!response.ok) throw new Error('Failed to fetch inventory report');
       const data = await response.json();
       setInventoryData(data);
@@ -121,7 +135,8 @@ function MarketplaceReports() {
     try {
       const params = getDateParams();
       const response = await fetch(
-        `${API_BASE}/marketplace/reports/profit?start_date=${params.start_date}&end_date=${params.end_date}`
+        `${API_BASE}/marketplace/reports/profit?start_date=${params.start_date}&end_date=${params.end_date}`,
+        { headers: getAuthHeaders() }
       );
       if (!response.ok) throw new Error('Failed to fetch profit report');
       const data = await response.json();
@@ -140,7 +155,8 @@ function MarketplaceReports() {
     try {
       const params = getDateParams();
       const response = await fetch(
-        `${API_BASE}/marketplace/reports/customers?start_date=${params.start_date}&end_date=${params.end_date}`
+        `${API_BASE}/marketplace/reports/customers?start_date=${params.start_date}&end_date=${params.end_date}`,
+        { headers: getAuthHeaders() }
       );
       if (!response.ok) throw new Error('Failed to fetch customer report');
       const data = await response.json();
@@ -159,7 +175,8 @@ function MarketplaceReports() {
     try {
       const params = getDateParams();
       const response = await fetch(
-        `${API_BASE}/marketplace/reports/orders?start_date=${params.start_date}&end_date=${params.end_date}`
+        `${API_BASE}/marketplace/reports/orders?start_date=${params.start_date}&end_date=${params.end_date}`,
+        { headers: getAuthHeaders() }
       );
       if (!response.ok) throw new Error('Failed to fetch order report');
       const data = await response.json();
@@ -212,7 +229,7 @@ function MarketplaceReports() {
       const url = `${API_BASE}/marketplace/reports/export/${type}?start_date=${params.start_date}&end_date=${params.end_date}`;
 
       // Use fetch to check if the export works before opening
-      const response = await fetch(url);
+      const response = await fetch(url, { headers: getAuthHeaders() });
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
         throw new Error(errorData.error || `Export failed: ${response.status}`);

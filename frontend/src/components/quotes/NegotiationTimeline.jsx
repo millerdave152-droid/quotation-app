@@ -20,7 +20,7 @@ const NegotiationTimeline = ({ quoteId, onRefresh }) => {
   const fetchCounterOffers = async () => {
     try {
       setLoading(true);
-      const token = localStorage.getItem('token');
+      const token = localStorage.getItem('auth_token');
       const response = await fetch(`${API_URL}/api/quotes/${quoteId}/counter-offers`, {
         headers: {
           'Authorization': `Bearer ${token}`

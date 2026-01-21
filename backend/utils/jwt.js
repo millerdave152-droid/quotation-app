@@ -7,8 +7,10 @@
 const jwt = require('jsonwebtoken');
 
 // Token expiration times
-const ACCESS_TOKEN_EXPIRY = '15m'; // 15 minutes
-const REFRESH_TOKEN_EXPIRY = '7d'; // 7 days
+// SECURITY: Access tokens should be short-lived for security
+// Use refresh tokens to obtain new access tokens when expired
+const ACCESS_TOKEN_EXPIRY = process.env.JWT_ACCESS_EXPIRY || '30m'; // 30 minutes (production-ready)
+const REFRESH_TOKEN_EXPIRY = process.env.JWT_REFRESH_EXPIRY || '7d'; // 7 days
 
 /**
  * Generate Access Token

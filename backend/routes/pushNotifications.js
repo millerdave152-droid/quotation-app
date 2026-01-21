@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const pushService = require('../services/pushNotificationService');
+const { authenticate } = require('../middleware/auth');
 
 /**
  * GET /api/push/vapid-public-key
@@ -21,7 +22,7 @@ router.get('/vapid-public-key', (req, res) => {
  * POST /api/push/subscribe
  * Subscribe to push notifications
  */
-router.post('/subscribe', async (req, res) => {
+router.post('/subscribe', authenticate, async (req, res) => {
   try {
     const subscription = req.body;
     const userAgent = req.headers['user-agent'];
@@ -46,7 +47,7 @@ router.post('/subscribe', async (req, res) => {
  * POST /api/push/unsubscribe
  * Unsubscribe from push notifications
  */
-router.post('/unsubscribe', async (req, res) => {
+router.post('/unsubscribe', authenticate, async (req, res) => {
   try {
     const { endpoint } = req.body;
 
@@ -71,7 +72,7 @@ router.post('/unsubscribe', async (req, res) => {
  * POST /api/push/send
  * Send a push notification to all subscribers (admin only)
  */
-router.post('/send', async (req, res) => {
+router.post('/send', authenticate, async (req, res) => {
   try {
     const { title, body, url, tag } = req.body;
 
@@ -107,7 +108,7 @@ router.post('/send', async (req, res) => {
  * GET /api/push/stats
  * Get push notification statistics
  */
-router.get('/stats', async (req, res) => {
+router.get('/stats', authenticate, async (req, res) => {
   try {
     const count = await pushService.getSubscriptionCount();
 
@@ -125,7 +126,7 @@ router.get('/stats', async (req, res) => {
  * POST /api/push/test
  * Send a test notification (for testing purposes)
  */
-router.post('/test', async (req, res) => {
+router.post('/test', authenticate, async (req, res) => {
   try {
     const payload = {
       title: '🧪 Test Notification',

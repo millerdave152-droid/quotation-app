@@ -165,7 +165,6 @@ class VendorScraperService {
     const {
       externalId,
       modelNumber,
-      name,
       description,
       category,
       subcategory,
@@ -178,6 +177,11 @@ class VendorScraperService {
       energyRating,
       colorFinish
     } = productData;
+
+    // Fallback: use description or model number if name is missing
+    const name = productData.name ||
+                 (description ? description.substring(0, 100) : null) ||
+                 `${brand || 'Product'} ${modelNumber}`;
 
     const result = await pool.query(
       `INSERT INTO vendor_products (

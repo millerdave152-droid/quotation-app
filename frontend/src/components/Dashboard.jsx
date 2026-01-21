@@ -9,11 +9,38 @@
  * - Top salespeople leaderboard
  * - Pipeline overview
  * - Recent activity feed
+ * - At-risk customers widget (Week 4.4)
  */
 
 import React, { useState, useEffect, useCallback } from 'react';
+import { AtRiskCustomers } from './customers';
+import { AIInsightsWidget, SmartQuickActions, UnifiedTimeline } from './dashboard/index';
+import {
+  AreaChart, Area, BarChart, Bar, LineChart, Line, PieChart, Pie, Cell,
+  XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend
+} from 'recharts';
 
 const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:3001';
+
+// Chart color palette
+const CHART_COLORS = {
+  primary: '#6366f1',
+  success: '#22c55e',
+  warning: '#f59e0b',
+  danger: '#ef4444',
+  info: '#3b82f6',
+  purple: '#8b5cf6',
+  pink: '#ec4899',
+  teal: '#14b8a6'
+};
+
+const STATUS_COLORS = {
+  draft: '#9ca3af',
+  sent: '#3b82f6',
+  pending: '#f59e0b',
+  won: '#22c55e',
+  lost: '#ef4444'
+};
 
 // Activity type configurations
 const ACTIVITY_CONFIG = {
@@ -36,90 +63,226 @@ const ACTIVITY_CONFIG = {
 };
 
 /**
- * Mini bar chart component for win rate by tier
+ * Mini sparkline component for KPI cards
+ */
+const Sparkline = ({ data, color = CHART_COLORS.primary, height = 40 }) => {
+  if (!data || data.length === 0) return null;
+
+  return (
+    <ResponsiveContainer width="100%" height={height}>
+      <AreaChart data={data} margin={{ top: 0, right: 0, left: 0, bottom: 0 }}>
+        <defs>
+          <linearGradient id={`gradient-${color.replace('#', '')}`} x1="0" y1="0" x2="0" y2="1">
+            <stop offset="5%" stopColor={color} stopOpacity={0.3}/>
+            <stop offset="95%" stopColor={color} stopOpacity={0}/>
+          </linearGradient>
+        </defs>
+        <Area
+          type="monotone"
+          dataKey="value"
+          stroke={color}
+          strokeWidth={2}
+          fill={`url(#gradient-${color.replace('#', '')})`}
+        />
+      </AreaChart>
+    </ResponsiveContainer>
+  );
+};
+
+/**
+ * Win Rate Chart using Recharts horizontal BarChart
  */
 const WinRateChart = ({ data }) => {
   if (!data || data.length === 0) {
     return <div style={{ textAlign: 'center', color: '#9ca3af', padding: '20px' }}>No data available</div>;
   }
 
-  const maxWinRate = Math.max(...data.map(d => d.winRate), 100);
+  const chartData = data.map(tier => ({
+    name: tier.tierLabel,
+    winRate: tier.winRate,
+    fill: tier.winRate >= 50 ? CHART_COLORS.success : tier.winRate >= 25 ? CHART_COLORS.warning : CHART_COLORS.danger,
+    wonCount: tier.wonCount,
+    closedCount: tier.closedCount
+  }));
+
+  const CustomTooltip = ({ active, payload }) => {
+    if (active && payload && payload.length) {
+      const data = payload[0].payload;
+      return (
+        <div style={{
+          background: 'white',
+          border: '1px solid #e5e7eb',
+          borderRadius: '8px',
+          padding: '12px',
+          boxShadow: '0 4px 12px rgba(0,0,0,0.1)'
+        }}>
+          <p style={{ margin: 0, fontWeight: '600', color: '#1f2937' }}>{data.name}</p>
+          <p style={{ margin: '4px 0 0', color: data.fill, fontWeight: '600' }}>{data.winRate}% Win Rate</p>
+          <p style={{ margin: '4px 0 0', fontSize: '12px', color: '#6b7280' }}>
+            {data.wonCount} won / {data.closedCount} closed
+          </p>
+        </div>
+      );
+    }
+    return null;
+  };
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-      {data.map((tier, index) => (
-        <div key={tier.tier}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
-            <span style={{ fontSize: '13px', color: '#374151', fontWeight: '500' }}>{tier.tierLabel}</span>
-            <span style={{ fontSize: '13px', color: '#6b7280' }}>
-              {tier.winRate}% ({tier.wonCount}/{tier.closedCount})
-            </span>
-          </div>
-          <div style={{
-            width: '100%',
-            height: '8px',
-            background: '#e5e7eb',
-            borderRadius: '4px',
-            overflow: 'hidden'
-          }}>
-            <div style={{
-              width: `${(tier.winRate / maxWinRate) * 100}%`,
-              height: '100%',
-              background: tier.winRate >= 50 ? '#22c55e' : tier.winRate >= 25 ? '#f59e0b' : '#ef4444',
-              borderRadius: '4px',
-              transition: 'width 0.5s ease'
-            }} />
-          </div>
-        </div>
-      ))}
-    </div>
+    <ResponsiveContainer width="100%" height={Math.max(120, data.length * 50)}>
+      <BarChart
+        data={chartData}
+        layout="vertical"
+        margin={{ top: 5, right: 30, left: 80, bottom: 5 }}
+      >
+        <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#f3f4f6" />
+        <XAxis type="number" domain={[0, 100]} tickFormatter={(v) => `${v}%`} stroke="#9ca3af" fontSize={12} />
+        <YAxis type="category" dataKey="name" stroke="#9ca3af" fontSize={12} width={75} />
+        <Tooltip content={<CustomTooltip />} />
+        <Bar dataKey="winRate" radius={[0, 4, 4, 0]} barSize={20}>
+          {chartData.map((entry, index) => (
+            <Cell key={`cell-${index}`} fill={entry.fill} />
+          ))}
+        </Bar>
+      </BarChart>
+    </ResponsiveContainer>
   );
 };
 
 /**
- * Metric card component
+ * Pipeline Pie Chart
  */
-const MetricCard = ({ title, value, subtitle, icon, color = '#3b82f6', trend, trendValue }) => (
+const PipelinePieChart = ({ stats }) => {
+  const data = [
+    { name: 'Draft', value: stats?.draft_count || 0, color: STATUS_COLORS.draft },
+    { name: 'Sent', value: stats?.sent_count || 0, color: STATUS_COLORS.sent },
+    { name: 'Won', value: stats?.won_count || 0, color: STATUS_COLORS.won },
+    { name: 'Lost', value: stats?.lost_count || 0, color: STATUS_COLORS.lost }
+  ].filter(d => d.value > 0);
+
+  if (data.length === 0) {
+    return <div style={{ textAlign: 'center', color: '#9ca3af', padding: '20px' }}>No data</div>;
+  }
+
+  return (
+    <ResponsiveContainer width="100%" height={200}>
+      <PieChart>
+        <Pie
+          data={data}
+          cx="50%"
+          cy="50%"
+          innerRadius={50}
+          outerRadius={80}
+          paddingAngle={2}
+          dataKey="value"
+        >
+          {data.map((entry, index) => (
+            <Cell key={`cell-${index}`} fill={entry.color} />
+          ))}
+        </Pie>
+        <Tooltip
+          formatter={(value, name) => [`${value} quotes`, name]}
+          contentStyle={{ borderRadius: '8px', border: '1px solid #e5e7eb' }}
+        />
+        <Legend
+          verticalAlign="bottom"
+          iconType="circle"
+          iconSize={8}
+          formatter={(value) => <span style={{ color: '#374151', fontSize: '12px' }}>{value}</span>}
+        />
+      </PieChart>
+    </ResponsiveContainer>
+  );
+};
+
+/**
+ * Weekly Activity Bar Chart
+ */
+const WeeklyActivityChart = ({ weeklyActivity }) => {
+  const data = [
+    { name: 'Created', value: weeklyActivity?.created || 0, fill: CHART_COLORS.info },
+    { name: 'Sent', value: weeklyActivity?.sent || 0, fill: CHART_COLORS.purple },
+    { name: 'Won', value: weeklyActivity?.won || 0, fill: CHART_COLORS.success },
+    { name: 'Lost', value: weeklyActivity?.lost || 0, fill: CHART_COLORS.danger }
+  ];
+
+  return (
+    <ResponsiveContainer width="100%" height={160}>
+      <BarChart data={data} margin={{ top: 10, right: 10, left: 10, bottom: 5 }}>
+        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f3f4f6" />
+        <XAxis dataKey="name" stroke="#9ca3af" fontSize={12} tickLine={false} />
+        <YAxis stroke="#9ca3af" fontSize={12} tickLine={false} allowDecimals={false} />
+        <Tooltip
+          formatter={(value) => [value, 'Quotes']}
+          contentStyle={{ borderRadius: '8px', border: '1px solid #e5e7eb' }}
+        />
+        <Bar dataKey="value" radius={[4, 4, 0, 0]} barSize={40}>
+          {data.map((entry, index) => (
+            <Cell key={`cell-${index}`} fill={entry.fill} />
+          ))}
+        </Bar>
+      </BarChart>
+    </ResponsiveContainer>
+  );
+};
+
+/**
+ * Enhanced Metric card component with sparkline support
+ */
+const MetricCard = ({ title, value, subtitle, icon, color = '#3b82f6', trend, trendValue, sparkData }) => (
   <div style={{
     background: 'white',
     padding: '20px',
     borderRadius: '12px',
     boxShadow: '0 1px 3px rgba(0,0,0,0.1)',
-    borderLeft: `4px solid ${color}`
+    borderLeft: `4px solid ${color}`,
+    position: 'relative',
+    overflow: 'hidden'
   }}>
     <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between' }}>
-      <div>
-        <div style={{ fontSize: '13px', color: '#6b7280', marginBottom: '6px' }}>{title}</div>
+      <div style={{ flex: 1 }}>
+        <div style={{ fontSize: '13px', color: '#6b7280', marginBottom: '6px', fontWeight: '500' }}>{title}</div>
         <div style={{ fontSize: '28px', fontWeight: 'bold', color: '#1f2937' }}>{value}</div>
-        {subtitle && (
-          <div style={{ fontSize: '12px', color: '#9ca3af', marginTop: '4px' }}>{subtitle}</div>
-        )}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '4px' }}>
+          {trend && (
+            <span style={{
+              fontSize: '12px',
+              fontWeight: '600',
+              color: trend === 'up' ? '#22c55e' : trend === 'down' ? '#ef4444' : '#6b7280',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '2px',
+              padding: '2px 6px',
+              borderRadius: '4px',
+              background: trend === 'up' ? '#dcfce7' : trend === 'down' ? '#fee2e2' : '#f3f4f6'
+            }}>
+              {trend === 'up' ? '↑' : trend === 'down' ? '↓' : '→'} {trendValue}
+            </span>
+          )}
+          {subtitle && (
+            <span style={{ fontSize: '12px', color: '#9ca3af' }}>{subtitle}</span>
+          )}
+        </div>
       </div>
       {icon && (
         <div style={{
-          width: '40px',
-          height: '40px',
-          borderRadius: '10px',
-          background: `${color}15`,
+          width: '44px',
+          height: '44px',
+          borderRadius: '12px',
+          background: `linear-gradient(135deg, ${color}20 0%, ${color}10 100%)`,
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
-          fontSize: '20px'
+          fontSize: '22px',
+          flexShrink: 0
         }}>
           {icon}
         </div>
       )}
     </div>
-    {trend && (
-      <div style={{
-        marginTop: '8px',
-        fontSize: '12px',
-        color: trend === 'up' ? '#22c55e' : trend === 'down' ? '#ef4444' : '#6b7280',
-        display: 'flex',
-        alignItems: 'center',
-        gap: '4px'
-      }}>
-        {trend === 'up' ? '↑' : trend === 'down' ? '↓' : '→'} {trendValue}
+    {/* Sparkline at bottom */}
+    {sparkData && sparkData.length > 0 && (
+      <div style={{ marginTop: '12px', marginLeft: '-8px', marginRight: '-8px' }}>
+        <Sparkline data={sparkData} color={color} height={35} />
       </div>
     )}
   </div>
@@ -146,12 +309,22 @@ const ActivityBadge = ({ label, count, color, icon }) => (
   </div>
 );
 
+// Time period options for filtering
+const TIME_PERIODS = [
+  { value: '7d', label: '7 Days' },
+  { value: '30d', label: '30 Days' },
+  { value: '90d', label: '90 Days' },
+  { value: 'ytd', label: 'YTD' },
+  { value: 'all', label: 'All Time' }
+];
+
 const Dashboard = ({ onNavigate, onViewQuote, onBack }) => {
   const [stats, setStats] = useState(null);
   const [recentActivities, setRecentActivities] = useState([]);
   const [recentQuotes, setRecentQuotes] = useState([]);
   const [loading, setLoading] = useState(true);
   const [activityFilter, setActivityFilter] = useState('all');
+  const [timePeriod, setTimePeriod] = useState('30d');
   const [lastRefresh, setLastRefresh] = useState(null);
   const [error, setError] = useState(null);
 
@@ -166,10 +339,19 @@ const Dashboard = ({ onNavigate, onViewQuote, onBack }) => {
         fetch(`${API_URL}/api/quotations?limit=10&sortBy=created_at&sortOrder=DESC`)
       ]);
 
-      // Handle stats response
+      // Handle stats response (standardized API response format)
       if (statsRes.ok) {
         const statsData = await statsRes.json();
-        setStats(statsData);
+        // Handle both direct data and wrapped { success, data } format
+        if (statsData.success && statsData.data) {
+          setStats(statsData.data);
+        } else if (statsData.success === undefined) {
+          // Legacy format - direct data
+          setStats(statsData);
+        } else {
+          console.error('Dashboard stats API error:', statsData.error);
+          setError(`Failed to load dashboard metrics: ${statsData.error?.message || 'Unknown error'}`);
+        }
       } else {
         const errorData = await statsRes.json().catch(() => ({}));
         console.error('Dashboard stats API error:', statsRes.status, errorData);
@@ -366,47 +548,61 @@ const Dashboard = ({ onNavigate, onViewQuote, onBack }) => {
           </p>
         </div>
 
-        <div style={{ display: 'flex', gap: '12px' }}>
+        <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
+          {/* Time Period Selector */}
+          <div style={{
+            display: 'flex',
+            background: '#f3f4f6',
+            borderRadius: '8px',
+            padding: '4px'
+          }}>
+            {TIME_PERIODS.map(period => (
+              <button
+                key={period.value}
+                onClick={() => setTimePeriod(period.value)}
+                style={{
+                  padding: '8px 12px',
+                  background: timePeriod === period.value ? 'white' : 'transparent',
+                  color: timePeriod === period.value ? '#1f2937' : '#6b7280',
+                  border: 'none',
+                  borderRadius: '6px',
+                  fontSize: '13px',
+                  fontWeight: '500',
+                  cursor: 'pointer',
+                  transition: 'all 0.15s ease',
+                  boxShadow: timePeriod === period.value ? '0 1px 3px rgba(0,0,0,0.1)' : 'none'
+                }}
+              >
+                {period.label}
+              </button>
+            ))}
+          </div>
+
           <button
             onClick={fetchDashboardData}
             disabled={loading}
             style={{
-              padding: '12px 20px',
-              background: '#f3f4f6',
+              padding: '10px 16px',
+              background: 'white',
               color: '#374151',
-              border: 'none',
+              border: '1px solid #e5e7eb',
               borderRadius: '8px',
               fontSize: '14px',
-              fontWeight: '600',
+              fontWeight: '500',
               cursor: loading ? 'wait' : 'pointer',
               display: 'flex',
               alignItems: 'center',
-              gap: '8px'
+              gap: '6px'
             }}
           >
             <span style={{ display: loading ? 'inline-block' : 'none', animation: 'spin 1s linear infinite' }}>⟳</span>
             {loading ? 'Refreshing...' : '⟳ Refresh'}
           </button>
           <button
-            onClick={onBack}
-            style={{
-              padding: '12px 24px',
-              background: '#6b7280',
-              color: 'white',
-              border: 'none',
-              borderRadius: '8px',
-              fontSize: '14px',
-              fontWeight: '600',
-              cursor: 'pointer'
-            }}
-          >
-            Back to Quotes
-          </button>
-          <button
             onClick={() => onNavigate?.('builder')}
             style={{
-              padding: '12px 24px',
-              background: '#3b82f6',
+              padding: '10px 20px',
+              background: 'linear-gradient(135deg, #6366f1 0%, #4f46e5 100%)',
               color: 'white',
               border: 'none',
               borderRadius: '8px',
@@ -415,12 +611,18 @@ const Dashboard = ({ onNavigate, onViewQuote, onBack }) => {
               cursor: 'pointer',
               display: 'flex',
               alignItems: 'center',
-              gap: '8px'
+              gap: '8px',
+              boxShadow: '0 2px 8px rgba(99, 102, 241, 0.3)'
             }}
           >
             <span>+</span> New Quote
           </button>
         </div>
+      </div>
+
+      {/* Smart Quick Actions */}
+      <div style={{ marginBottom: '24px' }}>
+        <SmartQuickActions onNavigate={onNavigate} />
       </div>
 
       {/* Primary Stats Row */}
@@ -557,55 +759,50 @@ const Dashboard = ({ onNavigate, onViewQuote, onBack }) => {
         gap: '24px',
         marginBottom: '24px'
       }}>
-        {/* Weekly Activity */}
+        {/* Weekly Activity Chart */}
         <div style={{
           background: 'white',
           padding: '20px',
           borderRadius: '12px',
           boxShadow: '0 1px 3px rgba(0,0,0,0.1)'
         }}>
-          <h3 style={{ margin: '0 0 16px', fontSize: '16px', fontWeight: '600', color: '#1f2937' }}>
-            Quote Activity This Week
-          </h3>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '12px' }}>
-            <ActivityBadge
-              label="Created"
-              count={stats?.weeklyActivity?.created || 0}
-              color="#3b82f6"
-              icon="✨"
-            />
-            <ActivityBadge
-              label="Sent"
-              count={stats?.weeklyActivity?.sent || 0}
-              color="#8b5cf6"
-              icon="📤"
-            />
-            <ActivityBadge
-              label="Won"
-              count={stats?.weeklyActivity?.won || 0}
-              color="#22c55e"
-              icon="🏆"
-            />
-            <ActivityBadge
-              label="Lost"
-              count={stats?.weeklyActivity?.lost || 0}
-              color="#ef4444"
-              icon="❌"
-            />
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+            <h3 style={{ margin: 0, fontSize: '16px', fontWeight: '600', color: '#1f2937' }}>
+              Quote Activity This Week
+            </h3>
+            {stats?.weeklyActivity?.wonValueCents > 0 && (
+              <div style={{
+                padding: '6px 12px',
+                background: 'linear-gradient(135deg, #22c55e 0%, #16a34a 100%)',
+                borderRadius: '20px',
+                color: 'white',
+                fontSize: '13px',
+                fontWeight: '600',
+                boxShadow: '0 2px 8px rgba(34, 197, 94, 0.3)'
+              }}>
+                Won: {formatCurrency(stats.weeklyActivity.wonValueCents)}
+              </div>
+            )}
           </div>
-          {stats?.weeklyActivity?.wonValueCents > 0 && (
-            <div style={{
-              marginTop: '16px',
-              padding: '12px',
-              background: '#dcfce7',
-              borderRadius: '8px',
-              textAlign: 'center'
-            }}>
-              <span style={{ fontSize: '14px', color: '#166534' }}>
-                Won this week: <strong>{formatCurrency(stats.weeklyActivity.wonValueCents)}</strong>
-              </span>
+          <WeeklyActivityChart weeklyActivity={stats?.weeklyActivity} />
+          <div style={{ display: 'flex', justifyContent: 'space-around', marginTop: '12px', paddingTop: '12px', borderTop: '1px solid #f3f4f6' }}>
+            <div style={{ textAlign: 'center' }}>
+              <div style={{ fontSize: '20px', fontWeight: 'bold', color: CHART_COLORS.info }}>{stats?.weeklyActivity?.created || 0}</div>
+              <div style={{ fontSize: '11px', color: '#6b7280' }}>Created</div>
             </div>
-          )}
+            <div style={{ textAlign: 'center' }}>
+              <div style={{ fontSize: '20px', fontWeight: 'bold', color: CHART_COLORS.purple }}>{stats?.weeklyActivity?.sent || 0}</div>
+              <div style={{ fontSize: '11px', color: '#6b7280' }}>Sent</div>
+            </div>
+            <div style={{ textAlign: 'center' }}>
+              <div style={{ fontSize: '20px', fontWeight: 'bold', color: CHART_COLORS.success }}>{stats?.weeklyActivity?.won || 0}</div>
+              <div style={{ fontSize: '11px', color: '#6b7280' }}>Won</div>
+            </div>
+            <div style={{ textAlign: 'center' }}>
+              <div style={{ fontSize: '20px', fontWeight: 'bold', color: CHART_COLORS.danger }}>{stats?.weeklyActivity?.lost || 0}</div>
+              <div style={{ fontSize: '11px', color: '#6b7280' }}>Lost</div>
+            </div>
+          </div>
         </div>
 
         {/* Sales Velocity */}
@@ -667,6 +864,12 @@ const Dashboard = ({ onNavigate, onViewQuote, onBack }) => {
             </h3>
             <WinRateChart data={stats?.winRateByTier || []} />
           </div>
+
+          {/* Cross-Module Activity Timeline */}
+          <UnifiedTimeline
+            onNavigate={onNavigate}
+            limit={15}
+          />
 
           {/* Recent Activity Feed */}
           <div style={{
@@ -790,6 +993,15 @@ const Dashboard = ({ onNavigate, onViewQuote, onBack }) => {
 
         {/* Right Sidebar */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+          {/* AI Insights Widget */}
+          <AIInsightsWidget
+            onNavigate={onNavigate}
+            onAction={(action, insight, result) => {
+              console.log('Insight action:', action, insight, result);
+            }}
+            limit={5}
+          />
+
           {/* Top Salespeople */}
           {stats?.topSalespeople && stats.topSalespeople.length > 0 && (
             <div style={{
@@ -845,27 +1057,27 @@ const Dashboard = ({ onNavigate, onViewQuote, onBack }) => {
             </div>
           )}
 
-          {/* Pipeline Breakdown */}
+          {/* Pipeline Breakdown with Pie Chart */}
           <div style={{
             background: 'white',
             padding: '20px',
             borderRadius: '12px',
             boxShadow: '0 1px 3px rgba(0,0,0,0.1)'
           }}>
-            <h3 style={{ margin: '0 0 16px', fontSize: '16px', fontWeight: '600', color: '#1f2937' }}>
-              Pipeline Breakdown
+            <h3 style={{ margin: '0 0 8px', fontSize: '16px', fontWeight: '600', color: '#1f2937' }}>
+              Pipeline Distribution
             </h3>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+            <PipelinePieChart stats={stats} />
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginTop: '8px', paddingTop: '12px', borderTop: '1px solid #f3f4f6' }}>
               {[
-                { label: 'Draft', count: stats?.draft_count, value: stats?.draft_value_cents, color: '#9ca3af' },
-                { label: 'Sent', count: stats?.sent_count, value: stats?.sent_value_cents, color: '#3b82f6' },
-                { label: 'Pending', count: stats?.pending_approval_count, value: 0, color: '#f59e0b' },
-                { label: 'Won', count: stats?.won_count, value: stats?.won_value_cents, color: '#22c55e' },
-                { label: 'Lost', count: stats?.lost_count, value: stats?.lost_value_cents, color: '#ef4444' }
+                { label: 'Draft', count: stats?.draft_count, value: stats?.draft_value_cents, color: STATUS_COLORS.draft },
+                { label: 'Sent', count: stats?.sent_count, value: stats?.sent_value_cents, color: STATUS_COLORS.sent },
+                { label: 'Won', count: stats?.won_count, value: stats?.won_value_cents, color: STATUS_COLORS.won },
+                { label: 'Lost', count: stats?.lost_count, value: stats?.lost_value_cents, color: STATUS_COLORS.lost }
               ].map(item => (
                 <div key={item.label} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    <div style={{ width: '10px', height: '10px', borderRadius: '2px', background: item.color }} />
+                    <div style={{ width: '10px', height: '10px', borderRadius: '50%', background: item.color }} />
                     <span style={{ fontSize: '13px', color: '#374151' }}>{item.label}</span>
                   </div>
                   <div style={{ textAlign: 'right' }}>
@@ -880,6 +1092,18 @@ const Dashboard = ({ onNavigate, onViewQuote, onBack }) => {
               ))}
             </div>
           </div>
+
+          {/* At-Risk Customers Widget */}
+          <AtRiskCustomers
+            limit={5}
+            showSummary={false}
+            onViewProfile={(customer) => onNavigate?.('customers', { selected: customer.id })}
+            onScheduleFollowUp={(customer) => {
+              // Navigate to create a follow-up quote
+              console.log('Schedule follow-up for:', customer.name);
+            }}
+            onViewAll={() => onNavigate?.('customers', { filter: 'at-risk' })}
+          />
 
           {/* Recent Quotes */}
           <div style={{

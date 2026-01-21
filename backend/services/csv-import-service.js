@@ -16,6 +16,9 @@ class CSVImportService {
             'MANUFACTURER': 'manufacturer',
             'BRAND_NAME': 'manufacturer',
             'MODEL': 'model',
+            'NAME': 'name',                   // Product name
+            'PRODUCT_NAME': 'name',           // Alternative name column
+            'TITLE': 'name',                  // Alternative name column
             'ACTUAL_COST': 'cost_cents',      // Maps to cost_cents
             'COST': 'cost_cents',
             'MSRP': 'msrp_cents',             // Maps to msrp_cents
@@ -36,11 +39,7 @@ class CSVImportService {
     async importCSVFile(filePath, importSource = 'automatic') {
         const startTime = Date.now();
         const fileName = path.basename(filePath);
-        
-        console.log(`\n${'='.repeat(70)}`);
-        console.log(`Starting CSV Import: ${fileName}`);
-        console.log('='.repeat(70));
-        
+
         const logId = await this.createImportLog(fileName, filePath, importSource);
         
         try {
@@ -51,9 +50,7 @@ class CSVImportService {
                 trim: true,
                 bom: true
             });
-            
-            console.log(`Parsed ${records.length} records from CSV`);
-            
+
             const results = {
                 processed: 0,
                 added: 0,
@@ -115,18 +112,7 @@ class CSVImportService {
             if (results.errors.length > 0) {
                 await this.logImportErrors(logId, results.errors);
             }
-            
-            console.log(`\n${'='.repeat(70)}`);
-            console.log('IMPORT COMPLETE');
-            console.log('='.repeat(70));
-            console.log(`Processed:      ${results.processed}`);
-            console.log(`Added:          ${results.added}`);
-            console.log(`Updated:        ${results.updated}`);
-            console.log(`Failed:         ${results.failed}`);
-            console.log(`Price Changes:  ${results.priceChanges}`);
-            console.log(`Processing Time: ${processingTime.toFixed(2)}s`);
-            console.log('='.repeat(70));
-            
+
             return {
                 success: true,
                 logId,
@@ -230,6 +216,11 @@ class CSVImportService {
             RETURNING id
         `;
         
+        // Generate name with fallback: name -> first line of description -> "Manufacturer Model"
+        const productName = productData.name ||
+            (productData.description ? productData.description.split(/[\r\n]/)[0].substring(0, 200) : null) ||
+            `${productData.manufacturer} ${productData.model}`;
+
         const values = [
             productData.manufacturer,
             productData.model,
@@ -238,7 +229,7 @@ class CSVImportService {
             productData.cost_cents || 0,
             productData.msrp_cents || 0,
             productData.cost_cents || 0,  // price column (same as cost_cents)
-            productData.model,             // name column (use model as name)
+            productName,                   // name column with smart fallback
             importSource,
             fileName
         ];
@@ -255,9 +246,7 @@ class CSVImportService {
             importSource,
             fileName
         );
-        
-        console.log(`✓ Added new product: ${productData.manufacturer} ${productData.model}`);
-        
+
         return { action: 'added', priceChanged: false };
     }
 
@@ -294,10 +283,10 @@ class CSVImportService {
         await this.pool.query(updateQuery, values);
         
         if (priceChanged) {
-            const changeType = productData.cost_cents > existingProduct.cost_cents 
-                ? 'increase' 
+            const changeType = productData.cost_cents > existingProduct.cost_cents
+                ? 'increase'
                 : 'decrease';
-            
+
             await this.logPriceChange(
                 existingProduct.id,
                 productData.manufacturer,
@@ -310,14 +299,8 @@ class CSVImportService {
                 existingProduct.msrp_cents,
                 productData.msrp_cents
             );
-            
-            const oldPrice = this.centsToDollars(existingProduct.cost_cents);
-            const newPrice = this.centsToDollars(productData.cost_cents);
-            console.log(`↻ Updated ${productData.manufacturer} ${productData.model}: ${oldPrice} → ${newPrice}`);
-        } else {
-            console.log(`✓ Updated ${productData.manufacturer} ${productData.model} (no price change)`);
         }
-        
+
         return { action: 'updated', priceChanged };
     }
 

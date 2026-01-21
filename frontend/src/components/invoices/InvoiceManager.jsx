@@ -50,11 +50,29 @@ import {
   Warning,
   Cancel,
   AttachMoney,
-  CreditCard
+  CreditCard,
+  AutoMode,
+  AccountBalance
 } from '@mui/icons-material';
 import axios from 'axios';
+import AutoInvoicePanel from './AutoInvoicePanel';
+import ARDashboard from './ARDashboard';
 
 const API_BASE = (process.env.REACT_APP_API_URL || 'http://localhost:3001') + '/api';
+
+// Create axios instance with auth headers
+const api = axios.create({
+  baseURL: API_BASE
+});
+
+// Add auth interceptor
+api.interceptors.request.use((config) => {
+  const token = localStorage.getItem('auth_token');
+  if (token) {
+    config.headers.Authorization = `Bearer ${token}`;
+  }
+  return config;
+});
 
 const formatCurrency = (cents) => {
   if (!cents && cents !== 0) return '$0.00';
@@ -119,7 +137,7 @@ const PaymentDialog = ({ open, onClose, invoice, onPaymentRecorded }) => {
       setSubmitting(true);
       setError(null);
 
-      await axios.post(`${API_BASE}/invoices/${invoice.id}/payments`, paymentData);
+      await api.post(`/invoices/${invoice.id}/payments`, paymentData);
 
       onPaymentRecorded();
       onClose();
@@ -233,6 +251,7 @@ const InvoiceManager = () => {
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(10);
   const [tabValue, setTabValue] = useState(0);
+  const [viewMode, setViewMode] = useState('invoices'); // 'invoices' | 'automation' | 'ar'
 
   const [selectedInvoice, setSelectedInvoice] = useState(null);
   const [paymentDialogOpen, setPaymentDialogOpen] = useState(false);
@@ -251,7 +270,7 @@ const InvoiceManager = () => {
         limit: rowsPerPage
       };
 
-      const response = await axios.get(`${API_BASE}/invoices`, { params });
+      const response = await api.get('/invoices', { params });
       setInvoices(response.data.invoices || response.data);
 
       // Calculate summary
@@ -272,7 +291,7 @@ const InvoiceManager = () => {
 
   const handleSendInvoice = async (invoiceId) => {
     try {
-      await axios.post(`${API_BASE}/invoices/${invoiceId}/send`);
+      await api.post(`/invoices/${invoiceId}/send`);
       fetchInvoices();
     } catch (err) {
       console.error('Error sending invoice:', err);
@@ -284,7 +303,7 @@ const InvoiceManager = () => {
     if (!window.confirm('Are you sure you want to void this invoice?')) return;
 
     try {
-      await axios.post(`${API_BASE}/invoices/${invoiceId}/void`, { reason: 'Voided by user' });
+      await api.post(`/invoices/${invoiceId}/void`, { reason: 'Voided by user' });
       fetchInvoices();
     } catch (err) {
       console.error('Error voiding invoice:', err);
@@ -316,9 +335,37 @@ const InvoiceManager = () => {
         <Typography variant="h4" sx={{ fontWeight: 'bold', display: 'flex', alignItems: 'center' }}>
           <Receipt sx={{ mr: 1, fontSize: 32 }} /> Invoice Management
         </Typography>
-        <Button variant="contained" startIcon={<Add />}>
-          Create Invoice
-        </Button>
+        <Box sx={{ display: 'flex', gap: 1 }}>
+          <Button
+            variant={viewMode === 'invoices' ? 'contained' : 'outlined'}
+            startIcon={<Receipt />}
+            onClick={() => setViewMode('invoices')}
+            size="small"
+          >
+            Invoices
+          </Button>
+          <Button
+            variant={viewMode === 'automation' ? 'contained' : 'outlined'}
+            startIcon={<AutoMode />}
+            onClick={() => setViewMode('automation')}
+            size="small"
+          >
+            Automation
+          </Button>
+          <Button
+            variant={viewMode === 'ar' ? 'contained' : 'outlined'}
+            startIcon={<AccountBalance />}
+            onClick={() => setViewMode('ar')}
+            size="small"
+          >
+            A/R
+          </Button>
+          {viewMode === 'invoices' && (
+            <Button variant="contained" startIcon={<Add />} size="small">
+              Create Invoice
+            </Button>
+          )}
+        </Box>
       </Box>
 
       {error && (
@@ -327,6 +374,15 @@ const InvoiceManager = () => {
         </Alert>
       )}
 
+      {/* Automation View */}
+      {viewMode === 'automation' && <AutoInvoicePanel />}
+
+      {/* A/R View */}
+      {viewMode === 'ar' && <ARDashboard />}
+
+      {/* Invoices View */}
+      {viewMode === 'invoices' && (
+        <>
       {/* Summary Cards */}
       <Grid container spacing={2} sx={{ mb: 3 }}>
         <Grid item xs={6} sm={3}>
@@ -536,6 +592,8 @@ const InvoiceManager = () => {
           </>
         )}
       </Paper>
+        </>
+      )}
 
       {/* Payment Dialog */}
       <PaymentDialog

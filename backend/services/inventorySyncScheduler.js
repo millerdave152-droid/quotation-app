@@ -274,8 +274,7 @@ class InventorySyncScheduler {
         await this.miraklService.createOffer(offerData);
         return { success: true, product_id: product.id };
       } catch (apiError) {
-        // Log but don't fail - local update still succeeded
-        console.log(`⚠️ Mirakl API sync failed for product ${product.id}:`, apiError.message);
+        // Local update still succeeded
         return { success: true, product_id: product.id, api_warning: apiError.message };
       }
 
@@ -292,7 +291,6 @@ class InventorySyncScheduler {
    */
   async runSync(options = {}) {
     if (this.isRunning) {
-      console.log('⚠️ Sync already in progress, skipping...');
       return { success: false, message: 'Sync already in progress' };
     }
 
@@ -301,8 +299,6 @@ class InventorySyncScheduler {
     const startTime = new Date();
 
     try {
-      console.log('🔄 Starting inventory sync...');
-
       // Create sync job record
       const jobResult = await client.query(`
         INSERT INTO marketplace_sync_jobs (job_type, status, started_at)
@@ -318,7 +314,6 @@ class InventorySyncScheduler {
 
       // Get products to sync
       const products = await this.getProductsToSync(onlyChanged);
-      console.log(`📦 Found ${products.length} products to sync`);
 
       let synced = 0;
       let failed = 0;
@@ -365,7 +360,6 @@ class InventorySyncScheduler {
       await this.updateSetting('last_sync_time', { timestamp: new Date().toISOString() });
 
       const duration = (new Date() - startTime) / 1000;
-      console.log(`✅ Sync completed in ${duration}s: ${synced} synced, ${failed} failed`);
 
       return {
         success: true,
@@ -430,17 +424,13 @@ class InventorySyncScheduler {
       const settings = await this.getSyncSettings();
 
       if (!settings.auto_sync_enabled?.enabled) {
-        console.log('📅 Auto-sync is disabled');
         return;
       }
 
       const hours = settings.sync_frequency_hours?.value || 4;
       const cronExpression = this.hoursToCron(hours);
 
-      console.log(`📅 Starting inventory sync scheduler (every ${hours} hours)`);
-
       this.cronJob = cron.schedule(cronExpression, async () => {
-        console.log('⏰ Running scheduled inventory sync...');
         await this.runSync();
       });
 
@@ -457,7 +447,6 @@ class InventorySyncScheduler {
     if (this.cronJob) {
       this.cronJob.stop();
       this.cronJob = null;
-      console.log('📅 Inventory sync scheduler stopped');
     }
   }
 

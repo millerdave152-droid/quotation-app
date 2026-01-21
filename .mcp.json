@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "postgres": {
+      "command": "cmd",
+      "args": ["/c", "start-postgres-mcp.bat"]
+    }
+  }
+}

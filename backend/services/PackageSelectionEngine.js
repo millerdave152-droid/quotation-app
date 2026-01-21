@@ -113,8 +113,8 @@ class PackageSelectionEngine {
         'dryer', 'dryers',
         'tl dryer', 'fl dryer',             // Samsung patterns
         'laundry - dryer',                   // Full category path
-        'fabric care - fl dryer', 'fabric care - tl dryer',
-        'w/m'                                // LG uses W/M for dryers (DL* models)
+        'fabric care - fl dryer', 'fabric care - tl dryer'
+        // NOTE: 'w/m' removed - it's a washer pattern only, was causing cross-contamination
       ],
       laundry_combo: [
         'washer dryer combo', 'all-in-one', 'washer/dryer',
@@ -144,8 +144,10 @@ class PackageSelectionEngine {
       cooktop: ['range hood', 'accessory'],  // Note: Keep separate from ranges
       wall_oven: ['microwave', 'cooktop', 'range hood', 'accessory'],  // Note: Combo ovens are OK
       hood: ['microwave', 'accessory'],  // Range hoods only
-      washer: ['dishwasher', 'dish washer', 'dryer', 'pressure washer', 'power washer', 'accessory', 'pedestal'],
-      dryer: ['hair dryer', 'hand dryer', 'blow dryer', 'accessory', 'pedestal', 'stacking kit', 'accessory & parts'],
+      washer: ['dishwasher', 'dish washer', 'dryer', 'pressure washer', 'power washer', 'accessory', 'pedestal',
+               'fabric care - fl dryer', 'fabric care - tl dryer', 'laundry - dryer'],  // Strict dryer exclusion
+      dryer: ['hair dryer', 'hand dryer', 'blow dryer', 'accessory', 'pedestal', 'stacking kit', 'accessory & parts',
+              'washer', 'washing machine', 'fabric care - fl washer', 'fabric care - tl washer', 'laundry - washer'],  // Strict washer exclusion
       laundry_combo: ['accessory', 'pedestal']
     };
 
@@ -252,19 +254,15 @@ class PackageSelectionEngine {
    */
   async generatePackages(answers, template) {
     const flowType = template.package_type || 'kitchen';
-    console.log(`🔧 Generating ${flowType} packages (v3 - full catalog + dynamic tiers)`);
-    console.log('📋 Answers:', JSON.stringify(answers).substring(0, 200) + '...');
 
     // Parse answers into requirements and preferences
     const { requirements, preferences } = this.parseAnswerModes(answers);
-    console.log(`   Requirements: ${Object.keys(requirements).length}, Preferences: ${Object.keys(preferences).length}`);
 
     const slots = typeof template.slots === 'string'
       ? JSON.parse(template.slots)
       : template.slots;
 
     // STEP 1: Fetch full catalog for all slot categories and compute dynamic price tiers
-    console.log('📦 Step 1: Fetching full catalog and computing price tiers...');
     const catalogBySlot = {};
     const tierRangesBySlot = {};
 
@@ -273,13 +271,29 @@ class PackageSelectionEngine {
       const allowedSlots = this.FLOW_TYPE_SLOTS[flowType] || [];
 
       if (!allowedSlots.includes(slotType)) {
-        console.log(`⛔ Skipping slot ${slotKey} - not allowed for ${flowType} flow`);
         continue;
       }
 
       // Fetch ALL products for this category (same query as product page)
       const products = await this.fetchCatalogForSlot(slotConfig.category, slotType);
       catalogBySlot[slotKey] = products;
+
+      // Debug logging for laundry slots
+      if (flowType === 'laundry' && (slotType === 'washer' || slotType === 'dryer')) {
+        console.log(`[PackageBuilder] Slot "${slotKey}" (${slotType}): Loaded ${products.length} products`);
+        if (products.length > 0 && products.length <= 5) {
+          products.forEach(p => {
+            const detected = this.detectLaundryApplianceType(p);
+            console.log(`  - ${p.model} (${p.manufacturer}): detected as ${detected || 'unknown'}`);
+          });
+        } else if (products.length > 5) {
+          products.slice(0, 3).forEach(p => {
+            const detected = this.detectLaundryApplianceType(p);
+            console.log(`  - ${p.model} (${p.manufacturer}): detected as ${detected || 'unknown'}`);
+          });
+          console.log(`  ... and ${products.length - 3} more`);
+        }
+      }
 
       // If brand is required, filter products by brand BEFORE computing tiers
       // This ensures tier ranges are relative to the selected brand's price range
@@ -294,22 +308,17 @@ class PackageSelectionEngine {
           return mfr === brandFilter || mfr === normalizedBrand ||
                  mfr.startsWith(brandFilter + ' ') || mfr.startsWith(normalizedBrand + ' ');
         });
-        console.log(`   🏷️ Brand filter "${brandFilter}": ${products.length} -> ${productsForTiers.length} products for tier calculation`);
         // If no products match the brand, fall back to all products for tier calculation
         if (productsForTiers.length === 0) {
-          console.log(`   ⚠️ No ${brandFilter} products found, using all products for tiers`);
           productsForTiers = products;
         }
       }
 
       // Compute dynamic tier ranges from actual price distribution
       tierRangesBySlot[slotKey] = this.computeDynamicTiers(productsForTiers);
-
-      console.log(`   ${slotKey}: ${productsForTiers.length} products for tiers, ranges: $${(tierRangesBySlot[slotKey].good.max/100).toFixed(0)}/$${(tierRangesBySlot[slotKey].better.max/100).toFixed(0)}/$${(tierRangesBySlot[slotKey].best.max/100).toFixed(0)}`);
     }
 
     // STEP 2: Build packages for each tier with progressive filter relaxation
-    console.log('🔨 Step 2: Building packages with progressive filtering...');
     const tiers = ['good', 'better', 'best'];
     const packages = {};
     const errors = [];
@@ -364,21 +373,12 @@ class PackageSelectionEngine {
               washer: validationResult.washer,
               dryer: validationResult.dryer
             });
-            console.log(`⚠️ ${tier} tier laundry pair validation: ${validationResult.message}`);
-          } else {
-            console.log(`✓ ${tier} tier: ${validationResult.message}`);
           }
           // Add pair info to package for UI display
           pkg.pairInfo = validationResult;
         }
       }
     }
-
-    console.log('✅ Generated packages:', {
-      good: (packages.good?.items?.length || 0) + ' items, $' + ((packages.good?.total_msrp_cents || 0) / 100).toFixed(2),
-      better: (packages.better?.items?.length || 0) + ' items, $' + ((packages.better?.total_msrp_cents || 0) / 100).toFixed(2),
-      best: (packages.best?.items?.length || 0) + ' items, $' + ((packages.best?.total_msrp_cents || 0) / 100).toFixed(2)
-    });
 
     return {
       packages,
@@ -452,13 +452,32 @@ class PackageSelectionEngine {
     // Try category_id based filtering first (much faster and more accurate)
     const categoryId = await this.getCategoryIdForSlot(slotType);
 
+    let products;
     if (categoryId) {
-      return this.fetchCatalogByCategory(categoryId, slotType);
+      products = await this.fetchCatalogByCategory(categoryId, slotType);
+    } else {
+      // FALLBACK: Legacy pattern matching for unmigrated products
+      products = await this.fetchCatalogByPattern(category, slotType);
     }
 
-    // FALLBACK: Legacy pattern matching for unmigrated products
-    console.log(`   [LEGACY] Using pattern matching for ${slotType} (no category_id mapping)`);
-    return this.fetchCatalogByPattern(category, slotType);
+    // Apply strict laundry type validation for washer/dryer slots
+    // This prevents cross-contamination from ambiguous category patterns
+    if (slotType === 'washer' || slotType === 'dryer') {
+      const originalCount = products.length;
+      products = products.filter(p => {
+        const detectedType = this.detectLaundryApplianceType(p);
+        // If we can detect the type, it must match the slot
+        // If we can't detect, allow the product (rely on category)
+        if (!detectedType) return true;
+        return detectedType === slotType;
+      });
+
+      if (products.length !== originalCount) {
+        console.log(`[PackageBuilder] Laundry validation: Filtered ${originalCount - products.length} mismatched products from ${slotType} slot`);
+      }
+    }
+
+    return products;
   }
 
   /**
@@ -489,7 +508,6 @@ class PackageSelectionEngine {
 
     try {
       const result = await this.pool.query(query, [categoryId]);
-      console.log(`   Fetched ${result.rows.length} products for ${slotType} (category_id: ${categoryId})`);
       return result.rows;
     } catch (err) {
       console.error(`Error fetching catalog for ${slotType}:`, err.message);
@@ -553,7 +571,6 @@ class PackageSelectionEngine {
 
     try {
       const result = await this.pool.query(query, allParams);
-      console.log(`   [LEGACY] Fetched ${result.rows.length} products for ${slotType} (patterns: ${patterns.join(', ')})`);
       return result.rows;
     } catch (err) {
       console.error(`Error fetching catalog for ${slotType}:`, err.message);
@@ -635,13 +652,11 @@ class PackageSelectionEngine {
         ];
         if (alwaysRequired.includes(key)) {
           requirements[key] = answer;
-          console.log(`   📋 Requirement: ${key} = ${answer}`);
         } else {
           preferences[key] = answer;
         }
       }
     }
-    console.log('   📋 Final requirements:', JSON.stringify(requirements));
 
     return { requirements, preferences };
   }
@@ -787,20 +802,12 @@ class PackageSelectionEngine {
 
             if (typeMatchedDryers.length > 0) {
               pairedDryers = typeMatchedDryers;
-              console.log(`   🔗 Found ${pairedDryers.length} dryers with ${requirements.washer_type} paired washers for ${tier} tier`);
-            } else {
-              console.log(`   ⚠️ No dryers with ${requirements.washer_type} paired washers for ${tier} tier, using all paired dryers`);
             }
           }
 
           // If we have paired dryers, use ONLY those for selection
           if (pairedDryers.length > 0) {
             dryerCatalog = pairedDryers;
-            if (!requirements.washer_type) {
-              console.log(`   🔗 Found ${pairedDryers.length} dryers with official pairs for ${tier} tier`);
-            }
-          } else {
-            console.log(`   ⚠️ No paired dryers available for ${tier} tier, using brand matching`);
           }
 
           const result = await this.selectProductForSlot(
@@ -823,10 +830,6 @@ class PackageSelectionEngine {
             };
             preferredBrand = result.selected.manufacturer;
 
-            const pairNote = laundryPairConstraints.pairedProductId
-              ? `, paired with washer ID ${laundryPairConstraints.pairedProductId}`
-              : '';
-            console.log(`   🧺 Dryer selected: ${result.selected.manufacturer} ${result.selected.model} (${laundryPairConstraints.sizeClass}${pairNote})`);
           } else {
             emptySlots.push(result.emptySlot);
             suggestions.push(...result.suggestions);
@@ -857,7 +860,6 @@ class PackageSelectionEngine {
       const tierRanges = tierRangesBySlot[slotKey];
 
       if (catalog.length === 0) {
-        console.log(`⚠️ No catalog data for slot ${slotKey}`);
         emptySlots.push({
           slot: slotKey,
           label: slotConfig.label,
@@ -881,18 +883,10 @@ class PackageSelectionEngine {
               const pairWasherType = this.detectWasherType(officialPair);
               if (pairWasherType === requirements.washer_type || pairWasherType === 'unknown') {
                 catalog = [officialPair];
-                console.log(`   ✅ OFFICIAL PAIR: Using manufacturer-matched ${requirements.washer_type} washer ${officialPair.model}`);
-              } else {
-                console.log(`   ⚠️ Official pair ${officialPair.model} is ${pairWasherType}, but ${requirements.washer_type} required - falling back to matching`);
-                // Don't use this pair, let the brand/size matching take over
               }
             } else {
               catalog = [officialPair];
-              console.log(`   ✅ OFFICIAL PAIR: Using manufacturer-matched washer ${officialPair.model}`);
             }
-          } else {
-            // Paired product exists in DB but not in our filtered catalog - fetch it directly
-            console.log(`   ⚠️ Official pair ID ${laundryPairConstraints.pairedProductId} not in catalog, falling back to matching`);
           }
         }
 
@@ -910,8 +904,6 @@ class PackageSelectionEngine {
             );
             if (sizeMatched.length > 0) {
               matchedCatalog = sizeMatched;
-            } else {
-              console.log(`   ⚠️ No ${laundryPairConstraints.sizeClass} washers from ${laundryPairConstraints.brand}, using any size`);
             }
           }
 
@@ -920,7 +912,6 @@ class PackageSelectionEngine {
             const reverseMatched = matchedCatalog.filter(p => p.paired_product_id === laundryPairConstraints.dryerId);
             if (reverseMatched.length > 0) {
               matchedCatalog = reverseMatched;
-              console.log(`   ✅ Found ${reverseMatched.length} washer(s) with reverse pair link to this dryer`);
             }
           }
 
@@ -932,13 +923,11 @@ class PackageSelectionEngine {
             });
             if (seriesMatched.length > 0) {
               matchedCatalog = seriesMatched;
-              console.log(`   ✓ Found ${seriesMatched.length} series-matched washers`);
             }
           }
 
           // Fallback: if no brand match, relax to just same tier brands
           if (matchedCatalog.length === 0) {
-            console.log(`   ⚠️ No ${laundryPairConstraints.brand} washers found, relaxing to same-tier brands`);
             const dryerBrandTier = this.getBrandTier(laundryPairConstraints.brand);
             matchedCatalog = catalog.filter(p => {
               const washerBrandTier = this.getBrandTier(p.manufacturer);
@@ -956,7 +945,6 @@ class PackageSelectionEngine {
 
           if (matchedCatalog.length > 0) {
             catalog = matchedCatalog;
-            console.log(`   🧺 Washer candidates: ${beforeCount} → ${catalog.length} (matched to ${laundryPairConstraints.brand} ${laundryPairConstraints.sizeClass})`);
           } else {
             // Last resort: use original catalog but add warning
             warnings.push({
@@ -974,18 +962,20 @@ class PackageSelectionEngine {
       const hasBrandRequirement = requirements.brand_preference && requirements.brand_preference !== 'any';
 
       const filterLevels = hasBrandRequirement ? [
-        // When brand is specified, NEVER relax brand or finish - only relax price and dimensions
-        // Finish is a HARD requirement - users expect exact color match
+        // When brand is specified, try to keep brand - relax other filters progressively
         { name: 'strict', relaxations: [] },
         { name: 'relax_price', relaxations: ['price'] },
-        { name: 'relax_price_dimensions', relaxations: ['price', 'dimensions'] }
+        { name: 'relax_price_dimensions', relaxations: ['price', 'dimensions'] },
+        // LAST RESORT: If brand has no products in requested finish, relax finish with warning
+        { name: 'relax_finish', relaxations: ['price', 'dimensions', 'finish'] }
       ] : [
-        // When no brand specified, can relax brand and price but NEVER finish
-        // Finish is a HARD requirement - wrong color is never acceptable
+        // When no brand specified, can relax brand and price progressively
         { name: 'strict', relaxations: [] },
         { name: 'relax_price', relaxations: ['price'] },
         { name: 'relax_price_brand', relaxations: ['price', 'brand'] },
-        { name: 'relax_price_brand_dimensions', relaxations: ['price', 'brand', 'dimensions'] }
+        { name: 'relax_price_brand_dimensions', relaxations: ['price', 'brand', 'dimensions'] },
+        // LAST RESORT: If no products in requested finish, relax finish with warning
+        { name: 'relax_all', relaxations: ['price', 'brand', 'dimensions', 'finish'] }
       ];
 
       let filteredCandidates = [];
@@ -1010,7 +1000,6 @@ class PackageSelectionEngine {
       }
 
       if (filteredCandidates.length === 0) {
-        console.log(`⚠️ No candidates found for slot ${slotKey} in ${tier} tier after all relaxations`);
         emptySlots.push({
           slot: slotKey,
           label: slotConfig.label,
@@ -1025,11 +1014,21 @@ class PackageSelectionEngine {
       }
 
       if (appliedLevel.name !== 'strict') {
-        warnings.push({
-          slot: slotKey,
-          message: `Relaxed filters to find matches (level: ${appliedLevel.name})`,
-          relaxations: appliedLevel.relaxations
-        });
+        // Special warning for finish relaxation - this is important info for users
+        if (appliedLevel.relaxations.includes('finish') && requirements.finish) {
+          warnings.push({
+            slot: slotKey,
+            message: `Your requested finish "${requirements.finish}" is not available for ${requirements.brand_preference || 'selected brand'}. Showing available finishes instead.`,
+            severity: 'high',
+            relaxations: appliedLevel.relaxations
+          });
+        } else {
+          warnings.push({
+            slot: slotKey,
+            message: `Relaxed filters to find matches (level: ${appliedLevel.name})`,
+            relaxations: appliedLevel.relaxations
+          });
+        }
       }
 
       // Score and rank candidates using preferences
@@ -1130,8 +1129,8 @@ class PackageSelectionEngine {
       }
     }
 
-    // 3. FINISH FILTER (STRICT - now in alwaysRequired)
-    if (requirements.finish && requirements.finish !== 'any') {
+    // 3. FINISH FILTER (can be relaxed as last resort if no products match)
+    if (!relaxations.includes('finish') && requirements.finish && requirements.finish !== 'any') {
       const requiredFinish = requirements.finish.toLowerCase();
       filtered = filtered.filter(p => {
         const dbFinish = (p.finish || '').toLowerCase();
@@ -1188,9 +1187,6 @@ class PackageSelectionEngine {
         // PRIMARY CHECK: If model suffix indicates a specific finish, trust it
         if (modelFinish) {
           const matches = modelFinish === requiredFinish;
-          if (!matches) {
-            console.log(`      ❌ ${model}: detected finish=${modelFinish} (required: ${requiredFinish})`);
-          }
           return matches;
         }
 
@@ -1218,7 +1214,6 @@ class PackageSelectionEngine {
         }
 
         // No finish info available - exclude when specific finish required
-        console.log(`      ❌ ${model}: no finish info (required: ${requiredFinish})`);
         return false;
       });
     }
@@ -1283,7 +1278,6 @@ class PackageSelectionEngine {
 
         return true;
       });
-      console.log(`   🔧 Range config filter: ${requirements.range_config}, ${beforeCount} -> ${filtered.length} products`);
     }
 
     // 5. WIDTH FILTERS (STRICT - cannot be relaxed)
@@ -1292,24 +1286,19 @@ class PackageSelectionEngine {
     // Fridge width - filter by width in inches (STRICT - CANNOT BE RELAXED)
     if (slotType === 'refrigerator' && requirements.fridge_width) {
       const requiredWidth = parseInt(requirements.fridge_width) || 0;
-      console.log(`   🔧 Fridge width filter: required=${requiredWidth}", have ${filtered.length} products`);
       if (requiredWidth > 0) {
-        const beforeCount = filtered.length;
         filtered = filtered.filter(p => {
           const detectedWidth = this.detectFridgeWidth(p);
 
           // Allow within 2 inches tolerance (e.g., 35" to 37" for 36" requirement)
           if (detectedWidth > 0) {
             const passes = Math.abs(detectedWidth - requiredWidth) <= 2;
-            if (!passes) console.log(`      ❌ ${p.model}: ${detectedWidth}" != ${requiredWidth}" (excluded)`);
             return passes;
           }
 
           // Unknown width - STRICT: exclude when specific width is required
-          console.log(`      ❌ ${p.model}: unknown width (excluded)`);
           return false;
         });
-        console.log(`   🔧 After fridge width filter: ${beforeCount} -> ${filtered.length} products`);
       }
     }
 
@@ -1347,19 +1336,16 @@ class PackageSelectionEngine {
 
           return true;
         });
-        console.log(`   🔧 Fridge depth filter: ${requirements.fridge_depth}, ${beforeCount} -> ${filtered.length} products`);
       }
 
       // Fridge style - use detection method for reliable matching
       // STRICT: do not accept unknown - must match exactly
       if (slotType === 'refrigerator' && requirements.fridge_style) {
-        const beforeCount = filtered.length;
         filtered = filtered.filter(p => {
           const detectedStyle = this.detectFridgeStyle(p);
           // STRICT: only accept exact style match, no fallback to unknown
           return detectedStyle === requirements.fridge_style;
         });
-        console.log(`   🔧 Fridge style filter: ${requirements.fridge_style}, ${beforeCount} -> ${filtered.length} products`);
       }
 
       // Washer type - STRICT: Must match front_load or top_load
@@ -1406,9 +1392,6 @@ class PackageSelectionEngine {
 
         return true; // No restriction
       });
-
-      // Log ice_water filter results
-      console.log(`   🔧 Ice/Water filter: ${requirements.ice_water}, ${beforeCount} -> ${filtered.length} products`);
     }
 
     // 7. DISHWASHER NOISE LEVEL
@@ -2837,6 +2820,102 @@ class PackageSelectionEngine {
     }
 
     return 'standard'; // Default to standard
+  }
+
+  /**
+   * Detect laundry appliance type (washer vs dryer) from model number patterns
+   * Uses manufacturer-specific model naming conventions to definitively identify type
+   * @param {object} product - Product with model, name, category
+   * @returns {string|null} 'washer', 'dryer', or null if unable to detect
+   */
+  detectLaundryApplianceType(product) {
+    if (!product) return null;
+
+    const model = (product.model || product.name || '').toUpperCase();
+    const name = (product.name || '').toLowerCase();
+    const category = (product.category || '').toLowerCase();
+
+    // Check category first for explicit matches
+    if (category.includes('dryer') && !category.includes('washer')) {
+      return 'dryer';
+    }
+    if (category.includes('washer') && !category.includes('dryer')) {
+      return 'washer';
+    }
+
+    // DRYER model patterns (check first - more specific patterns)
+    const dryerPatterns = [
+      /^DVE\d/,              // Samsung electric dryers (DVE45, DVE50, etc.)
+      /^DVG\d/,              // Samsung gas dryers
+      /^DV\d{2}[A-Z]/,       // Samsung older dryer pattern
+      /^WED\d/,              // Whirlpool electric dryers
+      /^WGD\d/,              // Whirlpool gas dryers
+      /^MED\d/,              // Maytag electric dryers
+      /^MGD\d/,              // Maytag gas dryers
+      /^YMED\d/,             // Maytag dryers (alternate)
+      /^GTD\d/,              // GE electric dryers
+      /^GTD[A-Z]*\d/,        // GE dryers extended pattern
+      /^PTD\d/,              // GE Profile dryers
+      /^DLE[X]?\d/,          // LG electric dryers (DLE, DLEX)
+      /^DLG[X]?\d/,          // LG gas dryers
+      /^DLHC\d/,             // LG heat pump dryers
+      /^WTG\d/,              // Bosch heat pump dryers (WTG86401UC, etc.)
+      /^WQB\d/,              // Bosch dryers (WQB245BGUC, etc.)
+      /^WTW.*D$/,            // Ends with D often indicates dryer
+      /DRYER/i,              // Explicit dryer in model
+      /^ELFG\d/,             // Electrolux gas dryers
+      /^ELFE\d/,             // Electrolux electric dryers
+      /^EFME\d/,             // Electrolux dryers
+      /^EFMG\d/,             // Electrolux gas dryers
+    ];
+
+    // WASHER model patterns
+    const washerPatterns = [
+      /^WF\d{2}[A-Z]/,       // Samsung front load washers (WF45, WF50, etc.)
+      /^WA\d{2}[A-Z]/,       // Samsung top load washers
+      /^WTW\d/,              // Whirlpool top load washers
+      /^WFW\d/,              // Whirlpool front load washers
+      /^MHW\d/,              // Maytag front load washers
+      /^MVW\d/,              // Maytag top load washers
+      /^GTW\d/,              // GE top load washers
+      /^GFW\d/,              // GE front load washers
+      /^PTW\d/,              // GE Profile top load washers
+      /^PFW\d/,              // GE Profile front load washers
+      /^WM\d{4}/,            // LG front load washers (WM3600, WM4000, etc.)
+      /^WT\d{4}/,            // LG top load washers
+      /^WAT\d/,              // Bosch washers
+      /^WAW\d/,              // Bosch washers
+      /^WAV\d/,              // Bosch washers
+      /^WGG\d/,              // Bosch compact washers
+      /WASHER/i,             // Explicit washer in model
+      /^ELFW\d/,             // Electrolux front load washers
+      /^ELTW\d/,             // Electrolux top load washers
+      /^EFLS\d/,             // Electrolux washers
+    ];
+
+    // Check dryer patterns first (more specific)
+    for (const pattern of dryerPatterns) {
+      if (pattern.test(model)) {
+        return 'dryer';
+      }
+    }
+
+    // Check washer patterns
+    for (const pattern of washerPatterns) {
+      if (pattern.test(model)) {
+        return 'washer';
+      }
+    }
+
+    // Additional name-based checks
+    if (name.includes('dryer') && !name.includes('washer')) {
+      return 'dryer';
+    }
+    if (name.includes('washer') && !name.includes('dryer')) {
+      return 'washer';
+    }
+
+    return null; // Unknown - use category fallback
   }
 }
 

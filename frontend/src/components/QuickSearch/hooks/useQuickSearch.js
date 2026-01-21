@@ -5,6 +5,15 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 
 const API_BASE = process.env.REACT_APP_API_URL || 'http://localhost:3001';
 
+// Helper to get auth headers
+const getAuthHeaders = () => {
+  const token = localStorage.getItem('auth_token');
+  return {
+    'Content-Type': 'application/json',
+    ...(token && { 'Authorization': `Bearer ${token}` })
+  };
+};
+
 export const useQuickSearch = (searchQuery, filters, sortBy, userRole) => {
   const [products, setProducts] = useState([]);
   const [pagination, setPagination] = useState({
@@ -92,10 +101,7 @@ export const useQuickSearch = (searchQuery, filters, sortBy, userRole) => {
 
       const response = await fetch(`${API_BASE}/api/quick-search?${queryString}`, {
         signal: abortControllerRef.current.signal,
-        credentials: 'include',
-        headers: {
-          'Content-Type': 'application/json'
-        }
+        headers: getAuthHeaders()
       });
 
       if (!response.ok) {
@@ -127,10 +133,7 @@ export const useQuickSearch = (searchQuery, filters, sortBy, userRole) => {
   const fetchFilterOptions = useCallback(async () => {
     try {
       const response = await fetch(`${API_BASE}/api/quick-search/filters`, {
-        credentials: 'include',
-        headers: {
-          'Content-Type': 'application/json'
-        }
+        headers: getAuthHeaders()
       });
 
       if (!response.ok) {
@@ -149,10 +152,7 @@ export const useQuickSearch = (searchQuery, filters, sortBy, userRole) => {
   const fetchPresets = useCallback(async () => {
     try {
       const response = await fetch(`${API_BASE}/api/quick-search/presets`, {
-        credentials: 'include',
-        headers: {
-          'Content-Type': 'application/json'
-        }
+        headers: getAuthHeaders()
       });
 
       if (!response.ok) {

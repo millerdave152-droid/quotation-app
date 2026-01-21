@@ -29,7 +29,8 @@ import {
   FileBarChart,
   PieChart,
   Tag,
-  Search
+  Search,
+  ClipboardCheck
 } from 'lucide-react';
 
 const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:3001';
@@ -38,6 +39,7 @@ const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:3001';
 const navItems = {
   dashboard: { path: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
   customers: { path: '/customers', icon: Users, label: 'Customers' },
+  leads: { path: '/leads', icon: ClipboardCheck, label: 'Leads' },
   products: { path: '/products', icon: Package, label: 'Products' },
   'quick-search': { path: '/quick-search', icon: Search, label: 'Quick Search' },
   'product-visualization': { path: '/product-visualization', icon: Image, label: 'Product Gallery' },
@@ -73,7 +75,7 @@ const navSections = [
     id: 'sales',
     title: 'Sales',
     icon: Users,
-    items: ['customers', 'quotes', 'pipeline-analytics', 'invoices']
+    items: ['customers', 'leads', 'quotes', 'pipeline-analytics', 'invoices']
   },
   {
     id: 'inventory',

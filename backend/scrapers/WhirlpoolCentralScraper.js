@@ -37,40 +37,96 @@ class WhirlpoolCentralScraper {
         timeout: 30000
       });
 
-      // Wait for login form
-      await this.page.waitForSelector('input[type="email"], input[name="username"], input[name="email"], #email', { timeout: 10000 });
+      // Debug: Log the current URL and take screenshot
+      const currentUrl = this.page.url();
+      console.log('Current URL after navigation:', currentUrl);
 
-      // Fill in credentials - try multiple possible selectors
-      const usernameSelectors = ['input[type="email"]', 'input[name="username"]', 'input[name="email"]', '#email', '#username'];
-      const passwordSelectors = ['input[type="password"]', 'input[name="password"]', '#password'];
+      // Take a screenshot for debugging
+      const path = require('path');
+      const screenshotPath = path.join(__dirname, '..', 'public', 'debug-login-page.png');
+      await this.page.screenshot({ path: screenshotPath, fullPage: true });
+      console.log('Screenshot saved to:', screenshotPath);
 
+      // Wait for page to fully load (WordPress sites may need extra time)
+      await new Promise(resolve => setTimeout(resolve, 5000));
+
+      // Check for IP-based access block (common on B2B dealer portals)
+      const pageText = await this.page.evaluate(() => document.body?.innerText || '');
+      if (pageText.includes('No access') && pageText.includes('Contact admin')) {
+        // Extract IP from message
+        const ipMatch = pageText.match(/IP[:\s]*([0-9.]+)/);
+        const blockedIP = ipMatch ? ipMatch[1] : 'unknown';
+        throw new Error(`IP ACCESS BLOCKED: Your server IP (${blockedIP}) is not whitelisted by Whirlpool Central. Contact the portal admin to add your IP to their whitelist.`);
+      }
+
+      // Check if redirected to WordPress login
+      const isWordPressLogin = currentUrl.includes('wp-login');
+      console.log('WordPress login detected:', isWordPressLogin);
+
+      // Try to find ANY input field first
+      const allInputs = await this.page.$$('input');
+      console.log('Found', allInputs.length, 'input fields on page');
+
+      // WordPress login selectors (prioritized) + generic selectors
+      const usernameSelectors = [
+        '#user_login',           // WordPress
+        '#username',             // Generic
+        '#email',                // Generic
+        'input[name="log"]',     // WordPress alt
+        'input[name="username"]',
+        'input[name="email"]',
+        'input[type="email"]',
+        'input[type="text"]:not([type="hidden"])',
+        'input.form-control:first-of-type'
+      ];
+
+      const passwordSelectors = [
+        '#user_pass',            // WordPress
+        '#password',             // Generic
+        'input[name="pwd"]',     // WordPress alt
+        'input[name="password"]',
+        'input[type="password"]'
+      ];
+
+      const loginButtonSelectors = [
+        '#wp-submit',            // WordPress
+        'input[type="submit"]',
+        'button[type="submit"]',
+        '.login-button',
+        '#login-btn',
+        'button[name="wp-submit"]'
+      ];
+
+      // Wait for login form - try WordPress selectors first
+      const waitSelectors = isWordPressLogin
+        ? '#user_login, #user_pass, input[name="log"]'
+        : 'input[type="text"], input[type="email"], input[name="username"], #email, #username';
+
+      try {
+        await this.page.waitForSelector(waitSelectors, { timeout: 15000 });
+      } catch (e) {
+        // Take another screenshot for debugging
+        const debugPath = path.join(__dirname, '..', 'public', 'debug-login-timeout.png');
+        await this.page.screenshot({ path: debugPath, fullPage: true });
+        console.log('Timeout screenshot saved to:', debugPath);
+
+        // Log page content for debugging
+        const pageContent = await this.page.content();
+        console.log('Page contains form:', pageContent.includes('<form'));
+        console.log('Page contains input:', pageContent.includes('<input'));
+        throw new Error(`Login form not found. Page may require JavaScript or has changed. Check debug screenshots.`);
+      }
+
+      // Fill in username
+      let usernameEntered = false;
       for (const selector of usernameSelectors) {
-        const element = await this.page.$(selector);
-        if (element) {
-          await element.type(username, { delay: 50 });
-          break;
-        }
-      }
-
-      for (const selector of passwordSelectors) {
-        const element = await this.page.$(selector);
-        if (element) {
-          await element.type(password, { delay: 50 });
-          break;
-        }
-      }
-
-      // Click login button
-      const loginButtonSelectors = ['button[type="submit"]', 'input[type="submit"]', '.login-button', '#login-btn', 'button:contains("Sign In")', 'button:contains("Login")'];
-
-      for (const selector of loginButtonSelectors) {
         try {
           const element = await this.page.$(selector);
           if (element) {
-            await Promise.all([
-              this.page.waitForNavigation({ waitUntil: 'networkidle2', timeout: 30000 }),
-              element.click()
-            ]);
+            await element.click({ clickCount: 3 }); // Select all existing text
+            await element.type(username, { delay: 50 });
+            console.log('Username entered using selector:', selector);
+            usernameEntered = true;
             break;
           }
         } catch (e) {
@@ -78,21 +134,74 @@ class WhirlpoolCentralScraper {
         }
       }
 
-      // Verify login success
-      await this.page.waitForTimeout(2000);
-      const currentUrl = this.page.url();
+      if (!usernameEntered) {
+        throw new Error('Could not find username input field');
+      }
 
-      if (currentUrl.includes('login') || currentUrl.includes('signin')) {
-        // Check for error messages
+      // Fill in password
+      let passwordEntered = false;
+      for (const selector of passwordSelectors) {
+        try {
+          const element = await this.page.$(selector);
+          if (element) {
+            await element.click({ clickCount: 3 }); // Select all existing text
+            await element.type(password, { delay: 50 });
+            console.log('Password entered using selector:', selector);
+            passwordEntered = true;
+            break;
+          }
+        } catch (e) {
+          continue;
+        }
+      }
+
+      if (!passwordEntered) {
+        throw new Error('Could not find password input field');
+      }
+
+      // Click login button
+      let loginClicked = false;
+      for (const selector of loginButtonSelectors) {
+        try {
+          const element = await this.page.$(selector);
+          if (element) {
+            console.log('Clicking login button with selector:', selector);
+            await Promise.all([
+              this.page.waitForNavigation({ waitUntil: 'networkidle2', timeout: 30000 }),
+              element.click()
+            ]);
+            loginClicked = true;
+            break;
+          }
+        } catch (e) {
+          continue;
+        }
+      }
+
+      if (!loginClicked) {
+        throw new Error('Could not find or click login button');
+      }
+
+      // Verify login success
+      await new Promise(resolve => setTimeout(resolve, 2000));
+      const finalUrl = this.page.url();
+      console.log('Final URL after login:', finalUrl);
+
+      if (finalUrl.includes('wp-login') || finalUrl.includes('login') || finalUrl.includes('signin')) {
+        // Check for error messages (WordPress uses specific error classes)
         const errorText = await this.page.evaluate(() => {
-          const error = document.querySelector('.error, .alert-danger, .login-error');
-          return error ? error.textContent : null;
+          const errorSelectors = ['#login_error', '.login-error', '.error', '.alert-danger', '.message.error'];
+          for (const sel of errorSelectors) {
+            const error = document.querySelector(sel);
+            if (error) return error.textContent.trim();
+          }
+          return null;
         });
 
         if (errorText) {
           throw new Error(`Login failed: ${errorText}`);
         }
-        throw new Error('Login failed: Still on login page');
+        throw new Error('Login failed: Still on login page after submit');
       }
 
       this.isLoggedIn = true;

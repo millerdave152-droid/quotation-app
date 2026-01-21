@@ -3,6 +3,15 @@ import ImageGallery from './ImageGallery';
 
 const API_BASE = '/api';
 
+// Helper to get auth headers
+const getAuthHeaders = () => {
+  const token = localStorage.getItem('auth_token');
+  return {
+    'Content-Type': 'application/json',
+    ...(token && { 'Authorization': `Bearer ${token}` })
+  };
+};
+
 /**
  * ProductDetail - Full product detail view with image gallery,
  * specifications, features, and downloadable assets
@@ -22,7 +31,9 @@ function ProductDetail({ productId, onBack }) {
     setError(null);
 
     try {
-      const response = await fetch(`${API_BASE}/vendor-products/${productId}`);
+      const response = await fetch(`${API_BASE}/vendor-products/${productId}`, {
+        headers: getAuthHeaders()
+      });
 
       if (!response.ok) {
         throw new Error('Failed to fetch product');
@@ -40,6 +51,34 @@ function ProductDetail({ productId, onBack }) {
   const formatPrice = (cents) => {
     if (!cents) return 'N/A';
     return `$${(cents / 100).toLocaleString('en-US', { minimumFractionDigits: 2 })}`;
+  };
+
+  // Format spec values - handle objects, arrays, and primitives
+  const formatSpecValue = (value) => {
+    if (value === null || value === undefined) return 'N/A';
+    if (typeof value === 'boolean') return value ? 'Yes' : 'No';
+    if (typeof value === 'string' || typeof value === 'number') return String(value);
+    if (Array.isArray(value)) {
+      // Array of objects (like available_finishes) or primitives
+      return value.map(item => {
+        if (typeof item === 'object' && item !== null) {
+          return item.color || item.name || item.sku || JSON.stringify(item);
+        }
+        return String(item);
+      }).join(', ');
+    }
+    if (typeof value === 'object') {
+      // Object with properties - flatten to readable string
+      const parts = [];
+      for (const [k, v] of Object.entries(value)) {
+        if (v !== null && v !== undefined) {
+          const label = k.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+          parts.push(`${label}: ${typeof v === 'object' ? JSON.stringify(v) : v}`);
+        }
+      }
+      return parts.join(' | ') || 'N/A';
+    }
+    return String(value);
   };
 
   // Helper to get asset download URL - prefer local path over external URL
@@ -185,8 +224,8 @@ function ProductDetail({ productId, onBack }) {
                 <tbody>
                   {Object.entries(specs).map(([key, value]) => (
                     <tr key={key}>
-                      <td className="pd-spec-key">{key}</td>
-                      <td className="pd-spec-value">{value}</td>
+                      <td className="pd-spec-key">{key.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())}</td>
+                      <td className="pd-spec-value">{formatSpecValue(value)}</td>
                     </tr>
                   ))}
                 </tbody>

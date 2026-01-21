@@ -36,7 +36,7 @@ const NotificationDropdown = ({ isOpen, onClose }) => {
   const fetchNotifications = async () => {
     try {
       setLoading(true);
-      const token = localStorage.getItem('token');
+      const token = localStorage.getItem('auth_token');
       const response = await fetch(`${API_URL}/api/notifications?limit=20`, {
         headers: {
           'Authorization': `Bearer ${token}`
@@ -56,7 +56,7 @@ const NotificationDropdown = ({ isOpen, onClose }) => {
 
   const markAsRead = async (id) => {
     try {
-      const token = localStorage.getItem('token');
+      const token = localStorage.getItem('auth_token');
       await fetch(`${API_URL}/api/notifications/${id}/read`, {
         method: 'POST',
         headers: {
@@ -74,7 +74,7 @@ const NotificationDropdown = ({ isOpen, onClose }) => {
 
   const markAllAsRead = async () => {
     try {
-      const token = localStorage.getItem('token');
+      const token = localStorage.getItem('auth_token');
       await fetch(`${API_URL}/api/notifications/mark-all-read`, {
         method: 'POST',
         headers: {
@@ -137,6 +137,9 @@ const NotificationDropdown = ({ isOpen, onClose }) => {
   return (
     <div
       ref={dropdownRef}
+      role="region"
+      aria-label="Notifications panel"
+      aria-live="polite"
       style={{
         position: 'absolute',
         top: '100%',
@@ -161,11 +164,11 @@ const NotificationDropdown = ({ isOpen, onClose }) => {
         alignItems: 'center'
       }}>
         <div>
-          <h3 style={{ margin: 0, fontSize: '16px', fontWeight: '600' }}>
+          <h3 id="notifications-title" style={{ margin: 0, fontSize: '16px', fontWeight: '600' }}>
             Notifications
           </h3>
           {unreadCount > 0 && (
-            <span style={{ fontSize: '12px', color: '#6b7280' }}>
+            <span style={{ fontSize: '12px', color: '#6b7280' }} aria-live="polite">
               {unreadCount} unread
             </span>
           )}
@@ -173,6 +176,7 @@ const NotificationDropdown = ({ isOpen, onClose }) => {
         {unreadCount > 0 && (
           <button
             onClick={markAllAsRead}
+            aria-label={`Mark all ${unreadCount} notifications as read`}
             style={{
               background: 'transparent',
               border: 'none',
@@ -188,14 +192,18 @@ const NotificationDropdown = ({ isOpen, onClose }) => {
       </div>
 
       {/* Notifications List */}
-      <div style={{ maxHeight: '400px', overflowY: 'auto' }}>
+      <div
+        role="list"
+        aria-labelledby="notifications-title"
+        style={{ maxHeight: '400px', overflowY: 'auto' }}
+      >
         {loading ? (
-          <div style={{ padding: '40px', textAlign: 'center', color: '#6b7280' }}>
-            Loading...
+          <div style={{ padding: '40px', textAlign: 'center', color: '#6b7280' }} role="status" aria-live="polite">
+            Loading notifications...
           </div>
         ) : notifications.length === 0 ? (
-          <div style={{ padding: '40px', textAlign: 'center', color: '#6b7280' }}>
-            <div style={{ fontSize: '32px', marginBottom: '8px' }}>No Notifications</div>
+          <div style={{ padding: '40px', textAlign: 'center', color: '#6b7280' }} role="status">
+            <div style={{ fontSize: '32px', marginBottom: '8px' }} aria-hidden="true">No Notifications</div>
             <p style={{ margin: 0, fontSize: '14px' }}>You're all caught up!</p>
           </div>
         ) : (
@@ -205,7 +213,16 @@ const NotificationDropdown = ({ isOpen, onClose }) => {
             return (
               <div
                 key={notification.id}
+                role="listitem"
+                tabIndex={notification.action_url ? 0 : -1}
                 onClick={() => handleNotificationClick(notification)}
+                onKeyDown={(e) => {
+                  if ((e.key === 'Enter' || e.key === ' ') && notification.action_url) {
+                    e.preventDefault();
+                    handleNotificationClick(notification);
+                  }
+                }}
+                aria-label={`${notification.is_read ? '' : 'Unread: '}${notification.title}. ${notification.message}. ${formatTime(notification.created_at)}`}
                 style={{
                   padding: '14px 20px',
                   borderBottom: '1px solid #f3f4f6',
@@ -225,16 +242,19 @@ const NotificationDropdown = ({ isOpen, onClose }) => {
                 }}
               >
                 {/* Icon */}
-                <div style={{
-                  width: '36px',
-                  height: '36px',
-                  borderRadius: '50%',
-                  background: iconInfo.bg,
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  flexShrink: 0
-                }}>
+                <div
+                  style={{
+                    width: '36px',
+                    height: '36px',
+                    borderRadius: '50%',
+                    background: iconInfo.bg,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    flexShrink: 0
+                  }}
+                  aria-hidden="true"
+                >
                   <span style={{
                     fontSize: '14px',
                     fontWeight: 'bold',
@@ -291,14 +311,18 @@ const NotificationDropdown = ({ isOpen, onClose }) => {
 
                 {/* Unread indicator */}
                 {!notification.is_read && (
-                  <div style={{
-                    width: '8px',
-                    height: '8px',
-                    borderRadius: '50%',
-                    background: '#667eea',
-                    flexShrink: 0,
-                    marginTop: '6px'
-                  }} />
+                  <div
+                    style={{
+                      width: '8px',
+                      height: '8px',
+                      borderRadius: '50%',
+                      background: '#667eea',
+                      flexShrink: 0,
+                      marginTop: '6px'
+                    }}
+                    aria-hidden="true"
+                    title="Unread"
+                  />
                 )}
               </div>
             );
@@ -318,6 +342,7 @@ const NotificationDropdown = ({ isOpen, onClose }) => {
               navigate('/notifications');
               onClose();
             }}
+            aria-label="View all notifications in notifications page"
             style={{
               background: 'transparent',
               border: 'none',

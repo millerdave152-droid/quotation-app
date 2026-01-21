@@ -4,6 +4,15 @@ import { toast } from './ui/Toast';
 
 const API_BASE = `${process.env.REACT_APP_API_URL || 'http://localhost:3001'}/api`;
 
+// Get auth headers for API calls
+const getAuthHeaders = () => {
+  const token = localStorage.getItem('token');
+  return {
+    'Content-Type': 'application/json',
+    ...(token && { 'Authorization': `Bearer ${token}` })
+  };
+};
+
 /**
  * Power Features 2026 Component
  * Integrates: Special Orders, E-Signatures, Customer Portal, Quote Templates,
@@ -71,20 +80,28 @@ const PowerFeatures2026 = () => {
   // SPECIAL ORDERS
   // =====================================================
   const loadStockProducts = async () => {
-    let url = `${API_BASE}/features/products/stock-status`;
-    if (stockFilter === 'out') url += '?in_stock=false';
-    else if (stockFilter === 'orderable') url += '?orderable=true&in_stock=false';
+    try {
+      let url = `${API_BASE}/features/products/stock-status`;
+      if (stockFilter === 'out') url += '?in_stock=false';
+      else if (stockFilter === 'orderable') url += '?orderable=true&in_stock=false';
 
-    const response = await fetch(url);
-    const data = await response.json();
-    if (isMounted.current) setStockProducts(data);
+      const response = await fetch(url, { headers: getAuthHeaders() });
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      }
+      const data = await response.json();
+      if (isMounted.current) setStockProducts(data);
+    } catch (error) {
+      handleApiError(error, { context: 'Loading stock products' });
+      if (isMounted.current) setStockProducts([]);
+    }
   };
 
   const updateProductStock = async (productId, updates) => {
     try {
       await fetch(`${API_BASE}/features/products/${productId}/stock`, {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
+        headers: getAuthHeaders(),
         body: JSON.stringify(updates)
       });
       toast.success('Stock status updated');
@@ -98,16 +115,24 @@ const PowerFeatures2026 = () => {
   // TEMPLATES
   // =====================================================
   const loadTemplates = async () => {
-    const response = await fetch(`${API_BASE}/features/quote-templates`);
-    const data = await response.json();
-    if (isMounted.current) setTemplates(data);
+    try {
+      const response = await fetch(`${API_BASE}/features/quote-templates`, { headers: getAuthHeaders() });
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      }
+      const data = await response.json();
+      if (isMounted.current) setTemplates(data);
+    } catch (error) {
+      handleApiError(error, { context: 'Loading templates' });
+      if (isMounted.current) setTemplates([]);
+    }
   };
 
   const createTemplate = async () => {
     try {
       await fetch(`${API_BASE}/features/quote-templates`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: getAuthHeaders(),
         body: JSON.stringify(newTemplate)
       });
       toast.success('Template created');
@@ -123,21 +148,32 @@ const PowerFeatures2026 = () => {
   // FOLLOW-UPS
   // =====================================================
   const loadFollowUps = async () => {
-    const [rulesRes, pendingRes] = await Promise.all([
-      fetch(`${API_BASE}/features/follow-up-rules`),
-      fetch(`${API_BASE}/features/follow-ups/pending`)
-    ]);
-    const rules = await rulesRes.json();
-    const pending = await pendingRes.json();
-    if (isMounted.current) {
-      setFollowUpRules(rules);
-      setPendingFollowUps(pending);
+    try {
+      const [rulesRes, pendingRes] = await Promise.all([
+        fetch(`${API_BASE}/features/follow-up-rules`, { headers: getAuthHeaders() }),
+        fetch(`${API_BASE}/features/follow-ups/pending`, { headers: getAuthHeaders() })
+      ]);
+      if (!rulesRes.ok || !pendingRes.ok) {
+        throw new Error('Failed to fetch follow-up data');
+      }
+      const rules = await rulesRes.json();
+      const pending = await pendingRes.json();
+      if (isMounted.current) {
+        setFollowUpRules(rules);
+        setPendingFollowUps(pending);
+      }
+    } catch (error) {
+      handleApiError(error, { context: 'Loading follow-ups' });
+      if (isMounted.current) {
+        setFollowUpRules([]);
+        setPendingFollowUps([]);
+      }
     }
   };
 
   const markFollowUpSent = async (id) => {
     try {
-      await fetch(`${API_BASE}/features/follow-ups/${id}/sent`, { method: 'PUT' });
+      await fetch(`${API_BASE}/features/follow-ups/${id}/sent`, { method: 'PUT', headers: getAuthHeaders() });
       toast.success('Follow-up marked as sent');
       await loadFollowUps();
     } catch (error) {
@@ -149,15 +185,26 @@ const PowerFeatures2026 = () => {
   // PRICE BOOK
   // =====================================================
   const loadPriceBooks = async () => {
-    const [booksRes, notificationsRes] = await Promise.all([
-      fetch(`${API_BASE}/features/price-books`),
-      fetch(`${API_BASE}/features/price-notifications?acknowledged=false`)
-    ]);
-    const books = await booksRes.json();
-    const notifications = await notificationsRes.json();
-    if (isMounted.current) {
-      setPriceBooks(books);
-      setPriceNotifications(notifications);
+    try {
+      const [booksRes, notificationsRes] = await Promise.all([
+        fetch(`${API_BASE}/features/price-books`, { headers: getAuthHeaders() }),
+        fetch(`${API_BASE}/features/price-notifications?acknowledged=false`, { headers: getAuthHeaders() })
+      ]);
+      if (!booksRes.ok || !notificationsRes.ok) {
+        throw new Error('Failed to fetch price book data');
+      }
+      const books = await booksRes.json();
+      const notifications = await notificationsRes.json();
+      if (isMounted.current) {
+        setPriceBooks(books);
+        setPriceNotifications(notifications);
+      }
+    } catch (error) {
+      handleApiError(error, { context: 'Loading price books' });
+      if (isMounted.current) {
+        setPriceBooks([]);
+        setPriceNotifications([]);
+      }
     }
   };
 
@@ -165,7 +212,7 @@ const PowerFeatures2026 = () => {
     try {
       await fetch(`${API_BASE}/features/price-notifications/${id}/acknowledge`, {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
+        headers: getAuthHeaders(),
         body: JSON.stringify({ acknowledged_by: 'System' })
       });
       toast.success('Notification acknowledged');

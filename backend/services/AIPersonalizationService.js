@@ -216,7 +216,7 @@ class AIPersonalizationService {
 
     // Get product details
     const productResult = await pool.query(
-      'SELECT id, name, category, manufacturer, sell_price FROM products WHERE id = $1',
+      'SELECT id, name, category, manufacturer, sell_cents FROM products WHERE id = $1',
       [productId]
     );
 
@@ -230,7 +230,7 @@ class AIPersonalizationService {
     // 1. Get product affinity recommendations
     const affinityResult = await pool.query(`
       SELECT pa.*, p.id as product_id, p.name, p.model, p.manufacturer,
-             p.category, p.sell_price, p.description
+             p.category, p.sell_cents, p.description
       FROM product_affinity pa
       JOIN products p ON pa.target_product_id = p.id
       WHERE pa.source_product_id = $1 AND pa.is_active = true
@@ -246,7 +246,7 @@ class AIPersonalizationService {
         model: row.model,
         manufacturer: row.manufacturer,
         category: row.category,
-        price: parseFloat(row.sell_price),
+        price: (parseFloat(row.sell_cents) || 0) / 100,
         confidence: parseFloat(row.affinity_score),
         reason: `Frequently bought with ${product.name}`,
         affinityType: row.affinity_type
@@ -256,12 +256,12 @@ class AIPersonalizationService {
     // 2. Get category affinity recommendations
     const categoryResult = await pool.query(`
       SELECT ca.*, p.id as product_id, p.name, p.model, p.manufacturer,
-             p.category, p.sell_price, p.description
+             p.category, p.sell_cents, p.description
       FROM category_affinity ca
       JOIN products p ON p.category = ca.target_category
       WHERE ca.source_category = $1 AND ca.is_active = true
       AND p.id != $2
-      ORDER BY ca.affinity_score DESC, p.sell_price DESC
+      ORDER BY ca.affinity_score DESC, p.sell_cents DESC
       LIMIT $3
     `, [product.category, productId, limit]);
 
@@ -276,7 +276,7 @@ class AIPersonalizationService {
         model: row.model,
         manufacturer: row.manufacturer,
         category: row.category,
-        price: parseFloat(row.sell_price),
+        price: (parseFloat(row.sell_cents) || 0) / 100,
         confidence: parseFloat(row.affinity_score),
         reason: row.recommendation_text || `Recommended with ${product.category}`
       });
@@ -285,7 +285,7 @@ class AIPersonalizationService {
     // 3. Get rule-based upsells
     const rulesResult = await pool.query(`
       SELECT ur.*, p.id as product_id, p.name, p.model, p.manufacturer,
-             p.category as product_category, p.sell_price
+             p.category as product_category, p.sell_cents
       FROM upsell_rules ur
       LEFT JOIN products p ON (
         (ur.recommendation_type = 'product' AND ur.recommendation_product_id = p.id) OR
@@ -299,7 +299,7 @@ class AIPersonalizationService {
         )
       ORDER BY ur.priority DESC
       LIMIT $4
-    `, [product.category, product.manufacturer, Math.round(parseFloat(product.sell_price) * 100), limit]);
+    `, [product.category, product.manufacturer, parseInt(product.sell_cents) || 0, limit]);
 
     for (const row of rulesResult.rows) {
       if (!row.product_id) continue;
@@ -314,7 +314,7 @@ class AIPersonalizationService {
         model: row.model,
         manufacturer: row.manufacturer,
         category: row.product_category,
-        price: parseFloat(row.sell_price),
+        price: (parseFloat(row.sell_cents) || 0) / 100,
         confidence: 0.7,
         reason: row.recommendation_text || row.name,
         discountPercent: row.discount_percent ? parseFloat(row.discount_percent) : null,
@@ -652,14 +652,24 @@ class AIPersonalizationService {
 
   /**
    * Update upsell rule
+   * SECURITY: Uses whitelist of allowed fields to prevent SQL injection
    */
   async updateUpsellRule(ruleId, updates) {
+    // Whitelist of allowed field names for upsell_rules table
+    const ALLOWED_FIELDS = [
+      'name', 'description', 'trigger_type', 'trigger_category',
+      'trigger_manufacturer', 'trigger_min_price_cents', 'trigger_min_quantity',
+      'recommendation_type', 'recommendation_category', 'recommendation_product_id',
+      'recommendation_text', 'discount_percent', 'priority', 'is_active'
+    ];
+
     const fields = [];
     const values = [];
     let paramCount = 0;
 
     for (const [key, value] of Object.entries(updates)) {
-      if (value !== undefined) {
+      // Only allow whitelisted field names
+      if (value !== undefined && ALLOWED_FIELDS.includes(key)) {
         paramCount++;
         fields.push(`${key} = $${paramCount}`);
         values.push(value);

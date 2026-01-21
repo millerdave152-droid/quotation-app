@@ -298,11 +298,11 @@ router.post('/counter-offers/magic/:token', async (req, res) => {
     );
 
     // Notify supervisor about customer's response
-    if (sesClient) {
+    if (sesClient && result.counterOffer?.submitted_by_email) {
       try {
-        // TODO: Send email to supervisor
+        await sendSupervisorNotificationEmail(result.counterOffer, action, name, newOfferCents);
       } catch (emailErr) {
-        console.error('Failed to send notification email:', emailErr);
+        console.error('Failed to send supervisor notification email:', emailErr);
       }
     }
 
@@ -490,11 +490,91 @@ async function sendCounterOfferEmail(counterOffer, recipientType) {
       }
     });
     await sesClient.send(command);
-    console.log(`Counter-offer email sent to ${recipientEmail}`);
   } catch (err) {
     console.error('Error sending counter-offer email:', err);
     throw err;
   }
+}
+
+/**
+ * Helper function to send notification to supervisor when customer responds
+ */
+async function sendSupervisorNotificationEmail(counterOffer, action, customerName, newOfferCents) {
+  if (!sesClient) {
+    return;
+  }
+
+  const supervisorEmail = counterOffer.submitted_by_email;
+  if (!supervisorEmail) return;
+
+  const quoteResult = await db.query(`
+    SELECT quote_number FROM quotations WHERE id = $1
+  `, [counterOffer.quotation_id]);
+
+  const quoteNumber = quoteResult.rows[0]?.quote_number || counterOffer.quotation_id;
+  const actionText = action === 'accept' ? 'ACCEPTED' : 'submitted a counter-offer';
+  const baseUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
+
+  const emailHTML = `
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <style>
+        body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+        .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+        .header { background: ${action === 'accept' ? '#10b981' : '#f59e0b'}; color: white; padding: 24px; border-radius: 12px; text-align: center; }
+        .content { background: #f9fafb; padding: 24px; border-radius: 12px; margin-top: 20px; }
+        .offer-box { background: white; padding: 20px; border-radius: 8px; border: 2px solid #667eea; text-align: center; margin: 20px 0; }
+        .offer-amount { font-size: 28px; font-weight: bold; color: #667eea; }
+        .button { display: inline-block; padding: 14px 28px; background: #667eea; color: white; text-decoration: none; border-radius: 8px; font-weight: bold; }
+        .footer { text-align: center; color: #6b7280; font-size: 12px; margin-top: 24px; }
+      </style>
+    </head>
+    <body>
+      <div class="container">
+        <div class="header">
+          <h2 style="margin: 0;">Customer ${action === 'accept' ? 'Accepted' : 'Counter-Offered'}</h2>
+          <p style="margin: 8px 0 0 0;">Quote ${quoteNumber}</p>
+        </div>
+
+        <div class="content">
+          <p><strong>${customerName || 'Customer'}</strong> has ${actionText} on Quote ${quoteNumber}.</p>
+
+          ${action === 'counter' && newOfferCents ? `
+          <div class="offer-box">
+            <div style="color: #6b7280; margin-bottom: 8px;">Customer's Counter-Offer</div>
+            <div class="offer-amount">$${(newOfferCents / 100).toFixed(2)} CAD</div>
+          </div>
+          ` : ''}
+
+          ${action === 'accept' ? `
+          <p style="color: #10b981; font-weight: bold;">The customer has accepted your offer. Please proceed with order processing.</p>
+          ` : `
+          <p>Please review and respond to the customer's counter-offer.</p>
+          `}
+
+          <p style="text-align: center; margin-top: 20px;">
+            <a href="${baseUrl}/quotes/${counterOffer.quotation_id}" class="button">View Quote</a>
+          </p>
+        </div>
+
+        <div class="footer">
+          <p>Quotation Management System - Counter-Offer Notification</p>
+        </div>
+      </div>
+    </body>
+    </html>
+  `;
+
+  const command = new SendEmailCommand({
+    Source: process.env.EMAIL_FROM,
+    Destination: { ToAddresses: [supervisorEmail] },
+    Message: {
+      Subject: { Data: `Customer ${action === 'accept' ? 'Accepted' : 'Counter-Offered'} - Quote ${quoteNumber}` },
+      Body: { Html: { Data: emailHTML } }
+    }
+  });
+  await sesClient.send(command);
 }
 
 module.exports = router;
