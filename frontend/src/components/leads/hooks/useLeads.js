@@ -4,7 +4,7 @@
  */
 
 import { useState, useEffect, useCallback } from 'react';
-import { cachedFetch, invalidateCache } from '../../../services/apiCache';
+import { invalidateCache } from '../../../services/apiCache';
 
 const API_BASE = `${process.env.REACT_APP_API_URL || 'http://localhost:3001'}/api`;
 
@@ -58,10 +58,9 @@ export function useLeads(options = {}) {
     });
 
     try {
-      const response = await cachedFetch(
+      const response = await fetch(
         `${API_BASE}/leads?${params}`,
-        { headers: getAuthHeaders() },
-        { ttl: 30000 } // 30 second cache
+        { headers: getAuthHeaders() }
       );
 
       if (!response.ok) {
@@ -132,10 +131,9 @@ export function useLeadStats() {
   const fetchStats = useCallback(async () => {
     setLoading(true);
     try {
-      const response = await cachedFetch(
+      const response = await fetch(
         `${API_BASE}/leads/stats`,
-        { headers: getAuthHeaders() },
-        { ttl: 60000 } // 1 minute cache
+        { headers: getAuthHeaders() }
       );
 
       if (!response.ok) throw new Error('Failed to fetch stats');
