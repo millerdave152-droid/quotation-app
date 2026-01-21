@@ -22,13 +22,48 @@ class LeadAIService {
     }
 
     for (const req of lead.requirements) {
-      const categoryProducts = await this.findMatchingProducts(req, pool);
+      // First try with all constraints
+      let categoryProducts = await this.findMatchingProducts(req, pool, { strict: true });
+      let relaxedConstraints = [];
+      const MIN_RESULTS = 3; // Try to find at least this many products
+
+      // If few products found, try relaxing budget by 25%
+      if (categoryProducts.length < MIN_RESULTS && req.budget_max_cents) {
+        const relaxedReq = { ...req, budget_max_cents: Math.round(req.budget_max_cents * 1.25) };
+        const moreProducts = await this.findMatchingProducts(relaxedReq, pool, { strict: true });
+        if (moreProducts.length > categoryProducts.length) {
+          categoryProducts = moreProducts;
+          relaxedConstraints.push(`Budget extended to $${(relaxedReq.budget_max_cents / 100).toFixed(0)}`);
+        }
+      }
+
+      // If still few products, try without budget constraint
+      if (categoryProducts.length < MIN_RESULTS) {
+        const noBudgetReq = { ...req, budget_min_cents: null, budget_max_cents: null };
+        const moreProducts = await this.findMatchingProducts(noBudgetReq, pool, { strict: false });
+        if (moreProducts.length > categoryProducts.length) {
+          categoryProducts = moreProducts;
+          if (relaxedConstraints.length === 0) {
+            relaxedConstraints.push('Budget filter adjusted - showing closest options');
+          }
+        }
+      }
+
+      // If still no products, try with just category
+      if (categoryProducts.length === 0) {
+        const categoryOnlyReq = { category: req.category };
+        categoryProducts = await this.findMatchingProducts(categoryOnlyReq, pool, { strict: false });
+        if (categoryProducts.length > 0) {
+          relaxedConstraints.push('All filters removed - showing category options');
+        }
+      }
+
       suggestions.push({
         category: req.category,
         subcategory: req.subcategory,
         requirement: req,
         products: categoryProducts,
-        reasoning: this.explainSuggestions(req, categoryProducts)
+        reasoning: this.explainSuggestions(req, categoryProducts, relaxedConstraints)
       });
     }
 
@@ -37,8 +72,12 @@ class LeadAIService {
 
   /**
    * Find products matching a requirement
+   * @param {object} requirement - The requirement to match
+   * @param {Pool} pool - Database pool
+   * @param {object} options - Options for matching
+   * @param {boolean} options.strict - If true, apply all filters strictly
    */
-  static async findMatchingProducts(requirement, pool) {
+  static async findMatchingProducts(requirement, pool, options = {}) {
     let query = `
       SELECT
         p.id,
@@ -52,25 +91,62 @@ class LeadAIService {
         p.image_url,
         COALESCE(p.stock_quantity, 0) as stock_quantity
       FROM products p
-      WHERE p.product_status != 'discontinued'
+      WHERE (p.product_status IS NULL OR p.product_status != 'discontinued')
     `;
 
     const params = [];
     let paramIndex = 1;
 
-    // Filter by category
+    // Filter by category - use smarter matching for appliance types
     if (requirement.category) {
-      query += ` AND p.category ILIKE $${paramIndex}`;
-      params.push(`%${requirement.category}%`);
-      paramIndex++;
+      const categoryMappings = {
+        'Range': ['slide-in electric', 'slide-in gas', 'slide-in dual', 'freestanding electric', 'freestanding gas', 'ranges'],
+        'Refrigerator': ['refrigerator', 'fridge', 'french door', 'side-by-side'],
+        'Dishwasher': ['dishwasher'],
+        'Washer': ['washer', 'front load washer', 'top load washer'],
+        'Dryer': ['dryer', 'front load dryer'],
+        'Microwave': ['microwave']
+      };
+
+      const mappedCategories = categoryMappings[requirement.category] || [requirement.category.toLowerCase()];
+
+      // For Range, also search by name to find actual stoves
+      if (requirement.category === 'Range') {
+        query += ` AND ((p.category ILIKE ANY(ARRAY[${mappedCategories.map((_, i) => `$${paramIndex + i}`).join(', ')}]))`;
+        query += ` OR (p.name ILIKE '%range%' AND (p.name ILIKE '%electric%' OR p.name ILIKE '%gas%' OR p.name ILIKE '%freestanding%' OR p.name ILIKE '%slide%in%')))`;
+        params.push(...mappedCategories.map(c => `%${c}%`));
+        paramIndex += mappedCategories.length;
+      } else {
+        const categoryConditions = mappedCategories.map((_, i) => `p.category ILIKE $${paramIndex + i}`);
+        query += ` AND (${categoryConditions.join(' OR ')})`;
+        params.push(...mappedCategories.map(c => `%${c}%`));
+        paramIndex += mappedCategories.length;
+      }
+
+      // Exclude accessories, hoods, kits, handles, and parts for appliance searches
+      if (['Range', 'Refrigerator', 'Dishwasher', 'Washer', 'Dryer'].includes(requirement.category)) {
+        query += ` AND p.category NOT ILIKE '%accessory%' AND p.category NOT ILIKE '%hood%' AND p.category NOT ILIKE '%vent%'`;
+        query += ` AND p.category NOT ILIKE '%microwave%'`;
+        query += ` AND p.name NOT ILIKE '%handle%' AND p.name NOT ILIKE '%kit%' AND p.name NOT ILIKE '%trim%' AND p.name NOT ILIKE '%grate%' AND p.name NOT ILIKE '%basket%'`;
+        query += ` AND p.name NOT ILIKE '%wine%' AND p.name NOT ILIKE '%beverage%' AND p.name NOT ILIKE '%cooler%'`;
+      }
+
+      // For Range specifically, exclude over-the-range microwaves and refrigerators
+      if (requirement.category === 'Range') {
+        query += ` AND p.name NOT ILIKE '%over-the-range%' AND p.name NOT ILIKE '%over the range%'`;
+        query += ` AND p.name NOT ILIKE '%microwave%' AND p.name NOT ILIKE '%refrigerator%'`;
+      }
     }
 
-    // Filter by brand preferences (manufacturer column)
-    if (requirement.brand_preferences && requirement.brand_preferences.length > 0) {
-      const brandConditions = requirement.brand_preferences.map((_, i) => `p.manufacturer ILIKE $${paramIndex + i}`);
+    // Filter by brand preferences - skip if "No Preference" or empty
+    const validBrands = (requirement.brand_preferences || []).filter(
+      b => b && b.toLowerCase() !== 'no preference' && b.toLowerCase() !== 'any'
+    );
+    if (validBrands.length > 0) {
+      const brandConditions = validBrands.map((_, i) => `p.manufacturer ILIKE $${paramIndex + i}`);
       query += ` AND (${brandConditions.join(' OR ')})`;
-      params.push(...requirement.brand_preferences.map(b => `%${b}%`));
-      paramIndex += requirement.brand_preferences.length;
+      params.push(...validBrands.map(b => `%${b}%`));
+      paramIndex += validBrands.length;
     }
 
     // Filter by budget (msrp_cents column)
@@ -86,20 +162,26 @@ class LeadAIService {
       paramIndex++;
     }
 
-    // Filter by color
-    if (requirement.color_preferences && requirement.color_preferences.length > 0) {
-      const colorConditions = requirement.color_preferences.map((_, i) => `p.color ILIKE $${paramIndex + i}`);
+    // Filter by color - skip if empty or "Any"
+    const validColors = (requirement.color_preferences || []).filter(
+      c => c && c.toLowerCase() !== 'any' && c.toLowerCase() !== 'no preference'
+    );
+    if (validColors.length > 0 && options.strict) {
+      const colorConditions = validColors.map((_, i) => `p.color ILIKE $${paramIndex + i}`);
       query += ` AND (${colorConditions.join(' OR ')})`;
-      params.push(...requirement.color_preferences.map(c => `%${c}%`));
-      paramIndex += requirement.color_preferences.length;
+      params.push(...validColors.map(c => `%${c}%`));
+      paramIndex += validColors.length;
     }
+
+    // Only include products with actual prices
+    query += ` AND p.msrp_cents > 0`;
 
     // Order by relevance (in-stock first, then by price)
     query += `
       ORDER BY
         CASE WHEN COALESCE(p.stock_quantity, 0) > 0 THEN 0 ELSE 1 END,
         p.msrp_cents ASC
-      LIMIT 5
+      LIMIT 8
     `;
 
     const result = await pool.query(query, params);
@@ -164,30 +246,51 @@ class LeadAIService {
   /**
    * Explain why products were suggested
    */
-  static explainSuggestions(requirement, products) {
+  static explainSuggestions(requirement, products, relaxedConstraints = []) {
     if (products.length === 0) {
-      return 'No products found matching all criteria. Try broadening the search.';
+      return 'No products found matching criteria. The category may not have products in inventory, or try different requirements.';
     }
 
     const reasons = [];
 
-    if (requirement.brand_preferences && requirement.brand_preferences.length > 0) {
-      const matchedBrands = [...new Set(products.map(p => p.brand))];
-      reasons.push(`Filtered for preferred brands: ${requirement.brand_preferences.join(', ')}`);
+    // Show if constraints were relaxed
+    if (relaxedConstraints.length > 0) {
+      reasons.push(`⚠️ ${relaxedConstraints.join('. ')}`);
     }
 
-    if (requirement.budget_max_cents) {
+    // Show what filters were applied
+    const validBrands = (requirement.brand_preferences || []).filter(
+      b => b && b.toLowerCase() !== 'no preference' && b.toLowerCase() !== 'any'
+    );
+    if (validBrands.length > 0) {
+      reasons.push(`Preferred brands: ${validBrands.join(', ')}`);
+    }
+
+    if (requirement.budget_max_cents && relaxedConstraints.length === 0) {
       const maxBudget = requirement.budget_max_cents / 100;
-      reasons.push(`Within budget of $${maxBudget.toFixed(0)}`);
+      reasons.push(`Budget: up to $${maxBudget.toFixed(0)}`);
     }
 
-    if (requirement.color_preferences && requirement.color_preferences.length > 0) {
-      reasons.push(`Color preferences: ${requirement.color_preferences.join(', ')}`);
+    const validColors = (requirement.color_preferences || []).filter(
+      c => c && c.toLowerCase() !== 'any' && c.toLowerCase() !== 'no preference'
+    );
+    if (validColors.length > 0) {
+      reasons.push(`Colors: ${validColors.join(', ')}`);
     }
 
     const inStockCount = products.filter(p => p.inStock).length;
     if (inStockCount > 0) {
-      reasons.push(`${inStockCount} of ${products.length} products in stock`);
+      reasons.push(`${inStockCount} of ${products.length} in stock`);
+    }
+
+    // Show price range of results
+    if (products.length > 0) {
+      const prices = products.map(p => p.price);
+      const minPrice = Math.min(...prices);
+      const maxPrice = Math.max(...prices);
+      if (minPrice !== maxPrice) {
+        reasons.push(`Price range: $${minPrice.toFixed(0)} - $${maxPrice.toFixed(0)}`);
+      }
     }
 
     return reasons.length > 0 ? reasons.join('. ') : 'Products matched category requirements.';
