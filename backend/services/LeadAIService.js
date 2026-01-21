@@ -42,19 +42,17 @@ class LeadAIService {
     let query = `
       SELECT
         p.id,
-        p.model_number,
+        p.model,
+        p.name,
         p.description,
-        p.brand,
-        p.price_cents,
+        p.manufacturer,
+        p.msrp_cents,
         p.category,
-        p.subcategory,
         p.color,
-        p.specifications,
         p.image_url,
-        COALESCE(i.quantity_available, 0) as stock_quantity
+        COALESCE(p.stock_quantity, 0) as stock_quantity
       FROM products p
-      LEFT JOIN inventory i ON p.id = i.product_id
-      WHERE p.active = true
+      WHERE p.product_status != 'discontinued'
     `;
 
     const params = [];
@@ -62,35 +60,28 @@ class LeadAIService {
 
     // Filter by category
     if (requirement.category) {
-      query += ` AND (p.category ILIKE $${paramIndex} OR p.master_category ILIKE $${paramIndex})`;
+      query += ` AND p.category ILIKE $${paramIndex}`;
       params.push(`%${requirement.category}%`);
       paramIndex++;
     }
 
-    // Filter by subcategory
-    if (requirement.subcategory) {
-      query += ` AND p.subcategory ILIKE $${paramIndex}`;
-      params.push(`%${requirement.subcategory}%`);
-      paramIndex++;
-    }
-
-    // Filter by brand preferences
+    // Filter by brand preferences (manufacturer column)
     if (requirement.brand_preferences && requirement.brand_preferences.length > 0) {
-      const brandConditions = requirement.brand_preferences.map((_, i) => `p.brand ILIKE $${paramIndex + i}`);
+      const brandConditions = requirement.brand_preferences.map((_, i) => `p.manufacturer ILIKE $${paramIndex + i}`);
       query += ` AND (${brandConditions.join(' OR ')})`;
       params.push(...requirement.brand_preferences.map(b => `%${b}%`));
       paramIndex += requirement.brand_preferences.length;
     }
 
-    // Filter by budget
+    // Filter by budget (msrp_cents column)
     if (requirement.budget_min_cents) {
-      query += ` AND p.price_cents >= $${paramIndex}`;
+      query += ` AND p.msrp_cents >= $${paramIndex}`;
       params.push(requirement.budget_min_cents);
       paramIndex++;
     }
 
     if (requirement.budget_max_cents) {
-      query += ` AND p.price_cents <= $${paramIndex}`;
+      query += ` AND p.msrp_cents <= $${paramIndex}`;
       params.push(requirement.budget_max_cents);
       paramIndex++;
     }
@@ -106,8 +97,8 @@ class LeadAIService {
     // Order by relevance (in-stock first, then by price)
     query += `
       ORDER BY
-        CASE WHEN COALESCE(i.quantity_available, 0) > 0 THEN 0 ELSE 1 END,
-        p.price_cents ASC
+        CASE WHEN COALESCE(p.stock_quantity, 0) > 0 THEN 0 ELSE 1 END,
+        p.msrp_cents ASC
       LIMIT 5
     `;
 
@@ -115,13 +106,13 @@ class LeadAIService {
 
     return result.rows.map(p => ({
       id: p.id,
-      modelNumber: p.model_number,
+      model: p.model,
+      name: p.name,
       description: p.description,
-      brand: p.brand,
-      price: p.price_cents / 100,
-      priceCents: p.price_cents,
+      brand: p.manufacturer,
+      price: p.msrp_cents / 100,
+      priceCents: p.msrp_cents,
       category: p.category,
-      subcategory: p.subcategory,
       color: p.color,
       imageUrl: p.image_url,
       inStock: p.stock_quantity > 0,
@@ -136,22 +127,22 @@ class LeadAIService {
   static calculateMatchScore(requirement, product) {
     let score = 50; // Base score
 
-    // Brand match
+    // Brand match (using manufacturer column)
     if (requirement.brand_preferences && requirement.brand_preferences.length > 0) {
       const brandMatch = requirement.brand_preferences.some(
-        b => product.brand?.toLowerCase().includes(b.toLowerCase())
+        b => product.manufacturer?.toLowerCase().includes(b.toLowerCase())
       );
       if (brandMatch) score += 20;
     }
 
-    // Budget match (within range = +20, close = +10)
+    // Budget match (using msrp_cents column)
     if (requirement.budget_min_cents && requirement.budget_max_cents) {
       const midBudget = (requirement.budget_min_cents + requirement.budget_max_cents) / 2;
-      if (product.price_cents >= requirement.budget_min_cents &&
-          product.price_cents <= requirement.budget_max_cents) {
+      if (product.msrp_cents >= requirement.budget_min_cents &&
+          product.msrp_cents <= requirement.budget_max_cents) {
         score += 20;
         // Bonus for being close to mid-range
-        const deviation = Math.abs(product.price_cents - midBudget) / midBudget;
+        const deviation = Math.abs(product.msrp_cents - midBudget) / midBudget;
         if (deviation < 0.2) score += 5;
       }
     }

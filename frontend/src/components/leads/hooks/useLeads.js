@@ -102,7 +102,7 @@ export function useLeads(options = {}) {
   }, []);
 
   const refresh = useCallback(() => {
-    invalidateCache(/leads/);
+    invalidateCache('leads');
     fetchLeads();
   }, [fetchLeads]);
 
@@ -204,7 +204,7 @@ export async function createLead(data) {
     throw new Error(err.message || 'Failed to create lead');
   }
 
-  invalidateCache(/leads/);
+  invalidateCache('leads');
   return response.json();
 }
 
@@ -220,7 +220,7 @@ export async function updateLead(id, data) {
     throw new Error(err.message || 'Failed to update lead');
   }
 
-  invalidateCache(/leads/);
+  invalidateCache('leads');
   return response.json();
 }
 
@@ -236,7 +236,7 @@ export async function updateLeadStatus(id, status, lostReason = null) {
     throw new Error(err.message || 'Failed to update status');
   }
 
-  invalidateCache(/leads/);
+  invalidateCache('leads');
   return response.json();
 }
 
@@ -252,8 +252,8 @@ export async function convertToQuote(id, options = {}) {
     throw new Error(err.message || 'Failed to convert to quote');
   }
 
-  invalidateCache(/leads/);
-  invalidateCache(/quotations/);
+  invalidateCache('leads');
+  invalidateCache('quotations');
   return response.json();
 }
 
@@ -287,7 +287,7 @@ export async function deleteLead(id) {
     throw new Error(err.message || 'Failed to delete lead');
   }
 
-  invalidateCache(/leads/);
+  invalidateCache('leads');
   return true;
 }
 

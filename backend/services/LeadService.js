@@ -89,8 +89,8 @@ class LeadService {
         l.*,
         c.name as customer_name,
         c.email as customer_email,
-        u.username as assigned_to_name,
-        cb.username as created_by_name,
+        NULLIF(TRIM(CONCAT(u.first_name, ' ', u.last_name)), '') as assigned_to_name,
+        NULLIF(TRIM(CONCAT(cb.first_name, ' ', cb.last_name)), '') as created_by_name,
         q.quote_number,
         (SELECT COUNT(*) FROM lead_requirements WHERE lead_id = l.id) as requirement_count,
         (SELECT COUNT(*) FROM lead_activities WHERE lead_id = l.id) as activity_count
@@ -128,8 +128,8 @@ class LeadService {
         c.email as customer_email,
         c.phone as customer_phone,
         c.company as customer_company,
-        u.username as assigned_to_name,
-        cb.username as created_by_name,
+        NULLIF(TRIM(CONCAT(u.first_name, ' ', u.last_name)), '') as assigned_to_name,
+        NULLIF(TRIM(CONCAT(cb.first_name, ' ', cb.last_name)), '') as created_by_name,
         q.quote_number
       FROM leads l
       LEFT JOIN customers c ON l.customer_id = c.id
@@ -155,7 +155,7 @@ class LeadService {
 
     // Get recent activities
     const actResult = await this.pool.query(
-      `SELECT la.*, u.username as performed_by_name
+      `SELECT la.*, NULLIF(TRIM(CONCAT(u.first_name, ' ', u.last_name)), '') as performed_by_name
        FROM lead_activities la
        LEFT JOIN users u ON la.performed_by = u.id
        WHERE la.lead_id = $1
@@ -465,11 +465,19 @@ class LeadService {
         );
       }
 
-      // Generate quote number
+      // Generate quote number (format: QT-{year}-{number})
+      const year = new Date().getFullYear();
       const quoteNumResult = await client.query(
-        "SELECT COALESCE(MAX(CAST(SUBSTRING(quote_number FROM 5) AS INTEGER)), 0) + 1 as next_num FROM quotations"
+        'SELECT quote_number FROM quotations WHERE quote_number LIKE $1 ORDER BY quote_number DESC LIMIT 1',
+        [`QT-${year}-%`]
       );
-      const quoteNumber = `QUO-${String(quoteNumResult.rows[0].next_num).padStart(6, '0')}`;
+
+      let nextNum = 1;
+      if (quoteNumResult.rows.length > 0) {
+        const lastNumber = parseInt(quoteNumResult.rows[0].quote_number.split('-').pop());
+        nextNum = lastNumber + 1;
+      }
+      const quoteNumber = `QT-${year}-${nextNum.toString().padStart(4, '0')}`;
 
       // Create quotation
       const quoteResult = await client.query(`
@@ -590,7 +598,7 @@ class LeadService {
     const query = `
       SELECT
         l.*,
-        u.username as assigned_to_name
+        NULLIF(TRIM(CONCAT(u.first_name, ' ', u.last_name)), '') as assigned_to_name
       FROM leads l
       LEFT JOIN users u ON l.assigned_to = u.id
       WHERE l.follow_up_date <= CURRENT_DATE + $1
