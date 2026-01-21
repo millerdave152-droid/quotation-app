@@ -627,6 +627,44 @@
   color: #1a1a2e;
 }
 
+/* Stock Status Display - Prominent */
+.stock-status-display {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.625rem 0.875rem;
+  border-radius: 8px;
+  font-size: 0.875rem;
+  font-weight: 600;
+  margin-bottom: 0.75rem;
+}
+
+.stock-status-display.in-stock {
+  background: #dcfce7;
+  color: #166534;
+  border: 1px solid #86efac;
+}
+
+.stock-status-display.low-stock {
+  background: #fef3c7;
+  color: #92400e;
+  border: 1px solid #fcd34d;
+}
+
+.stock-status-display.out-of-stock {
+  background: #fee2e2;
+  color: #dc2626;
+  border: 1px solid #fca5a5;
+}
+
+.stock-status-display svg {
+  flex-shrink: 0;
+}
+
+.stock-status-display .stock-label {
+  flex: 1;
+}
+
 /* Add to Quote Button */
 .add-to-quote-btn {
   width: 100%;
