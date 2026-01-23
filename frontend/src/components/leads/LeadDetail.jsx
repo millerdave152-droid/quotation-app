@@ -196,6 +196,30 @@ function LeadDetail({ leadId, onEdit, onUpdate, onClose }) {
             </span>
           )}
         </div>
+
+        {/* Lost Reason Banner */}
+        {lead.status === 'lost' && lead.lost_reason && (
+          <div style={{
+            marginTop: '12px',
+            padding: '12px 16px',
+            background: '#fef2f2',
+            border: '1px solid #fecaca',
+            borderRadius: '8px',
+            display: 'flex',
+            alignItems: 'flex-start',
+            gap: '10px'
+          }}>
+            <span style={{ fontSize: '1.25rem' }}>❌</span>
+            <div>
+              <div style={{ fontWeight: '600', color: '#991b1b', marginBottom: '4px' }}>
+                Lost Reason
+              </div>
+              <div style={{ color: '#b91c1c', fontSize: '0.875rem' }}>
+                {lead.lost_reason}
+              </div>
+            </div>
+          </div>
+        )}
       </div>
 
       <div className="lead-detail-body">

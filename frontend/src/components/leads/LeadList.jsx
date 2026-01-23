@@ -396,7 +396,24 @@ function LeadList({
                 <TimelineBadge timeline={lead.timeline} />
               </td>
               <td>
-                <LeadStatusBadge status={lead.status} />
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                  <LeadStatusBadge status={lead.status} />
+                  {lead.status === 'lost' && lead.lost_reason && (
+                    <span
+                      style={{
+                        fontSize: '0.75rem',
+                        color: '#991b1b',
+                        maxWidth: '150px',
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                        whiteSpace: 'nowrap'
+                      }}
+                      title={lead.lost_reason}
+                    >
+                      {lead.lost_reason}
+                    </span>
+                  )}
+                </div>
               </td>
               <td>
                 <LeadPriorityBadge priority={lead.priority} />
