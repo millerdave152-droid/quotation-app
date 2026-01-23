@@ -180,12 +180,16 @@ function LeadList({
     }
   };
 
-  const handleQuickStatus = async (status, e) => {
+  const handleQuickStatus = async (status, e, lostReason = null) => {
     e.stopPropagation();
     const lead = quickActionModal.lead;
     setQuickActionLoading(true);
     try {
-      await api.put(`/leads/${lead.id}/quick-actions/status`, { status });
+      const payload = { status };
+      if (status === 'lost' && lostReason) {
+        payload.lost_reason = lostReason;
+      }
+      await api.put(`/leads/${lead.id}/quick-actions/status`, payload);
       toast.success(`Status updated to ${status}`);
       closeQuickAction();
       onRefresh();
@@ -663,7 +667,22 @@ function QuickActionsButtons({ lead, onCall, onNote, onEmail, onStatus, onFollow
 // Quick Action Modal component
 function QuickActionModal({ type, lead, loading, onClose, onCall, onNote, onEmail, onStatus, onFollowUp }) {
   const [formData, setFormData] = useState({});
+  const [showLostReasons, setShowLostReasons] = useState(false);
+  const [selectedLostReason, setSelectedLostReason] = useState('');
+  const [customLostReason, setCustomLostReason] = useState('');
+  const [useCustomLostReason, setUseCustomLostReason] = useState(false);
   const modalRef = useRef(null);
+
+  const commonLostReasons = [
+    { id: 'price', label: 'Price too high', icon: '💰' },
+    { id: 'competitor', label: 'Went with competitor', icon: '🏃' },
+    { id: 'timing', label: 'Bad timing / Not ready', icon: '⏰' },
+    { id: 'no_response', label: 'No response / Unresponsive', icon: '📵' },
+    { id: 'budget', label: 'Budget constraints', icon: '💸' },
+    { id: 'changed_mind', label: 'Changed mind / No longer needed', icon: '🔄' },
+    { id: 'wrong_fit', label: 'Product not a good fit', icon: '❌' },
+    { id: 'delayed', label: 'Project delayed indefinitely', icon: '📅' }
+  ];
 
   useEffect(() => {
     // Focus the first input when modal opens
@@ -782,35 +801,164 @@ function QuickActionModal({ type, lead, loading, onClose, onCall, onNote, onEmai
         </div>
 
         {type === 'status' ? (
-          <div style={{ display: 'grid', gap: '8px' }}>
-            {['contacted', 'qualified', 'converted', 'lost'].map((status) => (
+          showLostReasons ? (
+            // Lost Reason Selection
+            <div>
               <button
-                key={status}
-                onClick={(e) => onStatus(status, e)}
-                disabled={loading || lead.status === status}
+                onClick={() => setShowLostReasons(false)}
                 style={{
-                  padding: '12px 16px',
-                  border: lead.status === status ? '2px solid #3b82f6' : '1px solid #e5e7eb',
-                  borderRadius: '8px',
-                  background: lead.status === status ? '#eff6ff' : 'white',
-                  cursor: lead.status === status ? 'default' : 'pointer',
-                  textAlign: 'left',
-                  textTransform: 'capitalize',
-                  fontSize: '0.9rem',
-                  fontWeight: lead.status === status ? '600' : '400',
-                  color: lead.status === status ? '#1d4ed8' : '#374151',
-                  opacity: loading ? 0.7 : 1
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  background: 'none',
+                  border: 'none',
+                  cursor: 'pointer',
+                  fontSize: '0.875rem',
+                  color: '#6b7280',
+                  marginBottom: '12px',
+                  padding: '4px 0'
                 }}
               >
-                {status === 'contacted' && '📞 '}
-                {status === 'qualified' && '✓ '}
-                {status === 'converted' && '🎉 '}
-                {status === 'lost' && '✗ '}
-                {status.replace('_', ' ')}
-                {lead.status === status && ' (current)'}
+                ← Back to status options
               </button>
-            ))}
-          </div>
+              <h4 style={{ margin: '0 0 12px', fontSize: '0.95rem', color: '#374151' }}>
+                Why was this lead lost?
+              </h4>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', marginBottom: '12px' }}>
+                {commonLostReasons.map(reason => (
+                  <button
+                    key={reason.id}
+                    onClick={() => {
+                      setSelectedLostReason(reason.label);
+                      setUseCustomLostReason(false);
+                    }}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '6px',
+                      padding: '10px',
+                      border: selectedLostReason === reason.label && !useCustomLostReason
+                        ? '2px solid #dc2626'
+                        : '1px solid #e5e7eb',
+                      borderRadius: '6px',
+                      background: selectedLostReason === reason.label && !useCustomLostReason
+                        ? '#fef2f2'
+                        : 'white',
+                      cursor: 'pointer',
+                      textAlign: 'left',
+                      fontSize: '0.8rem'
+                    }}
+                  >
+                    <span>{reason.icon}</span>
+                    <span>{reason.label}</span>
+                  </button>
+                ))}
+              </div>
+              <div style={{ marginBottom: '12px' }}>
+                <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.875rem', cursor: 'pointer' }}>
+                  <input
+                    type="checkbox"
+                    checked={useCustomLostReason}
+                    onChange={(e) => {
+                      setUseCustomLostReason(e.target.checked);
+                      if (e.target.checked) setSelectedLostReason('');
+                    }}
+                  />
+                  Custom reason
+                </label>
+                {useCustomLostReason && (
+                  <textarea
+                    value={customLostReason}
+                    onChange={(e) => setCustomLostReason(e.target.value)}
+                    placeholder="Enter custom reason..."
+                    rows={2}
+                    style={{
+                      width: '100%',
+                      marginTop: '8px',
+                      padding: '8px',
+                      border: '1px solid #d1d5db',
+                      borderRadius: '6px',
+                      fontSize: '0.875rem',
+                      boxSizing: 'border-box'
+                    }}
+                  />
+                )}
+              </div>
+              <div style={{ display: 'flex', gap: '8px' }}>
+                <button
+                  onClick={(e) => onStatus('lost', e, null)}
+                  style={{
+                    flex: 1,
+                    padding: '10px',
+                    background: '#f3f4f6',
+                    border: '1px solid #d1d5db',
+                    borderRadius: '6px',
+                    cursor: 'pointer',
+                    fontSize: '0.875rem'
+                  }}
+                >
+                  Skip (No Reason)
+                </button>
+                <button
+                  onClick={(e) => {
+                    const reason = useCustomLostReason ? customLostReason.trim() : selectedLostReason;
+                    onStatus('lost', e, reason || null);
+                  }}
+                  disabled={!selectedLostReason && (!useCustomLostReason || !customLostReason.trim())}
+                  style={{
+                    flex: 1,
+                    padding: '10px',
+                    background: (selectedLostReason || (useCustomLostReason && customLostReason.trim())) ? '#dc2626' : '#9ca3af',
+                    color: 'white',
+                    border: 'none',
+                    borderRadius: '6px',
+                    cursor: (selectedLostReason || (useCustomLostReason && customLostReason.trim())) ? 'pointer' : 'not-allowed',
+                    fontSize: '0.875rem',
+                    fontWeight: '500'
+                  }}
+                >
+                  Mark as Lost
+                </button>
+              </div>
+            </div>
+          ) : (
+            // Normal Status Selection
+            <div style={{ display: 'grid', gap: '8px' }}>
+              {['contacted', 'qualified', 'converted', 'lost'].map((status) => (
+                <button
+                  key={status}
+                  onClick={(e) => {
+                    if (status === 'lost') {
+                      setShowLostReasons(true);
+                    } else {
+                      onStatus(status, e);
+                    }
+                  }}
+                  disabled={loading || lead.status === status}
+                  style={{
+                    padding: '12px 16px',
+                    border: lead.status === status ? '2px solid #3b82f6' : '1px solid #e5e7eb',
+                    borderRadius: '8px',
+                    background: lead.status === status ? '#eff6ff' : 'white',
+                    cursor: lead.status === status ? 'default' : 'pointer',
+                    textAlign: 'left',
+                    textTransform: 'capitalize',
+                    fontSize: '0.9rem',
+                    fontWeight: lead.status === status ? '600' : '400',
+                    color: lead.status === status ? '#1d4ed8' : '#374151',
+                    opacity: loading ? 0.7 : 1
+                  }}
+                >
+                  {status === 'contacted' && '📞 '}
+                  {status === 'qualified' && '✓ '}
+                  {status === 'converted' && '🎉 '}
+                  {status === 'lost' && '✗ '}
+                  {status.replace('_', ' ')}
+                  {lead.status === status && ' (current)'}
+                </button>
+              ))}
+            </div>
+          )
         ) : (
           <form onSubmit={handleSubmit}>
             {type === 'call' && (

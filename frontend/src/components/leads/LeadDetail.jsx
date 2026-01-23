@@ -20,6 +20,7 @@ function LeadDetail({ leadId, onEdit, onUpdate, onClose }) {
   const [showAddNote, setShowAddNote] = useState(false);
   const [noteText, setNoteText] = useState('');
   const [statusUpdating, setStatusUpdating] = useState(false);
+  const [showLostReasonModal, setShowLostReasonModal] = useState(false);
 
   const formatDate = (dateStr) => {
     if (!dateStr) return '-';
@@ -44,14 +45,16 @@ function LeadDetail({ leadId, onEdit, onUpdate, onClose }) {
   const handleStatusChange = async (newStatus) => {
     if (newStatus === lead.status) return;
 
-    // If marking as lost, ask for reason
-    let lostReason = null;
+    // If marking as lost, show the lost reason modal
     if (newStatus === 'lost') {
-      const reason = window.prompt('Why was this lead lost? (optional)');
-      if (reason === null) return; // Cancelled
-      lostReason = reason;
+      setShowLostReasonModal(true);
+      return;
     }
 
+    await performStatusUpdate(newStatus, null);
+  };
+
+  const performStatusUpdate = async (newStatus, lostReason) => {
     setStatusUpdating(true);
     try {
       await updateLeadStatus(leadId, newStatus, lostReason);
@@ -63,6 +66,11 @@ function LeadDetail({ leadId, onEdit, onUpdate, onClose }) {
     } finally {
       setStatusUpdating(false);
     }
+  };
+
+  const handleLostReasonSubmit = async (reason) => {
+    setShowLostReasonModal(false);
+    await performStatusUpdate('lost', reason);
   };
 
   const handleAddNote = async () => {
@@ -432,8 +440,247 @@ function LeadDetail({ leadId, onEdit, onUpdate, onClose }) {
         />
       )}
 
+      {/* Lost Reason Modal */}
+      {showLostReasonModal && (
+        <LostReasonModal
+          onSubmit={handleLostReasonSubmit}
+          onClose={() => setShowLostReasonModal(false)}
+        />
+      )}
+
       {/* Confirm Dialog */}
       <DialogComponent />
+    </div>
+  );
+}
+
+/**
+ * Lost Reason Modal Component
+ * Provides common reasons for selection and custom input
+ */
+function LostReasonModal({ onSubmit, onClose }) {
+  const [selectedReason, setSelectedReason] = useState('');
+  const [customReason, setCustomReason] = useState('');
+  const [useCustom, setUseCustom] = useState(false);
+
+  const commonReasons = [
+    { id: 'price', label: 'Price too high', icon: '💰' },
+    { id: 'competitor', label: 'Went with competitor', icon: '🏃' },
+    { id: 'timing', label: 'Bad timing / Not ready', icon: '⏰' },
+    { id: 'no_response', label: 'No response / Unresponsive', icon: '📵' },
+    { id: 'budget', label: 'Budget constraints', icon: '💸' },
+    { id: 'changed_mind', label: 'Changed mind / No longer needed', icon: '🔄' },
+    { id: 'wrong_fit', label: 'Product not a good fit', icon: '❌' },
+    { id: 'delayed', label: 'Project delayed indefinitely', icon: '📅' },
+    { id: 'duplicate', label: 'Duplicate lead', icon: '📋' },
+    { id: 'invalid', label: 'Invalid / Spam lead', icon: '🚫' }
+  ];
+
+  const handleSubmit = () => {
+    const reason = useCustom ? customReason.trim() : selectedReason;
+    onSubmit(reason || null);
+  };
+
+  const handleReasonClick = (reason) => {
+    setSelectedReason(reason.label);
+    setUseCustom(false);
+  };
+
+  return (
+    <div style={{
+      position: 'fixed',
+      inset: 0,
+      background: 'rgba(0,0,0,0.5)',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      zIndex: 1000
+    }}>
+      <div style={{
+        background: 'white',
+        borderRadius: '12px',
+        width: '100%',
+        maxWidth: '480px',
+        maxHeight: '90vh',
+        overflow: 'auto',
+        boxShadow: '0 25px 50px -12px rgba(0,0,0,0.25)'
+      }}>
+        {/* Header */}
+        <div style={{
+          padding: '16px 20px',
+          borderBottom: '1px solid #e5e7eb',
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center'
+        }}>
+          <h3 style={{ margin: 0, fontSize: '18px', fontWeight: '600' }}>
+            Why was this lead lost?
+          </h3>
+          <button
+            onClick={onClose}
+            style={{
+              background: 'none',
+              border: 'none',
+              fontSize: '20px',
+              cursor: 'pointer',
+              color: '#6b7280',
+              padding: '4px'
+            }}
+          >
+            ✕
+          </button>
+        </div>
+
+        {/* Body */}
+        <div style={{ padding: '20px' }}>
+          {/* Common Reasons Grid */}
+          <div style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(2, 1fr)',
+            gap: '10px',
+            marginBottom: '20px'
+          }}>
+            {commonReasons.map(reason => (
+              <button
+                key={reason.id}
+                onClick={() => handleReasonClick(reason)}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '8px',
+                  padding: '12px',
+                  border: selectedReason === reason.label && !useCustom
+                    ? '2px solid #667eea'
+                    : '1px solid #e5e7eb',
+                  borderRadius: '8px',
+                  background: selectedReason === reason.label && !useCustom
+                    ? '#f0f4ff'
+                    : 'white',
+                  cursor: 'pointer',
+                  textAlign: 'left',
+                  fontSize: '14px',
+                  transition: 'all 0.15s ease'
+                }}
+              >
+                <span style={{ fontSize: '18px' }}>{reason.icon}</span>
+                <span style={{ color: '#374151' }}>{reason.label}</span>
+              </button>
+            ))}
+          </div>
+
+          {/* Custom Reason */}
+          <div style={{ marginBottom: '16px' }}>
+            <label style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px',
+              marginBottom: '8px',
+              cursor: 'pointer',
+              fontSize: '14px',
+              fontWeight: '500'
+            }}>
+              <input
+                type="checkbox"
+                checked={useCustom}
+                onChange={(e) => {
+                  setUseCustom(e.target.checked);
+                  if (e.target.checked) setSelectedReason('');
+                }}
+                style={{ width: '16px', height: '16px' }}
+              />
+              Enter custom reason
+            </label>
+            {useCustom && (
+              <textarea
+                value={customReason}
+                onChange={(e) => setCustomReason(e.target.value)}
+                placeholder="Describe why this lead was lost..."
+                rows={3}
+                style={{
+                  width: '100%',
+                  padding: '12px',
+                  border: '1px solid #d1d5db',
+                  borderRadius: '8px',
+                  fontSize: '14px',
+                  resize: 'vertical',
+                  boxSizing: 'border-box'
+                }}
+                autoFocus
+              />
+            )}
+          </div>
+
+          {/* Selected Reason Preview */}
+          {(selectedReason || (useCustom && customReason.trim())) && (
+            <div style={{
+              padding: '12px',
+              background: '#fef2f2',
+              borderRadius: '8px',
+              marginBottom: '16px'
+            }}>
+              <div style={{ fontSize: '12px', color: '#991b1b', marginBottom: '4px' }}>
+                Selected reason:
+              </div>
+              <div style={{ fontSize: '14px', color: '#b91c1c', fontWeight: '500' }}>
+                {useCustom ? customReason.trim() : selectedReason}
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Footer */}
+        <div style={{
+          padding: '16px 20px',
+          borderTop: '1px solid #e5e7eb',
+          display: 'flex',
+          gap: '12px',
+          justifyContent: 'flex-end'
+        }}>
+          <button
+            onClick={onClose}
+            style={{
+              padding: '10px 20px',
+              background: 'white',
+              border: '1px solid #d1d5db',
+              borderRadius: '8px',
+              cursor: 'pointer',
+              fontSize: '14px'
+            }}
+          >
+            Cancel
+          </button>
+          <button
+            onClick={() => onSubmit(null)}
+            style={{
+              padding: '10px 20px',
+              background: '#f3f4f6',
+              border: '1px solid #d1d5db',
+              borderRadius: '8px',
+              cursor: 'pointer',
+              fontSize: '14px',
+              color: '#6b7280'
+            }}
+          >
+            Skip (No Reason)
+          </button>
+          <button
+            onClick={handleSubmit}
+            disabled={!selectedReason && (!useCustom || !customReason.trim())}
+            style={{
+              padding: '10px 20px',
+              background: (selectedReason || (useCustom && customReason.trim())) ? '#dc2626' : '#9ca3af',
+              color: 'white',
+              border: 'none',
+              borderRadius: '8px',
+              cursor: (selectedReason || (useCustom && customReason.trim())) ? 'pointer' : 'not-allowed',
+              fontSize: '14px',
+              fontWeight: '500'
+            }}
+          >
+            Mark as Lost
+          </button>
+        </div>
+      </div>
     </div>
   );
 }
