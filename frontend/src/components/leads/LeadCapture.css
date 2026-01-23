@@ -1374,3 +1374,94 @@
     grid-template-columns: 1fr;
   }
 }
+
+/* Quick Actions Column */
+.actions-col {
+  width: 160px;
+  min-width: 160px;
+  text-align: center;
+  white-space: nowrap;
+}
+
+.lead-list-table th.actions-col {
+  text-align: center;
+}
+
+.lead-list-table td.actions-col {
+  padding: 8px 4px;
+}
+
+/* Quick Actions Buttons */
+.quick-action-btn {
+  padding: 4px 8px;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 0.75rem;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  transition: background-color 0.2s, transform 0.1s;
+}
+
+.quick-action-btn:hover {
+  transform: translateY(-1px);
+}
+
+.quick-action-btn:active {
+  transform: translateY(0);
+}
+
+/* Hide actions on mobile, show on hover for larger screens */
+@media (max-width: 1024px) {
+  .actions-col {
+    display: none;
+  }
+}
+
+/* Follow-up Alerts Banner */
+.follow-up-alerts-banner {
+  display: flex;
+  gap: 16px;
+  padding: 12px 16px;
+  background: #fef3c7;
+  border-radius: 8px;
+  margin-bottom: 16px;
+  flex-wrap: wrap;
+}
+
+.alert-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.875rem;
+  font-weight: 500;
+}
+
+.alert-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 24px;
+  height: 24px;
+  border-radius: 12px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: white;
+}
+
+.alert-overdue .alert-badge {
+  background: #dc2626;
+}
+
+.alert-today .alert-badge {
+  background: #d97706;
+}
+
+.alert-overdue {
+  color: #991b1b;
+}
+
+.alert-today {
+  color: #92400e;
+}

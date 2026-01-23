@@ -551,6 +551,226 @@ class CustomerService {
       this.cache.invalidatePattern('customers:');
     }
   }
+
+  // ============================================
+  // CUSTOMER TAGGING METHODS
+  // ============================================
+
+  /**
+   * Get all available tags
+   */
+  async getAllTags() {
+    const result = await this.pool.query(`
+      SELECT t.*,
+        (SELECT COUNT(*) FROM customer_tag_assignments WHERE tag_id = t.id) as customer_count
+      FROM customer_tags t
+      ORDER BY t.is_system DESC, t.name ASC
+    `);
+    return result.rows;
+  }
+
+  /**
+   * Create a new tag
+   */
+  async createTag(tagData, createdBy = null) {
+    const { name, color = '#3b82f6', description } = tagData;
+
+    const result = await this.pool.query(`
+      INSERT INTO customer_tags (name, color, description, created_by)
+      VALUES ($1, $2, $3, $4)
+      RETURNING *
+    `, [name, color, description, createdBy]);
+
+    return result.rows[0];
+  }
+
+  /**
+   * Update a tag
+   */
+  async updateTag(tagId, updates) {
+    const { name, color, description } = updates;
+
+    // Don't allow updating system tags' names
+    const tagResult = await this.pool.query(
+      'SELECT is_system FROM customer_tags WHERE id = $1',
+      [tagId]
+    );
+
+    if (tagResult.rows.length === 0) return null;
+
+    if (tagResult.rows[0].is_system && name) {
+      throw new Error('Cannot rename system tags');
+    }
+
+    const setClauses = [];
+    const values = [];
+    let paramCount = 0;
+
+    if (name !== undefined) {
+      setClauses.push(`name = $${++paramCount}`);
+      values.push(name);
+    }
+    if (color !== undefined) {
+      setClauses.push(`color = $${++paramCount}`);
+      values.push(color);
+    }
+    if (description !== undefined) {
+      setClauses.push(`description = $${++paramCount}`);
+      values.push(description);
+    }
+
+    if (setClauses.length === 0) return null;
+
+    setClauses.push(`updated_at = CURRENT_TIMESTAMP`);
+    values.push(tagId);
+
+    const result = await this.pool.query(`
+      UPDATE customer_tags
+      SET ${setClauses.join(', ')}
+      WHERE id = $${++paramCount}
+      RETURNING *
+    `, values);
+
+    return result.rows[0];
+  }
+
+  /**
+   * Delete a tag (only non-system tags)
+   */
+  async deleteTag(tagId) {
+    const result = await this.pool.query(`
+      DELETE FROM customer_tags
+      WHERE id = $1 AND is_system = FALSE
+      RETURNING id
+    `, [tagId]);
+
+    return result.rows.length > 0;
+  }
+
+  /**
+   * Get tags for a specific customer
+   */
+  async getCustomerTags(customerId) {
+    const result = await this.pool.query(`
+      SELECT t.*, cta.assigned_at, u.name as assigned_by_name
+      FROM customer_tags t
+      JOIN customer_tag_assignments cta ON t.id = cta.tag_id
+      LEFT JOIN users u ON cta.assigned_by = u.id
+      WHERE cta.customer_id = $1
+      ORDER BY t.name
+    `, [customerId]);
+
+    return result.rows;
+  }
+
+  /**
+   * Add tag to customer
+   */
+  async addTagToCustomer(customerId, tagId, assignedBy = null) {
+    try {
+      const result = await this.pool.query(`
+        INSERT INTO customer_tag_assignments (customer_id, tag_id, assigned_by)
+        VALUES ($1, $2, $3)
+        ON CONFLICT (customer_id, tag_id) DO NOTHING
+        RETURNING *
+      `, [customerId, tagId, assignedBy]);
+
+      this.invalidateCache();
+
+      return result.rows[0] || { already_assigned: true };
+    } catch (error) {
+      if (error.code === '23503') {
+        throw new Error('Customer or tag not found');
+      }
+      throw error;
+    }
+  }
+
+  /**
+   * Remove tag from customer
+   */
+  async removeTagFromCustomer(customerId, tagId) {
+    const result = await this.pool.query(`
+      DELETE FROM customer_tag_assignments
+      WHERE customer_id = $1 AND tag_id = $2
+      RETURNING id
+    `, [customerId, tagId]);
+
+    this.invalidateCache();
+
+    return result.rows.length > 0;
+  }
+
+  /**
+   * Get customers by tag
+   */
+  async getCustomersByTag(tagId, options = {}) {
+    const { page = 1, limit = 50 } = options;
+    const offset = (page - 1) * limit;
+
+    const countResult = await this.pool.query(`
+      SELECT COUNT(*) FROM customer_tag_assignments WHERE tag_id = $1
+    `, [tagId]);
+    const total = parseInt(countResult.rows[0].count);
+
+    const result = await this.pool.query(`
+      SELECT c.*, cta.assigned_at
+      FROM customers c
+      JOIN customer_tag_assignments cta ON c.id = cta.customer_id
+      WHERE cta.tag_id = $1
+      ORDER BY c.name
+      LIMIT $2 OFFSET $3
+    `, [tagId, limit, offset]);
+
+    return {
+      customers: result.rows,
+      pagination: {
+        total,
+        page,
+        limit,
+        totalPages: Math.ceil(total / limit)
+      }
+    };
+  }
+
+  /**
+   * Bulk add tags to multiple customers
+   */
+  async bulkAddTag(customerIds, tagId, assignedBy = null) {
+    const values = customerIds.map((_, i) => `($${i * 3 + 1}, $${i * 3 + 2}, $${i * 3 + 3})`).join(', ');
+    const params = customerIds.flatMap(id => [id, tagId, assignedBy]);
+
+    await this.pool.query(`
+      INSERT INTO customer_tag_assignments (customer_id, tag_id, assigned_by)
+      VALUES ${values}
+      ON CONFLICT (customer_id, tag_id) DO NOTHING
+    `, params);
+
+    this.invalidateCache();
+
+    return { tagged: customerIds.length };
+  }
+
+  /**
+   * Get tag statistics
+   */
+  async getTagStats() {
+    const result = await this.pool.query(`
+      SELECT
+        t.id,
+        t.name,
+        t.color,
+        t.is_system,
+        COUNT(cta.id) as customer_count,
+        COUNT(cta.id) FILTER (WHERE cta.assigned_at >= NOW() - INTERVAL '30 days') as recent_assignments
+      FROM customer_tags t
+      LEFT JOIN customer_tag_assignments cta ON t.id = cta.tag_id
+      GROUP BY t.id
+      ORDER BY customer_count DESC
+    `);
+
+    return result.rows;
+  }
 }
 
 module.exports = CustomerService;

@@ -317,4 +317,148 @@ router.delete('/upsell/rules/:id', authenticate, async (req, res) => {
   }
 });
 
-module.exports = router;
+// ==================== AI QUOTE BUILDER ====================
+// Module-level service instance for quote builder
+const AIQuoteBuilderService = require('../services/AIQuoteBuilderService');
+let quoteBuilderService = null;
+
+/**
+ * Initialize AI Quote Builder service
+ */
+const initQuoteBuilderService = (pool, cache) => {
+  if (!quoteBuilderService) {
+    quoteBuilderService = new AIQuoteBuilderService(pool, cache);
+  }
+  return quoteBuilderService;
+};
+
+/**
+ * POST /api/ai/quote-builder/suggestions
+ * Get comprehensive AI suggestions for current quote
+ */
+router.post('/quote-builder/suggestions', authenticate, async (req, res) => {
+  try {
+    const { quoteItems, customerId, options } = req.body;
+
+    if (!quoteBuilderService) {
+      return res.status(500).json({ error: 'Quote builder service not initialized' });
+    }
+
+    const suggestions = await quoteBuilderService.getQuoteSuggestions(
+      quoteItems || [],
+      customerId,
+      options || {}
+    );
+
+    res.json(suggestions);
+  } catch (error) {
+    console.error('Error getting quote builder suggestions:', error);
+    res.status(500).json({ error: 'Failed to get suggestions' });
+  }
+});
+
+/**
+ * POST /api/ai/quote-builder/bundles
+ * Get bundle suggestions for quote items
+ */
+router.post('/quote-builder/bundles', authenticate, async (req, res) => {
+  try {
+    const { quoteItems } = req.body;
+
+    if (!quoteBuilderService) {
+      return res.status(500).json({ error: 'Quote builder service not initialized' });
+    }
+
+    const bundles = await quoteBuilderService.getBundleSuggestions(quoteItems || []);
+    res.json(bundles);
+  } catch (error) {
+    console.error('Error getting bundle suggestions:', error);
+    res.status(500).json({ error: 'Failed to get bundle suggestions' });
+  }
+});
+
+/**
+ * POST /api/ai/quote-builder/cross-sells
+ * Get cross-sell suggestions
+ */
+router.post('/quote-builder/cross-sells', authenticate, async (req, res) => {
+  try {
+    const { quoteItems } = req.body;
+
+    if (!quoteBuilderService) {
+      return res.status(500).json({ error: 'Quote builder service not initialized' });
+    }
+
+    const crossSells = await quoteBuilderService.getCrossSellSuggestions(quoteItems || []);
+    res.json(crossSells);
+  } catch (error) {
+    console.error('Error getting cross-sell suggestions:', error);
+    res.status(500).json({ error: 'Failed to get cross-sell suggestions' });
+  }
+});
+
+/**
+ * POST /api/ai/quote-builder/discount-recommendations
+ * Get discount recommendations for quote
+ */
+router.post('/quote-builder/discount-recommendations', authenticate, async (req, res) => {
+  try {
+    const { quoteItems, customerId } = req.body;
+
+    if (!quoteBuilderService) {
+      return res.status(500).json({ error: 'Quote builder service not initialized' });
+    }
+
+    const recommendations = await quoteBuilderService.getDiscountRecommendations(
+      quoteItems || [],
+      customerId
+    );
+    res.json(recommendations);
+  } catch (error) {
+    console.error('Error getting discount recommendations:', error);
+    res.status(500).json({ error: 'Failed to get discount recommendations' });
+  }
+});
+
+/**
+ * GET /api/ai/quote-builder/customer-preferences/:customerId
+ * Get customer preferences and buying patterns
+ */
+router.get('/quote-builder/customer-preferences/:customerId', authenticate, async (req, res) => {
+  try {
+    const { customerId } = req.params;
+
+    if (!quoteBuilderService) {
+      return res.status(500).json({ error: 'Quote builder service not initialized' });
+    }
+
+    const preferences = await quoteBuilderService.getCustomerPreferences(parseInt(customerId));
+    res.json(preferences || {});
+  } catch (error) {
+    console.error('Error getting customer preferences:', error);
+    res.status(500).json({ error: 'Failed to get customer preferences' });
+  }
+});
+
+/**
+ * GET /api/ai/quote-builder/quick-add
+ * Get quick add suggestions based on search
+ */
+router.get('/quote-builder/quick-add', authenticate, async (req, res) => {
+  try {
+    const { search, quoteItems } = req.query;
+    const items = quoteItems ? JSON.parse(quoteItems) : [];
+
+    if (!quoteBuilderService) {
+      return res.status(500).json({ error: 'Quote builder service not initialized' });
+    }
+
+    const suggestions = await quoteBuilderService.getQuickAddSuggestions(search, items);
+    res.json(suggestions);
+  } catch (error) {
+    console.error('Error getting quick add suggestions:', error);
+    res.status(500).json({ error: 'Failed to get quick add suggestions' });
+  }
+});
+
+module.exports = { router, initQuoteBuilderService };

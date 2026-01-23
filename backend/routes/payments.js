@@ -347,4 +347,286 @@ router.get('/stats', authenticate, async (req, res) => {
   }
 });
 
+// ============================================
+// CUSTOMER PORTAL PAYMENT ENDPOINTS
+// ============================================
+
+const StripeService = require('../services/StripeService');
+const cache = require('../cache');
+let stripeService = null;
+
+function getStripeService() {
+  if (!stripeService) {
+    stripeService = new StripeService(pool, cache);
+  }
+  return stripeService;
+}
+
+/**
+ * POST /api/payments/portal/create-session/:token
+ * Create a Stripe checkout session for a quote deposit/payment
+ */
+router.post('/portal/create-session/:token', async (req, res) => {
+  try {
+    const { token } = req.params;
+    const { paymentType = 'deposit' } = req.body;
+
+    // Get quote by portal token
+    const quoteResult = await pool.query(`
+      SELECT
+        q.*,
+        c.name as customer_name,
+        c.email as customer_email,
+        c.stripe_customer_id
+      FROM quotations q
+      JOIN customers c ON q.customer_id = c.id
+      WHERE q.portal_token = $1
+    `, [token]);
+
+    if (quoteResult.rows.length === 0) {
+      return res.status(404).json({ success: false, error: 'Quote not found' });
+    }
+
+    const quote = quoteResult.rows[0];
+
+    if (!['ACCEPTED', 'WON', 'SENT', 'VIEWED'].includes(quote.status)) {
+      return res.status(400).json({ success: false, error: 'Quote is not in a payable state' });
+    }
+
+    const stripe = getStripeService();
+    if (!stripe.isConfigured()) {
+      return res.status(503).json({ success: false, error: 'Payment processing not available' });
+    }
+
+    // Calculate payment amount
+    let amountCents;
+    if (paymentType === 'deposit') {
+      amountCents = quote.deposit_required_cents || Math.round(quote.total_cents * 0.25);
+    } else {
+      // Full payment
+      const paidResult = await pool.query(`
+        SELECT COALESCE(SUM(amount), 0) as paid
+        FROM customer_payments
+        WHERE quotation_id = $1 AND payment_type = 'payment'
+      `, [quote.id]);
+      const paidAmount = parseInt(paidResult.rows[0].paid) || 0;
+      amountCents = quote.total_cents - paidAmount;
+    }
+
+    if (amountCents <= 0) {
+      return res.status(400).json({ success: false, error: 'No payment required' });
+    }
+
+    // Create Stripe checkout session
+    const session = await stripe.stripe.checkout.sessions.create({
+      payment_method_types: ['card'],
+      mode: 'payment',
+      customer_email: quote.customer_email,
+      client_reference_id: quote.id.toString(),
+      line_items: [{
+        price_data: {
+          currency: 'cad',
+          product_data: {
+            name: `Quote #${quote.quote_number} - ${paymentType === 'deposit' ? 'Deposit' : 'Payment'}`,
+            description: `Payment for Quote #${quote.quote_number}`
+          },
+          unit_amount: amountCents
+        },
+        quantity: 1
+      }],
+      success_url: `${process.env.FRONTEND_URL || 'http://localhost:3000'}/customer-portal/${token}?payment=success`,
+      cancel_url: `${process.env.FRONTEND_URL || 'http://localhost:3000'}/customer-portal/${token}?payment=cancelled`,
+      metadata: {
+        quote_id: quote.id.toString(),
+        customer_id: quote.customer_id.toString(),
+        payment_type: paymentType,
+        portal_token: token
+      }
+    });
+
+    res.json({
+      success: true,
+      sessionId: session.id,
+      url: session.url
+    });
+  } catch (error) {
+    console.error('Error creating payment session:', error);
+    res.status(500).json({ success: false, error: 'Failed to create payment session' });
+  }
+});
+
+/**
+ * POST /api/payments/webhook
+ * Handle Stripe webhooks
+ */
+router.post('/webhook', express.raw({ type: 'application/json' }), async (req, res) => {
+  try {
+    const stripe = getStripeService();
+    if (!stripe.isConfigured()) {
+      return res.status(503).send('Payment processing not configured');
+    }
+
+    const sig = req.headers['stripe-signature'];
+    let event;
+
+    try {
+      event = stripe.stripe.webhooks.constructEvent(
+        req.body,
+        sig,
+        stripe.webhookSecret
+      );
+    } catch (err) {
+      console.error('Webhook signature verification failed:', err.message);
+      return res.status(400).send(`Webhook Error: ${err.message}`);
+    }
+
+    // Handle the event
+    switch (event.type) {
+      case 'checkout.session.completed':
+        await handleCheckoutComplete(event.data.object);
+        break;
+
+      case 'payment_intent.succeeded':
+        await handlePaymentSuccess(event.data.object);
+        break;
+
+      case 'payment_intent.payment_failed':
+        await handlePaymentFailed(event.data.object);
+        break;
+
+      default:
+        console.log(`Unhandled event type: ${event.type}`);
+    }
+
+    res.json({ received: true });
+  } catch (error) {
+    console.error('Webhook error:', error);
+    res.status(500).send('Webhook handler failed');
+  }
+});
+
+async function handleCheckoutComplete(session) {
+  const { quote_id, customer_id, payment_type, portal_token } = session.metadata;
+
+  if (!quote_id) return;
+
+  // Record the payment
+  await pool.query(`
+    INSERT INTO customer_payments (
+      customer_id, quotation_id, amount, payment_method, payment_type,
+      reference_number, notes, payment_date
+    ) VALUES ($1, $2, $3, 'stripe', 'payment', $4, $5, NOW())
+  `, [
+    customer_id,
+    quote_id,
+    session.amount_total,
+    session.payment_intent,
+    `Online ${payment_type} payment via Stripe`
+  ]);
+
+  // Update quote if deposit paid
+  if (payment_type === 'deposit') {
+    await pool.query(`
+      UPDATE quotations SET
+        deposit_paid = true,
+        deposit_paid_at = NOW(),
+        deposit_amount_cents = $1
+      WHERE id = $2
+    `, [session.amount_total, quote_id]);
+  }
+
+  // Check if fully paid
+  const totalPaidResult = await pool.query(`
+    SELECT COALESCE(SUM(amount), 0) as total_paid
+    FROM customer_payments
+    WHERE quotation_id = $1 AND payment_type = 'payment'
+  `, [quote_id]);
+
+  const quoteResult = await pool.query(`
+    SELECT total_cents FROM quotations WHERE id = $1
+  `, [quote_id]);
+
+  const totalPaid = parseInt(totalPaidResult.rows[0].total_paid);
+  const totalDue = parseInt(quoteResult.rows[0]?.total_cents || 0);
+
+  if (totalPaid >= totalDue) {
+    await pool.query(`
+      UPDATE quotations SET
+        status = 'WON',
+        payment_status = 'paid',
+        paid_at = NOW()
+      WHERE id = $1
+    `, [quote_id]);
+  }
+
+  console.log(`Payment recorded for quote ${quote_id}: $${(session.amount_total / 100).toFixed(2)}`);
+}
+
+async function handlePaymentSuccess(paymentIntent) {
+  console.log(`Payment succeeded: ${paymentIntent.id}`);
+}
+
+async function handlePaymentFailed(paymentIntent) {
+  console.log(`Payment failed: ${paymentIntent.id}`);
+}
+
+/**
+ * GET /api/payments/portal/status/:token
+ * Get payment status for a quote
+ */
+router.get('/portal/status/:token', async (req, res) => {
+  try {
+    const { token } = req.params;
+
+    const quoteResult = await pool.query(`
+      SELECT
+        q.id,
+        q.quote_number,
+        q.total_cents,
+        q.deposit_required_cents,
+        q.deposit_paid,
+        q.deposit_amount_cents,
+        q.payment_status,
+        q.status
+      FROM quotations q
+      WHERE q.portal_token = $1
+    `, [token]);
+
+    if (quoteResult.rows.length === 0) {
+      return res.status(404).json({ success: false, error: 'Quote not found' });
+    }
+
+    const quote = quoteResult.rows[0];
+
+    // Get payment history
+    const paymentsResult = await pool.query(`
+      SELECT amount, payment_date, payment_method, notes
+      FROM customer_payments
+      WHERE quotation_id = $1
+      ORDER BY payment_date DESC
+    `, [quote.id]);
+
+    const totalPaid = paymentsResult.rows.reduce((sum, p) => sum + parseInt(p.amount), 0);
+    const remaining = quote.total_cents - totalPaid;
+
+    res.json({
+      success: true,
+      data: {
+        quoteNumber: quote.quote_number,
+        totalCents: quote.total_cents,
+        depositRequired: quote.deposit_required_cents || Math.round(quote.total_cents * 0.25),
+        depositPaid: quote.deposit_paid,
+        depositAmount: quote.deposit_amount_cents,
+        totalPaid,
+        remaining: remaining > 0 ? remaining : 0,
+        fullyPaid: remaining <= 0,
+        payments: paymentsResult.rows
+      }
+    });
+  } catch (error) {
+    console.error('Error fetching payment status:', error);
+    res.status(500).json({ success: false, error: 'Failed to fetch payment status' });
+  }
+});
+
 module.exports = router;

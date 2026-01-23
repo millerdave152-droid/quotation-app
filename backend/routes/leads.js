@@ -417,4 +417,621 @@ function generateFollowUpDraft(lead, tone = 'professional') {
   return `${greetings[tone] || greetings.professional}\n\n${openings[tone] || openings.professional}${body}\n\n${closing}${signatures[tone] || signatures.professional}`;
 }
 
+// ============================================
+// LEAD SCORING ROUTES
+// ============================================
+
+const LeadScoringService = require('../services/LeadScoringService');
+let leadScoringService = null;
+
+// Initialize scoring service (called after pool is available)
+const initScoringService = () => {
+  if (!leadScoringService && leadService && leadService.pool) {
+    leadScoringService = new LeadScoringService(leadService.pool, cache);
+  }
+  return leadScoringService;
+};
+
+/**
+ * POST /api/leads/:id/score
+ * Calculate and save lead score
+ */
+router.post('/:id/score', authenticate, asyncHandler(async (req, res) => {
+  const { id } = req.params;
+  const scoringService = initScoringService();
+
+  if (!scoringService) {
+    throw ApiError.internal('Scoring service not initialized');
+  }
+
+  const score = await scoringService.scoreAndSave(id);
+  res.success(score);
+}));
+
+/**
+ * GET /api/leads/:id/score
+ * Get lead score (calculate if not exists)
+ */
+router.get('/:id/score', authenticate, asyncHandler(async (req, res) => {
+  const { id } = req.params;
+
+  const lead = await leadService.getLeadById(id);
+  if (!lead) {
+    throw ApiError.notFound('Lead');
+  }
+
+  // If score exists and is recent, return it
+  if (lead.lead_score !== null && lead.lead_score_breakdown) {
+    res.success({
+      score: lead.lead_score,
+      breakdown: lead.lead_score_breakdown,
+      calculatedAt: lead.lead_score_updated_at,
+      cached: true
+    });
+    return;
+  }
+
+  // Otherwise calculate fresh score
+  const scoringService = initScoringService();
+  const scoreData = await scoringService.calculateScore(lead, lead.requirements, lead.activities);
+  res.success(scoreData);
+}));
+
+/**
+ * POST /api/leads/score-all
+ * Batch score all active leads
+ */
+router.post('/score-all', authenticate, asyncHandler(async (req, res) => {
+  const scoringService = initScoringService();
+
+  if (!scoringService) {
+    throw ApiError.internal('Scoring service not initialized');
+  }
+
+  const result = await scoringService.scoreAllLeads();
+
+  // Invalidate stats cache
+  cache.invalidatePattern('leads:');
+
+  res.success(result);
+}));
+
+/**
+ * GET /api/leads/by-score
+ * Get leads ranked by score
+ */
+router.get('/by-score', authenticate, asyncHandler(async (req, res) => {
+  const { limit = 20, minScore = 0 } = req.query;
+  const scoringService = initScoringService();
+
+  if (!scoringService) {
+    throw ApiError.internal('Scoring service not initialized');
+  }
+
+  const leads = await scoringService.getLeadsByScore({
+    limit: parseInt(limit),
+    minScore: parseInt(minScore)
+  });
+
+  res.success(leads);
+}));
+
+/**
+ * GET /api/leads/score-distribution
+ * Get lead score distribution for analytics
+ */
+router.get('/score-distribution', authenticate, asyncHandler(async (req, res) => {
+  const scoringService = initScoringService();
+
+  if (!scoringService) {
+    throw ApiError.internal('Scoring service not initialized');
+  }
+
+  const distribution = await scoringService.getScoreDistribution();
+  res.success(distribution);
+}));
+
+// ============================================
+// LEAD IMPORT ROUTES
+// ============================================
+
+const LeadImportService = require('../services/LeadImportService');
+const multer = require('multer');
+const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 5 * 1024 * 1024 } }); // 5MB limit
+
+let leadImportService = null;
+
+const initImportService = () => {
+  if (!leadImportService && leadService && leadService.pool) {
+    leadImportService = new LeadImportService(leadService.pool, cache);
+  }
+  return leadImportService;
+};
+
+/**
+ * GET /api/leads/import/template
+ * Get CSV import template
+ */
+router.get('/import/template', authenticate, asyncHandler(async (req, res) => {
+  const importService = initImportService();
+  if (!importService) {
+    throw ApiError.internal('Import service not initialized');
+  }
+
+  const template = importService.getImportTemplate();
+  res.success(template);
+}));
+
+/**
+ * POST /api/leads/import/preview
+ * Preview CSV import with auto-detected mappings
+ */
+router.post('/import/preview', authenticate, upload.single('file'), asyncHandler(async (req, res) => {
+  const importService = initImportService();
+  if (!importService) {
+    throw ApiError.internal('Import service not initialized');
+  }
+
+  if (!req.file) {
+    throw ApiError.validation('No file uploaded');
+  }
+
+  const csvContent = req.file.buffer.toString('utf-8');
+  const { columns, records, mappings } = importService.parseCSV(csvContent, {
+    delimiter: req.body.delimiter || ',',
+    hasHeaders: req.body.hasHeaders !== 'false'
+  });
+
+  // Return preview with first 10 rows
+  res.success({
+    columns,
+    mappings,
+    sampleRows: records.slice(0, 10),
+    totalRows: records.length
+  });
+}));
+
+/**
+ * POST /api/leads/import
+ * Import leads from CSV file
+ */
+router.post('/import', authenticate, upload.single('file'), asyncHandler(async (req, res) => {
+  const importService = initImportService();
+  if (!importService) {
+    throw ApiError.internal('Import service not initialized');
+  }
+
+  if (!req.file) {
+    throw ApiError.validation('No file uploaded');
+  }
+
+  const csvContent = req.file.buffer.toString('utf-8');
+  const { records, mappings: autoMappings } = importService.parseCSV(csvContent, {
+    delimiter: req.body.delimiter || ',',
+    hasHeaders: req.body.hasHeaders !== 'false'
+  });
+
+  // Use custom mappings if provided, otherwise use auto-detected
+  const mappings = req.body.mappings ? JSON.parse(req.body.mappings) : autoMappings;
+
+  const results = await importService.importLeads(records, mappings, {
+    skipDuplicates: req.body.skipDuplicates !== 'false',
+    defaultPriority: req.body.defaultPriority || 'warm',
+    defaultSource: req.body.defaultSource || 'csv_import',
+    userId: req.user?.id
+  });
+
+  // Invalidate stats cache
+  cache.invalidatePattern('leads:');
+
+  res.success(results);
+}));
+
+/**
+ * POST /api/leads/import/check-duplicates
+ * Check for potential duplicates in uploaded CSV
+ */
+router.post('/import/check-duplicates', authenticate, upload.single('file'), asyncHandler(async (req, res) => {
+  const importService = initImportService();
+  if (!importService) {
+    throw ApiError.internal('Import service not initialized');
+  }
+
+  if (!req.file) {
+    throw ApiError.validation('No file uploaded');
+  }
+
+  const csvContent = req.file.buffer.toString('utf-8');
+  const { records, mappings } = importService.parseCSV(csvContent, {
+    delimiter: req.body.delimiter || ',',
+    hasHeaders: req.body.hasHeaders !== 'false'
+  });
+
+  // Transform and check for duplicates
+  const leads = [];
+  for (const record of records) {
+    const { lead } = importService.transformRow(record, mappings);
+    if (lead.contact_name) {
+      leads.push(lead);
+    }
+  }
+
+  const duplicates = await importService.findDuplicates(leads);
+
+  res.success({
+    totalRecords: records.length,
+    validLeads: leads.length,
+    duplicatesFound: duplicates.length,
+    duplicates
+  });
+}));
+
+// ============================================
+// QUICK ACTION ROUTES
+// ============================================
+
+/**
+ * POST /api/leads/:id/quick-actions/call
+ * Quick log a phone call
+ */
+router.post('/:id/quick-actions/call', authenticate, asyncHandler(async (req, res) => {
+  const { id } = req.params;
+  const { outcome, notes, duration_minutes } = req.body;
+
+  // Validate lead exists
+  const lead = await leadService.getLeadById(id);
+  if (!lead) {
+    throw ApiError.notFound('Lead');
+  }
+
+  // Create activity
+  const activity = await leadService.addActivity(
+    id,
+    'call',
+    notes || `Phone call - ${outcome || 'completed'}`,
+    {
+      outcome: outcome || 'completed',
+      duration_minutes: duration_minutes || null,
+      quick_action: true
+    },
+    req.user?.id
+  );
+
+  // Auto-update status to 'contacted' if still 'new'
+  if (lead.status === 'new') {
+    await leadService.updateStatus(id, 'contacted', null, req.user?.id);
+    cache.invalidatePattern('leads:');
+  }
+
+  res.created(activity);
+}));
+
+/**
+ * POST /api/leads/:id/quick-actions/note
+ * Quick add a note
+ */
+router.post('/:id/quick-actions/note', authenticate, asyncHandler(async (req, res) => {
+  const { id } = req.params;
+  const { note } = req.body;
+
+  if (!note || note.trim().length === 0) {
+    throw ApiError.validation('Note content is required');
+  }
+
+  // Validate lead exists
+  const lead = await leadService.getLeadById(id);
+  if (!lead) {
+    throw ApiError.notFound('Lead');
+  }
+
+  // Create activity
+  const activity = await leadService.addActivity(
+    id,
+    'note',
+    note.trim(),
+    { quick_action: true },
+    req.user?.id
+  );
+
+  res.created(activity);
+}));
+
+/**
+ * POST /api/leads/:id/quick-actions/email
+ * Quick log an email sent
+ */
+router.post('/:id/quick-actions/email', authenticate, asyncHandler(async (req, res) => {
+  const { id } = req.params;
+  const { subject, notes } = req.body;
+
+  // Validate lead exists
+  const lead = await leadService.getLeadById(id);
+  if (!lead) {
+    throw ApiError.notFound('Lead');
+  }
+
+  // Create activity
+  const activity = await leadService.addActivity(
+    id,
+    'email',
+    notes || `Email sent${subject ? `: ${subject}` : ''}`,
+    {
+      subject: subject || null,
+      quick_action: true
+    },
+    req.user?.id
+  );
+
+  // Auto-update status to 'contacted' if still 'new'
+  if (lead.status === 'new') {
+    await leadService.updateStatus(id, 'contacted', null, req.user?.id);
+    cache.invalidatePattern('leads:');
+  }
+
+  res.created(activity);
+}));
+
+/**
+ * PUT /api/leads/:id/quick-actions/status
+ * Quick status change with optional note
+ */
+router.put('/:id/quick-actions/status', authenticate, asyncHandler(async (req, res) => {
+  const { id } = req.params;
+  const { status, note, lost_reason } = req.body;
+
+  if (!status) {
+    throw ApiError.validation('Status is required');
+  }
+
+  const validStatuses = ['new', 'contacted', 'qualified', 'converted', 'lost'];
+  if (!validStatuses.includes(status)) {
+    throw ApiError.validation(`Invalid status. Must be one of: ${validStatuses.join(', ')}`);
+  }
+
+  try {
+    const lead = await leadService.updateStatus(id, status, lost_reason, req.user?.id);
+
+    if (!lead) {
+      throw ApiError.notFound('Lead');
+    }
+
+    // Add note if provided
+    if (note && note.trim().length > 0) {
+      await leadService.addActivity(
+        id,
+        'status_change',
+        `Status changed to ${status}${note ? `: ${note}` : ''}`,
+        { new_status: status, quick_action: true },
+        req.user?.id
+      );
+    }
+
+    // Invalidate stats cache
+    cache.invalidatePattern('leads:');
+
+    res.success(lead);
+  } catch (error) {
+    if (error.message.includes('Invalid status transition')) {
+      throw ApiError.badRequest(error.message);
+    }
+    throw error;
+  }
+}));
+
+/**
+ * PUT /api/leads/:id/quick-actions/follow-up
+ * Quick set follow-up date
+ */
+router.put('/:id/quick-actions/follow-up', authenticate, asyncHandler(async (req, res) => {
+  const { id } = req.params;
+  const { follow_up_date, note } = req.body;
+
+  if (!follow_up_date) {
+    throw ApiError.validation('Follow-up date is required');
+  }
+
+  // Validate date
+  const date = new Date(follow_up_date);
+  if (isNaN(date.getTime())) {
+    throw ApiError.validation('Invalid date format');
+  }
+
+  const lead = await leadService.updateLead(id, { follow_up_date }, req.user?.id);
+
+  if (!lead) {
+    throw ApiError.notFound('Lead');
+  }
+
+  // Add activity log
+  await leadService.addActivity(
+    id,
+    'follow_up_scheduled',
+    `Follow-up scheduled for ${date.toLocaleDateString()}${note ? `: ${note}` : ''}`,
+    { follow_up_date, quick_action: true },
+    req.user?.id
+  );
+
+  cache.invalidatePattern('leads:');
+
+  res.success(lead);
+}));
+
+/**
+ * PUT /api/leads/:id/quick-actions/priority
+ * Quick change priority
+ */
+router.put('/:id/quick-actions/priority', authenticate, asyncHandler(async (req, res) => {
+  const { id } = req.params;
+  const { priority } = req.body;
+
+  if (!priority) {
+    throw ApiError.validation('Priority is required');
+  }
+
+  const validPriorities = ['hot', 'warm', 'cold'];
+  if (!validPriorities.includes(priority)) {
+    throw ApiError.validation(`Invalid priority. Must be one of: ${validPriorities.join(', ')}`);
+  }
+
+  const lead = await leadService.updateLead(id, { priority }, req.user?.id);
+
+  if (!lead) {
+    throw ApiError.notFound('Lead');
+  }
+
+  // Add activity log
+  await leadService.addActivity(
+    id,
+    'priority_change',
+    `Priority changed to ${priority}`,
+    { new_priority: priority, quick_action: true },
+    req.user?.id
+  );
+
+  cache.invalidatePattern('leads:');
+
+  res.success(lead);
+}));
+
+// ============================================
+// AI NEXT-BEST-ACTION ROUTES
+// ============================================
+
+const NextBestActionService = require('../services/NextBestActionService');
+let nextBestActionService = null;
+
+const initNextBestActionService = () => {
+  if (!nextBestActionService && leadService && leadService.pool) {
+    nextBestActionService = new NextBestActionService(leadService.pool, cache);
+  }
+  return nextBestActionService;
+};
+
+/**
+ * GET /api/leads/:id/next-actions
+ * Get AI-recommended next best actions for a lead
+ */
+router.get('/:id/next-actions', authenticate, asyncHandler(async (req, res) => {
+  const { id } = req.params;
+  const nbaService = initNextBestActionService();
+
+  if (!nbaService) {
+    throw ApiError.internal('Next Best Action service not initialized');
+  }
+
+  const actions = await nbaService.getLeadActions(id);
+  res.success(actions);
+}));
+
+/**
+ * GET /api/leads/next-actions/batch
+ * Get next best actions for multiple leads
+ */
+router.get('/next-actions/batch', authenticate, asyncHandler(async (req, res) => {
+  const { limit = 20, minScore = 0, status } = req.query;
+  const nbaService = initNextBestActionService();
+
+  if (!nbaService) {
+    throw ApiError.internal('Next Best Action service not initialized');
+  }
+
+  const results = await nbaService.getBatchLeadActions({
+    limit: parseInt(limit),
+    minScore: parseInt(minScore),
+    status: status || null
+  });
+
+  res.success(results);
+}));
+
+// ============================================
+// LEAD ASSIGNMENT AUTOMATION
+// ============================================
+const LeadAssignmentService = require('../services/LeadAssignmentService');
+let leadAssignmentService = null;
+
+function initLeadAssignmentService() {
+  if (!leadAssignmentService && pool) {
+    leadAssignmentService = new LeadAssignmentService(pool, cache);
+  }
+  return leadAssignmentService;
+}
+
+/**
+ * GET /api/leads/assignment/rules
+ * Get all assignment rules
+ */
+router.get('/assignment/rules', authenticate, asyncHandler(async (req, res) => {
+  const service = initLeadAssignmentService();
+  const rules = await service.getAllRules();
+  res.success(rules);
+}));
+
+/**
+ * POST /api/leads/assignment/rules
+ * Create assignment rule
+ */
+router.post('/assignment/rules', authenticate, asyncHandler(async (req, res) => {
+  const service = initLeadAssignmentService();
+  const rule = await service.createRule(req.body);
+  res.created(rule);
+}));
+
+/**
+ * PUT /api/leads/assignment/rules/:id
+ * Update assignment rule
+ */
+router.put('/assignment/rules/:id', authenticate, asyncHandler(async (req, res) => {
+  const service = initLeadAssignmentService();
+  const rule = await service.updateRule(req.params.id, req.body);
+  if (!rule) {
+    throw ApiError.notFound('Assignment rule');
+  }
+  res.success(rule);
+}));
+
+/**
+ * DELETE /api/leads/assignment/rules/:id
+ * Delete assignment rule
+ */
+router.delete('/assignment/rules/:id', authenticate, asyncHandler(async (req, res) => {
+  const service = initLeadAssignmentService();
+  const deleted = await service.deleteRule(req.params.id);
+  if (!deleted) {
+    throw ApiError.notFound('Assignment rule');
+  }
+  res.success(null, { message: 'Rule deleted' });
+}));
+
+/**
+ * POST /api/leads/:id/auto-assign
+ * Auto-assign a specific lead
+ */
+router.post('/:id/auto-assign', authenticate, asyncHandler(async (req, res) => {
+  const service = initLeadAssignmentService();
+  const result = await service.assignLead(req.params.id);
+  res.success(result);
+}));
+
+/**
+ * POST /api/leads/assignment/bulk
+ * Bulk assign unassigned leads
+ */
+router.post('/assignment/bulk', authenticate, asyncHandler(async (req, res) => {
+  const { limit = 50 } = req.body;
+  const service = initLeadAssignmentService();
+  const result = await service.assignUnassignedLeads(parseInt(limit));
+  res.success(result);
+}));
+
+/**
+ * GET /api/leads/assignment/stats
+ * Get assignment statistics
+ */
+router.get('/assignment/stats', authenticate, asyncHandler(async (req, res) => {
+  const service = initLeadAssignmentService();
+  const stats = await service.getStats();
+  res.success(stats);
+}));
+
 module.exports = { router, init };

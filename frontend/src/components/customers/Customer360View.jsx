@@ -15,8 +15,9 @@ import {
   User, Crown, Award, Medal, Star, Phone, Mail, Building, MapPin,
   Calendar, TrendingUp, TrendingDown, AlertTriangle, ShoppingCart,
   FileText, Receipt, ArrowRight, RefreshCw, ChevronDown, ChevronUp,
-  Clock, DollarSign, Package, AlertCircle, CheckCircle, X
+  Clock, DollarSign, Package, AlertCircle, CheckCircle, X, MessageCircle
 } from 'lucide-react';
+import CustomerActivityTimeline from './CustomerActivityTimeline';
 
 const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:3001';
 
@@ -46,6 +47,7 @@ const Customer360View = ({ customerId, onClose, onNavigate }) => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [expandedSections, setExpandedSections] = useState({
+    activities: true,
     quotes: true,
     orders: true,
     invoices: false,
@@ -432,6 +434,16 @@ const Customer360View = ({ customerId, onClose, onNavigate }) => {
               )}
             </div>
           </div>
+
+          {/* Activity Timeline */}
+          <CollapsibleSection
+            title="Activity Timeline"
+            icon={<MessageCircle size={18} color="#3b82f6" />}
+            expanded={expandedSections.activities}
+            onToggle={() => toggleSection('activities')}
+          >
+            <CustomerActivityTimeline customerId={customerId} limit={15} />
+          </CollapsibleSection>
 
           {/* Predictive Insights */}
           {(predictiveData || clvData) && (

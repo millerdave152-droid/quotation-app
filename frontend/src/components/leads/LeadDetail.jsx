@@ -187,6 +187,9 @@ function LeadDetail({ leadId, onEdit, onUpdate, onClose }) {
         <div className="lead-detail-badges">
           <LeadStatusBadge status={lead.status} />
           <LeadPriorityBadge priority={lead.priority} />
+          {lead.lead_score !== null && lead.lead_score !== undefined && (
+            <LeadScoreDisplay score={lead.lead_score} breakdown={lead.lead_score_breakdown} />
+          )}
           {lead.quote_number && (
             <span className="status-badge" style={{ background: '#dbeafe', color: '#1d4ed8' }}>
               Quote: {lead.quote_number}
@@ -407,6 +410,148 @@ function LeadDetail({ leadId, onEdit, onUpdate, onClose }) {
 
       {/* Confirm Dialog */}
       <DialogComponent />
+    </div>
+  );
+}
+
+/**
+ * Lead Score Display Component
+ * Shows score with expandable breakdown
+ */
+function LeadScoreDisplay({ score, breakdown }) {
+  const [expanded, setExpanded] = React.useState(false);
+
+  // Determine color based on score
+  let bgColor, textColor, label;
+  if (score >= 80) {
+    bgColor = '#dcfce7';
+    textColor = '#166534';
+    label = 'A';
+  } else if (score >= 60) {
+    bgColor = '#dbeafe';
+    textColor = '#1e40af';
+    label = 'B';
+  } else if (score >= 40) {
+    bgColor = '#fef3c7';
+    textColor = '#92400e';
+    label = 'C';
+  } else {
+    bgColor = '#fee2e2';
+    textColor = '#991b1b';
+    label = 'D';
+  }
+
+  const breakdownLabels = {
+    timeline: { label: 'Timeline Urgency', icon: '⏱️' },
+    budget: { label: 'Budget Range', icon: '💰' },
+    source: { label: 'Lead Source Quality', icon: '📍' },
+    engagement: { label: 'Engagement Level', icon: '💬' },
+    completeness: { label: 'Data Completeness', icon: '📋' }
+  };
+
+  return (
+    <div style={{ position: 'relative' }}>
+      <button
+        onClick={() => setExpanded(!expanded)}
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: '6px',
+          padding: '4px 10px',
+          borderRadius: '16px',
+          background: bgColor,
+          color: textColor,
+          border: 'none',
+          cursor: 'pointer',
+          fontWeight: '600',
+          fontSize: '0.875rem'
+        }}
+      >
+        <span>Score: {score}</span>
+        <span style={{
+          fontSize: '0.75rem',
+          padding: '2px 6px',
+          background: textColor,
+          color: 'white',
+          borderRadius: '4px'
+        }}>
+          {label}
+        </span>
+        <span style={{ fontSize: '0.75rem' }}>{expanded ? '▲' : '▼'}</span>
+      </button>
+
+      {expanded && breakdown && (
+        <div style={{
+          position: 'absolute',
+          top: '100%',
+          left: 0,
+          marginTop: '8px',
+          background: 'white',
+          border: '1px solid #e5e7eb',
+          borderRadius: '8px',
+          boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+          padding: '16px',
+          zIndex: 100,
+          minWidth: '280px'
+        }}>
+          <div style={{ fontWeight: '600', marginBottom: '12px', fontSize: '0.875rem' }}>
+            Score Breakdown
+          </div>
+          {Object.entries(breakdown).map(([key, data]) => {
+            const info = breakdownLabels[key] || { label: key, icon: '📊' };
+            return (
+              <div key={key} style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                padding: '8px 0',
+                borderBottom: '1px solid #f3f4f6'
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <span>{info.icon}</span>
+                  <span style={{ fontSize: '0.875rem' }}>{info.label}</span>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <div style={{
+                    width: '60px',
+                    height: '6px',
+                    background: '#e5e7eb',
+                    borderRadius: '3px',
+                    overflow: 'hidden'
+                  }}>
+                    <div style={{
+                      width: `${data.score}%`,
+                      height: '100%',
+                      background: data.score >= 70 ? '#22c55e' : data.score >= 40 ? '#f59e0b' : '#ef4444',
+                      borderRadius: '3px'
+                    }} />
+                  </div>
+                  <span style={{
+                    fontSize: '0.75rem',
+                    fontWeight: '600',
+                    color: '#6b7280',
+                    minWidth: '45px',
+                    textAlign: 'right'
+                  }}>
+                    {data.weighted}/{data.weight}
+                  </span>
+                </div>
+              </div>
+            );
+          })}
+          <div style={{
+            display: 'flex',
+            justifyContent: 'space-between',
+            marginTop: '12px',
+            paddingTop: '12px',
+            borderTop: '2px solid #e5e7eb',
+            fontWeight: '600'
+          }}>
+            <span>Total Score</span>
+            <span style={{ color: textColor }}>{score}/100</span>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

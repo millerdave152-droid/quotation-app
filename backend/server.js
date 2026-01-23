@@ -336,6 +336,13 @@ app.use('/api/analytics', initAnalyticsRoutes({ pool }));
 console.log('✅ Analytics routes loaded (modular)');
 
 // ============================================
+// UNIFIED DASHBOARD (Sales Pipeline)
+// ============================================
+const { init: initDashboardRoutes } = require('./routes/dashboard');
+app.use('/api/dashboard', initDashboardRoutes({ pool, cache }));
+console.log('✅ Unified dashboard routes loaded (sales pipeline)');
+
+// ============================================
 // INSIGHTS (AI-Powered Business Insights)
 // ============================================
 app.use('/api/insights', initInsightsRoutes({ pool }));
@@ -352,6 +359,34 @@ console.log('✅ Reports routes loaded (report builder & scheduling)');
 // ============================================
 app.use('/api/leads', initLeadsRoutes({ pool, cache }));
 console.log('✅ Leads routes loaded (inquiry capture system)');
+
+// ============================================
+// TASKS / FOLLOW-UP SCHEDULING
+// ============================================
+const { init: initTasksRoutes } = require('./routes/tasks');
+app.use('/api/tasks', initTasksRoutes({ pool, cache }));
+console.log('✅ Tasks routes loaded (follow-up scheduling)');
+
+// ============================================
+// CUSTOMER PORTAL SELF-SERVICE
+// ============================================
+const { init: initCustomerPortalRoutes } = require('./routes/customer-portal');
+app.use('/api/customer-portal', initCustomerPortalRoutes({ pool, cache }));
+console.log('✅ Customer portal routes loaded (self-service)');
+
+// ============================================
+// WEBHOOKS INTEGRATION SYSTEM
+// ============================================
+const { init: initWebhooksRoutes, getService: getWebhookService } = require('./routes/webhooks');
+app.use('/api/webhooks', initWebhooksRoutes({ pool, cache }));
+console.log('✅ Webhooks routes loaded (integrations)');
+
+// ============================================
+// DATA QUALITY TOOLS
+// ============================================
+const { init: initDataQualityRoutes } = require('./routes/data-quality');
+app.use('/api/data-quality', initDataQualityRoutes({ pool, cache }));
+console.log('✅ Data quality routes loaded');
 
 // ============================================
 // QUOTATIONS (Modular)
@@ -2284,7 +2319,13 @@ console.log('✅ Advanced pricing routes loaded');
 // ============================================
 // AI PERSONALIZATION (Dynamic Pricing, Upselling, Suggestions)
 // ============================================
-app.use('/api/ai', aiPersonalizationRoutes);
+// Handle both old and new export formats
+const aiRouter = aiPersonalizationRoutes.router || aiPersonalizationRoutes;
+app.use('/api/ai', aiRouter);
+// Initialize AI Quote Builder service if available
+if (aiPersonalizationRoutes.initQuoteBuilderService) {
+  aiPersonalizationRoutes.initQuoteBuilderService(pool, cache);
+}
 console.log('✅ AI personalization routes loaded');
 
 // 3D PRODUCT CONFIGURATOR

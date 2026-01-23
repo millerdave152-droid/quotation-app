@@ -1,11 +1,12 @@
 /**
  * AIHelperPanel - AI-powered helpers for leads
+ * - Next Best Action recommendations
  * - Generate summary
  * - Suggest products
  * - Draft follow-up message
  */
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   generateAISummary,
   generateProductSuggestions,
@@ -13,6 +14,7 @@ import {
 } from './hooks/useLeads';
 import { useToast } from '../ui/Toast';
 import { useNavigate } from 'react-router-dom';
+import api from '../../services/api';
 
 function AIHelperPanel({ leadId, lead, onUpdate }) {
   const toast = useToast();
@@ -20,16 +22,37 @@ function AIHelperPanel({ leadId, lead, onUpdate }) {
   const [loading, setLoading] = useState({
     summary: false,
     suggestions: false,
-    draft: false
+    draft: false,
+    nextActions: false
   });
   const [results, setResults] = useState({
     summary: lead?.ai_summary || null,
     suggestions: lead?.ai_suggested_products || null,
-    draft: lead?.ai_draft_message || null
+    draft: lead?.ai_draft_message || null,
+    nextActions: null
   });
   const [draftTone, setDraftTone] = useState('professional');
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [selectedProducts, setSelectedProducts] = useState([]);
+
+  // Fetch next best actions on mount
+  useEffect(() => {
+    if (leadId) {
+      fetchNextActions();
+    }
+  }, [leadId]);
+
+  const fetchNextActions = async () => {
+    setLoading(prev => ({ ...prev, nextActions: true }));
+    try {
+      const response = await api.get(`/leads/${leadId}/next-actions`);
+      setResults(prev => ({ ...prev, nextActions: response.data?.data || response.data }));
+    } catch (error) {
+      console.error('Failed to fetch next actions:', error);
+    } finally {
+      setLoading(prev => ({ ...prev, nextActions: false }));
+    }
+  };
 
   const toggleProductSelection = (product) => {
     setSelectedProducts(prev => {
@@ -126,6 +149,15 @@ function AIHelperPanel({ leadId, lead, onUpdate }) {
       <div className="ai-helper-title">
         <span style={{ fontSize: '1rem' }}>AI Assistant</span>
       </div>
+
+      {/* Next Best Actions - Always Visible at Top */}
+      <NextBestActionsPanel
+        actions={results.nextActions}
+        loading={loading.nextActions}
+        onRefresh={fetchNextActions}
+        leadId={leadId}
+        onActionTaken={onUpdate}
+      />
 
       <div className="ai-helper-buttons">
         {/* Summary */}
@@ -334,6 +366,204 @@ function AIHelperPanel({ leadId, lead, onUpdate }) {
           )}
         </div>
       </div>
+    </div>
+  );
+}
+
+// Next Best Actions Panel Component
+function NextBestActionsPanel({ actions, loading, onRefresh, leadId, onActionTaken }) {
+  const toast = useToast();
+  const navigate = useNavigate();
+
+  const getActionIcon = (icon) => {
+    const icons = {
+      phone: '📞',
+      email: '📧',
+      document: '📄',
+      calendar: '📅',
+      tag: '🏷️',
+      alert: '⚠️',
+      heart: '💚',
+      refresh: '🔄',
+      info: 'ℹ️',
+      check: '✅'
+    };
+    return icons[icon] || '📌';
+  };
+
+  const getUrgencyColor = (urgency) => {
+    switch (urgency) {
+      case 'high': return { bg: '#fee2e2', border: '#fca5a5', text: '#991b1b' };
+      case 'medium': return { bg: '#fef3c7', border: '#fcd34d', text: '#92400e' };
+      case 'low': return { bg: '#dcfce7', border: '#86efac', text: '#166534' };
+      default: return { bg: '#f3f4f6', border: '#d1d5db', text: '#374151' };
+    }
+  };
+
+  const handleActionClick = (action) => {
+    switch (action.type) {
+      case 'call_now':
+        toast.info('Open your phone dialer to call the lead');
+        break;
+      case 'send_email':
+        toast.info('Open email composition');
+        break;
+      case 'send_quote':
+        sessionStorage.setItem('quoteFromLead', JSON.stringify({
+          leadId: leadId,
+          leadNumber: actions?.leadNumber,
+          customerName: actions?.contactName
+        }));
+        navigate('/quotes/new');
+        break;
+      case 'follow_up':
+        toast.info('Schedule a follow-up in the quick actions');
+        break;
+      default:
+        toast.info(`Action: ${action.label}`);
+    }
+  };
+
+  if (loading) {
+    return (
+      <div style={{
+        background: '#eff6ff',
+        borderRadius: '8px',
+        padding: '1rem',
+        marginBottom: '1rem'
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: '#3b82f6' }}>
+          <span className="loading-spinner" style={{ width: '16px', height: '16px' }}></span>
+          <span style={{ fontSize: '0.875rem' }}>Analyzing lead for best actions...</span>
+        </div>
+      </div>
+    );
+  }
+
+  if (!actions || !actions.recommendations || actions.recommendations.length === 0) {
+    return null;
+  }
+
+  return (
+    <div style={{
+      background: 'linear-gradient(135deg, #eff6ff 0%, #f0fdf4 100%)',
+      borderRadius: '8px',
+      padding: '1rem',
+      marginBottom: '1rem',
+      border: '1px solid #bfdbfe'
+    }}>
+      <div style={{
+        display: 'flex',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        marginBottom: '0.75rem'
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+          <span style={{ fontSize: '1rem' }}>🎯</span>
+          <span style={{ fontWeight: 600, fontSize: '0.9rem', color: '#1e40af' }}>
+            Recommended Actions
+          </span>
+        </div>
+        <button
+          onClick={onRefresh}
+          style={{
+            background: 'none',
+            border: 'none',
+            cursor: 'pointer',
+            color: '#6b7280',
+            fontSize: '0.75rem',
+            padding: '0.25rem'
+          }}
+          title="Refresh recommendations"
+        >
+          🔄
+        </button>
+      </div>
+
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+        {actions.recommendations.slice(0, 3).map((action, idx) => {
+          const colors = getUrgencyColor(action.urgency);
+          return (
+            <div
+              key={idx}
+              onClick={() => handleActionClick(action)}
+              style={{
+                display: 'flex',
+                alignItems: 'flex-start',
+                gap: '0.75rem',
+                padding: '0.75rem',
+                background: 'white',
+                borderRadius: '6px',
+                border: `1px solid ${colors.border}`,
+                cursor: 'pointer',
+                transition: 'transform 0.15s, box-shadow 0.15s'
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.transform = 'translateY(-1px)';
+                e.currentTarget.style.boxShadow = '0 2px 8px rgba(0,0,0,0.1)';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.transform = 'none';
+                e.currentTarget.style.boxShadow = 'none';
+              }}
+            >
+              <span style={{
+                fontSize: '1.25rem',
+                background: colors.bg,
+                padding: '0.5rem',
+                borderRadius: '6px',
+                lineHeight: 1
+              }}>
+                {getActionIcon(action.icon)}
+              </span>
+              <div style={{ flex: 1 }}>
+                <div style={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  marginBottom: '0.25rem'
+                }}>
+                  <span style={{ fontWeight: 600, fontSize: '0.875rem', color: '#1f2937' }}>
+                    {action.label}
+                  </span>
+                  <span style={{
+                    fontSize: '0.65rem',
+                    padding: '0.15rem 0.4rem',
+                    borderRadius: '10px',
+                    background: colors.bg,
+                    color: colors.text,
+                    fontWeight: 600,
+                    textTransform: 'uppercase'
+                  }}>
+                    {action.urgency}
+                  </span>
+                </div>
+                <div style={{ fontSize: '0.8rem', color: '#6b7280' }}>
+                  {action.reason}
+                </div>
+                <div style={{
+                  marginTop: '0.25rem',
+                  fontSize: '0.7rem',
+                  color: '#9ca3af'
+                }}>
+                  {action.confidence}% confidence
+                </div>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      {actions.recommendations.length > 3 && (
+        <div style={{
+          textAlign: 'center',
+          marginTop: '0.5rem',
+          fontSize: '0.75rem',
+          color: '#6b7280'
+        }}>
+          +{actions.recommendations.length - 3} more recommendations
+        </div>
+      )}
     </div>
   );
 }

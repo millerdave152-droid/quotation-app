@@ -11,10 +11,14 @@ const { ApiError, asyncHandler } = require('../middleware/errorHandler');
 const cache = require('../cache');
 const { authenticate } = require('../middleware/auth');
 const RevenueForecastService = require('../services/RevenueForecastService');
+const ConversionAnalyticsService = require('../services/ConversionAnalyticsService');
+const LeadSourceAnalyticsService = require('../services/LeadSourceAnalyticsService');
 
 // Module-level dependencies (injected via init)
 let pool = null;
 let forecastService = null;
+let conversionService = null;
+let leadSourceService = null;
 
 /**
  * Initialize the router with dependencies
@@ -24,6 +28,8 @@ let forecastService = null;
 const init = (deps) => {
   pool = deps.pool;
   forecastService = new RevenueForecastService(pool);
+  conversionService = new ConversionAnalyticsService(pool, cache);
+  leadSourceService = new LeadSourceAnalyticsService(pool, cache);
   return router;
 };
 
@@ -366,6 +372,196 @@ router.get('/sales-velocity', authenticate, asyncHandler(async (req, res) => {
   cache.set('short', cacheKey, velocity);
 
   res.json({ success: true, data: velocity });
+}));
+
+// ============================================
+// CONVERSION FUNNEL ANALYTICS ROUTES
+// ============================================
+
+/**
+ * GET /api/analytics/funnel
+ * Get complete funnel analysis
+ */
+router.get('/funnel', authenticate, asyncHandler(async (req, res) => {
+  const days = parseInt(req.query.days) || 90;
+
+  // Try to get from cache
+  const cacheKey = `analytics:funnel:${days}`;
+  const cached = cache.get('short', cacheKey);
+  if (cached) {
+    return res.json({ success: true, data: cached });
+  }
+
+  const analysis = await conversionService.getFunnelAnalysis(days);
+
+  // Cache for 10 minutes
+  cache.set('short', cacheKey, analysis);
+
+  res.json({ success: true, data: analysis });
+}));
+
+/**
+ * GET /api/analytics/funnel/stages
+ * Get stage conversion rates only
+ */
+router.get('/funnel/stages', authenticate, asyncHandler(async (req, res) => {
+  const days = parseInt(req.query.days) || 90;
+
+  const cacheKey = `analytics:funnel:stages:${days}`;
+  const cached = cache.get('short', cacheKey);
+  if (cached) {
+    return res.json({ success: true, data: cached });
+  }
+
+  const stages = await conversionService.getStageConversions(days);
+
+  cache.set('short', cacheKey, stages);
+
+  res.json({ success: true, data: stages });
+}));
+
+/**
+ * GET /api/analytics/funnel/timing
+ * Get stage timing analysis
+ */
+router.get('/funnel/timing', authenticate, asyncHandler(async (req, res) => {
+  const days = parseInt(req.query.days) || 90;
+
+  const cacheKey = `analytics:funnel:timing:${days}`;
+  const cached = cache.get('short', cacheKey);
+  if (cached) {
+    return res.json({ success: true, data: cached });
+  }
+
+  const timing = await conversionService.getStageTiming(days);
+
+  cache.set('short', cacheKey, timing);
+
+  res.json({ success: true, data: timing });
+}));
+
+/**
+ * GET /api/analytics/funnel/trends
+ * Get conversion trends over time
+ */
+router.get('/funnel/trends', authenticate, asyncHandler(async (req, res) => {
+  const days = parseInt(req.query.days) || 90;
+
+  const cacheKey = `analytics:funnel:trends:${days}`;
+  const cached = cache.get('short', cacheKey);
+  if (cached) {
+    return res.json({ success: true, data: cached });
+  }
+
+  const trends = await conversionService.getConversionTrends(days);
+
+  cache.set('short', cacheKey, trends);
+
+  res.json({ success: true, data: trends });
+}));
+
+/**
+ * GET /api/analytics/funnel/by-source
+ * Get conversion rates by lead source
+ */
+router.get('/funnel/by-source', authenticate, asyncHandler(async (req, res) => {
+  const days = parseInt(req.query.days) || 90;
+
+  const cacheKey = `analytics:funnel:by-source:${days}`;
+  const cached = cache.get('short', cacheKey);
+  if (cached) {
+    return res.json({ success: true, data: cached });
+  }
+
+  const bySource = await conversionService.getConversionBySource(days);
+
+  cache.set('short', cacheKey, bySource);
+
+  res.json({ success: true, data: bySource });
+}));
+
+// ============================================
+// LEAD SOURCE ROI ANALYTICS ROUTES
+// ============================================
+
+/**
+ * GET /api/analytics/lead-sources
+ * Get comprehensive lead source analytics
+ */
+router.get('/lead-sources', authenticate, asyncHandler(async (req, res) => {
+  const days = parseInt(req.query.days) || 90;
+
+  const cacheKey = `analytics:lead-sources:${days}`;
+  const cached = cache.get('short', cacheKey);
+  if (cached) {
+    return res.json({ success: true, data: cached });
+  }
+
+  const analytics = await leadSourceService.getSourceAnalytics(days);
+
+  cache.set('short', cacheKey, analytics);
+
+  res.json({ success: true, data: analytics });
+}));
+
+/**
+ * GET /api/analytics/lead-sources/breakdown
+ * Get lead source breakdown
+ */
+router.get('/lead-sources/breakdown', authenticate, asyncHandler(async (req, res) => {
+  const days = parseInt(req.query.days) || 90;
+
+  const cacheKey = `analytics:lead-sources:breakdown:${days}`;
+  const cached = cache.get('short', cacheKey);
+  if (cached) {
+    return res.json({ success: true, data: cached });
+  }
+
+  const breakdown = await leadSourceService.getSourceBreakdown(days);
+
+  cache.set('short', cacheKey, breakdown);
+
+  res.json({ success: true, data: breakdown });
+}));
+
+/**
+ * GET /api/analytics/lead-sources/performance
+ * Get lead source performance with revenue
+ */
+router.get('/lead-sources/performance', authenticate, asyncHandler(async (req, res) => {
+  const days = parseInt(req.query.days) || 90;
+
+  const cacheKey = `analytics:lead-sources:performance:${days}`;
+  const cached = cache.get('short', cacheKey);
+  if (cached) {
+    return res.json({ success: true, data: cached });
+  }
+
+  const performance = await leadSourceService.getSourcePerformance(days);
+
+  cache.set('short', cacheKey, performance);
+
+  res.json({ success: true, data: performance });
+}));
+
+/**
+ * GET /api/analytics/lead-sources/top
+ * Get top performing lead sources
+ */
+router.get('/lead-sources/top', authenticate, asyncHandler(async (req, res) => {
+  const days = parseInt(req.query.days) || 90;
+
+  const cacheKey = `analytics:lead-sources:top:${days}`;
+  const cached = cache.get('short', cacheKey);
+  if (cached) {
+    return res.json({ success: true, data: cached });
+  }
+
+  const topSources = await leadSourceService.getTopPerformingSources(days);
+
+  cache.set('short', cacheKey, topSources);
+
+  res.json({ success: true, data: topSources });
 }));
 
 module.exports = { router, init };

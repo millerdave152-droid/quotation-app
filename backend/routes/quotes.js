@@ -2036,4 +2036,34 @@ router.get('/analytics/at-risk', authenticate, asyncHandler(async (req, res) => 
   res.json({ success: true, data: atRiskQuotes });
 }));
 
+// ============================================
+// AI NEXT-BEST-ACTION ROUTES
+// ============================================
+
+const NextBestActionService = require('../services/NextBestActionService');
+let nextBestActionService = null;
+
+const initNextBestActionService = () => {
+  if (!nextBestActionService && pool) {
+    nextBestActionService = new NextBestActionService(pool, null);
+  }
+  return nextBestActionService;
+};
+
+/**
+ * GET /api/quotations/:id/next-actions
+ * Get AI-recommended next best actions for a quote
+ */
+router.get('/:id/next-actions', authenticate, asyncHandler(async (req, res) => {
+  const { id } = req.params;
+  const nbaService = initNextBestActionService();
+
+  if (!nbaService) {
+    throw ApiError.internal('Next Best Action service not initialized');
+  }
+
+  const actions = await nbaService.getQuoteActions(id);
+  res.json({ success: true, data: actions });
+}));
+
 module.exports = { router, init };

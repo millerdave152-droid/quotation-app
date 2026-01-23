@@ -445,4 +445,373 @@ router.delete('/:id', authenticate, asyncHandler(async (req, res) => {
   res.success(null, { message: 'Customer deleted successfully' });
 }));
 
+// ============================================
+// CUSTOMER ACTIVITY ROUTES (CRM)
+// ============================================
+
+/**
+ * GET /api/customers/:id/activities
+ * Get customer activity timeline
+ * Query params: limit (default 50), offset (default 0), type (filter by activity type)
+ */
+router.get('/:id/activities', authenticate, asyncHandler(async (req, res) => {
+  const { id } = req.params;
+  const { limit = 50, offset = 0, type } = req.query;
+
+  // Build query
+  let query = `
+    SELECT
+      ca.*,
+      NULLIF(TRIM(CONCAT(u.first_name, ' ', u.last_name)), '') as performed_by_name
+    FROM customer_activities ca
+    LEFT JOIN users u ON ca.performed_by = u.id
+    WHERE ca.customer_id = $1
+  `;
+  const params = [id];
+
+  if (type) {
+    query += ` AND ca.activity_type = $${params.length + 1}`;
+    params.push(type);
+  }
+
+  query += ` ORDER BY ca.created_at DESC LIMIT $${params.length + 1} OFFSET $${params.length + 2}`;
+  params.push(parseInt(limit), parseInt(offset));
+
+  const result = await customerService.pool.query(query, params);
+
+  // Get total count
+  const countResult = await customerService.pool.query(
+    `SELECT COUNT(*) FROM customer_activities WHERE customer_id = $1${type ? ' AND activity_type = $2' : ''}`,
+    type ? [id, type] : [id]
+  );
+
+  res.success({
+    activities: result.rows,
+    total: parseInt(countResult.rows[0].count),
+    limit: parseInt(limit),
+    offset: parseInt(offset)
+  });
+}));
+
+/**
+ * POST /api/customers/:id/activities
+ * Add a new activity to customer timeline
+ */
+router.post('/:id/activities', authenticate, asyncHandler(async (req, res) => {
+  const { id } = req.params;
+  const { activity_type, title, description, metadata, related_type, related_id } = req.body;
+
+  if (!activity_type || !title) {
+    throw ApiError.validation('Activity type and title are required');
+  }
+
+  // Verify customer exists
+  const customer = await customerService.getCustomerById(id);
+  if (!customer) {
+    throw ApiError.notFound('Customer');
+  }
+
+  const result = await customerService.pool.query(`
+    INSERT INTO customer_activities (
+      customer_id, activity_type, title, description, metadata,
+      related_type, related_id, performed_by, created_at
+    ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, CURRENT_TIMESTAMP)
+    RETURNING *
+  `, [
+    id,
+    activity_type,
+    title,
+    description || null,
+    metadata ? JSON.stringify(metadata) : '{}',
+    related_type || null,
+    related_id || null,
+    req.user?.id || null
+  ]);
+
+  res.created(result.rows[0]);
+}));
+
+/**
+ * GET /api/customers/:id/activity-summary
+ * Get summary of customer activities (counts by type, last activity date)
+ */
+router.get('/:id/activity-summary', authenticate, asyncHandler(async (req, res) => {
+  const { id } = req.params;
+
+  const result = await customerService.pool.query(`
+    SELECT
+      activity_type,
+      COUNT(*) as count,
+      MAX(created_at) as last_activity
+    FROM customer_activities
+    WHERE customer_id = $1
+    GROUP BY activity_type
+    ORDER BY count DESC
+  `, [id]);
+
+  // Get overall stats
+  const overallResult = await customerService.pool.query(`
+    SELECT
+      COUNT(*) as total_activities,
+      MAX(created_at) as last_activity,
+      MIN(created_at) as first_activity
+    FROM customer_activities
+    WHERE customer_id = $1
+  `, [id]);
+
+  res.success({
+    byType: result.rows,
+    overall: overallResult.rows[0]
+  });
+}));
+
+/**
+ * POST /api/customers/:id/activities/call
+ * Log a phone call activity
+ */
+router.post('/:id/activities/call', authenticate, asyncHandler(async (req, res) => {
+  const { id } = req.params;
+  const { duration_minutes, outcome, notes } = req.body;
+
+  const result = await customerService.pool.query(`
+    INSERT INTO customer_activities (
+      customer_id, activity_type, title, description, metadata, performed_by
+    ) VALUES ($1, 'call', $2, $3, $4, $5)
+    RETURNING *
+  `, [
+    id,
+    `Phone call${outcome ? ` - ${outcome}` : ''}`,
+    notes || null,
+    JSON.stringify({ duration_minutes, outcome }),
+    req.user?.id || null
+  ]);
+
+  res.created(result.rows[0]);
+}));
+
+/**
+ * POST /api/customers/:id/activities/email
+ * Log an email activity
+ */
+router.post('/:id/activities/email', authenticate, asyncHandler(async (req, res) => {
+  const { id } = req.params;
+  const { subject, direction = 'outbound', notes } = req.body;
+
+  const result = await customerService.pool.query(`
+    INSERT INTO customer_activities (
+      customer_id, activity_type, title, description, metadata, performed_by
+    ) VALUES ($1, 'email', $2, $3, $4, $5)
+    RETURNING *
+  `, [
+    id,
+    `Email: ${subject || 'No subject'}`,
+    notes || null,
+    JSON.stringify({ subject, direction }),
+    req.user?.id || null
+  ]);
+
+  res.created(result.rows[0]);
+}));
+
+/**
+ * POST /api/customers/:id/activities/meeting
+ * Log a meeting activity
+ */
+router.post('/:id/activities/meeting', authenticate, asyncHandler(async (req, res) => {
+  const { id } = req.params;
+  const { meeting_type, attendees, notes, outcome } = req.body;
+
+  const result = await customerService.pool.query(`
+    INSERT INTO customer_activities (
+      customer_id, activity_type, title, description, metadata, performed_by
+    ) VALUES ($1, 'meeting', $2, $3, $4, $5)
+    RETURNING *
+  `, [
+    id,
+    `Meeting: ${meeting_type || 'General'}`,
+    notes || null,
+    JSON.stringify({ meeting_type, attendees, outcome }),
+    req.user?.id || null
+  ]);
+
+  res.created(result.rows[0]);
+}));
+
+/**
+ * POST /api/customers/:id/activities/note
+ * Add a note to customer timeline
+ */
+router.post('/:id/activities/note', authenticate, asyncHandler(async (req, res) => {
+  const { id } = req.params;
+  const { title, content } = req.body;
+
+  if (!content) {
+    throw ApiError.validation('Note content is required');
+  }
+
+  const result = await customerService.pool.query(`
+    INSERT INTO customer_activities (
+      customer_id, activity_type, title, description, performed_by
+    ) VALUES ($1, 'note', $2, $3, $4)
+    RETURNING *
+  `, [
+    id,
+    title || 'Note',
+    content,
+    req.user?.id || null
+  ]);
+
+  res.created(result.rows[0]);
+}));
+
+// ============================================
+// CUSTOMER TAGGING ROUTES
+// ============================================
+
+/**
+ * GET /api/customers/tags
+ * Get all available tags
+ */
+router.get('/tags', authenticate, asyncHandler(async (req, res) => {
+  const tags = await customerService.getAllTags();
+  res.success(tags);
+}));
+
+/**
+ * GET /api/customers/tags/stats
+ * Get tag statistics
+ */
+router.get('/tags/stats', authenticate, asyncHandler(async (req, res) => {
+  const stats = await customerService.getTagStats();
+  res.success(stats);
+}));
+
+/**
+ * POST /api/customers/tags
+ * Create a new tag
+ */
+router.post('/tags', authenticate, asyncHandler(async (req, res) => {
+  const { name, color, description } = req.body;
+
+  if (!name) {
+    throw ApiError.validation('Tag name is required');
+  }
+
+  const tag = await customerService.createTag(
+    { name, color, description },
+    req.user?.id
+  );
+  res.created(tag);
+}));
+
+/**
+ * PUT /api/customers/tags/:tagId
+ * Update a tag
+ */
+router.put('/tags/:tagId', authenticate, asyncHandler(async (req, res) => {
+  const { tagId } = req.params;
+  const { name, color, description } = req.body;
+
+  const tag = await customerService.updateTag(tagId, { name, color, description });
+
+  if (!tag) {
+    throw ApiError.notFound('Tag');
+  }
+
+  res.success(tag);
+}));
+
+/**
+ * DELETE /api/customers/tags/:tagId
+ * Delete a tag
+ */
+router.delete('/tags/:tagId', authenticate, asyncHandler(async (req, res) => {
+  const { tagId } = req.params;
+  const result = await customerService.deleteTag(tagId);
+
+  if (!result) {
+    throw ApiError.notFound('Tag');
+  }
+
+  res.success(null, { message: 'Tag deleted successfully' });
+}));
+
+/**
+ * GET /api/customers/by-tag/:tagId
+ * Get customers by tag
+ */
+router.get('/by-tag/:tagId', authenticate, asyncHandler(async (req, res) => {
+  const { tagId } = req.params;
+  const { limit = 50, offset = 0, search } = req.query;
+
+  const result = await customerService.getCustomersByTag(tagId, {
+    limit: parseInt(limit),
+    offset: parseInt(offset),
+    search
+  });
+
+  res.success(result);
+}));
+
+/**
+ * POST /api/customers/tags/bulk-assign
+ * Bulk assign a tag to multiple customers
+ */
+router.post('/tags/bulk-assign', authenticate, asyncHandler(async (req, res) => {
+  const { customerIds, tagId } = req.body;
+
+  if (!customerIds || !Array.isArray(customerIds) || customerIds.length === 0) {
+    throw ApiError.validation('customerIds array is required');
+  }
+
+  if (!tagId) {
+    throw ApiError.validation('tagId is required');
+  }
+
+  const result = await customerService.bulkAddTag(customerIds, tagId, req.user?.id);
+  res.success(result);
+}));
+
+/**
+ * GET /api/customers/:id/tags
+ * Get tags for a specific customer
+ */
+router.get('/:id/tags', authenticate, asyncHandler(async (req, res) => {
+  const { id } = req.params;
+  const tags = await customerService.getCustomerTags(id);
+  res.success(tags);
+}));
+
+/**
+ * POST /api/customers/:id/tags/:tagId
+ * Add a tag to a customer
+ */
+router.post('/:id/tags/:tagId', authenticate, asyncHandler(async (req, res) => {
+  const { id, tagId } = req.params;
+
+  const result = await customerService.addTagToCustomer(id, tagId, req.user?.id);
+
+  if (!result) {
+    throw ApiError.badRequest('Failed to add tag - customer or tag not found');
+  }
+
+  res.created(result);
+}));
+
+/**
+ * DELETE /api/customers/:id/tags/:tagId
+ * Remove a tag from a customer
+ */
+router.delete('/:id/tags/:tagId', authenticate, asyncHandler(async (req, res) => {
+  const { id, tagId } = req.params;
+
+  const result = await customerService.removeTagFromCustomer(id, tagId);
+
+  if (!result) {
+    throw ApiError.notFound('Tag assignment');
+  }
+
+  res.success(null, { message: 'Tag removed successfully' });
+}));
+
 module.exports = { router, init };
