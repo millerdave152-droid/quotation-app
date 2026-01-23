@@ -14,7 +14,7 @@ import {
 } from './hooks/useLeads';
 import { useToast } from '../ui/Toast';
 import { useNavigate } from 'react-router-dom';
-import api from '../../services/api';
+import { api } from '../../services/apiClient';
 
 function AIHelperPanel({ leadId, lead, onUpdate }) {
   const toast = useToast();

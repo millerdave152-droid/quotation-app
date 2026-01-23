@@ -8,7 +8,7 @@ import LeadStatusBadge from './LeadStatusBadge';
 import LeadPriorityBadge from './LeadPriorityBadge';
 import { updateLeadStatus } from './hooks/useLeads';
 import { useToast } from '../ui/Toast';
-import api from '../../services/api';
+import { api } from '../../services/apiClient';
 
 function LeadList({
   leads,
