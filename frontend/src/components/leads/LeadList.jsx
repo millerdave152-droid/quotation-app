@@ -141,7 +141,7 @@ function LeadList({
   const handleQuickCall = async (data) => {
     setQuickActionLoading(true);
     try {
-      await api.post(`/leads/${quickActionModal.lead.id}/quick-actions/call`, data);
+      await api.post(`/api/leads/${quickActionModal.lead.id}/quick-actions/call`, data);
       toast.success('Call logged successfully');
       closeQuickAction();
       onRefresh();
@@ -155,7 +155,7 @@ function LeadList({
   const handleQuickNote = async (data) => {
     setQuickActionLoading(true);
     try {
-      await api.post(`/leads/${quickActionModal.lead.id}/quick-actions/note`, data);
+      await api.post(`/api/leads/${quickActionModal.lead.id}/quick-actions/note`, data);
       toast.success('Note added successfully');
       closeQuickAction();
       onRefresh();
@@ -169,7 +169,7 @@ function LeadList({
   const handleQuickEmail = async (data) => {
     setQuickActionLoading(true);
     try {
-      await api.post(`/leads/${quickActionModal.lead.id}/quick-actions/email`, data);
+      await api.post(`/api/leads/${quickActionModal.lead.id}/quick-actions/email`, data);
       toast.success('Email logged successfully');
       closeQuickAction();
       onRefresh();
@@ -189,7 +189,7 @@ function LeadList({
       if (status === 'lost' && lostReason) {
         payload.lost_reason = lostReason;
       }
-      await api.put(`/leads/${lead.id}/quick-actions/status`, payload);
+      await api.put(`/api/leads/${lead.id}/quick-actions/status`, payload);
       toast.success(`Status updated to ${status}`);
       closeQuickAction();
       onRefresh();
@@ -203,7 +203,7 @@ function LeadList({
   const handleQuickFollowUp = async (data) => {
     setQuickActionLoading(true);
     try {
-      await api.put(`/leads/${quickActionModal.lead.id}/quick-actions/follow-up`, data);
+      await api.put(`/api/leads/${quickActionModal.lead.id}/quick-actions/follow-up`, data);
       toast.success('Follow-up scheduled');
       closeQuickAction();
       onRefresh();
