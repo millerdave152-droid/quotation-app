@@ -272,16 +272,22 @@ const EmailQuoteModal = ({
   if (!isOpen) return null;
 
   return (
-    <div style={{
-      position: 'fixed',
-      inset: 0,
-      background: 'rgba(0,0,0,0.5)',
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'center',
-      zIndex: 1000,
-      padding: '20px'
-    }}>
+    <div
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="email-modal-title"
+      aria-describedby="email-modal-description"
+      style={{
+        position: 'fixed',
+        inset: 0,
+        background: 'rgba(0,0,0,0.5)',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        zIndex: 1000,
+        padding: '20px'
+      }}
+    >
       <div style={{
         background: 'white',
         borderRadius: '12px',
@@ -303,15 +309,16 @@ const EmailQuoteModal = ({
           alignItems: 'center'
         }}>
           <div>
-            <h2 style={{ margin: 0, fontSize: '20px', fontWeight: 'bold' }}>
+            <h2 id="email-modal-title" style={{ margin: 0, fontSize: '20px', fontWeight: 'bold' }}>
               Send Quote via Email
             </h2>
-            <p style={{ margin: '4px 0 0', opacity: 0.9, fontSize: '14px' }}>
+            <p id="email-modal-description" style={{ margin: '4px 0 0', opacity: 0.9, fontSize: '14px' }}>
               Quote #{quote?.quote_number || quote?.id}
             </p>
           </div>
           <button
             onClick={onClose}
+            aria-label="Close email modal"
             style={{
               background: 'rgba(255,255,255,0.2)',
               border: 'none',
@@ -326,7 +333,7 @@ const EmailQuoteModal = ({
               justifyContent: 'center'
             }}
           >
-            x
+            <span aria-hidden="true">x</span>
           </button>
         </div>
 
@@ -343,12 +350,14 @@ const EmailQuoteModal = ({
           <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
             {/* Template Selector */}
             <div>
-              <label style={{ display: 'block', marginBottom: '6px', fontWeight: '600', color: '#374151' }}>
+              <label htmlFor="email-template" style={{ display: 'block', marginBottom: '6px', fontWeight: '600', color: '#374151' }}>
                 Email Template
               </label>
               <select
+                id="email-template"
                 value={selectedTemplate}
                 onChange={(e) => setSelectedTemplate(e.target.value)}
+                aria-describedby="template-help"
                 style={{
                   width: '100%',
                   padding: '10px 12px',
@@ -366,14 +375,17 @@ const EmailQuoteModal = ({
 
             {/* Recipient */}
             <div>
-              <label style={{ display: 'block', marginBottom: '6px', fontWeight: '600', color: '#374151' }}>
-                To *
+              <label htmlFor="recipient-email" style={{ display: 'block', marginBottom: '6px', fontWeight: '600', color: '#374151' }}>
+                To <span aria-hidden="true">*</span><span className="sr-only">(required)</span>
               </label>
               <input
+                id="recipient-email"
                 type="email"
                 value={recipientEmail}
                 onChange={(e) => setRecipientEmail(e.target.value)}
                 placeholder="customer@example.com"
+                required
+                aria-required="true"
                 style={{
                   width: '100%',
                   padding: '10px 12px',
@@ -387,14 +399,16 @@ const EmailQuoteModal = ({
 
             {/* CC */}
             <div>
-              <label style={{ display: 'block', marginBottom: '6px', fontWeight: '600', color: '#374151' }}>
+              <label htmlFor="cc-emails" style={{ display: 'block', marginBottom: '6px', fontWeight: '600', color: '#374151' }}>
                 CC (optional)
               </label>
               <input
+                id="cc-emails"
                 type="text"
                 value={ccEmails}
                 onChange={(e) => setCcEmails(e.target.value)}
                 placeholder="email1@example.com, email2@example.com"
+                aria-describedby="cc-help"
                 style={{
                   width: '100%',
                   padding: '10px 12px',
@@ -408,13 +422,16 @@ const EmailQuoteModal = ({
 
             {/* Subject */}
             <div>
-              <label style={{ display: 'block', marginBottom: '6px', fontWeight: '600', color: '#374151' }}>
-                Subject *
+              <label htmlFor="email-subject" style={{ display: 'block', marginBottom: '6px', fontWeight: '600', color: '#374151' }}>
+                Subject <span aria-hidden="true">*</span><span className="sr-only">(required)</span>
               </label>
               <input
+                id="email-subject"
                 type="text"
                 value={subject}
                 onChange={(e) => setSubject(e.target.value)}
+                required
+                aria-required="true"
                 style={{
                   width: '100%',
                   padding: '10px 12px',
@@ -428,13 +445,15 @@ const EmailQuoteModal = ({
 
             {/* Message */}
             <div style={{ flex: 1 }}>
-              <label style={{ display: 'block', marginBottom: '6px', fontWeight: '600', color: '#374151' }}>
+              <label htmlFor="email-message" style={{ display: 'block', marginBottom: '6px', fontWeight: '600', color: '#374151' }}>
                 Message
               </label>
               <textarea
+                id="email-message"
                 value={message}
                 onChange={(e) => setMessage(e.target.value)}
                 rows={10}
+                aria-describedby="merge-fields-help"
                 style={{
                   width: '100%',
                   padding: '12px',
@@ -450,14 +469,17 @@ const EmailQuoteModal = ({
             </div>
 
             {/* Merge Fields Help */}
-            <div style={{
-              background: '#f0f9ff',
-              border: '1px solid #bae6fd',
-              borderRadius: '8px',
-              padding: '12px',
-              fontSize: '12px',
-              color: '#0369a1'
-            }}>
+            <div
+              id="merge-fields-help"
+              style={{
+                background: '#f0f9ff',
+                border: '1px solid #bae6fd',
+                borderRadius: '8px',
+                padding: '12px',
+                fontSize: '12px',
+                color: '#0369a1'
+              }}
+            >
               <strong>Available merge fields:</strong><br/>
               {'{customer_name}'}, {'{quote_number}'}, {'{total_amount}'}, {'{expiry_date}'}, {'{company_name}'}, {'{sales_rep_name}'}
             </div>
@@ -495,6 +517,7 @@ const EmailQuoteModal = ({
               </div>
               <button
                 onClick={handlePreviewPDF}
+                aria-label="Preview PDF attachment in new window"
                 style={{
                   padding: '8px 16px',
                   background: 'white',
@@ -530,16 +553,22 @@ const EmailQuoteModal = ({
         </div>
 
         {/* Footer Actions */}
-        <div style={{
-          borderTop: '1px solid #e5e7eb',
-          padding: '16px 24px',
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-          background: '#f9fafb'
-        }}>
+        <div
+          style={{
+            borderTop: '1px solid #e5e7eb',
+            padding: '16px 24px',
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            background: '#f9fafb'
+          }}
+          role="group"
+          aria-label="Email actions"
+        >
           <button
             onClick={() => setPreviewMode(!previewMode)}
+            aria-expanded={previewMode}
+            aria-controls="email-preview-section"
             style={{
               padding: '10px 20px',
               background: 'white',
@@ -557,6 +586,7 @@ const EmailQuoteModal = ({
             <button
               onClick={onClose}
               disabled={sending}
+              aria-label="Cancel and close"
               style={{
                 padding: '10px 24px',
                 background: 'white',
@@ -572,6 +602,8 @@ const EmailQuoteModal = ({
             <button
               onClick={handleSendEmail}
               disabled={sending || !recipientEmail || !subject}
+              aria-busy={sending}
+              aria-label={sending ? 'Sending email...' : 'Send email'}
               style={{
                 padding: '10px 32px',
                 background: sending ? '#9ca3af' : '#3b82f6',
@@ -588,14 +620,17 @@ const EmailQuoteModal = ({
             >
               {sending ? (
                 <>
-                  <span style={{
-                    width: '16px',
-                    height: '16px',
-                    border: '2px solid white',
-                    borderTopColor: 'transparent',
-                    borderRadius: '50%',
-                    animation: 'spin 1s linear infinite'
-                  }} />
+                  <span
+                    style={{
+                      width: '16px',
+                      height: '16px',
+                      border: '2px solid white',
+                      borderTopColor: 'transparent',
+                      borderRadius: '50%',
+                      animation: 'spin 1s linear infinite'
+                    }}
+                    aria-hidden="true"
+                  />
                   Sending...
                 </>
               ) : (

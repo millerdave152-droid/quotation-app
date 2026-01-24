@@ -240,6 +240,12 @@ export const useQuotationState = () => {
   }, []);
 
   const fetchQuoteEvents = useCallback(async (quoteId) => {
+    // Validate quoteId before making API call
+    if (!quoteId || quoteId === 'undefined') {
+      setQuoteEvents([]);
+      return;
+    }
+
     try {
       const res = await fetch(`${API_URL}/api/quotations/${quoteId}/events`);
       const data = await res.json();
@@ -326,6 +332,12 @@ export const useQuotationState = () => {
   }, [resetBuilder]);
 
   const editQuote = useCallback(async (quote) => {
+    // Validate quote has an ID
+    if (!quote?.id) {
+      logger.error('Cannot edit quote: No quote ID provided');
+      return;
+    }
+
     try {
       const res = await fetch(`${API_URL}/api/quotations/${quote.id}`);
       const fullQuote = await res.json();
@@ -353,6 +365,12 @@ export const useQuotationState = () => {
   }, [customers]);
 
   const viewQuote = useCallback(async (quote) => {
+    // Validate quote has an ID
+    if (!quote?.id) {
+      logger.error('Cannot view quote: No quote ID provided');
+      return;
+    }
+
     try {
       const res = await fetch(`${API_URL}/api/quotations/${quote.id}`);
       const fullQuote = await res.json();
@@ -365,6 +383,12 @@ export const useQuotationState = () => {
   }, [fetchQuoteEvents]);
 
   const deleteQuote = useCallback(async (quoteId) => {
+    // Validate quoteId
+    if (!quoteId || quoteId === 'undefined') {
+      logger.error('Cannot delete quote: No quote ID provided');
+      return;
+    }
+
     if (!window.confirm('Are you sure you want to delete this quotation?')) return;
 
     try {

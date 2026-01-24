@@ -29,6 +29,10 @@ const { init: initProductRoutes } = require('./routes/products');
 const { init: initAnalyticsRoutes } = require('./routes/analytics');
 const { init: initQuotesRoutes } = require('./routes/quotes');
 const { init: initImportTemplateRoutes } = require('./routes/importTemplates');
+const { init: initNomenclatureRoutes } = require('./routes/nomenclature');
+const { init: initInsightsRoutes } = require('./routes/insights');
+const { init: initReportsRoutes } = require('./routes/reports');
+const { init: initLeadsRoutes } = require('./routes/leads');
 
 // Standardized API response utilities
 const { attachResponseHelpers } = require('./utils/apiResponse');
@@ -67,6 +71,12 @@ const product3dRoutes = require('./routes/product3d');
 
 // Vendor Product Visualization & Scraper
 const vendorProductsRoutes = require('./routes/vendorProducts');
+
+// Quick Search (Universal Product Finder)
+const quickSearchRoutes = require('./routes/quickSearch');
+
+// Lookup service (cities, postal codes, names autocomplete)
+const lookupRoutes = require('./routes/lookup');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -151,8 +161,84 @@ const sesClient = new SESv2Client({
 });
 
 // ============================================
-// HEALTH CHECK
+// HEALTH CHECK ENDPOINTS
 // ============================================
+
+/**
+ * GET /health - Full health check with DB and cache status
+ * Use for monitoring dashboards and alerting
+ */
+app.get('/health', async (req, res) => {
+  const startTime = Date.now();
+  const health = {
+    status: 'OK',
+    timestamp: new Date().toISOString(),
+    uptime: process.uptime(),
+    environment: process.env.NODE_ENV || 'development',
+    version: '2.0.0',
+    checks: {
+      database: { status: 'unknown' },
+      cache: { status: 'unknown' }
+    }
+  };
+
+  // Check database connection
+  try {
+    const dbStart = Date.now();
+    await pool.query('SELECT 1');
+    health.checks.database = {
+      status: 'healthy',
+      responseTime: Date.now() - dbStart
+    };
+  } catch (error) {
+    health.status = 'DEGRADED';
+    health.checks.database = {
+      status: 'unhealthy',
+      error: error.message
+    };
+  }
+
+  // Check cache status
+  try {
+    const cacheStats = cache.getStats();
+    health.checks.cache = {
+      status: 'healthy',
+      stats: {
+        short: { hits: cacheStats.short.hits, misses: cacheStats.short.misses },
+        medium: { hits: cacheStats.medium.hits, misses: cacheStats.medium.misses },
+        long: { hits: cacheStats.long.hits, misses: cacheStats.long.misses }
+      }
+    };
+  } catch (error) {
+    health.checks.cache = {
+      status: 'unhealthy',
+      error: error.message
+    };
+  }
+
+  health.responseTime = Date.now() - startTime;
+
+  const statusCode = health.status === 'OK' ? 200 : 503;
+  res.status(statusCode).json(health);
+});
+
+/**
+ * GET /ready - Kubernetes readiness probe
+ * Returns 200 only if the service is ready to accept traffic
+ */
+app.get('/ready', async (req, res) => {
+  try {
+    // Quick database check
+    await pool.query('SELECT 1');
+    res.status(200).json({ ready: true });
+  } catch (error) {
+    res.status(503).json({ ready: false, error: 'Database not available' });
+  }
+});
+
+/**
+ * GET /api/health - Legacy health endpoint (for backward compatibility)
+ */
 app.get('/api/health', (req, res) => {
   res.success({
     status: 'OK',
@@ -217,6 +303,12 @@ app.use('/api/customers', initCustomerRoutes({ pool, cache }));
 console.log('✅ Customer routes loaded (modular)');
 
 // ============================================
+// LOOKUP SERVICE (Cities, Postal Codes, Names)
+// ============================================
+app.use('/api/lookup', lookupRoutes);
+console.log('✅ Lookup routes loaded');
+
+// ============================================
 // PRODUCT MANAGEMENT (Modular)
 // ============================================
 app.use('/api/products', initProductRoutes({ pool, cache, upload }));
@@ -242,6 +334,59 @@ console.log('✅ Import template routes loaded');
 // ============================================
 app.use('/api/analytics', initAnalyticsRoutes({ pool }));
 console.log('✅ Analytics routes loaded (modular)');
+
+// ============================================
+// UNIFIED DASHBOARD (Sales Pipeline)
+// ============================================
+const { init: initDashboardRoutes } = require('./routes/dashboard');
+app.use('/api/dashboard', initDashboardRoutes({ pool, cache }));
+console.log('✅ Unified dashboard routes loaded (sales pipeline)');
+
+// ============================================
+// INSIGHTS (AI-Powered Business Insights)
+// ============================================
+app.use('/api/insights', initInsightsRoutes({ pool }));
+console.log('✅ Insights routes loaded (AI-powered business insights)');
+
+// ============================================
+// REPORTS (Report Builder & Scheduling)
+// ============================================
+app.use('/api/reports', initReportsRoutes({ pool }));
+console.log('✅ Reports routes loaded (report builder & scheduling)');
+
+// ============================================
+// LEADS / INQUIRY CAPTURE
+// ============================================
+app.use('/api/leads', initLeadsRoutes({ pool, cache }));
+console.log('✅ Leads routes loaded (inquiry capture system)');
+
+// ============================================
+// TASKS / FOLLOW-UP SCHEDULING
+// ============================================
+const { init: initTasksRoutes } = require('./routes/tasks');
+app.use('/api/tasks', initTasksRoutes({ pool, cache }));
+console.log('✅ Tasks routes loaded (follow-up scheduling)');
+
+// ============================================
+// CUSTOMER PORTAL SELF-SERVICE
+// ============================================
+const { init: initCustomerPortalRoutes } = require('./routes/customer-portal');
+app.use('/api/customer-portal', initCustomerPortalRoutes({ pool, cache }));
+console.log('✅ Customer portal routes loaded (self-service)');
+
+// ============================================
+// WEBHOOKS INTEGRATION SYSTEM
+// ============================================
+const { init: initWebhooksRoutes, getService: getWebhookService } = require('./routes/webhooks');
+app.use('/api/webhooks', initWebhooksRoutes({ pool, cache }));
+console.log('✅ Webhooks routes loaded (integrations)');
+
+// ============================================
+// DATA QUALITY TOOLS
+// ============================================
+const { init: initDataQualityRoutes } = require('./routes/data-quality');
+app.use('/api/data-quality', initDataQualityRoutes({ pool, cache }));
+console.log('✅ Data quality routes loaded');
 
 // ============================================
 // QUOTATIONS (Modular)
@@ -281,6 +426,13 @@ console.log('✅ Package builder routes loaded');
 const packageBuilderV2Routes = require('./routes/packageBuilderV2');
 app.use('/api/package-builder-v2', packageBuilderV2Routes);
 console.log('✅ Package builder V2 routes loaded');
+
+// ============================================
+// MANUFACTURER PROMOTIONS (Bundle Savings, Gifts, Guarantees)
+// ============================================
+const { init: initManufacturerPromotionsRoutes } = require('./routes/manufacturerPromotions');
+app.use('/api/promotions/manufacturer', initManufacturerPromotionsRoutes({ pool }));
+console.log('✅ Manufacturer promotions routes loaded');
 
 // ============================================
 // EMAIL ENDPOINTS (PHASE 5)
@@ -816,7 +968,7 @@ console.log('✅ Quote template endpoints loaded');
 // ============================================
 
 // Request approval for a quotation
-app.post('/api/quotations/:id/request-approval', async (req, res) => {
+app.post('/api/quotations/:id/request-approval', authenticate, async (req, res) => {
   try {
     const { id } = req.params;
     const { requested_by, requested_by_email, approver_name, approver_email, comments } = req.body;
@@ -937,7 +1089,7 @@ app.post('/api/quotations/:id/request-approval', async (req, res) => {
 });
 
 // Get approval history for a quotation
-app.get('/api/quotations/:id/approvals', async (req, res) => {
+app.get('/api/quotations/:id/approvals', authenticate, async (req, res) => {
   try {
     const { id } = req.params;
     const result = await pool.query(
@@ -951,8 +1103,34 @@ app.get('/api/quotations/:id/approvals', async (req, res) => {
   }
 });
 
+// Get approval rules summary for a quotation (shows if approval needed and user permissions)
+app.get('/api/quotations/:id/approval-summary', authenticate, async (req, res) => {
+  const ApprovalRulesService = require('./services/ApprovalRulesService');
+
+  try {
+    const { id } = req.params;
+
+    const quoteResult = await pool.query(
+      `SELECT * FROM quotations WHERE id = $1`,
+      [id]
+    );
+
+    if (quoteResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Quote not found' });
+    }
+
+    const quote = quoteResult.rows[0];
+    const summary = ApprovalRulesService.getApprovalSummary(quote, req.user);
+
+    res.json(summary);
+  } catch (error) {
+    console.error('Error getting approval summary:', error);
+    res.status(500).json({ error: 'Failed to fetch approvals' });
+  }
+});
+
 // Get all pending approvals
-app.get('/api/approvals/pending', async (req, res) => {
+app.get('/api/approvals/pending', authenticate, async (req, res) => {
   try {
     const { approver_email } = req.query;
 
@@ -987,28 +1165,48 @@ app.get('/api/approvals/pending', async (req, res) => {
 });
 
 // Approve a quote
-app.post('/api/approvals/:id/approve', async (req, res) => {
+app.post('/api/approvals/:id/approve', authenticate, async (req, res) => {
+  const ApprovalRulesService = require('./services/ApprovalRulesService');
+
   try {
     const { id } = req.params;
     const { comments } = req.body;
 
-    // Update approval record
-    const result = await pool.query(`
-      UPDATE quote_approvals
-      SET status = 'APPROVED', comments = COALESCE($1, comments), reviewed_at = CURRENT_TIMESTAMP
-      WHERE id = $2 RETURNING *
-    `, [comments, id]);
+    // Get approval request
+    const approvalResult = await pool.query(
+      `SELECT qa.*, q.total_cents FROM quote_approvals qa
+       LEFT JOIN quotations q ON qa.quotation_id = q.id
+       WHERE qa.id = $1`,
+      [id]
+    );
 
-    if (result.rows.length === 0) {
+    if (approvalResult.rows.length === 0) {
       return res.status(404).json({ error: 'Approval request not found' });
     }
 
-    const approval = result.rows[0];
+    const approval = approvalResult.rows[0];
 
-    // Update quote status to APPROVED
+    // NEW: Role enforcement - check if user can approve this quote
+    const canApprove = ApprovalRulesService.canApprove(req.user, approval);
+    if (!canApprove.canApprove) {
+      return res.status(403).json({
+        error: 'Not authorized to approve this quote',
+        reason: canApprove.reason
+      });
+    }
+
+    // Update approval record
+    const result = await pool.query(`
+      UPDATE quote_approvals
+      SET status = 'APPROVED', comments = COALESCE($1, comments), reviewed_at = CURRENT_TIMESTAMP,
+          approver_name = $3, approver_email = $4
+      WHERE id = $2 RETURNING *
+    `, [comments, id, `${req.user.firstName} ${req.user.lastName}`, req.user.email]);
+
+    // Update quote status to APPROVED with audit fields
     await pool.query(
-      `UPDATE quotations SET status = 'APPROVED' WHERE id = $1`,
-      [approval.quotation_id]
+      `UPDATE quotations SET status = 'APPROVED', approved_at = CURRENT_TIMESTAMP, approved_by = $2 WHERE id = $1`,
+      [approval.quotation_id, req.user.id]
     );
 
     // Add event to timeline
@@ -1078,7 +1276,9 @@ app.post('/api/approvals/:id/approve', async (req, res) => {
 });
 
 // Reject a quote
-app.post('/api/approvals/:id/reject', async (req, res) => {
+app.post('/api/approvals/:id/reject', authenticate, async (req, res) => {
+  const ApprovalRulesService = require('./services/ApprovalRulesService');
+
   try {
     const { id } = req.params;
     const { comments } = req.body;
@@ -1087,23 +1287,41 @@ app.post('/api/approvals/:id/reject', async (req, res) => {
       return res.status(400).json({ error: 'Comments are required when rejecting a quote' });
     }
 
-    // Update approval record
-    const result = await pool.query(`
-      UPDATE quote_approvals
-      SET status = 'REJECTED', comments = $1, reviewed_at = CURRENT_TIMESTAMP
-      WHERE id = $2 RETURNING *
-    `, [comments, id]);
+    // Get approval request
+    const approvalResult = await pool.query(
+      `SELECT qa.*, q.total_cents FROM quote_approvals qa
+       LEFT JOIN quotations q ON qa.quotation_id = q.id
+       WHERE qa.id = $1`,
+      [id]
+    );
 
-    if (result.rows.length === 0) {
+    if (approvalResult.rows.length === 0) {
       return res.status(404).json({ error: 'Approval request not found' });
     }
 
-    const approval = result.rows[0];
+    const approval = approvalResult.rows[0];
 
-    // Update quote status to REJECTED
+    // NEW: Role enforcement - check if user can reject this quote
+    const canReject = ApprovalRulesService.canReject(req.user);
+    if (!canReject.canReject) {
+      return res.status(403).json({
+        error: 'Not authorized to reject this quote',
+        reason: canReject.reason
+      });
+    }
+
+    // Update approval record
+    const result = await pool.query(`
+      UPDATE quote_approvals
+      SET status = 'REJECTED', comments = $1, reviewed_at = CURRENT_TIMESTAMP,
+          approver_name = $3, approver_email = $4
+      WHERE id = $2 RETURNING *
+    `, [comments, id, `${req.user.firstName} ${req.user.lastName}`, req.user.email]);
+
+    // Update quote status to REJECTED with audit fields
     await pool.query(
-      `UPDATE quotations SET status = 'REJECTED' WHERE id = $1`,
-      [approval.quotation_id]
+      `UPDATE quotations SET status = 'REJECTED', rejected_at = CURRENT_TIMESTAMP, rejected_by = $2, rejected_reason = $3 WHERE id = $1`,
+      [approval.quotation_id, req.user.id, comments]
     );
 
     // Add event to timeline
@@ -2101,7 +2319,13 @@ console.log('✅ Advanced pricing routes loaded');
 // ============================================
 // AI PERSONALIZATION (Dynamic Pricing, Upselling, Suggestions)
 // ============================================
-app.use('/api/ai', aiPersonalizationRoutes);
+// Handle both old and new export formats
+const aiRouter = aiPersonalizationRoutes.router || aiPersonalizationRoutes;
+app.use('/api/ai', aiRouter);
+// Initialize AI Quote Builder service if available
+if (aiPersonalizationRoutes.initQuoteBuilderService) {
+  aiPersonalizationRoutes.initQuoteBuilderService(pool, cache);
+}
 console.log('✅ AI personalization routes loaded');
 
 // 3D PRODUCT CONFIGURATOR
@@ -2114,6 +2338,48 @@ console.log('✅ 3D product configurator routes loaded');
 // ============================================
 vendorProductsRoutes(app);
 console.log('✅ Vendor product visualization routes loaded');
+
+// ============================================
+// CHURN ALERTS (Automated Email Alerts for High Churn Risk Customers)
+// ============================================
+const churnAlertsRoutes = require('./routes/churnAlerts');
+const churnAlertJob = require('./jobs/churnAlertJob');
+app.use('/api/churn-alerts', churnAlertsRoutes);
+console.log('✅ Churn alerts routes loaded');
+
+// ============================================
+// PURCHASING INTELLIGENCE (AI-Powered Purchasing Recommendations)
+// ============================================
+const purchasingIntelligenceRoutes = require('./routes/purchasingIntelligence');
+const purchasingIntelligenceJob = require('./jobs/purchasingIntelligenceJob');
+app.use('/api/purchasing-intelligence', purchasingIntelligenceRoutes);
+console.log('✅ Purchasing intelligence routes loaded');
+
+// ============================================
+// NOMENCLATURE SCRAPER SCHEDULED JOB
+// ============================================
+const nomenclatureScraperJob = require('./jobs/nomenclatureScraperJob');
+nomenclatureScraperJob.init(pool);
+console.log('✅ Nomenclature scraper job initialized');
+
+// ============================================
+// MODEL NOMENCLATURE DECODER & TRAINING
+// ============================================
+app.use('/api/nomenclature', initNomenclatureRoutes({ pool, cache }));
+console.log('✅ Nomenclature decoder routes loaded');
+
+// ============================================
+// QUICK SEARCH (Universal Product Finder)
+// ============================================
+app.use('/api/quick-search', quickSearchRoutes(pool, cache));
+console.log('✅ Quick Search routes loaded');
+
+// ============================================
+// ADMIN ROUTES (Email Queue Monitoring)
+// ============================================
+const adminRoutes = require('./routes/admin');
+app.use('/api/admin', adminRoutes);
+console.log('✅ Admin routes loaded (email monitoring, queue management)');
 
 // ============================================
 // ERROR HANDLING MIDDLEWARE
@@ -2141,6 +2407,31 @@ const server = app.listen(PORT, () => {
   // Start notification scheduler for automated email reminders
   if (process.env.ENABLE_EMAIL_NOTIFICATIONS !== 'false') {
     notificationScheduler.start();
+  }
+
+  // Start email queue processor for reliable email delivery
+  if (process.env.ENABLE_EMAIL_QUEUE !== 'false') {
+    const EmailQueueService = require('./services/EmailQueueService');
+    EmailQueueService.start(process.env.EMAIL_QUEUE_SCHEDULE || '*/2 * * * *');
+    console.log('✅ Email queue processor started');
+  }
+
+  // Start churn alert scheduler for daily high churn risk notifications
+  if (process.env.ENABLE_CHURN_ALERTS !== 'false') {
+    churnAlertJob.startScheduler(process.env.CHURN_ALERT_SCHEDULE || '0 9 * * *');
+    console.log('✅ Churn alert scheduler started');
+  }
+
+  // Start purchasing intelligence scheduler for daily/weekly analysis
+  if (process.env.ENABLE_PURCHASING_INTELLIGENCE !== 'false') {
+    purchasingIntelligenceJob.startScheduler();
+    console.log('✅ Purchasing intelligence scheduler started (Daily 6AM, Weekly Monday 6AM)');
+  }
+
+  // Start nomenclature scraper scheduler for weekly nomenclature updates
+  if (process.env.ENABLE_NOMENCLATURE_SCRAPER !== 'false') {
+    nomenclatureScraperJob.startSchedule(process.env.NOMENCLATURE_SCRAPE_SCHEDULE || '0 2 * * 0');
+    console.log('✅ Nomenclature scraper scheduler started (Weekly Sunday 2 AM)');
   }
 });
 

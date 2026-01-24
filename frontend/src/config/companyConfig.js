@@ -65,12 +65,12 @@ const companyConfig = {
   ],
 
   // Logo (base64 or URL)
-  // Teletime logo imported from assets
+  // Teletime logo imported from assets (4K version)
   logo: {
     base64: process.env.REACT_APP_LOGO_BASE64 || TELETIME_LOGO,
     url: process.env.REACT_APP_LOGO_URL || null,
-    width: 35, // mm - wider for Teletime logo
-    height: 24 // mm
+    width: 45, // mm - wider for full Teletime logo with tagline
+    height: 28 // mm - taller to show tagline
   },
 
   // PDF Branding Colors - Teletime brand colors

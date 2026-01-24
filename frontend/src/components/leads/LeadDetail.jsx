@@ -1,0 +1,874 @@
+/**
+ * LeadDetail - Detailed view of a single lead
+ */
+
+import React, { useState } from 'react';
+import LeadStatusBadge from './LeadStatusBadge';
+import LeadPriorityBadge from './LeadPriorityBadge';
+import LeadTimeline from './LeadTimeline';
+import AIHelperPanel from './AIHelperPanel';
+import ConvertToQuoteModal from './ConvertToQuoteModal';
+import { useLead, updateLeadStatus, addLeadActivity, deleteLead } from './hooks/useLeads';
+import { useToast } from '../ui/Toast';
+import { useConfirmDialog } from '../ui/ConfirmDialog';
+
+function LeadDetail({ leadId, onEdit, onUpdate, onClose }) {
+  const toast = useToast();
+  const { confirm, DialogComponent } = useConfirmDialog();
+  const { lead, loading, error, refresh } = useLead(leadId);
+  const [showConvertModal, setShowConvertModal] = useState(false);
+  const [showAddNote, setShowAddNote] = useState(false);
+  const [noteText, setNoteText] = useState('');
+  const [statusUpdating, setStatusUpdating] = useState(false);
+  const [showLostReasonModal, setShowLostReasonModal] = useState(false);
+
+  const formatDate = (dateStr) => {
+    if (!dateStr) return '-';
+    return new Date(dateStr).toLocaleDateString('en-CA', {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric'
+    });
+  };
+
+  const formatDateTime = (dateStr) => {
+    if (!dateStr) return '-';
+    return new Date(dateStr).toLocaleString('en-CA', {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    });
+  };
+
+  const handleStatusChange = async (newStatus) => {
+    if (newStatus === lead.status) return;
+
+    // If marking as lost, show the lost reason modal
+    if (newStatus === 'lost') {
+      setShowLostReasonModal(true);
+      return;
+    }
+
+    await performStatusUpdate(newStatus, null);
+  };
+
+  const performStatusUpdate = async (newStatus, lostReason) => {
+    setStatusUpdating(true);
+    try {
+      await updateLeadStatus(leadId, newStatus, lostReason);
+      refresh();
+      onUpdate();
+      toast.success(`Status updated to ${newStatus}`);
+    } catch (error) {
+      toast.error(error.message);
+    } finally {
+      setStatusUpdating(false);
+    }
+  };
+
+  const handleLostReasonSubmit = async (reason) => {
+    setShowLostReasonModal(false);
+    await performStatusUpdate('lost', reason);
+  };
+
+  const handleAddNote = async () => {
+    if (!noteText.trim()) return;
+
+    try {
+      await addLeadActivity(leadId, 'note', noteText);
+      setNoteText('');
+      setShowAddNote(false);
+      refresh();
+      toast.success('Note added');
+    } catch (error) {
+      toast.error(error.message);
+    }
+  };
+
+  const handleDelete = async () => {
+    const confirmed = await confirm({
+      title: 'Delete Lead',
+      message: `Are you sure you want to delete lead ${lead.lead_number}? This action cannot be undone.`,
+      confirmText: 'Delete',
+      danger: true
+    });
+
+    if (confirmed) {
+      try {
+        await deleteLead(leadId);
+        onUpdate();
+        onClose();
+        toast.success('Lead deleted');
+      } catch (error) {
+        toast.error(error.message);
+      }
+    }
+  };
+
+  const handleConvertSuccess = (result) => {
+    setShowConvertModal(false);
+    refresh();
+    onUpdate();
+    toast.success(`Created quote ${result.quotation.quote_number}`);
+  };
+
+  if (loading) {
+    return (
+      <div className="lead-detail">
+        <div className="loading-state">
+          <div className="loading-spinner"></div>
+          <p>Loading lead details...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (error || !lead) {
+    return (
+      <div className="lead-detail">
+        <div className="empty-state">
+          <div className="empty-state-title">Lead Not Found</div>
+          <p className="empty-state-description">{error || 'The lead could not be loaded.'}</p>
+          <button className="btn btn-primary" onClick={onClose}>Go Back</button>
+        </div>
+      </div>
+    );
+  }
+
+  const reasonLabels = {
+    browsing: 'Browsing / Exploring',
+    researching: 'Researching',
+    moving: 'Moving to New Home',
+    renovation: 'Renovation',
+    replacement: 'Replacing Existing',
+    upgrade: 'Upgrading',
+    builder_project: 'Builder Project',
+    other: 'Other'
+  };
+
+  const timelineLabels = {
+    asap: 'ASAP',
+    '1_2_weeks': '1-2 Weeks',
+    '1_3_months': '1-3 Months',
+    '3_6_months': '3-6 Months',
+    just_researching: 'Just Researching'
+  };
+
+  const sourceLabels = {
+    walk_in: 'Walk-in',
+    phone: 'Phone Call',
+    website: 'Website',
+    referral: 'Referral',
+    realtor: 'Realtor',
+    builder: 'Builder/Contractor',
+    social_media: 'Social Media',
+    other: 'Other'
+  };
+
+  return (
+    <div className="lead-detail">
+      <div className="lead-detail-header">
+        <div className="lead-detail-header-top">
+          <div className="lead-detail-title">
+            <h2>{lead.contact_name}</h2>
+            <span className="lead-detail-number">{lead.lead_number}</span>
+          </div>
+          <div className="lead-detail-actions">
+            <button className="btn btn-sm btn-secondary" onClick={() => onEdit(lead)}>
+              Edit
+            </button>
+            {lead.status !== 'converted' && lead.status !== 'lost' && (
+              <button
+                className="btn btn-sm btn-success"
+                onClick={() => setShowConvertModal(true)}
+              >
+                Convert to Quote
+              </button>
+            )}
+            <button className="btn-icon" onClick={onClose} title="Close">
+              ✕
+            </button>
+          </div>
+        </div>
+        <div className="lead-detail-badges">
+          <LeadStatusBadge status={lead.status} />
+          <LeadPriorityBadge priority={lead.priority} />
+          {lead.lead_score !== null && lead.lead_score !== undefined && (
+            <LeadScoreDisplay score={lead.lead_score} breakdown={lead.lead_score_breakdown} />
+          )}
+          {lead.quote_number && (
+            <span className="status-badge" style={{ background: '#dbeafe', color: '#1d4ed8' }}>
+              Quote: {lead.quote_number}
+            </span>
+          )}
+        </div>
+
+        {/* Lost Reason Banner */}
+        {lead.status === 'lost' && lead.lost_reason && (
+          <div style={{
+            marginTop: '16px',
+            padding: '16px 20px',
+            background: 'linear-gradient(135deg, #fef2f2 0%, #fee2e2 100%)',
+            border: '1px solid #fecaca',
+            borderRadius: '12px',
+            display: 'flex',
+            alignItems: 'flex-start',
+            gap: '14px',
+            boxShadow: '0 2px 8px rgba(239, 68, 68, 0.1)'
+          }}>
+            <span style={{
+              fontSize: '24px',
+              width: '44px',
+              height: '44px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              background: 'white',
+              borderRadius: '10px',
+              boxShadow: '0 2px 4px rgba(0,0,0,0.05)'
+            }}>❌</span>
+            <div style={{ flex: 1 }}>
+              <div style={{
+                fontWeight: '700',
+                color: '#991b1b',
+                marginBottom: '6px',
+                fontSize: '14px',
+                textTransform: 'uppercase',
+                letterSpacing: '0.05em'
+              }}>
+                Lost Reason
+              </div>
+              <div style={{
+                color: '#b91c1c',
+                fontSize: '15px',
+                lineHeight: '1.5'
+              }}>
+                {lead.lost_reason}
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+
+      <div className="lead-detail-body">
+        {/* Contact Information */}
+        <div className="detail-section">
+          <h4 className="detail-section-title">Contact Information</h4>
+          <div className="detail-grid">
+            <div className="detail-item">
+              <span className="detail-item-label">Email</span>
+              <span className="detail-item-value">
+                {lead.contact_email ? (
+                  <a href={`mailto:${lead.contact_email}`}>{lead.contact_email}</a>
+                ) : '-'}
+              </span>
+            </div>
+            <div className="detail-item">
+              <span className="detail-item-label">Phone</span>
+              <span className="detail-item-value">
+                {lead.contact_phone ? (
+                  <a href={`tel:${lead.contact_phone}`}>{lead.contact_phone}</a>
+                ) : '-'}
+              </span>
+            </div>
+            <div className="detail-item">
+              <span className="detail-item-label">Preferred Contact</span>
+              <span className="detail-item-value" style={{ textTransform: 'capitalize' }}>
+                {lead.preferred_contact_method || '-'}
+              </span>
+            </div>
+            <div className="detail-item">
+              <span className="detail-item-label">Best Time</span>
+              <span className="detail-item-value">{lead.best_time_to_contact || '-'}</span>
+            </div>
+          </div>
+        </div>
+
+        {/* Lead Source */}
+        <div className="detail-section">
+          <h4 className="detail-section-title">Lead Source</h4>
+          <div className="detail-grid">
+            <div className="detail-item">
+              <span className="detail-item-label">Source</span>
+              <span className="detail-item-value">
+                {sourceLabels[lead.lead_source] || lead.lead_source || '-'}
+              </span>
+            </div>
+            {lead.source_details && (
+              <div className="detail-item">
+                <span className="detail-item-label">Details</span>
+                <span className="detail-item-value">{lead.source_details}</span>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Context & Timing */}
+        <div className="detail-section">
+          <h4 className="detail-section-title">Context & Timing</h4>
+          <div className="detail-grid">
+            <div className="detail-item">
+              <span className="detail-item-label">Inquiry Reason</span>
+              <span className="detail-item-value">
+                {reasonLabels[lead.inquiry_reason] || lead.inquiry_reason || '-'}
+              </span>
+            </div>
+            <div className="detail-item">
+              <span className="detail-item-label">Timeline</span>
+              <span className="detail-item-value">
+                {timelineLabels[lead.timeline] || lead.timeline || '-'}
+              </span>
+            </div>
+            <div className="detail-item">
+              <span className="detail-item-label">Move-in Date</span>
+              <span className="detail-item-value">{formatDate(lead.move_in_date)}</span>
+            </div>
+            <div className="detail-item">
+              <span className="detail-item-label">Follow-up Date</span>
+              <span className="detail-item-value">{formatDate(lead.follow_up_date)}</span>
+            </div>
+          </div>
+        </div>
+
+        {/* Requirements */}
+        {(lead.requirements?.length > 0 || lead.requirements_notes) && (
+          <div className="detail-section">
+            <h4 className="detail-section-title">Requirements</h4>
+            {lead.requirements?.map((req, idx) => (
+              <div key={idx} className="requirement-section" style={{ marginBottom: '0.5rem' }}>
+                <div style={{ fontWeight: 600, marginBottom: '0.5rem' }}>
+                  {req.category}
+                  {req.subcategory && ` - ${req.subcategory}`}
+                  {req.quantity > 1 && ` (x${req.quantity})`}
+                </div>
+                <div className="detail-grid" style={{ fontSize: '0.875rem' }}>
+                  {(req.budget_min_cents || req.budget_max_cents) && (
+                    <div className="detail-item">
+                      <span className="detail-item-label">Budget</span>
+                      <span className="detail-item-value">
+                        {req.budget_min_cents && `$${(req.budget_min_cents / 100).toFixed(0)}`}
+                        {req.budget_min_cents && req.budget_max_cents && ' - '}
+                        {req.budget_max_cents && `$${(req.budget_max_cents / 100).toFixed(0)}`}
+                      </span>
+                    </div>
+                  )}
+                  {req.brand_preferences?.length > 0 && (
+                    <div className="detail-item">
+                      <span className="detail-item-label">Brands</span>
+                      <span className="detail-item-value">{req.brand_preferences.join(', ')}</span>
+                    </div>
+                  )}
+                  {req.color_preferences?.length > 0 && (
+                    <div className="detail-item">
+                      <span className="detail-item-label">Colors</span>
+                      <span className="detail-item-value">{req.color_preferences.join(', ')}</span>
+                    </div>
+                  )}
+                </div>
+                {req.notes && (
+                  <div style={{ marginTop: '0.5rem', fontSize: '0.875rem', color: 'var(--text-secondary)' }}>
+                    {req.notes}
+                  </div>
+                )}
+              </div>
+            ))}
+            {lead.requirements_notes && (
+              <div style={{ marginTop: '0.75rem' }}>
+                <div style={{ fontWeight: 500, marginBottom: '0.25rem', fontSize: '0.875rem' }}>
+                  Additional Notes:
+                </div>
+                <div style={{ whiteSpace: 'pre-wrap', fontSize: '0.875rem', color: 'var(--text-secondary)' }}>
+                  {lead.requirements_notes}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Status Actions */}
+        <div className="detail-section">
+          <h4 className="detail-section-title">Update Status</h4>
+          <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+            {['new', 'contacted', 'qualified', 'quote_created', 'converted', 'lost'].map(status => (
+              <button
+                key={status}
+                className={`btn btn-sm ${lead.status === status ? 'btn-primary' : 'btn-secondary'}`}
+                onClick={() => handleStatusChange(status)}
+                disabled={statusUpdating || lead.status === status}
+                style={{ textTransform: 'capitalize' }}
+              >
+                {status.replace('_', ' ')}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* AI Helper Panel */}
+        <AIHelperPanel leadId={leadId} lead={lead} onUpdate={refresh} />
+
+        {/* Add Note */}
+        <div className="detail-section">
+          <h4 className="detail-section-title">
+            Notes & Activities
+            <button
+              className="btn btn-sm btn-secondary"
+              style={{ marginLeft: '1rem' }}
+              onClick={() => setShowAddNote(!showAddNote)}
+            >
+              {showAddNote ? 'Cancel' : '+ Add Note'}
+            </button>
+          </h4>
+
+          {showAddNote && (
+            <div style={{ marginBottom: '1rem' }}>
+              <textarea
+                value={noteText}
+                onChange={(e) => setNoteText(e.target.value)}
+                placeholder="Add a note about this lead..."
+                rows={3}
+                style={{
+                  width: '100%',
+                  padding: '0.625rem',
+                  border: '1px solid var(--border-color)',
+                  borderRadius: '6px',
+                  marginBottom: '0.5rem'
+                }}
+              />
+              <button className="btn btn-primary btn-sm" onClick={handleAddNote}>
+                Save Note
+              </button>
+            </div>
+          )}
+
+          <LeadTimeline activities={lead.activities || []} />
+        </div>
+
+        {/* Delete */}
+        <div className="detail-section" style={{ borderTop: '1px solid var(--border-color)', paddingTop: '1rem' }}>
+          <button className="btn btn-danger btn-sm" onClick={handleDelete}>
+            Delete Lead
+          </button>
+        </div>
+      </div>
+
+      {/* Convert to Quote Modal */}
+      {showConvertModal && (
+        <ConvertToQuoteModal
+          lead={lead}
+          onSuccess={handleConvertSuccess}
+          onClose={() => setShowConvertModal(false)}
+        />
+      )}
+
+      {/* Lost Reason Modal */}
+      {showLostReasonModal && (
+        <LostReasonModal
+          onSubmit={handleLostReasonSubmit}
+          onClose={() => setShowLostReasonModal(false)}
+        />
+      )}
+
+      {/* Confirm Dialog */}
+      <DialogComponent />
+    </div>
+  );
+}
+
+/**
+ * Lost Reason Modal Component
+ * Provides common reasons for selection and custom input
+ */
+function LostReasonModal({ onSubmit, onClose }) {
+  const [selectedReason, setSelectedReason] = useState('');
+  const [customReason, setCustomReason] = useState('');
+  const [useCustom, setUseCustom] = useState(false);
+
+  const commonReasons = [
+    { id: 'price', label: 'Price too high', icon: '💰' },
+    { id: 'competitor', label: 'Went with competitor', icon: '🏃' },
+    { id: 'timing', label: 'Bad timing / Not ready', icon: '⏰' },
+    { id: 'no_response', label: 'No response / Unresponsive', icon: '📵' },
+    { id: 'budget', label: 'Budget constraints', icon: '💸' },
+    { id: 'changed_mind', label: 'Changed mind / No longer needed', icon: '🔄' },
+    { id: 'wrong_fit', label: 'Product not a good fit', icon: '❌' },
+    { id: 'delayed', label: 'Project delayed indefinitely', icon: '📅' },
+    { id: 'duplicate', label: 'Duplicate lead', icon: '📋' },
+    { id: 'invalid', label: 'Invalid / Spam lead', icon: '🚫' }
+  ];
+
+  const handleSubmit = () => {
+    const reason = useCustom ? customReason.trim() : selectedReason;
+    onSubmit(reason || null);
+  };
+
+  const handleReasonClick = (reason) => {
+    setSelectedReason(reason.label);
+    setUseCustom(false);
+  };
+
+  return (
+    <div style={{
+      position: 'fixed',
+      inset: 0,
+      background: 'rgba(0,0,0,0.6)',
+      backdropFilter: 'blur(4px)',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      zIndex: 1000
+    }}>
+      <div style={{
+        background: 'white',
+        borderRadius: '16px',
+        width: '100%',
+        maxWidth: '520px',
+        maxHeight: '90vh',
+        overflow: 'hidden',
+        boxShadow: '0 25px 50px -12px rgba(0,0,0,0.25)'
+      }}>
+        {/* Header */}
+        <div style={{
+          padding: '20px 24px',
+          background: 'linear-gradient(135deg, #fef2f2 0%, #fee2e2 100%)',
+          borderBottom: '1px solid #fecaca',
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center'
+        }}>
+          <h3 style={{ margin: 0, fontSize: '18px', fontWeight: '700', color: '#991b1b' }}>
+            Why was this lead lost?
+          </h3>
+          <button
+            onClick={onClose}
+            style={{
+              background: 'white',
+              border: 'none',
+              fontSize: '18px',
+              cursor: 'pointer',
+              color: '#6b7280',
+              width: '32px',
+              height: '32px',
+              borderRadius: '8px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              transition: 'all 0.15s'
+            }}
+          >
+            ✕
+          </button>
+        </div>
+
+        {/* Body */}
+        <div style={{ padding: '24px', maxHeight: 'calc(90vh - 200px)', overflowY: 'auto' }}>
+          {/* Common Reasons Grid */}
+          <div style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(2, 1fr)',
+            gap: '12px',
+            marginBottom: '24px'
+          }}>
+            {commonReasons.map(reason => (
+              <button
+                key={reason.id}
+                onClick={() => handleReasonClick(reason)}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '10px',
+                  padding: '14px 16px',
+                  border: selectedReason === reason.label && !useCustom
+                    ? '2px solid #dc2626'
+                    : '1px solid #e5e7eb',
+                  borderRadius: '10px',
+                  background: selectedReason === reason.label && !useCustom
+                    ? 'linear-gradient(135deg, #fef2f2 0%, #fee2e2 100%)'
+                    : 'white',
+                  cursor: 'pointer',
+                  textAlign: 'left',
+                  fontSize: '14px',
+                  transition: 'all 0.2s ease',
+                  boxShadow: selectedReason === reason.label && !useCustom
+                    ? '0 4px 12px rgba(220, 38, 38, 0.15)'
+                    : '0 1px 3px rgba(0,0,0,0.05)'
+                }}
+              >
+                <span style={{ fontSize: '20px' }}>{reason.icon}</span>
+                <span style={{ color: '#374151', fontWeight: selectedReason === reason.label && !useCustom ? '600' : '400' }}>{reason.label}</span>
+              </button>
+            ))}
+          </div>
+
+          {/* Custom Reason */}
+          <div style={{ marginBottom: '16px' }}>
+            <label style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px',
+              marginBottom: '8px',
+              cursor: 'pointer',
+              fontSize: '14px',
+              fontWeight: '500'
+            }}>
+              <input
+                type="checkbox"
+                checked={useCustom}
+                onChange={(e) => {
+                  setUseCustom(e.target.checked);
+                  if (e.target.checked) setSelectedReason('');
+                }}
+                style={{ width: '16px', height: '16px' }}
+              />
+              Enter custom reason
+            </label>
+            {useCustom && (
+              <textarea
+                value={customReason}
+                onChange={(e) => setCustomReason(e.target.value)}
+                placeholder="Describe why this lead was lost..."
+                rows={3}
+                style={{
+                  width: '100%',
+                  padding: '12px',
+                  border: '1px solid #d1d5db',
+                  borderRadius: '8px',
+                  fontSize: '14px',
+                  resize: 'vertical',
+                  boxSizing: 'border-box'
+                }}
+                autoFocus
+              />
+            )}
+          </div>
+
+          {/* Selected Reason Preview */}
+          {(selectedReason || (useCustom && customReason.trim())) && (
+            <div style={{
+              padding: '12px',
+              background: '#fef2f2',
+              borderRadius: '8px',
+              marginBottom: '16px'
+            }}>
+              <div style={{ fontSize: '12px', color: '#991b1b', marginBottom: '4px' }}>
+                Selected reason:
+              </div>
+              <div style={{ fontSize: '14px', color: '#b91c1c', fontWeight: '500' }}>
+                {useCustom ? customReason.trim() : selectedReason}
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Footer */}
+        <div style={{
+          padding: '16px 24px',
+          borderTop: '1px solid #e5e7eb',
+          display: 'flex',
+          gap: '12px',
+          justifyContent: 'flex-end',
+          background: '#f9fafb'
+        }}>
+          <button
+            onClick={onClose}
+            style={{
+              padding: '12px 20px',
+              background: 'white',
+              border: '1px solid #d1d5db',
+              borderRadius: '8px',
+              cursor: 'pointer',
+              fontSize: '14px',
+              fontWeight: '500',
+              transition: 'all 0.15s'
+            }}
+          >
+            Cancel
+          </button>
+          <button
+            onClick={() => onSubmit(null)}
+            style={{
+              padding: '12px 20px',
+              background: '#f3f4f6',
+              border: '1px solid #d1d5db',
+              borderRadius: '8px',
+              cursor: 'pointer',
+              fontSize: '14px',
+              fontWeight: '500',
+              color: '#6b7280',
+              transition: 'all 0.15s'
+            }}
+          >
+            Skip (No Reason)
+          </button>
+          <button
+            onClick={handleSubmit}
+            disabled={!selectedReason && (!useCustom || !customReason.trim())}
+            style={{
+              padding: '12px 24px',
+              background: (selectedReason || (useCustom && customReason.trim()))
+                ? 'linear-gradient(135deg, #ef4444 0%, #dc2626 100%)'
+                : '#9ca3af',
+              color: 'white',
+              border: 'none',
+              borderRadius: '8px',
+              cursor: (selectedReason || (useCustom && customReason.trim())) ? 'pointer' : 'not-allowed',
+              fontSize: '14px',
+              fontWeight: '600',
+              boxShadow: (selectedReason || (useCustom && customReason.trim()))
+                ? '0 4px 12px rgba(220, 38, 38, 0.3)'
+                : 'none',
+              transition: 'all 0.2s'
+            }}
+          >
+            Mark as Lost
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Lead Score Display Component
+ * Shows score with expandable breakdown
+ */
+function LeadScoreDisplay({ score, breakdown }) {
+  const [expanded, setExpanded] = React.useState(false);
+
+  // Determine color based on score
+  let bgColor, textColor, label;
+  if (score >= 80) {
+    bgColor = '#dcfce7';
+    textColor = '#166534';
+    label = 'A';
+  } else if (score >= 60) {
+    bgColor = '#dbeafe';
+    textColor = '#1e40af';
+    label = 'B';
+  } else if (score >= 40) {
+    bgColor = '#fef3c7';
+    textColor = '#92400e';
+    label = 'C';
+  } else {
+    bgColor = '#fee2e2';
+    textColor = '#991b1b';
+    label = 'D';
+  }
+
+  const breakdownLabels = {
+    timeline: { label: 'Timeline Urgency', icon: '⏱️' },
+    budget: { label: 'Budget Range', icon: '💰' },
+    source: { label: 'Lead Source Quality', icon: '📍' },
+    engagement: { label: 'Engagement Level', icon: '💬' },
+    completeness: { label: 'Data Completeness', icon: '📋' }
+  };
+
+  return (
+    <div style={{ position: 'relative' }}>
+      <button
+        onClick={() => setExpanded(!expanded)}
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: '6px',
+          padding: '4px 10px',
+          borderRadius: '16px',
+          background: bgColor,
+          color: textColor,
+          border: 'none',
+          cursor: 'pointer',
+          fontWeight: '600',
+          fontSize: '0.875rem'
+        }}
+      >
+        <span>Score: {score}</span>
+        <span style={{
+          fontSize: '0.75rem',
+          padding: '2px 6px',
+          background: textColor,
+          color: 'white',
+          borderRadius: '4px'
+        }}>
+          {label}
+        </span>
+        <span style={{ fontSize: '0.75rem' }}>{expanded ? '▲' : '▼'}</span>
+      </button>
+
+      {expanded && breakdown && (
+        <div style={{
+          position: 'absolute',
+          top: '100%',
+          left: 0,
+          marginTop: '8px',
+          background: 'white',
+          border: '1px solid #e5e7eb',
+          borderRadius: '8px',
+          boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+          padding: '16px',
+          zIndex: 100,
+          minWidth: '280px'
+        }}>
+          <div style={{ fontWeight: '600', marginBottom: '12px', fontSize: '0.875rem' }}>
+            Score Breakdown
+          </div>
+          {Object.entries(breakdown).map(([key, data]) => {
+            const info = breakdownLabels[key] || { label: key, icon: '📊' };
+            return (
+              <div key={key} style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                padding: '8px 0',
+                borderBottom: '1px solid #f3f4f6'
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <span>{info.icon}</span>
+                  <span style={{ fontSize: '0.875rem' }}>{info.label}</span>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <div style={{
+                    width: '60px',
+                    height: '6px',
+                    background: '#e5e7eb',
+                    borderRadius: '3px',
+                    overflow: 'hidden'
+                  }}>
+                    <div style={{
+                      width: `${data.score}%`,
+                      height: '100%',
+                      background: data.score >= 70 ? '#22c55e' : data.score >= 40 ? '#f59e0b' : '#ef4444',
+                      borderRadius: '3px'
+                    }} />
+                  </div>
+                  <span style={{
+                    fontSize: '0.75rem',
+                    fontWeight: '600',
+                    color: '#6b7280',
+                    minWidth: '45px',
+                    textAlign: 'right'
+                  }}>
+                    {data.weighted}/{data.weight}
+                  </span>
+                </div>
+              </div>
+            );
+          })}
+          <div style={{
+            display: 'flex',
+            justifyContent: 'space-between',
+            marginTop: '12px',
+            paddingTop: '12px',
+            borderTop: '2px solid #e5e7eb',
+            fontWeight: '600'
+          }}>
+            <span>Total Score</span>
+            <span style={{ color: textColor }}>{score}/100</span>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+export default LeadDetail;

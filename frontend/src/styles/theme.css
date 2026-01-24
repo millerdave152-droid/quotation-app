@@ -1,0 +1,231 @@
+/* Theme CSS Variables */
+:root {
+  /* Light theme (default) */
+  --bg-primary: #ffffff;
+  --bg-secondary: #f9fafb;
+  --bg-tertiary: #f3f4f6;
+  --bg-hover: #e5e7eb;
+
+  --text-primary: #111827;
+  --text-secondary: #374151;
+  --text-tertiary: #6b7280;
+  --text-muted: #9ca3af;
+
+  --border-color: #e5e7eb;
+  --border-light: #f3f4f6;
+
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.05);
+  --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+  --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+
+  /* Accent colors */
+  --accent-primary: #6366f1;
+  --accent-primary-hover: #4f46e5;
+  --accent-success: #22c55e;
+  --accent-success-hover: #16a34a;
+  --accent-warning: #f59e0b;
+  --accent-danger: #ef4444;
+  --accent-info: #3b82f6;
+
+  /* Status colors */
+  --status-draft: #9ca3af;
+  --status-sent: #3b82f6;
+  --status-viewed: #8b5cf6;
+  --status-pending: #f59e0b;
+  --status-won: #22c55e;
+  --status-lost: #ef4444;
+
+  /* Card backgrounds */
+  --card-bg: #ffffff;
+  --card-hover-bg: #fafafa;
+
+  /* Input styles */
+  --input-bg: #ffffff;
+  --input-border: #d1d5db;
+  --input-focus-border: #6366f1;
+  --input-text: #111827;
+  --input-placeholder: #9ca3af;
+
+  /* Sidebar */
+  --sidebar-bg: #1e1e2f;
+  --sidebar-text: #ffffff;
+  --sidebar-hover: rgba(255, 255, 255, 0.1);
+  --sidebar-active: rgba(99, 102, 241, 0.2);
+
+  /* Modal overlay */
+  --overlay-bg: rgba(0, 0, 0, 0.5);
+
+  /* Table */
+  --table-header-bg: #f9fafb;
+  --table-row-hover: #f3f4f6;
+  --table-border: #e5e7eb;
+
+  /* Scrollbar */
+  --scrollbar-track: #f3f4f6;
+  --scrollbar-thumb: #d1d5db;
+  --scrollbar-thumb-hover: #9ca3af;
+}
+
+/* Dark theme */
+[data-theme="dark"] {
+  --bg-primary: #111827;
+  --bg-secondary: #1f2937;
+  --bg-tertiary: #374151;
+  --bg-hover: #4b5563;
+
+  --text-primary: #f9fafb;
+  --text-secondary: #e5e7eb;
+  --text-tertiary: #9ca3af;
+  --text-muted: #6b7280;
+
+  --border-color: #374151;
+  --border-light: #4b5563;
+
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3);
+  --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.4);
+  --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.5);
+
+  /* Card backgrounds */
+  --card-bg: #1f2937;
+  --card-hover-bg: #374151;
+
+  /* Input styles */
+  --input-bg: #1f2937;
+  --input-border: #4b5563;
+  --input-focus-border: #6366f1;
+  --input-text: #f9fafb;
+  --input-placeholder: #6b7280;
+
+  /* Sidebar (stays dark) */
+  --sidebar-bg: #0f0f1a;
+  --sidebar-text: #ffffff;
+  --sidebar-hover: rgba(255, 255, 255, 0.1);
+  --sidebar-active: rgba(99, 102, 241, 0.3);
+
+  /* Modal overlay */
+  --overlay-bg: rgba(0, 0, 0, 0.7);
+
+  /* Table */
+  --table-header-bg: #1f2937;
+  --table-row-hover: #374151;
+  --table-border: #374151;
+
+  /* Scrollbar */
+  --scrollbar-track: #1f2937;
+  --scrollbar-thumb: #4b5563;
+  --scrollbar-thumb-hover: #6b7280;
+}
+
+/* Global dark theme styles */
+body.dark-theme {
+  background-color: var(--bg-secondary);
+  color: var(--text-primary);
+}
+
+/* Apply theme to common elements */
+body.dark-theme input,
+body.dark-theme textarea,
+body.dark-theme select {
+  background-color: var(--input-bg);
+  border-color: var(--input-border);
+  color: var(--input-text);
+}
+
+body.dark-theme input::placeholder,
+body.dark-theme textarea::placeholder {
+  color: var(--input-placeholder);
+}
+
+body.dark-theme input:focus,
+body.dark-theme textarea:focus,
+body.dark-theme select:focus {
+  border-color: var(--input-focus-border);
+  outline: none;
+}
+
+/* Scrollbar styling */
+body.dark-theme ::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+body.dark-theme ::-webkit-scrollbar-track {
+  background: var(--scrollbar-track);
+}
+
+body.dark-theme ::-webkit-scrollbar-thumb {
+  background: var(--scrollbar-thumb);
+  border-radius: 4px;
+}
+
+body.dark-theme ::-webkit-scrollbar-thumb:hover {
+  background: var(--scrollbar-thumb-hover);
+}
+
+/* Button styles for dark theme */
+body.dark-theme button {
+  transition: background-color 0.2s, color 0.2s, border-color 0.2s;
+}
+
+/* Card hover effects */
+body.dark-theme .card:hover,
+body.dark-theme [class*="card"]:hover {
+  background-color: var(--card-hover-bg);
+}
+
+/* Dropdown menus */
+body.dark-theme [class*="dropdown"],
+body.dark-theme [class*="menu"] {
+  background-color: var(--card-bg);
+  border-color: var(--border-color);
+}
+
+/* Modal styling */
+body.dark-theme [class*="modal"],
+body.dark-theme [class*="dialog"] {
+  background-color: var(--card-bg);
+}
+
+/* Table styling */
+body.dark-theme table {
+  border-color: var(--table-border);
+}
+
+body.dark-theme th {
+  background-color: var(--table-header-bg);
+  border-color: var(--table-border);
+}
+
+body.dark-theme td {
+  border-color: var(--table-border);
+}
+
+body.dark-theme tr:hover {
+  background-color: var(--table-row-hover);
+}
+
+/* Fix for recharts in dark mode */
+body.dark-theme .recharts-text {
+  fill: var(--text-secondary);
+}
+
+body.dark-theme .recharts-cartesian-grid line {
+  stroke: var(--border-color);
+}
+
+body.dark-theme .recharts-tooltip-wrapper .recharts-default-tooltip {
+  background-color: var(--card-bg) !important;
+  border-color: var(--border-color) !important;
+}
+
+/* Transition for smooth theme switching */
+body,
+body * {
+  transition: background-color 0.2s ease, color 0.1s ease, border-color 0.2s ease;
+}
+
+/* Disable transitions during initial load */
+body.no-transitions,
+body.no-transitions * {
+  transition: none !important;
+}

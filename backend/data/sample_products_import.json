@@ -1,0 +1,57 @@
+[
+  {
+    "vendor": "Whirlpool",
+    "modelNumber": "WFW9620HW",
+    "name": "5.0 cu. ft. Smart Front Load Washer with Load & Go XL Plus Dispenser",
+    "description": "Smart washer with Load & Go XL Plus dispenser holds enough detergent for 40 loads",
+    "category": "Laundry",
+    "subcategory": "Front Load Washers",
+    "brand": "Whirlpool",
+    "msrp": 1299.99,
+    "dealerPrice": 999.99
+  },
+  {
+    "vendor": "Whirlpool",
+    "modelNumber": "WED9620HW",
+    "name": "7.4 cu. ft. Smart Electric Dryer with Steam Refresh Cycle",
+    "description": "Smart electric dryer with advanced moisture sensing and Steam Refresh cycle",
+    "category": "Laundry",
+    "subcategory": "Electric Dryers",
+    "brand": "Whirlpool",
+    "msrp": 1199.99,
+    "dealerPrice": 899.99
+  },
+  {
+    "vendor": "Whirlpool",
+    "modelNumber": "WRF555SDFZ",
+    "name": "36-inch Wide French Door Refrigerator - 25 cu. ft.",
+    "description": "French door refrigerator with external water and ice dispenser",
+    "category": "Refrigeration",
+    "subcategory": "French Door",
+    "brand": "Whirlpool",
+    "msrp": 2199.99,
+    "dealerPrice": 1699.99
+  },
+  {
+    "vendor": "Maytag",
+    "modelNumber": "MDB8959SKZ",
+    "name": "Top Control Dishwasher with Third Level Rack",
+    "description": "Top control dishwasher with powerful wash cycle and third level rack",
+    "category": "Cleaning",
+    "subcategory": "Built-In Dishwashers",
+    "brand": "Maytag",
+    "msrp": 999.99,
+    "dealerPrice": 749.99
+  },
+  {
+    "vendor": "KitchenAid",
+    "modelNumber": "KFGC500JMH",
+    "name": "30-Inch 4-Burner Gas Range with Convection Oven",
+    "description": "Professional-style gas range with convection oven and smart features",
+    "category": "Cooking",
+    "subcategory": "Ranges",
+    "brand": "KitchenAid",
+    "msrp": 3299.99,
+    "dealerPrice": 2499.99
+  }
+]

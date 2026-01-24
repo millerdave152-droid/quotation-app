@@ -50,8 +50,17 @@ import {
   Schedule
 } from '@mui/icons-material';
 import axios from 'axios';
+import { Link as RouterLink } from 'react-router-dom';
 
 const API_BASE = (process.env.REACT_APP_API_URL || 'http://localhost:3001') + '/api';
+
+const getAuthHeaders = () => {
+  const token = localStorage.getItem('auth_token');
+  return {
+    'Content-Type': 'application/json',
+    ...(token && { 'Authorization': `Bearer ${token}` })
+  };
+};
 
 const formatDate = (dateStr) => {
   if (!dateStr) return '-';
@@ -150,6 +159,21 @@ const InventoryDashboard = () => {
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(10);
 
+  // Stock Browser state
+  const [stockProducts, setStockProducts] = useState([]);
+  const [stockFilters, setStockFilters] = useState({
+    search: '',
+    stockStatus: 'in_stock', // Default to show in-stock items
+    manufacturer: '',
+    category: ''
+  });
+  const [stockPage, setStockPage] = useState(0);
+  const [stockRowsPerPage, setStockRowsPerPage] = useState(25);
+  const [stockTotal, setStockTotal] = useState(0);
+  const [manufacturers, setManufacturers] = useState([]);
+  const [categories, setCategories] = useState([]);
+  const [stockLoading, setStockLoading] = useState(false);
+
   useEffect(() => {
     fetchDashboardData();
   }, []);
@@ -160,6 +184,40 @@ const InventoryDashboard = () => {
     }
   }, [tabValue, reservationFilters]);
 
+  // Fetch stock products when Stock Browser tab is active or filters change
+  useEffect(() => {
+    if (tabValue === 2) {
+      fetchStockProducts();
+    }
+  }, [tabValue, stockFilters, stockPage, stockRowsPerPage]);
+
+  const fetchStockProducts = async () => {
+    try {
+      setStockLoading(true);
+      const params = new URLSearchParams({
+        search: stockFilters.search,
+        stockStatus: stockFilters.stockStatus,
+        manufacturer: stockFilters.manufacturer,
+        category: stockFilters.category,
+        page: stockPage + 1,
+        limit: stockRowsPerPage
+      });
+      const response = await axios.get(`${API_BASE}/inventory/products?${params}`, {
+        headers: getAuthHeaders()
+      });
+      setStockProducts(response.data.products || []);
+      setStockTotal(response.data.pagination?.total || 0);
+      setManufacturers(response.data.manufacturers || []);
+      setCategories(response.data.categories || []);
+    } catch (err) {
+      console.error('Error fetching stock products:', err);
+      const errorMsg = err.response?.data?.message || err.message || 'Unknown error';
+      setError(`Failed to load stock products: ${errorMsg}`);
+    } finally {
+      setStockLoading(false);
+    }
+  };
+
   const fetchDashboardData = async () => {
     try {
       setLoading(true);
@@ -167,8 +225,8 @@ const InventoryDashboard = () => {
 
       // Fetch inventory summary and low stock products in parallel
       const [summaryRes, lowStockRes] = await Promise.all([
-        axios.get(`${API_BASE}/inventory/summary`).catch(() => ({ data: null })),
-        axios.get(`${API_BASE}/inventory/low-stock`).catch(() => ({ data: [] }))
+        axios.get(`${API_BASE}/inventory/summary`, { headers: getAuthHeaders() }).catch(() => ({ data: null })),
+        axios.get(`${API_BASE}/inventory/low-stock`, { headers: getAuthHeaders() }).catch(() => ({ data: [] }))
       ]);
 
       if (summaryRes.data) {
@@ -186,7 +244,8 @@ const InventoryDashboard = () => {
   const fetchReservations = async () => {
     try {
       const response = await axios.get(`${API_BASE}/inventory/reservations`, {
-        params: reservationFilters
+        params: reservationFilters,
+        headers: getAuthHeaders()
       });
       setReservations(response.data);
     } catch (err) {
@@ -199,7 +258,7 @@ const InventoryDashboard = () => {
       setSyncing(true);
       setSyncResult(null);
 
-      const response = await axios.post(`${API_BASE}/inventory/sync`);
+      const response = await axios.post(`${API_BASE}/inventory/sync`, {}, { headers: getAuthHeaders() });
       setSyncResult({
         success: true,
         message: `Synced ${response.data.updated || 0} products`
@@ -219,7 +278,7 @@ const InventoryDashboard = () => {
     if (!window.confirm('Are you sure you want to release this reservation?')) return;
 
     try {
-      await axios.delete(`${API_BASE}/inventory/reservations/${reservationId}`);
+      await axios.delete(`${API_BASE}/inventory/reservations/${reservationId}`, { headers: getAuthHeaders() });
       fetchReservations();
       fetchDashboardData();
     } catch (err) {
@@ -343,6 +402,11 @@ const InventoryDashboard = () => {
           }
         />
         <Tab label="Reservations" />
+        <Tab
+          icon={<Search sx={{ fontSize: 18, mr: 0.5 }} />}
+          iconPosition="start"
+          label="Stock Browser"
+        />
       </Tabs>
 
       {/* Low Stock Tab */}
@@ -431,29 +495,30 @@ const InventoryDashboard = () => {
       {tabValue === 1 && (
         <>
           {/* Reservation Filters */}
-          <Paper variant="outlined" sx={{ p: 2, mb: 2 }}>
-            <Grid container spacing={2} alignItems="center">
-              <Grid item xs={12} sm={4}>
+          <Paper variant="outlined" sx={{ p: 3, mb: 2 }}>
+            <Grid container spacing={3} alignItems="center">
+              <Grid item xs={12} sm={6} md={5}>
                 <TextField
                   fullWidth
-                  size="small"
                   placeholder="Search by quote/order number..."
                   value={reservationFilters.search}
                   onChange={(e) => setReservationFilters({ ...reservationFilters, search: e.target.value })}
                   InputProps={{
-                    startAdornment: <Search sx={{ mr: 1, color: 'text.secondary' }} />
+                    startAdornment: <Search sx={{ mr: 1, color: 'text.secondary' }} />,
+                    sx: { height: 48 }
                   }}
                 />
               </Grid>
-              <Grid item xs={12} sm={3}>
-                <FormControl fullWidth size="small">
+              <Grid item xs={12} sm={6} md={4}>
+                <FormControl fullWidth>
                   <InputLabel>Status</InputLabel>
                   <Select
                     value={reservationFilters.status}
                     label="Status"
                     onChange={(e) => setReservationFilters({ ...reservationFilters, status: e.target.value })}
+                    sx={{ height: 48 }}
                   >
-                    <MenuItem value="">All</MenuItem>
+                    <MenuItem value="">All Statuses</MenuItem>
                     <MenuItem value="reserved">Reserved</MenuItem>
                     <MenuItem value="converted">Converted</MenuItem>
                     <MenuItem value="released">Released</MenuItem>
@@ -461,8 +526,14 @@ const InventoryDashboard = () => {
                   </Select>
                 </FormControl>
               </Grid>
-              <Grid item xs={12} sm={2}>
-                <Button fullWidth variant="outlined" startIcon={<Refresh />} onClick={fetchReservations}>
+              <Grid item xs={12} sm={6} md={3}>
+                <Button
+                  fullWidth
+                  variant="outlined"
+                  startIcon={<Refresh />}
+                  onClick={fetchReservations}
+                  sx={{ height: 48 }}
+                >
                   Refresh
                 </Button>
               </Grid>
@@ -553,6 +624,239 @@ const InventoryDashboard = () => {
               onPageChange={(e, p) => setPage(p)}
               rowsPerPage={rowsPerPage}
               onRowsPerPageChange={(e) => { setRowsPerPage(parseInt(e.target.value)); setPage(0); }}
+            />
+          </Paper>
+        </>
+      )}
+
+      {/* Stock Browser Tab */}
+      {tabValue === 2 && (
+        <>
+          {/* Quick Search Banner */}
+          <Alert
+            severity="info"
+            sx={{ mb: 2 }}
+            action={
+              <Button
+                color="inherit"
+                size="small"
+                component={RouterLink}
+                to="/quick-search"
+              >
+                Open Quick Search
+              </Button>
+            }
+          >
+            <Typography variant="body2">
+              Need advanced filters? Try <strong>Quick Search</strong> for intelligent product finding with clearance tracking, role-based pricing, and preset filters.
+            </Typography>
+          </Alert>
+
+          {/* Stock Browser Filters */}
+          <Paper variant="outlined" sx={{ p: 3, mb: 2 }}>
+            <Grid container spacing={3} alignItems="center">
+              <Grid item xs={12} md={4}>
+                <TextField
+                  fullWidth
+                  placeholder="Search model, name, brand..."
+                  value={stockFilters.search}
+                  onChange={(e) => {
+                    setStockFilters({ ...stockFilters, search: e.target.value });
+                    setStockPage(0);
+                  }}
+                  InputProps={{
+                    startAdornment: <Search sx={{ mr: 1, color: 'text.secondary' }} />,
+                    sx: { height: 48 }
+                  }}
+                />
+              </Grid>
+              <Grid item xs={12} sm={6} md={2.5}>
+                <FormControl fullWidth>
+                  <InputLabel>Stock Status</InputLabel>
+                  <Select
+                    value={stockFilters.stockStatus}
+                    label="Stock Status"
+                    onChange={(e) => {
+                      setStockFilters({ ...stockFilters, stockStatus: e.target.value });
+                      setStockPage(0);
+                    }}
+                    sx={{ height: 48 }}
+                  >
+                    <MenuItem value="all">All Products</MenuItem>
+                    <MenuItem value="in_stock">In Stock</MenuItem>
+                    <MenuItem value="low_stock">Low Stock</MenuItem>
+                    <MenuItem value="out_of_stock">Out of Stock</MenuItem>
+                  </Select>
+                </FormControl>
+              </Grid>
+              <Grid item xs={12} sm={6} md={2.5}>
+                <FormControl fullWidth>
+                  <InputLabel>Brand</InputLabel>
+                  <Select
+                    value={stockFilters.manufacturer}
+                    label="Brand"
+                    onChange={(e) => {
+                      setStockFilters({ ...stockFilters, manufacturer: e.target.value });
+                      setStockPage(0);
+                    }}
+                    sx={{ height: 48, minWidth: 160 }}
+                    MenuProps={{
+                      PaperProps: {
+                        style: { maxHeight: 300 }
+                      }
+                    }}
+                  >
+                    <MenuItem value="">All Brands</MenuItem>
+                    {manufacturers.map((mfr) => (
+                      <MenuItem key={mfr} value={mfr}>{mfr}</MenuItem>
+                    ))}
+                  </Select>
+                </FormControl>
+              </Grid>
+              <Grid item xs={6} sm={6} md={1.5}>
+                <Button
+                  fullWidth
+                  variant="outlined"
+                  sx={{ height: 48 }}
+                  onClick={() => {
+                    setStockFilters({ search: '', stockStatus: 'in_stock', manufacturer: '', category: '' });
+                    setStockPage(0);
+                  }}
+                >
+                  Clear
+                </Button>
+              </Grid>
+              <Grid item xs={6} sm={6} md={1.5}>
+                <Button
+                  fullWidth
+                  variant="outlined"
+                  startIcon={<Refresh />}
+                  sx={{ height: 48 }}
+                  onClick={fetchStockProducts}
+                >
+                  Refresh
+                </Button>
+              </Grid>
+            </Grid>
+
+            {/* Category Chips */}
+            <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1, mt: 2 }}>
+              <Chip
+                label={`All (${stockTotal})`}
+                onClick={() => {
+                  setStockFilters(f => ({ ...f, category: '' }));
+                  setStockPage(0);
+                }}
+                color={stockFilters.category === '' ? 'primary' : 'default'}
+                variant={stockFilters.category === '' ? 'filled' : 'outlined'}
+                size="small"
+              />
+              {categories.map((cat) => (
+                <Chip
+                  key={cat.master_category}
+                  label={`${cat.master_category} (${cat.count})`}
+                  onClick={() => {
+                    setStockFilters(f => ({ ...f, category: cat.master_category }));
+                    setStockPage(0);
+                  }}
+                  color={stockFilters.category === cat.master_category ? 'primary' : 'default'}
+                  variant={stockFilters.category === cat.master_category ? 'filled' : 'outlined'}
+                  size="small"
+                />
+              ))}
+            </Box>
+          </Paper>
+
+          {/* Stock Products Table */}
+          <Paper variant="outlined">
+            {stockLoading && <LinearProgress />}
+            <TableContainer>
+              <Table size="small">
+                <TableHead>
+                  <TableRow>
+                    <TableCell sx={{ fontWeight: 'bold' }}>Model</TableCell>
+                    <TableCell sx={{ fontWeight: 'bold' }}>Product Name</TableCell>
+                    <TableCell sx={{ fontWeight: 'bold' }}>Category</TableCell>
+                    <TableCell sx={{ fontWeight: 'bold' }}>Brand</TableCell>
+                    <TableCell align="center" sx={{ fontWeight: 'bold' }}>On Hand</TableCell>
+                    <TableCell align="center" sx={{ fontWeight: 'bold' }}>Reserved</TableCell>
+                    <TableCell align="center" sx={{ fontWeight: 'bold' }}>Available</TableCell>
+                    <TableCell sx={{ fontWeight: 'bold' }}>Status</TableCell>
+                  </TableRow>
+                </TableHead>
+                <TableBody>
+                  {stockProducts.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={8} align="center" sx={{ py: 4 }}>
+                        {stockLoading ? (
+                          <Typography color="text.secondary">Loading...</Typography>
+                        ) : (
+                          <>
+                            <Inventory2 sx={{ fontSize: 48, color: 'text.disabled', mb: 1 }} />
+                            <Typography color="text.secondary">
+                              No products found matching your filters
+                            </Typography>
+                          </>
+                        )}
+                      </TableCell>
+                    </TableRow>
+                  ) : (
+                    stockProducts.map((product) => (
+                      <TableRow key={product.id} hover>
+                        <TableCell>
+                          <Typography variant="body2" sx={{ fontWeight: 'bold', color: 'primary.main' }}>
+                            {product.model || '-'}
+                          </Typography>
+                        </TableCell>
+                        <TableCell>
+                          <Typography variant="body2" sx={{ maxWidth: 250, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                            {product.name || '-'}
+                          </Typography>
+                        </TableCell>
+                        <TableCell>
+                          <Chip
+                            label={product.master_category || 'Misc.'}
+                            size="small"
+                            variant="outlined"
+                            sx={{ fontSize: '11px' }}
+                          />
+                        </TableCell>
+                        <TableCell>{product.manufacturer || '-'}</TableCell>
+                        <TableCell align="center">{product.qty_on_hand || 0}</TableCell>
+                        <TableCell align="center" sx={{ color: product.qty_reserved > 0 ? 'warning.main' : 'text.secondary' }}>
+                          {product.qty_reserved || 0}
+                        </TableCell>
+                        <TableCell align="center">
+                          <Typography
+                            sx={{
+                              fontWeight: 'bold',
+                              color: product.qty_available <= 0 ? 'error.main' : product.qty_available <= 3 ? 'warning.main' : 'success.main'
+                            }}
+                          >
+                            {product.qty_available || 0}
+                          </Typography>
+                        </TableCell>
+                        <TableCell>
+                          <StockStatusBadge
+                            available={product.qty_available}
+                            reserved={product.qty_reserved}
+                            onHand={product.qty_on_hand}
+                          />
+                        </TableCell>
+                      </TableRow>
+                    ))
+                  )}
+                </TableBody>
+              </Table>
+            </TableContainer>
+            <TablePagination
+              component="div"
+              count={stockTotal}
+              page={stockPage}
+              onPageChange={(e, p) => setStockPage(p)}
+              rowsPerPage={stockRowsPerPage}
+              onRowsPerPageChange={(e) => { setStockRowsPerPage(parseInt(e.target.value)); setStockPage(0); }}
+              rowsPerPageOptions={[10, 25, 50, 100]}
             />
           </Paper>
         </>

@@ -19,47 +19,35 @@ class NotificationScheduler {
    */
   start() {
     if (this.isRunning) {
-      console.log('NotificationScheduler is already running');
       return;
     }
 
-    console.log('\n========================================');
-    console.log('NOTIFICATION SCHEDULER STARTING');
-    console.log('========================================');
-
     // Run expiry check daily at 9:00 AM
     const expiryJob = cron.schedule('0 9 * * *', async () => {
-      console.log('[NotificationScheduler] Running expiry warning check...');
       await this.checkExpiringQuotes();
     }, {
       timezone: 'America/Toronto'
     });
     this.jobs.push(expiryJob);
-    console.log('Expiry warning job scheduled: Daily at 9:00 AM');
 
     // Run follow-up check daily at 10:00 AM
     const followUpJob = cron.schedule('0 10 * * *', async () => {
-      console.log('[NotificationScheduler] Running follow-up reminder check...');
       await this.checkFollowUpReminders();
     }, {
       timezone: 'America/Toronto'
     });
     this.jobs.push(followUpJob);
-    console.log('Follow-up reminder job scheduled: Daily at 10:00 AM');
 
     this.isRunning = true;
-    console.log('NotificationScheduler started successfully\n');
   }
 
   /**
    * Stop all scheduled jobs
    */
   stop() {
-    console.log('Stopping NotificationScheduler...');
     this.jobs.forEach(job => job.stop());
     this.jobs = [];
     this.isRunning = false;
-    console.log('NotificationScheduler stopped');
   }
 
   /**
@@ -96,7 +84,6 @@ class NotificationScheduler {
       `);
 
       const expiringQuotes = result.rows;
-      console.log(`Found ${expiringQuotes.length} quotes expiring soon`);
 
       for (const quote of expiringQuotes) {
         const recipientEmail = quote.created_by || this.defaultSalesEmail;
@@ -104,7 +91,6 @@ class NotificationScheduler {
 
         if (recipientEmail) {
           await emailService.sendExpiryWarningEmail(quote.id, recipientEmail, daysLeft);
-          console.log(`Sent expiry warning for quote ${quote.quote_number || quote.quotation_number} (${daysLeft} days left)`);
         }
       }
 
@@ -128,6 +114,7 @@ class NotificationScheduler {
       // - Were sent more than X days ago
       // - Haven't been won/lost yet
       // - Haven't had a follow-up reminder sent in the last 3 days
+      // SECURITY FIX: Use parameterized query instead of string interpolation
       const result = await pool.query(`
         SELECT
           q.id,
@@ -141,7 +128,7 @@ class NotificationScheduler {
         LEFT JOIN customers c ON q.customer_id = c.id
         WHERE q.status = 'SENT'
           AND q.sent_at IS NOT NULL
-          AND q.sent_at <= CURRENT_DATE - INTERVAL '${followUpDays} days'
+          AND q.sent_at <= CURRENT_DATE - INTERVAL '1 day' * $1
           AND NOT EXISTS (
             SELECT 1 FROM notification_log nl
             WHERE nl.quote_id = q.id
@@ -150,10 +137,9 @@ class NotificationScheduler {
           )
         ORDER BY q.sent_at ASC
         LIMIT 50
-      `);
+      `, [followUpDays]);
 
       const quotesNeedingFollowUp = result.rows;
-      console.log(`Found ${quotesNeedingFollowUp.length} quotes needing follow-up`);
 
       for (const quote of quotesNeedingFollowUp) {
         const recipientEmail = quote.created_by || this.defaultSalesEmail;
@@ -161,7 +147,6 @@ class NotificationScheduler {
 
         if (recipientEmail) {
           await emailService.sendFollowUpReminderEmail(quote.id, recipientEmail, daysSinceSent);
-          console.log(`Sent follow-up reminder for quote ${quote.quote_number || quote.quotation_number} (${daysSinceSent} days since sent)`);
         }
       }
 

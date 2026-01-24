@@ -2,9 +2,10 @@ const express = require('express');
 const router = express.Router();
 const crypto = require('crypto');
 const pool = require('../db');
+const { authenticate } = require('../middleware/auth');
 
 // Email templates endpoints
-router.get('/email-templates', async (req, res) => {
+router.get('/email-templates', authenticate, async (req, res) => {
   try {
     const { category } = req.query;
     let query = 'SELECT * FROM email_templates WHERE is_active = true';
@@ -25,7 +26,7 @@ router.get('/email-templates', async (req, res) => {
   }
 });
 
-router.get('/email-templates/:id', async (req, res) => {
+router.get('/email-templates/:id', authenticate, async (req, res) => {
   try {
     const { id } = req.params;
     const result = await pool.query(
@@ -44,7 +45,7 @@ router.get('/email-templates/:id', async (req, res) => {
   }
 });
 
-router.post('/email-templates', async (req, res) => {
+router.post('/email-templates', authenticate, async (req, res) => {
   try {
     const { name, category, subject_line, body_text, variables, talking_points, is_default } = req.body;
 
@@ -71,7 +72,7 @@ router.post('/email-templates', async (req, res) => {
   }
 });
 
-router.put('/email-templates/:id', async (req, res) => {
+router.put('/email-templates/:id', authenticate, async (req, res) => {
   try {
     const { id } = req.params;
     const { name, category, subject_line, body_text, variables, talking_points, is_active, is_default } = req.body;
@@ -116,7 +117,7 @@ router.put('/email-templates/:id', async (req, res) => {
   }
 });
 
-router.delete('/email-templates/:id', async (req, res) => {
+router.delete('/email-templates/:id', authenticate, async (req, res) => {
   try {
     const { id } = req.params;
 
@@ -137,7 +138,7 @@ router.delete('/email-templates/:id', async (req, res) => {
 });
 
 // Quote tracking endpoints
-router.post('/quotations/:id/track', async (req, res) => {
+router.post('/quotations/:id/track', authenticate, async (req, res) => {
   try {
     const { id } = req.params;
     const { event_type, device_type } = req.body;
@@ -158,7 +159,7 @@ router.post('/quotations/:id/track', async (req, res) => {
   }
 });
 
-router.get('/quotations/:id/tracking', async (req, res) => {
+router.get('/quotations/:id/tracking', authenticate, async (req, res) => {
   try {
     const { id } = req.params;
 
@@ -177,7 +178,7 @@ router.get('/quotations/:id/tracking', async (req, res) => {
 });
 
 // Generate tracking token for a quote
-router.post('/quotations/:id/generate-tracking-token', async (req, res) => {
+router.post('/quotations/:id/generate-tracking-token', authenticate, async (req, res) => {
   try {
     const { id } = req.params;
     const token = crypto.randomBytes(32).toString('hex');
@@ -199,7 +200,7 @@ router.post('/quotations/:id/generate-tracking-token', async (req, res) => {
 });
 
 // Update quote protection settings
-router.put('/quotations/:id/protection', async (req, res) => {
+router.put('/quotations/:id/protection', authenticate, async (req, res) => {
   try {
     const { id } = req.params;
     const {
@@ -245,7 +246,7 @@ router.put('/quotations/:id/protection', async (req, res) => {
 });
 
 // Get expiring quotes
-router.get('/quotations/expiring-soon', async (req, res) => {
+router.get('/quotations/expiring-soon', authenticate, async (req, res) => {
   try {
     const { days = 7 } = req.query;
 
@@ -265,7 +266,7 @@ router.get('/quotations/expiring-soon', async (req, res) => {
 });
 
 // Expire old quotes (can be called by cron job)
-router.post('/quotations/expire-old', async (req, res) => {
+router.post('/quotations/expire-old', authenticate, async (req, res) => {
   try {
     const result = await pool.query(
       `UPDATE quotations

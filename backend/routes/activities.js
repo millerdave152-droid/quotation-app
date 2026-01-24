@@ -6,6 +6,7 @@
 
 const express = require('express');
 const router = express.Router();
+const { authenticate } = require('../middleware/auth');
 
 module.exports = function(pool) {
   const ActivityService = require('../services/ActivityService');
@@ -23,7 +24,7 @@ module.exports = function(pool) {
    * GET /api/activities/quote/:quoteId
    * Get all activities for a specific quote
    */
-  router.get('/quote/:quoteId', asyncHandler(async (req, res) => {
+  router.get('/quote/:quoteId', authenticate, asyncHandler(async (req, res) => {
     const { quoteId } = req.params;
     const {
       limit = 50,
@@ -55,7 +56,7 @@ module.exports = function(pool) {
    * GET /api/activities/quote/:quoteId/summary
    * Get activity summary for a quote
    */
-  router.get('/quote/:quoteId/summary', asyncHandler(async (req, res) => {
+  router.get('/quote/:quoteId/summary', authenticate, asyncHandler(async (req, res) => {
     const { quoteId } = req.params;
 
     const [summary, count] = await Promise.all([
@@ -76,7 +77,7 @@ module.exports = function(pool) {
    * POST /api/activities/quote/:quoteId/note
    * Add a note to quote activity
    */
-  router.post('/quote/:quoteId/note', asyncHandler(async (req, res) => {
+  router.post('/quote/:quoteId/note', authenticate, asyncHandler(async (req, res) => {
     const { quoteId } = req.params;
     const {
       note,
@@ -108,7 +109,7 @@ module.exports = function(pool) {
    * POST /api/activities/quote/:quoteId/contact
    * Log customer contact activity
    */
-  router.post('/quote/:quoteId/contact', asyncHandler(async (req, res) => {
+  router.post('/quote/:quoteId/contact', authenticate, asyncHandler(async (req, res) => {
     const { quoteId } = req.params;
     const {
       contactMethod,
@@ -141,7 +142,7 @@ module.exports = function(pool) {
    * POST /api/activities/quote/:quoteId/follow-up
    * Schedule a follow-up activity
    */
-  router.post('/quote/:quoteId/follow-up', asyncHandler(async (req, res) => {
+  router.post('/quote/:quoteId/follow-up', authenticate, asyncHandler(async (req, res) => {
     const { quoteId } = req.params;
     const {
       followUpDate,
@@ -173,7 +174,7 @@ module.exports = function(pool) {
    * POST /api/activities/quote/:quoteId/price-adjustment
    * Log a price adjustment
    */
-  router.post('/quote/:quoteId/price-adjustment', asyncHandler(async (req, res) => {
+  router.post('/quote/:quoteId/price-adjustment', authenticate, asyncHandler(async (req, res) => {
     const { quoteId } = req.params;
     const {
       itemModel,
@@ -209,7 +210,7 @@ module.exports = function(pool) {
    * POST /api/activities/quote/:quoteId/customer-viewed
    * Log when customer views the quote (for tracking)
    */
-  router.post('/quote/:quoteId/customer-viewed', asyncHandler(async (req, res) => {
+  router.post('/quote/:quoteId/customer-viewed', authenticate, asyncHandler(async (req, res) => {
     const { quoteId } = req.params;
     const { customerName = 'Customer' } = req.body;
     const ipAddress = req.ip || req.connection.remoteAddress;
@@ -234,7 +235,7 @@ module.exports = function(pool) {
    * GET /api/activities/recent
    * Get recent activities across all quotes
    */
-  router.get('/recent', asyncHandler(async (req, res) => {
+  router.get('/recent', authenticate, asyncHandler(async (req, res) => {
     const { limit = 20, category, userId } = req.query;
 
     const activities = await activityService.getRecentActivities(
@@ -252,7 +253,7 @@ module.exports = function(pool) {
    * GET /api/activities/types
    * Get all available activity types
    */
-  router.get('/types', (req, res) => {
+  router.get('/types', authenticate, (req, res) => {
     res.json({
       success: true,
       types: ActivityService.TYPES,
@@ -268,7 +269,7 @@ module.exports = function(pool) {
    * GET /api/activities/icons
    * Get icon mapping for all activity types
    */
-  router.get('/icons', (req, res) => {
+  router.get('/icons', authenticate, (req, res) => {
     const icons = {};
     Object.keys(ActivityService.TYPES).forEach(type => {
       icons[type] = ActivityService.getIconForType(type);

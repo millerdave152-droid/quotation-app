@@ -2,10 +2,11 @@ import React from 'react';
 
 /**
  * Reusable loading skeleton components for better UX during data fetching
+ * PERF: All components memoized to prevent unnecessary re-renders
  */
 
 // Base skeleton with shimmer animation
-const SkeletonBase = ({ style, className = '' }) => (
+const SkeletonBase = React.memo(({ style, className = '' }) => (
   <div
     className={`skeleton ${className}`}
     style={{
@@ -16,22 +17,22 @@ const SkeletonBase = ({ style, className = '' }) => (
       ...style
     }}
   />
-);
+));
 
 // Text line skeleton
-export const SkeletonText = ({ width = '100%', height = '16px', style = {} }) => (
+export const SkeletonText = React.memo(({ width = '100%', height = '16px', style = {} }) => (
   <SkeletonBase style={{ width, height, ...style }} />
-);
+));
 
 // Circle skeleton (for avatars)
-export const SkeletonCircle = ({ size = '40px', style = {} }) => (
+export const SkeletonCircle = React.memo(({ size = '40px', style = {} }) => (
   <SkeletonBase style={{ width: size, height: size, borderRadius: '50%', ...style }} />
-);
+));
 
 // Card skeleton
-export const SkeletonCard = ({ height = '120px', style = {} }) => (
+export const SkeletonCard = React.memo(({ height = '120px', style = {} }) => (
   <SkeletonBase style={{ width: '100%', height, borderRadius: '12px', ...style }} />
-);
+));
 
 // Table row skeleton
 export const SkeletonTableRow = ({ columns = 5 }) => (
@@ -81,7 +82,7 @@ export const SkeletonTable = ({ rows = 5, columns = 5 }) => (
 );
 
 // Stats card skeleton
-export const SkeletonStats = ({ count = 4 }) => (
+export const SkeletonStats = React.memo(({ count = 4 }) => (
   <div style={{
     display: 'grid',
     gridTemplateColumns: `repeat(${Math.min(count, 4)}, 1fr)`,
@@ -102,7 +103,7 @@ export const SkeletonStats = ({ count = 4 }) => (
       </div>
     ))}
   </div>
-);
+));
 
 // Form skeleton
 export const SkeletonForm = ({ fields = 4 }) => (

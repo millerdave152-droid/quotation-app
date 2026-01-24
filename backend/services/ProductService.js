@@ -7,6 +7,8 @@
  * - New: Filter by normalized category_id (p.category_id)
  */
 
+const { ApiError } = require('../middleware/errorHandler');
+
 class ProductService {
   constructor(pool, cache) {
     this.pool = pool;

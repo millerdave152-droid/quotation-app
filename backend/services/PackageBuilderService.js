@@ -38,7 +38,6 @@ class PackageBuilderService {
       RETURNING *
     `, [questionnaireId, customerId]);
 
-    console.log(`📦 Created package session: ${result.rows[0].session_uuid}`);
     return result.rows[0];
   }
 
