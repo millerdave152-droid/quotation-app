@@ -633,21 +633,21 @@ const leadSchema = Joi.object({
   contact_phone: Joi.string().max(30).optional().allow('', null),
   preferred_contact_method: Joi.string()
     .valid('phone', 'email', 'text', 'whatsapp')
-    .optional().allow(null),
+    .optional().allow(null, ''),
   best_time_to_contact: Joi.string().max(100).optional().allow('', null),
   lead_source: Joi.string()
     .valid('walk_in', 'phone', 'website', 'referral', 'realtor', 'builder', 'social_media', 'email', 'other')
-    .optional().allow(null),
+    .optional().allow(null, ''),
   source_details: Joi.string().max(500).optional().allow('', null),
   inquiry_reason: Joi.string()
     .valid('browsing', 'researching', 'moving', 'renovation', 'replacement', 'upgrade', 'builder_project', 'other')
-    .optional().allow(null),
+    .optional().allow(null, ''),
   timeline: Joi.string()
     .valid('asap', '1_2_weeks', '1_3_months', '3_6_months', 'just_researching')
-    .optional().allow(null),
+    .optional().allow(null, ''),
   move_in_date: Joi.date().iso().optional().allow(null, ''),
   requirements_notes: Joi.string().max(5000).optional().allow('', null),
-  priority: Joi.string().valid('hot', 'warm', 'cold').default('warm'),
+  priority: Joi.string().valid('hot', 'warm', 'cold').optional().allow(null, '').default('warm'),
   assigned_to: Joi.number().integer().positive().optional().allow(null),
   follow_up_date: Joi.date().iso().optional().allow(null, ''),
   customer_id: Joi.number().integer().positive().optional().allow(null),
@@ -673,21 +673,21 @@ const leadUpdateSchema = Joi.object({
   contact_phone: Joi.string().max(30).optional().allow('', null),
   preferred_contact_method: Joi.string()
     .valid('phone', 'email', 'text', 'whatsapp')
-    .optional().allow(null),
+    .optional().allow(null, ''),
   best_time_to_contact: Joi.string().max(100).optional().allow('', null),
   lead_source: Joi.string()
     .valid('walk_in', 'phone', 'website', 'referral', 'realtor', 'builder', 'social_media', 'email', 'other')
-    .optional().allow(null),
+    .optional().allow(null, ''),
   source_details: Joi.string().max(500).optional().allow('', null),
   inquiry_reason: Joi.string()
     .valid('browsing', 'researching', 'moving', 'renovation', 'replacement', 'upgrade', 'builder_project', 'other')
-    .optional().allow(null),
+    .optional().allow(null, ''),
   timeline: Joi.string()
     .valid('asap', '1_2_weeks', '1_3_months', '3_6_months', 'just_researching')
-    .optional().allow(null),
+    .optional().allow(null, ''),
   move_in_date: Joi.date().iso().optional().allow(null, ''),
   requirements_notes: Joi.string().max(5000).optional().allow('', null),
-  priority: Joi.string().valid('hot', 'warm', 'cold').optional(),
+  priority: Joi.string().valid('hot', 'warm', 'cold').optional().allow(null, ''),
   assigned_to: Joi.number().integer().positive().optional().allow(null),
   follow_up_date: Joi.date().iso().optional().allow(null, ''),
   customer_id: Joi.number().integer().positive().optional().allow(null),
