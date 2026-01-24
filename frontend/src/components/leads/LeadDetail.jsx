@@ -208,21 +208,43 @@ function LeadDetail({ leadId, onEdit, onUpdate, onClose }) {
         {/* Lost Reason Banner */}
         {lead.status === 'lost' && lead.lost_reason && (
           <div style={{
-            marginTop: '12px',
-            padding: '12px 16px',
-            background: '#fef2f2',
+            marginTop: '16px',
+            padding: '16px 20px',
+            background: 'linear-gradient(135deg, #fef2f2 0%, #fee2e2 100%)',
             border: '1px solid #fecaca',
-            borderRadius: '8px',
+            borderRadius: '12px',
             display: 'flex',
             alignItems: 'flex-start',
-            gap: '10px'
+            gap: '14px',
+            boxShadow: '0 2px 8px rgba(239, 68, 68, 0.1)'
           }}>
-            <span style={{ fontSize: '1.25rem' }}>❌</span>
-            <div>
-              <div style={{ fontWeight: '600', color: '#991b1b', marginBottom: '4px' }}>
+            <span style={{
+              fontSize: '24px',
+              width: '44px',
+              height: '44px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              background: 'white',
+              borderRadius: '10px',
+              boxShadow: '0 2px 4px rgba(0,0,0,0.05)'
+            }}>❌</span>
+            <div style={{ flex: 1 }}>
+              <div style={{
+                fontWeight: '700',
+                color: '#991b1b',
+                marginBottom: '6px',
+                fontSize: '14px',
+                textTransform: 'uppercase',
+                letterSpacing: '0.05em'
+              }}>
                 Lost Reason
               </div>
-              <div style={{ color: '#b91c1c', fontSize: '0.875rem' }}>
+              <div style={{
+                color: '#b91c1c',
+                fontSize: '15px',
+                lineHeight: '1.5'
+              }}>
                 {lead.lost_reason}
               </div>
             </div>
@@ -490,7 +512,8 @@ function LostReasonModal({ onSubmit, onClose }) {
     <div style={{
       position: 'fixed',
       inset: 0,
-      background: 'rgba(0,0,0,0.5)',
+      background: 'rgba(0,0,0,0.6)',
+      backdropFilter: 'blur(4px)',
       display: 'flex',
       alignItems: 'center',
       justifyContent: 'center',
@@ -498,33 +521,40 @@ function LostReasonModal({ onSubmit, onClose }) {
     }}>
       <div style={{
         background: 'white',
-        borderRadius: '12px',
+        borderRadius: '16px',
         width: '100%',
-        maxWidth: '480px',
+        maxWidth: '520px',
         maxHeight: '90vh',
-        overflow: 'auto',
+        overflow: 'hidden',
         boxShadow: '0 25px 50px -12px rgba(0,0,0,0.25)'
       }}>
         {/* Header */}
         <div style={{
-          padding: '16px 20px',
-          borderBottom: '1px solid #e5e7eb',
+          padding: '20px 24px',
+          background: 'linear-gradient(135deg, #fef2f2 0%, #fee2e2 100%)',
+          borderBottom: '1px solid #fecaca',
           display: 'flex',
           justifyContent: 'space-between',
           alignItems: 'center'
         }}>
-          <h3 style={{ margin: 0, fontSize: '18px', fontWeight: '600' }}>
+          <h3 style={{ margin: 0, fontSize: '18px', fontWeight: '700', color: '#991b1b' }}>
             Why was this lead lost?
           </h3>
           <button
             onClick={onClose}
             style={{
-              background: 'none',
+              background: 'white',
               border: 'none',
-              fontSize: '20px',
+              fontSize: '18px',
               cursor: 'pointer',
               color: '#6b7280',
-              padding: '4px'
+              width: '32px',
+              height: '32px',
+              borderRadius: '8px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              transition: 'all 0.15s'
             }}
           >
             ✕
@@ -532,13 +562,13 @@ function LostReasonModal({ onSubmit, onClose }) {
         </div>
 
         {/* Body */}
-        <div style={{ padding: '20px' }}>
+        <div style={{ padding: '24px', maxHeight: 'calc(90vh - 200px)', overflowY: 'auto' }}>
           {/* Common Reasons Grid */}
           <div style={{
             display: 'grid',
             gridTemplateColumns: 'repeat(2, 1fr)',
-            gap: '10px',
-            marginBottom: '20px'
+            gap: '12px',
+            marginBottom: '24px'
           }}>
             {commonReasons.map(reason => (
               <button
@@ -547,23 +577,26 @@ function LostReasonModal({ onSubmit, onClose }) {
                 style={{
                   display: 'flex',
                   alignItems: 'center',
-                  gap: '8px',
-                  padding: '12px',
+                  gap: '10px',
+                  padding: '14px 16px',
                   border: selectedReason === reason.label && !useCustom
-                    ? '2px solid #667eea'
+                    ? '2px solid #dc2626'
                     : '1px solid #e5e7eb',
-                  borderRadius: '8px',
+                  borderRadius: '10px',
                   background: selectedReason === reason.label && !useCustom
-                    ? '#f0f4ff'
+                    ? 'linear-gradient(135deg, #fef2f2 0%, #fee2e2 100%)'
                     : 'white',
                   cursor: 'pointer',
                   textAlign: 'left',
                   fontSize: '14px',
-                  transition: 'all 0.15s ease'
+                  transition: 'all 0.2s ease',
+                  boxShadow: selectedReason === reason.label && !useCustom
+                    ? '0 4px 12px rgba(220, 38, 38, 0.15)'
+                    : '0 1px 3px rgba(0,0,0,0.05)'
                 }}
               >
-                <span style={{ fontSize: '18px' }}>{reason.icon}</span>
-                <span style={{ color: '#374151' }}>{reason.label}</span>
+                <span style={{ fontSize: '20px' }}>{reason.icon}</span>
+                <span style={{ color: '#374151', fontWeight: selectedReason === reason.label && !useCustom ? '600' : '400' }}>{reason.label}</span>
               </button>
             ))}
           </div>
@@ -630,21 +663,24 @@ function LostReasonModal({ onSubmit, onClose }) {
 
         {/* Footer */}
         <div style={{
-          padding: '16px 20px',
+          padding: '16px 24px',
           borderTop: '1px solid #e5e7eb',
           display: 'flex',
           gap: '12px',
-          justifyContent: 'flex-end'
+          justifyContent: 'flex-end',
+          background: '#f9fafb'
         }}>
           <button
             onClick={onClose}
             style={{
-              padding: '10px 20px',
+              padding: '12px 20px',
               background: 'white',
               border: '1px solid #d1d5db',
               borderRadius: '8px',
               cursor: 'pointer',
-              fontSize: '14px'
+              fontSize: '14px',
+              fontWeight: '500',
+              transition: 'all 0.15s'
             }}
           >
             Cancel
@@ -652,13 +688,15 @@ function LostReasonModal({ onSubmit, onClose }) {
           <button
             onClick={() => onSubmit(null)}
             style={{
-              padding: '10px 20px',
+              padding: '12px 20px',
               background: '#f3f4f6',
               border: '1px solid #d1d5db',
               borderRadius: '8px',
               cursor: 'pointer',
               fontSize: '14px',
-              color: '#6b7280'
+              fontWeight: '500',
+              color: '#6b7280',
+              transition: 'all 0.15s'
             }}
           >
             Skip (No Reason)
@@ -667,14 +705,20 @@ function LostReasonModal({ onSubmit, onClose }) {
             onClick={handleSubmit}
             disabled={!selectedReason && (!useCustom || !customReason.trim())}
             style={{
-              padding: '10px 20px',
-              background: (selectedReason || (useCustom && customReason.trim())) ? '#dc2626' : '#9ca3af',
+              padding: '12px 24px',
+              background: (selectedReason || (useCustom && customReason.trim()))
+                ? 'linear-gradient(135deg, #ef4444 0%, #dc2626 100%)'
+                : '#9ca3af',
               color: 'white',
               border: 'none',
               borderRadius: '8px',
               cursor: (selectedReason || (useCustom && customReason.trim())) ? 'pointer' : 'not-allowed',
               fontSize: '14px',
-              fontWeight: '500'
+              fontWeight: '600',
+              boxShadow: (selectedReason || (useCustom && customReason.trim()))
+                ? '0 4px 12px rgba(220, 38, 38, 0.3)'
+                : 'none',
+              transition: 'all 0.2s'
             }}
           >
             Mark as Lost

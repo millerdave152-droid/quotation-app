@@ -496,28 +496,33 @@ function TimelineBadge({ timeline }) {
     just_researching: 'Researching'
   };
 
-  if (!timeline) return <span style={{ color: 'var(--text-secondary)' }}>-</span>;
+  if (!timeline) return <span style={{ color: '#9ca3af', fontSize: '14px' }}>-</span>;
 
   const isUrgent = timeline === 'asap' || timeline === '1_2_weeks';
 
   return (
     <span
       style={{
-        fontSize: '0.8rem',
-        padding: '0.25rem 0.5rem',
-        borderRadius: '4px',
-        background: isUrgent ? '#fef3c7' : '#f3f4f6',
-        color: isUrgent ? '#b45309' : '#6b7280'
+        fontSize: '12px',
+        fontWeight: '600',
+        padding: '6px 10px',
+        borderRadius: '6px',
+        background: isUrgent
+          ? 'linear-gradient(135deg, #fef3c7 0%, #fde68a 100%)'
+          : 'linear-gradient(135deg, #f3f4f6 0%, #e5e7eb 100%)',
+        color: isUrgent ? '#b45309' : '#6b7280',
+        display: 'inline-block',
+        whiteSpace: 'nowrap'
       }}
     >
-      {labels[timeline] || timeline}
+      {isUrgent && '🔥 '}{labels[timeline] || timeline}
     </span>
   );
 }
 
 // Follow-up Date component
 function FollowUpDate({ date }) {
-  if (!date) return <span style={{ color: 'var(--text-secondary)' }}>-</span>;
+  if (!date) return <span style={{ color: '#9ca3af', fontSize: '14px' }}>-</span>;
 
   const followUp = new Date(date);
   const today = new Date();
@@ -526,20 +531,32 @@ function FollowUpDate({ date }) {
 
   const diffDays = Math.floor((followUp - today) / (1000 * 60 * 60 * 24));
 
-  let style = { fontSize: '0.875rem' };
+  let style = {
+    fontSize: '13px',
+    padding: '5px 10px',
+    borderRadius: '6px',
+    display: 'inline-block',
+    fontWeight: '500'
+  };
   let text = followUp.toLocaleDateString('en-CA', { month: 'short', day: 'numeric' });
 
   if (diffDays < 0) {
+    style.background = 'linear-gradient(135deg, #fee2e2 0%, #fecaca 100%)';
     style.color = '#dc2626';
     style.fontWeight = '600';
-    text = `${Math.abs(diffDays)}d overdue`;
+    text = `⚠️ ${Math.abs(diffDays)}d overdue`;
   } else if (diffDays === 0) {
+    style.background = 'linear-gradient(135deg, #fef3c7 0%, #fde68a 100%)';
     style.color = '#d97706';
     style.fontWeight = '600';
-    text = 'Today';
+    text = '📌 Today';
   } else if (diffDays === 1) {
-    style.color = '#d97706';
+    style.background = 'linear-gradient(135deg, #dbeafe 0%, #bfdbfe 100%)';
+    style.color = '#1d4ed8';
     text = 'Tomorrow';
+  } else {
+    style.background = '#f3f4f6';
+    style.color = '#6b7280';
   }
 
   return <span style={style}>{text}</span>;
@@ -550,11 +567,12 @@ function LeadScoreBadge({ score }) {
   if (score === null || score === undefined) {
     return (
       <span style={{
-        fontSize: '0.75rem',
-        padding: '0.2rem 0.5rem',
-        borderRadius: '10px',
+        fontSize: '12px',
+        padding: '6px 12px',
+        borderRadius: '20px',
         background: '#f3f4f6',
-        color: '#9ca3af'
+        color: '#9ca3af',
+        fontWeight: '500'
       }}>
         --
       </span>
@@ -562,46 +580,54 @@ function LeadScoreBadge({ score }) {
   }
 
   // Determine color based on score
-  let bgColor, textColor, label;
+  let bgGradient, textColor, label, shadowColor;
   if (score >= 80) {
-    bgColor = '#dcfce7';
+    bgGradient = 'linear-gradient(135deg, #dcfce7 0%, #bbf7d0 100%)';
     textColor = '#166534';
     label = 'A';
+    shadowColor = 'rgba(22, 163, 74, 0.2)';
   } else if (score >= 60) {
-    bgColor = '#dbeafe';
+    bgGradient = 'linear-gradient(135deg, #dbeafe 0%, #bfdbfe 100%)';
     textColor = '#1e40af';
     label = 'B';
+    shadowColor = 'rgba(30, 64, 175, 0.2)';
   } else if (score >= 40) {
-    bgColor = '#fef3c7';
+    bgGradient = 'linear-gradient(135deg, #fef3c7 0%, #fde68a 100%)';
     textColor = '#92400e';
     label = 'C';
+    shadowColor = 'rgba(146, 64, 14, 0.2)';
   } else {
-    bgColor = '#fee2e2';
+    bgGradient = 'linear-gradient(135deg, #fee2e2 0%, #fecaca 100%)';
     textColor = '#991b1b';
     label = 'D';
+    shadowColor = 'rgba(153, 27, 27, 0.2)';
   }
 
   return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+    <div style={{
+      display: 'inline-flex',
+      alignItems: 'center',
+      gap: '6px',
+      padding: '6px 12px',
+      borderRadius: '20px',
+      background: bgGradient,
+      boxShadow: `0 2px 8px ${shadowColor}`
+    }}>
       <span style={{
-        fontSize: '0.75rem',
-        padding: '0.2rem 0.5rem',
-        borderRadius: '10px',
-        background: bgColor,
+        fontSize: '14px',
         color: textColor,
-        fontWeight: '600',
-        minWidth: '32px',
-        textAlign: 'center'
+        fontWeight: '700'
       }}>
         {score}
       </span>
       <span style={{
-        fontSize: '0.65rem',
-        padding: '0.1rem 0.3rem',
+        fontSize: '10px',
+        padding: '2px 6px',
         borderRadius: '4px',
-        background: bgColor,
-        color: textColor,
-        fontWeight: '700'
+        background: textColor,
+        color: 'white',
+        fontWeight: '700',
+        letterSpacing: '0.05em'
       }}>
         {label}
       </span>
@@ -612,53 +638,64 @@ function LeadScoreBadge({ score }) {
 // Quick Actions Buttons component
 function QuickActionsButtons({ lead, onCall, onNote, onEmail, onStatus, onFollowUp }) {
   const buttonStyle = {
-    padding: '4px 8px',
+    padding: '8px 10px',
     border: 'none',
-    borderRadius: '4px',
+    borderRadius: '8px',
     cursor: 'pointer',
-    fontSize: '0.75rem',
+    fontSize: '14px',
     display: 'inline-flex',
     alignItems: 'center',
-    gap: '4px',
-    transition: 'background-color 0.2s'
+    justifyContent: 'center',
+    transition: 'all 0.2s ease',
+    boxShadow: '0 1px 2px rgba(0,0,0,0.05)'
   };
 
   return (
-    <div style={{ display: 'flex', gap: '4px', flexWrap: 'nowrap' }}>
+    <div style={{ display: 'flex', gap: '6px', flexWrap: 'nowrap', justifyContent: 'center' }}>
       <button
         onClick={onCall}
-        style={{ ...buttonStyle, background: '#dbeafe', color: '#1e40af' }}
+        style={{ ...buttonStyle, background: 'linear-gradient(135deg, #dbeafe, #bfdbfe)', color: '#1e40af' }}
         title="Log call"
+        onMouseEnter={(e) => e.target.style.transform = 'translateY(-2px)'}
+        onMouseLeave={(e) => e.target.style.transform = 'translateY(0)'}
       >
-        <span>📞</span>
+        📞
       </button>
       <button
         onClick={onEmail}
-        style={{ ...buttonStyle, background: '#e0e7ff', color: '#3730a3' }}
+        style={{ ...buttonStyle, background: 'linear-gradient(135deg, #e0e7ff, #c7d2fe)', color: '#3730a3' }}
         title="Log email"
+        onMouseEnter={(e) => e.target.style.transform = 'translateY(-2px)'}
+        onMouseLeave={(e) => e.target.style.transform = 'translateY(0)'}
       >
-        <span>📧</span>
+        📧
       </button>
       <button
         onClick={onNote}
-        style={{ ...buttonStyle, background: '#fef3c7', color: '#92400e' }}
+        style={{ ...buttonStyle, background: 'linear-gradient(135deg, #fef3c7, #fde68a)', color: '#92400e' }}
         title="Add note"
+        onMouseEnter={(e) => e.target.style.transform = 'translateY(-2px)'}
+        onMouseLeave={(e) => e.target.style.transform = 'translateY(0)'}
       >
-        <span>📝</span>
+        📝
       </button>
       <button
         onClick={onStatus}
-        style={{ ...buttonStyle, background: '#f3f4f6', color: '#374151' }}
+        style={{ ...buttonStyle, background: 'linear-gradient(135deg, #f3f4f6, #e5e7eb)', color: '#374151' }}
         title="Change status"
+        onMouseEnter={(e) => e.target.style.transform = 'translateY(-2px)'}
+        onMouseLeave={(e) => e.target.style.transform = 'translateY(0)'}
       >
-        <span>⚡</span>
+        ⚡
       </button>
       <button
         onClick={onFollowUp}
-        style={{ ...buttonStyle, background: '#dcfce7', color: '#166534' }}
+        style={{ ...buttonStyle, background: 'linear-gradient(135deg, #dcfce7, #bbf7d0)', color: '#166534' }}
         title="Schedule follow-up"
+        onMouseEnter={(e) => e.target.style.transform = 'translateY(-2px)'}
+        onMouseLeave={(e) => e.target.style.transform = 'translateY(0)'}
       >
-        <span>📅</span>
+        📅
       </button>
     </div>
   );
@@ -723,7 +760,8 @@ function QuickActionModal({ type, lead, loading, onClose, onCall, onNote, onEmai
     left: 0,
     right: 0,
     bottom: 0,
-    background: 'rgba(0, 0, 0, 0.5)',
+    background: 'rgba(0, 0, 0, 0.6)',
+    backdropFilter: 'blur(4px)',
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
@@ -732,37 +770,45 @@ function QuickActionModal({ type, lead, loading, onClose, onCall, onNote, onEmai
 
   const contentStyle = {
     background: 'white',
-    borderRadius: '8px',
-    padding: '24px',
+    borderRadius: '16px',
+    padding: '0',
     width: '100%',
-    maxWidth: '450px',
+    maxWidth: '480px',
     maxHeight: '90vh',
-    overflow: 'auto',
-    boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1)'
+    overflow: 'hidden',
+    boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)'
   };
 
   const headerStyle = {
     display: 'flex',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: '16px',
-    paddingBottom: '12px',
+    padding: '20px 24px',
+    background: 'linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%)',
     borderBottom: '1px solid #e5e7eb'
+  };
+
+  const bodyStyle = {
+    padding: '24px',
+    maxHeight: 'calc(90vh - 140px)',
+    overflowY: 'auto'
   };
 
   const inputStyle = {
     width: '100%',
-    padding: '8px 12px',
+    padding: '12px 14px',
     border: '1px solid #d1d5db',
-    borderRadius: '6px',
-    fontSize: '0.875rem',
-    marginTop: '4px'
+    borderRadius: '8px',
+    fontSize: '14px',
+    marginTop: '6px',
+    transition: 'border-color 0.2s, box-shadow 0.2s',
+    boxSizing: 'border-box'
   };
 
   const labelStyle = {
     display: 'block',
-    fontSize: '0.875rem',
-    fontWeight: '500',
+    fontSize: '13px',
+    fontWeight: '600',
     color: '#374151',
     marginBottom: '4px'
   };
@@ -780,26 +826,36 @@ function QuickActionModal({ type, lead, loading, onClose, onCall, onNote, onEmai
       <div style={contentStyle} ref={modalRef} onClick={(e) => e.stopPropagation()}>
         <div style={headerStyle}>
           <div>
-            <h3 style={{ margin: 0, fontSize: '1.1rem', fontWeight: '600' }}>{titles[type]}</h3>
-            <p style={{ margin: '4px 0 0', fontSize: '0.8rem', color: '#6b7280' }}>
-              {lead.contact_name} • {lead.lead_number}
+            <h3 style={{ margin: 0, fontSize: '18px', fontWeight: '600', color: '#111827' }}>{titles[type]}</h3>
+            <p style={{ margin: '4px 0 0', fontSize: '13px', color: '#6b7280' }}>
+              {lead.contact_name} • <span style={{ fontFamily: 'monospace' }}>{lead.lead_number}</span>
             </p>
           </div>
           <button
             onClick={onClose}
             style={{
-              background: 'none',
+              background: '#f3f4f6',
               border: 'none',
-              fontSize: '1.5rem',
+              fontSize: '18px',
               cursor: 'pointer',
-              color: '#9ca3af',
-              lineHeight: 1
+              color: '#6b7280',
+              lineHeight: 1,
+              width: '32px',
+              height: '32px',
+              borderRadius: '8px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              transition: 'all 0.15s'
             }}
+            onMouseEnter={(e) => { e.target.style.background = '#e5e7eb'; e.target.style.color = '#374151'; }}
+            onMouseLeave={(e) => { e.target.style.background = '#f3f4f6'; e.target.style.color = '#6b7280'; }}
           >
-            ×
+            ✕
           </button>
         </div>
 
+        <div style={bodyStyle}>
         {type === 'status' ? (
           showLostReasons ? (
             // Lost Reason Selection
@@ -1129,6 +1185,7 @@ function QuickActionModal({ type, lead, loading, onClose, onCall, onNote, onEmai
             </div>
           </form>
         )}
+        </div>
       </div>
     </div>
   );
