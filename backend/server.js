@@ -51,12 +51,39 @@ const PricingService = require('./services/PricingService');
 const ProductMetricsService = require('./services/ProductMetricsService');
 const QuoteExpiryService = require('./services/QuoteExpiryService');
 
+// POS Payment Services (Phase 3)
+const POSPaymentService = require('./services/POSPaymentService');
+const ReceiptService = require('./services/ReceiptService');
+const CashDrawerService = require('./services/CashDrawerService');
+const POSInvoiceService = require('./services/POSInvoiceService');
+const UnifiedReportingService = require('./services/UnifiedReportingService');
+const VolumeDiscountService = require('./services/VolumeDiscountService');
+const POSPromotionService = require('./services/POSPromotionService');
+const PromotionEngine = require('./services/PromotionEngine');
+const ManagerOverrideService = require('./services/ManagerOverrideService');
+const DeliveryFulfillmentService = require('./services/DeliveryFulfillmentService');
+const WarrantyService = require('./services/WarrantyService');
+const FinancingService = require('./services/FinancingService');
+const CommissionService = require('./services/CommissionService');
+const SignatureService = require('./services/SignatureService');
+const BatchEmailService = require('./services/BatchEmailService');
+const ScheduledBatchEmailService = require('./services/ScheduledBatchEmailService');
+const QuoteExpiryDigestJob = require('./services/QuoteExpiryDigestJob');
+const emailService = require('./services/EmailService'); // singleton
+const NotificationService = require('./services/NotificationService');
+const TaxService = require('./services/TaxService');
+
 // New Enterprise Routes (Phase 2)
 const ordersRoutes = require('./routes/orders');
 const invoicesRoutes = require('./routes/invoices');
 const inventoryRoutes = require('./routes/inventory');
 const deliveryRoutes = require('./routes/delivery');
 const pricingRoutes = require('./routes/pricing');
+const volumePricingRoutes = require('./routes/volume-pricing');
+const posPromotionsRoutes = require('./routes/pos-promotions');
+const managerOverrideRoutes = require('./routes/manager-overrides');
+const deliveryFulfillmentRoutes = require('./routes/delivery-fulfillment');
+const warrantyRoutes = require('./routes/warranty');
 const stripeRoutes = require('./routes/stripe');
 const productMetricsRoutes = require('./routes/product-metrics');
 
@@ -77,6 +104,20 @@ const quickSearchRoutes = require('./routes/quickSearch');
 
 // Lookup service (cities, postal codes, names autocomplete)
 const lookupRoutes = require('./routes/lookup');
+
+// POS Payment Routes (Phase 3)
+const { init: initPosPaymentsRoutes } = require('./routes/pos-payments');
+const { init: initReceiptsRoutes } = require('./routes/receipts');
+const { init: initCashDrawerRoutes } = require('./routes/cash-drawer');
+const { init: initPosInvoicesRoutes } = require('./routes/pos-invoices');
+const { init: initUnifiedReportsRoutes } = require('./routes/unified-reports');
+const { init: initRecommendationsRoutes } = require('./routes/recommendations');
+const { init: initFinancingRoutes } = require('./routes/financing');
+const { init: initPosQuoteExpiryRoutes } = require('./routes/pos-quote-expiry');
+const { init: initCommissionsRoutes } = require('./routes/commissions');
+const { init: initSignaturesRoutes } = require('./routes/signatures');
+const { init: initBatchEmailRoutes } = require('./routes/batch-email');
+const batchEmailSettingsRoutes = require('./routes/batch-email-settings');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -132,17 +173,43 @@ pool.query('SELECT NOW()', (err, res) => {
   }
 });
 
+// Make pool available to routes via app.locals
+app.locals.pool = pool;
+
 // ============================================
 // SERVICE INSTANTIATION (Phase 2)
 // ============================================
 const inventoryService = new InventoryService(pool, cache);
+const notificationService = new NotificationService(pool);
 const orderService = new OrderService(pool, cache, inventoryService);
-const invoiceService = new InvoiceService(pool, cache, null); // emailService passed as null for now
+const invoiceService = new InvoiceService(pool, cache, emailService);
 const stripeService = new StripeService(pool, cache);
 const deliveryService = new DeliveryService(pool, cache);
 const pricingService = new PricingService(pool, cache);
 const productMetricsService = new ProductMetricsService(pool, cache);
-const quoteExpiryService = new QuoteExpiryService(pool, cache, inventoryService, null); // notificationService passed as null for now
+const quoteExpiryService = new QuoteExpiryService(pool, cache, inventoryService, notificationService);
+const taxService = new TaxService(pool, cache);
+
+// POS Payment Services (Phase 3)
+const posPaymentService = new POSPaymentService(pool, cache, stripeService);
+const receiptService = new ReceiptService(pool, cache);
+const cashDrawerService = new CashDrawerService(pool, cache);
+const posInvoiceService = new POSInvoiceService(pool, cache);
+const reportingService = new UnifiedReportingService(pool, cache);
+const volumeDiscountService = new VolumeDiscountService(pool, cache);
+const posPromotionService = new POSPromotionService(pool);
+const promotionEngine = new PromotionEngine(pool, posPromotionService);
+const managerOverrideService = new ManagerOverrideService(pool, cache);
+const deliveryFulfillmentService = new DeliveryFulfillmentService(pool, cache);
+const warrantyService = new WarrantyService(pool, cache);
+const financingService = new FinancingService(pool);
+const commissionService = new CommissionService(pool, cache);
+const signatureService = new SignatureService(pool, cache);
+const batchEmailService = new BatchEmailService(pool, {
+  maxBatchSize: parseInt(process.env.BATCH_EMAIL_MAX_SIZE, 10) || 50,
+  sendDelayMs: parseInt(process.env.BATCH_EMAIL_DELAY_MS, 10) || 1000,
+  maxRetries: parseInt(process.env.BATCH_EMAIL_MAX_RETRIES, 10) || 3,
+});
 
 console.log('✅ Enterprise services initialized');
 
@@ -157,8 +224,35 @@ const sesClient = new SESv2Client({
   credentials: {
     accessKeyId: process.env.AWS_ACCESS_KEY_ID,
     secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY
-  }
+  },
+  requestHandler: {
+    requestTimeout: 10_000, // 10 second timeout for SES API calls
+  },
 });
+
+// Email service wrapper for scheduled batch emails
+const emailServiceWrapper = {
+  sendEmail: async ({ to, subject, html }) => {
+    const command = new SendEmailCommand({
+      Content: {
+        Simple: {
+          Subject: { Data: subject },
+          Body: { Html: { Data: html } },
+        },
+      },
+      FromEmailAddress: process.env.EMAIL_FROM,
+      Destination: { ToAddresses: [to] },
+    });
+    return sesClient.send(command);
+  },
+};
+
+// Initialize scheduled batch email service
+const scheduledBatchEmailService = new ScheduledBatchEmailService(pool, batchEmailService, emailServiceWrapper);
+scheduledBatchEmailService.initialize().catch(err => {
+  console.error('Failed to initialize scheduled batch email service:', err);
+});
+console.log('✅ Scheduled batch email service initialized');
 
 // ============================================
 // HEALTH CHECK ENDPOINTS
@@ -395,6 +489,110 @@ app.use('/api/quotations', initQuotesRoutes({ pool }));
 console.log('✅ Quotation routes loaded (modular)');
 
 // ============================================
+// POS TRANSACTIONS (TeleTime POS)
+// ============================================
+const { init: initTransactionsRoutes } = require('./routes/transactions');
+app.use('/api/transactions', initTransactionsRoutes({ pool, cache }));
+console.log('✅ POS transactions routes loaded');
+
+// ============================================
+// POS REGISTERS & SHIFTS (TeleTime POS)
+// ============================================
+const { init: initRegisterRoutes } = require('./routes/register');
+app.use('/api/registers', initRegisterRoutes({ pool, cache, scheduledBatchEmailService }));
+console.log('✅ POS register routes loaded');
+
+// ============================================
+// POS PAYMENTS (Stripe, Account, Gift Cards)
+// ============================================
+app.use('/api/pos-payments', initPosPaymentsRoutes({ posPaymentService }));
+console.log('✅ POS payments routes loaded');
+
+// ============================================
+// RECEIPTS (PDF generation, thermal, email)
+// ============================================
+app.use('/api/receipts', initReceiptsRoutes({ receiptService }));
+console.log('✅ Receipt routes loaded');
+
+// ============================================
+// CASH DRAWER MANAGEMENT
+// ============================================
+app.use('/api/cash-drawer', initCashDrawerRoutes({ cashDrawerService }));
+console.log('✅ Cash drawer routes loaded');
+
+// ============================================
+// POS INVOICES (Account customer invoicing)
+// ============================================
+app.use('/api/pos-invoices', initPosInvoicesRoutes({ posInvoiceService }));
+console.log('✅ POS invoice routes loaded');
+
+// ============================================
+// UNIFIED REPORTS (Combined Quote + POS Analytics)
+// ============================================
+app.use('/api/reports/unified', initUnifiedReportsRoutes({ reportingService }));
+console.log('✅ Unified reporting routes loaded');
+
+// ============================================
+// API V1 (Standardized versioned API)
+// ============================================
+const { init: initV1Routes } = require('./routes/v1');
+app.use('/api/v1', initV1Routes({ db: { query: pool.query.bind(pool), pool }, services: {
+  receiptService,
+  posPaymentService,
+  pricingService,
+  productService: categoryProductService
+}}));
+console.log('✅ API v1 routes loaded (standardized versioned API)');
+
+// ============================================
+// DRAFTS (Quote/POS draft persistence & offline sync)
+// ============================================
+const { init: initDraftRoutes } = require('./routes/drafts');
+app.use('/api/drafts', initDraftRoutes({ pool }));
+console.log('✅ Draft persistence routes loaded (offline sync support)');
+
+// ============================================
+// TAX (Canadian tax calculations)
+// ============================================
+const { init: initTaxRoutes } = require('./routes/tax');
+app.use('/api/tax', initTaxRoutes({ taxService }));
+console.log('✅ Tax routes loaded');
+
+// ============================================
+// POS EMAIL (Receipt emails via AWS SES)
+// ============================================
+const emailRoutes = require('./routes/email');
+app.use('/api/email', emailRoutes);
+console.log('✅ POS email routes loaded');
+
+// ============================================
+// POS QUOTES (Quote lookup & conversion)
+// ============================================
+const { init: initPosQuotesRoutes } = require('./routes/pos-quotes');
+app.use('/api/pos-quotes', initPosQuotesRoutes({ pool }));
+console.log('✅ POS quote routes loaded');
+
+// ============================================
+// POS QUOTE EXPIRY (Expiring quotes detection)
+// ============================================
+app.use('/api/pos/quotes', initPosQuoteExpiryRoutes({ quoteExpiryService }));
+console.log('✅ POS quote expiry routes loaded');
+
+// ============================================
+// POS SALES REPS (Active/on-shift sales reps)
+// ============================================
+const { init: initPosSalesRepsRoutes } = require('./routes/pos-sales-reps');
+app.use('/api/pos', initPosSalesRepsRoutes(pool));
+console.log('✅ POS sales reps routes loaded');
+
+// ============================================
+// SHIFT REPORTS (End-of-day/shift reports)
+// ============================================
+const { init: initShiftReportsRoutes } = require('./routes/shift-reports');
+app.use('/api/reports', initShiftReportsRoutes(pool));
+console.log('✅ Shift reports routes loaded');
+
+// ============================================
 // CUSTOMER PAYMENTS & CREDIT TRACKING
 // ============================================
 app.use('/api/payments', paymentsRoutes);
@@ -433,6 +631,41 @@ console.log('✅ Package builder V2 routes loaded');
 const { init: initManufacturerPromotionsRoutes } = require('./routes/manufacturerPromotions');
 app.use('/api/promotions/manufacturer', initManufacturerPromotionsRoutes({ pool }));
 console.log('✅ Manufacturer promotions routes loaded');
+
+// ============================================
+// MANUFACTURER REBATES (Instant, Mail-In, Online Rebates)
+// ============================================
+const createRebateRoutes = require('./routes/rebates');
+app.use('/api/rebates', createRebateRoutes(pool, authenticate));
+console.log('✅ Manufacturer rebates routes loaded');
+
+// ============================================
+// TRADE-IN SYSTEM (Assessment, Approvals, History)
+// ============================================
+const tradeInRoutes = require('./routes/trade-in');
+app.use('/api/trade-in', tradeInRoutes);
+
+// Product Recommendations
+app.use('/api/recommendations', initRecommendationsRoutes({ pool, cache }));
+console.log('✅ Trade-in routes loaded');
+
+// Upsell Strategies
+const upsellRoutes = require('./routes/upsell');
+app.use('/api/upsell', upsellRoutes);
+console.log('✅ Upsell routes loaded');
+
+// Financing Service
+app.use('/api/financing', initFinancingRoutes({ financingService }));
+console.log('✅ Financing routes loaded');
+
+// Commission Service
+app.use('/api/commissions', initCommissionsRoutes({ commissionService }));
+app.use('/api/signatures', initSignaturesRoutes({ signatureService }));
+app.use('/api/batch-email', initBatchEmailRoutes({ batchEmailService, receiptService }));
+
+// Batch email settings routes (uses scheduledBatchEmailService initialized earlier)
+app.use('/api/batch-email-settings', authenticate, batchEmailSettingsRoutes(pool, scheduledBatchEmailService));
+console.log('✅ Commission and batch email routes loaded');
 
 // ============================================
 // EMAIL ENDPOINTS (PHASE 5)
@@ -594,7 +827,7 @@ app.post('/api/quotations/:id/send-email', upload.single('pdf'), async (req, res
       <html>
       <head><style>body{font-family:Arial,sans-serif;line-height:1.6;color:#333;}.container{max-width:600px;margin:0 auto;padding:20px;}.header{background:linear-gradient(135deg,#667eea 0%,#764ba2 100%);color:white;padding:30px;text-align:center;border-radius:8px 8px 0 0;}.content{background:#fff;padding:30px;border:1px solid #e5e7eb;border-top:none;}.quote-info{background:#f9fafb;padding:20px;border-radius:8px;margin:20px 0;}.quote-info table{width:100%;}.quote-info td{padding:8px 0;}.quote-info td:first-child{font-weight:bold;color:#6b7280;}.footer{background:#f9fafb;padding:20px;text-align:center;font-size:12px;color:#6b7280;border-radius:0 0 8px 8px;}</style></head>
       <body><div class="container"><div class="header"><h1 style="margin:0;font-size:28px;">Your Quote is Ready!</h1></div>
-      <div class="content"><p>Dear ${recipientName},</p><p>${message || 'Thank you for your interest in our products. Please find your quote attached.'}</p>
+      <div class="content"><p>Dear ${(recipientName || '').replace(/[<>&"']/g, c => ({'<':'&lt;','>':'&gt;','&':'&amp;','"':'&quot;',"'":'&#39;'}[c]))},</p><p>${(message || 'Thank you for your interest in our products. Please find your quote attached.').replace(/[<>&"']/g, c => ({'<':'&lt;','>':'&gt;','&':'&amp;','"':'&quot;',"'":'&#39;'}[c]))}</p>
       <div class="quote-info"><table><tr><td>Quote Number:</td><td><strong>${quote.quote_number || `Q-${quote.id}`}</strong></td></tr>
       <tr><td>Date:</td><td>${new Date(quote.created_at).toLocaleDateString()}</td></tr>
       <tr><td>Total Amount:</td><td style="color:#10b981;font-size:18px;font-weight:bold;">$${(quote.total_cents / 100).toFixed(2)} CAD</td></tr></table></div>
@@ -2302,6 +2535,19 @@ console.log('✅ Delivery routes loaded');
 app.use('/api/pricing', pricingRoutes(pool, cache, pricingService));
 console.log('✅ Pricing routes loaded');
 
+app.use('/api/pricing/volume', volumePricingRoutes(pool, cache, volumeDiscountService));
+console.log('✅ Volume pricing routes loaded');
+
+app.use('/api/pos-promotions', posPromotionsRoutes(posPromotionService, promotionEngine));
+console.log('✅ POS promotions routes loaded');
+
+app.use('/api/manager-overrides', managerOverrideRoutes(managerOverrideService));
+console.log('✅ Manager override routes loaded');
+
+app.use('/api/delivery', deliveryFulfillmentRoutes(deliveryFulfillmentService));
+app.use('/api/warranty', warrantyRoutes(warrantyService));
+console.log('✅ Delivery fulfillment routes loaded');
+
 app.use('/api/product-metrics', productMetricsRoutes(pool, cache, productMetricsService));
 console.log('✅ Product metrics routes loaded');
 
@@ -2382,6 +2628,13 @@ app.use('/api/admin', adminRoutes);
 console.log('✅ Admin routes loaded (email monitoring, queue management)');
 
 // ============================================
+// ADMIN APPROVAL RULES (Threshold Configuration)
+// ============================================
+const adminApprovalRulesRoutes = require('./routes/admin-approval-rules');
+app.use('/api/admin/approval-rules', authenticate, requireRole(['admin', 'manager']), adminApprovalRulesRoutes(pool));
+console.log('✅ Admin approval rules routes loaded');
+
+// ============================================
 // ERROR HANDLING MIDDLEWARE
 // ============================================
 
@@ -2394,7 +2647,9 @@ app.use(errorHandler);
 // ============================================
 // START SERVER
 // ============================================
+let serverStarted = false;
 const server = app.listen(PORT, () => {
+  serverStarted = true;
   console.log('');
   console.log('========================================');
   console.log('🚀 CUSTOMER QUOTATION APP - BACKEND SERVER');
@@ -2433,16 +2688,28 @@ const server = app.listen(PORT, () => {
     nomenclatureScraperJob.startSchedule(process.env.NOMENCLATURE_SCRAPE_SCHEDULE || '0 2 * * 0');
     console.log('✅ Nomenclature scraper scheduler started (Weekly Sunday 2 AM)');
   }
+
+  // Start quote expiry digest job for daily email digests to sales reps
+  if (process.env.ENABLE_QUOTE_EXPIRY_DIGEST !== 'false') {
+    const quoteExpiryDigestJob = new QuoteExpiryDigestJob(pool, emailService);
+    quoteExpiryDigestJob.start();
+    console.log('✅ Quote expiry digest scheduler started (Weekdays 8 AM)');
+  }
 });
 
 // Handle server errors
 server.on('error', (error) => {
   if (error.code === 'EADDRINUSE') {
-    console.error(`❌ Port ${PORT} is already in use`);
+    if (serverStarted) {
+      // Dual-stack race on Windows — server is already listening on IPv4, ignore IPv6 failure
+      console.warn(`⚠️  Port ${PORT} dual-stack conflict (non-fatal, server is running)`);
+    } else {
+      console.error(`❌ Port ${PORT} is already in use`);
+      process.exit(1);
+    }
   } else {
     console.error('❌ Server error:', error);
   }
-  process.exit(1);
 });
 
 // Graceful shutdown
