@@ -12,7 +12,6 @@ import {
   PencilIcon,
 } from '@heroicons/react/24/outline';
 import SignatureCanvas from './SignatureCanvas';
-import { sanitizeSvg } from '../../utils/sanitize';
 
 /**
  * Signature Pad Component
@@ -142,21 +141,14 @@ export default function SignaturePad({
           <div className="bg-white rounded-xl border-2 border-gray-200 p-6">
             <p className="text-sm text-gray-500 mb-3 text-center">Signature Preview</p>
 
-            {/* Signature Image */}
+            {/* Signature Image - use img tag to avoid dangerouslySetInnerHTML DOM conflicts */}
             <div className="bg-gray-50 rounded-lg p-4 flex items-center justify-center min-h-[120px]">
-              {outputFormat === 'svg' && previewData ? (
-                <div
-                  className="max-w-full"
-                  style={{ maxWidth: canvasSize.width, maxHeight: canvasSize.height }}
-                  // Sanitize SVG to prevent XSS (defense in depth)
-                  dangerouslySetInnerHTML={{ __html: sanitizeSvg(previewData) }}
-                />
-              ) : previewData ? (
+              {previewData ? (
                 <img
-                  src={previewData}
+                  src={signatureDataURL || previewData}
                   alt="Signature preview"
                   className="max-w-full"
-                  style={{ maxHeight: canvasSize.height }}
+                  style={{ maxWidth: canvasSize.width, maxHeight: canvasSize.height }}
                 />
               ) : null}
             </div>
