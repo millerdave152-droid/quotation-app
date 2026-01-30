@@ -873,7 +873,7 @@ export function CartProvider({ children }) {
       shiftId,
       customerId: customer?.customerId || customer?.customer_id || null,
       quoteId: quoteId || null,
-      salespersonId: salespersonId || null,
+      salespersonId: Number.isFinite(Number(salespersonId)) ? Number(salespersonId) : null,
       items: items.map((item) => ({
         productId: item.productId,
         quantity: item.quantity,
