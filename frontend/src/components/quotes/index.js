@@ -15,3 +15,4 @@ export { default as VersionHistory } from './VersionHistory';
 export { default as CounterOfferModal } from './CounterOfferModal';
 export { default as NegotiationTimeline } from './NegotiationTimeline';
 export { default as PricingPanel } from './PricingPanel';
+export { default as QuoteKanban } from './QuoteKanban';

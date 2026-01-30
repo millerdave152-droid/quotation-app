@@ -39,8 +39,17 @@ async function checkDatabase() {
     console.log('=================\n');
 
     // Get details for each table
+    // SECURITY: Validate table names against a safe pattern (alphanumeric and underscore only)
+    const SAFE_TABLE_NAME_PATTERN = /^[a-zA-Z_][a-zA-Z0-9_]*$/;
+
     for (const table of tablesResult.rows) {
       const tableName = table.table_name;
+
+      // Validate table name to prevent SQL injection (defense-in-depth)
+      if (!SAFE_TABLE_NAME_PATTERN.test(tableName)) {
+        console.warn(`⚠️ Skipping table with unsafe name: ${tableName}`);
+        continue;
+      }
 
       // Get columns
       const columnsResult = await pool.query(`
@@ -54,8 +63,8 @@ async function checkDatabase() {
         ORDER BY ordinal_position
       `, [tableName]);
 
-      // Get row count
-      const countResult = await pool.query(`SELECT COUNT(*) as count FROM ${tableName}`);
+      // Get row count using quoted identifier for safety
+      const countResult = await pool.query(`SELECT COUNT(*) as count FROM "${tableName}"`);
       const rowCount = countResult.rows[0].count;
 
       console.log(`📁 ${tableName.toUpperCase()} (${rowCount} rows)`);

@@ -10,6 +10,7 @@ const multer = require('multer');
 const path = require('path');
 const fs = require('fs').promises;
 const Product3DService = require('../services/Product3DService');
+const { authenticate } = require('../middleware/auth');
 
 // Configure multer for file uploads
 const storage = multer.diskStorage({
@@ -49,7 +50,7 @@ const upload = multer({
  * GET /api/product-3d/products
  * Get all products that have 3D models
  */
-router.get('/products', async (req, res) => {
+router.get('/products', authenticate, async (req, res) => {
   try {
     const { category, manufacturer, limit, offset } = req.query;
     const products = await Product3DService.getProductsWithModels({
@@ -69,7 +70,7 @@ router.get('/products', async (req, res) => {
  * GET /api/product-3d/stats
  * Get 3D model statistics
  */
-router.get('/stats', async (req, res) => {
+router.get('/stats', authenticate, async (req, res) => {
   try {
     const stats = await Product3DService.getModelStats();
     res.json(stats);
@@ -83,7 +84,7 @@ router.get('/stats', async (req, res) => {
  * GET /api/product-3d/samples
  * Get sample/demo 3D models
  */
-router.get('/samples', async (req, res) => {
+router.get('/samples', authenticate, async (req, res) => {
   try {
     const samples = await Product3DService.getSampleModels();
     res.json(samples);
@@ -97,7 +98,7 @@ router.get('/samples', async (req, res) => {
  * GET /api/product-3d/:productId
  * Get 3D model for a specific product
  */
-router.get('/:productId', async (req, res) => {
+router.get('/:productId', authenticate, async (req, res) => {
   try {
     const { productId } = req.params;
     const model = await Product3DService.getProductModel(productId);
@@ -117,7 +118,7 @@ router.get('/:productId', async (req, res) => {
  * POST /api/product-3d/:productId
  * Create or update 3D model for a product
  */
-router.post('/:productId', async (req, res) => {
+router.post('/:productId', authenticate, async (req, res) => {
   try {
     const { productId } = req.params;
     const model = await Product3DService.upsertProductModel(productId, req.body);
@@ -132,7 +133,7 @@ router.post('/:productId', async (req, res) => {
  * POST /api/product-3d/:productId/upload
  * Upload 3D model files for a product
  */
-router.post('/:productId/upload', upload.fields([
+router.post('/:productId/upload', authenticate, upload.fields([
   { name: 'model', maxCount: 1 },
   { name: 'usdz', maxCount: 1 },
   { name: 'poster', maxCount: 1 },
@@ -174,7 +175,7 @@ router.post('/:productId/upload', upload.fields([
  * DELETE /api/product-3d/:productId
  * Delete 3D model for a product
  */
-router.delete('/:productId', async (req, res) => {
+router.delete('/:productId', authenticate, async (req, res) => {
   try {
     const { productId } = req.params;
     const deleted = await Product3DService.deleteProductModel(productId);
@@ -198,7 +199,7 @@ router.delete('/:productId', async (req, res) => {
  * GET /api/product-3d/:productId/materials
  * Get materials for a product's 3D model
  */
-router.get('/:productId/materials', async (req, res) => {
+router.get('/:productId/materials', authenticate, async (req, res) => {
   try {
     const { productId } = req.params;
     const { category } = req.query;
@@ -221,7 +222,7 @@ router.get('/:productId/materials', async (req, res) => {
  * POST /api/product-3d/:productId/materials
  * Add or update a material for a product's 3D model
  */
-router.post('/:productId/materials', async (req, res) => {
+router.post('/:productId/materials', authenticate, async (req, res) => {
   try {
     const { productId } = req.params;
 
@@ -243,7 +244,7 @@ router.post('/:productId/materials', async (req, res) => {
  * DELETE /api/product-3d/:productId/materials/:materialId
  * Delete a material
  */
-router.delete('/:productId/materials/:materialId', async (req, res) => {
+router.delete('/:productId/materials/:materialId', authenticate, async (req, res) => {
   try {
     const { materialId } = req.params;
     const deleted = await Product3DService.deleteMaterial(materialId);
@@ -267,7 +268,7 @@ router.delete('/:productId/materials/:materialId', async (req, res) => {
  * POST /api/product-3d/:productId/hotspots
  * Add a hotspot annotation to a product's 3D model
  */
-router.post('/:productId/hotspots', async (req, res) => {
+router.post('/:productId/hotspots', authenticate, async (req, res) => {
   try {
     const { productId } = req.params;
 
@@ -289,7 +290,7 @@ router.post('/:productId/hotspots', async (req, res) => {
  * DELETE /api/product-3d/:productId/hotspots/:hotspotId
  * Delete a hotspot
  */
-router.delete('/:productId/hotspots/:hotspotId', async (req, res) => {
+router.delete('/:productId/hotspots/:hotspotId', authenticate, async (req, res) => {
   try {
     const { hotspotId } = req.params;
     const deleted = await Product3DService.deleteHotspot(hotspotId);
@@ -313,7 +314,7 @@ router.delete('/:productId/hotspots/:hotspotId', async (req, res) => {
  * GET /api/product-3d/:productId/configurations
  * Get saved configurations for a product
  */
-router.get('/:productId/configurations', async (req, res) => {
+router.get('/:productId/configurations', authenticate, async (req, res) => {
   try {
     const { productId } = req.params;
     const { templates_only } = req.query;
@@ -333,7 +334,7 @@ router.get('/:productId/configurations', async (req, res) => {
  * POST /api/product-3d/:productId/configurations
  * Save a product configuration
  */
-router.post('/:productId/configurations', async (req, res) => {
+router.post('/:productId/configurations', authenticate, async (req, res) => {
   try {
     const { productId } = req.params;
     const configuration = await Product3DService.saveConfiguration(productId, req.body);
@@ -348,7 +349,7 @@ router.post('/:productId/configurations', async (req, res) => {
  * GET /api/product-3d/configurations/:configId
  * Get a specific configuration
  */
-router.get('/configurations/:configId', async (req, res) => {
+router.get('/configurations/:configId', authenticate, async (req, res) => {
   try {
     const { configId } = req.params;
     const configuration = await Product3DService.getConfiguration(configId);
@@ -368,7 +369,7 @@ router.get('/configurations/:configId', async (req, res) => {
  * POST /api/product-3d/:productId/calculate-price
  * Calculate price for a configuration
  */
-router.post('/:productId/calculate-price', async (req, res) => {
+router.post('/:productId/calculate-price', authenticate, async (req, res) => {
   try {
     const { productId } = req.params;
     const { selected_materials = [] } = req.body;

@@ -7,6 +7,7 @@ const express = require('express');
 const router = express.Router();
 const crypto = require('crypto');
 const pool = require('../db');
+const { authenticate } = require('../middleware/auth');
 
 /**
  * Generate a secure API key and secret
@@ -28,7 +29,7 @@ function hashSecret(secret) {
  * GET /api/api-keys
  * List all API keys (without secrets)
  */
-router.get('/', async (req, res) => {
+router.get('/', authenticate, async (req, res) => {
   try {
     const result = await pool.query(`
       SELECT
@@ -56,7 +57,7 @@ router.get('/', async (req, res) => {
  * POST /api/api-keys
  * Create a new API key
  */
-router.post('/', async (req, res) => {
+router.post('/', authenticate, async (req, res) => {
   try {
     const {
       key_name,
@@ -99,8 +100,6 @@ router.post('/', async (req, res) => {
       notes || null
     ]);
 
-    console.log('✅ API key created:', apiKey);
-
     // Return the secret ONLY on creation (it won't be shown again)
     res.status(201).json({
       success: true,
@@ -121,7 +120,7 @@ router.post('/', async (req, res) => {
  * PUT /api/api-keys/:id
  * Update an API key
  */
-router.put('/:id', async (req, res) => {
+router.put('/:id', authenticate, async (req, res) => {
   try {
     const { id } = req.params;
     const {
@@ -185,7 +184,7 @@ router.put('/:id', async (req, res) => {
  * DELETE /api/api-keys/:id
  * Delete an API key
  */
-router.delete('/:id', async (req, res) => {
+router.delete('/:id', authenticate, async (req, res) => {
   try {
     const { id } = req.params;
 
@@ -200,8 +199,6 @@ router.delete('/:id', async (req, res) => {
         error: 'API key not found'
       });
     }
-
-    console.log('✅ API key deleted:', result.rows[0].api_key);
 
     res.json({
       success: true,
@@ -220,7 +217,7 @@ router.delete('/:id', async (req, res) => {
  * POST /api/api-keys/:id/regenerate
  * Regenerate the secret for an existing API key
  */
-router.post('/:id/regenerate', async (req, res) => {
+router.post('/:id/regenerate', authenticate, async (req, res) => {
   try {
     const { id } = req.params;
 
@@ -241,8 +238,6 @@ router.post('/:id/regenerate', async (req, res) => {
         error: 'API key not found'
       });
     }
-
-    console.log('✅ API secret regenerated for key:', result.rows[0].api_key);
 
     res.json({
       success: true,

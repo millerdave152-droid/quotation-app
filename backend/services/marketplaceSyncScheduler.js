@@ -37,17 +37,7 @@ class MarketplaceSyncScheduler {
    * Start the marketplace sync scheduler
    */
   async start() {
-    console.log('\n' + '='.repeat(70));
-    console.log('MARKETPLACE SYNC SCHEDULER STARTING');
-    console.log('='.repeat(70));
-    console.log(`Order sync interval: ${this.config.orderSyncIntervalMinutes} minutes`);
-    console.log(`Product sync interval: ${this.config.productSyncIntervalMinutes} minutes`);
-    console.log(`Inventory sync interval: ${this.config.inventorySyncIntervalMinutes} minutes`);
-    console.log(`Auto-sync enabled: ${this.config.autoSyncEnabled}`);
-    console.log('='.repeat(70));
-
     if (!this.config.autoSyncEnabled) {
-      console.log('⚠️  Marketplace auto-sync is DISABLED. Enable MARKETPLACE_AUTO_SYNC in .env file.');
       return;
     }
 
@@ -57,21 +47,16 @@ class MarketplaceSyncScheduler {
     this.startInventorySync();
 
     // Run initial syncs
-    console.log('🔄 Running initial syncs...');
     await this.syncOrders();
 
     // Also run initial product sync to catch any unsynced products
     await this.syncProducts();
-
-    console.log('✓ Marketplace sync scheduler started successfully\n');
   }
 
   /**
    * Stop the sync scheduler
    */
   async stop() {
-    console.log('\n🛑 Stopping marketplace sync scheduler...');
-
     if (this.orderSyncInterval) {
       clearInterval(this.orderSyncInterval);
       this.orderSyncInterval = null;
@@ -86,8 +71,6 @@ class MarketplaceSyncScheduler {
       clearInterval(this.inventorySyncInterval);
       this.inventorySyncInterval = null;
     }
-
-    console.log('✓ Marketplace sync scheduler stopped\n');
   }
 
   // ============================================
@@ -103,8 +86,6 @@ class MarketplaceSyncScheduler {
     this.orderSyncInterval = setInterval(async () => {
       await this.syncOrders();
     }, intervalMs);
-
-    console.log(`✓ Order sync scheduled every ${this.config.orderSyncIntervalMinutes} minutes`);
   }
 
   /**
@@ -112,7 +93,6 @@ class MarketplaceSyncScheduler {
    */
   async syncOrders() {
     if (this.isSyncing) {
-      console.log('⏩ Order sync already in progress, skipping...');
       return;
     }
 
@@ -120,10 +100,6 @@ class MarketplaceSyncScheduler {
     const startTime = Date.now();
 
     try {
-      console.log('\n' + '─'.repeat(60));
-      console.log('📥 SYNCING ORDERS FROM MIRAKL');
-      console.log('─'.repeat(60));
-
       // Get orders from last 7 days
       const startDate = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
 
@@ -131,8 +107,6 @@ class MarketplaceSyncScheduler {
         start_date: startDate.toISOString(),
         order_state_codes: 'WAITING_ACCEPTANCE,WAITING_DEBIT,SHIPPING,SHIPPED'
       });
-
-      console.log(`📋 Found ${miraklOrders.length} orders to process`);
 
       let succeeded = 0;
       let failed = 0;
@@ -142,29 +116,19 @@ class MarketplaceSyncScheduler {
         try {
           await miraklService.syncOrderToDatabase(miraklOrder);
           succeeded++;
-
-          if (succeeded % 10 === 0) {
-            console.log(`   Processed ${succeeded}/${miraklOrders.length} orders...`);
-          }
         } catch (error) {
           failed++;
           errors.push({
             order_id: miraklOrder.order_id,
             error: error.message
           });
-          console.error(`   ❌ Failed to sync order ${miraklOrder.order_id}:`, error.message);
+          console.error(`Failed to sync order ${miraklOrder.order_id}:`, error.message);
         }
       }
 
       this.lastOrderSync = new Date();
 
       const duration = Date.now() - startTime;
-      console.log('\n📊 Order Sync Summary:');
-      console.log(`   Total: ${miraklOrders.length}`);
-      console.log(`   ✅ Succeeded: ${succeeded}`);
-      console.log(`   ❌ Failed: ${failed}`);
-      console.log(`   ⏱️  Duration: ${(duration / 1000).toFixed(2)}s`);
-      console.log('─'.repeat(60) + '\n');
 
       return { succeeded, failed, errors, duration };
 
@@ -189,8 +153,6 @@ class MarketplaceSyncScheduler {
     this.productSyncInterval = setInterval(async () => {
       await this.syncProducts();
     }, intervalMs);
-
-    console.log(`✓ Product sync scheduled every ${this.config.productSyncIntervalMinutes} minutes`);
   }
 
   /**
@@ -200,10 +162,6 @@ class MarketplaceSyncScheduler {
     const startTime = Date.now();
 
     try {
-      console.log('\n' + '─'.repeat(60));
-      console.log('📤 SYNCING PRODUCTS TO MIRAKL');
-      console.log('─'.repeat(60));
-
       // Get products that haven't been synced in the last hour or were updated
       // PRIORITY: Products never synced (last_synced_at IS NULL) get synced first
       // INCREASED LIMIT: Process up to 500 products per cycle to catch up faster
@@ -225,12 +183,8 @@ class MarketplaceSyncScheduler {
       const products = productsQuery.rows;
 
       if (products.length === 0) {
-        console.log('✓ No products need syncing');
-        console.log('─'.repeat(60) + '\n');
         return;
       }
-
-      console.log(`📋 Found ${products.length} products to sync`);
 
       let succeeded = 0;
       let failed = 0;
@@ -240,10 +194,6 @@ class MarketplaceSyncScheduler {
         try {
           await miraklService.syncProductToMirakl(product.id);
           succeeded++;
-
-          if (succeeded % 10 === 0) {
-            console.log(`   Processed ${succeeded}/${products.length} products...`);
-          }
         } catch (error) {
           failed++;
           errors.push({
@@ -251,19 +201,13 @@ class MarketplaceSyncScheduler {
             sku: product.sku || product.model,
             error: error.message
           });
-          console.error(`   ❌ Failed to sync product ${product.id}:`, error.message);
+          console.error(`Failed to sync product ${product.id}:`, error.message);
         }
       }
 
       this.lastProductSync = new Date();
 
       const duration = Date.now() - startTime;
-      console.log('\n📊 Product Sync Summary:');
-      console.log(`   Total: ${products.length}`);
-      console.log(`   ✅ Succeeded: ${succeeded}`);
-      console.log(`   ❌ Failed: ${failed}`);
-      console.log(`   ⏱️  Duration: ${(duration / 1000).toFixed(2)}s`);
-      console.log('─'.repeat(60) + '\n');
 
       return { succeeded, failed, errors, duration };
 
@@ -286,8 +230,6 @@ class MarketplaceSyncScheduler {
     this.inventorySyncInterval = setInterval(async () => {
       await this.syncInventory();
     }, intervalMs);
-
-    console.log(`✓ Inventory sync scheduled every ${this.config.inventorySyncIntervalMinutes} minutes`);
   }
 
   /**
@@ -297,10 +239,6 @@ class MarketplaceSyncScheduler {
     const startTime = Date.now();
 
     try {
-      console.log('\n' + '─'.repeat(60));
-      console.log('📊 SYNCING INVENTORY TO MIRAKL');
-      console.log('─'.repeat(60));
-
       // Get products with Mirakl offers that have quantity changes
       // INCREASED LIMIT: Process up to 500 products per cycle
       const productsQuery = await pool.query(`
@@ -314,12 +252,8 @@ class MarketplaceSyncScheduler {
       const products = productsQuery.rows;
 
       if (products.length === 0) {
-        console.log('✓ No inventory updates needed');
-        console.log('─'.repeat(60) + '\n');
         return;
       }
-
-      console.log(`📋 Updating inventory for ${products.length} products`);
 
       let succeeded = 0;
       let failed = 0;
@@ -332,10 +266,6 @@ class MarketplaceSyncScheduler {
             product.stock_quantity || 0
           );
           succeeded++;
-
-          if (succeeded % 10 === 0) {
-            console.log(`   Updated ${succeeded}/${products.length} products...`);
-          }
         } catch (error) {
           failed++;
           errors.push({
@@ -343,19 +273,13 @@ class MarketplaceSyncScheduler {
             offer_id: product.mirakl_offer_id,
             error: error.message
           });
-          console.error(`   ❌ Failed to update inventory for ${product.model}:`, error.message);
+          console.error(`Failed to update inventory for ${product.model}:`, error.message);
         }
       }
 
       this.lastInventorySync = new Date();
 
       const duration = Date.now() - startTime;
-      console.log('\n📊 Inventory Sync Summary:');
-      console.log(`   Total: ${products.length}`);
-      console.log(`   ✅ Succeeded: ${succeeded}`);
-      console.log(`   ❌ Failed: ${failed}`);
-      console.log(`   ⏱️  Duration: ${(duration / 1000).toFixed(2)}s`);
-      console.log('─'.repeat(60) + '\n');
 
       return { succeeded, failed, errors, duration };
 
@@ -391,8 +315,6 @@ class MarketplaceSyncScheduler {
    * Trigger manual sync of all
    */
   async syncAll() {
-    console.log('🔄 Triggering manual sync of all marketplace data...');
-
     const results = {
       orders: null,
       products: null,
@@ -404,10 +326,9 @@ class MarketplaceSyncScheduler {
       results.products = await this.syncProducts();
       results.inventory = await this.syncInventory();
 
-      console.log('✅ Manual sync completed successfully');
       return results;
     } catch (error) {
-      console.error('❌ Manual sync failed:', error);
+      console.error('Manual sync failed:', error);
       throw error;
     }
   }

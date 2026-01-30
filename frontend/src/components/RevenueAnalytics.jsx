@@ -1,8 +1,21 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { BarChart3, TrendingUp, DollarSign, Package, Calendar, Users } from 'lucide-react';
 import { cachedFetch } from '../services/apiCache';
+import {
+  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
+  PieChart, Pie, Cell, Legend
+} from 'recharts';
 
 const API_BASE = `${process.env.REACT_APP_API_URL || 'http://localhost:3001'}/api`;
+
+// Feature chart colors
+const FEATURE_COLORS = {
+  financing: '#3b82f6',
+  warranties: '#10b981',
+  delivery: '#8b5cf6',
+  rebates: '#f59e0b',
+  tradeIns: '#06b6d4'
+};
 
 const RevenueAnalytics = () => {
   const [analytics, setAnalytics] = useState(null);
@@ -235,101 +248,122 @@ const RevenueAnalytics = () => {
         </div>
       </div>
 
-      {/* Feature Adoption Chart */}
+      {/* Feature Adoption Charts */}
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '24px', marginBottom: '30px' }}>
+        {/* Bar Chart */}
+        <div style={{ background: 'white', padding: '30px', borderRadius: '12px', boxShadow: '0 1px 3px rgba(0,0,0,0.1)' }}>
+          <h2 style={{ fontSize: '20px', fontWeight: 'bold', color: '#111827', marginBottom: '20px' }}>
+            Feature Adoption by Quotes
+          </h2>
+          {(() => {
+            const barData = [
+              { name: 'Financing', value: featureAdoption.financing || 0, fill: FEATURE_COLORS.financing },
+              { name: 'Warranties', value: featureAdoption.warranties || 0, fill: FEATURE_COLORS.warranties },
+              { name: 'Delivery', value: featureAdoption.delivery || 0, fill: FEATURE_COLORS.delivery },
+              { name: 'Rebates', value: featureAdoption.rebates || 0, fill: FEATURE_COLORS.rebates },
+              { name: 'Trade-Ins', value: featureAdoption.tradeIns || 0, fill: FEATURE_COLORS.tradeIns }
+            ];
+
+            return (
+              <ResponsiveContainer width="100%" height={250}>
+                <BarChart data={barData} margin={{ top: 10, right: 10, left: 10, bottom: 5 }}>
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f3f4f6" />
+                  <XAxis dataKey="name" stroke="#9ca3af" fontSize={12} tickLine={false} />
+                  <YAxis stroke="#9ca3af" fontSize={12} tickLine={false} allowDecimals={false} />
+                  <Tooltip
+                    formatter={(value) => [`${value} quotes`, 'Adoption']}
+                    contentStyle={{ borderRadius: '8px', border: '1px solid #e5e7eb', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }}
+                  />
+                  <Bar dataKey="value" radius={[4, 4, 0, 0]} barSize={40}>
+                    {barData.map((entry, index) => (
+                      <Cell key={`cell-${index}`} fill={entry.fill} />
+                    ))}
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+            );
+          })()}
+        </div>
+
+        {/* Revenue Pie Chart */}
+        <div style={{ background: 'white', padding: '30px', borderRadius: '12px', boxShadow: '0 1px 3px rgba(0,0,0,0.1)' }}>
+          <h2 style={{ fontSize: '20px', fontWeight: 'bold', color: '#111827', marginBottom: '20px' }}>
+            Revenue by Feature
+          </h2>
+          {(() => {
+            const pieData = [
+              { name: 'Warranties', value: (revenue.warranties || 0) / 100, color: FEATURE_COLORS.warranties },
+              { name: 'Delivery', value: (revenue.delivery || 0) / 100, color: FEATURE_COLORS.delivery }
+            ].filter(d => d.value > 0);
+
+            if (pieData.length === 0) {
+              return <div style={{ textAlign: 'center', padding: '60px', color: '#9ca3af' }}>No revenue data</div>;
+            }
+
+            return (
+              <ResponsiveContainer width="100%" height={250}>
+                <PieChart>
+                  <Pie
+                    data={pieData}
+                    cx="50%"
+                    cy="50%"
+                    innerRadius={50}
+                    outerRadius={90}
+                    paddingAngle={3}
+                    dataKey="value"
+                    label={({ name, value }) => `${name}: $${value.toLocaleString()}`}
+                    labelLine={true}
+                  >
+                    {pieData.map((entry, index) => (
+                      <Cell key={`cell-${index}`} fill={entry.color} />
+                    ))}
+                  </Pie>
+                  <Tooltip
+                    formatter={(value) => [`$${value.toLocaleString()}`, 'Revenue']}
+                    contentStyle={{ borderRadius: '8px', border: '1px solid #e5e7eb' }}
+                  />
+                </PieChart>
+              </ResponsiveContainer>
+            );
+          })()}
+        </div>
+      </div>
+
+      {/* Feature Details Cards */}
       <div style={{ background: 'white', padding: '30px', borderRadius: '12px', boxShadow: '0 1px 3px rgba(0,0,0,0.1)', marginBottom: '30px' }}>
         <h2 style={{ fontSize: '20px', fontWeight: 'bold', color: '#111827', marginBottom: '20px' }}>
-          Feature Adoption
+          Feature Performance Details
         </h2>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-          {/* Financing */}
-          <div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
-              <span style={{ fontSize: '14px', fontWeight: '600', color: '#374151' }}>💳 Financing</span>
-              <span style={{ fontSize: '14px', fontWeight: 'bold', color: '#3b82f6' }}>
-                {featureAdoption.financing || 0} quotes
-              </span>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '16px' }}>
+          {[
+            { key: 'financing', label: 'Financing', icon: '💳', count: featureAdoption.financing, revenue: null },
+            { key: 'warranties', label: 'Warranties', icon: '🛡️', count: featureAdoption.warranties, revenue: revenue.warranties },
+            { key: 'delivery', label: 'Delivery', icon: '🚚', count: featureAdoption.delivery, revenue: revenue.delivery },
+            { key: 'rebates', label: 'Rebates', icon: '🎁', count: featureAdoption.rebates, revenue: null },
+            { key: 'tradeIns', label: 'Trade-Ins', icon: '♻️', count: featureAdoption.tradeIns, revenue: revenue.tradeIns }
+          ].map(feature => (
+            <div key={feature.key} style={{
+              padding: '20px',
+              background: `linear-gradient(135deg, ${FEATURE_COLORS[feature.key]}15 0%, white 100%)`,
+              borderRadius: '12px',
+              border: `2px solid ${FEATURE_COLORS[feature.key]}30`,
+              transition: 'transform 0.2s ease'
+            }}
+            onMouseEnter={(e) => e.currentTarget.style.transform = 'scale(1.02)'}
+            onMouseLeave={(e) => e.currentTarget.style.transform = 'scale(1)'}
+            >
+              <div style={{ fontSize: '28px', marginBottom: '8px' }}>{feature.icon}</div>
+              <div style={{ fontSize: '14px', fontWeight: '600', color: '#374151', marginBottom: '4px' }}>{feature.label}</div>
+              <div style={{ fontSize: '24px', fontWeight: 'bold', color: FEATURE_COLORS[feature.key] }}>{feature.count || 0}</div>
+              <div style={{ fontSize: '12px', color: '#6b7280' }}>quotes</div>
+              {feature.revenue !== null && (
+                <div style={{ marginTop: '8px', paddingTop: '8px', borderTop: '1px solid #e5e7eb' }}>
+                  <div style={{ fontSize: '16px', fontWeight: '600', color: '#10b981' }}>{formatCurrency(feature.revenue || 0)}</div>
+                  <div style={{ fontSize: '11px', color: '#9ca3af' }}>revenue</div>
+                </div>
+              )}
             </div>
-            <div style={{ background: '#e5e7eb', height: '12px', borderRadius: '6px', overflow: 'hidden' }}>
-              <div style={{
-                background: '#3b82f6',
-                height: '100%',
-                width: maxAdoption > 0 ? `${((featureAdoption.financing || 0) / maxAdoption) * 100}%` : '0%',
-                transition: 'width 0.3s'
-              }} />
-            </div>
-          </div>
-
-          {/* Warranties */}
-          <div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
-              <span style={{ fontSize: '14px', fontWeight: '600', color: '#374151' }}>🛡️ Extended Warranties</span>
-              <span style={{ fontSize: '14px', fontWeight: 'bold', color: '#10b981' }}>
-                {featureAdoption.warranties || 0} quotes ({formatCurrency(revenue.warranties || 0)})
-              </span>
-            </div>
-            <div style={{ background: '#e5e7eb', height: '12px', borderRadius: '6px', overflow: 'hidden' }}>
-              <div style={{
-                background: '#10b981',
-                height: '100%',
-                width: maxAdoption > 0 ? `${((featureAdoption.warranties || 0) / maxAdoption) * 100}%` : '0%',
-                transition: 'width 0.3s'
-              }} />
-            </div>
-          </div>
-
-          {/* Delivery */}
-          <div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
-              <span style={{ fontSize: '14px', fontWeight: '600', color: '#374151' }}>🚚 Delivery & Installation</span>
-              <span style={{ fontSize: '14px', fontWeight: 'bold', color: '#8b5cf6' }}>
-                {featureAdoption.delivery || 0} quotes ({formatCurrency(revenue.delivery || 0)})
-              </span>
-            </div>
-            <div style={{ background: '#e5e7eb', height: '12px', borderRadius: '6px', overflow: 'hidden' }}>
-              <div style={{
-                background: '#8b5cf6',
-                height: '100%',
-                width: maxAdoption > 0 ? `${((featureAdoption.delivery || 0) / maxAdoption) * 100}%` : '0%',
-                transition: 'width 0.3s'
-              }} />
-            </div>
-          </div>
-
-          {/* Rebates */}
-          <div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
-              <span style={{ fontSize: '14px', fontWeight: '600', color: '#374151' }}>🎁 Manufacturer Rebates</span>
-              <span style={{ fontSize: '14px', fontWeight: 'bold', color: '#f59e0b' }}>
-                {featureAdoption.rebates || 0} quotes
-              </span>
-            </div>
-            <div style={{ background: '#e5e7eb', height: '12px', borderRadius: '6px', overflow: 'hidden' }}>
-              <div style={{
-                background: '#f59e0b',
-                height: '100%',
-                width: maxAdoption > 0 ? `${((featureAdoption.rebates || 0) / maxAdoption) * 100}%` : '0%',
-                transition: 'width 0.3s'
-              }} />
-            </div>
-          </div>
-
-          {/* Trade-Ins */}
-          <div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
-              <span style={{ fontSize: '14px', fontWeight: '600', color: '#374151' }}>♻️ Trade-In Credits</span>
-              <span style={{ fontSize: '14px', fontWeight: 'bold', color: '#06b6d4' }}>
-                {featureAdoption.tradeIns || 0} quotes ({formatCurrency(revenue.tradeIns || 0)} credit)
-              </span>
-            </div>
-            <div style={{ background: '#e5e7eb', height: '12px', borderRadius: '6px', overflow: 'hidden' }}>
-              <div style={{
-                background: '#06b6d4',
-                height: '100%',
-                width: maxAdoption > 0 ? `${((featureAdoption.tradeIns || 0) / maxAdoption) * 100}%` : '0%',
-                transition: 'width 0.3s'
-              }} />
-            </div>
-          </div>
+          ))}
         </div>
       </div>
 

@@ -5,6 +5,15 @@ import ScraperAdmin from './ScraperAdmin';
 
 const API_BASE = '/api';
 
+// Helper to get auth headers
+const getAuthHeaders = () => {
+  const token = localStorage.getItem('auth_token');
+  return {
+    'Content-Type': 'application/json',
+    ...(token && { 'Authorization': `Bearer ${token}` })
+  };
+};
+
 /**
  * ProductVisualization - Main container for vendor product visualization module
  * Provides product browsing, detail view, and scraper admin functionality
@@ -21,7 +30,9 @@ function ProductVisualization() {
 
   const fetchStats = async () => {
     try {
-      const response = await fetch(`${API_BASE}/vendor-products/stats`);
+      const response = await fetch(`${API_BASE}/vendor-products/stats`, {
+        headers: getAuthHeaders()
+      });
       if (response.ok) {
         const data = await response.json();
         setStats(data);

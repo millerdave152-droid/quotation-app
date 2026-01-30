@@ -1,7 +1,8 @@
 import React, { useEffect, useRef, useState } from 'react';
 import '@google/model-viewer';
 
-const API_URL = `${process.env.REACT_APP_API_URL || 'http://localhost:3001'}/api`;
+const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:3001';
+const API_URL = `${API_BASE_URL}/api`;
 
 /**
  * Product3DViewer - Interactive 3D model viewer using Google model-viewer
@@ -184,7 +185,7 @@ const Product3DViewer = ({
       {/* model-viewer Web Component */}
       <model-viewer
         ref={modelViewerRef}
-        src={model.model_url?.startsWith('http') ? model.model_url : `http://localhost:3001${model.model_url}`}
+        src={model.model_url?.startsWith('http') ? model.model_url : `${API_BASE_URL}${model.model_url}`}
         ios-src={model.usdz_url}
         poster={model.poster_url}
         alt={`3D model of ${model.product_model || 'product'}`}

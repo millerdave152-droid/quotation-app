@@ -29,6 +29,10 @@ const { init: initProductRoutes } = require('./routes/products');
 const { init: initAnalyticsRoutes } = require('./routes/analytics');
 const { init: initQuotesRoutes } = require('./routes/quotes');
 const { init: initImportTemplateRoutes } = require('./routes/importTemplates');
+const { init: initNomenclatureRoutes } = require('./routes/nomenclature');
+const { init: initInsightsRoutes } = require('./routes/insights');
+const { init: initReportsRoutes } = require('./routes/reports');
+const { init: initLeadsRoutes } = require('./routes/leads');
 
 // Standardized API response utilities
 const { attachResponseHelpers } = require('./utils/apiResponse');
@@ -47,12 +51,39 @@ const PricingService = require('./services/PricingService');
 const ProductMetricsService = require('./services/ProductMetricsService');
 const QuoteExpiryService = require('./services/QuoteExpiryService');
 
+// POS Payment Services (Phase 3)
+const POSPaymentService = require('./services/POSPaymentService');
+const ReceiptService = require('./services/ReceiptService');
+const CashDrawerService = require('./services/CashDrawerService');
+const POSInvoiceService = require('./services/POSInvoiceService');
+const UnifiedReportingService = require('./services/UnifiedReportingService');
+const VolumeDiscountService = require('./services/VolumeDiscountService');
+const POSPromotionService = require('./services/POSPromotionService');
+const PromotionEngine = require('./services/PromotionEngine');
+const ManagerOverrideService = require('./services/ManagerOverrideService');
+const DeliveryFulfillmentService = require('./services/DeliveryFulfillmentService');
+const WarrantyService = require('./services/WarrantyService');
+const FinancingService = require('./services/FinancingService');
+const CommissionService = require('./services/CommissionService');
+const SignatureService = require('./services/SignatureService');
+const BatchEmailService = require('./services/BatchEmailService');
+const ScheduledBatchEmailService = require('./services/ScheduledBatchEmailService');
+const QuoteExpiryDigestJob = require('./services/QuoteExpiryDigestJob');
+const emailService = require('./services/EmailService'); // singleton
+const NotificationService = require('./services/NotificationService');
+const TaxService = require('./services/TaxService');
+
 // New Enterprise Routes (Phase 2)
 const ordersRoutes = require('./routes/orders');
 const invoicesRoutes = require('./routes/invoices');
 const inventoryRoutes = require('./routes/inventory');
 const deliveryRoutes = require('./routes/delivery');
 const pricingRoutes = require('./routes/pricing');
+const volumePricingRoutes = require('./routes/volume-pricing');
+const posPromotionsRoutes = require('./routes/pos-promotions');
+const managerOverrideRoutes = require('./routes/manager-overrides');
+const deliveryFulfillmentRoutes = require('./routes/delivery-fulfillment');
+const warrantyRoutes = require('./routes/warranty');
 const stripeRoutes = require('./routes/stripe');
 const productMetricsRoutes = require('./routes/product-metrics');
 
@@ -67,6 +98,26 @@ const product3dRoutes = require('./routes/product3d');
 
 // Vendor Product Visualization & Scraper
 const vendorProductsRoutes = require('./routes/vendorProducts');
+
+// Quick Search (Universal Product Finder)
+const quickSearchRoutes = require('./routes/quickSearch');
+
+// Lookup service (cities, postal codes, names autocomplete)
+const lookupRoutes = require('./routes/lookup');
+
+// POS Payment Routes (Phase 3)
+const { init: initPosPaymentsRoutes } = require('./routes/pos-payments');
+const { init: initReceiptsRoutes } = require('./routes/receipts');
+const { init: initCashDrawerRoutes } = require('./routes/cash-drawer');
+const { init: initPosInvoicesRoutes } = require('./routes/pos-invoices');
+const { init: initUnifiedReportsRoutes } = require('./routes/unified-reports');
+const { init: initRecommendationsRoutes } = require('./routes/recommendations');
+const { init: initFinancingRoutes } = require('./routes/financing');
+const { init: initPosQuoteExpiryRoutes } = require('./routes/pos-quote-expiry');
+const { init: initCommissionsRoutes } = require('./routes/commissions');
+const { init: initSignaturesRoutes } = require('./routes/signatures');
+const { init: initBatchEmailRoutes } = require('./routes/batch-email');
+const batchEmailSettingsRoutes = require('./routes/batch-email-settings');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -122,17 +173,43 @@ pool.query('SELECT NOW()', (err, res) => {
   }
 });
 
+// Make pool available to routes via app.locals
+app.locals.pool = pool;
+
 // ============================================
 // SERVICE INSTANTIATION (Phase 2)
 // ============================================
 const inventoryService = new InventoryService(pool, cache);
+const notificationService = new NotificationService(pool);
 const orderService = new OrderService(pool, cache, inventoryService);
-const invoiceService = new InvoiceService(pool, cache, null); // emailService passed as null for now
+const invoiceService = new InvoiceService(pool, cache, emailService);
 const stripeService = new StripeService(pool, cache);
 const deliveryService = new DeliveryService(pool, cache);
 const pricingService = new PricingService(pool, cache);
 const productMetricsService = new ProductMetricsService(pool, cache);
-const quoteExpiryService = new QuoteExpiryService(pool, cache, inventoryService, null); // notificationService passed as null for now
+const quoteExpiryService = new QuoteExpiryService(pool, cache, inventoryService, notificationService);
+const taxService = new TaxService(pool, cache);
+
+// POS Payment Services (Phase 3)
+const posPaymentService = new POSPaymentService(pool, cache, stripeService);
+const receiptService = new ReceiptService(pool, cache);
+const cashDrawerService = new CashDrawerService(pool, cache);
+const posInvoiceService = new POSInvoiceService(pool, cache);
+const reportingService = new UnifiedReportingService(pool, cache);
+const volumeDiscountService = new VolumeDiscountService(pool, cache);
+const posPromotionService = new POSPromotionService(pool);
+const promotionEngine = new PromotionEngine(pool, posPromotionService);
+const managerOverrideService = new ManagerOverrideService(pool, cache);
+const deliveryFulfillmentService = new DeliveryFulfillmentService(pool, cache);
+const warrantyService = new WarrantyService(pool, cache);
+const financingService = new FinancingService(pool);
+const commissionService = new CommissionService(pool, cache);
+const signatureService = new SignatureService(pool, cache);
+const batchEmailService = new BatchEmailService(pool, {
+  maxBatchSize: parseInt(process.env.BATCH_EMAIL_MAX_SIZE, 10) || 50,
+  sendDelayMs: parseInt(process.env.BATCH_EMAIL_DELAY_MS, 10) || 1000,
+  maxRetries: parseInt(process.env.BATCH_EMAIL_MAX_RETRIES, 10) || 3,
+});
 
 console.log('✅ Enterprise services initialized');
 
@@ -147,12 +224,115 @@ const sesClient = new SESv2Client({
   credentials: {
     accessKeyId: process.env.AWS_ACCESS_KEY_ID,
     secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY
+  },
+  requestHandler: {
+    requestTimeout: 10_000, // 10 second timeout for SES API calls
+  },
+});
+
+// Email service wrapper for scheduled batch emails
+const emailServiceWrapper = {
+  sendEmail: async ({ to, subject, html }) => {
+    const command = new SendEmailCommand({
+      Content: {
+        Simple: {
+          Subject: { Data: subject },
+          Body: { Html: { Data: html } },
+        },
+      },
+      FromEmailAddress: process.env.EMAIL_FROM,
+      Destination: { ToAddresses: [to] },
+    });
+    return sesClient.send(command);
+  },
+};
+
+// Initialize scheduled batch email service
+const scheduledBatchEmailService = new ScheduledBatchEmailService(pool, batchEmailService, emailServiceWrapper);
+scheduledBatchEmailService.initialize().catch(err => {
+  console.error('Failed to initialize scheduled batch email service:', err);
+});
+console.log('✅ Scheduled batch email service initialized');
+
+// ============================================
+// HEALTH CHECK ENDPOINTS
+// ============================================
+
+/**
+ * GET /health - Full health check with DB and cache status
+ * Use for monitoring dashboards and alerting
+ */
+app.get('/health', async (req, res) => {
+  const startTime = Date.now();
+  const health = {
+    status: 'OK',
+    timestamp: new Date().toISOString(),
+    uptime: process.uptime(),
+    environment: process.env.NODE_ENV || 'development',
+    version: '2.0.0',
+    checks: {
+      database: { status: 'unknown' },
+      cache: { status: 'unknown' }
+    }
+  };
+
+  // Check database connection
+  try {
+    const dbStart = Date.now();
+    await pool.query('SELECT 1');
+    health.checks.database = {
+      status: 'healthy',
+      responseTime: Date.now() - dbStart
+    };
+  } catch (error) {
+    health.status = 'DEGRADED';
+    health.checks.database = {
+      status: 'unhealthy',
+      error: error.message
+    };
+  }
+
+  // Check cache status
+  try {
+    const cacheStats = cache.getStats();
+    health.checks.cache = {
+      status: 'healthy',
+      stats: {
+        short: { hits: cacheStats.short.hits, misses: cacheStats.short.misses },
+        medium: { hits: cacheStats.medium.hits, misses: cacheStats.medium.misses },
+        long: { hits: cacheStats.long.hits, misses: cacheStats.long.misses }
+      }
+    };
+  } catch (error) {
+    health.checks.cache = {
+      status: 'unhealthy',
+      error: error.message
+    };
+  }
+
+  health.responseTime = Date.now() - startTime;
+
+  const statusCode = health.status === 'OK' ? 200 : 503;
+  res.status(statusCode).json(health);
+});
+
+/**
+ * GET /ready - Kubernetes readiness probe
+ * Returns 200 only if the service is ready to accept traffic
+ */
+app.get('/ready', async (req, res) => {
+  try {
+    // Quick database check
+    await pool.query('SELECT 1');
+    res.status(200).json({ ready: true });
+  } catch (error) {
+    res.status(503).json({ ready: false, error: 'Database not available' });
   }
 });
 
-// ============================================
-// HEALTH CHECK
-// ============================================
+/**
+ * GET /api/health - Legacy health endpoint (for backward compatibility)
+ */
 app.get('/api/health', (req, res) => {
   res.success({
     status: 'OK',
@@ -217,6 +397,12 @@ app.use('/api/customers', initCustomerRoutes({ pool, cache }));
 console.log('✅ Customer routes loaded (modular)');
 
 // ============================================
+// LOOKUP SERVICE (Cities, Postal Codes, Names)
+// ============================================
+app.use('/api/lookup', lookupRoutes);
+console.log('✅ Lookup routes loaded');
+
+// ============================================
 // PRODUCT MANAGEMENT (Modular)
 // ============================================
 app.use('/api/products', initProductRoutes({ pool, cache, upload }));
@@ -244,10 +430,167 @@ app.use('/api/analytics', initAnalyticsRoutes({ pool }));
 console.log('✅ Analytics routes loaded (modular)');
 
 // ============================================
+// UNIFIED DASHBOARD (Sales Pipeline)
+// ============================================
+const { init: initDashboardRoutes } = require('./routes/dashboard');
+app.use('/api/dashboard', initDashboardRoutes({ pool, cache }));
+console.log('✅ Unified dashboard routes loaded (sales pipeline)');
+
+// ============================================
+// INSIGHTS (AI-Powered Business Insights)
+// ============================================
+app.use('/api/insights', initInsightsRoutes({ pool }));
+console.log('✅ Insights routes loaded (AI-powered business insights)');
+
+// ============================================
+// REPORTS (Report Builder & Scheduling)
+// ============================================
+app.use('/api/reports', initReportsRoutes({ pool }));
+console.log('✅ Reports routes loaded (report builder & scheduling)');
+
+// ============================================
+// LEADS / INQUIRY CAPTURE
+// ============================================
+app.use('/api/leads', initLeadsRoutes({ pool, cache }));
+console.log('✅ Leads routes loaded (inquiry capture system)');
+
+// ============================================
+// TASKS / FOLLOW-UP SCHEDULING
+// ============================================
+const { init: initTasksRoutes } = require('./routes/tasks');
+app.use('/api/tasks', initTasksRoutes({ pool, cache }));
+console.log('✅ Tasks routes loaded (follow-up scheduling)');
+
+// ============================================
+// CUSTOMER PORTAL SELF-SERVICE
+// ============================================
+const { init: initCustomerPortalRoutes } = require('./routes/customer-portal');
+app.use('/api/customer-portal', initCustomerPortalRoutes({ pool, cache }));
+console.log('✅ Customer portal routes loaded (self-service)');
+
+// ============================================
+// WEBHOOKS INTEGRATION SYSTEM
+// ============================================
+const { init: initWebhooksRoutes, getService: getWebhookService } = require('./routes/webhooks');
+app.use('/api/webhooks', initWebhooksRoutes({ pool, cache }));
+console.log('✅ Webhooks routes loaded (integrations)');
+
+// ============================================
+// DATA QUALITY TOOLS
+// ============================================
+const { init: initDataQualityRoutes } = require('./routes/data-quality');
+app.use('/api/data-quality', initDataQualityRoutes({ pool, cache }));
+console.log('✅ Data quality routes loaded');
+
+// ============================================
 // QUOTATIONS (Modular)
 // ============================================
 app.use('/api/quotations', initQuotesRoutes({ pool }));
 console.log('✅ Quotation routes loaded (modular)');
+
+// ============================================
+// POS TRANSACTIONS (TeleTime POS)
+// ============================================
+const { init: initTransactionsRoutes } = require('./routes/transactions');
+app.use('/api/transactions', initTransactionsRoutes({ pool, cache }));
+console.log('✅ POS transactions routes loaded');
+
+// ============================================
+// POS REGISTERS & SHIFTS (TeleTime POS)
+// ============================================
+const { init: initRegisterRoutes } = require('./routes/register');
+app.use('/api/registers', initRegisterRoutes({ pool, cache, scheduledBatchEmailService }));
+console.log('✅ POS register routes loaded');
+
+// ============================================
+// POS PAYMENTS (Stripe, Account, Gift Cards)
+// ============================================
+app.use('/api/pos-payments', initPosPaymentsRoutes({ posPaymentService }));
+console.log('✅ POS payments routes loaded');
+
+// ============================================
+// RECEIPTS (PDF generation, thermal, email)
+// ============================================
+app.use('/api/receipts', initReceiptsRoutes({ receiptService }));
+console.log('✅ Receipt routes loaded');
+
+// ============================================
+// CASH DRAWER MANAGEMENT
+// ============================================
+app.use('/api/cash-drawer', initCashDrawerRoutes({ cashDrawerService }));
+console.log('✅ Cash drawer routes loaded');
+
+// ============================================
+// POS INVOICES (Account customer invoicing)
+// ============================================
+app.use('/api/pos-invoices', initPosInvoicesRoutes({ posInvoiceService }));
+console.log('✅ POS invoice routes loaded');
+
+// ============================================
+// UNIFIED REPORTS (Combined Quote + POS Analytics)
+// ============================================
+app.use('/api/reports/unified', initUnifiedReportsRoutes({ reportingService }));
+console.log('✅ Unified reporting routes loaded');
+
+// ============================================
+// API V1 (Standardized versioned API)
+// ============================================
+const { init: initV1Routes } = require('./routes/v1');
+app.use('/api/v1', initV1Routes({ db: { query: pool.query.bind(pool), pool }, services: {
+  receiptService,
+  posPaymentService,
+  pricingService,
+  productService: categoryProductService
+}}));
+console.log('✅ API v1 routes loaded (standardized versioned API)');
+
+// ============================================
+// DRAFTS (Quote/POS draft persistence & offline sync)
+// ============================================
+const { init: initDraftRoutes } = require('./routes/drafts');
+app.use('/api/drafts', initDraftRoutes({ pool }));
+console.log('✅ Draft persistence routes loaded (offline sync support)');
+
+// ============================================
+// TAX (Canadian tax calculations)
+// ============================================
+const { init: initTaxRoutes } = require('./routes/tax');
+app.use('/api/tax', initTaxRoutes({ taxService }));
+console.log('✅ Tax routes loaded');
+
+// ============================================
+// POS EMAIL (Receipt emails via AWS SES)
+// ============================================
+const emailRoutes = require('./routes/email');
+app.use('/api/email', emailRoutes);
+console.log('✅ POS email routes loaded');
+
+// ============================================
+// POS QUOTES (Quote lookup & conversion)
+// ============================================
+const { init: initPosQuotesRoutes } = require('./routes/pos-quotes');
+app.use('/api/pos-quotes', initPosQuotesRoutes({ pool }));
+console.log('✅ POS quote routes loaded');
+
+// ============================================
+// POS QUOTE EXPIRY (Expiring quotes detection)
+// ============================================
+app.use('/api/pos/quotes', initPosQuoteExpiryRoutes({ quoteExpiryService }));
+console.log('✅ POS quote expiry routes loaded');
+
+// ============================================
+// POS SALES REPS (Active/on-shift sales reps)
+// ============================================
+const { init: initPosSalesRepsRoutes } = require('./routes/pos-sales-reps');
+app.use('/api/pos', initPosSalesRepsRoutes(pool));
+console.log('✅ POS sales reps routes loaded');
+
+// ============================================
+// SHIFT REPORTS (End-of-day/shift reports)
+// ============================================
+const { init: initShiftReportsRoutes } = require('./routes/shift-reports');
+app.use('/api/reports', initShiftReportsRoutes(pool));
+console.log('✅ Shift reports routes loaded');
 
 // ============================================
 // CUSTOMER PAYMENTS & CREDIT TRACKING
@@ -281,6 +624,48 @@ console.log('✅ Package builder routes loaded');
 const packageBuilderV2Routes = require('./routes/packageBuilderV2');
 app.use('/api/package-builder-v2', packageBuilderV2Routes);
 console.log('✅ Package builder V2 routes loaded');
+
+// ============================================
+// MANUFACTURER PROMOTIONS (Bundle Savings, Gifts, Guarantees)
+// ============================================
+const { init: initManufacturerPromotionsRoutes } = require('./routes/manufacturerPromotions');
+app.use('/api/promotions/manufacturer', initManufacturerPromotionsRoutes({ pool }));
+console.log('✅ Manufacturer promotions routes loaded');
+
+// ============================================
+// MANUFACTURER REBATES (Instant, Mail-In, Online Rebates)
+// ============================================
+const createRebateRoutes = require('./routes/rebates');
+app.use('/api/rebates', createRebateRoutes(pool, authenticate));
+console.log('✅ Manufacturer rebates routes loaded');
+
+// ============================================
+// TRADE-IN SYSTEM (Assessment, Approvals, History)
+// ============================================
+const tradeInRoutes = require('./routes/trade-in');
+app.use('/api/trade-in', tradeInRoutes);
+
+// Product Recommendations
+app.use('/api/recommendations', initRecommendationsRoutes({ pool, cache }));
+console.log('✅ Trade-in routes loaded');
+
+// Upsell Strategies
+const upsellRoutes = require('./routes/upsell');
+app.use('/api/upsell', upsellRoutes);
+console.log('✅ Upsell routes loaded');
+
+// Financing Service
+app.use('/api/financing', initFinancingRoutes({ financingService }));
+console.log('✅ Financing routes loaded');
+
+// Commission Service
+app.use('/api/commissions', initCommissionsRoutes({ commissionService }));
+app.use('/api/signatures', initSignaturesRoutes({ signatureService }));
+app.use('/api/batch-email', initBatchEmailRoutes({ batchEmailService, receiptService }));
+
+// Batch email settings routes (uses scheduledBatchEmailService initialized earlier)
+app.use('/api/batch-email-settings', authenticate, batchEmailSettingsRoutes(pool, scheduledBatchEmailService));
+console.log('✅ Commission and batch email routes loaded');
 
 // ============================================
 // EMAIL ENDPOINTS (PHASE 5)
@@ -442,7 +827,7 @@ app.post('/api/quotations/:id/send-email', upload.single('pdf'), async (req, res
       <html>
       <head><style>body{font-family:Arial,sans-serif;line-height:1.6;color:#333;}.container{max-width:600px;margin:0 auto;padding:20px;}.header{background:linear-gradient(135deg,#667eea 0%,#764ba2 100%);color:white;padding:30px;text-align:center;border-radius:8px 8px 0 0;}.content{background:#fff;padding:30px;border:1px solid #e5e7eb;border-top:none;}.quote-info{background:#f9fafb;padding:20px;border-radius:8px;margin:20px 0;}.quote-info table{width:100%;}.quote-info td{padding:8px 0;}.quote-info td:first-child{font-weight:bold;color:#6b7280;}.footer{background:#f9fafb;padding:20px;text-align:center;font-size:12px;color:#6b7280;border-radius:0 0 8px 8px;}</style></head>
       <body><div class="container"><div class="header"><h1 style="margin:0;font-size:28px;">Your Quote is Ready!</h1></div>
-      <div class="content"><p>Dear ${recipientName},</p><p>${message || 'Thank you for your interest in our products. Please find your quote attached.'}</p>
+      <div class="content"><p>Dear ${(recipientName || '').replace(/[<>&"']/g, c => ({'<':'&lt;','>':'&gt;','&':'&amp;','"':'&quot;',"'":'&#39;'}[c]))},</p><p>${(message || 'Thank you for your interest in our products. Please find your quote attached.').replace(/[<>&"']/g, c => ({'<':'&lt;','>':'&gt;','&':'&amp;','"':'&quot;',"'":'&#39;'}[c]))}</p>
       <div class="quote-info"><table><tr><td>Quote Number:</td><td><strong>${quote.quote_number || `Q-${quote.id}`}</strong></td></tr>
       <tr><td>Date:</td><td>${new Date(quote.created_at).toLocaleDateString()}</td></tr>
       <tr><td>Total Amount:</td><td style="color:#10b981;font-size:18px;font-weight:bold;">$${(quote.total_cents / 100).toFixed(2)} CAD</td></tr></table></div>
@@ -816,7 +1201,7 @@ console.log('✅ Quote template endpoints loaded');
 // ============================================
 
 // Request approval for a quotation
-app.post('/api/quotations/:id/request-approval', async (req, res) => {
+app.post('/api/quotations/:id/request-approval', authenticate, async (req, res) => {
   try {
     const { id } = req.params;
     const { requested_by, requested_by_email, approver_name, approver_email, comments } = req.body;
@@ -937,7 +1322,7 @@ app.post('/api/quotations/:id/request-approval', async (req, res) => {
 });
 
 // Get approval history for a quotation
-app.get('/api/quotations/:id/approvals', async (req, res) => {
+app.get('/api/quotations/:id/approvals', authenticate, async (req, res) => {
   try {
     const { id } = req.params;
     const result = await pool.query(
@@ -951,8 +1336,34 @@ app.get('/api/quotations/:id/approvals', async (req, res) => {
   }
 });
 
+// Get approval rules summary for a quotation (shows if approval needed and user permissions)
+app.get('/api/quotations/:id/approval-summary', authenticate, async (req, res) => {
+  const ApprovalRulesService = require('./services/ApprovalRulesService');
+
+  try {
+    const { id } = req.params;
+
+    const quoteResult = await pool.query(
+      `SELECT * FROM quotations WHERE id = $1`,
+      [id]
+    );
+
+    if (quoteResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Quote not found' });
+    }
+
+    const quote = quoteResult.rows[0];
+    const summary = ApprovalRulesService.getApprovalSummary(quote, req.user);
+
+    res.json(summary);
+  } catch (error) {
+    console.error('Error getting approval summary:', error);
+    res.status(500).json({ error: 'Failed to fetch approvals' });
+  }
+});
+
 // Get all pending approvals
-app.get('/api/approvals/pending', async (req, res) => {
+app.get('/api/approvals/pending', authenticate, async (req, res) => {
   try {
     const { approver_email } = req.query;
 
@@ -987,28 +1398,48 @@ app.get('/api/approvals/pending', async (req, res) => {
 });
 
 // Approve a quote
-app.post('/api/approvals/:id/approve', async (req, res) => {
+app.post('/api/approvals/:id/approve', authenticate, async (req, res) => {
+  const ApprovalRulesService = require('./services/ApprovalRulesService');
+
   try {
     const { id } = req.params;
     const { comments } = req.body;
 
-    // Update approval record
-    const result = await pool.query(`
-      UPDATE quote_approvals
-      SET status = 'APPROVED', comments = COALESCE($1, comments), reviewed_at = CURRENT_TIMESTAMP
-      WHERE id = $2 RETURNING *
-    `, [comments, id]);
+    // Get approval request
+    const approvalResult = await pool.query(
+      `SELECT qa.*, q.total_cents FROM quote_approvals qa
+       LEFT JOIN quotations q ON qa.quotation_id = q.id
+       WHERE qa.id = $1`,
+      [id]
+    );
 
-    if (result.rows.length === 0) {
+    if (approvalResult.rows.length === 0) {
       return res.status(404).json({ error: 'Approval request not found' });
     }
 
-    const approval = result.rows[0];
+    const approval = approvalResult.rows[0];
 
-    // Update quote status to APPROVED
+    // NEW: Role enforcement - check if user can approve this quote
+    const canApprove = ApprovalRulesService.canApprove(req.user, approval);
+    if (!canApprove.canApprove) {
+      return res.status(403).json({
+        error: 'Not authorized to approve this quote',
+        reason: canApprove.reason
+      });
+    }
+
+    // Update approval record
+    const result = await pool.query(`
+      UPDATE quote_approvals
+      SET status = 'APPROVED', comments = COALESCE($1, comments), reviewed_at = CURRENT_TIMESTAMP,
+          approver_name = $3, approver_email = $4
+      WHERE id = $2 RETURNING *
+    `, [comments, id, `${req.user.firstName} ${req.user.lastName}`, req.user.email]);
+
+    // Update quote status to APPROVED with audit fields
     await pool.query(
-      `UPDATE quotations SET status = 'APPROVED' WHERE id = $1`,
-      [approval.quotation_id]
+      `UPDATE quotations SET status = 'APPROVED', approved_at = CURRENT_TIMESTAMP, approved_by = $2 WHERE id = $1`,
+      [approval.quotation_id, req.user.id]
     );
 
     // Add event to timeline
@@ -1078,7 +1509,9 @@ app.post('/api/approvals/:id/approve', async (req, res) => {
 });
 
 // Reject a quote
-app.post('/api/approvals/:id/reject', async (req, res) => {
+app.post('/api/approvals/:id/reject', authenticate, async (req, res) => {
+  const ApprovalRulesService = require('./services/ApprovalRulesService');
+
   try {
     const { id } = req.params;
     const { comments } = req.body;
@@ -1087,23 +1520,41 @@ app.post('/api/approvals/:id/reject', async (req, res) => {
       return res.status(400).json({ error: 'Comments are required when rejecting a quote' });
     }
 
-    // Update approval record
-    const result = await pool.query(`
-      UPDATE quote_approvals
-      SET status = 'REJECTED', comments = $1, reviewed_at = CURRENT_TIMESTAMP
-      WHERE id = $2 RETURNING *
-    `, [comments, id]);
+    // Get approval request
+    const approvalResult = await pool.query(
+      `SELECT qa.*, q.total_cents FROM quote_approvals qa
+       LEFT JOIN quotations q ON qa.quotation_id = q.id
+       WHERE qa.id = $1`,
+      [id]
+    );
 
-    if (result.rows.length === 0) {
+    if (approvalResult.rows.length === 0) {
       return res.status(404).json({ error: 'Approval request not found' });
     }
 
-    const approval = result.rows[0];
+    const approval = approvalResult.rows[0];
 
-    // Update quote status to REJECTED
+    // NEW: Role enforcement - check if user can reject this quote
+    const canReject = ApprovalRulesService.canReject(req.user);
+    if (!canReject.canReject) {
+      return res.status(403).json({
+        error: 'Not authorized to reject this quote',
+        reason: canReject.reason
+      });
+    }
+
+    // Update approval record
+    const result = await pool.query(`
+      UPDATE quote_approvals
+      SET status = 'REJECTED', comments = $1, reviewed_at = CURRENT_TIMESTAMP,
+          approver_name = $3, approver_email = $4
+      WHERE id = $2 RETURNING *
+    `, [comments, id, `${req.user.firstName} ${req.user.lastName}`, req.user.email]);
+
+    // Update quote status to REJECTED with audit fields
     await pool.query(
-      `UPDATE quotations SET status = 'REJECTED' WHERE id = $1`,
-      [approval.quotation_id]
+      `UPDATE quotations SET status = 'REJECTED', rejected_at = CURRENT_TIMESTAMP, rejected_by = $2, rejected_reason = $3 WHERE id = $1`,
+      [approval.quotation_id, req.user.id, comments]
     );
 
     // Add event to timeline
@@ -2084,6 +2535,19 @@ console.log('✅ Delivery routes loaded');
 app.use('/api/pricing', pricingRoutes(pool, cache, pricingService));
 console.log('✅ Pricing routes loaded');
 
+app.use('/api/pricing/volume', volumePricingRoutes(pool, cache, volumeDiscountService));
+console.log('✅ Volume pricing routes loaded');
+
+app.use('/api/pos-promotions', posPromotionsRoutes(posPromotionService, promotionEngine));
+console.log('✅ POS promotions routes loaded');
+
+app.use('/api/manager-overrides', managerOverrideRoutes(managerOverrideService));
+console.log('✅ Manager override routes loaded');
+
+app.use('/api/delivery', deliveryFulfillmentRoutes(deliveryFulfillmentService));
+app.use('/api/warranty', warrantyRoutes(warrantyService));
+console.log('✅ Delivery fulfillment routes loaded');
+
 app.use('/api/product-metrics', productMetricsRoutes(pool, cache, productMetricsService));
 console.log('✅ Product metrics routes loaded');
 
@@ -2101,7 +2565,13 @@ console.log('✅ Advanced pricing routes loaded');
 // ============================================
 // AI PERSONALIZATION (Dynamic Pricing, Upselling, Suggestions)
 // ============================================
-app.use('/api/ai', aiPersonalizationRoutes);
+// Handle both old and new export formats
+const aiRouter = aiPersonalizationRoutes.router || aiPersonalizationRoutes;
+app.use('/api/ai', aiRouter);
+// Initialize AI Quote Builder service if available
+if (aiPersonalizationRoutes.initQuoteBuilderService) {
+  aiPersonalizationRoutes.initQuoteBuilderService(pool, cache);
+}
 console.log('✅ AI personalization routes loaded');
 
 // 3D PRODUCT CONFIGURATOR
@@ -2116,6 +2586,55 @@ vendorProductsRoutes(app);
 console.log('✅ Vendor product visualization routes loaded');
 
 // ============================================
+// CHURN ALERTS (Automated Email Alerts for High Churn Risk Customers)
+// ============================================
+const churnAlertsRoutes = require('./routes/churnAlerts');
+const churnAlertJob = require('./jobs/churnAlertJob');
+app.use('/api/churn-alerts', churnAlertsRoutes);
+console.log('✅ Churn alerts routes loaded');
+
+// ============================================
+// PURCHASING INTELLIGENCE (AI-Powered Purchasing Recommendations)
+// ============================================
+const purchasingIntelligenceRoutes = require('./routes/purchasingIntelligence');
+const purchasingIntelligenceJob = require('./jobs/purchasingIntelligenceJob');
+app.use('/api/purchasing-intelligence', purchasingIntelligenceRoutes);
+console.log('✅ Purchasing intelligence routes loaded');
+
+// ============================================
+// NOMENCLATURE SCRAPER SCHEDULED JOB
+// ============================================
+const nomenclatureScraperJob = require('./jobs/nomenclatureScraperJob');
+nomenclatureScraperJob.init(pool);
+console.log('✅ Nomenclature scraper job initialized');
+
+// ============================================
+// MODEL NOMENCLATURE DECODER & TRAINING
+// ============================================
+app.use('/api/nomenclature', initNomenclatureRoutes({ pool, cache }));
+console.log('✅ Nomenclature decoder routes loaded');
+
+// ============================================
+// QUICK SEARCH (Universal Product Finder)
+// ============================================
+app.use('/api/quick-search', quickSearchRoutes(pool, cache));
+console.log('✅ Quick Search routes loaded');
+
+// ============================================
+// ADMIN ROUTES (Email Queue Monitoring)
+// ============================================
+const adminRoutes = require('./routes/admin');
+app.use('/api/admin', adminRoutes);
+console.log('✅ Admin routes loaded (email monitoring, queue management)');
+
+// ============================================
+// ADMIN APPROVAL RULES (Threshold Configuration)
+// ============================================
+const adminApprovalRulesRoutes = require('./routes/admin-approval-rules');
+app.use('/api/admin/approval-rules', authenticate, requireRole(['admin', 'manager']), adminApprovalRulesRoutes(pool));
+console.log('✅ Admin approval rules routes loaded');
+
+// ============================================
 // ERROR HANDLING MIDDLEWARE
 // ============================================
 
@@ -2128,7 +2647,9 @@ app.use(errorHandler);
 // ============================================
 // START SERVER
 // ============================================
+let serverStarted = false;
 const server = app.listen(PORT, () => {
+  serverStarted = true;
   console.log('');
   console.log('========================================');
   console.log('🚀 CUSTOMER QUOTATION APP - BACKEND SERVER');
@@ -2142,16 +2663,53 @@ const server = app.listen(PORT, () => {
   if (process.env.ENABLE_EMAIL_NOTIFICATIONS !== 'false') {
     notificationScheduler.start();
   }
+
+  // Start email queue processor for reliable email delivery
+  if (process.env.ENABLE_EMAIL_QUEUE !== 'false') {
+    const EmailQueueService = require('./services/EmailQueueService');
+    EmailQueueService.start(process.env.EMAIL_QUEUE_SCHEDULE || '*/2 * * * *');
+    console.log('✅ Email queue processor started');
+  }
+
+  // Start churn alert scheduler for daily high churn risk notifications
+  if (process.env.ENABLE_CHURN_ALERTS !== 'false') {
+    churnAlertJob.startScheduler(process.env.CHURN_ALERT_SCHEDULE || '0 9 * * *');
+    console.log('✅ Churn alert scheduler started');
+  }
+
+  // Start purchasing intelligence scheduler for daily/weekly analysis
+  if (process.env.ENABLE_PURCHASING_INTELLIGENCE !== 'false') {
+    purchasingIntelligenceJob.startScheduler();
+    console.log('✅ Purchasing intelligence scheduler started (Daily 6AM, Weekly Monday 6AM)');
+  }
+
+  // Start nomenclature scraper scheduler for weekly nomenclature updates
+  if (process.env.ENABLE_NOMENCLATURE_SCRAPER !== 'false') {
+    nomenclatureScraperJob.startSchedule(process.env.NOMENCLATURE_SCRAPE_SCHEDULE || '0 2 * * 0');
+    console.log('✅ Nomenclature scraper scheduler started (Weekly Sunday 2 AM)');
+  }
+
+  // Start quote expiry digest job for daily email digests to sales reps
+  if (process.env.ENABLE_QUOTE_EXPIRY_DIGEST !== 'false') {
+    const quoteExpiryDigestJob = new QuoteExpiryDigestJob(pool, emailService);
+    quoteExpiryDigestJob.start();
+    console.log('✅ Quote expiry digest scheduler started (Weekdays 8 AM)');
+  }
 });
 
 // Handle server errors
 server.on('error', (error) => {
   if (error.code === 'EADDRINUSE') {
-    console.error(`❌ Port ${PORT} is already in use`);
+    if (serverStarted) {
+      // Dual-stack race on Windows — server is already listening on IPv4, ignore IPv6 failure
+      console.warn(`⚠️  Port ${PORT} dual-stack conflict (non-fatal, server is running)`);
+    } else {
+      console.error(`❌ Port ${PORT} is already in use`);
+      process.exit(1);
+    }
   } else {
     console.error('❌ Server error:', error);
   }
-  process.exit(1);
 });
 
 // Graceful shutdown

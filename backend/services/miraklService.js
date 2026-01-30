@@ -87,12 +87,10 @@ class MiraklService {
    */
   async getOffers(params = {}) {
     try {
-      console.log('📥 Fetching offers from Mirakl...');
       const response = await this.client.get('/offers', { params });
-      console.log(`✅ Fetched ${response.data.offers?.length || 0} offers`);
       return response.data.offers || [];
     } catch (error) {
-      console.error('❌ Error fetching offers:', error.message);
+      console.error('Error fetching offers:', error.message);
       throw error;
     }
   }
@@ -102,8 +100,6 @@ class MiraklService {
    */
   async createOffer(offerData) {
     try {
-      console.log('➕ Creating offer on Mirakl:', offerData.sku);
-
       // Mirakl OF21 API expects offers array format
       const payload = {
         offers: [{
@@ -120,7 +116,6 @@ class MiraklService {
 
       // Use OF21 endpoint for offer import
       const response = await this.client.post('/offers', payload);
-      console.log('✅ Offer created successfully');
       return response.data;
     } catch (error) {
       // Log detailed error information for debugging
@@ -148,8 +143,6 @@ class MiraklService {
    */
   async batchImportOffers(products) {
     try {
-      console.log(`📦 Batch importing ${products.length} offers to Mirakl...`);
-
       // Build offers array
       const offers = products.map(product => ({
         shop_sku: product.mirakl_sku || product.model,
@@ -165,7 +158,6 @@ class MiraklService {
       const payload = { offers };
 
       const response = await this.client.post('/offers', payload);
-      console.log(`✅ Batch import completed: ${products.length} offers`);
 
       return {
         success: true,
@@ -193,8 +185,6 @@ class MiraklService {
    */
   async updateOfferQuantity(offerId, quantity) {
     try {
-      console.log(`📝 Updating offer ${offerId} quantity to ${quantity}`);
-
       const payload = {
         offers: [{
           offer_id: offerId,
@@ -203,7 +193,6 @@ class MiraklService {
       };
 
       const response = await this.client.put('/offers', payload);
-      console.log('✅ Offer quantity updated');
       return response.data;
     } catch (error) {
       console.error('❌ Error updating offer quantity:', error.message);
@@ -216,9 +205,7 @@ class MiraklService {
    */
   async deleteOffer(offerId) {
     try {
-      console.log(`🗑️ Deleting offer ${offerId}`);
       await this.client.delete(`/offers/${offerId}`);
-      console.log('✅ Offer deleted');
       return true;
     } catch (error) {
       console.error('❌ Error deleting offer:', error.message);
@@ -235,8 +222,6 @@ class MiraklService {
    */
   async getOrders(params = {}) {
     try {
-      console.log('📥 Fetching orders from Mirakl...');
-
       // Default params
       const queryParams = {
         start_date: params.start_date || new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString(),
@@ -245,7 +230,6 @@ class MiraklService {
       };
 
       const response = await this.client.get('/orders', { params: queryParams });
-      console.log(`✅ Fetched ${response.data.orders?.length || 0} orders`);
       return response.data.orders || [];
     } catch (error) {
       console.error('❌ Error fetching orders:', error.message);
@@ -258,8 +242,6 @@ class MiraklService {
    */
   async acceptOrder(orderId, orderLines = []) {
     try {
-      console.log(`✅ Accepting order ${orderId}`);
-
       const payload = {
         order_lines: orderLines.map(line => ({
           accepted: true,
@@ -268,7 +250,6 @@ class MiraklService {
       };
 
       const response = await this.client.put(`/orders/${orderId}/accept`, payload);
-      console.log('✅ Order accepted');
       return response.data;
     } catch (error) {
       console.error('❌ Error accepting order:', error.message);
@@ -281,8 +262,6 @@ class MiraklService {
    */
   async refuseOrder(orderId, orderLines = [], reason) {
     try {
-      console.log(`❌ Refusing order ${orderId}`);
-
       const payload = {
         order_lines: orderLines.map(line => ({
           accepted: false,
@@ -292,7 +271,6 @@ class MiraklService {
       };
 
       const response = await this.client.put(`/orders/${orderId}/refuse`, payload);
-      console.log('✅ Order refused');
       return response.data;
     } catch (error) {
       console.error('❌ Error refusing order:', error.message);
@@ -309,8 +287,6 @@ class MiraklService {
    */
   async createShipment(shipmentData) {
     try {
-      console.log(`📦 Creating shipment for order ${shipmentData.order_id}`);
-
       const payload = {
         order_id: shipmentData.order_id,
         tracking_number: shipmentData.tracking_number,
@@ -320,7 +296,6 @@ class MiraklService {
       };
 
       const response = await this.client.post('/shipments', payload);
-      console.log('✅ Shipment created');
       return response.data;
     } catch (error) {
       console.error('❌ Error creating shipment:', error.message);
@@ -333,8 +308,6 @@ class MiraklService {
    */
   async updateTracking(orderId, trackingNumber, carrierCode) {
     try {
-      console.log(`📝 Updating tracking for order ${orderId}`);
-
       const payload = {
         tracking: {
           carrier_code: carrierCode,
@@ -343,7 +316,6 @@ class MiraklService {
       };
 
       const response = await this.client.put(`/orders/${orderId}/tracking`, payload);
-      console.log('✅ Tracking updated');
       return response.data;
     } catch (error) {
       console.error('❌ Error updating tracking:', error.message);
@@ -362,8 +334,6 @@ class MiraklService {
     const startTime = Date.now();
 
     try {
-      console.log(`🔄 Syncing product ${productId} to Mirakl...`);
-
       // Get product from database
       const productQuery = await pool.query(
         'SELECT * FROM products WHERE id = $1',
@@ -413,11 +383,10 @@ class MiraklService {
         duration: Date.now() - startTime
       });
 
-      console.log('✅ Product synced successfully');
       return miraklResponse;
 
     } catch (error) {
-      console.error('❌ Product sync failed:', error.message);
+      console.error('Product sync failed:', error.message);
 
       // Log failed sync
       await this.logSync('product_sync', 'product', 'FAILED', {
@@ -444,8 +413,6 @@ class MiraklService {
     const startTime = Date.now();
 
     try {
-      console.log(`🔄 Syncing order ${miraklOrder.order_id} to database...`);
-
       // Check if order already exists
       const existingOrder = await pool.query(
         'SELECT id FROM marketplace_orders WHERE mirakl_order_id = $1',
@@ -494,7 +461,6 @@ class MiraklService {
         ]);
 
         orderId = result.rows[0].id;
-        console.log('📝 Order updated');
 
       } else {
         // Insert new order
@@ -526,7 +492,6 @@ class MiraklService {
         ]);
 
         orderId = result.rows[0].id;
-        console.log('➕ New order created');
 
         // Insert order items
         for (const line of miraklOrder.order_lines || []) {
@@ -559,11 +524,10 @@ class MiraklService {
         duration: Date.now() - startTime
       });
 
-      console.log('✅ Order synced to database');
       return orderId;
 
     } catch (error) {
-      console.error('❌ Order sync failed:', error.message);
+      console.error('Order sync failed:', error.message);
 
       // Log failed sync
       await this.logSync('order_sync', 'order', 'FAILED', {

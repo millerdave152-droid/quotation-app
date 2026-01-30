@@ -35,7 +35,7 @@ const CounterOfferModal = ({
     setLoading(true);
 
     try {
-      const token = localStorage.getItem('token');
+      const token = localStorage.getItem('auth_token');
       const counterCents = Math.round(parseFloat(counterAmount) * 100);
 
       let endpoint;
@@ -91,7 +91,7 @@ const CounterOfferModal = ({
     setError(null);
 
     try {
-      const token = localStorage.getItem('token');
+      const token = localStorage.getItem('auth_token');
       const response = await fetch(`${API_URL}/api/counter-offers/${existingOffer.id}/accept`, {
         method: 'POST',
         headers: {
@@ -126,7 +126,7 @@ const CounterOfferModal = ({
     setError(null);
 
     try {
-      const token = localStorage.getItem('token');
+      const token = localStorage.getItem('auth_token');
       const response = await fetch(`${API_URL}/api/counter-offers/${existingOffer.id}/reject`, {
         method: 'POST',
         headers: {
@@ -155,18 +155,24 @@ const CounterOfferModal = ({
   const customerOffer = existingOffer?.counter_offer_total_cents || 0;
 
   return (
-    <div style={{
-      position: 'fixed',
-      top: 0,
-      left: 0,
-      right: 0,
-      bottom: 0,
-      background: 'rgba(0, 0, 0, 0.5)',
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'center',
-      zIndex: 9999
-    }}>
+    <div
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="counter-offer-title"
+      aria-describedby="counter-offer-description"
+      style={{
+        position: 'fixed',
+        top: 0,
+        left: 0,
+        right: 0,
+        bottom: 0,
+        background: 'rgba(0, 0, 0, 0.5)',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        zIndex: 9999
+      }}
+    >
       <div style={{
         background: 'white',
         borderRadius: '16px',
@@ -183,11 +189,12 @@ const CounterOfferModal = ({
           color: 'white'
         }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <h2 style={{ margin: 0, fontSize: '20px' }}>
+            <h2 id="counter-offer-title" style={{ margin: 0, fontSize: '20px' }}>
               {mode === 'respond' ? 'Respond to Counter-Offer' : 'Submit Counter-Offer'}
             </h2>
             <button
               onClick={onClose}
+              aria-label="Close counter offer dialog"
               style={{
                 background: 'rgba(255,255,255,0.2)',
                 border: 'none',
@@ -199,10 +206,10 @@ const CounterOfferModal = ({
                 fontSize: '18px'
               }}
             >
-              x
+              <span aria-hidden="true">x</span>
             </button>
           </div>
-          <p style={{ margin: '8px 0 0 0', opacity: 0.9, fontSize: '14px' }}>
+          <p id="counter-offer-description" style={{ margin: '8px 0 0 0', opacity: 0.9, fontSize: '14px' }}>
             Quote: {quote?.quote_number}
           </p>
         </div>
@@ -249,36 +256,46 @@ const CounterOfferModal = ({
           </div>
 
           {error && (
-            <div style={{
-              background: '#fef2f2',
-              border: '1px solid #fecaca',
-              color: '#dc2626',
-              padding: '12px',
-              borderRadius: '8px',
-              marginBottom: '16px'
-            }}>
+            <div
+              role="alert"
+              aria-live="assertive"
+              style={{
+                background: '#fef2f2',
+                border: '1px solid #fecaca',
+                color: '#dc2626',
+                padding: '12px',
+                borderRadius: '8px',
+                marginBottom: '16px'
+              }}
+            >
               {error}
             </div>
           )}
 
-          <form onSubmit={handleSubmit}>
+          <form onSubmit={handleSubmit} aria-label="Counter offer form">
             <div style={{ marginBottom: '16px' }}>
-              <label style={{
-                display: 'block',
-                marginBottom: '8px',
-                fontWeight: '600',
-                color: '#374151'
-              }}>
+              <label
+                htmlFor="counter-amount"
+                style={{
+                  display: 'block',
+                  marginBottom: '8px',
+                  fontWeight: '600',
+                  color: '#374151'
+                }}
+              >
                 Your Counter-Offer Amount (CAD)
               </label>
               <input
+                id="counter-amount"
                 type="number"
                 value={counterAmount}
                 onChange={(e) => setCounterAmount(e.target.value)}
                 min="0.01"
                 step="0.01"
                 required
+                aria-required="true"
                 placeholder="Enter amount"
+                aria-describedby="counter-amount-help"
                 style={{
                   width: '100%',
                   padding: '16px',
@@ -293,21 +310,26 @@ const CounterOfferModal = ({
             </div>
 
             <div style={{ marginBottom: '24px' }}>
-              <label style={{
-                display: 'block',
-                marginBottom: '8px',
-                fontWeight: '600',
-                color: '#374151'
-              }}>
+              <label
+                htmlFor="counter-message"
+                style={{
+                  display: 'block',
+                  marginBottom: '8px',
+                  fontWeight: '600',
+                  color: '#374151'
+                }}
+              >
                 Message {mode === 'respond' ? '(Required for rejection)' : '(Optional)'}
               </label>
               <textarea
+                id="counter-message"
                 value={message}
                 onChange={(e) => setMessage(e.target.value)}
                 rows="3"
                 placeholder={mode === 'respond'
                   ? 'Explain your counter-offer or provide rejection reason...'
                   : 'Add a message with your offer...'}
+                aria-describedby="message-help"
                 style={{
                   width: '100%',
                   padding: '12px',
@@ -321,13 +343,14 @@ const CounterOfferModal = ({
             </div>
 
             {/* Action Buttons */}
-            <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
+            <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }} role="group" aria-label="Counter offer actions">
               {mode === 'respond' && existingOffer && (
                 <>
                   <button
                     type="button"
                     onClick={handleAccept}
                     disabled={loading}
+                    aria-label="Accept customer's offer"
                     style={{
                       flex: 1,
                       minWidth: '120px',
@@ -348,6 +371,7 @@ const CounterOfferModal = ({
                     type="button"
                     onClick={handleReject}
                     disabled={loading}
+                    aria-label="Reject customer's offer"
                     style={{
                       flex: 1,
                       minWidth: '120px',
@@ -369,6 +393,8 @@ const CounterOfferModal = ({
               <button
                 type="submit"
                 disabled={loading || !counterAmount}
+                aria-busy={loading}
+                aria-label={loading ? 'Submitting counter offer...' : 'Send counter offer'}
                 style={{
                   flex: 2,
                   minWidth: '200px',

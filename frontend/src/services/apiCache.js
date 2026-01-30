@@ -49,6 +49,17 @@ class APICache {
   }
 
   /**
+   * Get auth headers from localStorage
+   */
+  getAuthHeaders() {
+    const token = localStorage.getItem('auth_token');
+    if (token) {
+      return { 'Authorization': `Bearer ${token}` };
+    }
+    return {};
+  }
+
+  /**
    * Fetch with caching - main method
    */
   async fetch(url, options = {}) {
@@ -68,9 +79,19 @@ class APICache {
       return this.pendingRequests.get(cacheKey);
     }
 
+    // Merge auth headers with provided options
+    const authHeaders = this.getAuthHeaders();
+    const fetchOptions = {
+      ...options,
+      headers: {
+        ...authHeaders,
+        ...options.headers
+      }
+    };
+
     // Make the request
     console.log(`[API Cache] MISS: ${url}`);
-    const requestPromise = fetch(fullUrl, options)
+    const requestPromise = fetch(fullUrl, fetchOptions)
       .then(async (response) => {
         if (!response.ok) {
           throw new Error(`HTTP ${response.status}: ${response.statusText}`);

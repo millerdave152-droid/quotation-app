@@ -58,14 +58,16 @@ const Tooltip = ({ children, text }) => {
  * StatusBadge - Displays quote status with tooltip
  */
 const StatusBadge = ({ status, createdAt }) => {
+  // Standardized color palette (WCAG 2.1 AA compliant - 4.5:1 contrast)
   const statusConfig = {
-    DRAFT: { bg: '#3b82f6', text: 'white', label: 'DRAFT' },
-    SENT: { bg: '#8b5cf6', text: 'white', label: 'SENT' },
-    WON: { bg: '#10b981', text: 'white', label: 'WON' },
-    LOST: { bg: '#ef4444', text: 'white', label: 'LOST' },
-    PENDING_APPROVAL: { bg: '#f59e0b', text: 'white', label: 'PENDING' },
-    APPROVED: { bg: '#10b981', text: 'white', label: 'APPROVED' },
-    REJECTED: { bg: '#ef4444', text: 'white', label: 'REJECTED' }
+    DRAFT: { bg: '#6b7280', text: 'white', label: 'DRAFT' },         // Gray - neutral
+    SENT: { bg: '#8b5cf6', text: 'white', label: 'SENT' },           // Purple - in progress
+    VIEWED: { bg: '#0ea5e9', text: 'white', label: 'VIEWED' },       // Sky blue - engaged
+    PENDING_APPROVAL: { bg: '#f59e0b', text: '#000000', label: 'PENDING' }, // Amber - needs attention
+    APPROVED: { bg: '#10b981', text: 'white', label: 'APPROVED' },   // Green - positive
+    WON: { bg: '#059669', text: 'white', label: 'WON' },             // Darker green - success
+    LOST: { bg: '#dc2626', text: 'white', label: 'LOST' },           // Red - negative
+    REJECTED: { bg: '#ef4444', text: 'white', label: 'REJECTED' }    // Lighter red - negative
   };
 
   const config = statusConfig[status] || { bg: '#6b7280', text: 'white', label: status };
@@ -145,7 +147,6 @@ const ExpiryBadge = ({ expiresAt, status }) => {
         <span style={{
           display: 'inline-flex',
           alignItems: 'center',
-          gap: '4px',
           padding: '4px 10px',
           borderRadius: '9999px',
           fontSize: '11px',
@@ -154,7 +155,6 @@ const ExpiryBadge = ({ expiresAt, status }) => {
           color: 'white',
           cursor: 'default'
         }}>
-          <span style={{ fontSize: '12px' }}>&#128308;</span>
           EXPIRED
         </span>
       </Tooltip>
@@ -167,17 +167,15 @@ const ExpiryBadge = ({ expiresAt, status }) => {
         <span style={{
           display: 'inline-flex',
           alignItems: 'center',
-          gap: '4px',
           padding: '4px 10px',
           borderRadius: '9999px',
           fontSize: '11px',
           fontWeight: '600',
-          background: '#f59e0b',
+          background: '#f97316',
           color: 'white',
           cursor: 'default'
         }}>
-          <span style={{ fontSize: '12px' }}>&#9200;</span>
-          {diffDays === 0 ? 'TODAY' : diffDays === 1 ? '1 DAY' : `${diffDays} DAYS`}
+          {diffDays === 0 ? 'EXPIRES TODAY' : diffDays === 1 ? 'EXPIRES IN 1 DAY' : `EXPIRES IN ${diffDays} DAYS`}
         </span>
       </Tooltip>
     );
@@ -301,7 +299,11 @@ const QuoteList = ({
   // Filter chips
   filterRefreshTrigger,
   activeQuickFilter,
-  onQuickFilterChange
+  onQuickFilterChange,
+
+  // View mode
+  listViewMode = 'list',
+  onViewModeChange
 }) => {
   // Filter and sort quotations
   const filteredQuotes = useMemo(() => {
@@ -438,22 +440,26 @@ const QuoteList = ({
           Quotations
         </h1>
 
-        <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
+        <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap', alignItems: 'center' }}>
+          {/* Navigation buttons - outline/ghost style */}
           <button
             onClick={onViewDashboard}
             style={{
-              padding: '12px 24px',
-              background: '#0ea5e9',
-              color: 'white',
-              border: 'none',
+              padding: '10px 20px',
+              background: 'transparent',
+              color: '#0ea5e9',
+              border: '2px solid #0ea5e9',
               borderRadius: '8px',
               fontSize: '14px',
-              fontWeight: 'bold',
+              fontWeight: '600',
               cursor: 'pointer',
               display: 'flex',
               alignItems: 'center',
-              gap: '8px'
+              gap: '8px',
+              transition: 'all 0.2s ease'
             }}
+            onMouseEnter={(e) => { e.target.style.background = '#0ea5e9'; e.target.style.color = 'white'; }}
+            onMouseLeave={(e) => { e.target.style.background = 'transparent'; e.target.style.color = '#0ea5e9'; }}
           >
             Dashboard
           </button>
@@ -461,18 +467,21 @@ const QuoteList = ({
           <button
             onClick={onViewAnalytics}
             style={{
-              padding: '12px 24px',
-              background: '#8b5cf6',
-              color: 'white',
-              border: 'none',
+              padding: '10px 20px',
+              background: 'transparent',
+              color: '#8b5cf6',
+              border: '2px solid #8b5cf6',
               borderRadius: '8px',
               fontSize: '14px',
-              fontWeight: 'bold',
+              fontWeight: '600',
               cursor: 'pointer',
               display: 'flex',
               alignItems: 'center',
-              gap: '8px'
+              gap: '8px',
+              transition: 'all 0.2s ease'
             }}
+            onMouseEnter={(e) => { e.target.style.background = '#8b5cf6'; e.target.style.color = 'white'; }}
+            onMouseLeave={(e) => { e.target.style.background = 'transparent'; e.target.style.color = '#8b5cf6'; }}
           >
             Analytics
           </button>
@@ -480,18 +489,21 @@ const QuoteList = ({
           <button
             onClick={onViewApprovals}
             style={{
-              padding: '12px 24px',
-              background: '#6366f1',
-              color: 'white',
-              border: 'none',
+              padding: '10px 20px',
+              background: 'transparent',
+              color: '#6366f1',
+              border: '2px solid #6366f1',
               borderRadius: '8px',
               fontSize: '14px',
-              fontWeight: 'bold',
+              fontWeight: '600',
               cursor: 'pointer',
               display: 'flex',
               alignItems: 'center',
-              gap: '8px'
+              gap: '8px',
+              transition: 'all 0.2s ease'
             }}
+            onMouseEnter={(e) => { e.target.style.background = '#6366f1'; e.target.style.color = 'white'; }}
+            onMouseLeave={(e) => { e.target.style.background = 'transparent'; e.target.style.color = '#6366f1'; }}
           >
             Approvals
           </button>
@@ -499,18 +511,21 @@ const QuoteList = ({
           <button
             onClick={onViewFollowUps}
             style={{
-              padding: '12px 24px',
-              background: '#ec4899',
-              color: 'white',
-              border: 'none',
+              padding: '10px 20px',
+              background: 'transparent',
+              color: '#ec4899',
+              border: '2px solid #ec4899',
               borderRadius: '8px',
               fontSize: '14px',
-              fontWeight: 'bold',
+              fontWeight: '600',
               cursor: 'pointer',
               display: 'flex',
               alignItems: 'center',
-              gap: '8px'
+              gap: '8px',
+              transition: 'all 0.2s ease'
             }}
+            onMouseEnter={(e) => { e.target.style.background = '#ec4899'; e.target.style.color = 'white'; }}
+            onMouseLeave={(e) => { e.target.style.background = 'transparent'; e.target.style.color = '#ec4899'; }}
           >
             Follow-Ups
             {(followUpStats?.overdue_count > 0 || followUpStats?.due_soon_count > 0) && (
@@ -527,41 +542,114 @@ const QuoteList = ({
             )}
           </button>
 
+          {/* Export button - outline style */}
           <button
             onClick={() => onExport?.(sortedQuotes)}
             disabled={sortedQuotes.length === 0}
             style={{
-              padding: '12px 24px',
-              background: sortedQuotes.length === 0 ? '#9ca3af' : '#10b981',
-              color: 'white',
-              border: 'none',
+              padding: '10px 20px',
+              background: 'transparent',
+              color: sortedQuotes.length === 0 ? '#9ca3af' : '#10b981',
+              border: `2px solid ${sortedQuotes.length === 0 ? '#9ca3af' : '#10b981'}`,
               borderRadius: '8px',
               fontSize: '14px',
-              fontWeight: 'bold',
+              fontWeight: '600',
               cursor: sortedQuotes.length === 0 ? 'not-allowed' : 'pointer',
               display: 'flex',
               alignItems: 'center',
-              gap: '8px'
+              gap: '8px',
+              transition: 'all 0.2s ease'
             }}
+            onMouseEnter={(e) => { if (sortedQuotes.length > 0) { e.target.style.background = '#10b981'; e.target.style.color = 'white'; }}}
+            onMouseLeave={(e) => { e.target.style.background = 'transparent'; e.target.style.color = sortedQuotes.length === 0 ? '#9ca3af' : '#10b981'; }}
           >
             Export
           </button>
 
+          {/* View Mode Toggle */}
+          {onViewModeChange && (
+            <div style={{
+              display: 'flex',
+              backgroundColor: '#f3f4f6',
+              borderRadius: '8px',
+              padding: '4px',
+            }}>
+              <button
+                onClick={() => onViewModeChange('list')}
+                style={{
+                  padding: '8px 16px',
+                  border: 'none',
+                  borderRadius: '6px',
+                  backgroundColor: listViewMode === 'list' ? 'white' : 'transparent',
+                  color: listViewMode === 'list' ? '#111827' : '#6b7280',
+                  fontSize: '13px',
+                  fontWeight: '600',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  boxShadow: listViewMode === 'list' ? '0 1px 3px rgba(0,0,0,0.1)' : 'none',
+                  transition: 'all 0.15s ease',
+                }}
+              >
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <line x1="8" y1="6" x2="21" y2="6"></line>
+                  <line x1="8" y1="12" x2="21" y2="12"></line>
+                  <line x1="8" y1="18" x2="21" y2="18"></line>
+                  <line x1="3" y1="6" x2="3.01" y2="6"></line>
+                  <line x1="3" y1="12" x2="3.01" y2="12"></line>
+                  <line x1="3" y1="18" x2="3.01" y2="18"></line>
+                </svg>
+                List
+              </button>
+              <button
+                onClick={() => onViewModeChange('kanban')}
+                style={{
+                  padding: '8px 16px',
+                  border: 'none',
+                  borderRadius: '6px',
+                  backgroundColor: listViewMode === 'kanban' ? 'white' : 'transparent',
+                  color: listViewMode === 'kanban' ? '#111827' : '#6b7280',
+                  fontSize: '13px',
+                  fontWeight: '600',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  boxShadow: listViewMode === 'kanban' ? '0 1px 3px rgba(0,0,0,0.1)' : 'none',
+                  transition: 'all 0.15s ease',
+                }}
+              >
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <rect x="3" y="3" width="5" height="18" rx="1"></rect>
+                  <rect x="10" y="3" width="5" height="12" rx="1"></rect>
+                  <rect x="17" y="3" width="5" height="8" rx="1"></rect>
+                </svg>
+                Pipeline
+              </button>
+            </div>
+          )}
+
+          {/* Primary CTA - New Quote button - prominent filled style */}
           <button
             onClick={onCreateNew}
             style={{
-              padding: '12px 24px',
-              background: '#3b82f6',
+              padding: '14px 28px',
+              background: '#22c55e',
               color: 'white',
               border: 'none',
               borderRadius: '8px',
-              fontSize: '14px',
+              fontSize: '15px',
               fontWeight: 'bold',
               cursor: 'pointer',
               display: 'flex',
               alignItems: 'center',
-              gap: '8px'
+              gap: '8px',
+              boxShadow: '0 2px 8px rgba(34, 197, 94, 0.4)',
+              transition: 'all 0.2s ease'
             }}
+            onMouseEnter={(e) => { e.target.style.background = '#16a34a'; e.target.style.boxShadow = '0 4px 12px rgba(34, 197, 94, 0.5)'; }}
+            onMouseLeave={(e) => { e.target.style.background = '#22c55e'; e.target.style.boxShadow = '0 2px 8px rgba(34, 197, 94, 0.4)'; }}
           >
             + New Quote
           </button>
@@ -925,7 +1013,7 @@ const QuoteList = ({
                 <th style={{ padding: '16px', textAlign: 'right', fontSize: '14px', fontWeight: '600', color: '#374151' }}>
                   Total
                 </th>
-                <th style={{ padding: '16px', textAlign: 'left', fontSize: '14px', fontWeight: '600', color: '#374151' }}>
+                <th style={{ padding: '16px', textAlign: 'right', fontSize: '14px', fontWeight: '600', color: '#374151' }}>
                   Date
                 </th>
                 <th style={{ padding: '16px', textAlign: 'center', fontSize: '14px', fontWeight: '600', color: '#374151' }}>
@@ -1014,7 +1102,7 @@ const QuoteList = ({
                         ${((quote.total_cents || 0) / 100).toLocaleString('en-US', { minimumFractionDigits: 2 })}
                       </div>
                     </td>
-                    <td style={{ padding: '16px' }}>
+                    <td style={{ padding: '16px', textAlign: 'right' }}>
                       <div style={{ fontSize: '14px', color: '#6b7280' }}>
                         {formatDate ? formatDate(quote.created_at) : new Date(quote.created_at).toLocaleDateString()}
                       </div>

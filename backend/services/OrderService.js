@@ -3,6 +3,8 @@
  * Handles order creation, quote conversion, and order management
  */
 
+const { ApiError } = require('../middleware/errorHandler');
+
 class OrderService {
   constructor(pool, cache, inventoryService) {
     this.pool = pool;
@@ -64,7 +66,7 @@ class OrderService {
       `, [quotationId]);
 
       if (quoteResult.rows.length === 0) {
-        throw new Error(`Quotation ${quotationId} not found`);
+        throw ApiError.notFound('Quotation', { id: quotationId });
       }
 
       const quote = quoteResult.rows[0];
@@ -72,12 +74,12 @@ class OrderService {
       // Validate quote status
       const validStatuses = ['DRAFT', 'SENT', 'APPROVED'];
       if (!validStatuses.includes(quote.status)) {
-        throw new Error(`Cannot convert quote with status ${quote.status}. Valid statuses: ${validStatuses.join(', ')}`);
+        throw ApiError.validation(`Cannot convert quote with status ${quote.status}. Valid statuses: ${validStatuses.join(', ')}`);
       }
 
       // Check if already converted
       if (quote.converted_to_order_id) {
-        throw new Error(`Quote already converted to order ${quote.converted_to_order_id}`);
+        throw ApiError.conflict(`Quote already converted to order ${quote.converted_to_order_id}`);
       }
 
       // 2. Get quotation items
@@ -93,7 +95,7 @@ class OrderService {
       `, [quotationId]);
 
       if (itemsResult.rows.length === 0) {
-        throw new Error('Quotation has no items');
+        throw ApiError.validation('Quotation has no items');
       }
 
       // 3. Generate order number
@@ -125,20 +127,27 @@ class OrderService {
 
       const order = orderResult.rows[0];
 
-      // 5. Copy items to order_items
-      for (const item of itemsResult.rows) {
-        await client.query(`
-          INSERT INTO order_items (
-            order_id, product_id, quantity, unit_price_cents, total_cents
-          )
-          VALUES ($1, $2, $3, $4, $5)
-        `, [
+      // 5. Copy items to order_items using batch INSERT (optimized from N+1)
+      if (itemsResult.rows.length > 0) {
+        const valuesPerRow = 5;
+        const placeholders = itemsResult.rows.map((_, i) =>
+          `(${Array.from({length: valuesPerRow}, (_, j) => `$${i * valuesPerRow + j + 1}`).join(', ')})`
+        ).join(', ');
+
+        const values = itemsResult.rows.flatMap(item => [
           order.id,
           item.product_id,
           item.quantity,
           item.unit_price_cents,
           item.total_cents
         ]);
+
+        await client.query(`
+          INSERT INTO order_items (
+            order_id, product_id, quantity, unit_price_cents, total_cents
+          )
+          VALUES ${placeholders}
+        `, values);
       }
 
       // 6. Convert inventory reservations

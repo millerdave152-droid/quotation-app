@@ -57,7 +57,6 @@ export const getSmartSuggestions = ({
   if (availableRebates.length > 0 && products.length > 0) {
     const productCategories = new Set(products.map(p => p.category?.toLowerCase() || '').filter(c => c));
     const productBrands = new Set(products.map(p => p.brand?.toLowerCase() || '').filter(b => b));
-    const productNames = products.map(p => (p.name || '').toLowerCase());
 
     availableRebates.forEach(rebate => {
       const rebateName = (rebate.rebate_name || '').toLowerCase();

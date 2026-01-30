@@ -143,17 +143,20 @@ const ConfirmDialog = ({
         }}
       >
         {/* Icon */}
-        <div style={{
-          width: '48px',
-          height: '48px',
-          borderRadius: '50%',
-          background: styles.iconBg,
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          margin: '0 auto 16px',
-          fontSize: '24px'
-        }}>
+        <div
+          style={{
+            width: '48px',
+            height: '48px',
+            borderRadius: '50%',
+            background: styles.iconBg,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            margin: '0 auto 16px',
+            fontSize: '24px'
+          }}
+          aria-hidden="true"
+        >
           {displayIcon}
         </div>
 
@@ -186,14 +189,19 @@ const ConfirmDialog = ({
         </p>
 
         {/* Actions */}
-        <div style={{
-          display: 'flex',
-          gap: '12px',
-          justifyContent: 'center'
-        }}>
+        <div
+          style={{
+            display: 'flex',
+            gap: '12px',
+            justifyContent: 'center'
+          }}
+          role="group"
+          aria-label="Dialog actions"
+        >
           <button
             onClick={onCancel}
             disabled={loading}
+            aria-label={`${cancelText} and close dialog`}
             style={{
               padding: '12px 24px',
               background: '#f3f4f6',
@@ -215,6 +223,8 @@ const ConfirmDialog = ({
             ref={confirmButtonRef}
             onClick={onConfirm}
             disabled={loading}
+            aria-label={loading ? 'Processing...' : confirmText}
+            aria-busy={loading}
             style={{
               padding: '12px 24px',
               background: styles.confirmBg,
@@ -234,14 +244,17 @@ const ConfirmDialog = ({
             onMouseLeave={(e) => (e.target.style.background = styles.confirmBg)}
           >
             {loading && (
-              <span style={{
-                width: '16px',
-                height: '16px',
-                border: '2px solid rgba(255,255,255,0.3)',
-                borderTopColor: 'white',
-                borderRadius: '50%',
-                animation: 'spin 0.8s linear infinite'
-              }} />
+              <span
+                style={{
+                  width: '16px',
+                  height: '16px',
+                  border: '2px solid rgba(255,255,255,0.3)',
+                  borderTopColor: 'white',
+                  borderRadius: '50%',
+                  animation: 'spin 0.8s linear infinite'
+                }}
+                aria-hidden="true"
+              />
             )}
             {confirmText}
           </button>

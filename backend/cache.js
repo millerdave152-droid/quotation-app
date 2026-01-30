@@ -4,30 +4,34 @@
  */
 
 const NodeCache = require('node-cache');
+const cacheConfig = require('./config/cache-config');
 
-// Create cache instances with different TTLs for different data types
+// Create cache instances with configurable TTLs for different data types
 const caches = {
-  // Short-lived cache for frequently changing data (5 minutes)
+  // Short-lived cache for frequently changing data
   short: new NodeCache({
-    stdTTL: 300, // 5 minutes
+    stdTTL: cacheConfig.TTL_SHORT,
     checkperiod: 60, // Check for expired keys every 60 seconds
     useClones: false // Don't clone data (better performance)
   }),
 
-  // Medium-lived cache for moderately static data (30 minutes)
+  // Medium-lived cache for moderately static data
   medium: new NodeCache({
-    stdTTL: 1800, // 30 minutes
+    stdTTL: cacheConfig.TTL_MEDIUM,
     checkperiod: 120,
     useClones: false
   }),
 
-  // Long-lived cache for rarely changing data (2 hours)
+  // Long-lived cache for rarely changing data
   long: new NodeCache({
-    stdTTL: 7200, // 2 hours
+    stdTTL: cacheConfig.TTL_LONG,
     checkperiod: 300,
     useClones: false
   })
 };
+
+// Log cache configuration on startup
+console.log(`✓ Cache initialized: TTL_SHORT=${cacheConfig.TTL_SHORT}s, TTL_MEDIUM=${cacheConfig.TTL_MEDIUM}s, TTL_LONG=${cacheConfig.TTL_LONG}s`);
 
 /**
  * Get value from cache
@@ -110,6 +114,31 @@ const getStats = () => {
 };
 
 /**
+ * Invalidate all cache keys matching a pattern prefix
+ * Searches all cache types (short, medium, long) and deletes matching keys
+ * @param {string} pattern - Key prefix to match (e.g., 'customers:' or 'products:*')
+ */
+const invalidatePattern = (pattern) => {
+  // Remove trailing asterisk if present (for compatibility with wildcard patterns)
+  const prefix = pattern.replace(/\*$/, '');
+  let deletedCount = 0;
+
+  Object.entries(caches).forEach(([type, cache]) => {
+    const keys = cache.keys();
+    keys.forEach(key => {
+      if (key.startsWith(prefix)) {
+        cache.del(key);
+        deletedCount++;
+      }
+    });
+  });
+
+  if (deletedCount > 0) {
+    console.log(`✓ Invalidated ${deletedCount} cache entries matching '${prefix}'`);
+  }
+};
+
+/**
  * Wrapper function to cache database query results
  * @param {string} key - Cache key
  * @param {string} cacheType - 'short', 'medium', or 'long'
@@ -185,5 +214,6 @@ module.exports = {
   clear,
   getStats,
   cacheQuery,
+  invalidatePattern,
   invalidate
 };

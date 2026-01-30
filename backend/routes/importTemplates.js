@@ -9,6 +9,7 @@ const multer = require('multer');
 const XLSX = require('xlsx');
 const csvParser = require('csv-parser');
 const { Readable } = require('stream');
+const { authenticate } = require('../middleware/auth');
 
 // Configure multer for file uploads
 const upload = multer({
@@ -51,7 +52,7 @@ const init = (deps) => {
  * GET /api/import-templates
  * List all templates with optional filtering
  */
-router.get('/', async (req, res) => {
+router.get('/', authenticate, async (req, res) => {
   try {
     const { manufacturer, active_only = 'true', file_type } = req.query;
     const templates = await templateService.listTemplates({
@@ -70,7 +71,7 @@ router.get('/', async (req, res) => {
  * GET /api/import-templates/manufacturers
  * Get manufacturers with template counts
  */
-router.get('/manufacturers', async (req, res) => {
+router.get('/manufacturers', authenticate, async (req, res) => {
   try {
     const manufacturers = await templateService.getManufacturersWithTemplates();
     res.json({ success: true, data: manufacturers });
@@ -84,7 +85,7 @@ router.get('/manufacturers', async (req, res) => {
  * GET /api/import-templates/target-fields
  * Get available target fields for mapping
  */
-router.get('/target-fields', async (req, res) => {
+router.get('/target-fields', authenticate, async (req, res) => {
   try {
     const fields = columnDetectionEngine.getAvailableTargetFields();
     res.json({ success: true, data: fields });
@@ -98,7 +99,7 @@ router.get('/target-fields', async (req, res) => {
  * GET /api/import-templates/:id
  * Get template details by ID
  */
-router.get('/:id', async (req, res) => {
+router.get('/:id', authenticate, async (req, res) => {
   try {
     const template = await templateService.getTemplateById(req.params.id);
     if (!template) {
@@ -115,7 +116,7 @@ router.get('/:id', async (req, res) => {
  * POST /api/import-templates
  * Create new template
  */
-router.post('/', async (req, res) => {
+router.post('/', authenticate, async (req, res) => {
   try {
     const templateId = await templateService.createTemplate(req.body);
     const template = await templateService.getTemplateById(templateId);
@@ -130,7 +131,7 @@ router.post('/', async (req, res) => {
  * PUT /api/import-templates/:id
  * Update existing template
  */
-router.put('/:id', async (req, res) => {
+router.put('/:id', authenticate, async (req, res) => {
   try {
     const template = await templateService.updateTemplate(req.params.id, req.body);
     if (!template) {
@@ -147,7 +148,7 @@ router.put('/:id', async (req, res) => {
  * DELETE /api/import-templates/:id
  * Delete template
  */
-router.delete('/:id', async (req, res) => {
+router.delete('/:id', authenticate, async (req, res) => {
   try {
     const deleted = await templateService.deleteTemplate(req.params.id);
     if (!deleted) {
@@ -164,7 +165,7 @@ router.delete('/:id', async (req, res) => {
  * POST /api/import-templates/:id/clone
  * Clone a template
  */
-router.post('/:id/clone', async (req, res) => {
+router.post('/:id/clone', authenticate, async (req, res) => {
   try {
     const { name, manufacturer } = req.body;
     const newTemplateId = await templateService.cloneTemplate(req.params.id, { name, manufacturer });
@@ -184,7 +185,7 @@ router.post('/:id/clone', async (req, res) => {
  * POST /api/import-templates/match
  * Find matching template for file
  */
-router.post('/match', async (req, res) => {
+router.post('/match', authenticate, async (req, res) => {
   try {
     const { filename, headers, sampleRows } = req.body;
 
@@ -207,7 +208,7 @@ router.post('/match', async (req, res) => {
  * POST /api/import-templates/detect-columns
  * Detect column mappings from headers and sample data
  */
-router.post('/detect-columns', async (req, res) => {
+router.post('/detect-columns', authenticate, async (req, res) => {
   try {
     const { headers, sampleRows, manufacturer } = req.body;
 
@@ -230,7 +231,7 @@ router.post('/detect-columns', async (req, res) => {
  * POST /api/import-templates/parse-file
  * Parse uploaded file and extract headers + sample data
  */
-router.post('/parse-file', upload.single('file'), async (req, res) => {
+router.post('/parse-file', authenticate, upload.single('file'), async (req, res) => {
   try {
     if (!req.file) {
       return res.status(400).json({ success: false, error: 'No file uploaded' });
@@ -290,7 +291,7 @@ router.post('/parse-file', upload.single('file'), async (req, res) => {
  * POST /api/import-templates/:id/test
  * Test template with sample data
  */
-router.post('/:id/test', async (req, res) => {
+router.post('/:id/test', authenticate, async (req, res) => {
   try {
     const { headers, sampleData } = req.body;
 
@@ -315,7 +316,7 @@ router.post('/:id/test', async (req, res) => {
  * POST /api/import-templates/:id/corrections
  * Record user correction for learning
  */
-router.post('/:id/corrections', async (req, res) => {
+router.post('/:id/corrections', authenticate, async (req, res) => {
   try {
     await templateService.recordCorrection(req.params.id, req.body);
     res.json({ success: true, message: 'Correction recorded' });
@@ -329,7 +330,7 @@ router.post('/:id/corrections', async (req, res) => {
  * GET /api/import-templates/:id/learning-history
  * Get learning history for template
  */
-router.get('/:id/learning-history', async (req, res) => {
+router.get('/:id/learning-history', authenticate, async (req, res) => {
   try {
     const history = await templateService.getLearningHistory(req.params.id);
     res.json({ success: true, data: history });
@@ -343,7 +344,7 @@ router.get('/:id/learning-history', async (req, res) => {
  * GET /api/import-templates/:id/usage-history
  * Get usage history for template
  */
-router.get('/:id/usage-history', async (req, res) => {
+router.get('/:id/usage-history', authenticate, async (req, res) => {
   try {
     const limit = parseInt(req.query.limit) || 20;
     const history = await templateService.getUsageHistory(req.params.id, limit);
@@ -358,7 +359,7 @@ router.get('/:id/usage-history', async (req, res) => {
  * POST /api/import-templates/:id/record-usage
  * Record template usage after import
  */
-router.post('/:id/record-usage', async (req, res) => {
+router.post('/:id/record-usage', authenticate, async (req, res) => {
   try {
     await templateService.recordTemplateUsage(req.params.id, req.body);
     res.json({ success: true, message: 'Usage recorded' });

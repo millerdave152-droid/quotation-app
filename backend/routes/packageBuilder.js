@@ -5,6 +5,7 @@
 
 const express = require('express');
 const router = express.Router();
+const { authenticate } = require('../middleware/auth');
 
 module.exports = function({ pool }) {
   const PackageBuilderService = require('../services/PackageBuilderService');
@@ -21,7 +22,7 @@ module.exports = function({ pool }) {
    * List available questionnaires
    * GET /api/package-builder/questionnaires
    */
-  router.get('/questionnaires', async (req, res) => {
+  router.get('/questionnaires', authenticate, async (req, res) => {
     try {
       const questionnaires = await builderService.listQuestionnaires();
       res.json({
@@ -38,7 +39,7 @@ module.exports = function({ pool }) {
    * Get questionnaire by type with all questions
    * GET /api/package-builder/questionnaires/:type
    */
-  router.get('/questionnaires/:type', async (req, res) => {
+  router.get('/questionnaires/:type', authenticate, async (req, res) => {
     try {
       const { type } = req.params;
       const questionnaire = await builderService.getQuestionnaire(type);
@@ -68,7 +69,7 @@ module.exports = function({ pool }) {
    * Create a new package building session
    * POST /api/package-builder/sessions
    */
-  router.post('/sessions', async (req, res) => {
+  router.post('/sessions', authenticate, async (req, res) => {
     try {
       const { package_type, customer_id } = req.body;
 
@@ -96,7 +97,7 @@ module.exports = function({ pool }) {
    * Get session by UUID
    * GET /api/package-builder/sessions/:uuid
    */
-  router.get('/sessions/:uuid', async (req, res) => {
+  router.get('/sessions/:uuid', authenticate, async (req, res) => {
     try {
       const { uuid } = req.params;
       const session = await builderService.getSession(uuid);
@@ -122,7 +123,7 @@ module.exports = function({ pool }) {
    * Update session answers
    * PUT /api/package-builder/sessions/:uuid/answers
    */
-  router.put('/sessions/:uuid/answers', async (req, res) => {
+  router.put('/sessions/:uuid/answers', authenticate, async (req, res) => {
     try {
       const { uuid } = req.params;
       const { answers } = req.body;
@@ -151,7 +152,7 @@ module.exports = function({ pool }) {
    * Generate package recommendations
    * POST /api/package-builder/sessions/:uuid/generate
    */
-  router.post('/sessions/:uuid/generate', async (req, res) => {
+  router.post('/sessions/:uuid/generate', authenticate, async (req, res) => {
     try {
       const { uuid } = req.params;
 
@@ -204,7 +205,7 @@ module.exports = function({ pool }) {
    * Get generated packages from session
    * GET /api/package-builder/sessions/:uuid/packages
    */
-  router.get('/sessions/:uuid/packages', async (req, res) => {
+  router.get('/sessions/:uuid/packages', authenticate, async (req, res) => {
     try {
       const { uuid } = req.params;
       const session = await builderService.getSession(uuid);
@@ -237,7 +238,7 @@ module.exports = function({ pool }) {
    * Select a package tier
    * POST /api/package-builder/sessions/:uuid/select
    */
-  router.post('/sessions/:uuid/select', async (req, res) => {
+  router.post('/sessions/:uuid/select', authenticate, async (req, res) => {
     try {
       const { uuid } = req.params;
       const { tier } = req.body;
@@ -266,7 +267,7 @@ module.exports = function({ pool }) {
    * Add selected package to quote
    * POST /api/package-builder/sessions/:uuid/add-to-quote
    */
-  router.post('/sessions/:uuid/add-to-quote', async (req, res) => {
+  router.post('/sessions/:uuid/add-to-quote', authenticate, async (req, res) => {
     try {
       const { uuid } = req.params;
       const { quote_id } = req.body;
@@ -290,14 +291,6 @@ module.exports = function({ pool }) {
       const generatedData = typeof session.generated_packages === 'string'
         ? JSON.parse(session.generated_packages)
         : session.generated_packages;
-
-      console.log('DEBUG add-to-quote:', {
-        selected_tier: session.selected_tier,
-        generatedDataType: typeof generatedData,
-        generatedDataKeys: generatedData ? Object.keys(generatedData) : 'null',
-        hasPackagesProp: generatedData?.packages ? 'yes' : 'no',
-        packagesKeys: generatedData?.packages ? Object.keys(generatedData.packages) : 'N/A'
-      });
 
       // The generated data has structure: { packages: { good, better, best }, errors, warnings, ... }
       const packages = generatedData.packages || generatedData;
@@ -374,7 +367,7 @@ module.exports = function({ pool }) {
    * Find alternative products for a slot
    * GET /api/package-builder/alternatives/:productId
    */
-  router.get('/alternatives/:productId', async (req, res) => {
+  router.get('/alternatives/:productId', authenticate, async (req, res) => {
     try {
       const { productId } = req.params;
       const { category, tier, session_uuid } = req.query;
@@ -419,7 +412,7 @@ module.exports = function({ pool }) {
    * Calculate bundle discount for items
    * POST /api/package-builder/calculate-discount
    */
-  router.post('/calculate-discount', async (req, res) => {
+  router.post('/calculate-discount', authenticate, async (req, res) => {
     try {
       const { items } = req.body;
 
@@ -450,7 +443,7 @@ module.exports = function({ pool }) {
    * Get package builder stats
    * GET /api/package-builder/stats
    */
-  router.get('/stats', async (req, res) => {
+  router.get('/stats', authenticate, async (req, res) => {
     try {
       const stats = await builderService.getStats();
 
@@ -472,7 +465,7 @@ module.exports = function({ pool }) {
    * Get extended attributes for a product
    * GET /api/package-builder/products/:productId/attributes
    */
-  router.get('/products/:productId/attributes', async (req, res) => {
+  router.get('/products/:productId/attributes', authenticate, async (req, res) => {
     try {
       const { productId } = req.params;
       const attributes = await builderService.getProductAttributes(parseInt(productId));
@@ -491,7 +484,7 @@ module.exports = function({ pool }) {
    * Update extended attributes for a product
    * PUT /api/package-builder/products/:productId/attributes
    */
-  router.put('/products/:productId/attributes', async (req, res) => {
+  router.put('/products/:productId/attributes', authenticate, async (req, res) => {
     try {
       const { productId } = req.params;
       const attributes = req.body;
@@ -513,7 +506,7 @@ module.exports = function({ pool }) {
    * Bulk update product attributes
    * POST /api/package-builder/products/bulk-attributes
    */
-  router.post('/products/bulk-attributes', async (req, res) => {
+  router.post('/products/bulk-attributes', authenticate, async (req, res) => {
     try {
       const { attributes } = req.body;
 
@@ -537,6 +530,5 @@ module.exports = function({ pool }) {
     }
   });
 
-  console.log('✅ Package builder routes loaded');
   return router;
 };
