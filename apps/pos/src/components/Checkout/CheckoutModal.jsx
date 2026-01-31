@@ -3,7 +3,7 @@
  * Full screen checkout overlay with payment flow
  */
 
-import { useState, useCallback, useEffect, useMemo } from 'react';
+import { useState, useCallback, useEffect, useMemo, useRef } from 'react';
 import { XMarkIcon, ChevronLeftIcon, TagIcon, PlusIcon, TruckIcon, ShoppingBagIcon } from '@heroicons/react/24/outline';
 import { useCart } from '../../hooks/useCart';
 import { formatCurrency } from '../../utils/formatters';
@@ -16,12 +16,15 @@ import SplitPayment from './SplitPayment';
 import PaymentComplete from './PaymentComplete';
 import DiscountInput from './DiscountInput';
 import AccountPayment from './AccountPayment';
+import FinancingPayment from './FinancingPayment';
 import PromoCodeInput from './PromoCodeInput';
 import PromotionAlerts from './PromotionAlerts';
 import FulfillmentSelector from './FulfillmentSelector';
 import WarrantyUpsellModal from './WarrantyUpsellModal';
+import SignatureStep from './SignatureStep';
 import useWarrantyUpsell from '../../hooks/useWarrantyUpsell';
 import useAutoPromotions from '../../hooks/useAutoPromotions';
+import useSignatureRequirements from '../../hooks/useSignatureRequirements';
 
 /**
  * Order summary item component
@@ -268,12 +271,34 @@ export function CheckoutModal({
   const cart = useCart();
 
   // State
-  const [step, setStep] = useState('fulfillment'); // 'fulfillment', 'methods', 'cash', 'credit', 'debit', 'giftcard', 'account', 'split', 'complete'
+  const [step, setStep] = useState('fulfillment'); // 'fulfillment', 'methods', 'cash', 'credit', 'debit', 'giftcard', 'account', 'financing', 'split', 'signature', 'complete'
   const [payments, setPayments] = useState([]);
   const [transaction, setTransaction] = useState(null);
   const [error, setError] = useState(null);
   const [isProcessing, setIsProcessing] = useState(false);
+  const processingRef = useRef(false);
+  const paymentsRef = useRef([]);
+  const prevIsOpenRef = useRef(false);
   const [showDiscountPanel, setShowDiscountPanel] = useState(false);
+
+  // Check for trade-in items in cart
+  const hasTradeIn = useMemo(() => {
+    return cart.items.some(item => item.isTradeIn || item.productType === 'trade_in');
+  }, [cart.items]);
+
+  // Check for financing payment
+  const hasFinancing = useMemo(() => {
+    return payments.some(p => p.paymentMethod === 'financing');
+  }, [payments]);
+
+  // Signature requirements hook
+  const signatureReq = useSignatureRequirements({
+    orderTotal: cart.total,
+    fulfillmentType: cart.selectedFulfillment?.type || 'pickup_now',
+    hasTradeIn,
+    hasFinancing,
+    customerId: cart.customer?.id,
+  });
 
   // Warranty upsell hook
   const warrantyUpsell = useWarrantyUpsell({
@@ -320,18 +345,22 @@ export function CheckoutModal({
   // Check if fully paid
   const isFullyPaid = remainingBalance <= 0.01;
 
-  // Reset state when modal opens
+  // Reset state only when modal transitions from closed to open
   useEffect(() => {
-    if (isOpen) {
+    if (isOpen && !prevIsOpenRef.current) {
       // Start at fulfillment step if no fulfillment selected
       setStep(cart.selectedFulfillment ? 'methods' : 'fulfillment');
       setPayments([]);
+      paymentsRef.current = [];
       setTransaction(null);
       setError(null);
       setIsProcessing(false);
       setShowDiscountPanel(false);
+      signatureReq.reset();
     }
-  }, [isOpen, cart.selectedFulfillment]);
+    prevIsOpenRef.current = isOpen;
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOpen]);
 
   // Discount handlers
   const handleToggleDiscount = useCallback(() => {
@@ -421,20 +450,45 @@ export function CheckoutModal({
 
   // Handle payment completion
   const handlePaymentComplete = useCallback((payment) => {
+    // Synchronous guard - prevents double-click race condition
+    if (processingRef.current || isProcessing) return;
+    processingRef.current = true;
+
     const newPayments = [...payments, payment];
     setPayments(newPayments);
+    paymentsRef.current = newPayments;
 
     const newPaidAmount = newPayments.reduce((sum, p) => sum + p.amount, 0);
     const newRemaining = cart.total - newPaidAmount;
 
     if (newRemaining <= 0.01) {
-      // Fully paid - process transaction
-      processTransaction(newPayments);
+      // Fully paid - check if signatures are required
+      if (signatureReq.hasRequirements && !signatureReq.isComplete) {
+        setStep('signature');
+      } else {
+        // No signatures needed - process transaction
+        processTransaction(newPayments);
+      }
     } else {
       // Show split payment or return to methods
       setStep('split');
     }
-  }, [payments, cart.total]);
+  }, [payments, cart.total, signatureReq.hasRequirements, signatureReq.isComplete, isProcessing]);
+
+  // Handle signature step completion - use ref to avoid stale closure
+  const handleSignatureComplete = useCallback(() => {
+    processTransaction(paymentsRef.current);
+  }, []);
+
+  // Handle signature capture
+  const handleSignatureCapture = useCallback((type, signatureData) => {
+    signatureReq.recordSignature(type, signatureData);
+  }, [signatureReq]);
+
+  // Handle signature defer
+  const handleSignatureDefer = useCallback((type) => {
+    signatureReq.deferSignature(type);
+  }, [signatureReq]);
 
   // Process the transaction
   const processTransaction = useCallback(async (finalPayments) => {
@@ -442,28 +496,51 @@ export function CheckoutModal({
     setError(null);
 
     try {
-      const result = await cart.processTransaction(finalPayments);
+      // Include signature data with transaction
+      const signatureData = signatureReq.getSignatureData();
+
+      const result = await cart.processTransaction(finalPayments, {
+        signatures: signatureData,
+      });
 
       if (result.success) {
+        // Save captured signatures to server
+        if (Object.keys(signatureReq.capturedSignatures).length > 0) {
+          try {
+            await signatureReq.saveSignatures(
+              result.transaction.orderId,
+              result.transaction.transactionId || result.transaction.transaction_id
+            );
+          } catch (sigError) {
+            console.error('[Checkout] Signature save error:', sigError);
+            // Don't fail transaction, just log the error
+          }
+        }
+
         setTransaction(result.transaction);
         setStep('complete');
         onComplete?.(result.transaction);
       } else {
-        setError(result.error || 'Transaction failed');
+        const errMsg = typeof result.error === 'string' ? result.error : result.error?.message || 'Transaction failed';
+        setError(errMsg);
         setStep('methods');
       }
     } catch (err) {
       console.error('[Checkout] Transaction error:', err);
-      setError(err.message || 'An unexpected error occurred');
+      setError(typeof err === 'string' ? err : err?.message || 'An unexpected error occurred');
       setStep('methods');
     } finally {
+      processingRef.current = false;
       setIsProcessing(false);
     }
-  }, [cart, onComplete]);
+  }, [cart, onComplete, signatureReq]);
 
   // Handle going back
   const handleBack = useCallback(() => {
-    if (payments.length > 0) {
+    if (step === 'signature') {
+      // From signature, go back to split if partial payments, otherwise methods
+      setStep(payments.length > 0 ? 'split' : 'methods');
+    } else if (payments.length > 0) {
       setStep('split');
     } else if (step === 'methods') {
       setStep('fulfillment');
@@ -495,7 +572,7 @@ export function CheckoutModal({
       // Fetch PDF from receipt API
       const response = await fetch(`${API_BASE}/receipts/${transactionId}/preview`, {
         headers: {
-          Authorization: `Bearer ${localStorage.getItem('token')}`,
+          Authorization: `Bearer ${localStorage.getItem('pos_token')}`,
         },
       });
 
@@ -542,7 +619,7 @@ export function CheckoutModal({
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          Authorization: `Bearer ${localStorage.getItem('token')}`,
+          Authorization: `Bearer ${localStorage.getItem('pos_token')}`,
         },
         body: JSON.stringify({ email }),
       });
@@ -717,6 +794,17 @@ export function CheckoutModal({
             />
           )}
 
+          {/* Financing Payment */}
+          {step === 'financing' && (
+            <FinancingPayment
+              amountDue={remainingBalance}
+              customer={cart.customer}
+              orderId={transaction?.orderId}
+              onComplete={handlePaymentComplete}
+              onBack={handleBack}
+            />
+          )}
+
           {/* Split Payment View */}
           {step === 'split' && (
             <SplitPayment
@@ -725,7 +813,31 @@ export function CheckoutModal({
               remainingBalance={remainingBalance}
               onAddPayment={() => setStep('methods')}
               onRemovePayment={handleRemovePayment}
-              onComplete={() => processTransaction(payments)}
+              onComplete={() => {
+                // Check if signatures are required before processing
+                if (signatureReq.hasRequirements && !signatureReq.isComplete) {
+                  setStep('signature');
+                } else {
+                  processTransaction(payments);
+                }
+              }}
+            />
+          )}
+
+          {/* Signature Collection Step */}
+          {step === 'signature' && (
+            <SignatureStep
+              requirements={signatureReq.requiredSignatures}
+              capturedSignatures={signatureReq.capturedSignatures}
+              deferredSignatures={signatureReq.deferredSignatures}
+              onSignatureCapture={handleSignatureCapture}
+              onSignatureDefer={handleSignatureDefer}
+              onComplete={handleSignatureComplete}
+              onBack={handleBack}
+              orderInfo={{
+                total: cart.total,
+                fulfillmentType: cart.selectedFulfillment?.type,
+              }}
             />
           )}
 
