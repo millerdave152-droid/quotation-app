@@ -80,9 +80,12 @@ export default function AIAssistant() {
     setIsLoading(true);
 
     try {
+      const token = localStorage.getItem('auth_token');
       const response = await axios.post(`${API_BASE}/api/ai/chat`, {
         message,
         conversationId
+      }, {
+        headers: { Authorization: `Bearer ${token}` }
       });
 
       const { data } = response.data;
@@ -152,9 +155,12 @@ export default function AIAssistant() {
   // Submit feedback
   const submitFeedback = async (messageId, feedback) => {
     try {
+      const token = localStorage.getItem('auth_token');
       await axios.post(`${API_BASE}/api/ai/feedback`, {
         queryLogId: messageId,
         feedback
+      }, {
+        headers: { Authorization: `Bearer ${token}` }
       });
       // Update message to show feedback submitted
       setMessages(prev => prev.map(m =>

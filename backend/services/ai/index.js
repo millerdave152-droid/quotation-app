@@ -20,7 +20,9 @@ const anthropic = new Anthropic({
 // Cost per 1M tokens
 const PRICING = {
   'claude-3-5-haiku-20241022': { input: 1.00, output: 5.00 },
-  'claude-3-5-sonnet-20241022': { input: 3.00, output: 15.00 }
+  'claude-3-5-sonnet-20241022': { input: 3.00, output: 15.00 },
+  'claude-3-5-haiku-latest': { input: 1.00, output: 5.00 },
+  'claude-3-5-sonnet-latest': { input: 3.00, output: 15.00 }
 };
 
 /**
@@ -208,12 +210,16 @@ function buildMessages(history, userMessage, ragContext) {
         }]
       });
     } else if (msg.role === 'tool_result' && msg.tool_result) {
+      // tool_result content must be a string for Anthropic API
+      const resultContent = typeof msg.tool_result === 'string'
+        ? msg.tool_result
+        : JSON.stringify(msg.tool_result);
       messages.push({
         role: 'user',
         content: [{
           type: 'tool_result',
           tool_use_id: msg.tool_use_id,
-          content: JSON.stringify(msg.tool_result)
+          content: resultContent
         }]
       });
     }
@@ -284,18 +290,8 @@ async function processResponse(response, conversationId, sequenceNum, model, use
       });
     }
 
-    // Build messages for next API call
+    // Build messages for next API call (includes tool_results from database)
     const messages = await buildMessagesFromConversation(conversationId);
-
-    // Add tool results
-    messages.push({
-      role: 'user',
-      content: toolResults.map(r => ({
-        type: 'tool_result',
-        tool_use_id: r.toolUseId,
-        content: JSON.stringify(r.result)
-      }))
-    });
 
     // Call API again with tool results
     currentResponse = await anthropic.messages.create({
@@ -347,6 +343,19 @@ async function buildMessagesFromConversation(conversationId) {
           input: msg.tool_input
         }]
       });
+    } else if (msg.role === 'tool_result' && msg.tool_result) {
+      // tool_result content must be a string for Anthropic API
+      const resultContent = typeof msg.tool_result === 'string'
+        ? msg.tool_result
+        : JSON.stringify(msg.tool_result);
+      messages.push({
+        role: 'user',
+        content: [{
+          type: 'tool_result',
+          tool_use_id: msg.tool_use_id,
+          content: resultContent
+        }]
+      });
     }
   }
 
@@ -357,6 +366,8 @@ async function buildMessagesFromConversation(conversationId) {
  * Save a message to the database
  */
 async function saveMessage(conversationId, role, content, sequenceNum, metadata = {}) {
+  // Note: tool_input and tool_result are JSONB columns, so pass objects directly
+  // The pg driver handles the JSON serialization
   await db.query(
     `INSERT INTO ai_messages
      (conversation_id, role, content, sequence_num, tool_name, tool_input, tool_result, tool_use_id, model_used, input_tokens, output_tokens)
@@ -367,8 +378,8 @@ async function saveMessage(conversationId, role, content, sequenceNum, metadata 
       content,
       sequenceNum,
       metadata.toolName || null,
-      metadata.toolInput ? JSON.stringify(metadata.toolInput) : null,
-      metadata.toolResult ? JSON.stringify(metadata.toolResult) : null,
+      metadata.toolInput || null,
+      metadata.toolResult || null,
       metadata.toolUseId || null,
       metadata.model || null,
       metadata.inputTokens || null,
