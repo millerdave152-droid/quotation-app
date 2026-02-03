@@ -96,6 +96,30 @@ const aiPersonalizationRoutes = require('./routes/aiPersonalization');
 // 3D Product Configurator
 const product3dRoutes = require('./routes/product3d');
 
+// Product Images
+const productImageRoutes = require('./routes/product-images');
+
+// Discontinued Products
+const discontinuedProductRoutes = require('./routes/discontinued-products');
+
+// Call Log
+const callLogRoutes = require('./routes/call-log');
+
+// AR Aging Report
+const arAgingRoutes = require('./routes/ar-aging');
+
+// Tax Summary
+const taxSummaryRoutes = require('./routes/tax-summary');
+
+// Time Clock
+const timeClockRoutes = require('./routes/timeclock');
+
+// Layaways
+const layawayRoutes = require('./routes/layaways');
+
+// Product Lookup (Barcode)
+const productLookupRoutes = require('./routes/product-lookup');
+
 // Vendor Product Visualization & Scraper
 const vendorProductsRoutes = require('./routes/vendorProducts');
 
@@ -352,6 +376,20 @@ app.use('/api/auth', authLimiter, authRoutes);
 // ============================================
 const usersRoutes = require('./routes/users');
 app.use('/api/users', usersRoutes);
+
+// GET /api/users/me/permissions — current user's resolved POS permissions
+const { resolvePermissions: resolvePerms } = require('./utils/permissions');
+app.get('/api/users/me/permissions', authenticate, (req, res) => {
+  const permissions = resolvePerms(req.user);
+  res.json({
+    success: true,
+    data: {
+      permissions,
+      posRoleName: req.user.posRoleName || null,
+    }
+  });
+});
+
 console.log('✅ User management routes loaded');
 
 // ============================================
@@ -396,11 +434,54 @@ console.log('✅ API key management routes loaded');
 app.use('/api/customers', initCustomerRoutes({ pool, cache }));
 console.log('✅ Customer routes loaded (modular)');
 
+// Communication Preferences & CASL Compliance
+const commPrefs = require('./routes/communication-preferences');
+const commPrefRouters = commPrefs.init({ pool });
+app.use('/api/customers', commPrefRouters.customerRouter);
+app.use('/api/customers', commPrefRouters.publicRouter);
+app.use('/api/marketing', commPrefRouters.marketingRouter);
+console.log('✅ Communication preferences & CASL routes loaded');
+
+// RBAC Management
+const { init: initRbacRoutes } = require('./routes/rbac');
+const rbacRouters = initRbacRoutes({ pool });
+app.use('/api/rbac', rbacRouters.rbacRouter);
+app.use('/api/roles', rbacRouters.rolesRouter);
+app.use('/api/permissions', rbacRouters.permissionsRouter);
+app.use('/api/users', rbacRouters.usersRbacRouter);
+console.log('✅ RBAC management routes loaded');
+
+// Marketing Attribution
+const marketingAttribution = require('./routes/marketing-attribution');
+const marketingRouters = marketingAttribution.init({ pool });
+app.use('/api/marketing-sources', marketingRouters.sourcesRouter);
+app.use('/api/reports', marketingRouters.reportRouter);
+console.log('✅ Marketing attribution routes loaded');
+
+// POS Roles — list all roles with permissions
+app.get('/api/pos-roles', authenticate, asyncHandler(async (req, res) => {
+  try {
+    const result = await pool.query('SELECT id, name, display_name, permissions, is_system FROM pos_roles ORDER BY id');
+    res.json({ success: true, data: result.rows });
+  } catch (err) {
+    if (err.code === '42P01') {
+      return res.json({ success: true, data: [] });
+    }
+    throw err;
+  }
+}));
+
 // ============================================
 // LOOKUP SERVICE (Cities, Postal Codes, Names)
 // ============================================
 app.use('/api/lookup', lookupRoutes);
 console.log('✅ Lookup routes loaded');
+
+// ============================================
+// PRODUCT BARCODE LOOKUP (must be before /:id routes)
+// ============================================
+app.use('/api/products', productLookupRoutes.init({ pool }));
+console.log('✅ Product barcode lookup routes loaded');
 
 // ============================================
 // PRODUCT MANAGEMENT (Modular)
@@ -422,6 +503,117 @@ console.log('✅ Category routes loaded');
 // ============================================
 app.use('/api/import-templates', initImportTemplateRoutes({ pool, cache }));
 console.log('✅ Import template routes loaded');
+
+// ============================================
+// PRICE LIST IMPORTS
+// ============================================
+const { init: initPriceImportRoutes } = require('./routes/price-imports');
+app.use('/api/price-imports', initPriceImportRoutes({ pool }));
+console.log('✅ Price list import routes loaded');
+
+// ============================================
+// PRICE HISTORY
+// ============================================
+const { init: initPriceHistoryRoutes } = require('./routes/price-history');
+app.use('/api', initPriceHistoryRoutes({ pool }));
+console.log('✅ Price history routes loaded');
+
+// ============================================
+// HUB PROMOTIONS (Sale Pricing & Scheduling)
+// ============================================
+const { init: initHubPromotionRoutes } = require('./routes/hub-promotions');
+app.use('/api/hub-promotions', initHubPromotionRoutes({ pool }));
+console.log('✅ Hub promotions routes loaded');
+
+// ============================================
+// COUPONS (Code Generation, Validation, Apply)
+// ============================================
+const { init: initCouponRoutes } = require('./routes/coupons');
+app.use('/api', initCouponRoutes({ pool }));
+console.log('✅ Coupon code routes loaded');
+
+// ============================================
+// BUNDLES & KITS
+// ============================================
+const { init: initBundleRoutes } = require('./routes/bundles');
+app.use('/api/bundles', initBundleRoutes({ pool }));
+console.log('✅ Bundle routes loaded');
+
+// ============================================
+// MULTI-LOCATION INVENTORY
+// ============================================
+const { init: initLocationInventoryRoutes } = require('./routes/location-inventory');
+app.use('/api/inventory', initLocationInventoryRoutes({ pool }));
+console.log('✅ Multi-location inventory routes loaded');
+
+const { init: initTransferRoutes } = require('./routes/inventory-transfers');
+app.use('/api/inventory/transfers', initTransferRoutes({ pool }));
+console.log('✅ Inventory transfer routes loaded');
+
+const { init: initInventoryReportRoutes } = require('./routes/inventory-reports');
+app.use('/api/inventory', initInventoryReportRoutes({ pool }));
+console.log('✅ Inventory reports & alerts routes loaded');
+
+const { init: initInventoryAgingRoutes } = require('./routes/inventory-aging');
+app.use('/api/inventory', initInventoryAgingRoutes({ pool }));
+console.log('✅ Inventory aging & turnover routes loaded');
+
+// ============================================
+// SCHEDULED REPORTS & ON-DEMAND GENERATION
+// ============================================
+const { init: initScheduledReportRoutes } = require('./routes/scheduled-reports');
+const scheduledReportRouter = initScheduledReportRoutes({ pool });
+app.use('/api/scheduled-reports', scheduledReportRouter);
+app.use('/api/reports', scheduledReportRouter);
+console.log('✅ Scheduled reports & generation routes loaded');
+
+// ============================================
+// DISPATCH CONSOLE
+// ============================================
+const { init: initDispatchRoutes } = require('./routes/dispatch');
+app.use('/api/dispatch', initDispatchRoutes({ pool }));
+console.log('✅ Dispatch console routes loaded');
+
+const { init: initRoutePlanningRoutes } = require('./routes/route-planning');
+app.use('/api/dispatch/routes', initRoutePlanningRoutes({ pool }));
+console.log('✅ Route planning routes loaded');
+
+const { init: initDriverMgmtRoutes } = require('./routes/driver-management');
+app.use('/api/dispatch', initDriverMgmtRoutes({ pool }));
+console.log('✅ Driver management routes loaded');
+
+const { init: initNotificationTemplateRoutes } = require('./routes/notification-templates');
+app.use('/api/notification-templates', initNotificationTemplateRoutes({ pool }));
+console.log('✅ Notification template routes loaded');
+
+const { init: initNotificationTriggerRoutes } = require('./routes/notification-triggers');
+app.use('/api/notifications', initNotificationTriggerRoutes({ pool }));
+const { startReminderCron } = require('./services/notificationTriggers');
+startReminderCron();
+const notificationQueueService = require('./services/NotificationTriggerService');
+notificationQueueService.startQueueProcessor();
+console.log('✅ Notification trigger routes loaded');
+
+const { init: initHubExchangeRoutes } = require('./routes/hub-exchanges');
+app.use('/api/exchanges', initHubExchangeRoutes({ pool }));
+console.log('✅ Hub exchange routes loaded');
+
+// Driver Auth (mobile app PIN login)
+const { init: initDriverAuthRoutes } = require('./routes/driver-auth');
+app.use('/api/auth/driver-login', initDriverAuthRoutes({ pool }));
+console.log('✅ Driver auth routes loaded');
+
+// Driver App (profile, shifts, vehicles)
+const { init: initDriverAppRoutes } = require('./routes/driver-app');
+app.use('/api/driver', initDriverAppRoutes({ pool }));
+console.log('✅ Driver app routes loaded');
+
+// ============================================
+// PRICING ENGINE (Promotional Price Calculation)
+// ============================================
+const { init: initPricingEngineRoutes } = require('./routes/pricing-engine');
+app.use('/api/pricing', initPricingEngineRoutes({ pool }));
+console.log('✅ Pricing engine routes loaded');
 
 // ============================================
 // ANALYTICS (Modular)
@@ -495,6 +687,34 @@ const { init: initTransactionsRoutes } = require('./routes/transactions');
 app.use('/api/transactions', initTransactionsRoutes({ pool, cache }));
 console.log('✅ POS transactions routes loaded');
 
+// POS RETURNS
+const { init: initReturnsRoutes } = require('./routes/returns');
+app.use('/api/returns', initReturnsRoutes({ pool, cache, stripeService }));
+console.log('✅ POS returns routes loaded');
+
+// POS STORE CREDITS
+const { init: initStoreCreditsRoutes } = require('./routes/store-credits');
+app.use('/api/store-credits', initStoreCreditsRoutes({ pool, cache }));
+console.log('✅ Store credits routes loaded');
+
+// EMPLOYEE TIME CLOCK
+app.use('/api/timeclock', timeClockRoutes.init({ pool }));
+console.log('✅ Employee time clock routes loaded');
+
+// LAYAWAY MANAGEMENT
+app.use('/api/layaways', layawayRoutes.init({ pool }));
+console.log('✅ Layaway management routes loaded');
+
+// GIFT CARDS
+const { init: initGiftCardRoutes } = require('./routes/gift-cards');
+app.use('/api/gift-cards', initGiftCardRoutes({ pool, emailService }));
+console.log('✅ Gift card routes loaded');
+
+// POS EXCHANGES
+const { init: initExchangesRoutes } = require('./routes/exchanges');
+app.use('/api/exchanges', initExchangesRoutes({ pool, cache, stripeService }));
+console.log('✅ POS exchanges routes loaded');
+
 // ============================================
 // POS REGISTERS & SHIFTS (TeleTime POS)
 // ============================================
@@ -505,7 +725,7 @@ console.log('✅ POS register routes loaded');
 // ============================================
 // POS PAYMENTS (Stripe, Account, Gift Cards)
 // ============================================
-app.use('/api/pos-payments', initPosPaymentsRoutes({ posPaymentService }));
+app.use('/api/pos-payments', initPosPaymentsRoutes({ posPaymentService, pool, emailService }));
 console.log('✅ POS payments routes loaded');
 
 // ============================================
@@ -659,7 +879,7 @@ app.use('/api/financing', initFinancingRoutes({ financingService }));
 console.log('✅ Financing routes loaded');
 
 // Commission Service
-app.use('/api/commissions', initCommissionsRoutes({ commissionService }));
+app.use('/api/commissions', initCommissionsRoutes({ commissionService, pool }));
 app.use('/api/signatures', initSignaturesRoutes({ signatureService }));
 app.use('/api/batch-email', initBatchEmailRoutes({ batchEmailService, receiptService }));
 
@@ -2545,6 +2765,30 @@ app.use('/api/manager-overrides', managerOverrideRoutes(managerOverrideService))
 console.log('✅ Manager override routes loaded');
 
 app.use('/api/delivery', deliveryFulfillmentRoutes(deliveryFulfillmentService));
+const deliveryWindowRoutes = require('./routes/delivery-windows');
+app.use('/api/delivery-windows', deliveryWindowRoutes.init({ pool }));
+console.log('✅ Delivery window scheduling routes loaded');
+const locationRoutes = require('./routes/locations');
+app.use('/api/locations', locationRoutes.init({ pool }));
+console.log('✅ Location routes loaded');
+const hubReturnRoutes = require('./routes/hub-returns');
+app.use('/api/hub-returns', hubReturnRoutes.init({ pool, stripeService }));
+console.log('✅ Hub returns routes loaded');
+const hubCommissionRoutes = require('./routes/hub-commissions');
+app.use('/api/hub-commissions', hubCommissionRoutes.init({ pool }));
+console.log('✅ Hub commission routes loaded');
+const commissionApi = require('./routes/commission-api');
+const commissionRouters = commissionApi.init({ pool });
+app.use('/api/orders', commissionRouters.orderRouter);
+app.use('/api/users', commissionRouters.userRouter);
+app.use('/api/commissions', commissionRouters.commissionRouter);
+app.use('/api/commission-rules', commissionRouters.rulesRouter);
+console.log('✅ Commission management API routes loaded');
+const etransferPaymentRoutes = require('./routes/etransfer-payments');
+const etransferRouters = etransferPaymentRoutes.init({ pool, emailService });
+app.use('/api/orders', etransferRouters.orderRouter);
+app.use('/api/payments', etransferRouters.paymentRouter);
+console.log('✅ E-transfer payment routes loaded');
 app.use('/api/warranty', warrantyRoutes(warrantyService));
 console.log('✅ Delivery fulfillment routes loaded');
 
@@ -2578,6 +2822,32 @@ console.log('✅ AI personalization routes loaded');
 // ============================================
 app.use('/api/product-3d', product3dRoutes);
 console.log('✅ 3D product configurator routes loaded');
+
+// PRODUCT IMAGES
+// ============================================
+app.use('/api/products', productImageRoutes.init({ pool }));
+console.log('✅ Product image gallery routes loaded');
+
+// DISCONTINUED PRODUCTS
+// ============================================
+app.use('/api/products', discontinuedProductRoutes.init({ pool }));
+console.log('✅ Discontinued product routes loaded');
+
+// CALL LOG TRACKING
+// ============================================
+const callLogRouter = callLogRoutes.init({ pool });
+app.use('/api', callLogRouter);
+console.log('✅ Call log tracking routes loaded');
+
+// AR AGING REPORT
+// ============================================
+app.use('/api/reports', arAgingRoutes.init({ pool, emailService }));
+console.log('✅ AR aging report routes loaded');
+
+// TAX SUMMARY REPORT
+// ============================================
+app.use('/api/reports', taxSummaryRoutes.init({ pool }));
+console.log('✅ Tax summary report routes loaded');
 
 // ============================================
 // VENDOR PRODUCT VISUALIZATION & SCRAPER
@@ -2633,6 +2903,13 @@ console.log('✅ Admin routes loaded (email monitoring, queue management)');
 const adminApprovalRulesRoutes = require('./routes/admin-approval-rules');
 app.use('/api/admin/approval-rules', authenticate, requireRole(['admin', 'manager']), adminApprovalRulesRoutes(pool));
 console.log('✅ Admin approval rules routes loaded');
+
+// ============================================
+// AI ASSISTANT ROUTES
+// ============================================
+const aiAssistantRoutes = require('./routes/ai-assistant');
+app.use('/api/ai', aiAssistantRoutes);
+console.log('✅ AI Assistant routes loaded');
 
 // ============================================
 // ERROR HANDLING MIDDLEWARE
@@ -2695,6 +2972,16 @@ const server = app.listen(PORT, () => {
     quoteExpiryDigestJob.start();
     console.log('✅ Quote expiry digest scheduler started (Weekdays 8 AM)');
   }
+
+  // Start discontinued product auto-hide job (daily at 2 AM)
+  const discontinuedProductJob = require('./jobs/discontinuedProductJob');
+  discontinuedProductJob.start(process.env.DISCONTINUED_HIDE_SCHEDULE || '0 2 * * *');
+  console.log('✅ Discontinued product auto-hide job started (Daily 2 AM)');
+
+  // Start customer auto-tag evaluation job (daily at 3 AM)
+  const autoTagJob = require('./jobs/autoTagJob');
+  autoTagJob.start(process.env.AUTO_TAG_SCHEDULE || '0 3 * * *');
+  console.log('✅ Customer auto-tag job started (Daily 3 AM)');
 });
 
 // Handle server errors

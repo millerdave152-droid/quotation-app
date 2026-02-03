@@ -13,6 +13,7 @@ import { ThemeProvider, useTheme } from './contexts/ThemeContext';
 import ProtectedRoute from './components/auth/ProtectedRoute';
 import CommandPalette from './components/ui/CommandPalette';
 import GlobalSearch from './components/ui/GlobalSearch';
+import AIAssistant from './components/AIAssistant';
 
 // Utility CSS classes for replacing inline styles
 import './styles/utilities.css';
@@ -63,11 +64,17 @@ const ExecutiveDashboard = React.lazy(() => import('./components/reports/Executi
 const TrainingCenter = React.lazy(() => import('./components/nomenclature/TrainingCenter'));
 const NomenclatureAdmin = React.lazy(() => import('./components/nomenclature/NomenclatureAdmin'));
 
+// Recommendation Rules Admin
+const RecommendationRulesPage = React.lazy(() => import('./components/admin/recommendations/RecommendationRulesPage'));
+
 // Quick Search (Universal Product Finder)
 const QuickSearch = React.lazy(() => import('./components/QuickSearch'));
 
 // Leads / Inquiry Capture
 const LeadCapture = React.lazy(() => import('./components/leads/LeadCapture'));
+
+// Delivery Management Dashboard
+const DeliveryDashboard = React.lazy(() => import('./pages/DeliveryDashboard'));
 
 // Dashboard component with real data and anti-flickering
 const Dashboard = () => {
@@ -465,6 +472,9 @@ function App() {
         onClose={() => setGlobalSearchOpen(false)}
       />
 
+      {/* AI Assistant Chat - Only show when authenticated */}
+      {isAuthenticated && <AIAssistant />}
+
       <React.Suspense fallback={
       <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh', flexDirection: 'column', background: '#f9fafb' }}>
         <div style={{ fontSize: '20px', color: '#667eea', fontWeight: '600', marginBottom: '12px' }}>Loading...</div>
@@ -530,6 +540,16 @@ function App() {
           <Route path="/admin/nomenclature" element={
             <ProtectedRoute requiredRoles={['admin']}>
               <NomenclatureAdmin />
+            </ProtectedRoute>
+          } />
+          <Route path="/admin/deliveries" element={
+            <ProtectedRoute requiredRoles={['admin', 'manager']}>
+              <DeliveryDashboard />
+            </ProtectedRoute>
+          } />
+          <Route path="/admin/recommendations" element={
+            <ProtectedRoute requiredRoles={['admin', 'manager']}>
+              <RecommendationRulesPage />
             </ProtectedRoute>
           } />
           {/* 404 fallback */}

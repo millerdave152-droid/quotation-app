@@ -473,6 +473,326 @@ class QuoteExpiryService {
 
     return result.rows[0];
   }
+
+  // ===========================================================================
+  // POS INTEGRATION METHODS (uses unified_orders table)
+  // ===========================================================================
+
+  /**
+   * Get quotes expiring within the specified window (for POS)
+   * @param {number} daysAhead - Days to look ahead (default: 7)
+   * @param {number|null} salesRepId - Filter by assigned sales rep
+   * @param {object} options - Additional options
+   * @returns {Promise<{quotes: Array, stats: object}>}
+   */
+  async getPOSExpiringQuotes(daysAhead = 7, salesRepId = null, options = {}) {
+    const {
+      includeExpired = false,
+      limit = 100,
+      offset = 0,
+      sortBy = 'priority', // priority, expiry, value
+    } = options;
+
+    let query = `
+      SELECT
+        uo.id AS quote_id,
+        uo.order_number AS quote_number,
+        uo.customer_id,
+        uo.customer_name,
+        uo.customer_phone,
+        uo.customer_email,
+        uo.total_cents AS total_value_cents,
+        uo.quote_expiry_date AS expires_at,
+        uo.quote_expiry_date - CURRENT_DATE AS days_until_expiry,
+        uo.salesperson_id AS assigned_rep_id,
+        CONCAT(u.first_name, ' ', u.last_name) AS assigned_rep_name,
+        uo.status,
+        uo.created_at,
+        uo.quote_sent_at,
+        uo.quote_viewed_at,
+        -- Item count
+        (SELECT COUNT(*) FROM unified_order_items WHERE order_id = uo.id) AS item_count,
+        -- Last follow-up info (if table exists)
+        (SELECT MAX(created_at) FROM quote_follow_ups WHERE quote_id = uo.id) AS last_contacted_at,
+        (SELECT outcome FROM quote_follow_ups WHERE quote_id = uo.id ORDER BY created_at DESC LIMIT 1) AS last_contact_outcome,
+        (SELECT COUNT(*) FROM quote_follow_ups WHERE quote_id = uo.id) AS follow_up_count,
+        -- Customer info
+        c.tier AS customer_tier,
+        c.lifetime_value_cents AS customer_lifetime_value,
+        c.credit_limit_cents AS customer_credit_limit
+      FROM unified_orders uo
+      LEFT JOIN users u ON u.id = uo.salesperson_id
+      LEFT JOIN customers c ON c.id = uo.customer_id
+      WHERE uo.source = 'quote'
+        AND uo.status IN ('draft', 'quote_sent', 'quote_viewed')
+        AND uo.quote_expiry_date IS NOT NULL
+    `;
+
+    const params = [];
+    let paramIdx = 1;
+
+    // Filter by expiry window
+    if (includeExpired) {
+      query += ` AND uo.quote_expiry_date >= CURRENT_DATE - INTERVAL '7 days'`;
+    } else {
+      query += ` AND uo.quote_expiry_date >= CURRENT_DATE`;
+    }
+
+    query += ` AND uo.quote_expiry_date <= CURRENT_DATE + $${paramIdx++} * INTERVAL '1 day'`;
+    params.push(daysAhead);
+
+    // Filter by sales rep
+    if (salesRepId) {
+      query += ` AND uo.salesperson_id = $${paramIdx++}`;
+      params.push(salesRepId);
+    }
+
+    // Sorting
+    switch (sortBy) {
+      case 'expiry':
+        query += ` ORDER BY uo.quote_expiry_date ASC, uo.total_cents DESC`;
+        break;
+      case 'value':
+        query += ` ORDER BY uo.total_cents DESC, uo.quote_expiry_date ASC`;
+        break;
+      case 'priority':
+      default:
+        query += `
+          ORDER BY
+            CASE WHEN uo.quote_expiry_date <= CURRENT_DATE THEN 0 ELSE uo.quote_expiry_date - CURRENT_DATE END ASC,
+            uo.total_cents DESC,
+            CASE
+              WHEN c.tier = 'platinum' THEN 1
+              WHEN c.tier = 'gold' THEN 2
+              WHEN c.tier = 'silver' THEN 3
+              ELSE 4
+            END ASC
+        `;
+        break;
+    }
+
+    query += ` LIMIT $${paramIdx++} OFFSET $${paramIdx++}`;
+    params.push(limit, offset);
+
+    let rows;
+    try {
+      const result = await this.pool.query(query, params);
+      rows = result.rows;
+    } catch (error) {
+      // If quote_follow_ups table doesn't exist, try without it
+      if (error.message.includes('quote_follow_ups')) {
+        const fallbackQuery = query
+          .replace(/\(SELECT MAX\(created_at\) FROM quote_follow_ups WHERE quote_id = uo\.id\)/g, 'NULL')
+          .replace(/\(SELECT outcome FROM quote_follow_ups WHERE quote_id = uo\.id ORDER BY created_at DESC LIMIT 1\)/g, 'NULL')
+          .replace(/\(SELECT COUNT\(\*\) FROM quote_follow_ups WHERE quote_id = uo\.id\)/g, '0');
+        const result = await this.pool.query(fallbackQuery, params);
+        rows = result.rows;
+      } else {
+        throw error;
+      }
+    }
+
+    // Format the response
+    const quotes = rows.map(row => ({
+      quoteId: row.quote_id,
+      quoteNumber: row.quote_number,
+      customerId: row.customer_id,
+      customerName: row.customer_name,
+      customerPhone: row.customer_phone,
+      customerEmail: row.customer_email,
+      totalValue: (row.total_value_cents || 0) / 100,
+      totalValueCents: row.total_value_cents || 0,
+      expiresAt: row.expires_at,
+      daysUntilExpiry: parseInt(row.days_until_expiry) || 0,
+      isExpired: parseInt(row.days_until_expiry) < 0,
+      isExpiringToday: parseInt(row.days_until_expiry) === 0,
+      isUrgent: parseInt(row.days_until_expiry) <= 3,
+      assignedRep: row.assigned_rep_name || 'Unassigned',
+      assignedRepId: row.assigned_rep_id,
+      status: row.status,
+      itemCount: parseInt(row.item_count) || 0,
+      lastContactedAt: row.last_contacted_at,
+      lastContactOutcome: row.last_contact_outcome,
+      followUpCount: parseInt(row.follow_up_count) || 0,
+      needsFollowUp: !row.last_contacted_at ||
+        new Date(row.last_contacted_at) < new Date(Date.now() - 3 * 24 * 60 * 60 * 1000),
+      customerTier: row.customer_tier,
+      quoteSentAt: row.quote_sent_at,
+      quoteViewedAt: row.quote_viewed_at,
+      createdAt: row.created_at,
+    }));
+
+    // Get stats for this result set
+    const stats = await this.getPOSQuoteExpiryStats(salesRepId);
+
+    return {
+      quotes,
+      stats,
+      pagination: {
+        limit,
+        offset,
+        count: quotes.length,
+      },
+    };
+  }
+
+  /**
+   * Get aggregate statistics on expiring quotes (for POS)
+   * @param {number|null} salesRepId - Filter by sales rep
+   * @returns {Promise<object>}
+   */
+  async getPOSQuoteExpiryStats(salesRepId = null) {
+    let query = `
+      SELECT
+        COUNT(*) FILTER (WHERE quote_expiry_date = CURRENT_DATE) AS expiring_today,
+        COUNT(*) FILTER (WHERE quote_expiry_date <= CURRENT_DATE + INTERVAL '3 days' AND quote_expiry_date >= CURRENT_DATE) AS expiring_in_3_days,
+        COUNT(*) FILTER (WHERE quote_expiry_date <= CURRENT_DATE + INTERVAL '7 days' AND quote_expiry_date >= CURRENT_DATE) AS expiring_in_7_days,
+        COUNT(*) FILTER (WHERE quote_expiry_date < CURRENT_DATE AND quote_expiry_date >= CURRENT_DATE - INTERVAL '7 days') AS expired_last_7_days,
+        COALESCE(SUM(total_cents) FILTER (WHERE quote_expiry_date <= CURRENT_DATE + INTERVAL '7 days' AND quote_expiry_date >= CURRENT_DATE), 0) AS total_at_risk_cents,
+        COALESCE(AVG(total_cents) FILTER (WHERE quote_expiry_date <= CURRENT_DATE + INTERVAL '7 days' AND quote_expiry_date >= CURRENT_DATE), 0) AS avg_quote_value_cents,
+        COUNT(*) AS total_active_quotes
+      FROM unified_orders
+      WHERE source = 'quote'
+        AND status IN ('draft', 'quote_sent', 'quote_viewed')
+        AND quote_expiry_date IS NOT NULL
+        AND quote_expiry_date >= CURRENT_DATE - INTERVAL '7 days'
+    `;
+
+    const params = [];
+    if (salesRepId) {
+      query += ` AND salesperson_id = $1`;
+      params.push(salesRepId);
+    }
+
+    const { rows } = await this.pool.query(query, params);
+    const row = rows[0];
+
+    return {
+      expiringToday: parseInt(row.expiring_today) || 0,
+      expiringIn3Days: parseInt(row.expiring_in_3_days) || 0,
+      expiringIn7Days: parseInt(row.expiring_in_7_days) || 0,
+      expiredLast7Days: parseInt(row.expired_last_7_days) || 0,
+      totalAtRiskValue: (parseInt(row.total_at_risk_cents) || 0) / 100,
+      totalAtRiskCents: parseInt(row.total_at_risk_cents) || 0,
+      avgQuoteValue: (parseInt(row.avg_quote_value_cents) || 0) / 100,
+      avgQuoteValueCents: parseInt(row.avg_quote_value_cents) || 0,
+      totalActiveQuotes: parseInt(row.total_active_quotes) || 0,
+    };
+  }
+
+  /**
+   * Mark a quote as followed up (for POS)
+   * @param {number} quoteId - Quote ID
+   * @param {object} followUpData - Follow-up details
+   * @returns {Promise<object>}
+   */
+  async markPOSQuoteFollowedUp(quoteId, followUpData = {}) {
+    const {
+      userId = null,
+      contactMethod = 'phone',
+      notes = null,
+      outcome = null,
+      callbackDate = null,
+    } = followUpData;
+
+    // Verify the quote exists
+    const { rows: quoteRows } = await this.pool.query(
+      `SELECT id, order_number, customer_name FROM unified_orders WHERE id = $1 AND source = 'quote'`,
+      [quoteId]
+    );
+
+    if (quoteRows.length === 0) {
+      throw new Error('Quote not found');
+    }
+
+    // Check if table exists, create if not
+    try {
+      await this.pool.query(`SELECT 1 FROM quote_follow_ups LIMIT 1`);
+    } catch (error) {
+      if (error.message.includes('does not exist')) {
+        // Create the table
+        await this.pool.query(`
+          CREATE TABLE IF NOT EXISTS quote_follow_ups (
+            id SERIAL PRIMARY KEY,
+            quote_id INTEGER NOT NULL,
+            user_id INTEGER,
+            contact_method VARCHAR(20) DEFAULT 'phone',
+            notes TEXT,
+            outcome VARCHAR(50),
+            callback_date DATE,
+            created_at TIMESTAMP DEFAULT NOW()
+          )
+        `);
+        await this.pool.query(`CREATE INDEX IF NOT EXISTS idx_quote_follow_ups_quote ON quote_follow_ups(quote_id)`);
+      } else {
+        throw error;
+      }
+    }
+
+    // Insert follow-up record
+    const { rows } = await this.pool.query(`
+      INSERT INTO quote_follow_ups (quote_id, user_id, contact_method, notes, outcome, callback_date)
+      VALUES ($1, $2, $3, $4, $5, $6)
+      RETURNING *
+    `, [quoteId, userId, contactMethod, notes, outcome, callbackDate]);
+
+    const followUp = rows[0];
+
+    // Get updated follow-up count
+    const { rows: countRows } = await this.pool.query(
+      `SELECT COUNT(*) AS count FROM quote_follow_ups WHERE quote_id = $1`,
+      [quoteId]
+    );
+
+    return {
+      followUpId: followUp.id,
+      quoteId: followUp.quote_id,
+      quoteNumber: quoteRows[0].order_number,
+      customerName: quoteRows[0].customer_name,
+      contactMethod: followUp.contact_method,
+      notes: followUp.notes,
+      outcome: followUp.outcome,
+      callbackDate: followUp.callback_date,
+      createdAt: followUp.created_at,
+      totalFollowUps: parseInt(countRows[0].count),
+    };
+  }
+
+  /**
+   * Get follow-up history for a quote (for POS)
+   * @param {number} quoteId - Quote ID
+   * @returns {Promise<Array>}
+   */
+  async getPOSQuoteFollowUpHistory(quoteId) {
+    try {
+      const { rows } = await this.pool.query(`
+        SELECT
+          qf.*,
+          CONCAT(u.first_name, ' ', u.last_name) AS user_name
+        FROM quote_follow_ups qf
+        LEFT JOIN users u ON u.id = qf.user_id
+        WHERE qf.quote_id = $1
+        ORDER BY qf.created_at DESC
+      `, [quoteId]);
+
+      return rows.map(row => ({
+        id: row.id,
+        quoteId: row.quote_id,
+        userId: row.user_id,
+        userName: row.user_name,
+        contactMethod: row.contact_method,
+        notes: row.notes,
+        outcome: row.outcome,
+        callbackDate: row.callback_date,
+        createdAt: row.created_at,
+      }));
+    } catch (error) {
+      if (error.message.includes('does not exist')) {
+        return [];
+      }
+      throw error;
+    }
+  }
 }
 
 module.exports = QuoteExpiryService;
