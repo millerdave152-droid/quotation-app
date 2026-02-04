@@ -9,8 +9,8 @@
 
 // Model identifiers - using latest stable versions
 const MODELS = {
-  HAIKU: 'claude-sonnet-4-20250514',   // Fast, cost-effective for simple queries
-  SONNET: 'claude-sonnet-4-20250514'   // Using Sonnet 4 for all queries (Feb 2026)
+  HAIKU: 'claude-3-5-haiku-20241022',   // Fast, cost-effective for simple queries
+  SONNET: 'claude-3-5-haiku-20241022'   // Temporary: using Haiku for all (Sonnet 4 returning 500 errors)
 };
 
 // VIP threshold (clv_score >= 80)

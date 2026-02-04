@@ -7,7 +7,7 @@ const express = require('express');
 const router = express.Router();
 const Joi = require('joi');
 const { ApiError, asyncHandler } = require('../middleware/errorHandler');
-const { authenticate, requireRole } = require('../middleware/auth');
+const { authenticate, requireRole, requirePermission } = require('../middleware/auth');
 
 // ============================================================================
 // MODULE STATE
@@ -50,7 +50,7 @@ const transactionItemSchema = Joi.object({
 });
 
 const paymentSchema = Joi.object({
-  paymentMethod: Joi.string().valid('cash', 'credit', 'debit', 'gift_card').required(),
+  paymentMethod: Joi.string().valid('cash', 'credit', 'debit', 'gift_card', 'etransfer', 'store_credit', 'loyalty_points').required(),
   amount: Joi.number().precision(2).positive().required(),
   // Allow valid 4-digit card number OR empty/null values
   cardLastFour: Joi.alternatives().try(
@@ -62,7 +62,13 @@ const paymentSchema = Joi.object({
   authorizationCode: Joi.string().max(50).optional().allow('', null),
   processorReference: Joi.string().max(100).optional().allow('', null),
   cashTendered: Joi.number().precision(2).optional().allow(null),
-  changeGiven: Joi.number().precision(2).optional().allow(null)
+  changeGiven: Joi.number().precision(2).optional().allow(null),
+  etransferReference: Joi.string().max(50).optional().allow('', null),
+  storeCreditCode: Joi.string().max(20).optional().allow('', null),
+  storeCreditId: Joi.number().integer().optional().allow(null),
+  storeCreditAmountCents: Joi.number().integer().optional().allow(null),
+  loyaltyPointsUsed: Joi.number().integer().optional().allow(null),
+  loyaltyCustomerId: Joi.number().integer().optional().allow(null)
 });
 
 const tradeInSchema = Joi.object({
@@ -74,7 +80,7 @@ const createTransactionSchema = Joi.object({
   shiftId: Joi.number().integer().required(),
   customerId: Joi.number().integer().optional().allow(null),
   quoteId: Joi.number().integer().optional().allow(null),
-  salespersonId: Joi.number().integer().optional().allow(null),
+  salespersonId: Joi.number().integer().required(),
   items: Joi.array().items(transactionItemSchema).min(1).required(),
   payments: Joi.array().items(paymentSchema).min(1).required(),
   tradeIns: Joi.array().items(tradeInSchema).optional().default([]),
@@ -82,8 +88,68 @@ const createTransactionSchema = Joi.object({
   discountReason: Joi.string().max(200).optional().allow('', null),
   taxProvince: Joi.string().length(2).uppercase().default('ON'),
   deliveryFee: Joi.number().min(0).default(0),
-  fulfillment: Joi.object().optional().allow(null),
-  promotion: Joi.object().optional().allow(null)
+  fulfillment: Joi.object({
+    type: Joi.string().valid('pickup_now', 'pickup_scheduled', 'local_delivery', 'shipping').required(),
+    fee: Joi.number().min(0).default(0),
+    scheduledDate: Joi.string().allow(null).optional(),
+    scheduledTimeStart: Joi.string().allow(null).optional(),
+    scheduledTimeEnd: Joi.string().allow(null).optional(),
+    address: Joi.object({
+      streetNumber: Joi.string().required(),
+      streetName: Joi.string().required(),
+      street: Joi.string().optional(),
+      unit: Joi.string().allow(null, '').optional(),
+      buzzer: Joi.string().allow(null, '').optional(),
+      city: Joi.string().required(),
+      province: Joi.string().length(2).uppercase().required(),
+      postalCode: Joi.string().pattern(/^[A-Z]\d[A-Z]\s?\d[A-Z]\d$/i).required(),
+      dwellingType: Joi.string().valid('house', 'townhouse', 'condo', 'apartment', 'commercial').optional(),
+      entryPoint: Joi.string().valid('front_door', 'back_door', 'side_door', 'garage', 'loading_dock', 'concierge').optional(),
+      floorNumber: Joi.string().max(20).allow(null, '').optional(),
+    }).allow(null).optional(),
+    dwellingType: Joi.string().valid('house', 'townhouse', 'condo', 'apartment', 'commercial').optional(),
+    entryPoint: Joi.string().valid('front_door', 'back_door', 'side_door', 'garage', 'loading_dock', 'concierge').optional(),
+    floorNumber: Joi.string().max(20).allow(null, '').optional(),
+    elevatorRequired: Joi.boolean().default(false),
+    elevatorDate: Joi.string().allow(null, '').optional(),
+    elevatorTime: Joi.string().allow(null, '').optional(),
+    conciergePhone: Joi.string().max(20).allow(null, '').optional(),
+    conciergeNotes: Joi.string().allow(null, '').optional(),
+    accessSteps: Joi.number().integer().min(0).default(0),
+    accessNarrowStairs: Joi.boolean().default(false),
+    accessHeightRestriction: Joi.number().integer().min(1).allow(null).optional(),
+    accessWidthRestriction: Joi.number().integer().min(1).allow(null).optional(),
+    accessNotes: Joi.string().allow(null, '').optional(),
+    parkingType: Joi.string().valid('driveway', 'street', 'underground', 'parking_lot', 'no_parking').allow(null, '').optional(),
+    parkingDistance: Joi.number().integer().min(0).allow(null).optional(),
+    parkingNotes: Joi.string().allow(null, '').optional(),
+    pathwayConfirmed: Joi.boolean().default(false),
+    pathwayNotes: Joi.string().allow(null, '').optional(),
+    deliveryDate: Joi.string().allow(null, '').optional(),
+    deliveryWindowId: Joi.number().integer().allow(null).optional(),
+    deliveryWindowStart: Joi.string().allow(null, '').optional(),
+    deliveryWindowEnd: Joi.string().allow(null, '').optional(),
+    pickupLocationId: Joi.number().integer().allow(null).optional(),
+    pickupDate: Joi.string().allow(null, '').optional(),
+    pickupTimePreference: Joi.string().valid('morning', 'afternoon', 'evening').allow(null, '').optional(),
+    pickupPersonName: Joi.string().max(255).allow(null, '').optional(),
+    pickupPersonPhone: Joi.string().max(20).allow(null, '').optional(),
+    pickupVehicleType: Joi.string().valid('car', 'suv', 'truck', 'van', 'other').allow(null, '').optional(),
+    pickupVehicleNotes: Joi.string().allow(null, '').optional(),
+    zoneId: Joi.number().integer().allow(null).optional(),
+    notes: Joi.string().allow(null, '').optional(),
+  }).required(),
+  promotion: Joi.object().optional().allow(null),
+  commissionSplit: Joi.object({
+    splits: Joi.array().items(Joi.object({
+      userId: Joi.number().integer().required(),
+      splitPercentage: Joi.number().min(1).max(100).required(),
+      role: Joi.string().valid('primary', 'secondary', 'assist').default('primary'),
+    })).min(2).required(),
+  }).optional().allow(null),
+  isDeposit: Joi.boolean().default(false),
+  marketingSource: Joi.string().max(100).optional().allow('', null),
+  marketingSourceDetail: Joi.string().max(255).optional().allow('', null),
 });
 
 const voidTransactionSchema = Joi.object({
@@ -106,7 +172,7 @@ const listTransactionsSchema = Joi.object({
   endDate: Joi.date().iso().optional(),
   dateRange: Joi.string().valid('today', 'yesterday', 'this_week', 'last_week', 'this_month', 'last_month', 'custom').optional(),
   customerId: Joi.number().integer().optional(),
-  status: Joi.string().valid('pending', 'completed', 'voided', 'refunded').optional(),
+  status: Joi.string().valid('pending', 'completed', 'voided', 'refunded', 'deposit_paid').optional(),
   shiftId: Joi.number().integer().optional(),
   salesRepId: Joi.number().integer().optional(),
   search: Joi.string().max(100).optional(),
@@ -200,8 +266,47 @@ router.post('/', authenticate, asyncHandler(async (req, res) => {
     discountReason,
     taxProvince,
     deliveryFee,
-    fulfillment
+    fulfillment,
+    commissionSplit,
+    isDeposit,
+    marketingSource,
+    marketingSourceDetail,
   } = value;
+
+  // Validate dwelling type and entry point are provided for delivery fulfillment types
+  if (fulfillment && ['local_delivery', 'shipping'].includes(fulfillment.type)) {
+    const missingFields = [];
+    const dwellingType = fulfillment.dwellingType || fulfillment.address?.dwellingType;
+    if (!dwellingType) {
+      missingFields.push({ field: 'fulfillment.dwellingType', message: 'Dwelling type is required for delivery orders' });
+    }
+    const entryPoint = fulfillment.entryPoint || fulfillment.address?.entryPoint;
+    if (!entryPoint) {
+      missingFields.push({ field: 'fulfillment.entryPoint', message: 'Entry point is required for delivery orders' });
+    }
+    const elevatorRequired = fulfillment.elevatorRequired || fulfillment.address?.elevatorRequired;
+    if (elevatorRequired) {
+      const elevatorDate = fulfillment.elevatorDate || fulfillment.address?.elevatorDate;
+      const elevatorTime = fulfillment.elevatorTime || fulfillment.address?.elevatorTime;
+      if (!elevatorDate) {
+        missingFields.push({ field: 'fulfillment.elevatorDate', message: 'Elevator booking date is required when elevator booking is enabled' });
+      }
+      if (!elevatorTime) {
+        missingFields.push({ field: 'fulfillment.elevatorTime', message: 'Elevator booking time is required when elevator booking is enabled' });
+      }
+    }
+    const pathwayConfirmed = fulfillment.pathwayConfirmed || fulfillment.address?.pathwayConfirmed;
+    if (!pathwayConfirmed) {
+      missingFields.push({ field: 'fulfillment.pathwayConfirmed', message: 'Pathway confirmation is required for delivery orders' });
+    }
+    if (missingFields.length > 0) {
+      return res.status(400).json({
+        success: false,
+        error: 'Validation failed',
+        details: missingFields
+      });
+    }
+  }
 
   const client = await pool.connect();
 
@@ -267,11 +372,16 @@ router.post('/', authenticate, asyncHandler(async (req, res) => {
     const effectiveDeliveryFee = deliveryFee || fulfillment?.fee || 0;
     const totalAmount = finalSubtotal + taxes.totalTax + effectiveDeliveryFee;
 
-    // Validate payment total
+    // Validate payment total (skip for deposit payments)
     const paymentTotal = payments.reduce((sum, p) => sum + p.amount, 0);
-    if (Math.abs(paymentTotal - totalAmount) > 0.01) {
+    if (!isDeposit && Math.abs(paymentTotal - totalAmount) > 0.01) {
       throw ApiError.badRequest(
         `Payment total ($${paymentTotal.toFixed(2)}) does not match transaction total ($${totalAmount.toFixed(2)})`
+      );
+    }
+    if (isDeposit && paymentTotal > totalAmount) {
+      throw ApiError.badRequest(
+        `Deposit ($${paymentTotal.toFixed(2)}) cannot exceed transaction total ($${totalAmount.toFixed(2)})`
       );
     }
 
@@ -279,14 +389,33 @@ router.post('/', authenticate, asyncHandler(async (req, res) => {
     const txnNumResult = await client.query('SELECT generate_transaction_number() as txn_number');
     const transactionNumber = txnNumResult.rows[0].txn_number;
 
+    // Determine transaction status based on payment type
+    const etransferPayment = payments.find(p => p.paymentMethod === 'etransfer');
+    const etransferReference = etransferPayment?.etransferReference || null;
+    let transactionStatus = 'completed';
+    if (isDeposit) {
+      transactionStatus = 'deposit_paid';
+    } else if (etransferPayment) {
+      transactionStatus = 'pending';
+    }
+
     // Insert transaction
+    const depositAmount = isDeposit ? paymentTotal : null;
+    const balanceDue = isDeposit ? parseFloat((totalAmount - paymentTotal).toFixed(2)) : null;
+
+    // Calculate completed_at timestamp
+    const completedAt = transactionStatus === 'completed' ? new Date() : null;
+
     const transactionResult = await client.query(
       `INSERT INTO transactions (
         transaction_number, shift_id, customer_id, quote_id, user_id, salesperson_id,
         subtotal, discount_amount, discount_reason,
         hst_amount, gst_amount, pst_amount, tax_province,
-        total_amount, status, completed_at
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, NOW())
+        total_amount, status, completed_at,
+        etransfer_reference, etransfer_status,
+        is_deposit, deposit_amount, balance_due,
+        marketing_source, marketing_source_detail
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23)
       RETURNING transaction_id, transaction_number, created_at`,
       [
         transactionNumber,
@@ -294,7 +423,7 @@ router.post('/', authenticate, asyncHandler(async (req, res) => {
         customerId || null,
         quoteId || null,
         req.user.id,
-        salespersonId || null,
+        salespersonId,
         finalSubtotal,
         discountAmount || 0,
         discountReason || null,
@@ -303,7 +432,15 @@ router.post('/', authenticate, asyncHandler(async (req, res) => {
         taxes.pstAmount,
         taxProvince,
         totalAmount,
-        'completed'
+        transactionStatus,
+        completedAt,
+        etransferReference,
+        etransferPayment ? 'pending' : null,
+        isDeposit || false,
+        depositAmount,
+        balanceDue,
+        marketingSource || null,
+        marketingSourceDetail || null
       ]
     );
 
@@ -344,12 +481,13 @@ router.post('/', authenticate, asyncHandler(async (req, res) => {
 
     // Insert payments
     for (const payment of payments) {
+      const paymentStatus = payment.paymentMethod === 'etransfer' ? 'pending' : 'completed';
       await client.query(
         `INSERT INTO payments (
           transaction_id, payment_method, amount,
           card_last_four, card_brand, authorization_code, processor_reference,
           cash_tendered, change_given, status
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'completed')`,
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
         [
           transaction.transaction_id,
           payment.paymentMethod,
@@ -359,7 +497,123 @@ router.post('/', authenticate, asyncHandler(async (req, res) => {
           payment.authorizationCode || null,
           payment.processorReference || null,
           payment.cashTendered || null,
-          payment.changeGiven || null
+          payment.changeGiven || null,
+          paymentStatus
+        ]
+      );
+    }
+
+    // Redeem store credits
+    for (const payment of payments) {
+      if (payment.paymentMethod === 'store_credit' && payment.storeCreditId && payment.storeCreditAmountCents) {
+        const creditResult = await client.query(
+          'SELECT id, current_balance, status FROM store_credits WHERE id = $1 FOR UPDATE',
+          [payment.storeCreditId]
+        );
+        if (creditResult.rows.length > 0) {
+          const sc = creditResult.rows[0];
+          const redeemCents = payment.storeCreditAmountCents;
+          const newBalance = sc.current_balance - redeemCents;
+          const newStatus = newBalance <= 0 ? 'depleted' : 'active';
+          await client.query(
+            'UPDATE store_credits SET current_balance = $1, status = $2, updated_at = NOW() WHERE id = $3',
+            [Math.max(newBalance, 0), newStatus, sc.id]
+          );
+          await client.query(
+            `INSERT INTO store_credit_transactions (store_credit_id, transaction_id, amount_cents, transaction_type, balance_after, performed_by)
+             VALUES ($1, $2, $3, 'redeem', $4, $5)`,
+            [sc.id, transaction.transaction_id, -redeemCents, Math.max(newBalance, 0), req.user.id]
+          );
+        }
+      }
+    }
+
+    // Insert fulfillment record
+    if (fulfillment) {
+      const dwellingType = fulfillment.dwellingType || fulfillment.address?.dwellingType || null;
+      const entryPoint = fulfillment.entryPoint || fulfillment.address?.entryPoint || null;
+      const floorNumber = fulfillment.floorNumber || fulfillment.address?.floorNumber || null;
+      const elevatorRequired = fulfillment.elevatorRequired || fulfillment.address?.elevatorRequired || false;
+      const elevatorDate = fulfillment.elevatorDate || fulfillment.address?.elevatorDate || null;
+      const elevatorTime = fulfillment.elevatorTime || fulfillment.address?.elevatorTime || null;
+      const conciergePhone = fulfillment.conciergePhone || fulfillment.address?.conciergePhone || null;
+      const conciergeNotes = fulfillment.conciergeNotes || fulfillment.address?.conciergeNotes || null;
+      const accessSteps = fulfillment.accessSteps ?? fulfillment.address?.accessSteps ?? 0;
+      const accessNarrowStairs = fulfillment.accessNarrowStairs || fulfillment.address?.accessNarrowStairs || false;
+      const accessHeightRestriction = fulfillment.accessHeightRestriction || fulfillment.address?.accessHeightRestriction || null;
+      const accessWidthRestriction = fulfillment.accessWidthRestriction || fulfillment.address?.accessWidthRestriction || null;
+      const accessNotes = fulfillment.accessNotes || fulfillment.address?.accessNotes || null;
+      const parkingType = fulfillment.parkingType || fulfillment.address?.parkingType || null;
+      const parkingDistance = fulfillment.parkingDistance ?? fulfillment.address?.parkingDistance ?? null;
+      const parkingNotes = fulfillment.parkingNotes || fulfillment.address?.parkingNotes || null;
+      const pathwayConfirmed = fulfillment.pathwayConfirmed || fulfillment.address?.pathwayConfirmed || false;
+      const pathwayNotes = fulfillment.pathwayNotes || fulfillment.address?.pathwayNotes || null;
+      const deliveryDate = fulfillment.deliveryDate || fulfillment.address?.deliveryDate || null;
+      const deliveryWindowId = fulfillment.deliveryWindowId ?? fulfillment.address?.deliveryWindowId ?? null;
+      const deliveryWindowStart = fulfillment.deliveryWindowStart || fulfillment.address?.deliveryWindowStart || null;
+      const deliveryWindowEnd = fulfillment.deliveryWindowEnd || fulfillment.address?.deliveryWindowEnd || null;
+      const pickupLocationId = fulfillment.pickupLocationId || null;
+      const pickupDate = fulfillment.pickupDate || null;
+      const pickupTimePreference = fulfillment.pickupTimePreference || null;
+      const pickupPersonName = fulfillment.pickupPersonName || null;
+      const pickupPersonPhone = fulfillment.pickupPersonPhone || null;
+      const pickupVehicleType = fulfillment.pickupVehicleType || null;
+      const pickupVehicleNotes = fulfillment.pickupVehicleNotes || null;
+      await client.query(
+        `INSERT INTO order_fulfillment (
+          transaction_id, fulfillment_type, delivery_zone_id,
+          scheduled_date, scheduled_time_start, scheduled_time_end,
+          delivery_address, delivery_fee, dwelling_type, entry_point, floor_number,
+          elevator_booking_required, elevator_booking_date, elevator_booking_time,
+          concierge_phone, concierge_notes,
+          access_steps, access_narrow_stairs, access_height_restriction, access_width_restriction, access_notes,
+          parking_type, parking_distance, parking_notes,
+          pathway_confirmed, pathway_notes,
+          delivery_date, delivery_window_start, delivery_window_end, delivery_window_id,
+          pickup_location_id, pickup_date, pickup_time_preference,
+          pickup_person_name, pickup_person_phone, pickup_vehicle_type, pickup_vehicle_notes,
+          customer_notes, created_by
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, $28, $29, $30, $31, $32, $33, $34, $35, $36, $37, $38, $39)`,
+        [
+          transaction.transaction_id,
+          fulfillment.type,
+          fulfillment.zoneId || null,
+          fulfillment.scheduledDate || null,
+          fulfillment.scheduledTimeStart || null,
+          fulfillment.scheduledTimeEnd || null,
+          fulfillment.address ? JSON.stringify(fulfillment.address) : null,
+          effectiveDeliveryFee,
+          dwellingType,
+          entryPoint,
+          floorNumber,
+          elevatorRequired,
+          elevatorDate,
+          elevatorTime,
+          conciergePhone,
+          conciergeNotes,
+          accessSteps,
+          accessNarrowStairs,
+          accessHeightRestriction,
+          accessWidthRestriction,
+          accessNotes,
+          parkingType,
+          parkingDistance,
+          parkingNotes,
+          pathwayConfirmed,
+          pathwayNotes,
+          deliveryDate,
+          deliveryWindowStart,
+          deliveryWindowEnd,
+          deliveryWindowId,
+          pickupLocationId,
+          pickupDate,
+          pickupTimePreference,
+          pickupPersonName,
+          pickupPersonPhone,
+          pickupVehicleType,
+          pickupVehicleNotes,
+          fulfillment.notes || null,
+          req.user.id,
         ]
       );
     }
@@ -404,6 +658,31 @@ router.post('/', authenticate, asyncHandler(async (req, res) => {
       );
     }
 
+    // Insert commission splits if provided
+    if (commissionSplit?.splits?.length > 0) {
+      const totalPct = commissionSplit.splits.reduce((s, sp) => s + Number(sp.splitPercentage), 0);
+      if (Math.abs(totalPct - 100) <= 0.01) {
+        // Estimate commission at 3% for now; actual calculation happens via commission service
+        const estimatedCommissionCents = Math.round(totalAmount * 100 * 0.03);
+        let remainderCents = estimatedCommissionCents;
+
+        for (let i = 0; i < commissionSplit.splits.length; i++) {
+          const sp = commissionSplit.splits[i];
+          const commCents = i === commissionSplit.splits.length - 1
+            ? remainderCents
+            : Math.round(estimatedCommissionCents * (Number(sp.splitPercentage) / 100));
+          remainderCents -= commCents;
+
+          await client.query(
+            `INSERT INTO order_commission_splits
+              (transaction_id, user_id, split_percentage, commission_amount_cents, role, status)
+             VALUES ($1, $2, $3, $4, $5, 'pending')`,
+            [transaction.transaction_id, sp.userId, sp.splitPercentage, commCents, sp.role || (i === 0 ? 'primary' : 'secondary')]
+          );
+        }
+      }
+    }
+
     await client.query('COMMIT');
 
     // Invalidate relevant caches
@@ -436,7 +715,14 @@ router.post('/', authenticate, asyncHandler(async (req, res) => {
           count: tradeIns.length,
           totalCredit: totalTradeInCredit,
           assessmentIds: tradeIns.map(ti => ti.assessmentId)
-        } : null
+        } : null,
+        deposit: isDeposit ? {
+          isDeposit: true,
+          depositAmount: paymentTotal,
+          balanceDue,
+          status: 'deposit_paid',
+        } : null,
+        status: transactionStatus,
       }
     });
 
@@ -939,7 +1225,7 @@ router.get('/:id', authenticate, asyncHandler(async (req, res) => {
  * POST /api/transactions/:id/void
  * Void a completed transaction
  */
-router.post('/:id/void', authenticate, requireRole('admin', 'manager'), asyncHandler(async (req, res) => {
+router.post('/:id/void', authenticate, requirePermission('pos.checkout.void'), asyncHandler(async (req, res) => {
   const { id } = req.params;
 
   const { error, value } = voidTransactionSchema.validate(req.body, {
@@ -1048,10 +1334,141 @@ router.post('/:id/void', authenticate, requireRole('admin', 'manager'), asyncHan
 }));
 
 /**
+ * POST /api/transactions/:id/collect-balance
+ * Collect remaining balance on a deposit-paid transaction
+ */
+router.post('/:id/collect-balance', authenticate, asyncHandler(async (req, res) => {
+  const { id } = req.params;
+  const { paymentMethod, amount, cardLastFour, cardBrand, authorizationCode, processorReference, etransferReference } = req.body;
+
+  if (!paymentMethod || !amount || amount <= 0) {
+    throw ApiError.badRequest('paymentMethod and positive amount are required');
+  }
+
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+
+    const txnResult = await client.query(
+      'SELECT transaction_id, status, balance_due, total_amount FROM transactions WHERE transaction_id = $1 FOR UPDATE',
+      [id]
+    );
+
+    if (txnResult.rows.length === 0) {
+      throw ApiError.notFound('Transaction');
+    }
+
+    const txn = txnResult.rows[0];
+    if (txn.status !== 'deposit_paid') {
+      throw ApiError.badRequest(`Transaction status is "${txn.status}", not "deposit_paid"`);
+    }
+
+    if (Math.abs(amount - txn.balance_due) > 0.01) {
+      throw ApiError.badRequest(`Amount ($${amount.toFixed(2)}) must match balance due ($${parseFloat(txn.balance_due).toFixed(2)})`);
+    }
+
+    // Insert the balance payment
+    await client.query(
+      `INSERT INTO payments (
+        transaction_id, payment_method, amount,
+        card_last_four, card_brand, authorization_code, processor_reference, status
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, 'completed')`,
+      [
+        id,
+        paymentMethod,
+        amount,
+        cardLastFour || null,
+        cardBrand || null,
+        authorizationCode || null,
+        processorReference || null,
+      ]
+    );
+
+    // Update transaction to completed
+    await client.query(
+      `UPDATE transactions
+       SET status = 'completed', balance_due = 0, completed_at = NOW()
+       WHERE transaction_id = $1`,
+      [id]
+    );
+
+    await client.query('COMMIT');
+
+    res.json({
+      success: true,
+      data: { transactionId: parseInt(id), status: 'completed', balanceDue: 0 },
+    });
+  } catch (err) {
+    await client.query('ROLLBACK');
+    throw err;
+  } finally {
+    client.release();
+  }
+}));
+
+/**
+ * GET /api/transactions/:id/payments
+ * List all payments on a transaction
+ */
+router.get('/:id/payments', authenticate, asyncHandler(async (req, res) => {
+  const { id } = req.params;
+
+  const result = await pool.query(
+    `SELECT payment_id, transaction_id, payment_method, amount,
+            card_last_four, card_brand, authorization_code, processor_reference,
+            cash_tendered, change_given, status, created_at
+     FROM payments
+     WHERE transaction_id = $1
+     ORDER BY created_at`,
+    [id]
+  );
+
+  res.json({ success: true, data: result.rows });
+}));
+
+/**
+ * GET /api/transactions/:id/balance
+ * Get outstanding balance on a transaction
+ */
+router.get('/:id/balance', authenticate, asyncHandler(async (req, res) => {
+  const { id } = req.params;
+
+  const txnResult = await pool.query(
+    'SELECT transaction_id, total_amount, is_deposit, deposit_amount, balance_due, status FROM transactions WHERE transaction_id = $1',
+    [id]
+  );
+
+  if (txnResult.rows.length === 0) {
+    throw ApiError.notFound('Transaction');
+  }
+
+  const txn = txnResult.rows[0];
+  const paymentsResult = await pool.query(
+    `SELECT COALESCE(SUM(amount), 0) as total_paid FROM payments WHERE transaction_id = $1 AND status = 'completed'`,
+    [id]
+  );
+
+  const totalPaid = parseFloat(paymentsResult.rows[0].total_paid);
+
+  res.json({
+    success: true,
+    data: {
+      transactionId: txn.transaction_id,
+      totalAmount: parseFloat(txn.total_amount),
+      amountPaid: totalPaid,
+      balanceDue: parseFloat(txn.balance_due || 0),
+      isDeposit: txn.is_deposit,
+      depositAmount: txn.deposit_amount ? parseFloat(txn.deposit_amount) : null,
+      paymentStatus: txn.status,
+    },
+  });
+}));
+
+/**
  * POST /api/transactions/:id/refund
  * Process full or partial refund
  */
-router.post('/:id/refund', authenticate, requireRole('admin', 'manager', 'cashier'), asyncHandler(async (req, res) => {
+router.post('/:id/refund', authenticate, requirePermission('pos.returns.process_refund'), asyncHandler(async (req, res) => {
   const { id } = req.params;
 
   const { error, value } = refundSchema.validate(req.body, {
