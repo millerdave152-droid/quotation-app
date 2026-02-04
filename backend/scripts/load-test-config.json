@@ -1,0 +1,59 @@
+{
+  "description": "AI Assistant Load Test Configuration",
+  "version": "1.0.0",
+
+  "targets": {
+    "p95_latency_ms": 3000,
+    "p99_latency_ms": 5000,
+    "error_rate_percent": 2,
+    "min_throughput_rps": 0.5
+  },
+
+  "test_profiles": {
+    "smoke": {
+      "description": "Quick smoke test - minimal load",
+      "concurrent_users": 1,
+      "requests_per_user": 3,
+      "ramp_up_seconds": 0,
+      "think_time_ms": 1000
+    },
+    "light": {
+      "description": "Light load - typical usage",
+      "concurrent_users": 3,
+      "requests_per_user": 5,
+      "ramp_up_seconds": 5,
+      "think_time_ms": 2000
+    },
+    "medium": {
+      "description": "Medium load - busy period",
+      "concurrent_users": 5,
+      "requests_per_user": 10,
+      "ramp_up_seconds": 10,
+      "think_time_ms": 1500
+    },
+    "stress": {
+      "description": "Stress test - peak load",
+      "concurrent_users": 10,
+      "requests_per_user": 10,
+      "ramp_up_seconds": 15,
+      "think_time_ms": 1000
+    }
+  },
+
+  "test_prompts": [
+    "Find customer John Smith",
+    "Show me Samsung refrigerators",
+    "What is our return policy?",
+    "Status of quote Q-2024-001234",
+    "Hello, what can you help me with?",
+    "Do we have any washers in stock?",
+    "What discounts can I offer?",
+    "Find customer with phone 416-555-1234"
+  ],
+
+  "endpoints": {
+    "base_url": "http://localhost:3001",
+    "chat_path": "/api/ai/chat",
+    "health_path": "/api/ai/health"
+  }
+}

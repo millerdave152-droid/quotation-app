@@ -7,13 +7,14 @@ const express = require('express');
 const router = express.Router();
 const { authenticate, requireRole } = require('../middleware/auth');
 const aiService = require('../services/ai');
+const featureFlags = require('../services/ai/featureFlags');
 
 /**
  * @route   POST /api/ai/chat
  * @desc    Send a message and get AI response
  * @access  Private
  */
-router.post('/chat', authenticate, async (req, res) => {
+router.post('/chat', authenticate, featureFlags.checkEnabled(), async (req, res) => {
   try {
     const { message, conversationId } = req.body;
 
@@ -321,6 +322,143 @@ router.get('/analytics/pilot', authenticate, requireRole(['admin', 'manager']), 
 });
 
 /**
+ * @route   GET /api/ai/analytics/realtime
+ * @desc    Get real-time metrics (last hour, today)
+ * @access  Private (Admin/Manager)
+ */
+router.get('/analytics/realtime', authenticate, requireRole(['admin', 'manager']), async (req, res) => {
+  try {
+    const db = require('../config/database');
+    const result = await db.query('SELECT * FROM ai_realtime_metrics');
+
+    res.json({
+      success: true,
+      data: result.rows[0] || {}
+    });
+
+  } catch (error) {
+    console.error('[AI Routes] Realtime analytics error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to fetch realtime metrics'
+    });
+  }
+});
+
+/**
+ * @route   GET /api/ai/analytics/hourly
+ * @desc    Get hourly metrics for last 48 hours
+ * @access  Private (Admin/Manager)
+ */
+router.get('/analytics/hourly', authenticate, requireRole(['admin', 'manager']), async (req, res) => {
+  try {
+    const db = require('../config/database');
+    const result = await db.query('SELECT * FROM ai_hourly_stats ORDER BY hour DESC LIMIT 48');
+
+    res.json({
+      success: true,
+      data: {
+        hourlyStats: result.rows
+      }
+    });
+
+  } catch (error) {
+    console.error('[AI Routes] Hourly analytics error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to fetch hourly metrics'
+    });
+  }
+});
+
+/**
+ * @route   GET /api/ai/analytics/errors
+ * @desc    Get recent errors for debugging
+ * @access  Private (Admin/Manager)
+ */
+router.get('/analytics/errors', authenticate, requireRole(['admin', 'manager']), async (req, res) => {
+  try {
+    const db = require('../config/database');
+    const limit = Math.min(parseInt(req.query.limit) || 50, 100);
+
+    const result = await db.query('SELECT * FROM ai_recent_errors LIMIT $1', [limit]);
+
+    res.json({
+      success: true,
+      data: {
+        errors: result.rows,
+        count: result.rows.length
+      }
+    });
+
+  } catch (error) {
+    console.error('[AI Routes] Errors analytics error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to fetch error logs'
+    });
+  }
+});
+
+/**
+ * @route   GET /api/ai/analytics/latency
+ * @desc    Get latency percentiles by day
+ * @access  Private (Admin/Manager)
+ */
+router.get('/analytics/latency', authenticate, requireRole(['admin', 'manager']), async (req, res) => {
+  try {
+    const db = require('../config/database');
+    const days = Math.min(parseInt(req.query.days) || 7, 30);
+
+    const result = await db.query(
+      'SELECT * FROM ai_latency_percentiles WHERE date >= CURRENT_DATE - $1 ORDER BY date DESC',
+      [days]
+    );
+
+    res.json({
+      success: true,
+      data: {
+        latencyStats: result.rows
+      }
+    });
+
+  } catch (error) {
+    console.error('[AI Routes] Latency analytics error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to fetch latency metrics'
+    });
+  }
+});
+
+/**
+ * @route   GET /api/ai/analytics/feedback
+ * @desc    Get feedback summary by day and query type
+ * @access  Private (Admin/Manager)
+ */
+router.get('/analytics/feedback', authenticate, requireRole(['admin', 'manager']), async (req, res) => {
+  try {
+    const db = require('../config/database');
+
+    const result = await db.query('SELECT * FROM ai_feedback_summary ORDER BY date DESC, total_feedback DESC');
+
+    res.json({
+      success: true,
+      data: {
+        feedbackStats: result.rows
+      }
+    });
+
+  } catch (error) {
+    console.error('[AI Routes] Feedback analytics error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to fetch feedback summary'
+    });
+  }
+});
+
+/**
  * @route   GET /api/ai/health
  * @desc    Health check for AI service
  * @access  Public
@@ -330,15 +468,25 @@ router.get('/health', async (req, res) => {
     // Check if Anthropic API key is configured
     const hasApiKey = !!process.env.ANTHROPIC_API_KEY;
 
+    // Check feature flag status
+    const flagStatus = await featureFlags.getStatus();
+
     // Check database connection
     const db = require('../config/database');
     await db.query('SELECT 1');
 
+    // Determine overall status
+    let status = 'operational';
+    if (!hasApiKey) status = 'degraded';
+    if (!flagStatus.enabled) status = 'disabled';
+
     res.json({
       success: true,
       data: {
-        status: hasApiKey ? 'operational' : 'degraded',
+        status,
         apiKeyConfigured: hasApiKey,
+        aiEnabled: flagStatus.enabled,
+        enabledSource: flagStatus.effectiveSource,
         database: 'connected',
         timestamp: new Date().toISOString()
       }
@@ -351,6 +499,144 @@ router.get('/health', async (req, res) => {
         status: 'error',
         message: error.message
       }
+    });
+  }
+});
+
+// ============================================================
+// ADMIN: FEATURE FLAG MANAGEMENT
+// ============================================================
+
+/**
+ * @route   GET /api/ai/admin/status
+ * @desc    Get AI feature flag status
+ * @access  Private (Admin only)
+ */
+router.get('/admin/status', authenticate, requireRole(['admin']), async (req, res) => {
+  try {
+    const status = await featureFlags.getStatus();
+
+    res.json({
+      success: true,
+      data: status
+    });
+
+  } catch (error) {
+    console.error('[AI Routes] Admin status error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to fetch AI status'
+    });
+  }
+});
+
+/**
+ * @route   POST /api/ai/admin/toggle
+ * @desc    Toggle AI assistant on/off
+ * @access  Private (Admin only)
+ */
+router.post('/admin/toggle', authenticate, requireRole(['admin']), async (req, res) => {
+  try {
+    const { enabled, persist } = req.body;
+
+    if (typeof enabled !== 'boolean') {
+      return res.status(400).json({
+        success: false,
+        message: 'enabled must be a boolean'
+      });
+    }
+
+    const changedBy = req.user.email || req.user.id;
+
+    if (persist) {
+      // Persist to database (survives restarts)
+      await featureFlags.setDatabaseSetting(enabled, changedBy);
+    } else {
+      // Runtime only (lost on restart)
+      featureFlags.setRuntimeOverride(enabled);
+    }
+
+    const newStatus = await featureFlags.getStatus();
+
+    // Log the action
+    console.log(`[AI Admin] AI Assistant ${enabled ? 'ENABLED' : 'DISABLED'} by ${changedBy} (persist: ${persist})`);
+
+    res.json({
+      success: true,
+      message: `AI Assistant ${enabled ? 'enabled' : 'disabled'}${persist ? ' (persistent)' : ' (runtime only)'}`,
+      data: newStatus
+    });
+
+  } catch (error) {
+    console.error('[AI Routes] Admin toggle error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to toggle AI status'
+    });
+  }
+});
+
+/**
+ * @route   POST /api/ai/admin/kill-switch
+ * @desc    Emergency kill switch - disable AI immediately
+ * @access  Private (Admin only)
+ */
+router.post('/admin/kill-switch', authenticate, requireRole(['admin']), async (req, res) => {
+  try {
+    const changedBy = req.user.email || req.user.id;
+    const reason = req.body.reason || 'Emergency kill switch activated';
+
+    // Set both runtime and database to ensure it's off
+    featureFlags.setRuntimeOverride(false);
+    await featureFlags.setDatabaseSetting(false, changedBy);
+
+    console.warn(`[AI Admin] KILL SWITCH ACTIVATED by ${changedBy}. Reason: ${reason}`);
+
+    res.json({
+      success: true,
+      message: 'AI Assistant has been disabled (kill switch activated)',
+      data: {
+        enabled: false,
+        activatedBy: changedBy,
+        reason,
+        timestamp: new Date().toISOString()
+      }
+    });
+
+  } catch (error) {
+    console.error('[AI Routes] Kill switch error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to activate kill switch'
+    });
+  }
+});
+
+/**
+ * @route   POST /api/ai/admin/clear-override
+ * @desc    Clear runtime override, fall back to DB/env settings
+ * @access  Private (Admin only)
+ */
+router.post('/admin/clear-override', authenticate, requireRole(['admin']), async (req, res) => {
+  try {
+    featureFlags.setRuntimeOverride(null);
+    featureFlags.clearCache();
+
+    const newStatus = await featureFlags.getStatus();
+
+    console.log(`[AI Admin] Runtime override cleared by ${req.user.email || req.user.id}`);
+
+    res.json({
+      success: true,
+      message: 'Runtime override cleared',
+      data: newStatus
+    });
+
+  } catch (error) {
+    console.error('[AI Routes] Clear override error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to clear override'
     });
   }
 });

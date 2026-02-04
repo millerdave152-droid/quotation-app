@@ -7,11 +7,10 @@
  * - Sonnet (15%): VIP customers, email drafts, complex reasoning
  */
 
-// Model identifiers - using Haiku for all queries for now
-// TODO: Update SONNET to correct model ID when available
+// Model identifiers - using latest stable versions
 const MODELS = {
-  HAIKU: 'claude-3-5-haiku-20241022',
-  SONNET: 'claude-3-5-haiku-20241022'  // Using Haiku until Sonnet model ID is confirmed
+  HAIKU: 'claude-sonnet-4-20250514',   // Fast, cost-effective for simple queries
+  SONNET: 'claude-sonnet-4-20250514'   // Using Sonnet 4 for all queries (Feb 2026)
 };
 
 // VIP threshold (clv_score >= 80)

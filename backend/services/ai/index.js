@@ -11,6 +11,7 @@ const { assembleContext, getConversationHistory } = require('./context');
 const { TOOLS, executeTools } = require('./tools');
 const { buildSystemPrompt, classifyQuery } = require('./prompts/system');
 const db = require('../../config/database');
+const logger = require('./logger');
 
 // Initialize Anthropic client
 const anthropic = new Anthropic({
@@ -57,6 +58,22 @@ async function handleChat({
 
     // 6. Determine which model to use
     const { model, reasons } = selectModel(userMessage, ragContext, history);
+
+    // Log model routing decision
+    logger.logModelRouting({
+      query: userMessage,
+      selectedModel: model,
+      reasons,
+      contextSize: ragContext.tokenCount || 0
+    });
+
+    // Log request start
+    logger.logRequestStart({
+      conversationId: conversation.id,
+      userId,
+      queryType,
+      model
+    });
 
     // 7. Build the full message array
     const messages = buildMessages(history, userMessage, ragContext);
@@ -114,26 +131,51 @@ async function handleChat({
     // 14. Update conversation cost tracking
     await updateConversationCost(conversation.id, cost);
 
+    // Log successful completion
+    logger.logRequestComplete({
+      conversationId: conversation.id,
+      userId,
+      queryType,
+      model,
+      responseTimeMs: responseTime,
+      inputTokens: response.usage.input_tokens,
+      outputTokens: response.usage.output_tokens,
+      costUsd: cost,
+      toolsUsed: finalResponse.toolsUsed || []
+    });
+
     return {
       conversationId: conversation.id,
       message: finalResponse.content,
       model: model,
       queryType,
+      queryLogId, // Include for feedback
       responseTimeMs: responseTime,
       tokenUsage: response.usage,
       estimatedCost: cost
     };
 
   } catch (err) {
-    error = err;
-    console.error('[AI Service] Error:', err);
+    const responseTime = Date.now() - startTime;
 
-    // Log the error
+    // Log error with structured logger
+    logger.logRequestError({
+      conversationId: conversationId || 'unknown',
+      userId,
+      queryType: 'unknown',
+      model: 'unknown',
+      errorType: err.name || 'UnknownError',
+      errorMessage: err.message,
+      responseTimeMs: responseTime
+    });
+
+    // Update query log if we have one
     if (queryLogId) {
       await updateQueryLog(queryLogId, {
         errorOccurred: true,
         errorType: err.name || 'UnknownError',
-        errorMessage: err.message
+        errorMessage: err.message,
+        responseTimeMs: responseTime
       });
     }
 
@@ -262,6 +304,7 @@ async function callAnthropic({ model, systemPrompt, messages, tools }) {
 async function processResponse(response, conversationId, sequenceNum, model, userId, locationId) {
   let currentSequence = sequenceNum;
   let currentResponse = response;
+  const toolsUsed = []; // Track all tools used in this request
 
   // Keep processing while there are tool calls
   while (currentResponse.stop_reason === 'tool_use') {
@@ -270,6 +313,7 @@ async function processResponse(response, conversationId, sequenceNum, model, use
 
     // Save assistant message with tool calls
     for (const toolUse of toolUseBlocks) {
+      toolsUsed.push(toolUse.name); // Track tool usage
       await saveMessage(conversationId, 'tool_use', '', currentSequence++, {
         toolName: toolUse.name,
         toolInput: toolUse.input,
@@ -279,7 +323,17 @@ async function processResponse(response, conversationId, sequenceNum, model, use
     }
 
     // Execute tools and collect results
+    const toolStartTime = Date.now();
     const toolResults = await executeTools(toolUseBlocks, userId, locationId);
+    const toolExecutionTime = Date.now() - toolStartTime;
+
+    // Log tool execution
+    logger.logToolExecution({
+      toolName: toolUseBlocks.map(t => t.name).join(','),
+      executionTimeMs: toolExecutionTime,
+      success: !toolResults.some(r => r.result?.error),
+      resultSize: JSON.stringify(toolResults).length
+    });
 
     // Save tool results
     for (const result of toolResults) {
@@ -317,7 +371,8 @@ async function processResponse(response, conversationId, sequenceNum, model, use
 
   return {
     content: textContent,
-    usage: currentResponse.usage
+    usage: currentResponse.usage,
+    toolsUsed // Return tools used for logging
   };
 }
 
