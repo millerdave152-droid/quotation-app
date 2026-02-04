@@ -14,9 +14,11 @@
  *   --verbose           Show detailed output for each case
  *   --dry-run           Show what would be run without executing
  *   --run-by <name>     Name/ID of person running eval (default: cli)
+ *   --user-id <id>      User ID for evaluation (default: AI_EVAL_USER_ID or 1)
  */
 
-require('dotenv').config();
+const path = require('path');
+require('dotenv').config({ path: path.join(__dirname, '..', '.env') });
 const db = require('../config/database');
 const aiService = require('../services/ai');
 const { MODELS } = require('../services/ai/router');
@@ -50,7 +52,8 @@ function parseArgs() {
     limit: null,
     verbose: false,
     dryRun: false,
-    runBy: 'cli'
+    runBy: 'cli',
+    userId: process.env.AI_EVAL_USER_ID ? parseInt(process.env.AI_EVAL_USER_ID) : 1
   };
 
   for (let i = 2; i < process.argv.length; i++) {
@@ -76,6 +79,9 @@ function parseArgs() {
         break;
       case '--run-by':
         args.runBy = process.argv[++i];
+        break;
+      case '--user-id':
+        args.userId = parseInt(process.argv[++i]);
         break;
       case '--help':
         showHelp();
@@ -103,6 +109,7 @@ Options:
   --verbose            Show detailed output for each case
   --dry-run            Preview cases without running
   --run-by <name>      Evaluator name (default: cli)
+  --user-id <id>       User ID for evaluation (default: AI_EVAL_USER_ID or 1)
   --help               Show this help message
 
 Examples:
@@ -219,9 +226,21 @@ async function runEvaluation(args) {
   console.log('🔬 AI ACCURACY EVALUATION');
   console.log('='.repeat(60) + '\n');
 
+  if (!args.userId || Number.isNaN(args.userId)) {
+    console.error('❌ Invalid user ID. Provide --user-id or set AI_EVAL_USER_ID.');
+    process.exit(1);
+  }
+
+  const userCheck = await db.query('SELECT id FROM users WHERE id = $1', [args.userId]);
+  if (userCheck.rows.length === 0) {
+    console.error(`❌ User ID ${args.userId} not found. Provide a valid --user-id.`);
+    process.exit(1);
+  }
+
   // Get model name
   const modelName = args.model || MODELS.HAIKU;
   console.log(`📋 Model: ${modelName}`);
+  console.log(`👤 Eval User ID: ${args.userId}`);
 
   // Build query for cases
   let query = 'SELECT * FROM ai_eval_cases WHERE is_active = true';
@@ -309,9 +328,9 @@ async function runEvaluation(args) {
       // Create a temporary conversation for this evaluation
       const convResult = await db.query(
         `INSERT INTO ai_conversations (user_id, title)
-         VALUES (1, $1)
+         VALUES ($1, $2)
          RETURNING id`,
-        [`eval-${runId}-${evalCase.case_id}`]
+        [args.userId, `eval-${runId}-${evalCase.case_id}`]
       );
       const conversationId = convResult.rows[0].id;
 
@@ -320,7 +339,7 @@ async function runEvaluation(args) {
       const response = await aiService.handleChat({
         conversationId,
         userMessage: evalCase.prompt,
-        userId: 1,
+        userId: args.userId,
         locationId: null
       });
       const responseTimeMs = Date.now() - startTime;
@@ -359,6 +378,7 @@ async function runEvaluation(args) {
 
       results.totalTimeMs += responseTimeMs;
       results.totalTokens += (response.tokenUsage?.input_tokens || 0) + (response.tokenUsage?.output_tokens || 0);
+      results.totalCost += response.estimatedCost || 0;
 
       // Store result
       await db.query(
@@ -432,10 +452,11 @@ async function runEvaluation(args) {
        answer_accuracy = $10,
        product_accuracy = $11,
        policy_accuracy = $12,
-       avg_response_time_ms = $13,
-       total_tokens_used = $14,
-       completed_at = CURRENT_TIMESTAMP
-     WHERE run_id = $15`,
+         avg_response_time_ms = $13,
+         total_tokens_used = $14,
+         total_cost_usd = $15,
+         completed_at = CURRENT_TIMESTAMP
+       WHERE run_id = $16`,
     [
       results.passed,
       results.failed + results.errors,
@@ -451,6 +472,7 @@ async function runEvaluation(args) {
       policyAccuracy?.toFixed(2) || null,
       avgResponseTime,
       results.totalTokens,
+      results.totalCost,
       runId
     ]
   );
