@@ -1,11 +1,21 @@
 /**
  * TeleTime POS - Transaction Routes
  * Handles sales transactions, payments, voids, and refunds
+ * Updated: 2026-02-04 - Fixed $15 parameter type issue
  */
 
 const express = require('express');
 const router = express.Router();
 const Joi = require('joi');
+const fs = require('fs');
+const path = require('path');
+
+// File-based logging for debugging $15 issue
+const LOG_FILE = path.join(__dirname, '..', 'transaction-debug.log');
+function logToFile(message) {
+  const timestamp = new Date().toISOString();
+  fs.appendFileSync(LOG_FILE, `[${timestamp}] ${message}\n`);
+}
 const { ApiError, asyncHandler } = require('../middleware/errorHandler');
 const { authenticate, requireRole, requirePermission } = require('../middleware/auth');
 
@@ -236,7 +246,12 @@ function calculateLineItem(item, taxRates) {
  * Create a new transaction
  */
 router.post('/', authenticate, asyncHandler(async (req, res) => {
-  console.log('[Transaction] POST /api/transactions body:', JSON.stringify(req.body, null, 2));
+  console.log('========================================');
+  console.log('[Transaction] POST /api/transactions - START');
+  console.log('[Transaction] User:', req.user?.id, req.user?.username);
+  console.log('[Transaction] Fulfillment:', JSON.stringify(req.body?.fulfillment, null, 2));
+  console.log('[Transaction] Payments count:', req.body?.payments?.length);
+  console.log('========================================');
   const { error, value } = createTransactionSchema.validate(req.body, {
     abortEarly: false,
     stripUnknown: true
@@ -406,8 +421,8 @@ router.post('/', authenticate, asyncHandler(async (req, res) => {
     // Calculate completed_at timestamp
     const completedAt = transactionStatus === 'completed' ? new Date() : null;
 
-    const transactionResult = await client.query(
-      `INSERT INTO transactions (
+    // DEBUG: Log the transaction INSERT
+    const txQuery = `INSERT INTO transactions (
         transaction_number, shift_id, customer_id, quote_id, user_id, salesperson_id,
         subtotal, discount_amount, discount_reason,
         hst_amount, gst_amount, pst_amount, tax_province,
@@ -416,8 +431,8 @@ router.post('/', authenticate, asyncHandler(async (req, res) => {
         is_deposit, deposit_amount, balance_due,
         marketing_source, marketing_source_detail
       ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23)
-      RETURNING transaction_id, transaction_number, created_at`,
-      [
+      RETURNING transaction_id, transaction_number, created_at`;
+    const txParams = [
         transactionNumber,
         shiftId,
         customerId || null,
@@ -441,9 +456,14 @@ router.post('/', authenticate, asyncHandler(async (req, res) => {
         balanceDue,
         marketingSource || null,
         marketingSourceDetail || null
-      ]
-    );
+      ];
+    logToFile('========== TRANSACTION INSERT ==========');
+    logToFile('QUERY: ' + txQuery);
+    logToFile('PARAMS: ' + JSON.stringify(txParams, null, 2));
+    logToFile('PARAM TYPES:\n' + txParams.map((p, i) => `  $${i+1}: ${typeof p} = ${JSON.stringify(p)}`).join('\n'));
+    logToFile('=========================================');
 
+    const transactionResult = await client.query(txQuery, txParams);
     const transaction = transactionResult.rows[0];
 
     // Insert transaction items
@@ -530,37 +550,44 @@ router.post('/', authenticate, asyncHandler(async (req, res) => {
 
     // Insert fulfillment record
     if (fulfillment) {
-      const dwellingType = fulfillment.dwellingType || fulfillment.address?.dwellingType || null;
-      const entryPoint = fulfillment.entryPoint || fulfillment.address?.entryPoint || null;
-      const floorNumber = fulfillment.floorNumber || fulfillment.address?.floorNumber || null;
-      const elevatorRequired = fulfillment.elevatorRequired || fulfillment.address?.elevatorRequired || false;
-      const elevatorDate = fulfillment.elevatorDate || fulfillment.address?.elevatorDate || null;
-      const elevatorTime = fulfillment.elevatorTime || fulfillment.address?.elevatorTime || null;
-      const conciergePhone = fulfillment.conciergePhone || fulfillment.address?.conciergePhone || null;
-      const conciergeNotes = fulfillment.conciergeNotes || fulfillment.address?.conciergeNotes || null;
-      const accessSteps = fulfillment.accessSteps ?? fulfillment.address?.accessSteps ?? 0;
-      const accessNarrowStairs = fulfillment.accessNarrowStairs || fulfillment.address?.accessNarrowStairs || false;
-      const accessHeightRestriction = fulfillment.accessHeightRestriction || fulfillment.address?.accessHeightRestriction || null;
-      const accessWidthRestriction = fulfillment.accessWidthRestriction || fulfillment.address?.accessWidthRestriction || null;
-      const accessNotes = fulfillment.accessNotes || fulfillment.address?.accessNotes || null;
-      const parkingType = fulfillment.parkingType || fulfillment.address?.parkingType || null;
-      const parkingDistance = fulfillment.parkingDistance ?? fulfillment.address?.parkingDistance ?? null;
-      const parkingNotes = fulfillment.parkingNotes || fulfillment.address?.parkingNotes || null;
-      const pathwayConfirmed = fulfillment.pathwayConfirmed || fulfillment.address?.pathwayConfirmed || false;
-      const pathwayNotes = fulfillment.pathwayNotes || fulfillment.address?.pathwayNotes || null;
-      const deliveryDate = fulfillment.deliveryDate || fulfillment.address?.deliveryDate || null;
-      const deliveryWindowId = fulfillment.deliveryWindowId ?? fulfillment.address?.deliveryWindowId ?? null;
-      const deliveryWindowStart = fulfillment.deliveryWindowStart || fulfillment.address?.deliveryWindowStart || null;
-      const deliveryWindowEnd = fulfillment.deliveryWindowEnd || fulfillment.address?.deliveryWindowEnd || null;
-      const pickupLocationId = fulfillment.pickupLocationId || null;
-      const pickupDate = fulfillment.pickupDate || null;
-      const pickupTimePreference = fulfillment.pickupTimePreference || null;
-      const pickupPersonName = fulfillment.pickupPersonName || null;
-      const pickupPersonPhone = fulfillment.pickupPersonPhone || null;
-      const pickupVehicleType = fulfillment.pickupVehicleType || null;
-      const pickupVehicleNotes = fulfillment.pickupVehicleNotes || null;
-      await client.query(
-        `INSERT INTO order_fulfillment (
+      // Helper to ensure string or null (prevents boolean/number type issues)
+      const toStringOrNull = (val) => val != null && val !== '' ? String(val) : null;
+      const toIntOrNull = (val) => val != null ? parseInt(val, 10) || null : null;
+      const toBool = (val) => Boolean(val);
+
+      const dwellingType = toStringOrNull(fulfillment.dwellingType || fulfillment.address?.dwellingType);
+      const entryPoint = toStringOrNull(fulfillment.entryPoint || fulfillment.address?.entryPoint);
+      const floorNumber = toStringOrNull(fulfillment.floorNumber ?? fulfillment.address?.floorNumber);
+      const elevatorRequired = toBool(fulfillment.elevatorRequired || fulfillment.address?.elevatorRequired);
+      const elevatorDate = toStringOrNull(fulfillment.elevatorDate || fulfillment.address?.elevatorDate);
+      const elevatorTime = toStringOrNull(fulfillment.elevatorTime || fulfillment.address?.elevatorTime);
+      const conciergePhone = toStringOrNull(fulfillment.conciergePhone || fulfillment.address?.conciergePhone);
+      const conciergeNotes = toStringOrNull(fulfillment.conciergeNotes || fulfillment.address?.conciergeNotes);
+      const accessSteps = toIntOrNull(fulfillment.accessSteps ?? fulfillment.address?.accessSteps) || 0;
+      const accessNarrowStairs = toBool(fulfillment.accessNarrowStairs || fulfillment.address?.accessNarrowStairs);
+      const accessHeightRestriction = toIntOrNull(fulfillment.accessHeightRestriction || fulfillment.address?.accessHeightRestriction);
+      const accessWidthRestriction = toIntOrNull(fulfillment.accessWidthRestriction || fulfillment.address?.accessWidthRestriction);
+      const accessNotes = toStringOrNull(fulfillment.accessNotes || fulfillment.address?.accessNotes);
+      const parkingType = toStringOrNull(fulfillment.parkingType || fulfillment.address?.parkingType);
+      const parkingDistance = toIntOrNull(fulfillment.parkingDistance ?? fulfillment.address?.parkingDistance);
+      const parkingNotes = toStringOrNull(fulfillment.parkingNotes || fulfillment.address?.parkingNotes);
+      const pathwayConfirmed = toBool(fulfillment.pathwayConfirmed || fulfillment.address?.pathwayConfirmed);
+      const pathwayNotes = toStringOrNull(fulfillment.pathwayNotes || fulfillment.address?.pathwayNotes);
+      const deliveryDate = toStringOrNull(fulfillment.deliveryDate || fulfillment.address?.deliveryDate);
+      const deliveryWindowId = toIntOrNull(fulfillment.deliveryWindowId ?? fulfillment.address?.deliveryWindowId);
+      const deliveryWindowStart = toStringOrNull(fulfillment.deliveryWindowStart || fulfillment.address?.deliveryWindowStart);
+      const deliveryWindowEnd = toStringOrNull(fulfillment.deliveryWindowEnd || fulfillment.address?.deliveryWindowEnd);
+      const pickupLocationId = toIntOrNull(fulfillment.pickupLocationId);
+      const pickupDate = toStringOrNull(fulfillment.pickupDate);
+      const pickupTimePreference = toStringOrNull(fulfillment.pickupTimePreference);
+      const pickupPersonName = toStringOrNull(fulfillment.pickupPersonName);
+      const pickupPersonPhone = toStringOrNull(fulfillment.pickupPersonPhone);
+      const pickupVehicleType = toStringOrNull(fulfillment.pickupVehicleType);
+      const pickupVehicleNotes = toStringOrNull(fulfillment.pickupVehicleNotes);
+
+      // DEBUG: Log the fulfillment INSERT
+      // Use explicit type casts for nullable parameters to avoid PostgreSQL type inference issues
+      const fulfillmentQuery = `INSERT INTO order_fulfillment (
           transaction_id, fulfillment_type, delivery_zone_id,
           scheduled_date, scheduled_time_start, scheduled_time_end,
           delivery_address, delivery_fee, dwelling_type, entry_point, floor_number,
@@ -573,8 +600,21 @@ router.post('/', authenticate, asyncHandler(async (req, res) => {
           pickup_location_id, pickup_date, pickup_time_preference,
           pickup_person_name, pickup_person_phone, pickup_vehicle_type, pickup_vehicle_notes,
           customer_notes, created_by
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, $28, $29, $30, $31, $32, $33, $34, $35, $36, $37, $38, $39)`,
-        [
+        ) VALUES (
+          $1, $2::fulfillment_option_type, $3,
+          $4::date, $5::time, $6::time,
+          $7::jsonb, $8, $9::dwelling_type, $10::varchar, $11::varchar,
+          $12::boolean, $13::date, $14::time,
+          $15::varchar, $16::text,
+          $17::integer, $18::boolean, $19::integer, $20::integer, $21::text,
+          $22::varchar, $23::integer, $24::text,
+          $25::boolean, $26::text,
+          $27::date, $28::time, $29::time, $30::integer,
+          $31::integer, $32::date, $33::varchar,
+          $34::varchar, $35::varchar, $36::varchar, $37::text,
+          $38::text, $39::integer
+        )`;
+      const fulfillmentParams = [
           transaction.transaction_id,
           fulfillment.type,
           fulfillment.zoneId || null,
@@ -614,8 +654,14 @@ router.post('/', authenticate, asyncHandler(async (req, res) => {
           pickupVehicleNotes,
           fulfillment.notes || null,
           req.user.id,
-        ]
-      );
+        ];
+      logToFile('========== FULFILLMENT INSERT ==========');
+      logToFile('QUERY: ' + fulfillmentQuery);
+      logToFile('PARAMS: ' + JSON.stringify(fulfillmentParams, null, 2));
+      logToFile('PARAM TYPES:\n' + fulfillmentParams.map((p, i) => `  $${i+1}: ${typeof p} = ${JSON.stringify(p)}`).join('\n'));
+      logToFile('=========================================');
+
+      await client.query(fulfillmentQuery, fulfillmentParams);
     }
 
     // Process trade-ins if present
@@ -728,7 +774,15 @@ router.post('/', authenticate, asyncHandler(async (req, res) => {
 
   } catch (err) {
     await client.query('ROLLBACK');
-    console.error('[Transaction] CREATE ERROR:', err.message, err.stack);
+    logToFile('========== TRANSACTION ERROR ==========');
+    logToFile('ERROR MESSAGE: ' + err.message);
+    logToFile('ERROR CODE: ' + err.code);
+    logToFile('ERROR DETAIL: ' + err.detail);
+    logToFile('ERROR HINT: ' + err.hint);
+    logToFile('ERROR POSITION: ' + err.position);
+    logToFile('FULL ERROR: ' + JSON.stringify(err, Object.getOwnPropertyNames(err), 2));
+    logToFile('========================================');
+    console.error('[Transaction] CREATE ERROR:', err.message);
     throw err;
   } finally {
     client.release();

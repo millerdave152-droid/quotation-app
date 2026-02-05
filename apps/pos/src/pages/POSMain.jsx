@@ -37,6 +37,7 @@ import { QuoteLookup } from '../components/Quotes/QuoteLookup';
 import { QuoteConversionBanner } from '../components/Quotes/QuoteConversionBanner';
 import { CheckoutModal } from '../components/Checkout/CheckoutModal';
 import { ShiftSummaryCompact, ShiftSummaryPanel } from '../components/Register/ShiftSummary';
+import ShiftCommissionSummary from '../components/Commission/ShiftCommissionSummary';
 
 // Utils
 import { formatCurrency } from '../utils/formatters';
@@ -51,7 +52,7 @@ const KEYBOARD_SHORTCUTS = {
   F5: 'quote',        // Quote lookup
   F7: 'hold',         // Hold transaction
   F8: 'priceCheck',   // Price check
-  F12: 'checkout',    // Checkout
+  F9: 'checkout',     // Checkout (changed from F12 to allow DevTools)
   Escape: 'cancel',   // Cancel/close modals
 };
 
@@ -144,6 +145,7 @@ function Header({
   const { user, logout } = useAuth();
   const { currentShift, shiftSummary, hasActiveShift } = useRegister();
   const [showUserMenu, setShowUserMenu] = useState(false);
+  const [showCommissionSummary, setShowCommissionSummary] = useState(false);
 
   const userName = user?.name || user?.username || 'Staff';
   const registerName = currentShift?.registerName || currentShift?.register_name || 'Register';
@@ -261,7 +263,7 @@ function Header({
                   type="button"
                   onClick={() => {
                     setShowUserMenu(false);
-                    logout();
+                    setShowCommissionSummary(true);
                   }}
                   className="w-full flex items-center gap-3 px-4 py-3 text-left text-red-600 hover:bg-red-50 transition-colors"
                 >
@@ -273,6 +275,14 @@ function Header({
           )}
         </div>
       </div>
+
+      <ShiftCommissionSummary
+        isOpen={showCommissionSummary}
+        onClose={() => {
+          setShowCommissionSummary(false);
+          logout();
+        }}
+      />
     </header>
   );
 }
@@ -470,7 +480,7 @@ export function POSMain() {
           e.preventDefault();
           setShowPriceCheck(true);
           break;
-        case 'F12':
+        case 'F9':
           e.preventDefault();
           if (!cart.isEmpty && hasActiveShift) {
             setShowCheckout(true);
