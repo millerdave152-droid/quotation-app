@@ -133,6 +133,17 @@ class APICache {
         clearTimeout(timeoutId);
 
         if (!response.ok) {
+          if (response.status === 401 && typeof window !== 'undefined') {
+            try {
+              const token = localStorage.getItem('auth_token');
+              if (token) {
+                window.__authExpired = true;
+                window.dispatchEvent(new CustomEvent('auth:expired', { detail: { url: fullUrl } }));
+              }
+            } catch (e) {
+              // Ignore event dispatch errors
+            }
+          }
           // Try to parse error body for detailed message
           let errorMessage = `HTTP ${response.status}: ${response.statusText}`;
           try {

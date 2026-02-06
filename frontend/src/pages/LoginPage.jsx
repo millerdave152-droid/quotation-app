@@ -79,6 +79,7 @@ const LoginPage = () => {
   const { login } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
+  const sessionExpired = location.state?.reason === 'expired';
 
   // Get the page user was trying to access, default to /quotes
   const from = location.state?.from?.pathname || '/quotes';
@@ -508,6 +509,14 @@ const LoginPage = () => {
               <h2 style={styles.welcomeText}>Welcome back</h2>
               <p style={styles.subtitleText}>Sign in to your account to continue</p>
             </div>
+
+            {/* Session Expired Message */}
+            {sessionExpired && (
+              <div style={{ ...styles.errorBox, background: '#fef2f2', color: '#b91c1c', borderColor: '#fecaca' }}>
+                <span style={{ fontSize: '18px' }}>⚠</span>
+                Your session expired. Please log in again.
+              </div>
+            )}
 
             {/* Error Message */}
             {error && (

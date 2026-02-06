@@ -98,6 +98,9 @@ export const AuthProvider = ({ children }) => {
 
       setToken(accessToken);
       setUser(userData);
+      if (typeof window !== 'undefined') {
+        window.__authExpired = false;
+      }
 
       localStorage.setItem('auth_token', accessToken);
       localStorage.setItem('auth_user', JSON.stringify(userData));
@@ -118,6 +121,9 @@ export const AuthProvider = ({ children }) => {
     localStorage.removeItem('auth_token');
     localStorage.removeItem('auth_user');
     localStorage.removeItem('auth_refresh_token');
+    if (typeof window !== 'undefined') {
+      window.__authExpired = false;
+    }
   };
 
   const updateUser = (updatedUser) => {

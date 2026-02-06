@@ -165,7 +165,10 @@ export const handleApiError = (error, options = {}) => {
   }
 
   // Show toast unless silent mode
-  if (showToast && !silent) {
+  const authExpired = typeof window !== 'undefined' && window.__authExpired;
+  const suppressAuthToast = extracted.type === ERROR_TYPES.AUTH && authExpired;
+
+  if (showToast && !silent && !suppressAuthToast) {
     const title = getErrorTitle(extracted.type, context);
     toast.error(extracted.message, title);
   }

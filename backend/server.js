@@ -1209,7 +1209,7 @@ app.get('/api/cities', (req, res) => {
 // ============================================
 // DASHBOARD STATISTICS ENDPOINT
 // ============================================
-app.get('/api/dashboard/stats', async (req, res) => {
+app.get('/api/dashboard/stats', authenticate, async (req, res) => {
   try {
     // Quote Statistics
     const quoteStats = await pool.query(`

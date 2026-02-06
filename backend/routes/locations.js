@@ -25,8 +25,8 @@ router.get('/', authenticate, asyncHandler(async (req, res) => {
   const filters = {};
 
   if (req.query.type) {
-    if (!['store', 'warehouse', 'both'].includes(req.query.type)) {
-      throw ApiError.badRequest('type must be store, warehouse, or both');
+    if (!['store', 'warehouse', 'both', 'pickup'].includes(req.query.type)) {
+      throw ApiError.badRequest('type must be store, warehouse, both, or pickup');
     }
     filters.type = req.query.type;
   }

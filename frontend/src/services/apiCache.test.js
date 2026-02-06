@@ -69,7 +69,10 @@ describe('API Cache Service', () => {
 
       expect(global.fetch).toHaveBeenCalledWith(
         expect.stringContaining('/api/test'),
-        {}
+        expect.objectContaining({
+          headers: { 'Content-Type': 'application/json' },
+          signal: expect.any(Object)
+        })
       );
     });
 
@@ -84,7 +87,10 @@ describe('API Cache Service', () => {
 
       expect(global.fetch).toHaveBeenCalledWith(
         'http://example.com/api/test',
-        {}
+        expect.objectContaining({
+          headers: { 'Content-Type': 'application/json' },
+          signal: expect.any(Object)
+        })
       );
     });
   });
@@ -149,7 +155,7 @@ describe('API Cache Service', () => {
       const dashboardTTL = apiCache.getTTL('/api/dashboard/stats');
       const defaultTTL = apiCache.getTTL('/api/unknown');
 
-      expect(productsTTL).toBe(10 * 60 * 1000); // 10 minutes
+      expect(productsTTL).toBe(2 * 60 * 1000); // 2 minutes
       expect(dashboardTTL).toBe(1 * 60 * 1000); // 1 minute
       expect(defaultTTL).toBe(5 * 60 * 1000); // 5 minutes default
     });

@@ -96,7 +96,7 @@ class InsightsEngine {
         EXTRACT(DAY FROM (CURRENT_TIMESTAMP - COALESCE(q.sent_at, q.created_at))) as days_since_sent
       FROM quotations q
       JOIN customers c ON q.customer_id = c.id
-      LEFT JOIN users u ON q.created_by = u.id
+      LEFT JOIN users u ON q.created_by = u.id::text
       WHERE q.status IN ('sent', 'pending')
         AND COALESCE(q.sent_at, q.created_at) < CURRENT_TIMESTAMP - INTERVAL '5 days'
         AND (q.expiry_date IS NULL OR q.expiry_date > CURRENT_DATE)

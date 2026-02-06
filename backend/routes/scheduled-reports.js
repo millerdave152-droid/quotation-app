@@ -542,7 +542,7 @@ function init({ pool }) {
           `SELECT sr.*,
                   u.first_name || ' ' || u.last_name AS created_by_name
            FROM scheduled_reports sr
-           LEFT JOIN users u ON sr.created_by = u.id
+           LEFT JOIN users u ON sr.created_by = u.id::text
            WHERE sr.name IS NOT NULL
            ORDER BY sr.created_at DESC`
         );
@@ -566,7 +566,7 @@ function init({ pool }) {
         const result = await pool.query(
           `SELECT sr.*, u.first_name || ' ' || u.last_name AS created_by_name
            FROM scheduled_reports sr
-           LEFT JOIN users u ON sr.created_by = u.id
+           LEFT JOIN users u ON sr.created_by = u.id::text
            WHERE sr.id = $1`, [id]
         );
         if (result.rows.length === 0) {

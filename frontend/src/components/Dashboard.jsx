@@ -15,12 +15,11 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { AtRiskCustomers } from './customers';
 import { AIInsightsWidget, SmartQuickActions, UnifiedTimeline } from './dashboard/index';
+import { cachedFetch } from '../services/apiCache';
 import {
   AreaChart, Area, BarChart, Bar, LineChart, Line, PieChart, Pie, Cell,
   XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend
 } from 'recharts';
-
-const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:3001';
 
 // Chart color palette
 const CHART_COLORS = {
@@ -333,45 +332,48 @@ const Dashboard = ({ onNavigate, onViewQuote, onBack }) => {
     setLoading(true);
     setError(null);
     try {
-      const [statsRes, activitiesRes, quotesRes] = await Promise.all([
-        fetch(`${API_URL}/api/quotations/stats/dashboard`),
-        fetch(`${API_URL}/api/activities/recent?limit=30`),
-        fetch(`${API_URL}/api/quotations?limit=10&sortBy=created_at&sortOrder=DESC`)
+      const [statsRes, activitiesRes, quotesRes] = await Promise.allSettled([
+        cachedFetch('/api/quotations/stats/dashboard'),
+        cachedFetch('/api/activities/recent?limit=30'),
+        cachedFetch('/api/quotations?limit=10&sortBy=created_at&sortOrder=DESC')
       ]);
 
-      // Handle stats response (standardized API response format)
-      if (statsRes.ok) {
-        const statsData = await statsRes.json();
-        // Handle both direct data and wrapped { success, data } format
-        if (statsData.success && statsData.data) {
+      if (statsRes.status === 'fulfilled') {
+        const statsData = statsRes.value;
+        if (statsData?.success && statsData?.data) {
           setStats(statsData.data);
-        } else if (statsData.success === undefined) {
-          // Legacy format - direct data
+        } else if (statsData?.success === undefined) {
           setStats(statsData);
         } else {
-          console.error('Dashboard stats API error:', statsData.error);
-          setError(`Failed to load dashboard metrics: ${statsData.error?.message || 'Unknown error'}`);
+          console.error('Dashboard stats API error:', statsData?.error);
+          setError(`Failed to load dashboard metrics: ${statsData?.error?.message || 'Unknown error'}`);
         }
       } else {
-        const errorData = await statsRes.json().catch(() => ({}));
-        console.error('Dashboard stats API error:', statsRes.status, errorData);
-        setError(`Failed to load dashboard metrics: ${errorData?.error?.message || statsRes.statusText}`);
+        console.error('Dashboard stats API error:', statsRes.reason);
+        const reason = statsRes.reason;
+        const isUnauthorized = reason?.status === 401 || /unauthorized/i.test(reason?.message || '');
+        const authExpired = typeof window !== 'undefined' && window.__authExpired;
+        if (!isUnauthorized || !authExpired) {
+          setError(
+            isUnauthorized
+              ? 'Failed to load dashboard metrics: Unauthorized. Please log in again.'
+              : `Failed to load dashboard metrics: ${reason?.message || 'Unknown error'}`
+          );
+        }
       }
 
-      // Handle activities response
-      if (activitiesRes.ok) {
-        const activitiesData = await activitiesRes.json();
-        setRecentActivities(activitiesData.activities || []);
+      if (activitiesRes.status === 'fulfilled') {
+        const activitiesData = activitiesRes.value;
+        setRecentActivities(activitiesData?.activities || activitiesData?.data?.activities || []);
       } else {
-        console.error('Activities API error:', activitiesRes.status);
+        console.error('Activities API error:', activitiesRes.reason);
       }
 
-      // Handle quotes response
-      if (quotesRes.ok) {
-        const quotesData = await quotesRes.json();
-        setRecentQuotes(quotesData.quotations || []);
+      if (quotesRes.status === 'fulfilled') {
+        const quotesData = quotesRes.value;
+        setRecentQuotes(quotesData?.quotations || quotesData?.data?.quotations || []);
       } else {
-        console.error('Quotes API error:', quotesRes.status);
+        console.error('Quotes API error:', quotesRes.reason);
       }
 
       setLastRefresh(new Date());

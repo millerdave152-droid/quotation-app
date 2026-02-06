@@ -34,9 +34,8 @@ router.get('/', authenticate, requireRole('admin'), async (req, res) => {
   try {
     const result = await pool.query(`
       SELECT
-        id, key_name, api_key, created_by, permissions,
-        is_active, last_used_at, expires_at, created_at,
-        rate_limit_per_hour, allowed_ips, notes
+        id, key_name, api_key, permissions,
+        is_active, last_used_at, expires_at, created_at
       FROM api_keys
       ORDER BY created_at DESC
     `);
@@ -64,11 +63,7 @@ router.post('/', authenticate, requireRole('admin'), async (req, res) => {
     const {
       key_name,
       permissions = { read: true, write: false, delete: false },
-      expires_at,
-      rate_limit_per_hour = 1000,
-      allowed_ips,
-      notes,
-      created_by
+      expires_at
     } = req.body;
 
     if (!key_name || !key_name.trim()) {
@@ -78,36 +73,27 @@ router.post('/', authenticate, requireRole('admin'), async (req, res) => {
       });
     }
 
-    // Generate API key and secret
-    const { apiKey, apiSecret } = generateApiKey();
-    const hashedSecret = hashSecret(apiSecret);
+    // Generate API key
+    const { apiKey } = generateApiKey();
 
     const result = await pool.query(`
       INSERT INTO api_keys (
-        key_name, api_key, api_secret, created_by, permissions,
-        expires_at, rate_limit_per_hour, allowed_ips, notes
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
-      RETURNING id, key_name, api_key, created_by, permissions,
-                is_active, expires_at, created_at, rate_limit_per_hour,
-                allowed_ips, notes
+        key_name, api_key, user_id, permissions, expires_at
+      ) VALUES ($1, $2, $3, $4, $5)
+      RETURNING id, key_name, api_key, permissions,
+                is_active, expires_at, created_at
     `, [
       key_name.trim(),
       apiKey,
-      hashedSecret,
-      created_by || 'system',
+      req.user?.id || null,
       JSON.stringify(permissions),
-      expires_at || null,
-      rate_limit_per_hour,
-      allowed_ips || null,
-      notes || null
+      expires_at || null
     ]);
 
-    // Return the secret ONLY on creation (it won't be shown again)
     res.status(201).json({
       success: true,
       apiKey: result.rows[0],
-      apiSecret: apiSecret, // ⚠️ IMPORTANT: Save this secret, it won't be shown again!
-      message: 'API key created successfully. Save the secret now - it will not be shown again!'
+      message: 'API key created successfully.'
     });
   } catch (error) {
     console.error('Error creating API key:', error);
@@ -139,10 +125,7 @@ router.put('/:id', authenticate, requireRole('admin'), async (req, res) => {
       key_name,
       permissions,
       is_active,
-      expires_at,
-      rate_limit_per_hour,
-      allowed_ips,
-      notes
+      expires_at
     } = req.body;
 
     const result = await pool.query(`
@@ -151,23 +134,15 @@ router.put('/:id', authenticate, requireRole('admin'), async (req, res) => {
         key_name = COALESCE($1, key_name),
         permissions = COALESCE($2, permissions),
         is_active = COALESCE($3, is_active),
-        expires_at = COALESCE($4, expires_at),
-        rate_limit_per_hour = COALESCE($5, rate_limit_per_hour),
-        allowed_ips = COALESCE($6, allowed_ips),
-        notes = COALESCE($7, notes),
-        updated_at = CURRENT_TIMESTAMP
-      WHERE id = $8
-      RETURNING id, key_name, api_key, created_by, permissions,
-                is_active, expires_at, created_at, updated_at,
-                rate_limit_per_hour, allowed_ips, notes
+        expires_at = COALESCE($4, expires_at)
+      WHERE id = $5
+      RETURNING id, key_name, api_key, permissions,
+                is_active, expires_at, created_at
     `, [
       key_name,
       permissions ? JSON.stringify(permissions) : null,
       is_active,
       expires_at,
-      rate_limit_per_hour,
-      allowed_ips,
-      notes,
       apiKeyId
     ]);
 
@@ -253,16 +228,15 @@ router.post('/:id/regenerate', authenticate, requireRole('admin'), async (req, r
       });
     }
 
-    // Generate new secret
-    const { apiSecret } = generateApiKey();
-    const hashedSecret = hashSecret(apiSecret);
+    // Generate new API key value
+    const { apiKey: newApiKey } = generateApiKey();
 
     const result = await pool.query(`
       UPDATE api_keys
-      SET api_secret = $1, updated_at = CURRENT_TIMESTAMP
+      SET api_key = $1
       WHERE id = $2
       RETURNING id, key_name, api_key
-    `, [hashedSecret, apiKeyId]);
+    `, [newApiKey, apiKeyId]);
 
     if (result.rows.length === 0) {
       return res.status(404).json({
@@ -274,8 +248,7 @@ router.post('/:id/regenerate', authenticate, requireRole('admin'), async (req, r
     res.json({
       success: true,
       apiKey: result.rows[0],
-      apiSecret: apiSecret, // ⚠️ Save this secret now!
-      message: 'Secret regenerated successfully. Save it now - it will not be shown again!'
+      message: 'API key regenerated successfully.'
     });
   } catch (error) {
     console.error('Error regenerating API secret:', error);

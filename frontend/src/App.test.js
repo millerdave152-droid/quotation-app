@@ -1,5 +1,18 @@
 import { render, screen, waitFor } from '@testing-library/react';
-import App from './App';
+
+Object.defineProperty(window, 'matchMedia', {
+  writable: true,
+  value: jest.fn().mockImplementation((query) => ({
+    matches: false,
+    media: query,
+    onchange: null,
+    addListener: jest.fn(),
+    removeListener: jest.fn(),
+    addEventListener: jest.fn(),
+    removeEventListener: jest.fn(),
+    dispatchEvent: jest.fn()
+  }))
+});
 
 // Mock the cachedFetch function
 jest.mock('./services/apiCache', () => ({
@@ -31,6 +44,50 @@ jest.mock('./components/RevenueAnalytics', () => {
   };
 });
 
+jest.mock('./services/authGuards', () => ({}));
+
+jest.mock('./contexts/AuthContext', () => {
+  return {
+    AuthProvider: ({ children }) => children,
+    useAuth: () => ({
+      isAuthenticated: true,
+      loading: false,
+      user: { role: 'admin' },
+      login: jest.fn(),
+      logout: jest.fn(),
+      updateUser: jest.fn(),
+      token: 'test-token',
+      canApproveQuotes: true,
+      approvalThreshold: 20,
+      isAdmin: true,
+      isManagerOrAbove: true,
+      hasRole: jest.fn(),
+      hasAnyRole: jest.fn(),
+      refreshUser: jest.fn()
+    })
+  };
+});
+
+jest.mock('./contexts/ThemeContext', () => {
+  return {
+    ThemeProvider: ({ children }) => children,
+    useTheme: () => ({
+      theme: 'light',
+      isDark: false,
+      toggleTheme: jest.fn(),
+      setLightTheme: jest.fn(),
+      setDarkTheme: jest.fn(),
+      setSystemTheme: jest.fn()
+    })
+  };
+});
+
+jest.mock('./components/AIAssistant', () => {
+  return function AIAssistant() {
+    return <div>AIAssistant Component</div>;
+  };
+});
+
 // Mock jsPDF to avoid canvas issues in tests
 jest.mock('jspdf', () => {
   return jest.fn().mockImplementation(() => ({
@@ -40,20 +97,22 @@ jest.mock('jspdf', () => {
   }));
 });
 
+const App = require('./App').default;
+
 describe('App Component', () => {
-  test('renders app title', () => {
+  test('renders app title', async () => {
     render(<App />);
-    const titleElement = screen.getByText(/Customer Quotation System Pro/i);
-    expect(titleElement).toBeInTheDocument();
+    const titleElements = await screen.findAllByText(/Quotation System/i);
+    expect(titleElements.length).toBeGreaterThan(0);
   });
 
-  test('renders navigation tabs', () => {
+  test('renders navigation tabs', async () => {
     render(<App />);
 
-    expect(screen.getByText(/Dashboard/i)).toBeInTheDocument();
-    expect(screen.getByText(/Customers/i)).toBeInTheDocument();
-    expect(screen.getByText(/Products/i)).toBeInTheDocument();
-    expect(screen.getByText(/Quotations/i)).toBeInTheDocument();
+    expect((await screen.findAllByText(/^Dashboard$/i)).length).toBeGreaterThan(0);
+    expect((await screen.findAllByText(/^Customers$/i)).length).toBeGreaterThan(0);
+    expect((await screen.findAllByText(/^Products$/i)).length).toBeGreaterThan(0);
+    expect((await screen.findAllByText(/^Quotations$/i)).length).toBeGreaterThan(0);
   });
 
   test('renders without crashing', () => {

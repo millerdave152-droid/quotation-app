@@ -679,7 +679,7 @@ class WarrantyService {
         p.category_id,
         c.name as category_name,
         c.slug as category_slug,
-        p.manufacturer_warranty_months
+        0 AS manufacturer_warranty_months
       FROM products p
       LEFT JOIN categories c ON c.id = p.category_id
       WHERE p.id = $1

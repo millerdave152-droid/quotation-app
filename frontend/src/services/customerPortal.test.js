@@ -129,8 +129,9 @@ describe('Customer Portal Service', () => {
     test('should check if quote is actionable', () => {
       const isActionable = (quote) => quote.status === 'pending' && new Date(quote.expires_at) > new Date();
 
-      expect(isActionable({ status: 'pending', expires_at: '2025-12-31' })).toBe(true);
-      expect(isActionable({ status: 'accepted', expires_at: '2025-12-31' })).toBe(false);
+      const futureDate = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
+      expect(isActionable({ status: 'pending', expires_at: futureDate })).toBe(true);
+      expect(isActionable({ status: 'accepted', expires_at: futureDate })).toBe(false);
     });
   });
 

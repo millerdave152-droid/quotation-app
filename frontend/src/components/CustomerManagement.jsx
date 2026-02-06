@@ -266,6 +266,7 @@ function CustomerManagement() {
   // Anti-flickering refs
   const isMounted = useRef(true);
   const loadedOnce = useRef(false);
+  const fetchErrorShownRef = useRef(false);
 
   // UI Hooks - Toast notifications and Confirm Dialog
   const toast = useToast();
@@ -306,7 +307,9 @@ function CustomerManagement() {
   const fetchStats = async () => {
     try {
       const data = await cachedFetch('/api/customers/stats/overview');
-      setStats(data);
+      if (isMounted.current) {
+        setStats(data);
+      }
     } catch (error) {
       logger.error('Error fetching stats:', error);
     }
@@ -326,15 +329,31 @@ function CustomerManagement() {
       });
 
       const data = await cachedFetch(`/api/customers?${params}`);
+      if (!isMounted.current) return;
 
       setCustomers(data.customers || []);
       setTotalCount(data?.pagination?.total || 0);
       setTotalPages(data?.pagination?.totalPages || 0);
+      fetchErrorShownRef.current = false;
     } catch (error) {
       logger.error('Error fetching customers:', error);
-      showNotification('Failed to fetch customers', 'error');
+      if (!fetchErrorShownRef.current) {
+        const isUnauthorized = error?.status === 401 || /unauthorized/i.test(error?.message || '');
+        const authExpired = typeof window !== 'undefined' && window.__authExpired;
+        if (!isUnauthorized || !authExpired) {
+          showNotification(
+            isUnauthorized
+              ? 'Failed to fetch customers: Unauthorized. Please log in again.'
+              : 'Failed to fetch customers',
+            'error'
+          );
+        }
+        fetchErrorShownRef.current = true;
+      }
     } finally {
-      setLoading(false);
+      if (isMounted.current) {
+        setLoading(false);
+      }
     }
   };
 

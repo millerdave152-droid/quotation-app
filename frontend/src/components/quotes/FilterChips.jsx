@@ -8,6 +8,17 @@ import React, { useState, useEffect, useCallback } from 'react';
 
 const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:3001';
 
+const getAuthHeaders = () => {
+  const token = localStorage.getItem('auth_token');
+  if (!token) {
+    return { 'Content-Type': 'application/json' };
+  }
+  return {
+    'Content-Type': 'application/json',
+    'Authorization': `Bearer ${token}`
+  };
+};
+
 // Filter chip definitions
 const FILTER_CHIPS = [
   { id: 'all', label: 'All', countKey: 'all', color: '#6b7280' },
@@ -44,7 +55,9 @@ const FilterChips = ({
   // Fetch filter counts from API
   const fetchFilterCounts = useCallback(async () => {
     try {
-      const response = await fetch(`${API_URL}/api/quotations/stats/filter-counts`);
+      const response = await fetch(`${API_URL}/api/quotations/stats/filter-counts`, {
+        headers: getAuthHeaders()
+      });
       if (response.ok) {
         const data = await response.json();
         setFilterCounts(data.filterCounts || {});

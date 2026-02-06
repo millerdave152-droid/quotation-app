@@ -14,6 +14,17 @@ import React, { useState, useEffect } from 'react';
 
 const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:3001';
 
+const getAuthHeaders = () => {
+  const token = localStorage.getItem('auth_token');
+  if (!token) {
+    return { 'Content-Type': 'application/json' };
+  }
+  return {
+    'Content-Type': 'application/json',
+    'Authorization': `Bearer ${token}`
+  };
+};
+
 // Email templates for bulk email
 const EMAIL_TEMPLATES = [
   {
@@ -86,7 +97,9 @@ const BulkActionToolbar = ({
   useEffect(() => {
     const fetchSalespeople = async () => {
       try {
-        const res = await fetch(`${API_URL}/api/quotations/salespeople`);
+        const res = await fetch(`${API_URL}/api/quotations/salespeople`, {
+          headers: getAuthHeaders()
+        });
         if (res.ok) {
           const data = await res.json();
           setSalespeople(data);
@@ -113,7 +126,7 @@ const BulkActionToolbar = ({
     try {
       const res = await fetch(`${API_URL}/api/quotations/bulk/status`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: getAuthHeaders(),
         body: JSON.stringify({ quoteIds: selectedIds, status })
       });
 
@@ -152,7 +165,7 @@ const BulkActionToolbar = ({
     try {
       const res = await fetch(`${API_URL}/api/quotations/bulk/extend-expiry`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: getAuthHeaders(),
         body: JSON.stringify({ quoteIds: selectedIds, days })
       });
 
@@ -191,7 +204,7 @@ const BulkActionToolbar = ({
     try {
       const res = await fetch(`${API_URL}/api/quotations/bulk/assign`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: getAuthHeaders(),
         body: JSON.stringify({ quoteIds: selectedIds, salesRepId, salesRepName })
       });
 
@@ -230,7 +243,7 @@ const BulkActionToolbar = ({
     try {
       const res = await fetch(`${API_URL}/api/quotations/bulk/export`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: getAuthHeaders(),
         body: JSON.stringify({ quoteIds: selectedIds })
       });
 
@@ -276,7 +289,7 @@ const BulkActionToolbar = ({
     try {
       const res = await fetch(`${API_URL}/api/quotations/bulk`, {
         method: 'DELETE',
-        headers: { 'Content-Type': 'application/json' },
+        headers: getAuthHeaders(),
         body: JSON.stringify({ quoteIds: selectedIds })
       });
 
@@ -372,7 +385,7 @@ const BulkActionToolbar = ({
     try {
       const res = await fetch(`${API_URL}/api/quotations/bulk/email`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: getAuthHeaders(),
         body: JSON.stringify({
           quoteIds: selectedIds,
           subject: emailSubject,

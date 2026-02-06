@@ -14,6 +14,7 @@ import ProtectedRoute from './components/auth/ProtectedRoute';
 import CommandPalette from './components/ui/CommandPalette';
 import GlobalSearch from './components/ui/GlobalSearch';
 import AIAssistant from './components/AIAssistant';
+import './services/authGuards';
 
 // Utility CSS classes for replacing inline styles
 import './styles/utilities.css';

@@ -922,7 +922,7 @@ const QuoteBuilder = ({
         </div>
 
         {/* Product Tabs */}
-        <div style={{ display: 'flex', gap: '8px', marginBottom: '16px', borderBottom: '2px solid #e5e7eb' }}>
+        <div style={{ display: 'flex', gap: '8px', marginBottom: '16px', borderBottom: '2px solid #e5e7eb', overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
           {['search', 'favorites', 'recent'].map(tab => (
             <button
               key={tab}
@@ -936,7 +936,9 @@ const QuoteBuilder = ({
                 fontSize: '14px',
                 fontWeight: 'bold',
                 cursor: 'pointer',
-                marginBottom: '-2px'
+                marginBottom: '-2px',
+                whiteSpace: 'nowrap',
+                flexShrink: 0
               }}
             >
               {tab === 'search' && 'Search'}

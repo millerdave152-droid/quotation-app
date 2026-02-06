@@ -22,23 +22,23 @@ class LocationService {
     let paramIndex = 1;
 
     if (filters.type) {
-      conditions.push(`(location_type = $${paramIndex} OR type = $${paramIndex})`);
-      values.push(filters.type);
-      paramIndex++;
+      if (filters.type === 'pickup') {
+        conditions.push(`is_pickup_location = true`);
+      } else {
+        conditions.push(`type = $${paramIndex}`);
+        values.push(filters.type);
+        paramIndex++;
+      }
     }
     if (filters.pickupEnabled !== undefined) {
       conditions.push(`is_pickup_location = $${paramIndex++}`);
       values.push(filters.pickupEnabled);
     }
-    if (filters.deliveryOrigin !== undefined) {
-      conditions.push(`is_delivery_origin = $${paramIndex++}`);
-      values.push(filters.deliveryOrigin);
-    }
     if (filters.active !== undefined) {
-      conditions.push(`active = $${paramIndex++}`);
+      conditions.push(`is_active = $${paramIndex++}`);
       values.push(filters.active);
     } else {
-      conditions.push('active = true');
+      conditions.push(`is_active = true`);
     }
 
     const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
@@ -188,26 +188,24 @@ class LocationService {
   }
 
   _mapRow(row) {
-    let businessHours = row.business_hours;
-    // Handle legacy pickup_hours (plain text JSON)
-    if (!businessHours && row.pickup_hours) {
-      try { businessHours = JSON.parse(row.pickup_hours); } catch {}
-    }
+    // pickup_hours is jsonb, already parsed by pg driver
+    let businessHours = row.pickup_hours || null;
 
     return {
       id: row.id,
       name: row.name,
-      locationType: row.location_type || row.type || 'store',
+      locationType: row.type || 'store',
       streetAddress: row.address,
       city: row.city,
       province: row.province,
       postalCode: row.postal_code,
       phone: row.phone,
-      email: row.email,
       isPickupEnabled: row.is_pickup_location,
-      isDeliveryOrigin: row.is_delivery_origin || false,
       businessHours,
-      isActive: row.active,
+      isActive: row.is_active,
+      code: row.code,
+      latitude: row.latitude,
+      longitude: row.longitude,
       createdAt: row.created_at,
       updatedAt: row.updated_at,
     };
