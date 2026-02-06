@@ -297,7 +297,7 @@ export function PriceOverrideModal({
           {/* Mode Toggle */}
           <div className="flex gap-2">
             <button
-              onClick={() => setMode('dollar')}
+              onClick={() => { setMode('dollar'); setInputValue(''); }}
               className={`
                 flex-1 h-10 flex items-center justify-center gap-2
                 text-sm font-medium rounded-lg
@@ -312,7 +312,7 @@ export function PriceOverrideModal({
               $ Amount
             </button>
             <button
-              onClick={() => setMode('percent')}
+              onClick={() => { setMode('percent'); setInputValue(''); }}
               className={`
                 flex-1 h-10 flex items-center justify-center gap-2
                 text-sm font-medium rounded-lg
@@ -362,7 +362,19 @@ export function PriceOverrideModal({
               <input
                 type="number"
                 value={inputValue}
-                onChange={(e) => setInputValue(e.target.value)}
+                onChange={(e) => {
+                  let val = e.target.value;
+                  if (mode === 'percent') {
+                    const num = parseFloat(val);
+                    if (num > 100) val = '100';
+                    if (num < 0) val = '0';
+                  } else {
+                    const num = parseFloat(val);
+                    if (num > originalPrice) val = originalPrice.toFixed(2);
+                    if (num < 0) val = '0';
+                  }
+                  setInputValue(val);
+                }}
                 step={mode === 'dollar' ? '0.01' : '1'}
                 min="0"
                 max={mode === 'percent' ? '100' : originalPrice}

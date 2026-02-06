@@ -138,7 +138,7 @@ export function DiscountInput({
       <div className="flex gap-2 mb-4">
         <button
           type="button"
-          onClick={() => setMode('dollar')}
+          onClick={() => { setMode('dollar'); setInputValue(''); }}
           className={`
             flex-1 h-10 flex items-center justify-center gap-2
             text-sm font-medium rounded-lg
@@ -155,7 +155,7 @@ export function DiscountInput({
         </button>
         <button
           type="button"
-          onClick={() => setMode('percent')}
+          onClick={() => { setMode('percent'); setInputValue(''); }}
           className={`
             flex-1 h-10 flex items-center justify-center gap-2
             text-sm font-medium rounded-lg
@@ -210,7 +210,19 @@ export function DiscountInput({
           <input
             type="number"
             value={inputValue}
-            onChange={(e) => setInputValue(e.target.value)}
+            onChange={(e) => {
+              let val = e.target.value;
+              if (mode === 'percent') {
+                const num = parseFloat(val);
+                if (num > 100) val = '100';
+                if (num < 0) val = '0';
+              } else {
+                const num = parseFloat(val);
+                if (num > subtotal) val = subtotal.toFixed(2);
+                if (num < 0) val = '0';
+              }
+              setInputValue(val);
+            }}
             placeholder={mode === 'dollar' ? '0.00' : '0'}
             step={mode === 'dollar' ? '0.01' : '1'}
             min="0"
@@ -232,6 +244,12 @@ export function DiscountInput({
           <p className="mt-1 text-sm text-gray-500">
             Discount: {formatCurrency(calculatedDiscount)} off {formatCurrency(subtotal)}
           </p>
+        )}
+        {mode === 'percent' && !inputValue && (
+          <p className="mt-1 text-xs text-gray-400">Max: 100%</p>
+        )}
+        {mode === 'dollar' && !inputValue && (
+          <p className="mt-1 text-xs text-gray-400">Max: {formatCurrency(subtotal)}</p>
         )}
       </div>
 
