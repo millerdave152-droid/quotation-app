@@ -4,8 +4,7 @@
  */
 
 import { useState, useCallback, useMemo } from 'react';
-
-const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:3001/api';
+import api from '../api/axios';
 
 /**
  * Default signature requirements (client-side fallback)
@@ -250,13 +249,8 @@ I authorize the scheduled payments from my selected payment method.`,
       for (const [type, data] of Object.entries(capturedSignatures)) {
         const requirement = requiredSignatures.find(r => r.type === type);
 
-        const response = await fetch(`${API_BASE}/signatures`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${localStorage.getItem('pos_token')}`,
-          },
-          body: JSON.stringify({
+        try {
+          const result = await api.post('/signatures', {
             orderId,
             transactionId,
             signatureType: type,
@@ -266,15 +260,15 @@ I authorize the scheduled payments from my selected payment method.`,
             termsVersion: requirement?.termsVersion,
             legalText: requirement?.legalText,
             deviceInfo: data.deviceInfo,
-          }),
-        });
+          });
 
-        const result = await response.json();
-
-        if (response.ok && result.success) {
-          results.push({ type, success: true, id: result.data.id });
-        } else {
-          results.push({ type, success: false, error: result.error });
+          if (result?.success) {
+            results.push({ type, success: true, id: result.data?.id });
+          } else {
+            results.push({ type, success: false, error: result?.error || 'Save failed' });
+          }
+        } catch (err) {
+          results.push({ type, success: false, error: err?.message || 'Save failed' });
         }
       }
 

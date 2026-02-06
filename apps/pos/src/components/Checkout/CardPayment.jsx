@@ -209,28 +209,44 @@ export function CardPayment({
     });
   }, [mode, lastFour, authCode, selectedBrand, paymentType, isPartial, paymentAmount, amountDue, onComplete, paymentIntent]);
 
+  // Dev simulator state
+  const [showSimOptions, setShowSimOptions] = useState(false);
+
   // Simulate card reader (for demo/dev mode)
-  const simulateCardRead = useCallback(async () => {
-    setMode('success');
+  const simulateCardRead = useCallback(async (scenario = 'approved') => {
+    setShowSimOptions(false);
 
-    // If Stripe is configured, try to confirm the payment
-    let stripeData = null;
-    if (paymentIntent?.paymentIntentId) {
-      stripeData = await confirmStripePayment();
+    if (scenario === 'approved') {
+      setMode('success');
+
+      // If Stripe is configured, try to confirm the payment
+      let stripeData = null;
+      if (paymentIntent?.paymentIntentId) {
+        stripeData = await confirmStripePayment();
+      }
+
+      // Auto-complete after showing success
+      setTimeout(() => {
+        onComplete?.({
+          paymentMethod: paymentType,
+          amount: amountDue,
+          cardLastFour: stripeData?.cardLastFour || '4242',
+          cardBrand: stripeData?.cardBrand || 'visa',
+          authorizationCode: stripeData?.authorizationCode || `AUTH${Date.now().toString().slice(-6)}`,
+          stripePaymentIntentId: stripeData?.paymentIntentId || paymentIntent?.paymentIntentId || null,
+          stripeChargeId: stripeData?.chargeId || null,
+        });
+      }, 1500);
+    } else {
+      // Error scenarios
+      const messages = {
+        insufficient: 'Insufficient funds. Available balance is lower than the transaction amount.',
+        declined: 'Card declined. Please try a different payment method.',
+        timeout: 'Transaction timed out. The terminal did not respond in time.',
+      };
+      setErrorMessage(messages[scenario] || 'Card declined.');
+      setMode('error');
     }
-
-    // Auto-complete after showing success
-    setTimeout(() => {
-      onComplete?.({
-        paymentMethod: paymentType,
-        amount: amountDue,
-        cardLastFour: stripeData?.cardLastFour || '4242',
-        cardBrand: stripeData?.cardBrand || 'visa',
-        authorizationCode: stripeData?.authorizationCode || `AUTH${Date.now().toString().slice(-6)}`,
-        stripePaymentIntentId: stripeData?.paymentIntentId || paymentIntent?.paymentIntentId || null,
-        stripeChargeId: stripeData?.chargeId || null,
-      });
-    }, 1500);
   }, [paymentType, amountDue, onComplete, paymentIntent, confirmStripePayment]);
 
   // Render waiting state
@@ -312,23 +328,45 @@ export function CardPayment({
 
         {/* Actions */}
         <div className="space-y-3 mt-auto">
-          {/* Demo button - for development/testing */}
+          {/* Dev simulator with scenario options */}
           {import.meta.env.DEV && (
-            <button
-              type="button"
-              onClick={simulateCardRead}
-              disabled={stripeLoading}
-              className="
-                w-full h-12
-                bg-gray-100 hover:bg-gray-200
-                disabled:bg-gray-50 disabled:text-gray-400
-                text-gray-700 font-medium
-                rounded-xl
-                transition-colors duration-150
-              "
-            >
-              Simulate Card Read (Dev)
-            </button>
+            <div className="relative">
+              <button
+                type="button"
+                onClick={() => setShowSimOptions((v) => !v)}
+                disabled={stripeLoading}
+                className="
+                  w-full h-12
+                  bg-gray-100 hover:bg-gray-200
+                  disabled:bg-gray-50 disabled:text-gray-400
+                  text-gray-700 font-medium
+                  rounded-xl
+                  transition-colors duration-150
+                "
+              >
+                Simulate Card Read (Dev) ▾
+              </button>
+              {showSimOptions && (
+                <div className="absolute bottom-full left-0 right-0 mb-1 bg-white border border-gray-200 rounded-xl shadow-lg overflow-hidden z-10">
+                  <button type="button" onClick={() => simulateCardRead('approved')}
+                    className="w-full px-4 py-3 text-left text-sm hover:bg-green-50 text-green-700 font-medium border-b border-gray-100">
+                    ✓ Approved (Success)
+                  </button>
+                  <button type="button" onClick={() => simulateCardRead('insufficient')}
+                    className="w-full px-4 py-3 text-left text-sm hover:bg-red-50 text-red-700 font-medium border-b border-gray-100">
+                    ✗ Insufficient Funds
+                  </button>
+                  <button type="button" onClick={() => simulateCardRead('declined')}
+                    className="w-full px-4 py-3 text-left text-sm hover:bg-red-50 text-red-700 font-medium border-b border-gray-100">
+                    ✗ Card Declined
+                  </button>
+                  <button type="button" onClick={() => simulateCardRead('timeout')}
+                    className="w-full px-4 py-3 text-left text-sm hover:bg-yellow-50 text-yellow-700 font-medium">
+                    ✗ Timeout / No Response
+                  </button>
+                </div>
+              )}
+            </div>
           )}
 
           <button
