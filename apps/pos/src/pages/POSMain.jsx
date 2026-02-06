@@ -36,6 +36,7 @@ import { CustomerLookup } from '../components/Customer/CustomerLookup';
 import { QuoteLookup } from '../components/Quotes/QuoteLookup';
 import { QuoteConversionBanner } from '../components/Quotes/QuoteConversionBanner';
 import { CheckoutModal } from '../components/Checkout/CheckoutModal';
+import { PriceOverrideModal } from '../components/Pricing/PriceOverrideModal';
 import { ShiftSummaryCompact, ShiftSummaryPanel } from '../components/Register/ShiftSummary';
 import ShiftCommissionSummary from '../components/Commission/ShiftCommissionSummary';
 
@@ -426,6 +427,7 @@ export function POSMain() {
   const [showQuoteLookup, setShowQuoteLookup] = useState(false);
   const [showCheckout, setShowCheckout] = useState(false);
   const [showPriceCheck, setShowPriceCheck] = useState(false);
+  const [priceOverrideItem, setPriceOverrideItem] = useState(null);
 
   // Refs
   const searchInputRef = useRef(null);
@@ -502,6 +504,7 @@ export function POSMain() {
           else if (showQuoteLookup) setShowQuoteLookup(false);
           else if (showShiftSummary) setShowShiftSummary(false);
           else if (showPriceCheck) setShowPriceCheck(false);
+          else if (priceOverrideItem) setPriceOverrideItem(null);
           break;
         default:
           break;
@@ -510,7 +513,7 @@ export function POSMain() {
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [cart.isEmpty, hasActiveShift, showCheckout, showCustomerLookup, showQuoteLookup, showShiftSummary, showPriceCheck, handleHoldTransaction]);
+  }, [cart.isEmpty, hasActiveShift, showCheckout, showCustomerLookup, showQuoteLookup, showShiftSummary, showPriceCheck, priceOverrideItem, handleHoldTransaction]);
 
   // ============================================================================
   // HANDLERS
@@ -683,6 +686,7 @@ export function POSMain() {
             onCheckout={handleCheckout}
             onCustomerClick={() => setShowCustomerLookup(true)}
             onQuoteClick={() => setShowQuoteLookup(true)}
+            onPriceOverride={(item) => setPriceOverrideItem(item)}
             className="flex-1 w-full max-w-none"
           />
         </div>
@@ -735,6 +739,23 @@ export function POSMain() {
       <PriceCheckModal
         isOpen={showPriceCheck}
         onClose={() => setShowPriceCheck(false)}
+      />
+
+      {/* Price Override Modal */}
+      <PriceOverrideModal
+        isOpen={!!priceOverrideItem}
+        onClose={() => setPriceOverrideItem(null)}
+        onApply={(overridePrice, reason) => {
+          if (priceOverrideItem) {
+            cart.updateItemPrice(priceOverrideItem.id, overridePrice, reason);
+          }
+          setPriceOverrideItem(null);
+        }}
+        product={priceOverrideItem || {}}
+        originalPrice={priceOverrideItem?.basePrice || priceOverrideItem?.unitPrice || 0}
+        customerPrice={priceOverrideItem?.unitPrice || 0}
+        customerId={cart.customer?.id || cart.customer?.customerId}
+        quantity={priceOverrideItem?.quantity || 1}
       />
 
       {/* Mobile Menu Overlay */}

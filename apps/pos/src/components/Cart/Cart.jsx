@@ -66,6 +66,7 @@ function HeldCartsButton({ count, onClick }) {
  * @param {function} props.onClear - Callback when cart is cleared (optional, uses internal handler if not provided)
  * @param {function} props.onCustomerClick - Callback to open customer lookup
  * @param {function} props.onQuoteClick - Callback to open quote lookup
+ * @param {function} props.onPriceOverride - Callback to open price override for an item
  * @param {string} props.className - Additional CSS classes
  */
 export function Cart({
@@ -74,6 +75,7 @@ export function Cart({
   onClear,
   onCustomerClick,
   onQuoteClick,
+  onPriceOverride,
   className = '',
 }) {
   const cart = useCart();
@@ -260,6 +262,7 @@ export function Cart({
               onUpdateQuantity={handleUpdateQuantity}
               onRemove={handleRemoveItem}
               onSetSerialNumber={handleSetSerialNumber}
+              onPriceOverride={onPriceOverride}
               disabled={isProcessing}
             />
           ))}

@@ -4,7 +4,7 @@
  */
 
 import { useState, useRef, useCallback, memo } from 'react';
-import { TrashIcon, MinusIcon, PlusIcon } from '@heroicons/react/24/outline';
+import { TrashIcon, MinusIcon, PlusIcon, PencilSquareIcon } from '@heroicons/react/24/outline';
 import { formatCurrency } from '../../utils/formatters';
 
 /**
@@ -14,6 +14,7 @@ import { formatCurrency } from '../../utils/formatters';
  * @param {function} props.onUpdateQuantity - Callback to update quantity
  * @param {function} props.onRemove - Callback to remove item
  * @param {function} props.onSetSerialNumber - Callback to set serial number
+ * @param {function} props.onPriceOverride - Callback to open price override
  * @param {boolean} props.disabled - Disable interactions
  */
 export const CartItem = memo(function CartItem({
@@ -21,6 +22,7 @@ export const CartItem = memo(function CartItem({
   onUpdateQuantity,
   onRemove,
   onSetSerialNumber,
+  onPriceOverride,
   disabled = false,
 }) {
   const [swipeOffset, setSwipeOffset] = useState(0);
@@ -205,27 +207,46 @@ export const CartItem = memo(function CartItem({
             </button>
           </div>
 
-          {/* Line total and remove */}
+          {/* Line total and actions */}
           <div className="flex flex-col items-end gap-1">
             <span className="text-sm font-bold text-gray-900 tabular-nums">
               {formatCurrency(lineTotal)}
             </span>
 
-            <button
-              type="button"
-              onClick={() => onRemove?.(item.id)}
-              disabled={disabled}
-              className="
-                w-6 h-6
-                flex items-center justify-center
-                text-gray-400 hover:text-red-500
-                hover:bg-red-50 rounded
-                transition-colors duration-150
-              "
-              aria-label="Remove item"
-            >
-              <TrashIcon className="w-4 h-4" />
-            </button>
+            <div className="flex items-center gap-1">
+              {onPriceOverride && (
+                <button
+                  type="button"
+                  onClick={() => onPriceOverride?.(item)}
+                  disabled={disabled}
+                  className="
+                    w-6 h-6
+                    flex items-center justify-center
+                    text-gray-400 hover:text-blue-500
+                    hover:bg-blue-50 rounded
+                    transition-colors duration-150
+                  "
+                  aria-label="Override price"
+                >
+                  <PencilSquareIcon className="w-4 h-4" />
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={() => onRemove?.(item.id)}
+                disabled={disabled}
+                className="
+                  w-6 h-6
+                  flex items-center justify-center
+                  text-gray-400 hover:text-red-500
+                  hover:bg-red-50 rounded
+                  transition-colors duration-150
+                "
+                aria-label="Remove item"
+              >
+                <TrashIcon className="w-4 h-4" />
+              </button>
+            </div>
           </div>
         </div>
       </div>

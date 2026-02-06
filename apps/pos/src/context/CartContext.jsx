@@ -533,6 +533,25 @@ export function CartProvider({ children }) {
   }, []);
 
   /**
+   * Override item price (from price override modal)
+   */
+  const updateItemPrice = useCallback((itemId, newPrice, reason) => {
+    setItems((currentItems) =>
+      currentItems.map((item) =>
+        item.id === itemId
+          ? {
+              ...item,
+              unitPrice: newPrice,
+              priceOverride: true,
+              priceOverrideReason: reason,
+              discountPercent: 0,
+            }
+          : item
+      )
+    );
+  }, []);
+
+  /**
    * Set item serial number
    */
   const setItemSerialNumber = useCallback((itemId, serialNumber) => {
@@ -975,6 +994,7 @@ export function CartProvider({ children }) {
     decrementQuantity,
     applyItemDiscount,
     applyItemDiscountByProductId,
+    updateItemPrice,
     setItemSerialNumber,
 
     // Cart operations

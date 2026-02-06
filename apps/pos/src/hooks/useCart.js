@@ -486,6 +486,7 @@ export function useCart() {
     decrementQuantity: cart.decrementQuantity,
     applyItemDiscount: cart.applyItemDiscount,
     applyItemDiscountByProductId: cart.applyItemDiscountByProductId,
+    updateItemPrice: cart.updateItemPrice,
     setItemSerialNumber: cart.setItemSerialNumber,
 
     // Cart operations (from context)

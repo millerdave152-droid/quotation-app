@@ -203,7 +203,7 @@ export function CashPayment({
     setInputValue(amount.toFixed(2));
   }, []);
 
-  // Handle complete
+  // Handle complete (full payment)
   const handleComplete = useCallback(() => {
     if (!isEnough) return;
 
@@ -214,6 +214,18 @@ export function CashPayment({
       changeGiven: changeAmount,
     });
   }, [isEnough, onComplete, isPartial, tenderedAmount, amountDue, changeAmount]);
+
+  // Handle partial payment (for split payment flow)
+  const handlePartialPayment = useCallback(() => {
+    if (tenderedAmount <= 0 || isEnough) return;
+
+    onComplete?.({
+      paymentMethod: 'cash',
+      amount: tenderedAmount,
+      cashTendered: tenderedAmount,
+      changeGiven: 0,
+    });
+  }, [tenderedAmount, isEnough, onComplete]);
 
   return (
     <div className="flex flex-col h-full">
@@ -317,23 +329,46 @@ export function CashPayment({
         <NumpadButton variant="clear" onClick={handleClear}>
           Clear
         </NumpadButton>
-        <button
-          type="button"
-          onClick={handleComplete}
-          disabled={!isEnough}
-          className="
-            h-16
-            flex items-center justify-center
-            bg-green-600 hover:bg-green-700
-            disabled:bg-gray-300 disabled:cursor-not-allowed
-            text-white text-xl font-bold
-            rounded-xl
-            transition-colors duration-150
-            active:scale-[0.98]
-          "
-        >
-          Complete
-        </button>
+        {isEnough ? (
+          <button
+            type="button"
+            onClick={handleComplete}
+            className="
+              h-16
+              flex items-center justify-center
+              bg-green-600 hover:bg-green-700
+              text-white text-xl font-bold
+              rounded-xl
+              transition-colors duration-150
+              active:scale-[0.98]
+            "
+          >
+            Complete
+          </button>
+        ) : (
+          <button
+            type="button"
+            onClick={handlePartialPayment}
+            disabled={tenderedAmount <= 0}
+            className="
+              h-16
+              flex flex-col items-center justify-center
+              bg-blue-600 hover:bg-blue-700
+              disabled:bg-gray-300 disabled:cursor-not-allowed
+              text-white font-bold
+              rounded-xl
+              transition-colors duration-150
+              active:scale-[0.98]
+            "
+          >
+            <span className="text-lg">Apply Partial</span>
+            {tenderedAmount > 0 && (
+              <span className="text-xs font-normal opacity-90">
+                {formatCurrency(amountDue - tenderedAmount)} remaining
+              </span>
+            )}
+          </button>
+        )}
       </div>
     </div>
   );
