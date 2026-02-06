@@ -108,7 +108,9 @@ export function PromoCodeInput({
           ALREADY_APPLIED: 'A promo code is already applied to this order.',
         };
 
-        const userMessage = errorMessages[result.errorCode] || result.error || 'Failed to apply promo code';
+        const rawError = result.error;
+        const errorStr = typeof rawError === 'string' ? rawError : rawError?.message || 'Failed to apply promo code';
+        const userMessage = errorMessages[result.errorCode] || errorStr;
         setError(userMessage);
         return;
       }
