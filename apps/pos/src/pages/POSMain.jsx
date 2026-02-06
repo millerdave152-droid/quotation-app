@@ -448,6 +448,15 @@ export function POSMain() {
     return () => window.removeEventListener('beforeunload', handleBeforeUnload);
   }, [cart.isEmpty]);
 
+  // Handle hold transaction (declared before keyboard shortcuts useEffect that references it)
+  const handleHoldTransaction = useCallback(() => {
+    const result = cart.holdCart();
+    if (result.success) {
+      // Show success feedback
+      console.log('[POSMain] Transaction held');
+    }
+  }, [cart]);
+
   // Keyboard shortcuts
   useEffect(() => {
     const handleKeyDown = (e) => {
@@ -552,15 +561,6 @@ export function POSMain() {
     // Cart is cleared by checkout process
     setShowCheckout(false);
   }, []);
-
-  // Handle hold transaction
-  const handleHoldTransaction = useCallback(() => {
-    const result = cart.holdCart();
-    if (result.success) {
-      // Show success feedback
-      console.log('[POSMain] Transaction held');
-    }
-  }, [cart]);
 
   // Handle customer selection
   const handleCustomerSelect = useCallback((customer) => {
