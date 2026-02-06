@@ -90,7 +90,7 @@ router.get('/', asyncHandler(async (req, res) => {
   // Main query with item count and summary
   const dataQuery = `
     SELECT
-      t.id,
+      t.transaction_id,
       t.transaction_number,
       t.created_at,
       t.total_amount,
@@ -106,10 +106,15 @@ router.get('/', asyncHandler(async (req, res) => {
     LEFT JOIN LATERAL (
       SELECT
         COUNT(*) as item_count,
-        STRING_AGG(p.name, ', ' ORDER BY ti.id LIMIT 3) as item_summary
-      FROM transaction_items ti
-      LEFT JOIN products p ON ti.product_id = p.id
-      WHERE ti.transaction_id = t.id
+        STRING_AGG(sub.name, ', ') as item_summary
+      FROM (
+        SELECT p.name
+        FROM transaction_items ti
+        LEFT JOIN products p ON ti.product_id = p.id
+        WHERE ti.transaction_id = t.transaction_id
+        ORDER BY ti.item_id
+        LIMIT 3
+      ) sub
     ) items ON true
     ${whereClause}
     ORDER BY t.created_at DESC
@@ -144,7 +149,7 @@ router.post('/', asyncHandler(async (req, res) => {
 
   // Verify the transaction exists and is completed
   const txResult = await pool.query(
-    'SELECT id, transaction_number, status FROM transactions WHERE id = $1',
+    'SELECT transaction_id, transaction_number, status FROM transactions WHERE transaction_id = $1',
     [originalTransactionId]
   );
   if (txResult.rows.length === 0) {
@@ -326,7 +331,7 @@ router.get('/:id/payment-info', asyncHandler(async (req, res) => {
     `SELECT r.*, t.subtotal, t.total_amount, t.hst_amount, t.gst_amount, t.pst_amount,
             t.tax_province, t.transaction_number
      FROM pos_returns r
-     JOIN transactions t ON r.original_transaction_id = t.id
+     JOIN transactions t ON r.original_transaction_id = t.transaction_id
      WHERE r.id = $1`,
     [id]
   );
@@ -419,7 +424,7 @@ router.post('/:id/process-refund', asyncHandler(async (req, res) => {
   const returnResult = await pool.query(
     `SELECT r.*, t.subtotal, t.total_amount, t.hst_amount, t.gst_amount, t.pst_amount, t.customer_id
      FROM pos_returns r
-     JOIN transactions t ON r.original_transaction_id = t.id
+     JOIN transactions t ON r.original_transaction_id = t.transaction_id
      WHERE r.id = $1`,
     [id]
   );

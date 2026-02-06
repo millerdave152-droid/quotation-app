@@ -917,7 +917,7 @@ router.get('/', authenticate, asyncHandler(async (req, res) => {
         t.status,
         COUNT(*) as count
       FROM transactions t
-      LEFT JOIN customers c ON t.customer_id = c.customer_id
+      LEFT JOIN customers c ON t.customer_id = c.id
       ${baseWhereClause}
       GROUP BY t.status`,
       baseParams
@@ -944,7 +944,7 @@ router.get('/', authenticate, asyncHandler(async (req, res) => {
   const countResult = await pool.query(
     `SELECT COUNT(*) as total
      FROM transactions t
-     LEFT JOIN customers c ON t.customer_id = c.customer_id
+     LEFT JOIN customers c ON t.customer_id = c.id
      ${fullWhereClause}`,
     fullParams
   );
@@ -967,9 +967,9 @@ router.get('/', authenticate, asyncHandler(async (req, res) => {
       u.first_name || ' ' || u.last_name as cashier_name,
       sp.first_name || ' ' || sp.last_name as salesperson_name
     FROM transactions t
-    LEFT JOIN customers c ON t.customer_id = c.customer_id
-    LEFT JOIN users u ON t.user_id = u.user_id
-    LEFT JOIN users sp ON t.salesperson_id = sp.user_id
+    LEFT JOIN customers c ON t.customer_id = c.id
+    LEFT JOIN users u ON t.user_id = u.id
+    LEFT JOIN users sp ON t.salesperson_id = sp.id
     ${fullWhereClause}
     ORDER BY t.created_at DESC
     LIMIT $${paramIndex} OFFSET $${paramIndex + 1}`,
@@ -1099,9 +1099,9 @@ router.get('/:id', authenticate, asyncHandler(async (req, res) => {
       r.register_name,
       q.quote_number
     FROM transactions t
-    LEFT JOIN customers c ON t.customer_id = c.customer_id
-    LEFT JOIN users u ON t.user_id = u.user_id
-    LEFT JOIN users sp ON t.salesperson_id = sp.user_id
+    LEFT JOIN customers c ON t.customer_id = c.id
+    LEFT JOIN users u ON t.user_id = u.id
+    LEFT JOIN users sp ON t.salesperson_id = sp.id
     LEFT JOIN users vb ON t.voided_by = vb.user_id
     LEFT JOIN register_shifts rs ON t.shift_id = rs.shift_id
     LEFT JOIN registers r ON rs.register_id = r.register_id

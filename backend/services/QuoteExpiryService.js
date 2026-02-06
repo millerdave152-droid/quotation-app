@@ -516,10 +516,10 @@ class QuoteExpiryService {
         (SELECT MAX(created_at) FROM quote_follow_ups WHERE quote_id = uo.id) AS last_contacted_at,
         (SELECT outcome FROM quote_follow_ups WHERE quote_id = uo.id ORDER BY created_at DESC LIMIT 1) AS last_contact_outcome,
         (SELECT COUNT(*) FROM quote_follow_ups WHERE quote_id = uo.id) AS follow_up_count,
-        -- Customer info
-        c.tier AS customer_tier,
-        c.lifetime_value_cents AS customer_lifetime_value,
-        c.credit_limit_cents AS customer_credit_limit
+        -- Customer info (tier/lifetime_value columns may not exist)
+        NULL AS customer_tier,
+        NULL AS customer_lifetime_value,
+        NULL AS customer_credit_limit
       FROM unified_orders uo
       LEFT JOIN users u ON u.id = uo.salesperson_id
       LEFT JOIN customers c ON c.id = uo.customer_id
@@ -561,12 +561,7 @@ class QuoteExpiryService {
           ORDER BY
             CASE WHEN uo.quote_expiry_date <= CURRENT_DATE THEN 0 ELSE uo.quote_expiry_date - CURRENT_DATE END ASC,
             uo.total_cents DESC,
-            CASE
-              WHEN c.tier = 'platinum' THEN 1
-              WHEN c.tier = 'gold' THEN 2
-              WHEN c.tier = 'silver' THEN 3
-              ELSE 4
-            END ASC
+            4 ASC
         `;
         break;
     }
@@ -580,7 +575,7 @@ class QuoteExpiryService {
       rows = result.rows;
     } catch (error) {
       // If quote_follow_ups table doesn't exist, try without it
-      if (error.message.includes('quote_follow_ups')) {
+      if (error.message.includes('quote_follow_ups') || error.message.includes('"outcome" does not exist')) {
         const fallbackQuery = query
           .replace(/\(SELECT MAX\(created_at\) FROM quote_follow_ups WHERE quote_id = uo\.id\)/g, 'NULL')
           .replace(/\(SELECT outcome FROM quote_follow_ups WHERE quote_id = uo\.id ORDER BY created_at DESC LIMIT 1\)/g, 'NULL')

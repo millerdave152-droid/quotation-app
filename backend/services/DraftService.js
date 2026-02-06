@@ -177,7 +177,7 @@ class DraftService {
    */
   async getDraft(draftId) {
     const result = await this.pool.query(`
-      SELECT d.*, u.username, r.register_name
+      SELECT d.*, u.first_name || ' ' || u.last_name as username, r.register_name
       FROM drafts d
       LEFT JOIN users u ON d.user_id = u.id
       LEFT JOIN registers r ON d.register_id = r.register_id
@@ -200,7 +200,7 @@ class DraftService {
    */
   async getDraftByKey(draftKey) {
     const result = await this.pool.query(`
-      SELECT d.*, u.username, r.register_name
+      SELECT d.*, u.first_name || ' ' || u.last_name as username, r.register_name
       FROM drafts d
       LEFT JOIN users u ON d.user_id = u.id
       LEFT JOIN registers r ON d.register_id = r.register_id
@@ -278,7 +278,7 @@ class DraftService {
         d.draft_type,
         d.draft_key,
         d.user_id,
-        u.username,
+        u.first_name || ' ' || u.last_name as username,
         d.register_id,
         r.register_name,
         d.device_id,
