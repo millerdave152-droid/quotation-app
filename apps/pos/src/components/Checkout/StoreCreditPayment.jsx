@@ -16,8 +16,9 @@ export default function StoreCreditPayment({ amountDue, onComplete, onBack, isPa
   const [useCustom, setUseCustom] = useState(false);
 
   const amountDueCents = Math.round(amountDue * 100);
-  const balanceDollars = credit ? credit.current_balance / 100 : 0;
-  const maxApply = credit ? Math.min(credit.current_balance, amountDueCents) / 100 : 0;
+  const balanceCents = credit ? (credit.currentBalanceCents ?? credit.current_balance ?? 0) : 0;
+  const balanceDollars = balanceCents / 100;
+  const maxApply = credit ? Math.min(balanceCents, amountDueCents) / 100 : 0;
 
   const applyAmount = useCustom && customAmount
     ? Math.min(Math.max(parseFloat(customAmount) || 0, 0), maxApply)
@@ -35,12 +36,13 @@ export default function StoreCreditPayment({ amountDue, onComplete, onBack, isPa
     setLoading(false);
 
     if (result.success) {
-      if (result.data.status !== 'active') {
-        setError(`This credit is ${result.data.status}`);
-      } else if (result.data.current_balance <= 0) {
+      const d = result.data;
+      if (d.status !== 'active') {
+        setError(`This credit is ${d.status}`);
+      } else if ((d.currentBalanceCents ?? d.current_balance ?? 0) <= 0) {
         setError('No remaining balance on this credit');
       } else {
-        setCredit(result.data);
+        setCredit(d);
       }
     } else {
       setError(result.error || 'Store credit not found');
@@ -56,7 +58,7 @@ export default function StoreCreditPayment({ amountDue, onComplete, onBack, isPa
       storeCreditCode: credit.code,
       storeCreditId: credit.id,
       storeCreditAmountCents: applyCents,
-      storeCreditRemainingCents: credit.current_balance - applyCents,
+      storeCreditRemainingCents: balanceCents - applyCents,
     });
   }, [credit, applyAmount, onComplete]);
 
@@ -107,8 +109,8 @@ export default function StoreCreditPayment({ amountDue, onComplete, onBack, isPa
           <div className="flex items-center justify-between">
             <div>
               <p className="text-lg font-mono font-bold text-purple-900">{credit.code}</p>
-              {credit.customer_name && (
-                <p className="text-xs text-purple-600">Issued to: {credit.customer_name}</p>
+              {(credit.customerName || credit.customer_name) && (
+                <p className="text-xs text-purple-600">Issued to: {credit.customerName || credit.customer_name}</p>
               )}
             </div>
             <div className="text-right">
@@ -117,14 +119,14 @@ export default function StoreCreditPayment({ amountDue, onComplete, onBack, isPa
             </div>
           </div>
 
-          {credit.expiry_date && (
+          {(credit.expiryDate || credit.expiry_date) && (
             <p className="text-xs text-purple-500">
-              Expires: {new Date(credit.expiry_date).toLocaleDateString('en-CA')}
+              Expires: {new Date(credit.expiryDate || credit.expiry_date).toLocaleDateString('en-CA')}
             </p>
           )}
 
           {/* Partial redemption toggle */}
-          {credit.current_balance > amountDueCents ? (
+          {balanceCents > amountDueCents ? (
             <div className="p-3 bg-green-50 border border-green-200 rounded-lg">
               <p className="text-sm text-green-800">
                 Credit covers the full amount. <strong>{formatCurrency(balanceDollars - maxApply)}</strong> will remain on the credit after this transaction.

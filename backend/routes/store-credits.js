@@ -185,7 +185,7 @@ router.get('/:code', asyncHandler(async (req, res) => {
 
   const result = await pool.query(
     `SELECT sc.*, c.name as customer_name, c.email as customer_email, c.phone as customer_phone,
-            u.name as issued_by_name
+            (u.first_name || ' ' || u.last_name) as issued_by_name
      FROM store_credits sc
      LEFT JOIN customers c ON sc.customer_id = c.id
      LEFT JOIN users u ON sc.issued_by = u.id
@@ -209,7 +209,7 @@ router.get('/:code', asyncHandler(async (req, res) => {
 
   // Fetch transaction history
   const txns = await pool.query(
-    `SELECT sct.*, u.name as performed_by_name
+    `SELECT sct.*, (u.first_name || ' ' || u.last_name) as performed_by_name
      FROM store_credit_transactions sct
      LEFT JOIN users u ON sct.performed_by = u.id
      WHERE sct.store_credit_id = $1
