@@ -45,8 +45,31 @@ api.interceptors.request.use(
 );
 
 // ============================================================================
+// TOKEN REFRESH LOGIC
+// Prevents 401 logout during active operations (e.g., checkout)
+// ============================================================================
+
+let isRefreshing = false;
+let refreshSubscribers = [];
+
+function subscribeTokenRefresh(cb) {
+  refreshSubscribers.push(cb);
+}
+
+function onTokenRefreshed(newToken) {
+  refreshSubscribers.forEach((cb) => cb(newToken));
+  refreshSubscribers = [];
+}
+
+function onTokenRefreshFailed() {
+  refreshSubscribers = [];
+}
+
+const REFRESH_TOKEN_KEY = 'pos_refresh_token';
+
+// ============================================================================
 // RESPONSE INTERCEPTOR
-// Handle 401 (redirect to login), handle network errors
+// Handle 401 with automatic token refresh, handle network errors
 // ============================================================================
 
 api.interceptors.response.use(
@@ -54,25 +77,73 @@ api.interceptors.response.use(
     // Return response data directly for cleaner usage
     return response.data;
   },
-  (error) => {
-    const { response, request, message } = error;
+  async (error) => {
+    const { response, request, message, config: originalRequest } = error;
 
     // Handle response errors (server responded with error status)
     if (response) {
       const { status, data } = response;
 
-      // 401 Unauthorized - Token expired or invalid
-      if (status === 401) {
-        console.warn('[API] Unauthorized - clearing auth and redirecting to login');
+      // 401 Unauthorized - Attempt token refresh before giving up
+      if (status === 401 && !originalRequest._retry) {
+        const refreshToken = localStorage.getItem(REFRESH_TOKEN_KEY);
 
-        // Clear stored auth data
+        if (refreshToken) {
+          if (isRefreshing) {
+            // Another request is already refreshing — queue this one
+            return new Promise((resolve, reject) => {
+              subscribeTokenRefresh((newToken) => {
+                originalRequest.headers.Authorization = `Bearer ${newToken}`;
+                originalRequest._retry = true;
+                resolve(axios(originalRequest).then(r => r.data));
+              });
+            });
+          }
+
+          isRefreshing = true;
+          originalRequest._retry = true;
+
+          try {
+            // Call refresh endpoint directly (bypass interceptors)
+            const refreshResponse = await axios.post(
+              `${api.defaults.baseURL}/auth/refresh`,
+              { refreshToken },
+              { headers: { 'Content-Type': 'application/json' } }
+            );
+
+            const result = refreshResponse.data;
+            if (result?.success && result.data?.accessToken) {
+              const newToken = result.data.accessToken;
+              localStorage.setItem(TOKEN_KEY, newToken);
+              if (result.data.refreshToken) {
+                localStorage.setItem(REFRESH_TOKEN_KEY, result.data.refreshToken);
+              }
+
+              console.log('[API] Token refreshed successfully');
+              onTokenRefreshed(newToken);
+              isRefreshing = false;
+
+              // Retry the original request with new token
+              originalRequest.headers.Authorization = `Bearer ${newToken}`;
+              return axios(originalRequest).then(r => r.data);
+            }
+          } catch (refreshError) {
+            console.warn('[API] Token refresh failed:', refreshError?.message);
+            onTokenRefreshFailed();
+          }
+
+          isRefreshing = false;
+        }
+
+        // Refresh failed or no refresh token — clear auth and notify
+        console.warn('[API] Unauthorized - session expired');
         localStorage.removeItem(TOKEN_KEY);
         localStorage.removeItem(USER_KEY);
+        localStorage.removeItem(REFRESH_TOKEN_KEY);
 
-        // Redirect to login if not already there
-        if (window.location.pathname !== '/login') {
-          window.location.href = '/login';
-        }
+        // Dispatch event so AuthContext can redirect gracefully.
+        // This lets active try/catch blocks (e.g., checkout) handle the error first.
+        window.dispatchEvent(new CustomEvent('pos:auth-expired'));
 
         return Promise.reject({
           status: 401,

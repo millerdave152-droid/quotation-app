@@ -547,7 +547,11 @@ export function CheckoutModal({
       }
     } catch (err) {
       console.error('[Checkout] Transaction error:', err);
-      setError(typeof err === 'string' ? err : err?.message || 'An unexpected error occurred');
+      if (err?.code === 'UNAUTHORIZED' || err?.status === 401) {
+        setError('Session expired. Please log in again and retry checkout. Your cart items have been preserved.');
+      } else {
+        setError(typeof err === 'string' ? err : err?.message || 'An unexpected error occurred');
+      }
       setStep('methods');
     } finally {
       processingRef.current = false;

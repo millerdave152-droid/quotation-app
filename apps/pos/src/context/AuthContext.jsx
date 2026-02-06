@@ -30,6 +30,25 @@ export function AuthProvider({ children }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
+  // Listen for auth-expired events from axios interceptor.
+  // Uses a short delay so active try/catch blocks (e.g., checkout)
+  // can handle the error before the redirect fires.
+  useEffect(() => {
+    const handleAuthExpired = () => {
+      console.warn('[Auth] Session expired event received - redirecting after delay');
+      setTimeout(() => {
+        setUser(null);
+        setPermissions([]);
+        if (window.location.pathname !== '/login') {
+          window.location.href = '/login';
+        }
+      }, 100);
+    };
+
+    window.addEventListener('pos:auth-expired', handleAuthExpired);
+    return () => window.removeEventListener('pos:auth-expired', handleAuthExpired);
+  }, []);
+
   // Check for existing session on mount
   useEffect(() => {
     const initAuth = async () => {
@@ -78,11 +97,14 @@ export function AuthProvider({ children }) {
       const response = await api.post('/auth/login', { email, password });
 
       if (response?.success) {
-        const { accessToken, user: userData } = response.data;
+        const { accessToken, refreshToken, user: userData } = response.data;
         const perms = response.data.permissions || FALLBACK_PERMISSIONS[userData.role] || FALLBACK_PERMISSIONS.user;
 
-        // Store auth data
+        // Store auth data (including refresh token for session renewal)
         setAuthToken(accessToken);
+        if (refreshToken) {
+          localStorage.setItem('pos_refresh_token', refreshToken);
+        }
         localStorage.setItem('pos_user', JSON.stringify(userData));
         localStorage.setItem('pos_permissions', JSON.stringify(perms));
 
@@ -108,6 +130,7 @@ export function AuthProvider({ children }) {
       await api.post('/auth/logout').catch(() => {});
     } finally {
       clearAuth();
+      localStorage.removeItem('pos_refresh_token');
       localStorage.removeItem('pos_permissions');
       setUser(null);
       setPermissions([]);
