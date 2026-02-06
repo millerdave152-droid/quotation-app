@@ -31,18 +31,23 @@ export function AuthProvider({ children }) {
   const [error, setError] = useState(null);
 
   // Listen for auth-expired events from axios interceptor.
-  // Uses a short delay so active try/catch blocks (e.g., checkout)
-  // can handle the error before the redirect fires.
+  // Checks window.__posCheckoutActive to avoid redirecting during active checkout.
+  // The checkout error handler will display its own "session expired" message.
   useEffect(() => {
     const handleAuthExpired = () => {
-      console.warn('[Auth] Session expired event received - redirecting after delay');
-      setTimeout(() => {
-        setUser(null);
-        setPermissions([]);
-        if (window.location.pathname !== '/login') {
-          window.location.href = '/login';
-        }
-      }, 100);
+      console.warn('[Auth] Session expired event received');
+
+      // If checkout is in progress, let it handle the error itself
+      if (window.__posCheckoutActive) {
+        console.warn('[Auth] Checkout active - suppressing redirect');
+        return;
+      }
+
+      setUser(null);
+      setPermissions([]);
+      if (window.location.pathname !== '/login') {
+        window.location.href = '/login';
+      }
     };
 
     window.addEventListener('pos:auth-expired', handleAuthExpired);

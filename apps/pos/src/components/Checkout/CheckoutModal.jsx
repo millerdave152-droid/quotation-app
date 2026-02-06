@@ -378,6 +378,11 @@ export function CheckoutModal({
       setIsProcessing(false);
       setShowDiscountPanel(false);
       signatureReq.reset();
+      // Suppress auth redirect for the entire checkout session
+      window.__posCheckoutActive = true;
+    } else if (!isOpen && prevIsOpenRef.current) {
+      // Checkout closed — allow auth redirects again
+      window.__posCheckoutActive = false;
     }
     prevIsOpenRef.current = isOpen;
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -507,6 +512,9 @@ export function CheckoutModal({
     setIsProcessing(true);
     setError(null);
 
+    // Suppress auth redirect during checkout — we handle 401 ourselves
+    window.__posCheckoutActive = true;
+
     try {
       // Include signature data with transaction
       const signatureData = signatureReq.getSignatureData();
@@ -554,6 +562,7 @@ export function CheckoutModal({
       }
       setStep('methods');
     } finally {
+      window.__posCheckoutActive = false;
       processingRef.current = false;
       setIsProcessing(false);
     }
