@@ -81,24 +81,28 @@ export function PriceOverrideModal({
   const [error, setError] = useState(null);
   const [overrideResult, setOverrideResult] = useState(null);
 
+  // Safe prices (guard against undefined/null props)
+  const safeCustomerPrice = customerPrice || 0;
+  const safeOriginalPrice = originalPrice || 0;
+
   // Calculate override price
   const overridePrice = useMemo(() => {
     const value = parseFloat(inputValue) || 0;
     if (mode === 'percent') {
       // Percentage off customer price
-      return customerPrice * (1 - value / 100);
+      return safeCustomerPrice * (1 - value / 100);
     }
     return value;
-  }, [inputValue, mode, customerPrice]);
+  }, [inputValue, mode, safeCustomerPrice]);
 
   // Calculate discount metrics
   const metrics = useMemo(() => {
-    const discountFromBase = originalPrice - overridePrice;
-    const discountFromCustomer = customerPrice - overridePrice;
+    const discountFromBase = safeOriginalPrice - overridePrice;
+    const discountFromCustomer = safeCustomerPrice - overridePrice;
     const percentFromBase =
-      originalPrice > 0 ? (discountFromBase / originalPrice) * 100 : 0;
+      safeOriginalPrice > 0 ? (discountFromBase / safeOriginalPrice) * 100 : 0;
     const percentFromCustomer =
-      customerPrice > 0 ? (discountFromCustomer / customerPrice) * 100 : 0;
+      safeCustomerPrice > 0 ? (discountFromCustomer / safeCustomerPrice) * 100 : 0;
 
     return {
       discountFromBase,
@@ -106,10 +110,10 @@ export function PriceOverrideModal({
       percentFromBase,
       percentFromCustomer,
       totalSavings: discountFromBase * quantity,
-      isValid: overridePrice > 0 && overridePrice <= originalPrice,
-      isIncrease: overridePrice > customerPrice,
+      isValid: overridePrice > 0 && overridePrice <= safeOriginalPrice,
+      isIncrease: overridePrice > safeCustomerPrice,
     };
-  }, [overridePrice, originalPrice, customerPrice, quantity]);
+  }, [overridePrice, safeOriginalPrice, safeCustomerPrice, quantity]);
 
   // Get reason text
   const reasonText = useMemo(() => {
@@ -123,25 +127,25 @@ export function PriceOverrideModal({
   useEffect(() => {
     if (isOpen) {
       setMode('dollar');
-      setInputValue(customerPrice.toFixed(2));
+      setInputValue(safeCustomerPrice.toFixed(2));
       setSelectedReason('');
       setCustomReason('');
       setApprovalCheck(null);
       setError(null);
       setOverrideResult(null);
     }
-  }, [isOpen, customerPrice]);
+  }, [isOpen, safeCustomerPrice]);
 
   // Check approval when price changes
   useEffect(() => {
     const checkApproval = async () => {
-      if (!metrics.isValid || overridePrice === customerPrice) {
+      if (!metrics.isValid || overridePrice === safeCustomerPrice) {
         setApprovalCheck(null);
         return;
       }
 
       const check = await checkOverrideApproval(
-        Math.round(originalPrice * 100),
+        Math.round(safeOriginalPrice * 100),
         Math.round(overridePrice * 100)
       );
       setApprovalCheck(check);
@@ -149,7 +153,7 @@ export function PriceOverrideModal({
 
     const debounce = setTimeout(checkApproval, 300);
     return () => clearTimeout(debounce);
-  }, [overridePrice, originalPrice, customerPrice, metrics.isValid, checkOverrideApproval]);
+  }, [overridePrice, safeOriginalPrice, safeCustomerPrice, metrics.isValid, checkOverrideApproval]);
 
   // Handle submit
   const handleSubmit = useCallback(async () => {
@@ -166,7 +170,7 @@ export function PriceOverrideModal({
       if (approvalCheck?.requiresApproval && !canApproveOverrides) {
         // Use manager approval modal for PIN verification
         const approvalResult = await managerApproval.applyPriceOverrideWithApproval({
-          originalPrice: customerPrice,
+          originalPrice: safeCustomerPrice,
           newPrice: overridePrice,
           reason: reasonText,
           product: {
@@ -203,8 +207,8 @@ export function PriceOverrideModal({
       // Use existing override request flow (for auto-approved or manager users)
       const result = await requestOverride({
         productId: product.productId || product.id,
-        originalPriceCents: Math.round(originalPrice * 100),
-        customerTierPriceCents: Math.round(customerPrice * 100),
+        originalPriceCents: Math.round(safeOriginalPrice * 100),
+        customerTierPriceCents: Math.round(safeCustomerPrice * 100),
         overridePriceCents: Math.round(overridePrice * 100),
         overrideReason: reasonText,
       });
@@ -231,8 +235,8 @@ export function PriceOverrideModal({
     selectedReason,
     requestOverride,
     product,
-    originalPrice,
-    customerPrice,
+    safeOriginalPrice,
+    safeCustomerPrice,
     overridePrice,
     reasonText,
     canApproveOverrides,
@@ -283,13 +287,13 @@ export function PriceOverrideModal({
             <div className="p-3 bg-gray-50 rounded-lg">
               <p className="text-xs text-gray-500">Base Price</p>
               <p className="text-lg font-bold text-gray-400 line-through tabular-nums">
-                {formatCurrency(originalPrice)}
+                {formatCurrency(safeOriginalPrice)}
               </p>
             </div>
             <div className="p-3 bg-blue-50 rounded-lg">
               <p className="text-xs text-blue-600">Customer Price</p>
               <p className="text-lg font-bold text-blue-700 tabular-nums">
-                {formatCurrency(customerPrice)}
+                {formatCurrency(safeCustomerPrice)}
               </p>
             </div>
           </div>
@@ -370,14 +374,14 @@ export function PriceOverrideModal({
                     if (num < 0) val = '0';
                   } else {
                     const num = parseFloat(val);
-                    if (num > originalPrice) val = originalPrice.toFixed(2);
+                    if (num > safeOriginalPrice) val = safeOriginalPrice.toFixed(2);
                     if (num < 0) val = '0';
                   }
                   setInputValue(val);
                 }}
                 step={mode === 'dollar' ? '0.01' : '1'}
                 min="0"
-                max={mode === 'percent' ? '100' : originalPrice}
+                max={mode === 'percent' ? '100' : safeOriginalPrice}
                 className={`
                   w-full h-14
                   ${mode === 'dollar' ? 'pl-8' : 'pl-4'} pr-12
@@ -393,7 +397,7 @@ export function PriceOverrideModal({
           </div>
 
           {/* Override Preview */}
-          {metrics.isValid && overridePrice !== customerPrice && (
+          {metrics.isValid && overridePrice !== safeCustomerPrice && (
             <div
               className={`p-3 rounded-lg ${
                 metrics.isIncrease ? 'bg-yellow-50' : 'bg-green-50'
@@ -449,8 +453,8 @@ export function PriceOverrideModal({
                       Manager Approval Required
                     </p>
                     <p className="text-xs text-amber-600 mt-0.5">
-                      Discount of {approvalCheck.discountPercent.toFixed(1)}% exceeds the{' '}
-                      {approvalCheck.threshold}% threshold for this customer tier.
+                      Discount of {(approvalCheck.discountPercent ?? metrics.percentFromBase).toFixed(1)}% exceeds the{' '}
+                      {approvalCheck.threshold ?? 20}% threshold for this customer tier.
                     </p>
                     {canApproveOverrides && (
                       <p className="text-xs text-green-700 mt-1 font-medium">
@@ -582,7 +586,7 @@ export function PriceOverrideModal({
               !metrics.isValid ||
               !selectedReason ||
               isSubmitting ||
-              overridePrice === customerPrice ||
+              overridePrice === safeCustomerPrice ||
               (overrideResult?.status === 'pending' && !canApproveOverrides)
             }
             className="

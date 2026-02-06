@@ -17,7 +17,7 @@ const API_BASE = import.meta.env.VITE_API_URL || '/api';
  * Make authenticated API request
  */
 async function apiRequest(endpoint, options = {}) {
-  const token = localStorage.getItem('auth_token');
+  const token = localStorage.getItem('pos_token');
 
   const response = await fetch(`${API_BASE}${endpoint}`, {
     ...options,
