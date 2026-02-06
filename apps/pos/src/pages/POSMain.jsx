@@ -18,6 +18,7 @@ import {
   TagIcon,
   ShoppingCartIcon,
   CubeIcon,
+  ArrowUturnLeftIcon,
 } from '@heroicons/react/24/outline';
 
 // Context hooks
@@ -51,6 +52,7 @@ const KEYBOARD_SHORTCUTS = {
   F2: 'search',       // Focus product search
   F4: 'customer',     // Customer lookup
   F5: 'quote',        // Quote lookup
+  F6: 'returns',      // Returns & Exchanges
   F7: 'hold',         // Hold transaction
   F8: 'priceCheck',   // Price check
   F9: 'checkout',     // Checkout (changed from F12 to allow DevTools)
@@ -99,6 +101,7 @@ function QuickActionsBar({
   onCustomerLookup,
   onHold,
   onPriceCheck,
+  onReturns,
   isEmpty,
 }) {
   return (
@@ -114,6 +117,12 @@ function QuickActionsBar({
         label="Customer"
         shortcut="F4"
         onClick={onCustomerLookup}
+      />
+      <QuickAction
+        icon={ArrowUturnLeftIcon}
+        label="Returns"
+        shortcut="F6"
+        onClick={onReturns}
       />
       <QuickAction
         icon={PauseIcon}
@@ -481,6 +490,10 @@ export function POSMain() {
           e.preventDefault();
           setShowQuoteLookup(true);
           break;
+        case 'F6':
+          e.preventDefault();
+          navigate('/returns');
+          break;
         case 'F7':
           e.preventDefault();
           if (!cart.isEmpty) {
@@ -697,6 +710,7 @@ export function POSMain() {
         <QuickActionsBar
           onQuoteLookup={() => setShowQuoteLookup(true)}
           onCustomerLookup={() => setShowCustomerLookup(true)}
+          onReturns={() => navigate('/returns')}
           onHold={handleHoldTransaction}
           onPriceCheck={() => setShowPriceCheck(true)}
           isEmpty={cart.isEmpty}
@@ -824,6 +838,18 @@ export function POSMain() {
               >
                 <TagIcon className="w-5 h-5" />
                 Price Check (F8)
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setShowMobileMenu(false);
+                  navigate('/returns');
+                }}
+                className="w-full flex items-center gap-3 px-4 py-3 text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
+              >
+                <ArrowUturnLeftIcon className="w-5 h-5" />
+                Returns & Exchanges (F6)
               </button>
 
               <div className="pt-4 border-t border-gray-200">

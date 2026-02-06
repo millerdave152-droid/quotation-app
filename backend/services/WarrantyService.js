@@ -702,16 +702,9 @@ class WarrantyService {
    * Check if product is eligible for warranty
    */
   _checkProductEligibility(product) {
-    // Check category eligibility
-    const categorySlug = (product.category_slug || product.category_name || '').toLowerCase();
-    const isEligibleCategory = this.eligibleCategories.has(categorySlug) ||
-      Array.from(this.eligibleCategories).some((cat) => categorySlug.includes(cat));
-
-    if (!isEligibleCategory) {
-      return {
-        eligible: false,
-        reason: 'Product category not eligible for warranty',
-      };
+    // Skip warranty-type products (don't offer warranty on warranty)
+    if (product.sku && product.sku.startsWith('WRN-')) {
+      return { eligible: false, reason: 'Warranty products are not eligible' };
     }
 
     // Check manufacturer warranty
@@ -723,6 +716,7 @@ class WarrantyService {
       };
     }
 
+    // Category eligibility is checked via DB in _fetchEligibleWarranties
     return { eligible: true };
   }
 
@@ -759,6 +753,7 @@ class WarrantyService {
         AND (
           we.product_id = $1
           OR we.category_id = $2
+          OR we.category_id = (SELECT parent_id FROM categories WHERE id = $2)
         )
         AND $3 >= COALESCE(we.custom_min_price, wp.min_product_price)
         AND $3 <= COALESCE(we.custom_max_price, wp.max_product_price)
