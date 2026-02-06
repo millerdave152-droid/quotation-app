@@ -3,9 +3,18 @@
  * Cash payment entry with quick amounts and numpad
  */
 
-import { useState, useCallback, useMemo } from 'react';
+import { useState, useCallback, useMemo, useRef, useEffect } from 'react';
 import { ArrowLeftIcon, BackspaceIcon } from '@heroicons/react/24/outline';
 import { formatCurrency } from '../../utils/formatters';
+
+const shakeKeyframes = `
+@keyframes shake {
+  0%, 100% { transform: translateX(0); }
+  25% { transform: translateX(-4px); }
+  75% { transform: translateX(4px); }
+}
+.animate-shake { animation: shake 0.3s ease-in-out; }
+`;
 
 /**
  * Numpad button component
@@ -82,6 +91,21 @@ export function CashPayment({
   isPartial = false,
 }) {
   const [inputValue, setInputValue] = useState('');
+  const [shake, setShake] = useState(false);
+  const [showHighlight, setShowHighlight] = useState(true);
+  const tenderedRef = useRef(null);
+
+  // Auto-dismiss highlight after mount
+  useEffect(() => {
+    const timer = setTimeout(() => setShowHighlight(false), 2000);
+    return () => clearTimeout(timer);
+  }, []);
+
+  // Shake feedback helper
+  const triggerShake = useCallback(() => {
+    setShake(true);
+    setTimeout(() => setShake(false), 400);
+  }, []);
 
   // Parse tendered amount
   const tenderedAmount = useMemo(() => {
@@ -139,25 +163,30 @@ export function CashPayment({
 
   // Handle numpad input
   const handleNumpadPress = useCallback((key) => {
+    let rejected = false;
+
     setInputValue((prev) => {
       // Handle decimal
       if (key === '.') {
-        if (prev.includes('.')) return prev;
+        if (prev.includes('.')) { rejected = true; return prev; }
         return prev + '.';
       }
 
       // Limit decimal places to 2
       if (prev.includes('.')) {
         const [, decimals] = prev.split('.');
-        if (decimals && decimals.length >= 2) return prev;
+        if (decimals && decimals.length >= 2) { rejected = true; return prev; }
       }
 
       // Limit total length
-      if (prev.length >= 10) return prev;
+      if (prev.length >= 10) { rejected = true; return prev; }
 
       return prev + key;
     });
-  }, []);
+
+    // Trigger shake after state update if input was rejected
+    if (rejected) triggerShake();
+  }, [triggerShake]);
 
   // Handle backspace
   const handleBackspace = useCallback(() => {
@@ -188,6 +217,8 @@ export function CashPayment({
 
   return (
     <div className="flex flex-col h-full">
+      <style>{shakeKeyframes}</style>
+
       {/* Header */}
       <div className="flex items-center gap-4 mb-6">
         <button
@@ -230,13 +261,28 @@ export function CashPayment({
       </div>
 
       {/* Tendered Display */}
-      <div className="mb-4 p-4 bg-gray-50 rounded-xl">
+      <div
+        ref={tenderedRef}
+        className={`
+          mb-4 p-4 bg-gray-50 rounded-xl transition-all duration-300
+          ${showHighlight ? 'ring-2 ring-blue-400 ring-offset-2' : ''}
+          ${shake ? 'animate-shake' : ''}
+        `}
+      >
         <div className="flex justify-between items-center mb-2">
-          <span className="text-sm text-gray-500">Cash Tendered</span>
+          <span className="text-sm text-gray-500">
+            Cash Tendered <span className="text-red-500">*</span>
+          </span>
           <span className="text-3xl font-bold text-gray-900 tabular-nums">
             {inputValue ? `$${inputValue}` : '$0.00'}
           </span>
         </div>
+
+        {!inputValue && (
+          <p className="text-xs text-gray-400 mb-2">
+            Enter amount or tap a quick option above
+          </p>
+        )}
 
         {tenderedAmount > 0 && (
           <div className="flex justify-between items-center pt-2 border-t border-gray-200">

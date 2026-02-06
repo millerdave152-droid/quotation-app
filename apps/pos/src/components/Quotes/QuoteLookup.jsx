@@ -512,6 +512,12 @@ export function QuoteLookup({
                   </button>
                 )}
               </div>
+
+              {query.length === 1 && (
+                <p className="mt-2 text-xs text-gray-400">
+                  Type at least 2 characters to search
+                </p>
+              )}
             </div>
 
             {/* Error Message */}
