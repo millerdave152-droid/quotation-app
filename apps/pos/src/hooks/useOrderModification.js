@@ -10,7 +10,7 @@
  */
 
 import { useState, useCallback, useMemo } from 'react';
-import { useAuth } from './useAuth';
+import { useAuth } from '../context/AuthContext';
 
 // API base URL
 const API_BASE = import.meta.env.VITE_API_URL || '/api';
