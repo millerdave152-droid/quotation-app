@@ -6,7 +6,7 @@
 const express = require('express');
 const router = express.Router();
 const { ApiError, asyncHandler } = require('../middleware/errorHandler');
-const { authenticate } = require('../middleware/auth');
+const { authenticate, requireRole } = require('../middleware/auth');
 const WebhookService = require('../services/WebhookService');
 
 let webhookService = null;
@@ -27,7 +27,7 @@ const init = (deps) => {
  * GET /api/webhooks
  * Get all webhooks
  */
-router.get('/', authenticate, asyncHandler(async (req, res) => {
+router.get('/', authenticate, requireRole('admin'), asyncHandler(async (req, res) => {
   const { active, event } = req.query;
 
   const webhooks = await webhookService.getWebhooks({
@@ -35,10 +35,10 @@ router.get('/', authenticate, asyncHandler(async (req, res) => {
     event
   });
 
-  // Hide secrets
+  // Hide secrets - with null check
   const safeWebhooks = webhooks.map(w => ({
     ...w,
-    secret: '***' + w.secret.slice(-8)
+    secret: w.secret ? '***' + w.secret.slice(-8) : '***[not set]'
   }));
 
   res.success(safeWebhooks);
@@ -48,7 +48,7 @@ router.get('/', authenticate, asyncHandler(async (req, res) => {
  * GET /api/webhooks/events
  * Get list of supported webhook events
  */
-router.get('/events', authenticate, asyncHandler(async (req, res) => {
+router.get('/events', authenticate, requireRole('admin'), asyncHandler(async (req, res) => {
   res.success({
     events: Object.values(WebhookService.EVENTS),
     eventsByCategory: {
@@ -83,17 +83,17 @@ router.get('/events', authenticate, asyncHandler(async (req, res) => {
  * GET /api/webhooks/:id
  * Get webhook by ID
  */
-router.get('/:id', authenticate, asyncHandler(async (req, res) => {
+router.get('/:id', authenticate, requireRole('admin'), asyncHandler(async (req, res) => {
   const webhook = await webhookService.getWebhookById(req.params.id);
 
   if (!webhook) {
     throw ApiError.notFound('Webhook');
   }
 
-  // Hide full secret
+  // Hide full secret - with null check
   res.success({
     ...webhook,
-    secret: '***' + webhook.secret.slice(-8)
+    secret: webhook.secret ? '***' + webhook.secret.slice(-8) : '***[not set]'
   });
 }));
 
@@ -101,7 +101,7 @@ router.get('/:id', authenticate, asyncHandler(async (req, res) => {
  * POST /api/webhooks
  * Create a new webhook
  */
-router.post('/', authenticate, asyncHandler(async (req, res) => {
+router.post('/', authenticate, requireRole('admin'), asyncHandler(async (req, res) => {
   const { name, url, events, headers, is_active, retry_count } = req.body;
 
   if (!name || !url) {
@@ -131,7 +131,7 @@ router.post('/', authenticate, asyncHandler(async (req, res) => {
  * PUT /api/webhooks/:id
  * Update a webhook
  */
-router.put('/:id', authenticate, asyncHandler(async (req, res) => {
+router.put('/:id', authenticate, requireRole('admin'), asyncHandler(async (req, res) => {
   const { name, url, events, headers, is_active, retry_count } = req.body;
 
   const webhook = await webhookService.updateWebhook(req.params.id, {
@@ -157,7 +157,7 @@ router.put('/:id', authenticate, asyncHandler(async (req, res) => {
  * DELETE /api/webhooks/:id
  * Delete a webhook
  */
-router.delete('/:id', authenticate, asyncHandler(async (req, res) => {
+router.delete('/:id', authenticate, requireRole('admin'), asyncHandler(async (req, res) => {
   const deleted = await webhookService.deleteWebhook(req.params.id);
 
   if (!deleted) {
@@ -171,7 +171,7 @@ router.delete('/:id', authenticate, asyncHandler(async (req, res) => {
  * POST /api/webhooks/:id/regenerate-secret
  * Regenerate webhook secret
  */
-router.post('/:id/regenerate-secret', authenticate, asyncHandler(async (req, res) => {
+router.post('/:id/regenerate-secret', authenticate, requireRole('admin'), asyncHandler(async (req, res) => {
   const webhook = await webhookService.regenerateSecret(req.params.id);
 
   if (!webhook) {
@@ -189,7 +189,7 @@ router.post('/:id/regenerate-secret', authenticate, asyncHandler(async (req, res
  * POST /api/webhooks/:id/test
  * Test webhook delivery
  */
-router.post('/:id/test', authenticate, asyncHandler(async (req, res) => {
+router.post('/:id/test', authenticate, requireRole('admin'), asyncHandler(async (req, res) => {
   const result = await webhookService.testWebhook(req.params.id);
 
   res.success({
@@ -210,7 +210,7 @@ router.post('/:id/test', authenticate, asyncHandler(async (req, res) => {
  * GET /api/webhooks/:id/logs
  * Get delivery logs for a webhook
  */
-router.get('/:id/logs', authenticate, asyncHandler(async (req, res) => {
+router.get('/:id/logs', authenticate, requireRole('admin'), asyncHandler(async (req, res) => {
   const { limit = 50, offset = 0, success } = req.query;
 
   const logs = await webhookService.getLogs(req.params.id, {
@@ -226,7 +226,7 @@ router.get('/:id/logs', authenticate, asyncHandler(async (req, res) => {
  * GET /api/webhooks/:id/stats
  * Get webhook delivery statistics
  */
-router.get('/:id/stats', authenticate, asyncHandler(async (req, res) => {
+router.get('/:id/stats', authenticate, requireRole('admin'), asyncHandler(async (req, res) => {
   const stats = await webhookService.getStats(req.params.id);
   res.success(stats);
 }));
@@ -239,7 +239,7 @@ router.get('/:id/stats', authenticate, asyncHandler(async (req, res) => {
  * POST /api/webhooks/cleanup-logs
  * Clean up old webhook logs (admin only)
  */
-router.post('/cleanup-logs', authenticate, asyncHandler(async (req, res) => {
+router.post('/cleanup-logs', authenticate, requireRole('admin'), asyncHandler(async (req, res) => {
   const { daysToKeep = 30 } = req.body;
 
   const deleted = await webhookService.cleanupLogs(parseInt(daysToKeep));

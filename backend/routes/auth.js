@@ -413,10 +413,15 @@ router.post('/logout', authenticate, async (req, res) => {
  */
 router.get('/me', authenticate, async (req, res) => {
   try {
+    const { resolvePermissions } = require('../utils/permissions');
+
     // Fetch full user details from database
     const users = await db.query(
-      `SELECT id, email, first_name, last_name, role, is_active, created_at, last_login
-       FROM users WHERE id = $1`,
+      `SELECT u.id, u.email, u.first_name, u.last_name, u.role, u.is_active, u.created_at, u.last_login,
+              u.pos_role_id, pr.name as pos_role_name, pr.display_name as pos_role_display, pr.permissions as pos_permissions
+       FROM users u
+       LEFT JOIN pos_roles pr ON u.pos_role_id = pr.id
+       WHERE u.id = $1`,
       [req.user.id]
     );
 
@@ -428,20 +433,26 @@ router.get('/me', authenticate, async (req, res) => {
     }
 
     const user = users.rows[0];
+    const userObj = {
+      id: user.id,
+      email: user.email,
+      firstName: user.first_name,
+      lastName: user.last_name,
+      role: user.role,
+      isActive: user.is_active,
+      createdAt: user.created_at,
+      lastLogin: user.last_login,
+      posRoleId: user.pos_role_id,
+      posRoleName: user.pos_role_name,
+      posRoleDisplay: user.pos_role_display,
+      posPermissions: Array.isArray(user.pos_permissions) ? user.pos_permissions : null,
+    };
 
     res.json({
       success: true,
       data: {
-        user: {
-          id: user.id,
-          email: user.email,
-          firstName: user.first_name,
-          lastName: user.last_name,
-          role: user.role,
-          isActive: user.is_active,
-          createdAt: user.created_at,
-          lastLogin: user.last_login
-        }
+        user: userObj,
+        permissions: resolvePermissions(userObj),
       }
     });
   } catch (error) {

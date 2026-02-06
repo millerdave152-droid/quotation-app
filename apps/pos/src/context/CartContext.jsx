@@ -14,6 +14,7 @@ import {
 } from 'react';
 import { searchByBarcode } from '../api/products';
 import { trackFavorite } from '../components/Cart/QuickAddFavorites';
+import { useAuth } from './AuthContext';
 
 // ============================================================================
 // CONSTANTS
@@ -156,6 +157,8 @@ const saveHeldCarts = (carts) => {
 // ============================================================================
 
 export function CartProvider({ children }) {
+  const { user } = useAuth();
+
   // Cart state
   const [items, setItems] = useState([]);
   const [customer, setCustomerState] = useState(null);
@@ -163,6 +166,7 @@ export function CartProvider({ children }) {
   const [discount, setDiscountState] = useState({ amount: 0, reason: '' });
   const [province, setProvinceState] = useState(DEFAULT_PROVINCE);
   const [salespersonId, setSalespersonId] = useState(null);
+  const [commissionSplit, setCommissionSplit] = useState(null); // { enabled, secondaryRepId, secondaryRepName, preset, primaryPct, secondaryPct }
   const [appliedPromotion, setAppliedPromotion] = useState(null);
   const [selectedFulfillment, setSelectedFulfillment] = useState(null);
 
@@ -202,6 +206,13 @@ export function CartProvider({ children }) {
 
     setHeldCarts(loadHeldCarts());
   }, []);
+
+  // Auto-set salesperson from logged-in user when no salesperson is selected
+  useEffect(() => {
+    if (!salespersonId && user?.id) {
+      setSalespersonId(user.id);
+    }
+  }, [user?.id, salespersonId]);
 
   // ============================================================================
   // PERSISTENCE - Save to localStorage on changes
@@ -729,6 +740,7 @@ export function CartProvider({ children }) {
     setSelectedFulfillment(null);
     setTradeIns([]);
     setSalespersonId(null);
+    setCommissionSplit(null);
     setError(null);
   }, []);
 
@@ -873,7 +885,7 @@ export function CartProvider({ children }) {
       shiftId,
       customerId: customer?.customerId || customer?.customer_id || null,
       quoteId: quoteId || null,
-      salespersonId: Number.isFinite(Number(salespersonId)) ? Number(salespersonId) : null,
+      salespersonId: Number.isFinite(Number(salespersonId)) ? Number(salespersonId) : (user?.id || null),
       items: items.map((item) => ({
         productId: item.productId,
         quantity: item.quantity,
@@ -898,17 +910,11 @@ export function CartProvider({ children }) {
             discountCents: appliedPromotion.discountCents,
           }
         : null,
-      // Fulfillment data
+      // Fulfillment data - spread all fields to include pickup-specific and delivery-specific data
       fulfillment: selectedFulfillment
         ? {
-            type: selectedFulfillment.type,
+            ...selectedFulfillment,
             fee: selectedFulfillment.fee || 0,
-            scheduledDate: selectedFulfillment.scheduledDate || null,
-            scheduledTimeStart: selectedFulfillment.scheduledTimeStart || null,
-            scheduledTimeEnd: selectedFulfillment.scheduledTimeEnd || null,
-            address: selectedFulfillment.address || null,
-            zoneId: selectedFulfillment.zoneId || null,
-            notes: selectedFulfillment.notes || null,
           }
         : null,
       // Trade-in data - simplified for backend (only needs assessmentId and creditAmount)
@@ -916,11 +922,23 @@ export function CartProvider({ children }) {
         assessmentId: ti.id,
         creditAmount: parseFloat(ti.final_value || ti.finalValue || 0),
       })),
+      // Commission split data
+      commissionSplit: commissionSplit?.enabled ? {
+        splits: [
+          { userId: Number.isFinite(Number(salespersonId)) ? Number(salespersonId) : user?.id, splitPercentage: commissionSplit.primaryPct, role: 'primary' },
+          { userId: commissionSplit.secondaryRepId, splitPercentage: commissionSplit.secondaryPct, role: 'secondary' },
+        ],
+      } : null,
       tradeInTotal: calculations.tradeInTotal,
       tradeInExcess: calculations.tradeInExcess,
       amountToPay: calculations.amountToPay,
+      // Deposit flag — set if any payment is marked as deposit
+      isDeposit: payments.some(p => p.isDeposit),
+      // Marketing attribution — pulled from customer record if available
+      marketingSource: customer?.marketing_source || customer?.marketingSource || null,
+      marketingSourceDetail: customer?.marketing_source_detail || customer?.marketingSourceDetail || null,
     };
-  }, [items, customer, quoteId, salespersonId, discount, province, appliedPromotion, selectedFulfillment, tradeIns, calculations]);
+  }, [items, customer, quoteId, salespersonId, user, commissionSplit, discount, province, appliedPromotion, selectedFulfillment, tradeIns, calculations]);
 
   // ============================================================================
   // CONTEXT VALUE
@@ -934,6 +952,7 @@ export function CartProvider({ children }) {
     discount,
     province,
     salespersonId,
+    commissionSplit,
     appliedPromotion,
     selectedFulfillment,
     tradeIns,
@@ -967,6 +986,7 @@ export function CartProvider({ children }) {
     loadFromQuote,
     clearCart,
     setSalespersonId,
+    setCommissionSplit,
 
     // Promotion operations
     applyPromotion,

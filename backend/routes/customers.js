@@ -814,4 +814,158 @@ router.delete('/:id/tags/:tagId', authenticate, asyncHandler(async (req, res) =>
   res.success(null, { message: 'Tag removed successfully' });
 }));
 
+/**
+ * PUT /api/customers/tags/:tagId/auto-rules
+ * Set auto-assign rules for a tag
+ */
+router.put('/tags/:tagId/auto-rules', authenticate, asyncHandler(async (req, res) => {
+  const { conditions, logic } = req.body;
+  const tag = await customerService.updateTagAutoRules(req.params.tagId, { conditions, logic: logic || 'AND' });
+  if (!tag) throw ApiError.notFound('Tag');
+  res.success(tag);
+}));
+
+/**
+ * POST /api/customers/tags/evaluate-auto
+ * Run auto-assign rules and tag matching customers
+ */
+router.post('/tags/evaluate-auto', authenticate, asyncHandler(async (req, res) => {
+  const results = await customerService.evaluateAutoTags();
+  res.success({ results, evaluated_at: new Date().toISOString() });
+}));
+
+// ============================================================================
+// LOYALTY POINTS
+// ============================================================================
+
+/**
+ * GET /api/customers/:id/loyalty
+ * Get customer loyalty point balance and tier
+ */
+router.get('/:id/loyalty', authenticate, asyncHandler(async (req, res) => {
+  const { id } = req.params;
+  const pool = customerService.pool;
+
+  // Check if loyalty table exists (graceful degradation if not migrated yet)
+  try {
+    const result = await pool.query(
+      `SELECT cl.*, c.name as customer_name
+       FROM customer_loyalty cl
+       JOIN customers c ON cl.customer_id = c.id
+       WHERE cl.customer_id = $1`,
+      [id]
+    );
+
+    if (result.rows.length === 0) {
+      // Customer exists but has no loyalty record — return zero balance
+      return res.json({
+        success: true,
+        data: {
+          customerId: parseInt(id),
+          pointsBalance: 0,
+          lifetimePoints: 0,
+          tier: 'none',
+          pointsPerDollar: 100,
+        },
+      });
+    }
+
+    const row = result.rows[0];
+    res.json({
+      success: true,
+      data: {
+        customerId: row.customer_id,
+        customerName: row.customer_name,
+        pointsBalance: row.points_balance,
+        lifetimePoints: row.lifetime_points,
+        tier: row.tier_level,
+        tierUpdatedAt: row.tier_updated_at,
+        pointsPerDollar: 100,
+      },
+    });
+  } catch (err) {
+    // Table doesn't exist yet — loyalty system not migrated
+    if (err.code === '42P01') {
+      return res.status(404).json({
+        success: false,
+        error: 'Loyalty system not yet configured',
+      });
+    }
+    throw err;
+  }
+}));
+
+/**
+ * POST /api/customers/:id/loyalty/redeem
+ * Redeem loyalty points on an order
+ */
+router.post('/:id/loyalty/redeem', authenticate, asyncHandler(async (req, res) => {
+  const { id } = req.params;
+  const { points, amountCents, orderId } = req.body;
+  const pool = customerService.pool;
+
+  if (!points || points <= 0) {
+    throw ApiError.badRequest('points must be a positive integer');
+  }
+
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+
+    const result = await client.query(
+      'SELECT * FROM customer_loyalty WHERE customer_id = $1 FOR UPDATE',
+      [id]
+    );
+
+    if (result.rows.length === 0) {
+      await client.query('ROLLBACK');
+      throw ApiError.badRequest('Customer has no loyalty account');
+    }
+
+    const loyalty = result.rows[0];
+
+    if (points > loyalty.points_balance) {
+      await client.query('ROLLBACK');
+      throw ApiError.badRequest(`Insufficient points. Available: ${loyalty.points_balance}, Requested: ${points}`);
+    }
+
+    const newBalance = loyalty.points_balance - points;
+
+    await client.query(
+      'UPDATE customer_loyalty SET points_balance = $1, updated_at = NOW() WHERE customer_id = $2',
+      [newBalance, id]
+    );
+
+    await client.query(
+      `INSERT INTO loyalty_transactions (customer_id, points, transaction_type, order_id, balance_after, description, performed_by)
+       VALUES ($1, $2, 'redeem', $3, $4, $5, $6)`,
+      [id, -points, orderId || null, newBalance, `Redeemed ${points} points ($${(amountCents / 100).toFixed(2)})`, req.user.id]
+    );
+
+    await client.query('COMMIT');
+
+    res.json({
+      success: true,
+      data: {
+        customerId: parseInt(id),
+        pointsRedeemed: points,
+        dollarValue: amountCents / 100,
+        remainingBalance: newBalance,
+      },
+    });
+  } catch (err) {
+    await client.query('ROLLBACK');
+    // Table doesn't exist yet
+    if (err.code === '42P01') {
+      return res.status(404).json({
+        success: false,
+        error: 'Loyalty system not yet configured',
+      });
+    }
+    throw err;
+  } finally {
+    client.release();
+  }
+}));
+
 module.exports = { router, init };

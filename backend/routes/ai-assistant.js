@@ -43,6 +43,7 @@ router.post('/chat', authenticate, featureFlags.checkEnabled(), async (req, res)
       success: true,
       data: {
         conversationId: result.conversationId,
+        queryLogId: result.queryLogId,
         message: result.message,
         model: result.model,
         queryType: result.queryType,

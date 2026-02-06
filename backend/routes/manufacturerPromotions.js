@@ -409,9 +409,15 @@ router.put('/watch-folders/:id', authenticate, asyncHandler(async (req, res) => 
  * Remove a watch folder
  */
 router.delete('/watch-folders/:id', authenticate, asyncHandler(async (req, res) => {
+  // Validate ID is a valid integer
+  const folderId = parseInt(req.params.id, 10);
+  if (isNaN(folderId) || folderId <= 0) {
+    throw ApiError.badRequest('Invalid watch folder ID');
+  }
+
   const result = await pool.query(
     'DELETE FROM promotion_watch_folders WHERE id = $1 RETURNING id',
-    [parseInt(req.params.id)]
+    [folderId]
   );
 
   if (result.rows.length === 0) {

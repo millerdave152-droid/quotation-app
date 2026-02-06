@@ -10,6 +10,7 @@
 const express = require('express');
 const router = express.Router();
 const { ApiError, asyncHandler } = require('../middleware/errorHandler');
+const { authenticate, requireRole } = require('../middleware/auth');
 
 let pool = null;
 let cache = null;
@@ -84,6 +85,8 @@ router.get('/quotes/:token', asyncHandler(async (req, res) => {
       q.created_at,
       q.valid_until,
       q.accepted_at,
+      q.converted_at,
+      q.converted_to_order_id,
       (SELECT COUNT(*) FROM quotation_items qi WHERE qi.quotation_id = q.id) as item_count
     FROM quotations q
     WHERE q.customer_id = $1
@@ -368,7 +371,7 @@ router.put('/profile/:token', asyncHandler(async (req, res) => {
  * POST /api/customer-portal/generate-token
  * Generate a new portal access token for a customer (internal use)
  */
-router.post('/generate-token', asyncHandler(async (req, res) => {
+router.post('/generate-token', authenticate, requireRole('admin', 'manager'), asyncHandler(async (req, res) => {
   const { customerId, expiresInDays = 30 } = req.body;
 
   if (!customerId) {
@@ -394,6 +397,341 @@ router.post('/generate-token', asyncHandler(async (req, res) => {
       token,
       expiresAt,
       portalUrl: `/customer-portal/${token}`
+    }
+  });
+}));
+
+/**
+ * GET /api/customer-portal/quotes/_internal/:quoteId/transaction
+ * Internal endpoint for hub staff to view transaction details (requires auth)
+ * MUST be defined before :token/:quoteId routes to avoid param collision
+ */
+router.get('/internal/quotes/:quoteId/transaction', authenticate, asyncHandler(async (req, res) => {
+  const { quoteId } = req.params;
+
+  const quoteResult = await pool.query(`
+    SELECT q.id, q.converted_to_order_id, q.converted_at, q.status
+    FROM quotations q WHERE q.id = $1
+  `, [quoteId]);
+
+  if (quoteResult.rows.length === 0) {
+    throw ApiError.notFound('Quote not found');
+  }
+
+  const quote = quoteResult.rows[0];
+  if (!quote.converted_to_order_id) {
+    return res.json({ success: true, data: null });
+  }
+
+  const orderResult = await pool.query(`
+    SELECT o.id as order_id, o.order_number, o.status as order_status,
+      o.subtotal_cents, o.tax_cents, o.total_cents, o.payment_status,
+      o.delivery_status, o.source, o.created_at as order_date
+    FROM orders o WHERE o.id = $1
+  `, [quote.converted_to_order_id]);
+
+  if (orderResult.rows.length === 0) {
+    return res.json({ success: true, data: null });
+  }
+
+  const order = orderResult.rows[0];
+
+  const txResult = await pool.query(`
+    SELECT t.transaction_id, t.transaction_number, t.salesperson_id,
+      CONCAT(u.first_name, ' ', u.last_name) as salesperson_name
+    FROM transactions t LEFT JOIN users u ON u.id = t.salesperson_id
+    WHERE t.quote_id = $1 LIMIT 1
+  `, [quoteId]);
+  const posTx = txResult.rows[0] || null;
+
+  const [itemsResult, paymentsData] = await Promise.all([
+    pool.query(`
+      SELECT qi.id, qi.product_id, qi.quantity, qi.unit_price_cents,
+        p.manufacturer, p.model, p.description
+      FROM quotation_items qi LEFT JOIN products p ON p.id = qi.product_id
+      WHERE qi.quotation_id = $1
+    `, [quoteId]),
+    posTx ? pool.query(`
+      SELECT payment_method, amount, status, processed_at
+      FROM payments WHERE transaction_id = $1 ORDER BY processed_at
+    `, [posTx.transaction_id]) : Promise.resolve({ rows: [] })
+  ]);
+
+  res.json({
+    success: true,
+    data: {
+      transactionNumber: posTx ? posTx.transaction_number : order.order_number,
+      transactionDate: order.order_date,
+      subtotalCents: parseInt(order.subtotal_cents) || 0,
+      taxCents: parseInt(order.tax_cents) || 0,
+      totalCents: parseInt(order.total_cents) || 0,
+      status: order.order_status,
+      paymentStatus: order.payment_status,
+      salesperson: posTx ? posTx.salesperson_name : null,
+      convertedAt: quote.converted_at,
+      items: itemsResult.rows.map(item => ({
+        id: item.id, productId: item.product_id, quantity: item.quantity,
+        unitPriceCents: parseInt(item.unit_price_cents) || 0,
+        lineTotalCents: (parseInt(item.unit_price_cents) || 0) * item.quantity,
+        manufacturer: item.manufacturer, model: item.model, description: item.description
+      })),
+      payments: paymentsData.rows.map(p => ({
+        method: p.payment_method, amountCents: Math.round(parseFloat(p.amount) * 100),
+        status: p.status, date: p.processed_at
+      }))
+    }
+  });
+}));
+
+/**
+ * GET /api/customer-portal/quotes/_internal/:quoteId/fulfillment
+ * Internal endpoint for hub staff to view fulfillment details (requires auth)
+ */
+router.get('/internal/quotes/:quoteId/fulfillment', authenticate, asyncHandler(async (req, res) => {
+  const { quoteId } = req.params;
+
+  const quoteResult = await pool.query(`
+    SELECT q.id, q.converted_to_order_id
+    FROM quotations q WHERE q.id = $1
+  `, [quoteId]);
+
+  if (quoteResult.rows.length === 0) {
+    throw ApiError.notFound('Quote not found');
+  }
+
+  const quote = quoteResult.rows[0];
+  if (!quote.converted_to_order_id) {
+    return res.json({ success: true, data: null });
+  }
+
+  const fulfillmentResult = await pool.query(`
+    SELECT db.id, db.status, db.scheduled_date, db.scheduled_start, db.scheduled_end,
+      db.booking_number, db.delivery_address, db.delivery_city, db.delivery_postal_code,
+      db.delivery_instructions, db.contact_name, db.contact_phone, db.driver_name,
+      db.completed_at, db.notes, db.created_at, db.updated_at
+    FROM delivery_bookings db
+    WHERE db.order_id = $1 OR db.quotation_id = $2
+    ORDER BY db.created_at DESC LIMIT 1
+  `, [quote.converted_to_order_id, quoteId]);
+
+  if (fulfillmentResult.rows.length === 0) {
+    return res.json({ success: true, data: null });
+  }
+
+  const f = fulfillmentResult.rows[0];
+  res.json({
+    success: true,
+    data: {
+      id: f.id, fulfillmentType: 'delivery', status: f.status,
+      scheduledDate: f.scheduled_date, timeSlotStart: f.scheduled_start,
+      timeSlotEnd: f.scheduled_end, trackingNumber: f.booking_number,
+      trackingUrl: null,
+      deliveryAddress: [f.delivery_address, f.delivery_city, f.delivery_postal_code].filter(Boolean).join(', '),
+      deliveredAt: f.completed_at, deliveredTo: f.contact_name,
+      customerNotes: f.delivery_instructions || f.notes,
+      createdAt: f.created_at, updatedAt: f.updated_at
+    }
+  });
+}));
+
+/**
+ * GET /api/customer-portal/quotes/:token/:quoteId/transaction
+ * Get linked transaction details for a converted quote
+ */
+router.get('/quotes/:token/:quoteId/transaction', asyncHandler(async (req, res) => {
+  const { token, quoteId } = req.params;
+
+  const customer = await getCustomerByToken(token);
+  if (!customer) {
+    throw ApiError.notFound('Invalid or expired token');
+  }
+
+  // Verify quote belongs to customer and is converted
+  const quoteResult = await pool.query(`
+    SELECT q.id, q.converted_to_order_id, q.converted_at, q.status
+    FROM quotations q
+    WHERE q.id = $1 AND q.customer_id = $2
+  `, [quoteId, customer.id]);
+
+  if (quoteResult.rows.length === 0) {
+    throw ApiError.notFound('Quote not found');
+  }
+
+  const quote = quoteResult.rows[0];
+  if (!quote.converted_to_order_id) {
+    return res.json({ success: true, data: null });
+  }
+
+  // Get order details
+  const orderResult = await pool.query(`
+    SELECT
+      o.id as order_id,
+      o.order_number,
+      o.status as order_status,
+      o.subtotal_cents,
+      o.tax_cents,
+      o.total_cents,
+      o.payment_status,
+      o.delivery_status,
+      o.source,
+      o.created_at as order_date,
+      o.created_by
+    FROM orders o
+    WHERE o.id = $1
+  `, [quote.converted_to_order_id]);
+
+  if (orderResult.rows.length === 0) {
+    return res.json({ success: true, data: null });
+  }
+
+  const order = orderResult.rows[0];
+
+  // Try to find linked POS transaction via quote_id
+  const txResult = await pool.query(`
+    SELECT t.transaction_id, t.transaction_number, t.salesperson_id,
+      CONCAT(u.first_name, ' ', u.last_name) as salesperson_name
+    FROM transactions t
+    LEFT JOIN users u ON u.id = t.salesperson_id
+    WHERE t.quote_id = $1
+    LIMIT 1
+  `, [quoteId]);
+
+  const posTx = txResult.rows[0] || null;
+
+  // Get items from quotation_items (source of truth for quote->order)
+  const itemsResult = await pool.query(`
+    SELECT
+      qi.id,
+      qi.product_id,
+      qi.quantity,
+      qi.unit_price_cents,
+      p.manufacturer,
+      p.model,
+      p.description
+    FROM quotation_items qi
+    LEFT JOIN products p ON p.id = qi.product_id
+    WHERE qi.quotation_id = $1
+  `, [quoteId]);
+
+  // If POS transaction exists, get payments from POS
+  let payments = [];
+  if (posTx) {
+    const paymentsResult = await pool.query(`
+      SELECT payment_method, amount, status, processed_at
+      FROM payments WHERE transaction_id = $1 ORDER BY processed_at
+    `, [posTx.transaction_id]);
+    payments = paymentsResult.rows.map(p => ({
+      method: p.payment_method,
+      amountCents: Math.round(parseFloat(p.amount) * 100),
+      status: p.status,
+      date: p.processed_at
+    }));
+  }
+
+  res.json({
+    success: true,
+    data: {
+      transactionNumber: posTx ? posTx.transaction_number : order.order_number,
+      transactionDate: order.order_date,
+      subtotalCents: parseInt(order.subtotal_cents) || 0,
+      taxCents: parseInt(order.tax_cents) || 0,
+      totalCents: parseInt(order.total_cents) || 0,
+      status: order.order_status,
+      paymentStatus: order.payment_status,
+      salesperson: posTx ? posTx.salesperson_name : null,
+      convertedAt: quote.converted_at,
+      items: itemsResult.rows.map(item => ({
+        id: item.id,
+        productId: item.product_id,
+        quantity: item.quantity,
+        unitPriceCents: parseInt(item.unit_price_cents) || 0,
+        lineTotalCents: (parseInt(item.unit_price_cents) || 0) * item.quantity,
+        manufacturer: item.manufacturer,
+        model: item.model,
+        description: item.description
+      })),
+      payments
+    }
+  });
+}));
+
+/**
+ * GET /api/customer-portal/quotes/:token/:quoteId/fulfillment
+ * Get delivery/fulfillment status for a converted quote
+ */
+router.get('/quotes/:token/:quoteId/fulfillment', asyncHandler(async (req, res) => {
+  const { token, quoteId } = req.params;
+
+  const customer = await getCustomerByToken(token);
+  if (!customer) {
+    throw ApiError.notFound('Invalid or expired token');
+  }
+
+  // Verify quote belongs to customer
+  const quoteResult = await pool.query(`
+    SELECT q.id, q.converted_to_order_id
+    FROM quotations q
+    WHERE q.id = $1 AND q.customer_id = $2
+  `, [quoteId, customer.id]);
+
+  if (quoteResult.rows.length === 0) {
+    throw ApiError.notFound('Quote not found');
+  }
+
+  const quote = quoteResult.rows[0];
+  if (!quote.converted_to_order_id) {
+    return res.json({ success: true, data: null });
+  }
+
+  // Get fulfillment details from delivery_bookings
+  const fulfillmentResult = await pool.query(`
+    SELECT
+      db.id,
+      db.status,
+      db.scheduled_date,
+      db.scheduled_start,
+      db.scheduled_end,
+      db.booking_number,
+      db.delivery_address,
+      db.delivery_city,
+      db.delivery_postal_code,
+      db.delivery_instructions,
+      db.contact_name,
+      db.contact_phone,
+      db.driver_name,
+      db.completed_at,
+      db.notes,
+      db.created_at,
+      db.updated_at
+    FROM delivery_bookings db
+    WHERE db.order_id = $1 OR db.quotation_id = $2
+    ORDER BY db.created_at DESC
+    LIMIT 1
+  `, [quote.converted_to_order_id, quoteId]);
+
+  if (fulfillmentResult.rows.length === 0) {
+    return res.json({ success: true, data: null });
+  }
+
+  const f = fulfillmentResult.rows[0];
+
+  res.json({
+    success: true,
+    data: {
+      id: f.id,
+      fulfillmentType: 'delivery',
+      status: f.status,
+      scheduledDate: f.scheduled_date,
+      timeSlotStart: f.scheduled_start,
+      timeSlotEnd: f.scheduled_end,
+      trackingNumber: f.booking_number,
+      trackingUrl: null,
+      deliveryAddress: [f.delivery_address, f.delivery_city, f.delivery_postal_code].filter(Boolean).join(', '),
+      deliveredAt: f.completed_at,
+      deliveredTo: f.contact_name,
+      customerNotes: f.delivery_instructions || f.notes,
+      createdAt: f.created_at,
+      updatedAt: f.updated_at
     }
   });
 }));
@@ -431,6 +769,8 @@ async function getCustomerQuotes(customerId) {
       q.created_at,
       q.valid_until,
       q.accepted_at,
+      q.converted_at,
+      q.converted_to_order_id,
       (SELECT COUNT(*) FROM quotation_items qi WHERE qi.quotation_id = q.id) as item_count
     FROM quotations q
     WHERE q.customer_id = $1
@@ -445,7 +785,8 @@ async function getCustomerStats(customerId) {
   const result = await pool.query(`
     SELECT
       COUNT(*) as total_quotes,
-      COUNT(*) FILTER (WHERE status = 'WON') as accepted_quotes,
+      COUNT(*) FILTER (WHERE status = 'WON' OR status = 'converted') as accepted_quotes,
+      COUNT(*) FILTER (WHERE status = 'converted') as converted_quotes,
       COUNT(*) FILTER (WHERE status = 'SENT') as pending_quotes,
       SUM(total_cents) FILTER (WHERE status = 'WON') as total_spent_cents,
       AVG(total_cents) FILTER (WHERE status = 'WON') as avg_order_cents,
@@ -458,6 +799,7 @@ async function getCustomerStats(customerId) {
   return {
     totalQuotes: parseInt(stats.total_quotes) || 0,
     acceptedQuotes: parseInt(stats.accepted_quotes) || 0,
+    convertedQuotes: parseInt(stats.converted_quotes) || 0,
     pendingQuotes: parseInt(stats.pending_quotes) || 0,
     totalSpent: parseInt(stats.total_spent_cents) || 0,
     avgOrderValue: Math.round(parseFloat(stats.avg_order_cents) || 0),
@@ -493,7 +835,9 @@ function formatQuote(q) {
     itemCount: parseInt(q.item_count),
     createdAt: q.created_at,
     validUntil: q.valid_until,
-    acceptedAt: q.accepted_at
+    acceptedAt: q.accepted_at,
+    convertedAt: q.converted_at || null,
+    convertedToOrderId: q.converted_to_order_id || null
   };
 }
 
@@ -510,6 +854,8 @@ function formatQuoteDetail(q) {
     createdAt: q.created_at,
     validUntil: q.valid_until,
     acceptedAt: q.accepted_at,
+    convertedAt: q.converted_at || null,
+    convertedToOrderId: q.converted_to_order_id || null,
     items: (q.items || []).filter(i => i.id).map(item => ({
       id: item.id,
       productId: item.product_id,

@@ -70,7 +70,7 @@ const helmetConfig = helmet({
 const corsOptions = (req, callback) => {
   const isProduction = process.env.NODE_ENV === 'production';
 
-  // Allowed origins
+  // Allowed origins - SECURITY: Always use an explicit allowlist
   const allowedOrigins = isProduction
     ? (process.env.ALLOWED_ORIGINS || '').split(',').filter(Boolean)
     : [
@@ -83,8 +83,14 @@ const corsOptions = (req, callback) => {
 
   const origin = req.headers.origin;
 
-  // Check if origin is allowed
-  const isAllowed = !isProduction || allowedOrigins.includes(origin);
+  // SECURITY: Always check against allowlist, even in development
+  // This prevents accidental exposure if dev config runs in production
+  const isAllowed = allowedOrigins.includes(origin);
+
+  // SECURITY: Log rejected origins in production for monitoring
+  if (isProduction && origin && !isAllowed) {
+    console.warn(`CORS: Rejected origin: ${origin}`);
+  }
 
   const options = {
     origin: isAllowed,
@@ -121,14 +127,13 @@ const generalLimiter = rateLimit({
   legacyHeaders: false, // Disable `X-RateLimit-*` headers
   // Skip rate limiting for certain conditions
   skip: (req) => {
-    // Skip for health check endpoints
+    // Skip for health check endpoints only
     if (req.path === '/health' || req.path === '/api/health') {
       return true;
     }
-    // DISABLE rate limiting completely for localhost in development
-    if (process.env.NODE_ENV !== 'production' && (req.ip === '::1' || req.ip === '127.0.0.1' || req.ip === '::ffff:127.0.0.1')) {
-      return true;
-    }
+    // SECURITY: Rate limiting applies to all IPs including localhost
+    // This prevents issues if development mode is accidentally exposed
+    // Use higher limits in development instead of skipping entirely
     return false;
   },
   // Using default keyGenerator (handles IPv6 properly)
@@ -148,7 +153,7 @@ const generalLimiter = rateLimit({
  */
 const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 50, // Increased from 5 to 50 for development
+  max: process.env.NODE_ENV === 'production' ? 5 : 50, // 5 in production, 50 in development
   message: {
     success: false,
     message: 'Too many login attempts, please try again later.',
@@ -260,22 +265,52 @@ const securityHeaders = (req, res, next) => {
 
 /**
  * Sanitize Input Middleware
- * Basic sanitization to prevent common attacks
+ * Defense-in-depth sanitization to prevent common attacks
  * @param {Object} req - Express request object
  * @param {Object} res - Express response object
  * @param {Function} next - Express next middleware function
  */
 const sanitizeInput = (req, res, next) => {
-  // Remove null bytes from all inputs
-  const sanitize = (obj) => {
+  // Sanitize string inputs - remove dangerous patterns
+  const sanitize = (obj, depth = 0) => {
+    // SECURITY: Prevent deeply nested object attacks (prototype pollution)
+    if (depth > 10) {
+      return obj;
+    }
+
     if (typeof obj === 'string') {
-      return obj.replace(/\0/g, '');
+      // Remove null bytes
+      let sanitized = obj.replace(/\0/g, '');
+      // Remove potential MongoDB operator injection patterns
+      sanitized = sanitized.replace(/^\$/, '_dollar_');
+      // Trim excessive whitespace
+      if (sanitized.length > 10000) {
+        sanitized = sanitized.substring(0, 10000);
+      }
+      return sanitized;
     }
+
+    if (Array.isArray(obj)) {
+      // SECURITY: Limit array size to prevent DoS
+      if (obj.length > 10000) {
+        obj = obj.slice(0, 10000);
+      }
+      return obj.map(item => sanitize(item, depth + 1));
+    }
+
     if (typeof obj === 'object' && obj !== null) {
-      Object.keys(obj).forEach(key => {
-        obj[key] = sanitize(obj[key]);
+      // SECURITY: Prevent prototype pollution
+      const safeKeys = Object.keys(obj).filter(key =>
+        key !== '__proto__' && key !== 'constructor' && key !== 'prototype'
+      );
+
+      const sanitized = {};
+      safeKeys.forEach(key => {
+        sanitized[key] = sanitize(obj[key], depth + 1);
       });
+      return sanitized;
     }
+
     return obj;
   };
 

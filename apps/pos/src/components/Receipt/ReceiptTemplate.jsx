@@ -3,10 +3,16 @@
  *
  * Renders a receipt in the browser for preview/printing
  * Matches the professional styling of quote PDFs
+ * Includes manufacturer rebate and trade-in information
  */
 
 import { forwardRef, Fragment } from 'react';
 import { formatCurrency, formatDateTime } from '../../utils/formatters';
+import {
+  MailInRebateReceiptSection,
+  ThermalRebateSection,
+} from '../Rebates/RebateReceiptSection';
+import { TradeInReceiptSection } from '../TradeIn/TradeInCartSection';
 
 /**
  * Receipt Template Component
@@ -14,14 +20,34 @@ import { formatCurrency, formatDateTime } from '../../utils/formatters';
  * @param {object} props.receipt - Receipt data from API
  * @param {string} props.variant - 'full' for full page, 'thermal' for 80mm
  * @param {boolean} props.showQR - Whether to show QR code
+ * @param {object} props.rebates - Rebate information { instantRebates, mailInRebates, onlineRebates }
+ * @param {array} props.tradeIns - Trade-in assessments applied to this transaction
  */
 export const ReceiptTemplate = forwardRef(function ReceiptTemplate(
-  { receipt, variant = 'full', showQR = true },
+  { receipt, variant = 'full', showQR = true, rebates = null, tradeIns = [] },
   ref
 ) {
   if (!receipt) return null;
 
   const { company, transaction, items, totals, payments, qrCodeUrl } = receipt;
+
+  // Extract rebate data
+  const instantRebates = rebates?.instantRebates || [];
+  const mailInRebates = rebates?.mailInRebates || [];
+  const onlineRebates = rebates?.onlineRebates || [];
+  const totalInstantSavings = rebates?.totalInstantSavings || 0;
+  const hasMailInRebates = mailInRebates.length > 0 || onlineRebates.length > 0;
+
+  // Trade-in data
+  const hasTradeIns = tradeIns && tradeIns.length > 0;
+  const totalTradeInCredit = hasTradeIns
+    ? tradeIns.reduce((sum, ti) => sum + parseFloat(ti.final_value || ti.finalValue || 0), 0)
+    : 0;
+
+  // Get instant rebate for a specific product
+  const getProductRebates = (productId) => {
+    return instantRebates.filter(r => r.productId === productId);
+  };
 
   // Format payment method display
   const formatPaymentMethod = (payment) => {
@@ -66,37 +92,47 @@ export const ReceiptTemplate = forwardRef(function ReceiptTemplate(
         <div className="border-t border-dashed border-gray-400 my-2" />
 
         {/* Items */}
-        {items.map((item, index) => (
-          <div key={index} className="mb-1">
-            <p className="font-bold truncate">{item.name}</p>
-            <div className="flex justify-between">
-              <span>  {item.quantity} x {formatCurrency(item.unitPrice)}</span>
-              <span>{formatCurrency(item.total)}</span>
-            </div>
-            {item.discountAmount > 0 && (
-              <p className="text-right text-gray-600">
-                Disc: -{formatCurrency(item.discountAmount)}
-              </p>
-            )}
-            {/* Warranties under this product */}
-            {item.warranties && item.warranties.length > 0 && item.warranties.map((warranty, wIndex) => (
-              <div key={wIndex} className="ml-2 text-[9px]">
-                <p className="truncate">+ {warranty.name || 'Protection Plan'}</p>
-                <div className="flex justify-between">
-                  <span>
-                    {warranty.coverageStartDate && warranty.coverageEndDate
-                      ? `    ${new Date(warranty.coverageStartDate).toLocaleDateString('en-CA')} - ${new Date(warranty.coverageEndDate).toLocaleDateString('en-CA')}`
-                      : `    ${warranty.durationMonths}mo coverage`}
-                  </span>
-                  <span>{formatCurrency(warranty.price)}</span>
-                </div>
-                {warranty.registrationCode && (
-                  <p className="text-gray-500">    Code: {warranty.registrationCode}</p>
-                )}
+        {items.map((item, index) => {
+          const itemRebates = getProductRebates(item.productId || item.id);
+          return (
+            <div key={index} className="mb-1">
+              <p className="font-bold truncate">{item.name}</p>
+              <div className="flex justify-between">
+                <span>  {item.quantity} x {formatCurrency(item.unitPrice)}</span>
+                <span>{formatCurrency(item.total)}</span>
               </div>
-            ))}
-          </div>
-        ))}
+              {item.discountAmount > 0 && (
+                <p className="text-right text-gray-600">
+                  Disc: -{formatCurrency(item.discountAmount)}
+                </p>
+              )}
+              {/* Instant rebates for this item */}
+              {itemRebates.map((rebate, rIndex) => (
+                <div key={`rebate-${rIndex}`} className="flex justify-between text-gray-600">
+                  <span>  MFR Rebate ({rebate.manufacturer})</span>
+                  <span>-{formatCurrency(rebate.amount)}</span>
+                </div>
+              ))}
+              {/* Warranties under this product */}
+              {item.warranties && item.warranties.length > 0 && item.warranties.map((warranty, wIndex) => (
+                <div key={wIndex} className="ml-2 text-[9px]">
+                  <p className="truncate">+ {warranty.name || 'Protection Plan'}</p>
+                  <div className="flex justify-between">
+                    <span>
+                      {warranty.coverageStartDate && warranty.coverageEndDate
+                        ? `    ${new Date(warranty.coverageStartDate).toLocaleDateString('en-CA')} - ${new Date(warranty.coverageEndDate).toLocaleDateString('en-CA')}`
+                        : `    ${warranty.durationMonths}mo coverage`}
+                    </span>
+                    <span>{formatCurrency(warranty.price)}</span>
+                  </div>
+                  {warranty.registrationCode && (
+                    <p className="text-gray-500">    Code: {warranty.registrationCode}</p>
+                  )}
+                </div>
+              ))}
+            </div>
+          );
+        })}
 
         <div className="border-t border-dashed border-gray-400 my-2" />
 
@@ -110,6 +146,18 @@ export const ReceiptTemplate = forwardRef(function ReceiptTemplate(
             <div className="flex justify-between">
               <span>Discount:</span>
               <span>-{formatCurrency(totals.discount)}</span>
+            </div>
+          )}
+          {totalInstantSavings > 0 && (
+            <div className="flex justify-between font-bold">
+              <span>MFR Rebates:</span>
+              <span>-{formatCurrency(totalInstantSavings)}</span>
+            </div>
+          )}
+          {totalTradeInCredit > 0 && (
+            <div className="flex justify-between font-bold">
+              <span>Trade-In:</span>
+              <span>-{formatCurrency(totalTradeInCredit)}</span>
             </div>
           )}
           {totals.hst > 0 && (
@@ -176,6 +224,20 @@ export const ReceiptTemplate = forwardRef(function ReceiptTemplate(
           <p className="text-[9px]">with original receipt</p>
           {company.website && <p className="mt-2">{company.website}</p>}
         </div>
+
+        {/* Trade-In Section */}
+        {hasTradeIns && (
+          <TradeInReceiptSection tradeIns={tradeIns} variant="thermal" />
+        )}
+
+        {/* Mail-in Rebate Section */}
+        {hasMailInRebates && (
+          <ThermalRebateSection
+            instantRebates={instantRebates}
+            mailInRebates={mailInRebates}
+            onlineRebates={onlineRebates}
+          />
+        )}
       </div>
     );
   }
@@ -241,7 +303,10 @@ export const ReceiptTemplate = forwardRef(function ReceiptTemplate(
           </tr>
         </thead>
         <tbody>
-          {items.map((item, index) => (
+          {items.map((item, index) => {
+            const itemRebates = getProductRebates(item.productId || item.id);
+            const itemRebateTotal = itemRebates.reduce((sum, r) => sum + r.amount, 0);
+            return (
             <Fragment key={`item-group-${index}`}>
               <tr
                 className={`border-b border-gray-100 ${index % 2 === 0 ? 'bg-gray-50' : 'bg-white'}`}
@@ -269,6 +334,38 @@ export const ReceiptTemplate = forwardRef(function ReceiptTemplate(
                   )}
                 </td>
               </tr>
+              {/* Instant Rebates for this item */}
+              {itemRebates.map((rebate, rIndex) => (
+                <tr
+                  key={`rebate-${index}-${rIndex}`}
+                  className="border-b border-gray-100 bg-green-50"
+                >
+                  <td className="py-2 px-4 pl-8">
+                    <div className="flex items-start gap-2">
+                      <span className="text-green-500 text-sm">\u{1F4B0}</span>
+                      <div>
+                        <p className="font-semibold text-green-700 text-sm">
+                          {rebate.rebateName || 'Manufacturer Rebate'}
+                        </p>
+                        <p className="text-xs text-green-600">
+                          {rebate.manufacturer} Instant Rebate
+                        </p>
+                      </div>
+                    </div>
+                  </td>
+                  <td className="py-2 px-4 text-center text-sm text-gray-500">
+                    {rebate.quantity || 1}
+                  </td>
+                  <td className="py-2 px-4 text-right text-sm text-gray-500">
+                    -{formatCurrency(rebate.unitAmount || rebate.amount)}
+                  </td>
+                  <td className="py-2 px-4 text-right">
+                    <p className="font-semibold text-green-700 text-sm">
+                      -{formatCurrency(rebate.amount)}
+                    </p>
+                  </td>
+                </tr>
+              ))}
               {/* Warranties under this product */}
               {item.warranties && item.warranties.map((warranty, wIndex) => (
                 <tr
@@ -277,7 +374,7 @@ export const ReceiptTemplate = forwardRef(function ReceiptTemplate(
                 >
                   <td className="py-2 px-4 pl-8">
                     <div className="flex items-start gap-2">
-                      <span className="text-blue-500 text-sm">↳</span>
+                      <span className="text-blue-500 text-sm">\u{21B3}</span>
                       <div>
                         <p className="font-semibold text-blue-600 text-sm">
                           {warranty.name || 'Protection Plan'}
@@ -299,7 +396,7 @@ export const ReceiptTemplate = forwardRef(function ReceiptTemplate(
                             rel="noopener noreferrer"
                             className="text-xs text-blue-500 hover:underline"
                           >
-                            View Terms →
+                            View Terms \u{2192}
                           </a>
                         )}
                       </div>
@@ -319,7 +416,8 @@ export const ReceiptTemplate = forwardRef(function ReceiptTemplate(
                 </tr>
               ))}
             </Fragment>
-          ))}
+          );
+          })}
         </tbody>
       </table>
 
@@ -382,6 +480,20 @@ export const ReceiptTemplate = forwardRef(function ReceiptTemplate(
                 </div>
               )}
 
+              {totalInstantSavings > 0 && (
+                <div className="flex justify-between text-sm">
+                  <span className="text-green-600 font-medium">MFR Rebates</span>
+                  <span className="text-green-600 font-medium">-{formatCurrency(totalInstantSavings)}</span>
+                </div>
+              )}
+
+              {totalTradeInCredit > 0 && (
+                <div className="flex justify-between text-sm">
+                  <span className="text-emerald-600 font-medium">Trade-In Credit</span>
+                  <span className="text-emerald-600 font-medium">-{formatCurrency(totalTradeInCredit)}</span>
+                </div>
+              )}
+
               {totals.hst > 0 && (
                 <div className="flex justify-between text-sm">
                   <span className="text-gray-500">HST (13%)</span>
@@ -433,6 +545,20 @@ export const ReceiptTemplate = forwardRef(function ReceiptTemplate(
           )}
         </div>
       </div>
+
+      {/* Trade-In Details Section */}
+      {hasTradeIns && (
+        <TradeInReceiptSection tradeIns={tradeIns} variant="full" />
+      )}
+
+      {/* Mail-in Rebate Opportunities Section */}
+      {hasMailInRebates && (
+        <MailInRebateReceiptSection
+          mailInRebates={mailInRebates}
+          onlineRebates={onlineRebates}
+          showQrCodes={showQR}
+        />
+      )}
     </div>
   );
 });

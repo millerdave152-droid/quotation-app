@@ -45,6 +45,14 @@ class InventoryService {
           RETURNING *
         `, [item.product_id, quotationId, item.quantity, expiresAt, createdBy]);
 
+        // CRITICAL FIX: Update the product's reserved quantity to maintain accurate availability
+        await client.query(`
+          UPDATE products
+          SET qty_reserved = COALESCE(qty_reserved, 0) + $2,
+              updated_at = CURRENT_TIMESTAMP
+          WHERE id = $1
+        `, [item.product_id, item.quantity]);
+
         reservations.push(result.rows[0]);
       }
 
@@ -72,33 +80,56 @@ class InventoryService {
    * @returns {Promise<number>} Number of reservations released
    */
   async releaseReservation(quotationId, reason = 'manual', releasedBy = 'system') {
-    const result = await this.pool.query(`
-      UPDATE inventory_reservations
-      SET
-        status = 'released',
-        released_at = CURRENT_TIMESTAMP,
-        release_reason = $2
-      WHERE quotation_id = $1
-        AND status = 'reserved'
-      RETURNING *
-    `, [quotationId, reason]);
+    const client = await this.pool.connect();
 
-    // Log the release
-    for (const reservation of result.rows) {
-      await this.logStockMovement(
-        reservation.product_id,
-        'reservation_released',
-        reservation.quantity,
-        `Released from quote ${quotationId}: ${reason}`,
-        releasedBy
-      );
+    try {
+      await client.query('BEGIN');
+
+      const result = await client.query(`
+        UPDATE inventory_reservations
+        SET
+          status = 'released',
+          released_at = CURRENT_TIMESTAMP,
+          release_reason = $2
+        WHERE quotation_id = $1
+          AND status = 'reserved'
+        RETURNING *
+      `, [quotationId, reason]);
+
+      // Log the release and update product reserved quantities
+      for (const reservation of result.rows) {
+        // CRITICAL FIX: Decrement the product's reserved quantity
+        await client.query(`
+          UPDATE products
+          SET qty_reserved = GREATEST(COALESCE(qty_reserved, 0) - $2, 0),
+              updated_at = CURRENT_TIMESTAMP
+          WHERE id = $1
+        `, [reservation.product_id, reservation.quantity]);
+
+        await this.logStockMovement(
+          reservation.product_id,
+          'reservation_released',
+          reservation.quantity,
+          `Released from quote ${quotationId}: ${reason}`,
+          releasedBy,
+          client
+        );
+      }
+
+      await client.query('COMMIT');
+
+      // Invalidate cache
+      this.cache?.invalidatePattern('inventory:*');
+      this.cache?.invalidatePattern('products:*');
+
+      return result.rowCount;
+
+    } catch (error) {
+      await client.query('ROLLBACK');
+      throw error;
+    } finally {
+      client.release();
     }
-
-    // Invalidate cache
-    this.cache?.invalidatePattern('inventory:*');
-    this.cache?.invalidatePattern('products:*');
-
-    return result.rowCount;
   }
 
   /**

@@ -178,12 +178,29 @@ class CustomerService {
    * @returns {Promise<object>}
    */
   async createCustomer(customerData) {
-    const { name, email, phone, company, address, city, province, postal_code, notes } = customerData;
+    const {
+      name, email, phone, company, address, city, province, postal_code, notes,
+      marketing_source, marketing_source_detail,
+      marketing_source_id, first_contact_date,
+      email_transactional, email_marketing, sms_transactional, sms_marketing
+    } = customerData;
 
     const result = await this.pool.query(
-      `INSERT INTO customers (name, email, phone, company, address, city, province, postal_code, notes)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING *`,
-      [name, email, phone, company, address, city, province, postal_code, notes]
+      `INSERT INTO customers (
+        name, email, phone, company, address, city, province, postal_code, notes,
+        marketing_source, marketing_source_detail,
+        marketing_source_id, first_contact_date,
+        email_transactional, email_marketing, sms_transactional, sms_marketing,
+        preferences_updated_at
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, NOW())
+      RETURNING *`,
+      [
+        name, email, phone, company, address, city, province, postal_code, notes,
+        marketing_source || null, marketing_source_detail || null,
+        marketing_source_id || null, first_contact_date || null,
+        email_transactional ?? true, email_marketing ?? false,
+        sms_transactional ?? false, sms_marketing ?? false
+      ]
     );
 
     // Invalidate cache
@@ -206,13 +223,24 @@ class CustomerService {
    * @returns {Promise<object|null>}
    */
   async updateCustomer(id, customerData) {
-    const { name, email, phone, company, address, city, province, postal_code, notes } = customerData;
+    const {
+      name, email, phone, company, address, city, province, postal_code, notes,
+      email_transactional, email_marketing, sms_transactional, sms_marketing
+    } = customerData;
+
+    // Build SET clause dynamically for optional preference fields
+    const hasPrefs = email_transactional !== undefined || email_marketing !== undefined
+      || sms_transactional !== undefined || sms_marketing !== undefined;
 
     const result = await this.pool.query(
       `UPDATE customers SET name = $1, email = $2, phone = $3, company = $4, address = $5,
        city = $6, province = $7, postal_code = $8, notes = $9, updated_at = CURRENT_TIMESTAMP
+       ${hasPrefs ? ', email_transactional = COALESCE($11, email_transactional), email_marketing = COALESCE($12, email_marketing), sms_transactional = COALESCE($13, sms_transactional), sms_marketing = COALESCE($14, sms_marketing), preferences_updated_at = NOW()' : ''}
        WHERE id = $10 RETURNING *`,
-      [name, email, phone, company, address, city, province, postal_code, notes, id]
+      hasPrefs
+        ? [name, email, phone, company, address, city, province, postal_code, notes, id,
+           email_transactional ?? null, email_marketing ?? null, sms_transactional ?? null, sms_marketing ?? null]
+        : [name, email, phone, company, address, city, province, postal_code, notes, id]
     );
 
     if (result.rows.length === 0) {
@@ -770,6 +798,108 @@ class CustomerService {
     `);
 
     return result.rows;
+  }
+
+  /**
+   * Update auto-assign rules for a tag.
+   */
+  async updateTagAutoRules(tagId, rules) {
+    const result = await this.pool.query(
+      'UPDATE customer_tags SET auto_assign_rules = $1 WHERE id = $2 RETURNING *',
+      [JSON.stringify(rules), tagId]
+    );
+    return result.rows[0] || null;
+  }
+
+  /**
+   * Evaluate auto-assign rules and assign tags to matching customers.
+   * Returns { tag_id, tag_name, assigned_count } per tag.
+   */
+  async evaluateAutoTags() {
+    const { rows: tags } = await this.pool.query(
+      'SELECT id, name, auto_assign_rules FROM customer_tags WHERE auto_assign_rules IS NOT NULL'
+    );
+
+    const results = [];
+
+    for (const tag of tags) {
+      const rules = tag.auto_assign_rules;
+      if (!rules || !Array.isArray(rules.conditions) || rules.conditions.length === 0) continue;
+
+      const conditions = [];
+      const params = [];
+      let idx = 1;
+
+      for (const c of rules.conditions) {
+        const field = this._resolveAutoRuleField(c.field);
+        if (!field) continue;
+
+        const op = { gte: '>=', lte: '<=', eq: '=', gt: '>', lt: '<', neq: '!=' }[c.operator];
+        if (!op) continue;
+
+        params.push(c.value);
+        conditions.push(`${field} ${op} $${idx++}`);
+      }
+
+      if (conditions.length === 0) continue;
+
+      const logic = rules.logic === 'OR' ? ' OR ' : ' AND ';
+      const tagIdParam = idx;
+      params.push(tag.id);
+
+      // Find customers matching rules but not already tagged
+      const query = `
+        SELECT c.id FROM customers c
+        LEFT JOIN (
+          SELECT customer_id, COALESCE(SUM(total), 0) AS lifetime_spend, COUNT(*) AS order_count,
+                 MAX(created_at) AS last_order_at
+          FROM orders WHERE status NOT IN ('cancelled', 'voided')
+          GROUP BY customer_id
+        ) o ON o.customer_id = c.id
+        WHERE (${conditions.join(logic)})
+          AND c.id NOT IN (
+            SELECT customer_id FROM customer_tag_assignments WHERE tag_id = $${tagIdParam}
+          )
+      `;
+
+      const { rows: customers } = await this.pool.query(query, params);
+
+      let assigned = 0;
+      for (const cust of customers) {
+        try {
+          await this.pool.query(
+            `INSERT INTO customer_tag_assignments (customer_id, tag_id, assigned_by, notes)
+             VALUES ($1, $2, NULL, 'Auto-assigned by rule')
+             ON CONFLICT (customer_id, tag_id) DO NOTHING`,
+            [cust.id, tag.id]
+          );
+          assigned++;
+        } catch {
+          // skip individual failures
+        }
+      }
+
+      results.push({ tag_id: tag.id, tag_name: tag.name, assigned_count: assigned });
+    }
+
+    return results;
+  }
+
+  /**
+   * Map rule field names to SQL expressions.
+   */
+  _resolveAutoRuleField(field) {
+    const map = {
+      lifetime_spend: 'COALESCE(o.lifetime_spend, 0)',
+      order_count: 'COALESCE(o.order_count, 0)',
+      last_order_at: 'o.last_order_at',
+      created_at: 'c.created_at',
+      customer_type: 'c.customer_type',
+      company: 'c.company',
+      city: 'c.city',
+      province: 'c.province',
+    };
+    return map[field] || null;
   }
 }
 

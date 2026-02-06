@@ -35,7 +35,8 @@ const generateAccessToken = (user) => {
     const token = jwt.sign(payload, process.env.JWT_SECRET, {
       expiresIn: ACCESS_TOKEN_EXPIRY,
       issuer: 'quotation-app',
-      audience: 'quotation-app-client'
+      audience: 'quotation-app-client',
+      algorithm: 'HS256' // SECURITY: Explicitly specify algorithm
     });
 
     return token;
@@ -67,7 +68,8 @@ const generateRefreshToken = (user) => {
     const token = jwt.sign(payload, process.env.JWT_REFRESH_SECRET, {
       expiresIn: REFRESH_TOKEN_EXPIRY,
       issuer: 'quotation-app',
-      audience: 'quotation-app-client'
+      audience: 'quotation-app-client',
+      algorithm: 'HS256' // SECURITY: Explicitly specify algorithm
     });
 
     return token;
@@ -96,7 +98,8 @@ const verifyAccessToken = (token) => {
 
     const decoded = jwt.verify(token, process.env.JWT_SECRET, {
       issuer: 'quotation-app',
-      audience: 'quotation-app-client'
+      audience: 'quotation-app-client',
+      algorithms: ['HS256'] // SECURITY: Explicitly specify allowed algorithms to prevent algorithm confusion attacks
     });
 
     // Verify token type
@@ -138,7 +141,8 @@ const verifyRefreshToken = (token) => {
 
     const decoded = jwt.verify(token, process.env.JWT_REFRESH_SECRET, {
       issuer: 'quotation-app',
-      audience: 'quotation-app-client'
+      audience: 'quotation-app-client',
+      algorithms: ['HS256'] // SECURITY: Explicitly specify allowed algorithms to prevent algorithm confusion attacks
     });
 
     // Verify token type

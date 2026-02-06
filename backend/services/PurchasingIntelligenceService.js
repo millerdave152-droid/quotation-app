@@ -9,7 +9,7 @@
  * - Provides LLM-powered executive summaries
  */
 
-const pool = require('../db');
+let pool = require('../db');
 
 class PurchasingIntelligenceService {
   constructor() {
@@ -754,5 +754,7 @@ Keep the response concise and action-oriented.`;
     return result.rows;
   }
 }
+
+PurchasingIntelligenceService.prototype._setPool = function(p) { pool = p; };
 
 module.exports = new PurchasingIntelligenceService();

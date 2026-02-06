@@ -7,7 +7,7 @@ const express = require('express');
 const router = express.Router();
 const crypto = require('crypto');
 const pool = require('../db');
-const { authenticate } = require('../middleware/auth');
+const { authenticate, requireRole } = require('../middleware/auth');
 
 /**
  * Generate a secure API key and secret
@@ -28,8 +28,9 @@ function hashSecret(secret) {
 /**
  * GET /api/api-keys
  * List all API keys (without secrets)
+ * @access Private (admin only)
  */
-router.get('/', authenticate, async (req, res) => {
+router.get('/', authenticate, requireRole('admin'), async (req, res) => {
   try {
     const result = await pool.query(`
       SELECT
@@ -56,8 +57,9 @@ router.get('/', authenticate, async (req, res) => {
 /**
  * POST /api/api-keys
  * Create a new API key
+ * @access Private (admin only)
  */
-router.post('/', authenticate, async (req, res) => {
+router.post('/', authenticate, requireRole('admin'), async (req, res) => {
   try {
     const {
       key_name,
@@ -119,10 +121,20 @@ router.post('/', authenticate, async (req, res) => {
 /**
  * PUT /api/api-keys/:id
  * Update an API key
+ * @access Private (admin only)
  */
-router.put('/:id', authenticate, async (req, res) => {
+router.put('/:id', authenticate, requireRole('admin'), async (req, res) => {
   try {
     const { id } = req.params;
+
+    // Validate ID is a valid integer
+    const apiKeyId = parseInt(id, 10);
+    if (isNaN(apiKeyId) || apiKeyId <= 0) {
+      return res.status(400).json({
+        success: false,
+        error: 'Invalid API key ID'
+      });
+    }
     const {
       key_name,
       permissions,
@@ -156,7 +168,7 @@ router.put('/:id', authenticate, async (req, res) => {
       rate_limit_per_hour,
       allowed_ips,
       notes,
-      id
+      apiKeyId
     ]);
 
     if (result.rows.length === 0) {
@@ -183,14 +195,24 @@ router.put('/:id', authenticate, async (req, res) => {
 /**
  * DELETE /api/api-keys/:id
  * Delete an API key
+ * @access Private (admin only)
  */
-router.delete('/:id', authenticate, async (req, res) => {
+router.delete('/:id', authenticate, requireRole('admin'), async (req, res) => {
   try {
     const { id } = req.params;
 
+    // Validate ID is a valid integer
+    const apiKeyId = parseInt(id, 10);
+    if (isNaN(apiKeyId) || apiKeyId <= 0) {
+      return res.status(400).json({
+        success: false,
+        error: 'Invalid API key ID'
+      });
+    }
+
     const result = await pool.query(
       'DELETE FROM api_keys WHERE id = $1 RETURNING *',
-      [id]
+      [apiKeyId]
     );
 
     if (result.rows.length === 0) {
@@ -216,10 +238,20 @@ router.delete('/:id', authenticate, async (req, res) => {
 /**
  * POST /api/api-keys/:id/regenerate
  * Regenerate the secret for an existing API key
+ * @access Private (admin only)
  */
-router.post('/:id/regenerate', authenticate, async (req, res) => {
+router.post('/:id/regenerate', authenticate, requireRole('admin'), async (req, res) => {
   try {
     const { id } = req.params;
+
+    // Validate ID is a valid integer
+    const apiKeyId = parseInt(id, 10);
+    if (isNaN(apiKeyId) || apiKeyId <= 0) {
+      return res.status(400).json({
+        success: false,
+        error: 'Invalid API key ID'
+      });
+    }
 
     // Generate new secret
     const { apiSecret } = generateApiKey();
@@ -230,7 +262,7 @@ router.post('/:id/regenerate', authenticate, async (req, res) => {
       SET api_secret = $1, updated_at = CURRENT_TIMESTAMP
       WHERE id = $2
       RETURNING id, key_name, api_key
-    `, [hashedSecret, id]);
+    `, [hashedSecret, apiKeyId]);
 
     if (result.rows.length === 0) {
       return res.status(404).json({

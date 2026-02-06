@@ -3,7 +3,7 @@
  * Manages financing flow state and API interactions
  */
 
-import { useState, useCallback, useEffect, useMemo } from 'react';
+import { useState, useCallback, useEffect, useMemo, useRef } from 'react';
 
 const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:3001/api';
 
@@ -58,6 +58,17 @@ export function useFinancing({
   const [termsAccepted, setTermsAccepted] = useState(false);
   const [signature, setSignature] = useState(null);
 
+  // Ref to track if component is mounted (prevents state updates after unmount)
+  const isMountedRef = useRef(true);
+
+  // Cleanup on unmount
+  useEffect(() => {
+    isMountedRef.current = true;
+    return () => {
+      isMountedRef.current = false;
+    };
+  }, []);
+
   // Fetch available plans
   const fetchPlans = useCallback(async () => {
     if (!amountCents) return;
@@ -73,11 +84,14 @@ export function useFinancing({
 
       const response = await fetch(`${API_BASE}/financing/plans?${params}`, {
         headers: {
-          Authorization: `Bearer ${localStorage.getItem('token')}`,
+          Authorization: `Bearer ${localStorage.getItem('pos_token')}`,
         },
       });
 
       const data = await response.json();
+
+      // Check if component is still mounted before updating state
+      if (!isMountedRef.current) return;
 
       if (!response.ok || !data.success) {
         throw new Error(data.error || 'Failed to fetch financing plans');
@@ -89,10 +103,13 @@ export function useFinancing({
         setError(data.data.customerMessage);
       }
     } catch (err) {
+      if (!isMountedRef.current) return;
       console.error('[useFinancing] Fetch plans error:', err);
       setError(err.message);
     } finally {
-      setLoading(false);
+      if (isMountedRef.current) {
+        setLoading(false);
+      }
     }
   }, [amountCents, customer?.id]);
 
@@ -113,7 +130,7 @@ export function useFinancing({
         `${API_BASE}/financing/plans/${plan.planId}/calculate?amount=${amountCents}`,
         {
           headers: {
-            Authorization: `Bearer ${localStorage.getItem('token')}`,
+            Authorization: `Bearer ${localStorage.getItem('pos_token')}`,
           },
         }
       );
@@ -189,7 +206,7 @@ export function useFinancing({
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          Authorization: `Bearer ${localStorage.getItem('token')}`,
+          Authorization: `Bearer ${localStorage.getItem('pos_token')}`,
         },
         body: JSON.stringify({
           planId: selectedPlan.planId,

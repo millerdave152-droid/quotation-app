@@ -3,22 +3,36 @@
  * Routes and authentication flow
  */
 
-import { useState } from 'react';
+import { useState, lazy, Suspense } from 'react';
 import { Routes, Route, Navigate, useNavigate } from 'react-router-dom';
 import { useAuth } from './context/AuthContext';
 import { useRegister } from './context/RegisterContext';
 
-// Pages
+// Critical pages loaded immediately
 import Login from './pages/Login';
-import POSMain from './pages/POSMain';
-import Reports from './pages/Reports';
-import OverrideAuditReport from './pages/OverrideAuditReport';
 import NotFound from './pages/NotFound';
 
-// Report Components
-import { ShiftReportPage } from './components/Reports';
+// Lazy-loaded pages for code-splitting (reduces initial bundle size)
+const POSMain = lazy(() => import('./pages/POSMain'));
+const Reports = lazy(() => import('./pages/Reports'));
+const OverrideAuditReport = lazy(() => import('./pages/OverrideAuditReport'));
+const AdminFinancingPage = lazy(() => import('./pages/AdminFinancingPage'));
+const CustomerFinancingPage = lazy(() => import('./pages/CustomerFinancingPage'));
+const MyCommissionsPage = lazy(() => import('./pages/MyCommissionsPage'));
+const TeamCommissionsPage = lazy(() => import('./pages/TeamCommissionsPage'));
+const ReturnInitiation = lazy(() => import('./pages/ReturnInitiation'));
 
-// Register Management Components
+// Lazy-loaded report components
+const ShiftReportPage = lazy(() =>
+  import('./components/Reports').then(mod => ({ default: mod.ShiftReportPage }))
+);
+
+// Lazy-loaded admin components
+const ApprovalRulesPage = lazy(() =>
+  import('./components/Admin').then(mod => ({ default: mod.ApprovalRulesPage }))
+);
+
+// Register Management Components (needed for shift flow, loaded eagerly)
 import {
   RegisterSelect,
   OpenRegister,
@@ -26,12 +40,8 @@ import {
   PrintableShiftReport,
 } from './components/Register';
 
-// Admin Components
-import { ApprovalRulesPage } from './components/Admin';
-
-// Financing Pages
-import AdminFinancingPage from './pages/AdminFinancingPage';
-import CustomerFinancingPage from './pages/CustomerFinancingPage';
+// Notifications
+import { ExpiringQuotesToast } from './components/Notifications';
 
 // ============================================================================
 // ENVIRONMENT BADGE
@@ -264,11 +274,25 @@ function CloseShiftPage() {
 // ============================================================================
 
 function App() {
+  const { isAuthenticated, user } = useAuth();
+
   return (
     <div className="min-h-screen bg-gray-100">
       {/* DEV Badge */}
       <DevBadge />
 
+      {/* Expiring Quotes Toast - Shows on page load for authenticated users */}
+      {isAuthenticated && (
+        <ExpiringQuotesToast
+          salesRepId={user?.id}
+          showOnLoad={true}
+          onViewQuotes={(filter) => {
+            window.location.href = `/quotes?filter=expiring&view=${filter}`;
+          }}
+        />
+      )}
+
+      <Suspense fallback={<LoadingScreen message="Loading page..." />}>
       <Routes>
         {/* ============================================ */}
         {/* PUBLIC ROUTES */}
@@ -371,6 +395,30 @@ function App() {
         />
 
         {/* ============================================ */}
+        {/* COMMISSION PAGES */}
+        {/* ============================================ */}
+
+        {/* My Commissions - Any authenticated user */}
+        <Route
+          path="/commissions/my"
+          element={
+            <ProtectedRoute>
+              <MyCommissionsPage />
+            </ProtectedRoute>
+          }
+        />
+
+        {/* Team Commissions - Manager only */}
+        <Route
+          path="/commissions/team"
+          element={
+            <ManagerRoute>
+              <TeamCommissionsPage />
+            </ManagerRoute>
+          }
+        />
+
+        {/* ============================================ */}
         {/* CUSTOMER PAGES */}
         {/* ============================================ */}
 
@@ -379,6 +427,21 @@ function App() {
           element={
             <ProtectedRoute>
               <CustomerFinancingPage />
+            </ProtectedRoute>
+          }
+        />
+
+        {/* ============================================ */}
+        {/* RETURNS */}
+        {/* ============================================ */}
+
+        <Route
+          path="/returns"
+          element={
+            <ProtectedRoute>
+              <ShiftRequired>
+                <ReturnInitiation />
+              </ShiftRequired>
             </ProtectedRoute>
           }
         />
@@ -404,6 +467,7 @@ function App() {
 
         <Route path="*" element={<NotFound />} />
       </Routes>
+      </Suspense>
     </div>
   );
 }

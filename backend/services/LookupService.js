@@ -8,7 +8,7 @@
  * - Customer autocomplete for duplicate detection
  */
 
-const pool = require('../db');
+let pool = require('../db');
 const https = require('https');
 
 /**
@@ -844,5 +844,7 @@ class LookupService {
     return results;
   }
 }
+
+LookupService._setPool = function(p) { pool = p; };
 
 module.exports = LookupService;

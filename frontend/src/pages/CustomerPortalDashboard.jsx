@@ -121,7 +121,9 @@ function CustomerPortalDashboard() {
       WON: { bg: '#dcfce7', color: '#166534', label: 'Completed' },
       DECLINED: { bg: '#fee2e2', color: '#991b1b', label: 'Declined' },
       EXPIRED: { bg: '#f3f4f6', color: '#6b7280', label: 'Expired' },
-      DRAFT: { bg: '#e5e7eb', color: '#374151', label: 'Draft' }
+      DRAFT: { bg: '#e5e7eb', color: '#374151', label: 'Draft' },
+      converted: { bg: '#dbeafe', color: '#1e40af', label: 'Converted to Sale' },
+      CONVERTED: { bg: '#dbeafe', color: '#1e40af', label: 'Converted to Sale' }
     };
     const style = styles[status] || styles.DRAFT;
     return (
@@ -225,7 +227,7 @@ function CustomerPortalDashboard() {
         {quotes
           .filter(q => {
             if (activeTab === 'pending') return ['SENT', 'VIEWED', 'DRAFT'].includes(q.status);
-            if (activeTab === 'completed') return ['ACCEPTED', 'WON'].includes(q.status);
+            if (activeTab === 'completed') return ['ACCEPTED', 'WON', 'converted', 'CONVERTED'].includes(q.status);
             return true;
           })
           .map(quote => (
@@ -264,7 +266,7 @@ function CustomerPortalDashboard() {
                     Review & Accept
                   </button>
                 )}
-                {['WON', 'ACCEPTED'].includes(quote.status) && (
+                {['WON', 'ACCEPTED', 'converted', 'CONVERTED'].includes(quote.status) && (
                   <button
                     onClick={() => handleReorder(quote.id)}
                     disabled={processing}

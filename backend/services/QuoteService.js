@@ -242,20 +242,25 @@ class QuoteService {
 
   /**
    * Generate a unique quote number
+   * Uses MAX+1 pattern for thread-safety
+   * @param {object} client - Optional database client for transaction
    * @returns {Promise<string>}
    */
-  async generateQuoteNumber() {
+  async generateQuoteNumber(client = null) {
+    const db = client || this.pool;
     const year = new Date().getFullYear();
-    const maxNumResult = await this.pool.query(
-      'SELECT quote_number FROM quotations WHERE quote_number LIKE $1 ORDER BY quote_number DESC LIMIT 1',
-      [`QT-${year}-%`]
-    );
 
-    let nextNum = 1;
-    if (maxNumResult.rows.length > 0) {
-      const lastNumber = parseInt(maxNumResult.rows[0].quote_number.split('-').pop());
-      nextNum = lastNumber + 1;
-    }
+    // FIX: Use COALESCE and MAX to get highest number, avoiding race conditions
+    const maxNumResult = await db.query(`
+      SELECT COALESCE(
+        MAX(CAST(SUBSTRING(quote_number FROM 'QT-${year}-(\\d+)') AS INTEGER)),
+        0
+      ) + 1 as next_num
+      FROM quotations
+      WHERE quote_number LIKE $1
+    `, [`QT-${year}-%`]);
+
+    const nextNum = maxNumResult.rows[0].next_num;
 
     return `QT-${year}-${nextNum.toString().padStart(4, '0')}`;
   }
@@ -1009,8 +1014,8 @@ class QuoteService {
         gross_profit_cents
       } = calculatedTotals;
 
-      // Generate quote number
-      const quote_number = await this.generateQuoteNumber();
+      // Generate quote number (pass client for transaction safety)
+      const quote_number = await this.generateQuoteNumber(client);
 
       // Set expiration date - use quote_expiry_date, expires_at, or default to 30 days
       let expires_at;
@@ -1819,8 +1824,8 @@ class QuoteService {
         }
       }
 
-      // 3. Generate new quote number
-      const quote_number = await this.generateQuoteNumber();
+      // 3. Generate new quote number (pass client for transaction safety)
+      const quote_number = await this.generateQuoteNumber(client);
 
       // 4. Calculate new expiry date (30 days from now)
       const expires_at = new Date();

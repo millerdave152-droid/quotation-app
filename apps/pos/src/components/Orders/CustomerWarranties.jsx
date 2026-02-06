@@ -249,7 +249,7 @@ export function CustomerWarranties({
         `${API_BASE}/warranty/customer/${customerId}?${params.toString()}`,
         {
           headers: {
-            Authorization: `Bearer ${localStorage.getItem('token')}`,
+            Authorization: `Bearer ${localStorage.getItem('pos_token')}`,
           },
         }
       );

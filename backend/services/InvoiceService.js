@@ -13,16 +13,24 @@ class InvoiceService {
   /**
    * Generate a unique invoice number
    * Format: INV-YYYYMMDD-XXXX
+   * Uses MAX+1 pattern for thread-safety instead of COUNT which has race conditions
+   * @param {object} client - Optional database client for transaction
    * @returns {Promise<string>} Generated invoice number
    */
-  async generateInvoiceNumber() {
+  async generateInvoiceNumber(client = null) {
+    const db = client || this.pool;
     const date = new Date();
     const dateStr = date.toISOString().slice(0, 10).replace(/-/g, '');
 
-    const result = await this.pool.query(`
-      SELECT COUNT(*) + 1 as seq
+    // CRITICAL FIX: Use MAX+1 pattern to prevent race conditions
+    // COUNT(*)+1 can return same number for concurrent requests
+    const result = await db.query(`
+      SELECT COALESCE(
+        MAX(CAST(SUBSTRING(invoice_number FROM 'INV-${dateStr}-(\\d+)') AS INTEGER)),
+        0
+      ) + 1 as seq
       FROM invoices
-      WHERE DATE(created_at) = CURRENT_DATE
+      WHERE invoice_number LIKE 'INV-${dateStr}-%'
     `);
 
     const seq = String(result.rows[0].seq).padStart(4, '0');
@@ -79,8 +87,8 @@ class InvoiceService {
         WHERE qi.quotation_id = $1
       `, [quotationId]);
 
-      // Generate invoice number
-      const invoiceNumber = await this.generateInvoiceNumber();
+      // Generate invoice number (pass client for transaction safety)
+      const invoiceNumber = await this.generateInvoiceNumber(client);
 
       // Calculate due date if not provided
       const calculatedDueDate = dueDate || new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
@@ -197,8 +205,8 @@ class InvoiceService {
         WHERE oi.order_id = $1
       `, [orderId]);
 
-      // Generate invoice number
-      const invoiceNumber = await this.generateInvoiceNumber();
+      // Generate invoice number (pass client for transaction safety)
+      const invoiceNumber = await this.generateInvoiceNumber(client);
       const calculatedDueDate = dueDate || new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
 
       // Create invoice

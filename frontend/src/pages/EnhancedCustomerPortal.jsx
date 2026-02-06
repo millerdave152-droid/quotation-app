@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useParams, useSearchParams } from 'react-router-dom';
 import SignaturePad from '../components/common/SignaturePad';
 
@@ -27,9 +27,13 @@ const EnhancedCustomerPortal = () => {
   const [deliveryAddress, setDeliveryAddress] = useState('');
   const [deliveryInstructions, setDeliveryInstructions] = useState('');
   const [contactPhone, setContactPhone] = useState('');
+  const deliveryFetchTimeoutRef = useRef(null);
 
   useEffect(() => {
-    fetchQuoteDetails();
+    if (token) {
+      fetchQuoteDetails();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [token]);
 
   const fetchQuoteDetails = async () => {
@@ -57,9 +61,9 @@ const EnhancedCustomerPortal = () => {
     }
   };
 
-  const fetchDeliverySlots = async () => {
+  const fetchDeliverySlots = useCallback(async (address) => {
     try {
-      const postalCode = deliveryAddress.match(/[A-Za-z]\d[A-Za-z][ -]?\d[A-Za-z]\d/)?.[0] || '';
+      const postalCode = (address || deliveryAddress).match(/[A-Za-z]\d[A-Za-z][ -]?\d[A-Za-z]\d/)?.[0] || '';
       const response = await fetch(
         `${API_URL}/api/delivery/slots?postal_code=${postalCode}&days=14`
       );
@@ -69,9 +73,28 @@ const EnhancedCustomerPortal = () => {
         setDeliverySlots(data.data || []);
       }
     } catch (err) {
-      console.error('Failed to fetch delivery slots:', err);
+      // Silently handle delivery slot fetch errors - non-critical
     }
-  };
+  }, [deliveryAddress]);
+
+  // Debounced delivery slot fetch
+  const debouncedFetchDeliverySlots = useCallback((address) => {
+    if (deliveryFetchTimeoutRef.current) {
+      clearTimeout(deliveryFetchTimeoutRef.current);
+    }
+    deliveryFetchTimeoutRef.current = setTimeout(() => {
+      fetchDeliverySlots(address);
+    }, 500);
+  }, [fetchDeliverySlots]);
+
+  // Cleanup timeout on unmount
+  useEffect(() => {
+    return () => {
+      if (deliveryFetchTimeoutRef.current) {
+        clearTimeout(deliveryFetchTimeoutRef.current);
+      }
+    };
+  }, []);
 
   const formatCurrency = (cents) => {
     return new Intl.NumberFormat('en-CA', {
@@ -395,8 +418,9 @@ const EnhancedCustomerPortal = () => {
               <textarea
                 value={deliveryAddress}
                 onChange={(e) => {
-                  setDeliveryAddress(e.target.value);
-                  fetchDeliverySlots();
+                  const newAddress = e.target.value;
+                  setDeliveryAddress(newAddress);
+                  debouncedFetchDeliverySlots(newAddress);
                 }}
                 style={styles.textarea}
                 rows={3}

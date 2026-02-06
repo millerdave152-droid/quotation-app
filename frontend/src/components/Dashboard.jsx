@@ -997,7 +997,7 @@ const Dashboard = ({ onNavigate, onViewQuote, onBack }) => {
           <AIInsightsWidget
             onNavigate={onNavigate}
             onAction={(action, insight, result) => {
-              console.log('Insight action:', action, insight, result);
+              // Handle insight action - can be integrated with analytics tracking
             }}
             limit={5}
           />
@@ -1099,8 +1099,8 @@ const Dashboard = ({ onNavigate, onViewQuote, onBack }) => {
             showSummary={false}
             onViewProfile={(customer) => onNavigate?.('customers', { selected: customer.id })}
             onScheduleFollowUp={(customer) => {
-              // Navigate to create a follow-up quote
-              console.log('Schedule follow-up for:', customer.name);
+              // Navigate to create a follow-up quote for at-risk customer
+              onNavigate?.('builder', { customerId: customer.id, followUp: true });
             }}
             onViewAll={() => onNavigate?.('customers', { filter: 'at-risk' })}
           />

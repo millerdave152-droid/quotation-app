@@ -1,12 +1,19 @@
 /**
  * Pricing Service
  * Handles pricing calculations, margins, violations, and customer-specific pricing
+ *
+ * This service combines database operations (price lookups, customer tiers, violations)
+ * with pure calculations from PricingCalculator.
  */
+
+const PricingCalculator = require('./PricingCalculator');
 
 class PricingService {
   constructor(pool, cache) {
     this.pool = pool;
     this.cache = cache;
+    // Expose calculator methods for convenience
+    this.calculator = PricingCalculator;
   }
 
   /**
@@ -592,6 +599,226 @@ class PricingService {
     `, [customerId, productId, quantity, pricePaidCents]);
 
     return result.rows[0];
+  }
+
+  // ============================================================================
+  // INTEGRATED ORDER PRICING (Database + Calculator)
+  // ============================================================================
+
+  /**
+   * Calculate complete pricing for an order/quote with database lookups
+   * This method combines customer tier lookup, product cost lookup,
+   * and volume break rules with the pure calculation logic.
+   *
+   * @param {Object} params
+   * @param {number} params.customerId - Customer ID for tier lookup
+   * @param {Array} params.items - Array of { productId, quantity, unitPriceCents, discountPercent, discountAmountCents }
+   * @param {number} params.orderDiscountPercent - Order-level percentage discount
+   * @param {number} params.orderDiscountCents - Order-level fixed discount
+   * @param {string} params.province - Province code for tax calculation
+   * @param {boolean} params.isTaxExempt - Whether order is tax-exempt
+   * @returns {Promise<Object>} Complete order calculation with margins
+   */
+  async calculateOrderPricing({
+    customerId = null,
+    items = [],
+    orderDiscountPercent = 0,
+    orderDiscountCents = 0,
+    province = 'ON',
+    isTaxExempt = false,
+  }) {
+    // Get customer tier if customer provided
+    let customerTier = 'retail';
+    let customerData = null;
+
+    if (customerId) {
+      const customerResult = await this.pool.query(`
+        SELECT
+          c.id,
+          c.company_name,
+          c.contact_name,
+          c.is_tax_exempt,
+          c.province,
+          cpt.tier_name,
+          cpt.discount_percent
+        FROM customers c
+        LEFT JOIN customer_price_tiers cpt ON c.price_tier_id = cpt.id
+        WHERE c.id = $1
+      `, [customerId]);
+
+      if (customerResult.rows.length > 0) {
+        customerData = customerResult.rows[0];
+        customerTier = customerData.tier_name || 'retail';
+        // Use customer's province if not specified
+        if (!province && customerData.province) {
+          province = customerData.province;
+        }
+        // Use customer's tax-exempt status if not overridden
+        if (!isTaxExempt && customerData.is_tax_exempt) {
+          isTaxExempt = true;
+        }
+      }
+    }
+
+    // Enrich items with product data (cost, volume breaks)
+    const enrichedItems = await Promise.all(items.map(async (item) => {
+      let costCents = item.costCents || 0;
+      let volumeBreaks = item.volumeBreaks || [];
+      let productData = null;
+
+      if (item.productId) {
+        // Fetch product cost
+        const productResult = await this.pool.query(`
+          SELECT
+            id,
+            model,
+            manufacturer,
+            name,
+            cost_cents,
+            msrp_cents
+          FROM products
+          WHERE id = $1
+        `, [item.productId]);
+
+        if (productResult.rows.length > 0) {
+          productData = productResult.rows[0];
+          costCents = productData.cost_cents || costCents;
+        }
+
+        // Fetch volume breaks for this product
+        const volumeResult = await this.pool.query(`
+          SELECT min_qty, price_cents, discount_percent
+          FROM product_volume_breaks
+          WHERE product_id = $1 AND is_active = true
+          ORDER BY min_qty DESC
+        `, [item.productId]);
+
+        if (volumeResult.rows.length > 0) {
+          volumeBreaks = volumeResult.rows.map(row => ({
+            minQty: row.min_qty,
+            priceCents: row.price_cents,
+            discountPercent: row.discount_percent,
+          }));
+        }
+      }
+
+      return {
+        ...item,
+        costCents,
+        volumeBreaks,
+        productData,
+      };
+    }));
+
+    // Use calculator for pure pricing logic
+    const calculation = PricingCalculator.calculateOrder({
+      items: enrichedItems,
+      orderDiscountPercent,
+      orderDiscountCents,
+      province,
+      customerTier,
+      isTaxExempt,
+    });
+
+    // Add customer context to result
+    return {
+      ...calculation,
+      customer: customerData ? {
+        id: customerData.id,
+        name: customerData.company_name || customerData.contact_name,
+        tier: customerTier,
+        isTaxExempt: customerData.is_tax_exempt,
+      } : null,
+    };
+  }
+
+  /**
+   * Calculate pricing for a single product with customer context
+   *
+   * @param {number} productId - Product ID
+   * @param {number} quantity - Quantity
+   * @param {number} customerId - Customer ID (optional)
+   * @param {number} overridePriceCents - Override unit price (optional)
+   * @returns {Promise<Object>} Line item calculation
+   */
+  async calculateProductPricing(productId, quantity, customerId = null, overridePriceCents = null) {
+    // Get product data
+    const pricePoints = await this.getPricePoints(productId);
+    const unitPriceCents = overridePriceCents || pricePoints.effective_sell_price || pricePoints.msrp_cents;
+
+    // Get customer tier
+    let customerTier = 'retail';
+    if (customerId) {
+      const tierResult = await this.pool.query(`
+        SELECT cpt.tier_name
+        FROM customers c
+        LEFT JOIN customer_price_tiers cpt ON c.price_tier_id = cpt.id
+        WHERE c.id = $1
+      `, [customerId]);
+
+      if (tierResult.rows.length > 0 && tierResult.rows[0].tier_name) {
+        customerTier = tierResult.rows[0].tier_name;
+      }
+    }
+
+    // Get volume breaks
+    const volumeResult = await this.pool.query(`
+      SELECT min_qty, price_cents, discount_percent
+      FROM product_volume_breaks
+      WHERE product_id = $1 AND is_active = true
+      ORDER BY min_qty DESC
+    `, [productId]);
+
+    const volumeBreaks = volumeResult.rows.map(row => ({
+      minQty: row.min_qty,
+      priceCents: row.price_cents,
+      discountPercent: row.discount_percent,
+    }));
+
+    // Calculate using pure function
+    const calculation = PricingCalculator.calculateLineItem({
+      unitPriceCents,
+      quantity,
+      costCents: pricePoints.cost_cents || 0,
+      volumeBreaks,
+      customerTier,
+    });
+
+    return {
+      productId,
+      model: pricePoints.model,
+      manufacturer: pricePoints.manufacturer,
+      ...calculation,
+      pricePoints: {
+        msrpCents: pricePoints.msrp_cents,
+        mapCents: pricePoints.map_cents,
+        lapCents: pricePoints.lap_cents,
+        costCents: pricePoints.cost_cents,
+        promoActive: pricePoints.promo_active,
+        promoPriceCents: pricePoints.promo_price_cents,
+      },
+    };
+  }
+
+  /**
+   * Quick tax calculation for display purposes
+   */
+  calculateTax(amountCents, province = 'ON') {
+    return PricingCalculator.calculateTax(amountCents, province);
+  }
+
+  /**
+   * Add tax to amount
+   */
+  addTax(amountCents, province = 'ON') {
+    return PricingCalculator.addTax(amountCents, province);
+  }
+
+  /**
+   * Get tax rates for a province
+   */
+  getTaxRates(province = 'ON') {
+    return PricingCalculator.TAX_RATES[province] || PricingCalculator.TAX_RATES['ON'];
   }
 }
 

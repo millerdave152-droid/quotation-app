@@ -1,12 +1,16 @@
 const webpush = require('web-push');
-const pool = require('../db');
+let pool = require('../db');
 
-// Configure web-push with VAPID keys
-webpush.setVapidDetails(
-  process.env.VAPID_SUBJECT,
-  process.env.VAPID_PUBLIC_KEY,
-  process.env.VAPID_PRIVATE_KEY
-);
+// Configure web-push with VAPID keys (skip if not configured)
+if (process.env.VAPID_SUBJECT && process.env.VAPID_PUBLIC_KEY && process.env.VAPID_PRIVATE_KEY) {
+  webpush.setVapidDetails(
+    process.env.VAPID_SUBJECT,
+    process.env.VAPID_PUBLIC_KEY,
+    process.env.VAPID_PRIVATE_KEY
+  );
+} else {
+  console.warn('⚠️  VAPID keys not configured. Push notifications will be disabled.');
+}
 
 class PushNotificationService {
   /**
@@ -216,5 +220,7 @@ class PushNotificationService {
     }
   }
 }
+
+PushNotificationService.prototype._setPool = function(p) { pool = p; };
 
 module.exports = new PushNotificationService();

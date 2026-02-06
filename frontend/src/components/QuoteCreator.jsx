@@ -74,6 +74,13 @@ function QuoteCreatorEnhanced({ onClose, onQuoteCreated }) {
       // Reset to recent products when search is cleared
       fetchProducts('', true);
     }
+
+    // Cleanup on unmount
+    return () => {
+      if (searchTimeoutRef.current) {
+        clearTimeout(searchTimeoutRef.current);
+      }
+    };
   }, [searchTerm]);
 
   const fetchCustomers = async () => {
@@ -82,7 +89,7 @@ function QuoteCreatorEnhanced({ onClose, onQuoteCreated }) {
       const data = await response.json();
       setCustomers(data);
     } catch (error) {
-      console.error('Error fetching customers:', error);
+      // Silently handle customer fetch errors
     }
   };
 

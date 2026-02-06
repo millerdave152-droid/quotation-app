@@ -3,7 +3,7 @@
  * Handles automated inventory synchronization with Best Buy Marketplace
  */
 const cron = require('node-cron');
-const pool = require('../db');
+let pool = require('../db');
 const miraklService = require('./miraklService');
 
 class InventorySyncScheduler {
@@ -458,5 +458,7 @@ class InventorySyncScheduler {
     await this.start();
   }
 }
+
+InventorySyncScheduler.prototype._setPool = function(p) { pool = p; };
 
 module.exports = new InventorySyncScheduler();

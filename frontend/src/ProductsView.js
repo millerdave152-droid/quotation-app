@@ -47,7 +47,6 @@ const ProductsView = () => {
     } catch (err) {
       setError(err.message);
       setLoading(false);
-      console.error('Error fetching products:', err);
     }
   };
 

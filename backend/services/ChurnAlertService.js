@@ -5,7 +5,7 @@
  * daily email alerts to the sales team for proactive engagement.
  */
 
-const pool = require('../db');
+let pool = require('../db');
 const emailService = require('./EmailService');
 
 class ChurnAlertService {
@@ -507,6 +507,8 @@ class ChurnAlertService {
     return result.rows[0];
   }
 }
+
+ChurnAlertService.prototype._setPool = function(p) { pool = p; };
 
 // Export singleton instance
 module.exports = new ChurnAlertService();

@@ -91,8 +91,10 @@ export function PickupDetailsForm({ pickupType, customer, onComplete, onBack }) 
   const [locations, setLocations] = useState([]);
   const [loadingLocations, setLoadingLocations] = useState(true);
   const [selectedLocationId, setSelectedLocationId] = useState(null);
-  const [pickupDate, setPickupDate] = useState('');
-  const [timePreference, setTimePreference] = useState('');
+  // Auto-set today's date for pickup_now
+  const todayDate = new Date().toISOString().split('T')[0];
+  const [pickupDate, setPickupDate] = useState(pickupType === 'pickup_now' ? todayDate : '');
+  const [timePreference, setTimePreference] = useState(pickupType === 'pickup_now' ? 'morning' : '');
   const [pickupPersonName, setPickupPersonName] = useState('');
   const [pickupPersonPhone, setPickupPersonPhone] = useState('');
   const [vehicleType, setVehicleType] = useState('');
@@ -165,10 +167,12 @@ export function PickupDetailsForm({ pickupType, customer, onComplete, onBack }) 
     if (!selectedLocationId) {
       newErrors.location = 'Please select a pickup location';
     }
-    if (!pickupDate) {
+    // For pickup_now, date is auto-set; for scheduled, require selection
+    if (!pickupDate && pickupType !== 'pickup_now') {
       newErrors.date = 'Please select a pickup date';
     }
-    if (!timePreference) {
+    // Time preference only required for scheduled pickup
+    if (!timePreference && pickupType === 'pickup_scheduled') {
       newErrors.time = 'Please select a preferred time';
     }
     if (!pickupPersonName.trim()) {
@@ -180,7 +184,7 @@ export function PickupDetailsForm({ pickupType, customer, onComplete, onBack }) 
 
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
-  }, [selectedLocationId, pickupDate, timePreference, pickupPersonName, pickupPersonPhone]);
+  }, [selectedLocationId, pickupDate, timePreference, pickupPersonName, pickupPersonPhone, pickupType]);
 
   const handleContinue = useCallback(() => {
     if (!validate()) return;

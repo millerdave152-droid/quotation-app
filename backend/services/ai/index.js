@@ -83,7 +83,7 @@ async function handleChat({
 
     // 9. Save user message to database
     const userMessageSeq = history.length + 1;
-    await saveMessage(conversation.id, 'user', userMessage, userMessageSeq);
+    const userMessageId = await saveMessage(conversation.id, 'user', userMessage, userMessageSeq);
 
     // 10. Create query log entry
     queryLogId = await createQueryLog({
@@ -92,6 +92,7 @@ async function handleChat({
       locationId,
       queryType,
       queryText: userMessage,
+      messageId: userMessageId,
       routedToModel: model,
       routingReason: reasons.join(', '),
       contextSources: ragContext.sources,
@@ -423,10 +424,11 @@ async function buildMessagesFromConversation(conversationId) {
 async function saveMessage(conversationId, role, content, sequenceNum, metadata = {}) {
   // Note: tool_input and tool_result are JSONB columns, so pass objects directly
   // The pg driver handles the JSON serialization
-  await db.query(
+  const result = await db.query(
     `INSERT INTO ai_messages
      (conversation_id, role, content, sequence_num, tool_name, tool_input, tool_result, tool_use_id, model_used, input_tokens, output_tokens)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)`,
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+     RETURNING id`,
     [
       conversationId,
       role,
@@ -441,6 +443,7 @@ async function saveMessage(conversationId, role, content, sequenceNum, metadata 
       metadata.outputTokens || null
     ]
   );
+  return result.rows?.[0]?.id || null;
 }
 
 /**
@@ -449,11 +452,12 @@ async function saveMessage(conversationId, role, content, sequenceNum, metadata 
 async function createQueryLog(data) {
   const result = await db.query(
     `INSERT INTO ai_query_logs
-     (conversation_id, user_id, location_id, query_type, query_text, routed_to_model, routing_reason, context_sources, context_token_count)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+     (conversation_id, message_id, user_id, location_id, query_type, query_text, routed_to_model, routing_reason, context_sources, context_token_count)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
      RETURNING id`,
     [
       data.conversationId,
+      data.messageId || null,
       data.userId,
       data.locationId,
       data.queryType,

@@ -4,7 +4,7 @@
  */
 
 const { SESv2Client, SendEmailCommand } = require('@aws-sdk/client-sesv2');
-const pool = require('../db');
+let pool = require('../db');
 
 class EmailService {
   constructor() {
@@ -13,7 +13,10 @@ class EmailService {
       credentials: {
         accessKeyId: process.env.AWS_ACCESS_KEY_ID,
         secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY
-      }
+      },
+      requestHandler: {
+        requestTimeout: 10_000, // 10 second timeout for SES API calls
+      },
     });
     this.fromEmail = process.env.EMAIL_FROM || 'noreply@teletime.ca';
     this.companyName = process.env.COMPANY_NAME || 'Teletime';
@@ -356,6 +359,8 @@ class EmailService {
     }
   }
 }
+
+EmailService.prototype._setPool = function(p) { pool = p; };
 
 // Export singleton instance
 module.exports = new EmailService();

@@ -12,10 +12,14 @@ function QuoteManager() {
   const fetchQuotations = async () => {
     try {
       const response = await fetch(`${API_BASE}/quotations`);
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: Failed to fetch quotations`);
+      }
       const data = await response.json();
       setQuotations(data);
     } catch (error) {
-      console.error('Error fetching quotations:', error);
+      // Log error for debugging but don't expose to user
+      setQuotations([]);
     }
   };
 
@@ -28,9 +32,11 @@ function QuoteManager() {
       if (response.ok) {
         alert('Quote deleted successfully');
         fetchQuotations();
+      } else {
+        alert('Failed to delete quote. Please try again.');
       }
     } catch (error) {
-      console.error('Error deleting quotation:', error);
+      alert('Network error. Please check your connection and try again.');
     }
   };
 

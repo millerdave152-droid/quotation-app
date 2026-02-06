@@ -17,14 +17,22 @@ import PaymentComplete from './PaymentComplete';
 import DiscountInput from './DiscountInput';
 import AccountPayment from './AccountPayment';
 import FinancingPayment from './FinancingPayment';
+import ETransferPayment from './ETransferPayment';
+import StoreCreditPayment from './StoreCreditPayment';
+import DepositPayment from './DepositPayment';
+import LoyaltyRedemption from './LoyaltyRedemption';
 import PromoCodeInput from './PromoCodeInput';
 import PromotionAlerts from './PromotionAlerts';
 import FulfillmentSelector from './FulfillmentSelector';
 import WarrantyUpsellModal from './WarrantyUpsellModal';
 import SignatureStep from './SignatureStep';
+import SalespersonSelector from './SalespersonSelector';
+import CommissionSplitSelector from './CommissionSplitSelector';
 import useWarrantyUpsell from '../../hooks/useWarrantyUpsell';
 import useAutoPromotions from '../../hooks/useAutoPromotions';
 import useSignatureRequirements from '../../hooks/useSignatureRequirements';
+import { useAuth } from '../../context/AuthContext';
+import { usePermissions, POS_PERMISSIONS } from '../../hooks/usePermissions';
 
 /**
  * Order summary item component
@@ -66,6 +74,8 @@ function OrderSummary({
   onApplyPromotion,
   onRemovePromotion,
   promotionAlerts,
+  commissionSplitNode,
+  canDiscount = true,
 }) {
   return (
     <div className="h-full flex flex-col bg-gray-50 p-6">
@@ -104,8 +114,8 @@ function OrderSummary({
         ))}
       </div>
 
-      {/* Discount Section */}
-      {showDiscountPanel ? (
+      {/* Discount Section — hidden if user lacks discount permission */}
+      {!canDiscount ? null : showDiscountPanel ? (
         <div className="mb-4">
           <DiscountInput
             subtotal={cart.subtotal}
@@ -217,6 +227,13 @@ function OrderSummary({
         </div>
       )}
 
+      {/* Commission Split */}
+      {commissionSplitNode && (
+        <div className="mb-4">
+          {commissionSplitNode}
+        </div>
+      )}
+
       {/* Totals */}
       <div className="border-t border-gray-200 pt-4 space-y-2">
         <div className="flex justify-between text-sm">
@@ -269,12 +286,15 @@ export function CheckoutModal({
   onComplete,
 }) {
   const cart = useCart();
+  const { user, isAdminOrManager } = useAuth();
+  const { can } = usePermissions();
 
   // State
-  const [step, setStep] = useState('fulfillment'); // 'fulfillment', 'methods', 'cash', 'credit', 'debit', 'giftcard', 'account', 'financing', 'split', 'signature', 'complete'
+  const [step, setStep] = useState('fulfillment'); // 'fulfillment', 'methods', 'cash', 'credit', 'debit', 'giftcard', 'account', 'financing', 'etransfer', 'store_credit', 'deposit', 'split', 'signature', 'complete'
   const [payments, setPayments] = useState([]);
   const [transaction, setTransaction] = useState(null);
   const [error, setError] = useState(null);
+  const [signatureWarning, setSignatureWarning] = useState(null);
   const [isProcessing, setIsProcessing] = useState(false);
   const processingRef = useRef(false);
   const paymentsRef = useRef([]);
@@ -354,6 +374,7 @@ export function CheckoutModal({
       paymentsRef.current = [];
       setTransaction(null);
       setError(null);
+      setSignatureWarning(null);
       setIsProcessing(false);
       setShowDiscountPanel(false);
       signatureReq.reset();
@@ -426,23 +447,6 @@ export function CheckoutModal({
     warrantyUpsell.startFlow();
   }, [cart, warrantyUpsell]);
 
-  // Handle skipping fulfillment (in-store pickup now)
-  const handleFulfillmentSkip = useCallback(() => {
-    // Set default in-store pickup
-    cart.setFulfillment({
-      type: 'pickup_now',
-      fee: 0,
-      scheduledDate: null,
-      scheduledTimeStart: null,
-      scheduledTimeEnd: null,
-      address: null,
-      zoneId: null,
-      notes: null,
-    });
-    // Start warranty upsell flow
-    warrantyUpsell.startFlow();
-  }, [cart, warrantyUpsell]);
-
   // Handle payment method selection
   const handleSelectMethod = useCallback((method) => {
     setStep(method);
@@ -458,6 +462,12 @@ export function CheckoutModal({
     setPayments(newPayments);
     paymentsRef.current = newPayments;
 
+    // Deposit payments intentionally don't cover the full amount
+    if (payment.isDeposit) {
+      processTransaction(newPayments);
+      return;
+    }
+
     const newPaidAmount = newPayments.reduce((sum, p) => sum + p.amount, 0);
     const newRemaining = cart.total - newPaidAmount;
 
@@ -465,6 +475,7 @@ export function CheckoutModal({
       // Fully paid - check if signatures are required
       if (signatureReq.hasRequirements && !signatureReq.isComplete) {
         setStep('signature');
+        processingRef.current = false;
       } else {
         // No signatures needed - process transaction
         processTransaction(newPayments);
@@ -472,6 +483,7 @@ export function CheckoutModal({
     } else {
       // Show split payment or return to methods
       setStep('split');
+      processingRef.current = false;
     }
   }, [payments, cart.total, signatureReq.hasRequirements, signatureReq.isComplete, isProcessing]);
 
@@ -507,13 +519,21 @@ export function CheckoutModal({
         // Save captured signatures to server
         if (Object.keys(signatureReq.capturedSignatures).length > 0) {
           try {
-            await signatureReq.saveSignatures(
+            const results = await signatureReq.saveSignatures(
               result.transaction.orderId,
               result.transaction.transactionId || result.transaction.transaction_id
             );
+            const failed = Array.isArray(results)
+              ? results.filter(r => !r.success)
+              : [];
+            if (failed.length > 0) {
+              setSignatureWarning('Transaction completed, but some signatures failed to upload. Please re-upload from the order record.');
+            } else {
+              setSignatureWarning(null);
+            }
           } catch (sigError) {
             console.error('[Checkout] Signature save error:', sigError);
-            // Don't fail transaction, just log the error
+            setSignatureWarning('Transaction completed, but signature upload failed. Please re-upload from the order record.');
           }
         }
 
@@ -538,8 +558,8 @@ export function CheckoutModal({
   // Handle going back
   const handleBack = useCallback(() => {
     if (step === 'signature') {
-      // From signature, go back to split if partial payments, otherwise methods
-      setStep(payments.length > 0 ? 'split' : 'methods');
+      // From signature, go back to split only if multiple payments
+      setStep(payments.length > 1 ? 'split' : 'methods');
     } else if (payments.length > 0) {
       setStep('split');
     } else if (step === 'methods') {
@@ -551,7 +571,11 @@ export function CheckoutModal({
 
   // Handle removing a payment
   const handleRemovePayment = useCallback((index) => {
-    setPayments((prev) => prev.filter((_, i) => i !== index));
+    setPayments((prev) => {
+      const next = prev.filter((_, i) => i !== index);
+      paymentsRef.current = next;
+      return next;
+    });
   }, []);
 
   // Handle new transaction
@@ -652,6 +676,17 @@ export function CheckoutModal({
           onApplyPromotion={handleApplyPromotion}
           onRemovePromotion={handleRemovePromotion}
           promotionAlerts={promotionAlerts}
+          canDiscount={can(POS_PERMISSIONS.CHECKOUT_DISCOUNT)}
+          commissionSplitNode={
+            <CommissionSplitSelector
+              salespersonId={cart.salespersonId}
+              salespersonName={user?.first_name ? `${user.first_name} ${user.last_name || ''}`.trim() : (user?.email || 'You')}
+              commissionSplit={cart.commissionSplit}
+              onSplitChange={cart.setCommissionSplit}
+              cartTotal={cart.total}
+              cartItems={cart.items}
+            />
+          }
         />
       </div>
 
@@ -680,6 +715,17 @@ export function CheckoutModal({
               <h1 className="text-xl font-bold text-gray-900">
                 {step === 'fulfillment' ? 'Fulfillment' : 'Checkout'}
               </h1>
+            </div>
+
+            {/* Salesperson Display & Override */}
+            <div className="flex items-center gap-3">
+              <SalespersonSelector
+                selectedId={cart.salespersonId}
+                onSelect={(id, _rep) => cart.setSalespersonId(id)}
+                showSelected={true}
+                maxQuickSelect={isAdminOrManager() ? 4 : 0}
+                className=""
+              />
             </div>
 
             <button
@@ -725,7 +771,6 @@ export function CheckoutModal({
               customer={cart.customer}
               selectedFulfillment={cart.selectedFulfillment}
               onComplete={handleFulfillmentComplete}
-              onSkip={handleFulfillmentSkip}
             />
           )}
 
@@ -805,6 +850,48 @@ export function CheckoutModal({
             />
           )}
 
+          {/* E-Transfer Payment */}
+          {step === 'etransfer' && (
+            <ETransferPayment
+              amountDue={remainingBalance}
+              onComplete={handlePaymentComplete}
+              onBack={handleBack}
+              isPartial={payments.length > 0}
+              customer={cart.customer}
+            />
+          )}
+
+          {/* Store Credit Payment */}
+          {step === 'store_credit' && (
+            <StoreCreditPayment
+              amountDue={remainingBalance}
+              onComplete={handlePaymentComplete}
+              onBack={handleBack}
+              isPartial={payments.length > 0}
+            />
+          )}
+
+          {/* Loyalty Points Redemption */}
+          {step === 'loyalty_points' && (
+            <LoyaltyRedemption
+              amountDue={remainingBalance}
+              onComplete={handlePaymentComplete}
+              onBack={handleBack}
+              isPartial={payments.length > 0}
+              customer={cart.customer}
+            />
+          )}
+
+          {/* Deposit Payment */}
+          {step === 'deposit' && (
+            <DepositPayment
+              amountDue={remainingBalance}
+              onComplete={handlePaymentComplete}
+              onBack={handleBack}
+              onSelectMethod={handleSelectMethod}
+            />
+          )}
+
           {/* Split Payment View */}
           {step === 'split' && (
             <SplitPayment
@@ -813,6 +900,7 @@ export function CheckoutModal({
               remainingBalance={remainingBalance}
               onAddPayment={() => setStep('methods')}
               onRemovePayment={handleRemovePayment}
+              onBack={() => setStep('methods')}
               onComplete={() => {
                 // Check if signatures are required before processing
                 if (signatureReq.hasRequirements && !signatureReq.isComplete) {
@@ -843,13 +931,14 @@ export function CheckoutModal({
 
           {/* Payment Complete */}
           {step === 'complete' && (
-            <PaymentComplete
-              transaction={transaction}
-              onNewTransaction={handleNewTransaction}
-              onPrintReceipt={handlePrintReceipt}
-              onEmailReceipt={handleEmailReceipt}
-              customerEmail={cart.customer?.email}
-            />
+          <PaymentComplete
+            transaction={transaction}
+            onNewTransaction={handleNewTransaction}
+            onPrintReceipt={handlePrintReceipt}
+            onEmailReceipt={handleEmailReceipt}
+            customerEmail={cart.customer?.email}
+            signatureWarning={signatureWarning}
+          />
           )}
         </div>
       </div>

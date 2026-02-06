@@ -16,6 +16,15 @@ router.get('/customer/:customerId', authenticate, async (req, res) => {
   try {
     const { customerId } = req.params;
 
+    // Validate customerId is a valid integer
+    const custId = parseInt(customerId, 10);
+    if (isNaN(custId) || custId <= 0) {
+      return res.status(400).json({
+        success: false,
+        error: 'Invalid customer ID'
+      });
+    }
+
     const result = await pool.query(`
       SELECT
         p.*,
@@ -25,7 +34,7 @@ router.get('/customer/:customerId', authenticate, async (req, res) => {
       LEFT JOIN quotations q ON p.quotation_id = q.id
       WHERE p.customer_id = $1
       ORDER BY p.payment_date DESC
-    `, [customerId]);
+    `, [custId]);
 
     res.json({
       success: true,
@@ -47,6 +56,15 @@ router.get('/customer/:customerId', authenticate, async (req, res) => {
 router.get('/customer/:customerId/summary', authenticate, async (req, res) => {
   try {
     const { customerId } = req.params;
+
+    // Validate customerId is a valid integer
+    const custId = parseInt(customerId, 10);
+    if (isNaN(custId) || custId <= 0) {
+      return res.status(400).json({
+        success: false,
+        error: 'Invalid customer ID'
+      });
+    }
 
     const result = await pool.query(`
       SELECT
@@ -81,7 +99,7 @@ router.get('/customer/:customerId/summary', authenticate, async (req, res) => {
       WHERE c.id = $1
       GROUP BY c.id, c.name, c.credit_limit, c.current_balance, c.available_credit,
                c.payment_terms, c.credit_status
-    `, [customerId]);
+    `, [custId]);
 
     if (result.rows.length === 0) {
       return res.status(404).json({
@@ -174,6 +192,16 @@ router.post('/', authenticate, async (req, res) => {
 router.put('/:id', authenticate, async (req, res) => {
   try {
     const { id } = req.params;
+
+    // Validate ID is a valid integer
+    const paymentId = parseInt(id, 10);
+    if (isNaN(paymentId) || paymentId <= 0) {
+      return res.status(400).json({
+        success: false,
+        error: 'Invalid payment ID'
+      });
+    }
+
     const {
       amount,
       payment_method,
@@ -182,6 +210,14 @@ router.put('/:id', authenticate, async (req, res) => {
       notes,
       payment_date
     } = req.body;
+
+    // Validate amount if provided
+    if (amount !== undefined && (typeof amount !== 'number' || amount <= 0)) {
+      return res.status(400).json({
+        success: false,
+        error: 'Payment amount must be a positive number'
+      });
+    }
 
     const result = await pool.query(`
       UPDATE customer_payments
@@ -195,7 +231,7 @@ router.put('/:id', authenticate, async (req, res) => {
         updated_at = CURRENT_TIMESTAMP
       WHERE id = $7
       RETURNING *
-    `, [amount, payment_method, payment_type, reference_number, notes, payment_date, id]);
+    `, [amount, payment_method, payment_type, reference_number, notes, payment_date, paymentId]);
 
     if (result.rows.length === 0) {
       return res.status(404).json({

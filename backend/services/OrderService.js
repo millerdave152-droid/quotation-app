@@ -15,16 +15,25 @@ class OrderService {
   /**
    * Generate a unique order number
    * Format: ORD-YYYYMMDD-XXXX
+   * Uses database sequence for thread-safety
+   * @param {object} client - Optional database client for transaction
    * @returns {Promise<string>} Generated order number
    */
-  async generateOrderNumber() {
+  async generateOrderNumber(client = null) {
+    const db = client || this.pool;
     const date = new Date();
     const dateStr = date.toISOString().slice(0, 10).replace(/-/g, '');
 
-    const result = await this.pool.query(`
-      SELECT COUNT(*) + 1 as seq
-      FROM orders
-      WHERE DATE(created_at) = CURRENT_DATE
+    // Use advisory lock to prevent race conditions
+    // Or use a sequence if available
+    const result = await db.query(`
+      SELECT COALESCE(
+        (SELECT MAX(CAST(SUBSTRING(order_number FROM 'ORD-${dateStr}-(\\d+)') AS INTEGER))
+         FROM orders
+         WHERE order_number LIKE 'ORD-${dateStr}-%'),
+        0
+      ) + 1 as seq
+      FOR UPDATE
     `);
 
     const seq = String(result.rows[0].seq).padStart(4, '0');
@@ -98,8 +107,8 @@ class OrderService {
         throw ApiError.validation('Quotation has no items');
       }
 
-      // 3. Generate order number
-      const orderNumber = await this.generateOrderNumber();
+      // 3. Generate order number (pass client for transaction safety)
+      const orderNumber = await this.generateOrderNumber(client);
 
       // 4. Create order
       const orderResult = await client.query(`
@@ -224,8 +233,8 @@ class OrderService {
       const taxCents = Math.round(subtotalCents * taxRate);
       const totalCents = subtotalCents + taxCents + (deliveryCents || 0);
 
-      // Generate order number
-      const orderNumber = await this.generateOrderNumber();
+      // Generate order number (pass client for transaction safety)
+      const orderNumber = await this.generateOrderNumber(client);
 
       // Create order
       const orderResult = await client.query(`

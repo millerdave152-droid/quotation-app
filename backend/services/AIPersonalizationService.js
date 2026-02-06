@@ -8,7 +8,7 @@
  * - Customer Behavior Tracking
  */
 
-const pool = require('../db');
+let pool = require('../db');
 
 class AIPersonalizationService {
   // ==================== DYNAMIC PRICING ENGINE ====================
@@ -694,5 +694,7 @@ class AIPersonalizationService {
     return result.rows.length > 0;
   }
 }
+
+AIPersonalizationService.prototype._setPool = function(p) { pool = p; };
 
 module.exports = new AIPersonalizationService();

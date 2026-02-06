@@ -8,7 +8,7 @@
  * - Final price calculations
  */
 
-const pool = require('../db');
+let pool = require('../db');
 
 class AdvancedPricingService {
   // ==================== VOLUME DISCOUNT RULES ====================
@@ -925,5 +925,7 @@ class AdvancedPricingService {
     }
   }
 }
+
+AdvancedPricingService.prototype._setPool = function(p) { pool = p; };
 
 module.exports = new AdvancedPricingService();

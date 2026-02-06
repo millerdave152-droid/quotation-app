@@ -46,12 +46,20 @@ export const createTransaction = async (data) => {
       };
     }
 
+    if (!data.salespersonId) {
+      return {
+        success: false,
+        error: 'Salesperson is required',
+        data: null,
+      };
+    }
+
     console.log('[Transactions] createTransaction request data:', JSON.stringify(data, null, 2));
     const response = await api.post('/transactions', {
       shiftId: data.shiftId,
       customerId: data.customerId || null,
       quoteId: data.quoteId || null,
-      salespersonId: data.salespersonId || null,
+      salespersonId: data.salespersonId,
       items: data.items.map(item => ({
         productId: item.productId,
         quantity: item.quantity,
@@ -78,6 +86,7 @@ export const createTransaction = async (data) => {
       deliveryFee: data.deliveryFee || 0,
       fulfillment: data.fulfillment || null,
       promotion: data.promotion || null,
+      commissionSplit: data.commissionSplit || null,
     });
 
     const result = response.data || response;

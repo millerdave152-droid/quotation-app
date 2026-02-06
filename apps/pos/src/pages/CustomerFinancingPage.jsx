@@ -315,7 +315,7 @@ export function CustomerFinancingPage() {
 
       const response = await fetch(`${API_BASE}/financing/customer/${customerId}`, {
         headers: {
-          Authorization: `Bearer ${localStorage.getItem('token')}`,
+          Authorization: `Bearer ${localStorage.getItem('pos_token')}`,
         },
       });
 
@@ -345,7 +345,7 @@ export function CustomerFinancingPage() {
 
       const response = await fetch(`${API_BASE}/financing/agreements/${agreement.agreementId}/payoff`, {
         headers: {
-          Authorization: `Bearer ${localStorage.getItem('token')}`,
+          Authorization: `Bearer ${localStorage.getItem('pos_token')}`,
         },
       });
 
@@ -374,7 +374,7 @@ export function CustomerFinancingPage() {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          Authorization: `Bearer ${localStorage.getItem('token')}`,
+          Authorization: `Bearer ${localStorage.getItem('pos_token')}`,
         },
         body: JSON.stringify({ paymentMethod: 'card' }),
       });

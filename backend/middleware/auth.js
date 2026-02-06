@@ -6,6 +6,7 @@
 
 const { verifyAccessToken } = require('../utils/jwt');
 const db = require('../config/database');
+const { resolvePermissions, hasPermission: checkPermission } = require('../utils/permissions');
 
 /**
  * Authenticate Middleware
@@ -58,7 +59,14 @@ const authenticate = async (req, res, next) => {
 
     // Fetch user from database to ensure they still exist and are active
     const result = await db.query(
-      'SELECT id, email, first_name, last_name, role, is_active FROM users WHERE id = $1',
+      `SELECT u.id, u.email, u.first_name, u.last_name, u.role, u.is_active,
+              u.pos_role_id, u.role_id,
+              pr.permissions as pos_permissions, pr.name as pos_role_name,
+              r.name as role_name, r.display_name as role_display_name
+       FROM users u
+       LEFT JOIN pos_roles pr ON u.pos_role_id = pr.id
+       LEFT JOIN roles r ON u.role_id = r.id
+       WHERE u.id = $1`,
       [decoded.userId]
     );
 
@@ -79,14 +87,39 @@ const authenticate = async (req, res, next) => {
       });
     }
 
+    // Load normalized permissions from role_permissions if role_id is set
+    let normalizedPermissions = null;
+    if (user.role_id) {
+      try {
+        const permResult = await db.query(
+          `SELECT p.code FROM permissions p
+           JOIN role_permissions rp ON rp.permission_id = p.id
+           WHERE rp.role_id = $1`,
+          [user.role_id]
+        );
+        normalizedPermissions = permResult.rows.map(r => r.code);
+      } catch (err) {
+        // Tables may not exist yet — fall back silently
+        normalizedPermissions = null;
+      }
+    }
+
     // Attach user information to request object
+    const posPermissions = user.pos_permissions || null;
     req.user = {
       id: user.id,
       email: user.email,
       firstName: user.first_name,
       lastName: user.last_name,
       role: user.role,
-      isActive: user.is_active
+      isActive: user.is_active,
+      posRoleId: user.pos_role_id,
+      posRoleName: user.pos_role_name,
+      posPermissions: Array.isArray(posPermissions) ? posPermissions : null,
+      roleId: user.role_id,
+      roleName: user.role_name,
+      roleDisplayName: user.role_display_name,
+      permissions: normalizedPermissions,
     };
 
     // Attach decoded token for additional context
@@ -131,21 +164,53 @@ const optionalAuth = async (req, res, next) => {
     try {
       const decoded = verifyAccessToken(token);
 
-      // Fetch user from database
+      // SECURITY: Fetch full user info including permissions, consistent with authenticate middleware
       const result = await db.query(
-        'SELECT id, email, first_name, last_name, role, is_active FROM users WHERE id = $1',
+        `SELECT u.id, u.email, u.first_name, u.last_name, u.role, u.is_active,
+                u.pos_role_id, u.role_id,
+                pr.permissions as pos_permissions, pr.name as pos_role_name,
+                r.name as role_name, r.display_name as role_display_name
+         FROM users u
+         LEFT JOIN pos_roles pr ON u.pos_role_id = pr.id
+         LEFT JOIN roles r ON u.role_id = r.id
+         WHERE u.id = $1`,
         [decoded.userId]
       );
 
       if (result.rows.length > 0 && result.rows[0].is_active) {
         const user = result.rows[0];
+
+        // Load normalized permissions if role_id is set
+        let normalizedPermissions = null;
+        if (user.role_id) {
+          try {
+            const permResult = await db.query(
+              `SELECT p.code FROM permissions p
+               JOIN role_permissions rp ON rp.permission_id = p.id
+               WHERE rp.role_id = $1`,
+              [user.role_id]
+            );
+            normalizedPermissions = permResult.rows.map(r => r.code);
+          } catch (err) {
+            normalizedPermissions = null;
+          }
+        }
+
+        const posPermissions = user.pos_permissions || null;
         req.user = {
           id: user.id,
           email: user.email,
           firstName: user.first_name,
           lastName: user.last_name,
           role: user.role,
-          isActive: user.is_active
+          isActive: user.is_active,
+          posRoleId: user.pos_role_id,
+          posRoleName: user.pos_role_name,
+          posPermissions: Array.isArray(posPermissions) ? posPermissions : null,
+          roleId: user.role_id,
+          roleName: user.role_name,
+          roleDisplayName: user.role_display_name,
+          permissions: normalizedPermissions,
         };
         req.token = decoded;
       } else {
@@ -196,9 +261,8 @@ const requireRole = (...allowedRoles) => {
 
         return res.status(403).json({
           success: false,
-          message: 'Access denied. Insufficient permissions.',
-          requiredRoles: allowedRoles,
-          userRole: req.user.role
+          message: 'Access denied. Insufficient permissions.'
+          // SECURITY: Do not expose requiredRoles or userRole to prevent information leakage
         });
       }
 
@@ -300,6 +364,18 @@ const authenticateApiKey = async (req, res, next) => {
       });
     }
 
+    // SECURITY: Validate API key format before database lookup
+    // API keys should be alphanumeric with a specific length/format
+    if (typeof apiKey !== 'string' || apiKey.length < 32 || apiKey.length > 128) {
+      return res.status(401).json({
+        success: false,
+        message: 'Invalid API key'
+      });
+    }
+
+    // SECURITY NOTE: API keys should ideally be hashed before storage.
+    // If using hashed keys, extract prefix for lookup and verify hash.
+    // Current implementation uses plaintext - consider migrating to hashed storage.
     // Fetch API key from database
     const result = await db.query(
       `SELECT ak.*, u.id as user_id, u.email, u.first_name, u.last_name, u.role, u.is_active
@@ -353,10 +429,51 @@ const authenticateApiKey = async (req, res, next) => {
   }
 };
 
+/**
+ * Require Permission Middleware Factory
+ * Checks if authenticated user has a specific POS permission.
+ * Falls back to role-based defaults if pos_roles table is not migrated.
+ * Must be used after authenticate middleware.
+ * @param {...string} requiredPermissions - Permission(s) the user must have (ANY match grants access)
+ * @returns {Function} Express middleware function
+ * @example
+ * router.post('/void', authenticate, requirePermission('pos.checkout.void'), handler);
+ */
+const requirePermission = (...requiredPermissions) => {
+  return (req, res, next) => {
+    if (!req.user) {
+      return res.status(401).json({ success: false, message: 'Authentication required' });
+    }
+
+    const userPerms = resolvePermissions(req.user);
+    const hasAny = requiredPermissions.some(p => userPerms.includes(p));
+
+    if (!hasAny) {
+      // SECURITY: Log only essential info - don't expose all user permissions in logs
+      console.warn(
+        `Permission denied for user ${req.user.id}. Required: ${requiredPermissions.join(' | ')}`
+      );
+      return res.status(403).json({
+        success: false,
+        message: 'Access denied. Insufficient permissions.'
+        // SECURITY: Do not expose requiredPermissions to prevent permission enumeration
+      });
+    }
+
+    next();
+  };
+};
+
+// Re-export DB-backed permission check for convenience
+const { checkPermission: checkDbPermission, checkAllPermissions } = require('./checkPermission');
+
 module.exports = {
   authenticate,
   optionalAuth,
   requireRole,
+  requirePermission,
+  checkPermission: checkDbPermission,
+  checkAllPermissions,
   requireOwnershipOrAdmin,
   requireActiveAccount,
   authenticateApiKey

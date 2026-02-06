@@ -1,5 +1,5 @@
 const axios = require('axios');
-const pool = require('../db');
+let pool = require('../db');
 
 /**
  * Mirakl API Service for Best Buy Marketplace Integration
@@ -547,6 +547,8 @@ class MiraklService {
     }
   }
 }
+
+MiraklService.prototype._setPool = function(p) { pool = p; };
 
 // Export singleton instance
 module.exports = new MiraklService();

@@ -30,7 +30,8 @@ import {
   PieChart,
   Tag,
   Search,
-  ClipboardCheck
+  ClipboardCheck,
+  Truck
 } from 'lucide-react';
 
 const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:3001';
@@ -59,6 +60,7 @@ const navItems = {
   reports: { path: '/reports', icon: ClipboardList, label: 'Reports' },
   'bulk-ops': { path: '/bulk-ops', icon: Zap, label: 'Bulk Ops' },
   features: { path: '/features', icon: Rocket, label: '2026 Features', isSpecial: true },
+  'admin-deliveries': { path: '/admin/deliveries', icon: Truck, label: 'Delivery Management', isAdmin: true },
   'admin-users': { path: '/admin/users', icon: UserCog, label: 'User Management', isAdmin: true },
   'admin-nomenclature': { path: '/admin/nomenclature', icon: Wrench, label: 'Nomenclature Admin', isAdmin: true },
 };
@@ -95,7 +97,7 @@ const adminSection = {
   id: 'admin',
   title: 'Admin',
   icon: UserCog,
-  items: ['admin-users', 'admin-nomenclature']
+  items: ['admin-deliveries', 'admin-users', 'admin-nomenclature']
 };
 
 /**

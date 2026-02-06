@@ -14,14 +14,13 @@ const Login = ({ onLoginSuccess }) => {
 
     try {
       const result = await signIn({
-  username: email,
-  password: password,
-  options: {
-    authFlowType: 'USER_PASSWORD_AUTH'
-  }
-});
-      
-      console.log('Login result:', result);
+        username: email,
+        password: password,
+        options: {
+          authFlowType: 'USER_PASSWORD_AUTH'
+        }
+      });
+
       onLoginSuccess();
     } catch (err) {
       console.error('Login error:', err);

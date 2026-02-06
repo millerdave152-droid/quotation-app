@@ -2,9 +2,19 @@
  * API Caching Service
  * Prevents redundant API calls by caching responses in memory
  * Eliminates rate limit issues and flickering from excessive requests
+ *
+ * Features:
+ * - In-memory caching with configurable TTL per endpoint
+ * - Request deduplication for in-flight requests
+ * - AbortController support for request cancellation
+ * - Timeout handling
+ * - Proper error handling and propagation
  */
 
 const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:3001';
+
+// Default request timeout in milliseconds
+const DEFAULT_TIMEOUT = 30000;
 
 class APICache {
   constructor() {
@@ -15,6 +25,7 @@ class APICache {
     this.defaultTTL = 5 * 60 * 1000;
 
     // Pending requests to prevent duplicate in-flight requests
+    // Stores: { cacheKey: { promise, abortController } }
     this.pendingRequests = new Map();
 
     // Custom TTLs for specific endpoints
@@ -61,41 +72,82 @@ class APICache {
 
   /**
    * Fetch with caching - main method
+   * @param {string} url - API endpoint URL
+   * @param {object} options - Fetch options
+   * @param {number} options.timeout - Request timeout in ms (default: 30000)
+   * @param {AbortSignal} options.signal - External abort signal
+   * @param {boolean} options.skipCache - Skip cache and force fresh request
+   * @returns {Promise<any>} Response data
    */
   async fetch(url, options = {}) {
     const fullUrl = url.startsWith('http') ? url : `${API_URL}${url}`;
-    const cacheKey = `${fullUrl}:${JSON.stringify(options)}`;
+    const { timeout = DEFAULT_TIMEOUT, signal: externalSignal, skipCache = false, ...fetchOpts } = options;
+    const cacheKey = `${fullUrl}:${JSON.stringify(fetchOpts)}`;
 
-    // Check if we have a valid cached response
-    const cached = this.cache.get(cacheKey);
-    if (cached && this.isValid(cached, url)) {
-      console.log(`[API Cache] HIT: ${url}`);
-      return cached.data;
+    // Check if we have a valid cached response (unless skipCache is true)
+    if (!skipCache) {
+      const cached = this.cache.get(cacheKey);
+      if (cached && this.isValid(cached, url)) {
+        console.log(`[API Cache] HIT: ${url}`);
+        return cached.data;
+      }
     }
 
     // Check if there's already a pending request for this URL
-    if (this.pendingRequests.has(cacheKey)) {
+    const pendingRequest = this.pendingRequests.get(cacheKey);
+    if (pendingRequest && !skipCache) {
       console.log(`[API Cache] WAITING: ${url}`);
-      return this.pendingRequests.get(cacheKey);
+      return pendingRequest.promise;
+    }
+
+    // Create abort controller for timeout handling
+    const abortController = new AbortController();
+    const timeoutId = setTimeout(() => {
+      abortController.abort();
+    }, timeout);
+
+    // If external signal is provided, link it to our controller
+    if (externalSignal) {
+      externalSignal.addEventListener('abort', () => {
+        clearTimeout(timeoutId);
+        abortController.abort();
+      });
     }
 
     // Merge auth headers with provided options
     const authHeaders = this.getAuthHeaders();
     const fetchOptions = {
-      ...options,
+      ...fetchOpts,
       headers: {
+        'Content-Type': 'application/json',
         ...authHeaders,
-        ...options.headers
-      }
+        ...fetchOpts.headers
+      },
+      signal: abortController.signal,
     };
 
     // Make the request
     console.log(`[API Cache] MISS: ${url}`);
     const requestPromise = fetch(fullUrl, fetchOptions)
       .then(async (response) => {
+        clearTimeout(timeoutId);
+
         if (!response.ok) {
-          throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+          // Try to parse error body for detailed message
+          let errorMessage = `HTTP ${response.status}: ${response.statusText}`;
+          try {
+            const errorData = await response.json();
+            errorMessage = errorData.error || errorData.message || errorMessage;
+          } catch {
+            // Ignore JSON parse errors
+          }
+
+          const error = new Error(errorMessage);
+          error.status = response.status;
+          error.statusText = response.statusText;
+          throw error;
         }
+
         const data = await response.json();
 
         // Cache the response
@@ -110,15 +162,54 @@ class APICache {
         return data;
       })
       .catch((error) => {
+        clearTimeout(timeoutId);
         // Remove from pending requests on error
         this.pendingRequests.delete(cacheKey);
+
+        // Enhance error message for aborted/timeout requests
+        if (error.name === 'AbortError') {
+          const timeoutError = new Error(`Request timeout after ${timeout}ms: ${url}`);
+          timeoutError.code = 'TIMEOUT';
+          timeoutError.url = url;
+          throw timeoutError;
+        }
+
+        // Enhance network errors
+        if (error.message === 'Failed to fetch' || error.message === 'Network request failed') {
+          const networkError = new Error(`Network error: Unable to connect to ${fullUrl}`);
+          networkError.code = 'NETWORK_ERROR';
+          networkError.url = url;
+          throw networkError;
+        }
+
         throw error;
       });
 
-    // Store pending request
-    this.pendingRequests.set(cacheKey, requestPromise);
+    // Store pending request with its abort controller
+    this.pendingRequests.set(cacheKey, {
+      promise: requestPromise,
+      abortController,
+    });
 
     return requestPromise;
+  }
+
+  /**
+   * Cancel a pending request
+   * @param {string} url - URL pattern to cancel
+   */
+  cancelRequest(urlPattern) {
+    let count = 0;
+    for (const [key, value] of this.pendingRequests.entries()) {
+      if (key.includes(urlPattern)) {
+        value.abortController?.abort();
+        this.pendingRequests.delete(key);
+        count++;
+      }
+    }
+    if (count > 0) {
+      console.log(`[API Cache] Cancelled ${count} requests matching: ${urlPattern}`);
+    }
   }
 
   /**
@@ -166,6 +257,9 @@ class APICache {
 
   /**
    * Batch fetch multiple URLs in parallel with caching
+   * @param {string[]} urls - Array of URLs to fetch
+   * @param {object} options - Fetch options applied to all requests
+   * @returns {Promise<Array>} Array of responses (null for failed requests)
    */
   async fetchAll(urls, options = {}) {
     const promises = urls.map(url =>
@@ -175,6 +269,46 @@ class APICache {
       })
     );
     return Promise.all(promises);
+  }
+
+  /**
+   * Fetch with automatic retry for transient failures
+   * @param {string} url - API endpoint URL
+   * @param {object} options - Fetch options
+   * @param {number} options.retries - Number of retries (default: 3)
+   * @param {number} options.retryDelay - Delay between retries in ms (default: 1000)
+   * @returns {Promise<any>} Response data
+   */
+  async fetchWithRetry(url, options = {}) {
+    const { retries = 3, retryDelay = 1000, ...fetchOptions } = options;
+    let lastError;
+
+    for (let attempt = 0; attempt <= retries; attempt++) {
+      try {
+        return await this.fetch(url, { ...fetchOptions, skipCache: attempt > 0 });
+      } catch (error) {
+        lastError = error;
+
+        // Don't retry on 4xx errors (client errors) except 408 (timeout) and 429 (rate limit)
+        if (error.status && error.status >= 400 && error.status < 500 &&
+            error.status !== 408 && error.status !== 429) {
+          throw error;
+        }
+
+        // Don't retry on aborted requests (user cancelled)
+        if (error.name === 'AbortError' && error.code !== 'TIMEOUT') {
+          throw error;
+        }
+
+        if (attempt < retries) {
+          const delay = retryDelay * Math.pow(2, attempt); // Exponential backoff
+          console.log(`[API Cache] Retry ${attempt + 1}/${retries} for ${url} after ${delay}ms`);
+          await new Promise(resolve => setTimeout(resolve, delay));
+        }
+      }
+    }
+
+    throw lastError;
   }
 }
 
@@ -188,5 +322,7 @@ export const clearCache = () => apiCache.clear();
 export const prefetchData = (url, options) => apiCache.prefetch(url, options);
 export const batchFetch = (urls, options) => apiCache.fetchAll(urls, options);
 export const getCacheStats = () => apiCache.getStats();
+export const cancelRequest = (pattern) => apiCache.cancelRequest(pattern);
+export const fetchWithRetry = (url, options) => apiCache.fetchWithRetry(url, options);
 
 export default apiCache;

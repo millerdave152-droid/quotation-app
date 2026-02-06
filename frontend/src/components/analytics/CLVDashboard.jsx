@@ -467,11 +467,9 @@ const CLVDashboard = () => {
         <ChurnRiskPanel
           onNavigate={(view, params) => {
             // Navigation callback - integrate with your router
-            console.log('Navigate to:', view, params);
           }}
           onContact={(type, customer) => {
             // Contact callback - integrate with your email/phone system
-            console.log('Contact customer:', type, customer);
           }}
         />
       </div>

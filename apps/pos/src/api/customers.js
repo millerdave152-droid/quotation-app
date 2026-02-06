@@ -95,6 +95,12 @@ export const createCustomer = async (data) => {
       city: data.city?.trim() || null,
       province: data.province || null,
       postal_code: data.postalCode?.trim() || null,
+      marketing_source: data.marketingSource || null,
+      marketing_source_detail: data.marketingSourceDetail || null,
+      email_transactional: data.emailTransactional ?? true,
+      email_marketing: data.emailMarketing ?? false,
+      sms_transactional: data.smsTransactional ?? false,
+      sms_marketing: data.smsMarketing ?? false,
     });
 
     return {
@@ -279,6 +285,19 @@ export const getCustomerTradeIns = async (customerId) => {
   }
 };
 
+/**
+ * Get marketing source options
+ * @returns {Promise<string[]>} Array of source labels
+ */
+export const getMarketingSources = async () => {
+  try {
+    const response = await api.get('/marketing-sources');
+    return (response.data || response || []).map(s => s.label || s);
+  } catch {
+    return [];
+  }
+};
+
 export default {
   searchCustomers,
   getCustomer,
@@ -289,4 +308,5 @@ export default {
   getCustomerTradeIns,
   findByPhone,
   findByEmail,
+  getMarketingSources,
 };

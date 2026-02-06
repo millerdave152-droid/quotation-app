@@ -487,6 +487,13 @@ class DeliveryService {
         notes, bookedBy
       ]);
 
+      // CRITICAL FIX: Update the slot's booked count atomically
+      await client.query(`
+        UPDATE delivery_slots
+        SET booked = booked + 1, updated_at = CURRENT_TIMESTAMP
+        WHERE id = $1
+      `, [slotId]);
+
       await client.query('COMMIT');
 
       this.cache?.invalidatePattern('delivery:*');
@@ -623,6 +630,13 @@ class DeliveryService {
           updated_at = CURRENT_TIMESTAMP
         WHERE id = $1
       `, [bookingId, reason]);
+
+      // CRITICAL FIX: Decrement the slot's booked count to free up capacity
+      await client.query(`
+        UPDATE delivery_slots
+        SET booked = GREATEST(booked - 1, 0), updated_at = CURRENT_TIMESTAMP
+        WHERE id = $1
+      `, [booking.slot_id]);
 
       await client.query('COMMIT');
 

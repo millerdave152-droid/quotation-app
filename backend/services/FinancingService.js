@@ -788,8 +788,8 @@ class FinancingService {
     if (termMonths <= 0) return principalCents;
 
     if (apr === 0 || apr === null) {
-      // 0% APR: simple division
-      return Math.ceil(principalCents / termMonths);
+      // 0% APR: simple division, round to nearest cent
+      return Math.round(principalCents / termMonths);
     }
 
     // Standard amortization formula: M = P * [r(1+r)^n] / [(1+r)^n - 1]
@@ -797,7 +797,7 @@ class FinancingService {
     const factor = Math.pow(1 + monthlyRate, termMonths);
     const payment = principalCents * (monthlyRate * factor) / (factor - 1);
 
-    return Math.ceil(payment);
+    return Math.round(payment);
   }
 
   /**
@@ -805,6 +805,10 @@ class FinancingService {
    * @private
    */
   _calculateTotalCost(principalCents, apr, termMonths) {
+    if (apr === 0 || apr === null) {
+      // 0% APR: total cost equals principal (no rounding error accumulation)
+      return principalCents;
+    }
     const monthlyPayment = this._calculateMonthlyPayment(principalCents, apr, termMonths);
     return monthlyPayment * termMonths;
   }
@@ -823,9 +827,15 @@ class FinancingService {
 
     for (let i = 1; i <= termMonths; i++) {
       const interestPortion = Math.round(balance * monthlyRate);
-      const principalPortion = i === termMonths
+      const isLastPayment = i === termMonths;
+      const principalPortion = isLastPayment
         ? balance  // Last payment: remaining balance
         : monthlyPaymentCents - interestPortion;
+
+      // Last payment amount adjusts to cover remainder (e.g. $1000/3 = $333, $333, $334)
+      const actualPaymentCents = isLastPayment
+        ? principalPortion + interestPortion
+        : monthlyPaymentCents;
 
       const dueDate = new Date(startDate);
       dueDate.setMonth(startDate.getMonth() + (i - 1));
@@ -833,8 +843,8 @@ class FinancingService {
       schedule.push({
         paymentNumber: i,
         dueDate: dueDate.toISOString().split('T')[0],
-        amountDue: monthlyPaymentCents / 100,
-        amountDueCents: monthlyPaymentCents,
+        amountDue: actualPaymentCents / 100,
+        amountDueCents: actualPaymentCents,
         principalPortion: principalPortion / 100,
         principalPortionCents: principalPortion,
         interestPortion: interestPortion / 100,
@@ -1122,7 +1132,7 @@ class FinancingService {
         payments_remaining, balance_remaining_cents,
         start_date, first_payment_date, next_payment_date, final_payment_date,
         provider
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $14, $15, 'internal')
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, 'internal')
       RETURNING id
     `;
 
@@ -1141,6 +1151,7 @@ class FinancingService {
       principalCents,
       startDate.toISOString().split('T')[0],
       firstPaymentDate.toISOString().split('T')[0],
+      firstPaymentDate.toISOString().split('T')[0],  // next_payment_date = first_payment_date initially
       finalPaymentDate.toISOString().split('T')[0],
     ]);
 

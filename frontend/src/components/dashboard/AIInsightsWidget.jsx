@@ -43,7 +43,7 @@ const AIInsightsWidget = ({ onNavigate, onAction, limit = 5 }) => {
   // Fetch insights from API
   const fetchInsights = useCallback(async () => {
     try {
-      const token = localStorage.getItem('token');
+      const token = localStorage.getItem('auth_token');
       const response = await fetch(`${API_URL}/api/insights?limit=${expanded ? 20 : limit}`, {
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -77,7 +77,7 @@ const AIInsightsWidget = ({ onNavigate, onAction, limit = 5 }) => {
   const dismissInsight = async (insightId) => {
     setDismissing(insightId);
     try {
-      const token = localStorage.getItem('token');
+      const token = localStorage.getItem('auth_token');
       await fetch(`${API_URL}/api/insights/${insightId}/dismiss`, {
         method: 'POST',
         headers: {
@@ -96,7 +96,7 @@ const AIInsightsWidget = ({ onNavigate, onAction, limit = 5 }) => {
   // Execute an insight action
   const executeAction = async (insight, action) => {
     try {
-      const token = localStorage.getItem('token');
+      const token = localStorage.getItem('auth_token');
 
       // Handle navigation actions directly
       if (action.action === 'view_quote' && insight.data?.quoteId) {

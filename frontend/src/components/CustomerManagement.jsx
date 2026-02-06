@@ -1873,7 +1873,6 @@ function CustomerManagement() {
                   customerEmail={selectedCustomer.customer?.email}
                   onCreateQuote={(order) => {
                     // Handle creating quote from marketplace order
-                    console.log('Create quote from order:', order);
                     showNotification('Quote creation from marketplace order coming soon!', 'success');
                   }}
                 />

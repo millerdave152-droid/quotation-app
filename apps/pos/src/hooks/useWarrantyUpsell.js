@@ -3,7 +3,7 @@
  * Manages the warranty upsell flow for multiple cart items
  */
 
-import { useState, useCallback, useMemo, useEffect } from 'react';
+import { useState, useCallback, useMemo, useEffect, useRef } from 'react';
 
 const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:3001/api';
 
@@ -27,6 +27,25 @@ export function useWarrantyUpsell({
   const [selectedWarranties, setSelectedWarranties] = useState({});
   const [declinedItems, setDeclinedItems] = useState(new Set());
   const [error, setError] = useState(null);
+
+  // Refs to avoid stale closures in callbacks
+  const selectedWarrantiesRef = useRef(selectedWarranties);
+  selectedWarrantiesRef.current = selectedWarranties;
+  const declinedItemsRef = useRef(declinedItems);
+  declinedItemsRef.current = declinedItems;
+  const eligibleItemsRef = useRef(eligibleItems);
+  eligibleItemsRef.current = eligibleItems;
+  const currentIndexRef = useRef(currentIndex);
+  currentIndexRef.current = currentIndex;
+
+  // Track mounted state to prevent state updates after unmount
+  const isMountedRef = useRef(true);
+  useEffect(() => {
+    isMountedRef.current = true;
+    return () => {
+      isMountedRef.current = false;
+    };
+  }, []);
 
   // Current item being shown
   const currentItem = useMemo(() => {
@@ -69,10 +88,13 @@ export function useWarrantyUpsell({
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          Authorization: `Bearer ${localStorage.getItem('token')}`,
+          Authorization: `Bearer ${localStorage.getItem('pos_token')}`,
         },
         body: JSON.stringify({ products }),
       });
+
+      // Check if component is still mounted before processing
+      if (!isMountedRef.current) return [];
 
       const result = await response.json();
 
@@ -99,7 +121,9 @@ export function useWarrantyUpsell({
       return [];
     } catch (err) {
       console.error('[useWarrantyUpsell] Fetch error:', err);
-      setError(err.message);
+      if (isMountedRef.current) {
+        setError(err.message);
+      }
       return [];
     }
   }, [cartItems]);
@@ -157,40 +181,53 @@ export function useWarrantyUpsell({
 
   /**
    * Add warranty and move to next item
+   * FIXED: Uses refs to avoid stale closure issues when rapidly selecting warranties
    */
   const addAndContinue = useCallback((warranty) => {
     selectWarranty(warranty);
 
-    if (progress.hasMore) {
+    // Use refs to get LATEST values
+    const currentEligibleItems = eligibleItemsRef.current;
+    const currentIdx = currentIndexRef.current;
+    const currentItemData = currentEligibleItems[currentIdx];
+    const hasMore = currentIdx < currentEligibleItems.length - 1;
+
+    if (hasMore) {
       setCurrentIndex((prev) => prev + 1);
     } else {
-      // Complete the flow
+      // Complete the flow - use refs for latest state
       const finalWarranties = {
-        ...selectedWarranties,
-        [currentItem.cartItem.id]: {
+        ...selectedWarrantiesRef.current,
+        [currentItemData.cartItem.id]: {
           ...warranty,
-          coveredItemId: currentItem.cartItem.id,
-          coveredProductName: currentItem.productName,
-          coveredProductPrice: currentItem.productPrice,
+          coveredItemId: currentItemData.cartItem.id,
+          coveredProductName: currentItemData.productName,
+          coveredProductPrice: currentItemData.productPrice,
         },
       };
 
       setIsOpen(false);
       onComplete?.({
         warranties: finalWarranties,
-        declined: Array.from(declinedItems),
+        declined: Array.from(declinedItemsRef.current),
         skipped: false,
       });
     }
-  }, [selectWarranty, progress, currentItem, selectedWarranties, declinedItems, onComplete]);
+  }, [selectWarranty, onComplete]);
 
   /**
    * Decline warranty for current item
+   * FIXED: Uses refs to avoid stale closure issues
    */
   const declineAndContinue = useCallback(async () => {
-    if (!currentItem) return;
+    // Use refs to get LATEST values
+    const currentEligibleItems = eligibleItemsRef.current;
+    const currentIdx = currentIndexRef.current;
+    const currentItemData = currentEligibleItems[currentIdx];
 
-    const itemId = currentItem.cartItem.id;
+    if (!currentItemData) return;
+
+    const itemId = currentItemData.cartItem.id;
 
     // Track decline
     setDeclinedItems((prev) => new Set([...prev, itemId]));
@@ -201,11 +238,11 @@ export function useWarrantyUpsell({
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          Authorization: `Bearer ${localStorage.getItem('token')}`,
+          Authorization: `Bearer ${localStorage.getItem('pos_token')}`,
         },
         body: JSON.stringify({
-          productId: currentItem.productId,
-          warrantyOffered: currentItem.warranties.map((w) => w.warrantyId),
+          productId: currentItemData.productId,
+          warrantyOffered: currentItemData.warranties.map((w) => w.warrantyId),
           declineReason: 'customer_declined_modal',
         }),
       });
@@ -213,18 +250,20 @@ export function useWarrantyUpsell({
       console.error('[useWarrantyUpsell] Decline tracking error:', err);
     }
 
-    if (progress.hasMore) {
+    const hasMore = currentIdx < currentEligibleItems.length - 1;
+
+    if (hasMore) {
       setCurrentIndex((prev) => prev + 1);
     } else {
-      // Complete the flow
+      // Complete the flow - use refs for latest state
       setIsOpen(false);
       onComplete?.({
-        warranties: selectedWarranties,
-        declined: Array.from(declinedItems).concat(itemId),
+        warranties: selectedWarrantiesRef.current,
+        declined: Array.from(declinedItemsRef.current).concat(itemId),
         skipped: false,
       });
     }
-  }, [currentItem, progress, selectedWarranties, declinedItems, onComplete]);
+  }, [onComplete]);
 
   /**
    * Skip entire upsell flow
@@ -237,7 +276,7 @@ export function useWarrantyUpsell({
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            Authorization: `Bearer ${localStorage.getItem('token')}`,
+            Authorization: `Bearer ${localStorage.getItem('pos_token')}`,
           },
           body: JSON.stringify({
             productId: item.productId,

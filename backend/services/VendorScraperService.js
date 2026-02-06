@@ -5,7 +5,7 @@
  * Handles authentication, rate limiting, image processing, and job management.
  */
 
-const pool = require('../db');
+let pool = require('../db');
 const puppeteer = require('puppeteer');
 const sharp = require('sharp');
 const path = require('path');
@@ -603,5 +603,7 @@ class VendorScraperService {
     return result.rows[0];
   }
 }
+
+VendorScraperService.prototype._setPool = function(p) { pool = p; };
 
 module.exports = new VendorScraperService();

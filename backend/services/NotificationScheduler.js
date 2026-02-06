@@ -4,7 +4,7 @@
  */
 
 const cron = require('node-cron');
-const pool = require('../db');
+let pool = require('../db');
 const emailService = require('./EmailService');
 
 class NotificationScheduler {
@@ -182,6 +182,8 @@ class NotificationScheduler {
     };
   }
 }
+
+NotificationScheduler.prototype._setPool = function(p) { pool = p; };
 
 // Export singleton instance
 module.exports = new NotificationScheduler();

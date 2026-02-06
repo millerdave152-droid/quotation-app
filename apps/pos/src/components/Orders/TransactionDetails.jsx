@@ -209,7 +209,7 @@ export function TransactionDetails({
     try {
       const response = await fetch(`${API_BASE}/receipts/${transactionId}/data`, {
         headers: {
-          Authorization: `Bearer ${localStorage.getItem('token')}`,
+          Authorization: `Bearer ${localStorage.getItem('pos_token')}`,
         },
       });
 

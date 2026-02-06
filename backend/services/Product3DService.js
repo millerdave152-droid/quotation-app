@@ -8,7 +8,7 @@
  * - Hotspot annotations
  */
 
-const pool = require('../db');
+let pool = require('../db');
 const path = require('path');
 const fs = require('fs').promises;
 
@@ -489,5 +489,7 @@ class Product3DService {
     return result.rows[0];
   }
 }
+
+Product3DService.prototype._setPool = function(p) { pool = p; };
 
 module.exports = new Product3DService();

@@ -68,7 +68,7 @@ const UnifiedTimeline = ({ onNavigate, customerId = null, limit = 20 }) => {
   // Fetch timeline events
   const fetchTimeline = useCallback(async () => {
     try {
-      const token = localStorage.getItem('token');
+      const token = localStorage.getItem('auth_token');
       let url = `${API_URL}/api/insights/timeline?limit=${limit}`;
       if (customerId) {
         url += `&customerId=${customerId}`;

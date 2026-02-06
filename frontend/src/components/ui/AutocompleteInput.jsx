@@ -61,6 +61,15 @@ function AutocompleteInput({
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
+  // Cleanup debounce timer on unmount
+  useEffect(() => {
+    return () => {
+      if (debounceTimerRef.current) {
+        clearTimeout(debounceTimerRef.current);
+      }
+    };
+  }, []);
+
   // Fetch suggestions with debounce
   const fetchSuggestionsDebounced = useCallback(async (query) => {
     if (!query || query.length < minChars) {

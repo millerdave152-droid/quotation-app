@@ -9,6 +9,8 @@ import { toast } from '../ui/Toast';
 import logger from '../../utils/logger';
 import VersionHistory from './VersionHistory';
 import QuotePromotionAlerts from './QuotePromotionAlerts';
+import TransactionSummary from './TransactionSummary';
+import FulfillmentTracker from './FulfillmentTracker';
 
 const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:3001';
 
@@ -71,7 +73,9 @@ const StatusBadge = ({ status, createdAt, size = 'normal' }) => {
     APPROVED: { bg: '#10b981', text: 'white', label: 'APPROVED' },   // Green - positive
     WON: { bg: '#059669', text: 'white', label: 'WON' },             // Darker green - success
     LOST: { bg: '#dc2626', text: 'white', label: 'LOST' },           // Red - negative
-    REJECTED: { bg: '#ef4444', text: 'white', label: 'REJECTED' }    // Lighter red - negative
+    REJECTED: { bg: '#ef4444', text: 'white', label: 'REJECTED' },    // Lighter red - negative
+    converted: { bg: '#2563eb', text: 'white', label: 'CONVERTED' },  // Blue - converted to POS sale
+    CONVERTED: { bg: '#2563eb', text: 'white', label: 'CONVERTED' }   // Blue - converted to POS sale
   };
 
   const config = statusConfig[status] || { bg: '#6b7280', text: 'white', label: status };
@@ -1047,6 +1051,22 @@ const QuoteViewer = ({
               </div>
             )}
           </div>
+        </div>
+      )}
+
+      {/* Converted to Sale - Transaction & Fulfillment */}
+      {(quote.status === 'converted' || quote.status === 'CONVERTED' || quote.converted_to_order_id) && (
+        <div style={{
+          marginBottom: '24px'
+        }}>
+          <TransactionSummary
+            quoteId={quote.id}
+            convertedToOrderId={quote.converted_to_order_id}
+          />
+          <FulfillmentTracker
+            quoteId={quote.id}
+            convertedToOrderId={quote.converted_to_order_id}
+          />
         </div>
       )}
 

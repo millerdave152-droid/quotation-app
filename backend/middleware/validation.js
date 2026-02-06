@@ -18,11 +18,22 @@ const handleValidationErrors = (req, res, next) => {
   const errors = validationResult(req);
 
   if (!errors.isEmpty()) {
-    const formattedErrors = errors.array().map(err => ({
-      field: err.path || err.param,
-      message: err.msg,
-      value: err.value
-    }));
+    // SECURITY: List of sensitive fields whose values should never be exposed
+    const sensitiveFields = ['password', 'currentPassword', 'newPassword', 'confirmPassword', 'token', 'refreshToken', 'apiKey', 'secret'];
+
+    const formattedErrors = errors.array().map(err => {
+      const fieldName = err.path || err.param;
+      const isSensitive = sensitiveFields.some(sf =>
+        fieldName.toLowerCase().includes(sf.toLowerCase())
+      );
+
+      return {
+        field: fieldName,
+        message: err.msg,
+        // SECURITY: Never expose values of sensitive fields in error responses
+        value: isSensitive ? '[REDACTED]' : err.value
+      };
+    });
 
     return res.status(400).json({
       success: false,
@@ -61,7 +72,9 @@ const validateRegister = [
     .matches(/[a-z]/)
     .withMessage('Password must contain at least one lowercase letter')
     .matches(/[0-9]/)
-    .withMessage('Password must contain at least one number'),
+    .withMessage('Password must contain at least one number')
+    .matches(/[!@#$%^&*(),.?":{}|<>]/)
+    .withMessage('Password must contain at least one special character (!@#$%^&*(),.?":{}|<>)'),
 
   body('firstName')
     .trim()
@@ -132,6 +145,8 @@ const validateChangePassword = [
     .withMessage('New password must contain at least one lowercase letter')
     .matches(/[0-9]/)
     .withMessage('New password must contain at least one number')
+    .matches(/[!@#$%^&*(),.?":{}|<>]/)
+    .withMessage('New password must contain at least one special character')
     .custom((value, { req }) => {
       if (value === req.body.currentPassword) {
         throw new Error('New password must be different from current password');
@@ -205,7 +220,9 @@ const validatePasswordReset = [
     .matches(/[a-z]/)
     .withMessage('New password must contain at least one lowercase letter')
     .matches(/[0-9]/)
-    .withMessage('New password must contain at least one number'),
+    .withMessage('New password must contain at least one number')
+    .matches(/[!@#$%^&*(),.?":{}|<>]/)
+    .withMessage('New password must contain at least one special character'),
 
   body('confirmPassword')
     .notEmpty()

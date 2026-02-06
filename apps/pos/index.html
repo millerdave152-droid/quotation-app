@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+
+    <!-- Favicon -->
+    <link rel="icon" type="image/svg+xml" href="/pos-icon.svg" />
+    <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
+    <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png" />
+    <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png" />
+
+    <!-- Viewport - optimized for tablets, prevents zoom on double-tap -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+
+    <!-- Prevent phone number detection on iOS -->
+    <meta name="format-detection" content="telephone=no" />
+
+    <!-- PWA Theme Colors -->
+    <meta name="theme-color" content="#1e293b" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#1e293b" media="(prefers-color-scheme: dark)" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+
+    <!-- PWA Configuration -->
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-title" content="TeleTime POS" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="application-name" content="TeleTime POS" />
+    <link rel="manifest" href="/manifest.json" />
+
+    <!-- SEO -->
+    <meta name="description" content="TeleTime Point of Sale System - Fast, reliable POS for retail operations" />
+    <meta name="keywords" content="POS, point of sale, retail, sales, inventory" />
+    <meta name="author" content="TeleTime Communications" />
+
+    <!-- Prevent caching in development -->
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
+    <meta http-equiv="Pragma" content="no-cache" />
+    <meta http-equiv="Expires" content="0" />
+
+    <!-- Title -->
+    <title>TeleTime POS</title>
+
+    <!-- Fonts - Inter for UI, JetBrains Mono for numbers/codes -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap"
+      rel="stylesheet"
+    />
+
+    <!-- Prevent text selection on touch devices (for POS buttons) -->
+    <style>
+      /* Prevent text selection on buttons */
+      button, .no-select {
+        -webkit-touch-callout: none;
+        -webkit-user-select: none;
+        -khtml-user-select: none;
+        -moz-user-select: none;
+        -ms-user-select: none;
+        user-select: none;
+      }
+
+      /* Prevent pull-to-refresh */
+      html, body {
+        overscroll-behavior-y: contain;
+      }
+
+      /* Prevent zoom on input focus (iOS) */
+      input, select, textarea {
+        font-size: 16px !important;
+      }
+
+      /* Hide scrollbar but allow scrolling */
+      .hide-scrollbar {
+        -ms-overflow-style: none;
+        scrollbar-width: none;
+      }
+      .hide-scrollbar::-webkit-scrollbar {
+        display: none;
+      }
+
+      /* Loading placeholder while JS loads */
+      #root:empty {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        min-height: 100vh;
+        background: #1e293b;
+      }
+      #root:empty::after {
+        content: '';
+        width: 40px;
+        height: 40px;
+        border: 4px solid #3b82f6;
+        border-top-color: transparent;
+        border-radius: 50%;
+        animation: spin 1s linear infinite;
+      }
+      @keyframes spin {
+        to { transform: rotate(360deg); }
+      }
+    </style>
+  </head>
+
+  <body class="bg-slate-800">
+    <!-- React Root -->
+    <div id="root"></div>
+
+    <!-- No JavaScript fallback -->
+    <noscript>
+      <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 100vh; background: #1e293b; color: white; text-align: center; padding: 20px;">
+        <h1 style="font-size: 24px; margin-bottom: 16px;">JavaScript Required</h1>
+        <p style="color: #94a3b8;">TeleTime POS requires JavaScript to run. Please enable JavaScript in your browser settings.</p>
+      </div>
+    </noscript>
+
+    <!-- Main Script -->
+    <script type="module" src="/src/main.jsx"></script>
+  </body>
+</html>

@@ -217,4 +217,104 @@ export const isAuthenticated = () => {
   return !!localStorage.getItem(TOKEN_KEY);
 };
 
+// ============================================================================
+// REQUEST UTILITIES
+// ============================================================================
+
+/**
+ * Create a cancellable request
+ * @param {string} method - HTTP method (get, post, put, patch, delete)
+ * @param {string} url - API endpoint
+ * @param {object} data - Request body (for POST/PUT/PATCH)
+ * @param {object} config - Additional axios config
+ * @returns {{ promise: Promise, cancel: Function }} Request promise and cancel function
+ */
+export const createCancellableRequest = (method, url, data = null, config = {}) => {
+  const controller = new AbortController();
+
+  const requestConfig = {
+    ...config,
+    signal: controller.signal,
+  };
+
+  let promise;
+  switch (method.toLowerCase()) {
+    case 'get':
+      promise = api.get(url, requestConfig);
+      break;
+    case 'post':
+      promise = api.post(url, data, requestConfig);
+      break;
+    case 'put':
+      promise = api.put(url, data, requestConfig);
+      break;
+    case 'patch':
+      promise = api.patch(url, data, requestConfig);
+      break;
+    case 'delete':
+      promise = api.delete(url, requestConfig);
+      break;
+    default:
+      throw new Error(`Unsupported HTTP method: ${method}`);
+  }
+
+  return {
+    promise,
+    cancel: () => controller.abort(),
+  };
+};
+
+/**
+ * Make a request with retry logic for transient failures
+ * @param {string} method - HTTP method
+ * @param {string} url - API endpoint
+ * @param {object} data - Request body (for POST/PUT/PATCH)
+ * @param {object} options - Options including retries and retryDelay
+ * @returns {Promise} API response
+ */
+export const requestWithRetry = async (method, url, data = null, options = {}) => {
+  const { retries = 3, retryDelay = 1000, ...config } = options;
+  let lastError;
+
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    try {
+      switch (method.toLowerCase()) {
+        case 'get':
+          return await api.get(url, config);
+        case 'post':
+          return await api.post(url, data, config);
+        case 'put':
+          return await api.put(url, data, config);
+        case 'patch':
+          return await api.patch(url, data, config);
+        case 'delete':
+          return await api.delete(url, config);
+        default:
+          throw new Error(`Unsupported HTTP method: ${method}`);
+      }
+    } catch (error) {
+      lastError = error;
+
+      // Don't retry on 4xx errors (except 408 timeout and 429 rate limit)
+      const status = error.status || error.response?.status;
+      if (status && status >= 400 && status < 500 && status !== 408 && status !== 429) {
+        throw error;
+      }
+
+      // Don't retry on cancelled requests
+      if (error.code === 'ERR_CANCELED' || error.name === 'CanceledError') {
+        throw error;
+      }
+
+      if (attempt < retries) {
+        const delay = retryDelay * Math.pow(2, attempt); // Exponential backoff
+        console.log(`[API] Retry ${attempt + 1}/${retries} for ${url} after ${delay}ms`);
+        await new Promise(resolve => setTimeout(resolve, delay));
+      }
+    }
+  }
+
+  throw lastError;
+};
+
 export default api;

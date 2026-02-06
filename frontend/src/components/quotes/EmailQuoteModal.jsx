@@ -10,6 +10,7 @@
  */
 
 import React, { useState, useEffect, useCallback } from 'react';
+import DOMPurify from 'dompurify';
 import { generateCustomerPDF } from '../../services/pdfService';
 import companyConfig from '../../config/companyConfig';
 import { toast } from '../ui/Toast';
@@ -227,10 +228,15 @@ const EmailQuoteModal = ({
     }
   };
 
-  // Get preview HTML
+  // Get preview HTML - sanitized to prevent XSS
   const getPreviewHtml = () => {
     const mergeData = getMergeData();
-    const processedMessage = message.replace(/\n/g, '<br/>');
+    // Sanitize user message content to prevent XSS attacks
+    const sanitizedMessage = DOMPurify.sanitize(message.replace(/\n/g, '<br/>'), {
+      ALLOWED_TAGS: ['br'],
+      ALLOWED_ATTR: []
+    });
+    const processedMessage = sanitizedMessage;
 
     return `
       <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
@@ -546,7 +552,7 @@ const EmailQuoteModal = ({
               </div>
               <div
                 style={{ background: 'white', borderRadius: '8px', overflow: 'hidden' }}
-                dangerouslySetInnerHTML={{ __html: getPreviewHtml() }}
+                dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(getPreviewHtml()) }}
               />
             </div>
           )}

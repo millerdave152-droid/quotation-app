@@ -37,7 +37,7 @@ const ChurnRiskPanel = ({ onNavigate, onContact }) => {
     setError(null);
 
     try {
-      const token = localStorage.getItem('token');
+      const token = localStorage.getItem('auth_token');
       const headers = {
         'Authorization': `Bearer ${token}`,
         'Content-Type': 'application/json'

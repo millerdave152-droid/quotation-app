@@ -65,7 +65,11 @@ router.get('/stats', authenticate, asyncHandler(async (req, res) => {
  * Get user's favorite products
  */
 router.get('/favorites', authenticate, asyncHandler(async (req, res) => {
-  const userId = req.query.user_id || 1;
+  // Use authenticated user's ID - don't allow accessing other users' favorites
+  const userId = req.user?.id || req.user?.userId;
+  if (!userId) {
+    throw ApiError.unauthorized('User ID not found in authentication token');
+  }
   const favorites = await productService.getFavorites(userId);
   res.json(favorites);
 }));
@@ -308,9 +312,19 @@ router.delete('/:id', authenticate, asyncHandler(async (req, res) => {
  */
 router.post('/favorites/:productId', authenticate, asyncHandler(async (req, res) => {
   const { productId } = req.params;
-  const userId = req.body.user_id || 1;
+  // Use authenticated user's ID - don't allow adding to other users' favorites
+  const userId = req.user?.id || req.user?.userId;
+  if (!userId) {
+    throw ApiError.unauthorized('User ID not found in authentication token');
+  }
 
-  const added = await productService.addToFavorites(productId, userId);
+  // Validate productId is a valid integer
+  const prodId = parseInt(productId, 10);
+  if (isNaN(prodId) || prodId <= 0) {
+    throw ApiError.badRequest('Invalid product ID');
+  }
+
+  const added = await productService.addToFavorites(prodId, userId);
 
   if (!added) {
     return res.success(null, { message: 'Product already in favorites' });
@@ -324,9 +338,19 @@ router.post('/favorites/:productId', authenticate, asyncHandler(async (req, res)
  */
 router.delete('/favorites/:productId', authenticate, asyncHandler(async (req, res) => {
   const { productId } = req.params;
-  const userId = req.query.user_id || 1;
+  // Use authenticated user's ID - don't allow removing from other users' favorites
+  const userId = req.user?.id || req.user?.userId;
+  if (!userId) {
+    throw ApiError.unauthorized('User ID not found in authentication token');
+  }
 
-  await productService.removeFromFavorites(productId, userId);
+  // Validate productId is a valid integer
+  const prodId = parseInt(productId, 10);
+  if (isNaN(prodId) || prodId <= 0) {
+    throw ApiError.badRequest('Invalid product ID');
+  }
+
+  await productService.removeFromFavorites(prodId, userId);
   res.success(null, { message: 'Product removed from favorites' });
 }));
 

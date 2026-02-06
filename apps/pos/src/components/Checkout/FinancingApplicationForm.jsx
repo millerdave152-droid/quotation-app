@@ -149,7 +149,7 @@ export function FinancingApplicationForm({
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
-              Authorization: `Bearer ${localStorage.getItem('token')}`,
+              Authorization: `Bearer ${localStorage.getItem('pos_token')}`,
             },
             body: JSON.stringify({
               customerId: customer.id,

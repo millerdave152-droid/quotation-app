@@ -77,7 +77,7 @@ const SmartQuickActions = ({ onNavigate }) => {
   // Fetch quick action counts from API
   const fetchQuickActions = useCallback(async () => {
     try {
-      const token = localStorage.getItem('token');
+      const token = localStorage.getItem('auth_token');
       const response = await fetch(`${API_URL}/api/insights/quick-actions`, {
         headers: {
           'Authorization': `Bearer ${token}`,

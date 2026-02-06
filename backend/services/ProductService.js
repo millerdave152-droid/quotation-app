@@ -685,7 +685,8 @@ class ProductService {
    */
   async searchForAutocomplete(query, limit = 10) {
     const result = await this.pool.query(`
-      SELECT id, model, manufacturer, name, description, msrp_cents, cost_cents
+      SELECT id, model, manufacturer, name, description, msrp_cents, cost_cents,
+             price, cost, stock_quantity, qty_on_hand, category
       FROM products
       WHERE (active = true OR active IS NULL)
         AND (

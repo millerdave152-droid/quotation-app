@@ -9,7 +9,7 @@
  * - Integration with existing EmailService
  */
 
-const pool = require('../db');
+let pool = require('../db');
 const EmailService = require('./EmailService');
 const cron = require('node-cron');
 
@@ -535,6 +535,8 @@ class EmailQueueService {
     return result.rows.length;
   }
 }
+
+EmailQueueService.prototype._setPool = function(p) { pool = p; };
 
 // Export singleton
 module.exports = new EmailQueueService();

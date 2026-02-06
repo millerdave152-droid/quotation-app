@@ -69,7 +69,6 @@ class UnifiedPipelineService {
         COUNT(*) FILTER (WHERE clv_segment = 'gold') as gold_customers,
         COALESCE(SUM(clv_score), 0) as total_clv
       FROM customers
-      WHERE active = true OR active IS NULL
     `);
 
     // Conversion rates
@@ -421,7 +420,7 @@ class UnifiedPipelineService {
       FROM users u
       LEFT JOIN leads l ON l.assigned_to = u.id
       LEFT JOIN quotations q ON q.created_by = u.id
-      WHERE u.active = true OR u.active IS NULL
+      WHERE u.is_active = true OR u.is_active IS NULL
       GROUP BY u.id, u.first_name, u.last_name, u.role
       HAVING COUNT(DISTINCT l.id) > 0 OR COUNT(DISTINCT q.id) > 0
       ORDER BY won_value_cents DESC
@@ -456,7 +455,7 @@ class UnifiedPipelineService {
           l.contact_name,
           l.follow_up_date,
           l.priority,
-          EXTRACT(EPOCH FROM (CURRENT_DATE - l.follow_up_date)) / 86400 as days_overdue,
+          (CURRENT_DATE - l.follow_up_date::date) as days_overdue,
           NULLIF(TRIM(CONCAT(u.first_name, ' ', u.last_name)), '') as assigned_to
         FROM leads l
         LEFT JOIN users u ON l.assigned_to = u.id

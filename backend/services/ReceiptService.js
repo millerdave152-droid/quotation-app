@@ -90,7 +90,10 @@ class ReceiptService {
       credentials: {
         accessKeyId: process.env.AWS_ACCESS_KEY_ID,
         secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY
-      }
+      },
+      requestHandler: {
+        requestTimeout: 10_000, // 10 second timeout for SES API calls
+      },
     });
 
     this.fromEmail = config.fromEmail || process.env.EMAIL_FROM || 'receipts@teletime.ca';

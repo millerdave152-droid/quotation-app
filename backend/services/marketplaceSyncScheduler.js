@@ -13,7 +13,7 @@
  */
 
 const miraklService = require('./miraklService');
-const pool = require('../db');
+let pool = require('../db');
 
 class MarketplaceSyncScheduler {
   constructor(config = {}) {
@@ -333,6 +333,8 @@ class MarketplaceSyncScheduler {
     }
   }
 }
+
+MarketplaceSyncScheduler.prototype._setPool = function(p) { pool = p; };
 
 // Export class for instantiation
 module.exports = MarketplaceSyncScheduler;

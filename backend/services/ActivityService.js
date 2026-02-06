@@ -534,12 +534,19 @@ class ActivityService {
    * Delete old activities (for cleanup)
    */
   async deleteOldActivities(olderThanDays = 365) {
+    // SECURITY FIX: Use parameterized query to prevent SQL injection
+    // Validate input is a positive integer
+    const days = parseInt(olderThanDays, 10);
+    if (isNaN(days) || days < 1) {
+      throw new Error('olderThanDays must be a positive integer');
+    }
+
     const result = await this.pool.query(`
       DELETE FROM quote_events
-      WHERE created_at < NOW() - INTERVAL '${olderThanDays} days'
+      WHERE created_at < NOW() - INTERVAL '1 day' * $1
       AND event_type NOT IN ('CREATED', 'STATUS_CHANGED', 'WON', 'LOST')
       RETURNING id
-    `);
+    `, [days]);
 
     return result.rowCount;
   }

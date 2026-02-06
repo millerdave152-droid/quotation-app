@@ -112,9 +112,14 @@ const errorHandler = (err, req, res, next) => {
       status: 500
     };
 
+    // SECURITY: Log database errors server-side for debugging, but never expose in responses
+    if (process.env.NODE_ENV === 'development') {
+      console.error('Database error details:', { pgCode: err.code, pgDetail: err.detail });
+    }
     return res.status(pgError.status).json(
       error(pgError.code, pgError.message, {
-        details: process.env.NODE_ENV === 'development' ? { pgCode: err.code, pgDetail: err.detail } : undefined
+        // SECURITY: Never expose database error details to clients
+        details: undefined
       })
     );
   }
@@ -162,14 +167,18 @@ const errorHandler = (err, req, res, next) => {
   }
 
   // Default to internal server error for unknown errors
-  const isProduction = process.env.NODE_ENV === 'production';
+  // SECURITY: Always treat unknown NODE_ENV as production to prevent accidental exposure
+  const isProduction = process.env.NODE_ENV !== 'development';
 
+  // SECURITY: Never expose internal error details in responses
+  // Stack traces should only be logged server-side, not returned to clients
   return res.status(500).json(
     error(
       ErrorCodes.INTERNAL_ERROR,
       isProduction ? 'An unexpected error occurred' : err.message,
       {
-        details: isProduction ? undefined : { stack: err.stack }
+        // SECURITY: Stack traces logged server-side only, not in response
+        details: undefined
       }
     )
   );

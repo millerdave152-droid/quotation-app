@@ -10,7 +10,7 @@
  * - Retention ROI calculations
  */
 
-const pool = require('../db');
+let pool = require('../db');
 
 class PredictiveCLVService {
   constructor() {
@@ -601,6 +601,8 @@ class PredictiveCLVService {
     };
   }
 }
+
+PredictiveCLVService.prototype._setPool = function(p) { pool = p; };
 
 // Export singleton instance
 module.exports = new PredictiveCLVService();

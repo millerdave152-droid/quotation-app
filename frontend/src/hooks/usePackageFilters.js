@@ -135,13 +135,11 @@ const usePackageFilters = (packageType = 'kitchen') => {
       }
 
       const data = await response.json();
-      console.log('Generate response:', data);
 
       if (data.success) {
         // The API returns { packages: { packages: { good, better, best } } }
         // We need to extract the inner packages object
         const packagesData = data.packages?.packages || data.packages;
-        console.log('Packages data:', packagesData);
         setPackages(packagesData);
         // Update filter counts from response
         if (data.filter_counts) {

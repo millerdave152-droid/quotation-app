@@ -951,8 +951,8 @@ const LeadAssignmentService = require('../services/LeadAssignmentService');
 let leadAssignmentService = null;
 
 function initLeadAssignmentService() {
-  if (!leadAssignmentService && pool) {
-    leadAssignmentService = new LeadAssignmentService(pool, cache);
+  if (!leadAssignmentService && leadService && leadService.pool) {
+    leadAssignmentService = new LeadAssignmentService(leadService.pool, cache);
   }
   return leadAssignmentService;
 }
@@ -963,6 +963,9 @@ function initLeadAssignmentService() {
  */
 router.get('/assignment/rules', authenticate, asyncHandler(async (req, res) => {
   const service = initLeadAssignmentService();
+  if (!service) {
+    throw ApiError.internal('Lead assignment service not initialized');
+  }
   const rules = await service.getAllRules();
   res.success(rules);
 }));
@@ -973,6 +976,9 @@ router.get('/assignment/rules', authenticate, asyncHandler(async (req, res) => {
  */
 router.post('/assignment/rules', authenticate, asyncHandler(async (req, res) => {
   const service = initLeadAssignmentService();
+  if (!service) {
+    throw ApiError.internal('Lead assignment service not initialized');
+  }
   const rule = await service.createRule(req.body);
   res.created(rule);
 }));
@@ -983,6 +989,9 @@ router.post('/assignment/rules', authenticate, asyncHandler(async (req, res) => 
  */
 router.put('/assignment/rules/:id', authenticate, asyncHandler(async (req, res) => {
   const service = initLeadAssignmentService();
+  if (!service) {
+    throw ApiError.internal('Lead assignment service not initialized');
+  }
   const rule = await service.updateRule(req.params.id, req.body);
   if (!rule) {
     throw ApiError.notFound('Assignment rule');
@@ -996,6 +1005,9 @@ router.put('/assignment/rules/:id', authenticate, asyncHandler(async (req, res) 
  */
 router.delete('/assignment/rules/:id', authenticate, asyncHandler(async (req, res) => {
   const service = initLeadAssignmentService();
+  if (!service) {
+    throw ApiError.internal('Lead assignment service not initialized');
+  }
   const deleted = await service.deleteRule(req.params.id);
   if (!deleted) {
     throw ApiError.notFound('Assignment rule');
@@ -1009,6 +1021,9 @@ router.delete('/assignment/rules/:id', authenticate, asyncHandler(async (req, re
  */
 router.post('/:id/auto-assign', authenticate, asyncHandler(async (req, res) => {
   const service = initLeadAssignmentService();
+  if (!service) {
+    throw ApiError.internal('Lead assignment service not initialized');
+  }
   const result = await service.assignLead(req.params.id);
   res.success(result);
 }));
@@ -1020,7 +1035,12 @@ router.post('/:id/auto-assign', authenticate, asyncHandler(async (req, res) => {
 router.post('/assignment/bulk', authenticate, asyncHandler(async (req, res) => {
   const { limit = 50 } = req.body;
   const service = initLeadAssignmentService();
-  const result = await service.assignUnassignedLeads(parseInt(limit));
+  if (!service) {
+    throw ApiError.internal('Lead assignment service not initialized');
+  }
+  // Cap the limit to prevent excessive operations
+  const safeLimit = Math.min(Math.max(1, parseInt(limit) || 50), 200);
+  const result = await service.assignUnassignedLeads(safeLimit);
   res.success(result);
 }));
 
@@ -1030,6 +1050,9 @@ router.post('/assignment/bulk', authenticate, asyncHandler(async (req, res) => {
  */
 router.get('/assignment/stats', authenticate, asyncHandler(async (req, res) => {
   const service = initLeadAssignmentService();
+  if (!service) {
+    throw ApiError.internal('Lead assignment service not initialized');
+  }
   const stats = await service.getStats();
   res.success(stats);
 }));

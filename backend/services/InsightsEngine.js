@@ -10,7 +10,7 @@
  * - Sales velocity changes
  */
 
-const pool = require('../db');
+let pool = require('../db');
 
 class InsightsEngine {
   constructor() {
@@ -688,6 +688,8 @@ class InsightsEngine {
     }
   }
 }
+
+InsightsEngine.prototype._setPool = function(p) { pool = p; };
 
 // Export singleton instance
 module.exports = new InsightsEngine();
