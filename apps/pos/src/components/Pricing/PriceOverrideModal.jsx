@@ -166,8 +166,18 @@ export function PriceOverrideModal({
     setError(null);
 
     try {
-      // Check if manager approval is required via the new approval system
-      if (approvalCheck?.requiresApproval && !canApproveOverrides) {
+      // If manager/admin, apply directly — no API call or PIN needed
+      if (canApproveOverrides) {
+        onApply?.(overridePrice, reasonText, {
+          managerApproved: true,
+          status: 'manager_approved',
+        });
+        onClose?.();
+        return;
+      }
+
+      // Non-manager: check if approval is required
+      if (approvalCheck?.requiresApproval) {
         // Use manager approval modal for PIN verification
         const approvalResult = await managerApproval.applyPriceOverrideWithApproval({
           originalPrice: safeCustomerPrice,
@@ -181,19 +191,17 @@ export function PriceOverrideModal({
           cost: product.unitCost || product.cost || null,
         });
 
-        if (approvalResult.cancelled) {
-          // User cancelled the approval
+        if (approvalResult?.cancelled) {
           setIsSubmitting(false);
           return;
         }
 
-        if (!approvalResult.approved) {
-          setError(approvalResult.error || 'Manager approval denied');
+        if (!approvalResult?.approved) {
+          setError(approvalResult?.error || 'Manager approval denied');
           setIsSubmitting(false);
           return;
         }
 
-        // Approval granted - apply the override
         onApply?.(overridePrice, reasonText, {
           managerApproved: true,
           managerId: approvalResult.managerId,
@@ -204,36 +212,20 @@ export function PriceOverrideModal({
         return;
       }
 
-      // Use existing override request flow (for auto-approved or manager users)
-      const result = await requestOverride({
-        productId: product.productId || product.id,
-        originalPriceCents: Math.round(safeOriginalPrice * 100),
-        customerTierPriceCents: Math.round(safeCustomerPrice * 100),
-        overridePriceCents: Math.round(overridePrice * 100),
-        overrideReason: reasonText,
-      });
-
-      if (!result.success) {
-        setError(result.error || 'Failed to request override');
-        return;
-      }
-
-      setOverrideResult(result);
-
-      // If auto-approved or manager can approve, apply immediately
-      if (result.status === 'auto_approved' || canApproveOverrides) {
-        onApply?.(overridePrice, reasonText, result);
-        onClose?.();
-      }
+      // No approval required — apply directly (within auto-approve threshold)
+      onApply?.(overridePrice, reasonText, { status: 'auto_approved' });
+      onClose?.();
     } catch (err) {
-      setError(err.message);
+      const msg = typeof err === 'string' ? err
+        : err?.message && typeof err.message === 'string' ? err.message
+        : 'Failed to apply price override';
+      setError(msg);
     } finally {
       setIsSubmitting(false);
     }
   }, [
     metrics.isValid,
     selectedReason,
-    requestOverride,
     product,
     safeOriginalPrice,
     safeCustomerPrice,
@@ -586,8 +578,7 @@ export function PriceOverrideModal({
               !metrics.isValid ||
               !selectedReason ||
               isSubmitting ||
-              overridePrice === safeCustomerPrice ||
-              (overrideResult?.status === 'pending' && !canApproveOverrides)
+              overridePrice === safeCustomerPrice
             }
             className="
               flex-1 h-12
