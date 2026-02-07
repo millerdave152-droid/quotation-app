@@ -444,10 +444,18 @@ export function PriceOverrideModal({
                     <p className="text-sm font-medium text-amber-800">
                       Manager Approval Required
                     </p>
-                    <p className="text-xs text-amber-600 mt-0.5">
-                      Discount of {(approvalCheck.discountPercent ?? metrics.percentFromBase).toFixed(1)}% exceeds the{' '}
-                      {approvalCheck.threshold ?? 20}% threshold for this customer tier.
-                    </p>
+                    {approvalCheck.error ? (
+                      <p className="text-xs text-amber-600 mt-0.5">
+                        Approval check unavailable. Manager approval may be required.
+                      </p>
+                    ) : (
+                      <p className="text-xs text-amber-600 mt-0.5">
+                        Discount of {Number.isFinite(approvalCheck.discountPercent)
+                          ? approvalCheck.discountPercent.toFixed(1)
+                          : metrics.percentFromBase.toFixed(1)}% exceeds the{' '}
+                        {approvalCheck.threshold ?? 20}% threshold for this customer tier.
+                      </p>
+                    )}
                     {canApproveOverrides && (
                       <p className="text-xs text-green-700 mt-1 font-medium">
                         You can approve this override as a manager.

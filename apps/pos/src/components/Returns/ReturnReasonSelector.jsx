@@ -28,6 +28,12 @@ export default function ReturnReasonSelector({ transaction, onClose, onComplete 
     setLoading(true);
     setError(null);
     try {
+      const originalTransactionId = transaction?.id || transaction?.transaction_id;
+      if (!originalTransactionId) {
+        setError('Missing original transaction ID');
+        return;
+      }
+
       // Fetch reason codes
       const codesResult = await getReasonCodes();
       if (!codesResult.success) {
@@ -38,7 +44,7 @@ export default function ReturnReasonSelector({ transaction, onClose, onComplete 
 
       // Create return record
       const returnResult = await createReturn({
-        originalTransactionId: transaction.id,
+        originalTransactionId,
         returnType: 'full',
       });
       if (!returnResult.success) {
@@ -72,7 +78,7 @@ export default function ReturnReasonSelector({ transaction, onClose, onComplete 
     } finally {
       setLoading(false);
     }
-  }, [transaction.id]);
+  }, [transaction?.id, transaction?.transaction_id]);
 
   useEffect(() => {
     initialize();

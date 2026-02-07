@@ -234,7 +234,12 @@ export function useCustomerPricing({ customerId = null, autoFetch = true } = {})
         return result.data;
       } catch (err) {
         console.error('[CustomerPricing] Check override error:', err);
-        return { requiresApproval: true, error: err.message };
+        return {
+          requiresApproval: true,
+          error: err.message,
+          discountPercent: null,
+          threshold: null,
+        };
       }
     },
     [customerId]
