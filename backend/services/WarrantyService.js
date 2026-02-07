@@ -52,10 +52,19 @@ class WarrantyService {
         };
       }
 
-      // Use provided price, fall back to product price, then cost
-      const price = (productPrice && productPrice > 0)
-        ? productPrice
-        : (parseFloat(product.price) || parseFloat(product.cost) || 0);
+      // Use provided price, fall back to product price, retail_price_cents, map_price_cents, then cost
+      let price = 0;
+      if (productPrice && productPrice > 0) {
+        price = productPrice;
+      } else if (parseFloat(product.price) > 0) {
+        price = parseFloat(product.price);
+      } else if (parseInt(product.retail_price_cents) > 0) {
+        price = parseInt(product.retail_price_cents) / 100;
+      } else if (parseInt(product.map_price_cents) > 0) {
+        price = parseInt(product.map_price_cents) / 100;
+      } else if (parseFloat(product.cost) > 0) {
+        price = parseFloat(product.cost);
+      }
 
       // Check if product is eligible for warranty
       const eligibilityCheck = this._checkProductEligibility(product);
@@ -71,8 +80,18 @@ class WarrantyService {
         };
       }
 
+      // Resolve category_id - if null, try to infer from the category string column
+      let categoryId = product.category_id;
+      if (!categoryId && product.category_string) {
+        categoryId = await this._resolveCategoryId(product.category_string);
+      }
+      // Last resort: find the most common category_id for this product's manufacturer
+      if (!categoryId) {
+        categoryId = await this._inferCategoryFromSiblings(productId);
+      }
+
       // Fetch eligible warranties from database
-      const warranties = await this._fetchEligibleWarranties(productId, product.category_id, price, saleContext);
+      const warranties = await this._fetchEligibleWarranties(productId, categoryId, price, saleContext);
 
       // Sort by margin (highest first) for best value to business
       warranties.sort((a, b) => b.margin - a.margin);
@@ -682,6 +701,9 @@ class WarrantyService {
         p.price,
         p.cost,
         p.category_id,
+        p.category as category_string,
+        p.retail_price_cents,
+        p.map_price_cents,
         c.name as category_name,
         c.slug as category_slug,
         0 AS manufacturer_warranty_months
@@ -701,6 +723,93 @@ class WarrantyService {
     }
 
     return product;
+  }
+
+  /**
+   * Resolve category_id from a product's category string when category_id is null.
+   * Fuzzy-matches against categories table names.
+   */
+  async _resolveCategoryId(categoryString) {
+    if (!categoryString) return null;
+
+    const normalized = categoryString.toLowerCase().trim();
+
+    // Quick keyword map for common patterns (check longer phrases first)
+    const keywordMap = [
+      // Multi-word first (order matters for overlapping keywords)
+      ['range hood', 14], ['air fryer', 26], ['mini led', 27],
+      // TV & display keywords
+      ['tv', 27], ['television', 27], ['oled', 27], ['qled', 27], ['projector', 27],
+      ['q-series', 27], ['crystal uhd', 27], ['neo qled', 27], ['the frame', 27],
+      ['nanocell', 27], ['uhd', 27],
+      // Audio
+      ['audio', 28], ['speaker', 28], ['soundbar', 28], ['headphone', 28], ['receiver', 28],
+      // Appliances
+      ['refrigerator', 6], ['fridge', 6], ['freezer', 6],
+      ['washer', 7], ['washing', 7], ['laundry', 7],
+      ['dryer', 8],
+      ['dishwasher', 9],
+      ['range', 10], ['stove', 10], ['oven', 12],
+      ['cooktop', 11],
+      ['microwave', 13],
+      ['hood', 14], ['ventilation', 14],
+      // Small appliances
+      ['vacuum', 20], ['coffee', 21], ['blender', 22], ['mixer', 24], ['toaster', 25],
+      // Outdoor
+      ['grill', 16], ['smoker', 17], ['fireplace', 19],
+    ];
+
+    for (const [keyword, catId] of keywordMap) {
+      if (normalized.includes(keyword)) {
+        return catId;
+      }
+    }
+
+    // Fall back to DB exact match on category name
+    try {
+      const result = await this.pool.query(
+        `SELECT id FROM categories WHERE LOWER(name) = $1 LIMIT 1`,
+        [normalized]
+      );
+      if (result.rows.length > 0) return result.rows[0].id;
+
+      // Partial match: category name found within the string or vice versa
+      const partial = await this.pool.query(
+        `SELECT id FROM categories WHERE LOWER(name) LIKE '%' || $1 || '%' OR $1 LIKE '%' || LOWER(name) || '%' ORDER BY LENGTH(name) LIMIT 1`,
+        [normalized]
+      );
+      if (partial.rows.length > 0) return partial.rows[0].id;
+    } catch (err) {
+      console.error('[WarrantyService] _resolveCategoryId error:', err.message);
+    }
+
+    return null;
+  }
+
+  /**
+   * Last-resort category inference: find the most common category_id
+   * among other products from the same manufacturer.
+   */
+  async _inferCategoryFromSiblings(productId) {
+    try {
+      const result = await this.pool.query(`
+        SELECT p2.category_id, COUNT(*) as cnt
+        FROM products p1
+        JOIN products p2 ON p2.manufacturer = p1.manufacturer
+          AND p2.category_id IS NOT NULL
+          AND p2.id != p1.id
+        WHERE p1.id = $1
+        GROUP BY p2.category_id
+        ORDER BY cnt DESC
+        LIMIT 1
+      `, [productId]);
+      if (result.rows.length > 0) {
+        return result.rows[0].category_id;
+      }
+    } catch (err) {
+      console.error('[WarrantyService] _inferCategoryFromSiblings error:', err.message);
+    }
+    return null;
   }
 
   /**
@@ -729,47 +838,66 @@ class WarrantyService {
    * Fetch eligible warranties from database
    */
   async _fetchEligibleWarranties(productId, categoryId, productPrice, saleContext = 'at_sale') {
-    const query = `
-      SELECT DISTINCT
-        wp.id,
-        wp.product_id,
-        wp.warranty_name,
-        wp.warranty_type,
-        wp.warranty_description,
-        wp.duration_months,
-        wp.price_type,
-        wp.price_value,
-        wp.coverage_details,
-        wp.exclusions,
-        wp.deductible_amount,
-        wp.badge_text,
-        wp.is_featured,
-        wp.display_order,
-        wp.provider_code,
-        wp.provider_sku,
-        wp.sale_context,
-        p.cost as warranty_cost,
-        CASE
-          WHEN we.custom_price_value IS NOT NULL THEN we.custom_price_value
-          WHEN wp.price_type = 'fixed' THEN wp.price_value
-          ELSE ROUND($3 * (wp.price_value / 100), 2)
-        END AS calculated_price
-      FROM warranty_products wp
-      JOIN products p ON p.id = wp.product_id
-      JOIN warranty_eligibility we ON we.warranty_product_id = wp.id AND we.is_active = true
-      WHERE wp.is_active = true
-        AND wp.sale_context = $4
-        AND (
-          we.product_id = $1
-          OR we.category_id = $2
-          OR we.category_id = (SELECT parent_id FROM categories WHERE id = $2)
-        )
-        AND $3 >= COALESCE(we.custom_min_price, wp.min_product_price)
-        AND $3 <= COALESCE(we.custom_max_price, wp.max_product_price)
-      ORDER BY wp.display_order, wp.duration_months
-    `;
+    // Build query with different param layout depending on whether categoryId is available
+    let query;
+    let params;
 
-    const result = await this.pool.query(query, [productId, categoryId, productPrice, saleContext]);
+    if (categoryId) {
+      params = [productId, categoryId, productPrice, saleContext];
+      query = `
+        SELECT DISTINCT
+          wp.id, wp.product_id, wp.warranty_name, wp.warranty_type, wp.warranty_description,
+          wp.duration_months, wp.price_type, wp.price_value, wp.coverage_details, wp.exclusions,
+          wp.deductible_amount, wp.badge_text, wp.is_featured, wp.display_order,
+          wp.provider_code, wp.provider_sku, wp.sale_context,
+          p.cost as warranty_cost,
+          CASE
+            WHEN we.custom_price_value IS NOT NULL THEN we.custom_price_value
+            WHEN wp.price_type = 'fixed' THEN wp.price_value
+            ELSE ROUND($3 * (wp.price_value / 100), 2)
+          END AS calculated_price
+        FROM warranty_products wp
+        JOIN products p ON p.id = wp.product_id
+        JOIN warranty_eligibility we ON we.warranty_product_id = wp.id AND we.is_active = true
+        WHERE wp.is_active = true
+          AND wp.sale_context = $4
+          AND (
+            we.product_id = $1
+            OR we.category_id = $2
+            OR we.category_id = (SELECT parent_id FROM categories WHERE id = $2)
+          )
+          AND $3 >= COALESCE(we.custom_min_price, wp.min_product_price)
+          AND $3 <= COALESCE(we.custom_max_price, wp.max_product_price)
+        ORDER BY wp.display_order, wp.duration_months
+      `;
+    } else {
+      // No category_id - only match by direct product_id eligibility override
+      params = [productId, productPrice, saleContext];
+      query = `
+        SELECT DISTINCT
+          wp.id, wp.product_id, wp.warranty_name, wp.warranty_type, wp.warranty_description,
+          wp.duration_months, wp.price_type, wp.price_value, wp.coverage_details, wp.exclusions,
+          wp.deductible_amount, wp.badge_text, wp.is_featured, wp.display_order,
+          wp.provider_code, wp.provider_sku, wp.sale_context,
+          p.cost as warranty_cost,
+          CASE
+            WHEN we.custom_price_value IS NOT NULL THEN we.custom_price_value
+            WHEN wp.price_type = 'fixed' THEN wp.price_value
+            ELSE ROUND($2 * (wp.price_value / 100), 2)
+          END AS calculated_price
+        FROM warranty_products wp
+        JOIN products p ON p.id = wp.product_id
+        JOIN warranty_eligibility we ON we.warranty_product_id = wp.id AND we.is_active = true
+        WHERE wp.is_active = true
+          AND wp.sale_context = $3
+          AND we.product_id = $1
+          AND $2 >= COALESCE(we.custom_min_price, wp.min_product_price)
+          AND $2 <= COALESCE(we.custom_max_price, wp.max_product_price)
+        ORDER BY wp.display_order, wp.duration_months
+      `;
+    }
+
+    const result = await this.pool.query(query, params);
 
     // Calculate margin for each warranty
     return result.rows.map((w) => {
