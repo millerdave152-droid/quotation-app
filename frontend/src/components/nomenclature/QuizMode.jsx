@@ -1,3 +1,4 @@
+import { authFetch } from '../../services/authFetch';
 /**
  * QuizMode.jsx
  * Quiz/training mode with scoring and progress tracking
@@ -28,7 +29,7 @@ const QuizMode = ({ manufacturer, templates, onQuizComplete }) => {
     try {
       setLoading(true);
       const token = localStorage.getItem('auth_token');
-      const response = await fetch(`${API_BASE}/api/nomenclature/quiz/generate`, {
+      const response = await authFetch(`${API_BASE}/api/nomenclature/quiz/generate`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -62,7 +63,7 @@ const QuizMode = ({ manufacturer, templates, onQuizComplete }) => {
     try {
       setLoading(true);
       const token = localStorage.getItem('auth_token');
-      const response = await fetch(`${API_BASE}/api/nomenclature/quiz/submit`, {
+      const response = await authFetch(`${API_BASE}/api/nomenclature/quiz/submit`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

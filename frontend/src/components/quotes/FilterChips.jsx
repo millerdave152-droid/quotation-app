@@ -1,3 +1,4 @@
+import { authFetch } from '../../services/authFetch';
 /**
  * FilterChips Component
  * Quick filter chips for one-click filtering of quotes
@@ -7,17 +8,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 
 const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:3001';
-
-const getAuthHeaders = () => {
-  const token = localStorage.getItem('auth_token');
-  if (!token) {
-    return { 'Content-Type': 'application/json' };
-  }
-  return {
-    'Content-Type': 'application/json',
-    'Authorization': `Bearer ${token}`
-  };
-};
 
 // Filter chip definitions
 const FILTER_CHIPS = [
@@ -55,9 +45,7 @@ const FilterChips = ({
   // Fetch filter counts from API
   const fetchFilterCounts = useCallback(async () => {
     try {
-      const response = await fetch(`${API_URL}/api/quotations/stats/filter-counts`, {
-        headers: getAuthHeaders()
-      });
+      const response = await authFetch(`${API_URL}/api/quotations/stats/filter-counts`);
       if (response.ok) {
         const data = await response.json();
         setFilterCounts(data.filterCounts || {});

@@ -1,3 +1,4 @@
+import { authFetch } from '../../services/authFetch';
 /**
  * ModelTooltip.jsx
  * Hover/click tooltip for model numbers showing quick decode
@@ -43,7 +44,7 @@ const ModelTooltip = ({ children, modelNumber, manufacturer, productName, catego
         ? `${API_BASE}/api/nomenclature/decode/${encodeURIComponent(modelNumber)}?manufacturer=${encodeURIComponent(manufacturer)}`
         : `${API_BASE}/api/nomenclature/decode/${encodeURIComponent(modelNumber)}`;
 
-      const response = await fetch(url, {
+      const response = await authFetch(url, {
         headers: {
           'Authorization': `Bearer ${token}`
         }

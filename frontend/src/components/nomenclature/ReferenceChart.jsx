@@ -1,3 +1,4 @@
+import { authFetch } from '../../services/authFetch';
 /**
  * ReferenceChart.jsx
  * Visual nomenclature reference tables per brand/product type
@@ -18,7 +19,7 @@ const ReferenceChart = ({ manufacturer, templates }) => {
     try {
       setLoading(true);
       const token = localStorage.getItem('auth_token');
-      const response = await fetch(
+      const response = await authFetch(
         `${API_BASE}/api/nomenclature/templates/${encodeURIComponent(manufacturer)}/${encodeURIComponent(productType)}`,
         {
           headers: {

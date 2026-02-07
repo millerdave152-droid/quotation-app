@@ -1,3 +1,4 @@
+import { authFetch } from '../../../services/authFetch';
 /**
  * RecommendationRulesPage - Admin interface for managing product recommendations
  * Location: Admin > Products > Recommendation Rules
@@ -92,7 +93,7 @@ export default function RecommendationRulesPage() {
   const loadStats = useCallback(async () => {
     try {
       const token = localStorage.getItem('auth_token');
-      const response = await fetch(`${API_BASE}/api/recommendations/metrics`, {
+      const response = await authFetch(`${API_BASE}/api/recommendations/metrics`, {
         headers: { Authorization: `Bearer ${token}` },
       });
 
@@ -108,7 +109,7 @@ export default function RecommendationRulesPage() {
       }
 
       // Get relationship counts
-      const relResponse = await fetch(
+      const relResponse = await authFetch(
         `${API_BASE}/api/recommendations/relationships?limit=1`,
         {
           headers: { Authorization: `Bearer ${token}` },
@@ -125,7 +126,7 @@ export default function RecommendationRulesPage() {
       }
 
       // Get curated count
-      const curatedResponse = await fetch(
+      const curatedResponse = await authFetch(
         `${API_BASE}/api/recommendations/relationships?curated=true&limit=1`,
         {
           headers: { Authorization: `Bearer ${token}` },
@@ -142,7 +143,7 @@ export default function RecommendationRulesPage() {
       }
 
       // Get rules count
-      const rulesResponse = await fetch(
+      const rulesResponse = await authFetch(
         `${API_BASE}/api/recommendations/rules?active=true`,
         {
           headers: { Authorization: `Bearer ${token}` },
@@ -169,7 +170,7 @@ export default function RecommendationRulesPage() {
 
     try {
       const token = localStorage.getItem('auth_token');
-      const response = await fetch(`${API_BASE}/api/recommendations/refresh`, {
+      const response = await authFetch(`${API_BASE}/api/recommendations/refresh`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

@@ -1,3 +1,4 @@
+import { authFetch } from '../services/authFetch';
 /**
  * CategoryPicker - Hierarchical category selection component
  *
@@ -34,7 +35,7 @@ const CategoryPicker = ({
     const fetchCategories = async () => {
       try {
         setLoading(true);
-        const response = await fetch(`${API_BASE_URL}/products/categories/hierarchy`);
+        const response = await authFetch(`${API_BASE_URL}/products/categories/hierarchy`);
         const data = await response.json();
 
         if (data.success && data.categories) {

@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 
+import { authFetch } from '../services/authFetch';
 const API_BASE = `${process.env.REACT_APP_API_URL || 'http://localhost:3001'}/api`;
 
 // ============================================
@@ -18,7 +19,7 @@ export const FinancingCalculator = ({ quoteTotal, onFinancingSelected }) => {
 
   const fetchFinancingPlans = async () => {
     try {
-      const response = await fetch(`${API_BASE}/financing-plans?minPurchase=${quoteTotal}`);
+      const response = await authFetch(`${API_BASE}/financing-plans?minPurchase=${quoteTotal}`);
       const data = await response.json();
       setFinancingPlans(data);
       setLoading(false);
@@ -32,7 +33,7 @@ export const FinancingCalculator = ({ quoteTotal, onFinancingSelected }) => {
     if (!planId) return;
 
     try {
-      const response = await fetch(`${API_BASE}/financing-plans/calculate`, {
+      const response = await authFetch(`${API_BASE}/financing-plans/calculate`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -183,7 +184,7 @@ export const WarrantySelector = ({ products, onWarrantyAdded }) => {
     setLoading(true);
     try {
       const productPrice = product.price_cents || (product.price * 100);
-      const response = await fetch(
+      const response = await authFetch(
         `${API_BASE}/warranty-plans?productCategory=${product.category || 'appliance'}&productPrice=${productPrice}`
       );
       const data = await response.json();
@@ -198,7 +199,7 @@ export const WarrantySelector = ({ products, onWarrantyAdded }) => {
   const calculateWarranty = async (plan, product) => {
     try {
       const productPrice = product.price_cents || (product.price * 100);
-      const response = await fetch(`${API_BASE}/warranty-plans/calculate`, {
+      const response = await authFetch(`${API_BASE}/warranty-plans/calculate`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -331,7 +332,7 @@ export const DeliverySelector = ({ customerAddress, onDeliverySelected }) => {
 
   const fetchDeliveryServices = async () => {
     try {
-      const response = await fetch(`${API_BASE}/delivery-services`);
+      const response = await authFetch(`${API_BASE}/delivery-services`);
       const data = await response.json();
       setDeliveryServices(data);
       setLoading(false);
@@ -343,7 +344,7 @@ export const DeliverySelector = ({ customerAddress, onDeliverySelected }) => {
 
   const calculateDeliveryCost = async (serviceId) => {
     try {
-      const response = await fetch(`${API_BASE}/delivery-services/calculate`, {
+      const response = await authFetch(`${API_BASE}/delivery-services/calculate`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -558,7 +559,7 @@ export const RebatesDisplay = ({ products, onRebateApplied }) => {
 
   const fetchActiveRebates = async () => {
     try {
-      const response = await fetch(`${API_BASE}/rebates`);
+      const response = await authFetch(`${API_BASE}/rebates`);
       const data = await response.json();
       setRebates(data);
       setLoading(false);
@@ -697,7 +698,7 @@ export const TradeInEstimator = ({ onTradeInAdded }) => {
         condition: condition,
         ageYears: ageYears
       });
-      const response = await fetch(`${API_BASE}/trade-in-values?${params}`);
+      const response = await authFetch(`${API_BASE}/trade-in-values?${params}`);
       const data = await response.json();
       setTradeInValues(data);
       if (data.length > 0) {

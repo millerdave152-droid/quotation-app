@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import ImageGallery from './ImageGallery';
 
+import { authFetch } from '../../services/authFetch';
 const API_BASE = '/api';
 
 // Helper to get auth headers
@@ -31,7 +32,7 @@ function ProductDetail({ productId, onBack }) {
     setError(null);
 
     try {
-      const response = await fetch(`${API_BASE}/vendor-products/${productId}`, {
+      const response = await authFetch(`${API_BASE}/vendor-products/${productId}`, {
         headers: getAuthHeaders()
       });
 

@@ -1,3 +1,4 @@
+import { authFetch } from '../../services/authFetch';
 /**
  * PricingPanel Component
  * Displays comprehensive pricing information for products including:
@@ -238,8 +239,8 @@ const PricingPanel = ({
     try {
       // Fetch price points and margins
       const [priceResponse, marginsResponse] = await Promise.all([
-        fetch(`${API_BASE}/pricing/${productId}`),
-        fetch(`${API_BASE}/pricing/${productId}/margins${currentPrice ? `?sellPrice=${currentPrice}` : ''}`)
+        authFetch(`${API_BASE}/pricing/${productId}`),
+        authFetch(`${API_BASE}/pricing/${productId}/margins${currentPrice ? `?sellPrice=${currentPrice}` : ''}`)
       ]);
 
       if (!priceResponse.ok || !marginsResponse.ok) {
@@ -254,7 +255,7 @@ const PricingPanel = ({
 
       // Fetch customer-specific recommendation if customer provided
       if (customerId) {
-        const recResponse = await fetch(`${API_BASE}/pricing/customer/${customerId}/${productId}`);
+        const recResponse = await authFetch(`${API_BASE}/pricing/customer/${customerId}/${productId}`);
         if (recResponse.ok) {
           const recResult = await recResponse.json();
           setRecommendation(recResult);
@@ -263,7 +264,7 @@ const PricingPanel = ({
 
       // Check violations if current price set
       if (currentPrice) {
-        const violationResponse = await fetch(`${API_BASE}/pricing/${productId}/check-violations`, {
+        const violationResponse = await authFetch(`${API_BASE}/pricing/${productId}/check-violations`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ sellPriceCents: currentPrice })
@@ -295,7 +296,7 @@ const PricingPanel = ({
 
     setSimulating(true);
     try {
-      const response = await fetch(`${API_BASE}/pricing/${productId}/simulate`, {
+      const response = await authFetch(`${API_BASE}/pricing/${productId}/simulate`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ proposedPriceCents: priceCents })

@@ -5,6 +5,7 @@ import companyConfig from '../config/companyConfig';
 import { handleApiError } from '../utils/errorHandler';
 import { toast } from '../components/ui/Toast';
 
+import { authFetch } from './authFetch';
 const API_BASE = `${process.env.REACT_APP_API_URL || 'http://localhost:3001'}/api`;
 
 // Helper to get auth headers
@@ -31,7 +32,7 @@ export const previewQuotePDF = async (quoteId, type = 'customer') => {
     const headers = getAuthHeaders();
 
     // Fetch quote data
-    const quoteResponse = await fetch(`${API_BASE}/quotations/${quoteId}`, { headers });
+    const quoteResponse = await authFetch(`${API_BASE}/quotations/${quoteId}`, { headers });
     if (!quoteResponse.ok) {
       throw new Error(`Failed to fetch quote: ${quoteResponse.status}`);
     }
@@ -39,7 +40,7 @@ export const previewQuotePDF = async (quoteId, type = 'customer') => {
     const quote = quoteJson.data || quoteJson; // Handle wrapped response
 
     // Fetch customer data
-    const customerResponse = await fetch(`${API_BASE}/customers/${quote.customer_id}`, { headers });
+    const customerResponse = await authFetch(`${API_BASE}/customers/${quote.customer_id}`, { headers });
     if (!customerResponse.ok) {
       throw new Error(`Failed to fetch customer`);
     }
@@ -49,7 +50,7 @@ export const previewQuotePDF = async (quoteId, type = 'customer') => {
     const customer = customerData.customer || customerData; // Extract nested customer object
 
     // Fetch quote items
-    const itemsResponse = await fetch(`${API_BASE}/quotations/${quoteId}/items`, { headers });
+    const itemsResponse = await authFetch(`${API_BASE}/quotations/${quoteId}/items`, { headers });
     if (!itemsResponse.ok) {
       throw new Error(`Failed to fetch quote items`);
     }
@@ -92,7 +93,7 @@ export const downloadQuotePDF = async (quoteId, type = 'customer') => {
     const headers = getAuthHeaders();
 
     // Fetch quote data
-    const quoteResponse = await fetch(`${API_BASE}/quotations/${quoteId}`, { headers });
+    const quoteResponse = await authFetch(`${API_BASE}/quotations/${quoteId}`, { headers });
     if (!quoteResponse.ok) {
       throw new Error(`Failed to fetch quote: ${quoteResponse.status}`);
     }
@@ -102,7 +103,7 @@ export const downloadQuotePDF = async (quoteId, type = 'customer') => {
     console.log('[PDF Download] Extracted quote:', quote);
 
     // Fetch customer data
-    const customerResponse = await fetch(`${API_BASE}/customers/${quote.customer_id}`, { headers });
+    const customerResponse = await authFetch(`${API_BASE}/customers/${quote.customer_id}`, { headers });
     if (!customerResponse.ok) {
       throw new Error(`Failed to fetch customer`);
     }
@@ -114,7 +115,7 @@ export const downloadQuotePDF = async (quoteId, type = 'customer') => {
     console.log('[PDF Download] Extracted customer:', customer);
 
     // Fetch quote items
-    const itemsResponse = await fetch(`${API_BASE}/quotations/${quoteId}/items`, { headers });
+    const itemsResponse = await authFetch(`${API_BASE}/quotations/${quoteId}/items`, { headers });
     if (!itemsResponse.ok) {
       throw new Error(`Failed to fetch quote items`);
     }
@@ -1095,7 +1096,7 @@ export const emailQuotePDF = async (quoteId, emailData) => {
   try {
     logger.log('Sending email for quote:', quoteId);
 
-    const response = await fetch(`${API_BASE}/quotations/${quoteId}/send-email`, {
+    const response = await authFetch(`${API_BASE}/quotations/${quoteId}/send-email`, {
       method: 'POST',
       headers: getAuthHeaders(),
       body: JSON.stringify(emailData)

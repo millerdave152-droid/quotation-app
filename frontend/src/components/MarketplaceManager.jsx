@@ -1,17 +1,10 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import axiosBase from 'axios';
+import { createAuthorizedClient } from '../services/apiClient';
 import ProductMappingTool from './ProductMappingTool';
 import { handleApiError } from '../utils/errorHandler';
 
 // Create axios instance with auth headers
-const axios = axiosBase.create();
-axios.interceptors.request.use((config) => {
-  const token = localStorage.getItem('auth_token');
-  if (token) {
-    config.headers.Authorization = `Bearer ${token}`;
-  }
-  return config;
-});
+const axios = createAuthorizedClient();
 
 /**
  * Enhanced Marketplace Manager Dashboard

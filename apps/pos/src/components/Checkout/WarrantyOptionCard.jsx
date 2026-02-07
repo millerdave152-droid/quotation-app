@@ -44,20 +44,49 @@ export function WarrantyOptionCard({
       bullets.push('Labor costs covered');
     }
 
+    if (details.no_deductible) {
+      bullets.push('No deductible on claims');
+    }
+
+    if (details.in_home_service) {
+      bullets.push('Convenient in-home service');
+    }
+
+    if (details.power_surge || details.electrical_surge) {
+      bullets.push('Power surge protection');
+    }
+
+    if (details.food_spoilage) {
+      const max = details.food_spoilage_max ? ` (up to $${details.food_spoilage_max})` : '';
+      bullets.push(`Food spoilage coverage${max}`);
+    }
+
+    if (details.fourth_failure_replacement) {
+      bullets.push('4th failure = full replacement');
+    }
+
+    if (details.no_fault_call) {
+      bullets.push('No-fault first service call');
+    }
+
+    if (details.remote_replacement) {
+      bullets.push('One-time remote replacement');
+    }
+
+    if (details.transferable) {
+      bullets.push('Transferable to new owner');
+    }
+
+    if (details.renewable) {
+      bullets.push('Renewable at end of term');
+    }
+
     if (details.accidental_drops || details.liquid_spills) {
       bullets.push('Accidental damage protection');
     }
 
     if (details.cracked_screens) {
       bullets.push('Cracked screen repair');
-    }
-
-    if (details.electrical_surge) {
-      bullets.push('Power surge protection');
-    }
-
-    if (details.in_home_service) {
-      bullets.push('Convenient in-home service');
     }
 
     if (details.phone_support) {
@@ -81,7 +110,7 @@ export function WarrantyOptionCard({
       }
     }
 
-    return bullets.slice(0, 4); // Max 4 bullets
+    return bullets.slice(0, 5); // Max 5 bullets for Excelsior plans
   };
 
   const coverageBullets = getCoverageBullets();

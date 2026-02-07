@@ -1,3 +1,4 @@
+import { authFetch } from '../../services/authFetch';
 /**
  * Smart Quick Actions Widget
  *
@@ -78,7 +79,7 @@ const SmartQuickActions = ({ onNavigate }) => {
   const fetchQuickActions = useCallback(async () => {
     try {
       const token = localStorage.getItem('auth_token');
-      const response = await fetch(`${API_URL}/api/insights/quick-actions`, {
+      const response = await authFetch(`${API_URL}/api/insights/quick-actions`, {
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'

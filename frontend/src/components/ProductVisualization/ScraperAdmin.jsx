@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 
+import { authFetch } from '../../services/authFetch';
 const API_BASE = '/api';
 
 // Helper to get auth headers
@@ -53,7 +54,7 @@ function ScraperAdmin({ onJobComplete }) {
 
   const fetchStatus = async () => {
     try {
-      const response = await fetch(`${API_BASE}/vendor-products/scrape/status`, {
+      const response = await authFetch(`${API_BASE}/vendor-products/scrape/status`, {
         headers: getAuthHeaders()
       });
       if (response.ok) {
@@ -98,7 +99,7 @@ function ScraperAdmin({ onJobComplete }) {
         body.model_number = scrapeForm.modelNumber;
       }
 
-      const response = await fetch(`${API_BASE}/vendor-products/scrape`, {
+      const response = await authFetch(`${API_BASE}/vendor-products/scrape`, {
         method: 'POST',
         headers: getAuthHeaders(),
         body: JSON.stringify(body)
@@ -147,7 +148,7 @@ function ScraperAdmin({ onJobComplete }) {
         imageUrls
       };
 
-      const response = await fetch(`${API_BASE}/vendor-products/manual-import`, {
+      const response = await authFetch(`${API_BASE}/vendor-products/manual-import`, {
         method: 'POST',
         headers: getAuthHeaders(),
         body: JSON.stringify(body)
@@ -202,7 +203,7 @@ function ScraperAdmin({ onJobComplete }) {
     setImporting(true);
 
     try {
-      const response = await fetch(`${API_BASE}/vendor-products/manual-import/bulk`, {
+      const response = await authFetch(`${API_BASE}/vendor-products/manual-import/bulk`, {
         method: 'POST',
         headers: getAuthHeaders(),
         body: JSON.stringify({ products })

@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 
+import { authFetch } from '../services/authFetch';
 const API_BASE = `${process.env.REACT_APP_API_URL || 'http://localhost:3001'}/api`;
 
 /**
@@ -30,7 +31,7 @@ function CustomerOrderHistory({ customerId, customerEmail, onCreateQuote }) {
     setLoading(true);
     setError(null);
     try {
-      const response = await fetch(`${API_BASE}/marketplace/customers/${customerId}/unified-history`);
+      const response = await authFetch(`${API_BASE}/marketplace/customers/${customerId}/unified-history`);
       if (!response.ok) {
         throw new Error('Failed to fetch order history');
       }

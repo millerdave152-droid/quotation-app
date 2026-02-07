@@ -22,7 +22,7 @@ import api from './axios';
 export const createStoreCredit = async ({ customerId, amountCents, sourceType, sourceId, expiryDate, notes }) => {
   try {
     const response = await api.post('/store-credits', { customerId, amountCents, sourceType, sourceId, expiryDate, notes });
-    return response.data ?? response;
+    return response;
   } catch (error) {
     console.error('[StoreCredits] createStoreCredit error:', error);
     return { success: false, error: error.message || 'Failed to create store credit' };
@@ -41,7 +41,7 @@ export const lookupStoreCredit = async (code) => {
     }
 
     const response = await api.get(`/store-credits/${encodeURIComponent(code.trim())}`);
-    return response.data ?? response;
+    return response;
   } catch (error) {
     console.error('[StoreCredits] lookupStoreCredit error:', error);
     return { success: false, error: error.message || 'Failed to lookup store credit' };
@@ -67,7 +67,7 @@ export const redeemStoreCredit = async (code, { amountCents, transactionId }) =>
     }
 
     const response = await api.post(`/store-credits/${encodeURIComponent(code.trim())}/redeem`, { amountCents, transactionId });
-    return response.data ?? response;
+    return response;
   } catch (error) {
     console.error('[StoreCredits] redeemStoreCredit error:', error);
     return { success: false, error: error.message || 'Failed to redeem store credit' };

@@ -37,18 +37,11 @@ import {
   Send,
   Schedule
 } from '@mui/icons-material';
-import axios from 'axios';
+import { createAuthorizedClient } from '../../services/apiClient';
 
 const API_BASE = (process.env.REACT_APP_API_URL || 'http://localhost:3001') + '/api';
 
-const api = axios.create({ baseURL: API_BASE });
-api.interceptors.request.use((config) => {
-  const token = localStorage.getItem('auth_token');
-  if (token) {
-    config.headers.Authorization = `Bearer ${token}`;
-  }
-  return config;
-});
+const api = createAuthorizedClient({ baseURL: API_BASE });
 
 const formatCurrency = (cents) => {
   if (!cents && cents !== 0) return '$0.00';

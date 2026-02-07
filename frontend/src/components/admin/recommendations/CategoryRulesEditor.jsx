@@ -1,3 +1,4 @@
+import { authFetch } from '../../../services/authFetch';
 /**
  * CategoryRulesEditor - Manage category-based recommendation rules
  * "When buying from [TVs], suggest from [HDMI Cables]"
@@ -30,7 +31,7 @@ function CategorySelect({ value, onChange, label, placeholder }) {
     const loadCategories = async () => {
       try {
         const token = localStorage.getItem('auth_token');
-        const response = await fetch(`${API_BASE}/api/categories`, {
+        const response = await authFetch(`${API_BASE}/api/categories`, {
           headers: { Authorization: `Bearer ${token}` },
         });
 
@@ -175,7 +176,7 @@ function RuleModal({ isOpen, onClose, onSave, editData }) {
             requireStock: formData.requireStock,
           };
 
-      const response = await fetch(url, {
+      const response = await authFetch(url, {
         method: editData ? 'PUT' : 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -459,7 +460,7 @@ export default function CategoryRulesEditor({ onStatsUpdate }) {
     setLoading(true);
     try {
       const token = localStorage.getItem('auth_token');
-      const response = await fetch(`${API_BASE}/api/recommendations/rules`, {
+      const response = await authFetch(`${API_BASE}/api/recommendations/rules`, {
         headers: { Authorization: `Bearer ${token}` },
       });
 
@@ -486,7 +487,7 @@ export default function CategoryRulesEditor({ onStatsUpdate }) {
   const toggleActive = async (id, currentActive) => {
     try {
       const token = localStorage.getItem('auth_token');
-      const response = await fetch(
+      const response = await authFetch(
         `${API_BASE}/api/recommendations/rules/${id}`,
         {
           method: 'PUT',
@@ -515,7 +516,7 @@ export default function CategoryRulesEditor({ onStatsUpdate }) {
   const updatePriority = async (id, newPriority) => {
     try {
       const token = localStorage.getItem('auth_token');
-      await fetch(`${API_BASE}/api/recommendations/rules/${id}`, {
+      await authFetch(`${API_BASE}/api/recommendations/rules/${id}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -536,7 +537,7 @@ export default function CategoryRulesEditor({ onStatsUpdate }) {
 
     try {
       const token = localStorage.getItem('auth_token');
-      const response = await fetch(
+      const response = await authFetch(
         `${API_BASE}/api/recommendations/rules/${id}`,
         {
           method: 'DELETE',

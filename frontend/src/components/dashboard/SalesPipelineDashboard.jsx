@@ -1,3 +1,4 @@
+import { authFetch } from '../../services/authFetch';
 /**
  * Sales Pipeline Dashboard Component
  *
@@ -327,9 +328,9 @@ const SalesPipelineDashboard = ({ onNavigate, onViewLead, onViewQuote, onViewCus
     try {
       setRefreshing(true);
       const [summaryRes, teamRes, sourceRes] = await Promise.all([
-        fetch(`${API_URL}/api/dashboard/summary`),
-        fetch(`${API_URL}/api/dashboard/performance/team?days=30`),
-        fetch(`${API_URL}/api/dashboard/performance/by-source`)
+        authFetch(`${API_URL}/api/dashboard/summary`),
+        authFetch(`${API_URL}/api/dashboard/performance/team?days=30`),
+        authFetch(`${API_URL}/api/dashboard/performance/by-source`)
       ]);
 
       if (!summaryRes.ok) throw new Error('Failed to fetch dashboard data');

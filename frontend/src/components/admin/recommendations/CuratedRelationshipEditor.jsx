@@ -1,3 +1,4 @@
+import { authFetch } from '../../../services/authFetch';
 /**
  * CuratedRelationshipEditor - Create and manage manually linked product relationships
  * Allows admins to curate "When customer buys X, suggest Y" relationships
@@ -49,7 +50,7 @@ function ProductSearch({ value, onChange, placeholder, exclude = [] }) {
       setLoading(true);
       try {
         const token = localStorage.getItem('auth_token');
-        const response = await fetch(
+        const response = await authFetch(
           `${API_BASE}/api/products?search=${encodeURIComponent(search)}&limit=10`,
           {
             headers: { Authorization: `Bearer ${token}` },
@@ -233,7 +234,7 @@ function RelationshipModal({ isOpen, onClose, onSave, editData }) {
             notes: formData.notes,
           };
 
-      const response = await fetch(url, {
+      const response = await authFetch(url, {
         method: editData ? 'PUT' : 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -476,7 +477,7 @@ function CSVUploadModal({ isOpen, onClose, onSuccess }) {
         if (!sourceId || !relatedId) continue;
 
         try {
-          const response = await fetch(
+          const response = await authFetch(
             `${API_BASE}/api/recommendations/relationships`,
             {
               method: 'POST',
@@ -657,7 +658,7 @@ export default function CuratedRelationshipEditor({ onStatsUpdate }) {
     setLoading(true);
     try {
       const token = localStorage.getItem('auth_token');
-      const response = await fetch(
+      const response = await authFetch(
         `${API_BASE}/api/recommendations/relationships?curated=true&limit=100`,
         {
           headers: { Authorization: `Bearer ${token}` },
@@ -685,7 +686,7 @@ export default function CuratedRelationshipEditor({ onStatsUpdate }) {
 
     try {
       const token = localStorage.getItem('auth_token');
-      const response = await fetch(
+      const response = await authFetch(
         `${API_BASE}/api/recommendations/relationships/${id}`,
         {
           method: 'DELETE',

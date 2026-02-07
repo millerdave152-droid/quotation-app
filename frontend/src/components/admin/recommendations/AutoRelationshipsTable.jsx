@@ -1,3 +1,4 @@
+import { authFetch } from '../../../services/authFetch';
 /**
  * AutoRelationshipsTable - View and manage auto-generated product relationships
  * Shows "Frequently Bought Together" pairs from purchase data
@@ -118,7 +119,7 @@ export default function AutoRelationshipsTable({ onStatsUpdate }) {
         params.append('productId', filters.search);
       }
 
-      const response = await fetch(
+      const response = await authFetch(
         `${API_BASE}/api/recommendations/relationships?${params}`,
         {
           headers: { Authorization: `Bearer ${token}` },
@@ -180,7 +181,7 @@ export default function AutoRelationshipsTable({ onStatsUpdate }) {
   const toggleVisibility = async (id, currentActive) => {
     try {
       const token = localStorage.getItem('auth_token');
-      const response = await fetch(
+      const response = await authFetch(
         `${API_BASE}/api/recommendations/relationships/${id}`,
         {
           method: 'PUT',

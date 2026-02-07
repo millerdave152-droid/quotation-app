@@ -1,3 +1,4 @@
+import { authFetch } from '../../services/authFetch';
 /**
  * QuoteViewer Component
  * Displays quote details, items, revenue features, and actions
@@ -264,7 +265,7 @@ const QuoteViewer = ({
 
       setSignaturesLoading(true);
       try {
-        const response = await fetch(`${API_URL}/api/quotations/${quote.id}/signatures`);
+        const response = await authFetch(`${API_URL}/api/quotations/${quote.id}/signatures`);
         if (response.ok) {
           const data = await response.json();
           setSignatures(data.signatures || []);
@@ -289,7 +290,7 @@ const QuoteViewer = ({
 
       setWinProbabilityLoading(true);
       try {
-        const response = await fetch(`${API_URL}/api/quotations/${quote.id}/win-probability`);
+        const response = await authFetch(`${API_URL}/api/quotations/${quote.id}/win-probability`);
         if (response.ok) {
           const data = await response.json();
           setWinProbability(data.data);

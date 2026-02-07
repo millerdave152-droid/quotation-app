@@ -25,7 +25,7 @@ export const POINTS_PER_DOLLAR = 100;
 export const getLoyaltyBalance = async (customerId) => {
   try {
     const response = await api.get(`/customers/${customerId}/loyalty`);
-    return response.data ?? response;
+    return response;
   } catch (err) {
     // If Hub endpoint is not yet built, return mock data for development
     if (err.response?.status === 404) {
@@ -64,7 +64,7 @@ export const redeemPoints = async (customerId, { points, amountCents, orderId })
       amountCents,
       orderId,
     });
-    return response.data ?? response;
+    return response;
   } catch (err) {
     if (err.response?.status === 404) {
       return {

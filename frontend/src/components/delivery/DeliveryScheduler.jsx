@@ -39,7 +39,7 @@ import {
   Warning,
   Block
 } from '@mui/icons-material';
-import axios from 'axios';
+import apiClient from '../../services/apiClient';
 
 const API_BASE = process.env.REACT_APP_API_URL || 'http://localhost:3001/api';
 
@@ -148,7 +148,7 @@ const DeliveryScheduler = ({ orderId, quotationId, customerId, onBookingComplete
 
   const fetchZones = async () => {
     try {
-      const response = await axios.get(`${API_BASE}/delivery/zones`);
+      const response = await apiClient.get(`${API_BASE}/delivery/zones`);
       setZones(response.data);
     } catch (err) {
       console.error('Error fetching zones:', err);
@@ -161,7 +161,7 @@ const DeliveryScheduler = ({ orderId, quotationId, customerId, onBookingComplete
       const endDate = new Date(currentWeekStart);
       endDate.setDate(endDate.getDate() + 6);
 
-      const response = await axios.get(`${API_BASE}/delivery/slots`, {
+      const response = await apiClient.get(`${API_BASE}/delivery/slots`, {
         params: {
           zoneId: selectedZone.id,
           startDate: currentWeekStart.toISOString().split('T')[0],
@@ -185,7 +185,7 @@ const DeliveryScheduler = ({ orderId, quotationId, customerId, onBookingComplete
       setError(null);
 
       // Look up zone by postal code
-      const response = await axios.get(`${API_BASE}/delivery/zones/lookup`, {
+      const response = await apiClient.get(`${API_BASE}/delivery/zones/lookup`, {
         params: { postalCode: postalCode.replace(/\s/g, '').toUpperCase() }
       });
 
@@ -234,7 +234,7 @@ const DeliveryScheduler = ({ orderId, quotationId, customerId, onBookingComplete
         ...bookingForm
       };
 
-      const response = await axios.post(`${API_BASE}/delivery/bookings`, bookingData);
+      const response = await apiClient.post(`${API_BASE}/delivery/bookings`, bookingData);
 
       setBookingDialogOpen(false);
       if (onBookingComplete) {

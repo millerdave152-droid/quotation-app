@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 
+import { authFetch } from '../../services/authFetch';
 const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:3001';
 
 /**
@@ -39,9 +40,9 @@ const QuoteExpiryManager = () => {
       const headers = { 'Authorization': `Bearer ${token}` };
 
       const [rulesRes, expiringRes, expiredRes] = await Promise.all([
-        fetch(`${API_URL}/api/quotations/expiry-rules`, { headers }),
-        fetch(`${API_URL}/api/quotations/expiring?days=7`, { headers }),
-        fetch(`${API_URL}/api/quotations/expired?days=30`, { headers })
+        authFetch(`${API_URL}/api/quotations/expiry-rules`, { headers }),
+        authFetch(`${API_URL}/api/quotations/expiring?days=7`, { headers }),
+        authFetch(`${API_URL}/api/quotations/expired?days=30`, { headers })
       ]);
 
       const [rulesData, expiringData, expiredData] = await Promise.all([
@@ -88,7 +89,7 @@ const QuoteExpiryManager = () => {
         ? `${API_URL}/api/quotations/expiry-rules/${editingRule.id}`
         : `${API_URL}/api/quotations/expiry-rules`;
 
-      const response = await fetch(url, {
+      const response = await authFetch(url, {
         method: editingRule ? 'PUT' : 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -119,7 +120,7 @@ const QuoteExpiryManager = () => {
 
     try {
       const token = localStorage.getItem('auth_token');
-      const response = await fetch(`${API_URL}/api/quotations/expiry-rules/${ruleId}`, {
+      const response = await authFetch(`${API_URL}/api/quotations/expiry-rules/${ruleId}`, {
         method: 'DELETE',
         headers: { 'Authorization': `Bearer ${token}` }
       });
@@ -138,7 +139,7 @@ const QuoteExpiryManager = () => {
   const handleRenewQuote = async (quoteId, extendDays = 14) => {
     try {
       const token = localStorage.getItem('auth_token');
-      const response = await fetch(`${API_URL}/api/quotations/${quoteId}/renew`, {
+      const response = await authFetch(`${API_URL}/api/quotations/${quoteId}/renew`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

@@ -49,7 +49,7 @@ import {
   TrendingDown,
   Schedule
 } from '@mui/icons-material';
-import axios from 'axios';
+import apiClient from '../../services/apiClient';
 import { Link as RouterLink } from 'react-router-dom';
 
 const API_BASE = (process.env.REACT_APP_API_URL || 'http://localhost:3001') + '/api';
@@ -202,7 +202,7 @@ const InventoryDashboard = () => {
         page: stockPage + 1,
         limit: stockRowsPerPage
       });
-      const response = await axios.get(`${API_BASE}/inventory/products?${params}`, {
+      const response = await apiClient.get(`${API_BASE}/inventory/products?${params}`, {
         headers: getAuthHeaders()
       });
       setStockProducts(response.data.products || []);
@@ -225,8 +225,8 @@ const InventoryDashboard = () => {
 
       // Fetch inventory summary and low stock products in parallel
       const [summaryRes, lowStockRes] = await Promise.all([
-        axios.get(`${API_BASE}/inventory/summary`, { headers: getAuthHeaders() }).catch(() => ({ data: null })),
-        axios.get(`${API_BASE}/inventory/low-stock`, { headers: getAuthHeaders() }).catch(() => ({ data: [] }))
+        apiClient.get(`${API_BASE}/inventory/summary`, { headers: getAuthHeaders() }).catch(() => ({ data: null })),
+        apiClient.get(`${API_BASE}/inventory/low-stock`, { headers: getAuthHeaders() }).catch(() => ({ data: [] }))
       ]);
 
       if (summaryRes.data) {
@@ -243,7 +243,7 @@ const InventoryDashboard = () => {
 
   const fetchReservations = async () => {
     try {
-      const response = await axios.get(`${API_BASE}/inventory/reservations`, {
+      const response = await apiClient.get(`${API_BASE}/inventory/reservations`, {
         params: reservationFilters,
         headers: getAuthHeaders()
       });
@@ -258,7 +258,7 @@ const InventoryDashboard = () => {
       setSyncing(true);
       setSyncResult(null);
 
-      const response = await axios.post(`${API_BASE}/inventory/sync`, {}, { headers: getAuthHeaders() });
+      const response = await apiClient.post(`${API_BASE}/inventory/sync`, {}, { headers: getAuthHeaders() });
       setSyncResult({
         success: true,
         message: `Synced ${response.data.updated || 0} products`
@@ -278,7 +278,7 @@ const InventoryDashboard = () => {
     if (!window.confirm('Are you sure you want to release this reservation?')) return;
 
     try {
-      await axios.delete(`${API_BASE}/inventory/reservations/${reservationId}`, { headers: getAuthHeaders() });
+      await apiClient.delete(`${API_BASE}/inventory/reservations/${reservationId}`, { headers: getAuthHeaders() });
       fetchReservations();
       fetchDashboardData();
     } catch (err) {

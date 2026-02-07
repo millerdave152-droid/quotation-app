@@ -1,3 +1,4 @@
+import { authFetch } from '../../services/authFetch';
 /**
  * AI Insights Widget
  *
@@ -44,7 +45,7 @@ const AIInsightsWidget = ({ onNavigate, onAction, limit = 5 }) => {
   const fetchInsights = useCallback(async () => {
     try {
       const token = localStorage.getItem('auth_token');
-      const response = await fetch(`${API_URL}/api/insights?limit=${expanded ? 20 : limit}`, {
+      const response = await authFetch(`${API_URL}/api/insights?limit=${expanded ? 20 : limit}`, {
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
@@ -78,7 +79,7 @@ const AIInsightsWidget = ({ onNavigate, onAction, limit = 5 }) => {
     setDismissing(insightId);
     try {
       const token = localStorage.getItem('auth_token');
-      await fetch(`${API_URL}/api/insights/${insightId}/dismiss`, {
+      await authFetch(`${API_URL}/api/insights/${insightId}/dismiss`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -121,7 +122,7 @@ const AIInsightsWidget = ({ onNavigate, onAction, limit = 5 }) => {
       }
 
       // Execute backend action
-      const response = await fetch(`${API_URL}/api/insights/${insight.id}/action`, {
+      const response = await authFetch(`${API_URL}/api/insights/${insight.id}/action`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`,

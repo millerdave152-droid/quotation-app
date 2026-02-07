@@ -1,3 +1,4 @@
+import { authFetch } from '../../services/authFetch';
 /**
  * Churn Risk Panel
  *
@@ -45,8 +46,8 @@ const ChurnRiskPanel = ({ onNavigate, onContact }) => {
 
       // Fetch churn analysis and ROI data in parallel
       const [churnRes, roiRes] = await Promise.all([
-        fetch(`${API_BASE}/customers/predictive-clv/churn-analysis?limit=50&minRevenue=500`, { headers }),
-        fetch(`${API_BASE}/customers/predictive-clv/retention-roi`, { headers })
+        authFetch(`${API_BASE}/customers/predictive-clv/churn-analysis?limit=50&minRevenue=500`, { headers }),
+        authFetch(`${API_BASE}/customers/predictive-clv/retention-roi`, { headers })
       ]);
 
       if (!churnRes.ok) throw new Error('Failed to fetch churn analysis');

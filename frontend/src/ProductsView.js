@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import './App.css';
 
+import { authFetch } from './services/authFetch';
 const API_BASE = `${process.env.REACT_APP_API_URL || 'http://localhost:3001'}/api`;
 
 const ProductsView = () => {
@@ -33,7 +34,7 @@ const ProductsView = () => {
   const fetchProducts = async () => {
     try {
       setLoading(true);
-      const response = await fetch(`${API_BASE}/products`);
+      const response = await authFetch(`${API_BASE}/products`);
       
       if (!response.ok) {
         throw new Error('Failed to fetch products');

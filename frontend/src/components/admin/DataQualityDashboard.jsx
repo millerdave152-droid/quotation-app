@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
 
+import { authFetch } from '../../services/authFetch';
 const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:3001';
 
 const DataQualityDashboard = () => {
@@ -20,7 +21,7 @@ const DataQualityDashboard = () => {
   const fetchReport = async () => {
     setLoading(true);
     try {
-      const response = await fetch(`${API_URL}/api/data-quality/report`, {
+      const response = await authFetch(`${API_URL}/api/data-quality/report`, {
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
@@ -47,7 +48,7 @@ const DataQualityDashboard = () => {
 
     setFixing(fixType);
     try {
-      const response = await fetch(`${API_URL}/api/data-quality/auto-fix/${fixType}`, {
+      const response = await authFetch(`${API_URL}/api/data-quality/auto-fix/${fixType}`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -72,7 +73,7 @@ const DataQualityDashboard = () => {
     if (!mergeModal) return;
 
     try {
-      const response = await fetch(`${API_URL}/api/data-quality/merge`, {
+      const response = await authFetch(`${API_URL}/api/data-quality/merge`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`,

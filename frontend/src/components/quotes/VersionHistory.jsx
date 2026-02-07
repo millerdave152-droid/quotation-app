@@ -1,3 +1,4 @@
+import { authFetch } from '../../services/authFetch';
 /**
  * VersionHistory Component
  * Displays version history for a quote with comparison and restore features
@@ -28,7 +29,7 @@ const VersionHistory = ({
 
     try {
       setLoading(true);
-      const response = await fetch(`${API_URL}/api/quotations/${quoteId}/versions`);
+      const response = await authFetch(`${API_URL}/api/quotations/${quoteId}/versions`);
       if (response.ok) {
         const data = await response.json();
         setVersions(data.versions || []);
@@ -49,7 +50,7 @@ const VersionHistory = ({
   // Fetch version details
   const fetchVersionDetails = async (versionNumber) => {
     try {
-      const response = await fetch(`${API_URL}/api/quotations/${quoteId}/versions/${versionNumber}`);
+      const response = await authFetch(`${API_URL}/api/quotations/${quoteId}/versions/${versionNumber}`);
       if (response.ok) {
         const data = await response.json();
         setSelectedVersion(data.version);
@@ -64,7 +65,7 @@ const VersionHistory = ({
     if (!compareVersions.v1 || !compareVersions.v2) return;
 
     try {
-      const response = await fetch(
+      const response = await authFetch(
         `${API_URL}/api/quotations/${quoteId}/versions/compare?v1=${compareVersions.v1}&v2=${compareVersions.v2}`
       );
       if (response.ok) {
@@ -84,7 +85,7 @@ const VersionHistory = ({
 
     setRestoring(true);
     try {
-      const response = await fetch(`${API_URL}/api/quotations/${quoteId}/versions/${versionNumber}/restore`, {
+      const response = await authFetch(`${API_URL}/api/quotations/${quoteId}/versions/${versionNumber}/restore`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ restoredBy: 'User' })

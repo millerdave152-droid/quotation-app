@@ -1,3 +1,4 @@
+import { authFetch } from '../../services/authFetch';
 /**
  * NegotiationTimeline - Shows the history of counter-offers on a quote
  */
@@ -21,7 +22,7 @@ const NegotiationTimeline = ({ quoteId, onRefresh }) => {
     try {
       setLoading(true);
       const token = localStorage.getItem('auth_token');
-      const response = await fetch(`${API_URL}/api/quotes/${quoteId}/counter-offers`, {
+      const response = await authFetch(`${API_URL}/api/quotes/${quoteId}/counter-offers`, {
         headers: {
           'Authorization': `Bearer ${token}`
         }

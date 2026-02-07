@@ -1,3 +1,4 @@
+import { authFetch } from '../../services/authFetch';
 /**
  * LeadImportModal - Bulk CSV import for leads
  * Features: File upload, field mapping, duplicate detection, preview
@@ -110,7 +111,7 @@ function LeadImportModal({ onClose, onImportComplete }) {
       const formData = new FormData();
       formData.append('file', selectedFile);
 
-      const res = await fetch(`${API_URL}/api/leads/import/preview`, {
+      const res = await authFetch(`${API_URL}/api/leads/import/preview`, {
         method: 'POST',
         body: formData
       });
@@ -163,7 +164,7 @@ function LeadImportModal({ onClose, onImportComplete }) {
       formData.append('defaultPriority', importOptions.defaultPriority);
       formData.append('defaultSource', importOptions.defaultSource);
 
-      const res = await fetch(`${API_URL}/api/leads/import`, {
+      const res = await authFetch(`${API_URL}/api/leads/import`, {
         method: 'POST',
         body: formData
       });

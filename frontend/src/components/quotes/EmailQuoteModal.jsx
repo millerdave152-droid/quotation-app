@@ -1,3 +1,4 @@
+import { authFetch } from '../../services/authFetch';
 /**
  * Email Quote Modal
  *
@@ -200,7 +201,7 @@ const EmailQuoteModal = ({
       }
 
       // Send to backend
-      const response = await fetch(`${API_URL}/api/quotations/${quote.id}/send-email`, {
+      const response = await authFetch(`${API_URL}/api/quotations/${quote.id}/send-email`, {
         method: 'POST',
         body: formData
       });

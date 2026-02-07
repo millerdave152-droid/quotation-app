@@ -1,3 +1,4 @@
+import { authFetch } from './authFetch';
 /**
  * Lookup Service - Frontend API service for autocomplete lookups
  *
@@ -32,7 +33,7 @@ export async function searchCities(query, province = null, limit = 10) {
   const params = new URLSearchParams({ q: query, limit: String(limit) });
   if (province) params.append('province', province);
 
-  const response = await fetch(`${API_BASE}/lookup/cities?${params}`, {
+  const response = await authFetch(`${API_BASE}/lookup/cities?${params}`, {
     headers: getAuthHeaders()
   });
 
@@ -48,7 +49,7 @@ export async function searchCities(query, province = null, limit = 10) {
  * @returns {Promise<Array>} List of provinces
  */
 export async function getProvinces() {
-  const response = await fetch(`${API_BASE}/lookup/provinces`, {
+  const response = await authFetch(`${API_BASE}/lookup/provinces`, {
     headers: getAuthHeaders()
   });
 
@@ -72,7 +73,7 @@ export async function lookupPostalCode(postalCode) {
   if (normalized.length !== 6) return null;
 
   try {
-    const response = await fetch(`${API_BASE}/lookup/postal-code/${normalized}`, {
+    const response = await authFetch(`${API_BASE}/lookup/postal-code/${normalized}`, {
       headers: getAuthHeaders()
     });
 
@@ -104,7 +105,7 @@ export async function searchNames(query, type = null, limit = 10) {
   const params = new URLSearchParams({ q: query, limit: String(limit) });
   if (type) params.append('type', type);
 
-  const response = await fetch(`${API_BASE}/lookup/names?${params}`, {
+  const response = await authFetch(`${API_BASE}/lookup/names?${params}`, {
     headers: getAuthHeaders()
   });
 
@@ -126,7 +127,7 @@ export async function searchCustomers(query, limit = 5) {
 
   const params = new URLSearchParams({ q: query, limit: String(limit) });
 
-  const response = await fetch(`${API_BASE}/customers/autocomplete?${params}`, {
+  const response = await authFetch(`${API_BASE}/customers/autocomplete?${params}`, {
     headers: getAuthHeaders()
   });
 
@@ -143,7 +144,7 @@ export async function searchCustomers(query, limit = 5) {
  * @returns {Promise<Object>} { hasDuplicates, duplicates }
  */
 export async function checkDuplicates(customerData) {
-  const response = await fetch(`${API_BASE}/customers/check-duplicates`, {
+  const response = await authFetch(`${API_BASE}/customers/check-duplicates`, {
     method: 'POST',
     headers: getAuthHeaders(),
     body: JSON.stringify(customerData)
@@ -162,7 +163,7 @@ export async function checkDuplicates(customerData) {
  * @returns {Promise<Array>} Most used postal codes
  */
 export async function getFrequentPostalCodes(limit = 10) {
-  const response = await fetch(`${API_BASE}/lookup/frequent-postal-codes?limit=${limit}`, {
+  const response = await authFetch(`${API_BASE}/lookup/frequent-postal-codes?limit=${limit}`, {
     headers: getAuthHeaders()
   });
 
@@ -212,7 +213,7 @@ export async function fuzzySearchNames(query, type = null, limit = 15) {
   if (type) params.append('type', type);
 
   try {
-    const response = await fetch(`${API_BASE}/lookup/names/fuzzy?${params}`, {
+    const response = await authFetch(`${API_BASE}/lookup/names/fuzzy?${params}`, {
       headers: getAuthHeaders()
     });
 
@@ -241,7 +242,7 @@ export async function getPopularNames(type, limit = 5) {
   }
 
   try {
-    const response = await fetch(`${API_BASE}/lookup/names/popular?type=${type}&limit=${limit}`, {
+    const response = await authFetch(`${API_BASE}/lookup/names/popular?type=${type}&limit=${limit}`, {
       headers: getAuthHeaders()
     });
 
@@ -276,7 +277,7 @@ export async function searchCompanies(query, limit = 10) {
   if (!query || query.length < 2) return [];
 
   try {
-    const response = await fetch(`${API_BASE}/lookup/companies?q=${encodeURIComponent(query)}&limit=${limit}`, {
+    const response = await authFetch(`${API_BASE}/lookup/companies?q=${encodeURIComponent(query)}&limit=${limit}`, {
       headers: getAuthHeaders()
     });
 

@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 
+import { authFetch } from '../../services/authFetch';
 const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:3001';
 
 const STATUSES = [
@@ -40,7 +41,7 @@ function FulfillmentTracker({ quoteId, token, convertedToOrderId }) {
         if (authToken) headers['Authorization'] = `Bearer ${authToken}`;
       }
 
-      const response = await fetch(url, { headers });
+      const response = await authFetch(url, { headers });
       const result = await response.json();
 
       if (result.success) {

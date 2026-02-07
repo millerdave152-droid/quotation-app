@@ -108,9 +108,8 @@ router.get('/', asyncHandler(async (req, res) => {
         COUNT(*) as item_count,
         STRING_AGG(sub.name, ', ') as item_summary
       FROM (
-        SELECT p.name
+        SELECT ti.product_name as name
         FROM transaction_items ti
-        LEFT JOIN products p ON ti.product_id = p.id
         WHERE ti.transaction_id = t.transaction_id
         ORDER BY ti.item_id
         LIMIT 3

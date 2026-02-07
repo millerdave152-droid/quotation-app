@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 
+import { authFetch } from '../../services/authFetch';
 const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:3001';
 
 const GlobalSearch = ({ isOpen, onClose }) => {
@@ -42,9 +43,9 @@ const GlobalSearch = ({ isOpen, onClose }) => {
     try {
       // Search all endpoints in parallel
       const [quotesRes, customersRes, productsRes] = await Promise.all([
-        fetch(`${API_URL}/api/quotes/search?q=${encodeURIComponent(searchQuery)}&limit=5`, { headers }),
-        fetch(`${API_URL}/api/customers/search?q=${encodeURIComponent(searchQuery)}&limit=5`, { headers }),
-        fetch(`${API_URL}/api/products/search?q=${encodeURIComponent(searchQuery)}&limit=5`, { headers }),
+        authFetch(`${API_URL}/api/quotes/search?q=${encodeURIComponent(searchQuery)}&limit=5`, { headers }),
+        authFetch(`${API_URL}/api/customers/search?q=${encodeURIComponent(searchQuery)}&limit=5`, { headers }),
+        authFetch(`${API_URL}/api/products/search?q=${encodeURIComponent(searchQuery)}&limit=5`, { headers }),
       ]);
 
       const [quotes, customers, products] = await Promise.all([

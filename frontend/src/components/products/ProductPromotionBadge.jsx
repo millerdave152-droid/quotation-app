@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 
+import { authFetch } from '../../services/authFetch';
 const API_URL = `${process.env.REACT_APP_API_URL || 'http://localhost:3001'}/api`;
 
 const getAuthHeaders = () => {
@@ -30,7 +31,7 @@ const ProductPromotionBadge = ({ productId, model, manufacturer, compact = false
         if (model) params.append('model', model);
         if (manufacturer) params.append('manufacturer', manufacturer);
 
-        const response = await fetch(
+        const response = await authFetch(
           `${API_URL}/promotions/manufacturer/product/${productId || 0}/badges?${params}`,
           { headers: getAuthHeaders() }
         );
@@ -136,7 +137,7 @@ export const ProductPromotionBadgeInline = ({ productId, model, manufacturer }) 
         if (model) params.append('model', model);
         if (manufacturer) params.append('manufacturer', manufacturer);
 
-        const response = await fetch(
+        const response = await authFetch(
           `${API_URL}/promotions/manufacturer/product/${productId || 0}/badges?${params}`,
           { headers: getAuthHeaders() }
         );

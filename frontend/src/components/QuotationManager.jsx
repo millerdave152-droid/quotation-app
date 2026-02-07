@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { useLocation } from 'react-router-dom';
 import { previewQuotePDF, downloadQuotePDF } from '../services/pdfService';
+import { authFetch } from '../services/authFetch';
 import {
   FinancingCalculator,
   WarrantySelector,
@@ -369,7 +370,7 @@ const QuotationManager = () => {
           ...(statusFilter !== 'all' && { status: statusFilter })
         });
 
-        const res = await fetch(`${API_URL}/api/quotes/search?${params}`);
+        const res = await authFetch(`${API_URL}/api/quotes/search?${params}`);
         if (!res.ok) throw new Error('Search failed');
 
         const data = await res.json();
@@ -391,7 +392,7 @@ const QuotationManager = () => {
 
   const fetchTemplates = async () => {
     try {
-      const res = await fetch(`${API_URL}/api/quote-templates`);
+      const res = await authFetch(`${API_URL}/api/quote-templates`);
       const data = await res.json();
       setTemplates(Array.isArray(data) ? data : []);
     } catch (err) {
@@ -402,7 +403,7 @@ const QuotationManager = () => {
 
   const fetchCustomerQuotes = async (customerId) => {
     try {
-      const res = await fetch(`${API_URL}/api/quotes?customer_id=${customerId}&limit=5`);
+      const res = await authFetch(`${API_URL}/api/quotes?customer_id=${customerId}&limit=5`);
       const data = await res.json();
       setCustomerQuotes(Array.isArray(data) ? data : []);
     } catch (err) {
@@ -413,7 +414,7 @@ const QuotationManager = () => {
 
   const fetchFavoriteProducts = async () => {
     try {
-      const res = await fetch(`${API_URL}/api/products/favorites`);
+      const res = await authFetch(`${API_URL}/api/products/favorites`);
       const data = await res.json();
       setFavoriteProducts(Array.isArray(data) ? data : []);
     } catch (err) {
@@ -424,7 +425,7 @@ const QuotationManager = () => {
 
   const fetchRecentProducts = async () => {
     try {
-      const res = await fetch(`${API_URL}/api/products/recent?limit=10`);
+      const res = await authFetch(`${API_URL}/api/products/recent?limit=10`);
       const data = await res.json();
       setRecentProducts(Array.isArray(data) ? data : []);
     } catch (err) {
@@ -438,11 +439,11 @@ const QuotationManager = () => {
 
     try {
       if (isFavorite) {
-        await fetch(`${API_URL}/api/products/favorites/${productId}`, {
+        await authFetch(`${API_URL}/api/products/favorites/${productId}`, {
           method: 'DELETE'
         });
       } else {
-        await fetch(`${API_URL}/api/products/favorites/${productId}`, {
+        await authFetch(`${API_URL}/api/products/favorites/${productId}`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({})
@@ -456,7 +457,7 @@ const QuotationManager = () => {
 
   const fetchPaymentTerms = async () => {
     try {
-      const res = await fetch(`${API_URL}/api/payment-terms`);
+      const res = await authFetch(`${API_URL}/api/payment-terms`);
       const data = await res.json();
       setPaymentTermsTemplates(Array.isArray(data) ? data : []);
     } catch (err) {
@@ -467,7 +468,7 @@ const QuotationManager = () => {
 
   const fetchFinancingPlans = async () => {
     try {
-      const res = await fetch(`${API_URL}/api/financing-plans`);
+      const res = await authFetch(`${API_URL}/api/financing-plans`);
       const data = await res.json();
       setAvailableFinancing(Array.isArray(data) ? data : []);
     } catch (err) {
@@ -478,7 +479,7 @@ const QuotationManager = () => {
 
   const fetchWarrantyPlans = async () => {
     try {
-      const res = await fetch(`${API_URL}/api/warranty-plans`);
+      const res = await authFetch(`${API_URL}/api/warranty-plans`);
       const data = await res.json();
       setAvailableWarranties(Array.isArray(data) ? data : []);
     } catch (err) {
@@ -489,7 +490,7 @@ const QuotationManager = () => {
 
   const fetchRebates = async () => {
     try {
-      const res = await fetch(`${API_URL}/api/rebates`);
+      const res = await authFetch(`${API_URL}/api/rebates`);
       const data = await res.json();
       setAvailableRebates(Array.isArray(data) ? data : []);
     } catch (err) {
@@ -500,7 +501,7 @@ const QuotationManager = () => {
 
   const fetchEmailTemplates = async () => {
     try {
-      const res = await fetch(`${API_URL}/api/email-templates`);
+      const res = await authFetch(`${API_URL}/api/email-templates`);
       const data = await res.json();
       setEmailTemplates(Array.isArray(data) ? data : []);
     } catch (err) {
@@ -518,8 +519,8 @@ const QuotationManager = () => {
     if (!isMounted.current) return;
     try {
       const [quotesRes, statsRes] = await Promise.all([
-        fetch(`${API_URL}/api/quotes`),
-        fetch(`${API_URL}/api/quotes/stats/summary`)
+        authFetch(`${API_URL}/api/quotes`),
+        authFetch(`${API_URL}/api/quotes/stats/summary`)
       ]);
       const quotesData = await quotesRes.json();
       const statsData = await statsRes.json();
@@ -538,7 +539,7 @@ const QuotationManager = () => {
   const refreshCustomersOnly = async () => {
     if (!isMounted.current) return;
     try {
-      const res = await fetch(`${API_URL}/api/customers`);
+      const res = await authFetch(`${API_URL}/api/customers`);
       const data = await res.json();
       const customersArray = data.customers || data;
       setCustomers(Array.isArray(customersArray) ? customersArray : []);
@@ -554,17 +555,17 @@ const QuotationManager = () => {
   const fetchFollowUpData = async () => {
     try {
       // Fetch pending follow-ups
-      const followUpsRes = await fetch(`${API_URL}/api/follow-ups/pending`);
+      const followUpsRes = await authFetch(`${API_URL}/api/follow-ups/pending`);
       const followUpsData = await followUpsRes.json();
       setPendingFollowUps(Array.isArray(followUpsData) ? followUpsData : []);
 
       // Fetch stale quotes
-      const staleRes = await fetch(`${API_URL}/api/follow-ups/stale-quotes?days=7`);
+      const staleRes = await authFetch(`${API_URL}/api/follow-ups/stale-quotes?days=7`);
       const staleData = await staleRes.json();
       setStaleQuotes(Array.isArray(staleData) ? staleData : []);
 
       // Fetch stats
-      const statsRes = await fetch(`${API_URL}/api/follow-ups/stats`);
+      const statsRes = await authFetch(`${API_URL}/api/follow-ups/stats`);
       const statsData = await statsRes.json();
       setFollowUpStats(statsData);
     } catch (err) {
@@ -576,7 +577,7 @@ const QuotationManager = () => {
 
   const markFollowUpSent = async (followUpId) => {
     try {
-      await fetch(`${API_URL}/api/follow-ups/${followUpId}/sent`, {
+      await authFetch(`${API_URL}/api/follow-ups/${followUpId}/sent`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' }
       });
@@ -592,7 +593,7 @@ const QuotationManager = () => {
     if (!selectedFollowUpQuote) return;
 
     try {
-      await fetch(`${API_URL}/api/quotations/${selectedFollowUpQuote.id}/interactions`, {
+      await authFetch(`${API_URL}/api/quotations/${selectedFollowUpQuote.id}/interactions`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -1073,14 +1074,14 @@ const QuotationManager = () => {
       let res;
       if (editingQuoteId) {
         // Update existing quote
-        res = await fetch(`${API_URL}/api/quotations/${editingQuoteId}`, {
+        res = await authFetch(`${API_URL}/api/quotations/${editingQuoteId}`, {
           method: 'PUT',
           headers,
           body: JSON.stringify(quoteData)
         });
       } else {
         // Create new quote
-        res = await fetch(`${API_URL}/api/quotes`, {
+        res = await authFetch(`${API_URL}/api/quotes`, {
           method: 'POST',
           headers,
           body: JSON.stringify(quoteData)
@@ -1188,13 +1189,13 @@ const QuotationManager = () => {
 
       let res;
       if (editingQuoteId) {
-        res = await fetch(`${API_URL}/api/quotations/${editingQuoteId}`, {
+        res = await authFetch(`${API_URL}/api/quotations/${editingQuoteId}`, {
           method: 'PUT',
           headers,
           body: JSON.stringify(quoteData)
         });
       } else {
-        res = await fetch(`${API_URL}/api/quotes`, {
+        res = await authFetch(`${API_URL}/api/quotes`, {
           method: 'POST',
           headers,
           body: JSON.stringify(quoteData)
@@ -1341,7 +1342,7 @@ const QuotationManager = () => {
     }
 
     try {
-      const res = await fetch(`${API_URL}/api/quote-templates`, {
+      const res = await authFetch(`${API_URL}/api/quote-templates`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -1393,7 +1394,7 @@ const QuotationManager = () => {
     }
 
     try {
-      const res = await fetch(`${API_URL}/api/quote-templates/${templateId}`, {
+      const res = await authFetch(`${API_URL}/api/quote-templates/${templateId}`, {
         method: 'DELETE'
       });
 
@@ -1435,13 +1436,13 @@ const QuotationManager = () => {
       const { generateCustomerPDF } = await import('../services/pdfService');
 
       // Fetch quote details for PDF
-      const quoteRes = await fetch(`${API_URL}/api/quotations/${selectedQuote.id}`);
+      const quoteRes = await authFetch(`${API_URL}/api/quotations/${selectedQuote.id}`);
       const quote = await quoteRes.json();
 
-      const customerRes = await fetch(`${API_URL}/api/customers/${quote.customer_id}`);
+      const customerRes = await authFetch(`${API_URL}/api/customers/${quote.customer_id}`);
       const customer = await customerRes.json();
 
-      const itemsRes = await fetch(`${API_URL}/api/quotations/${selectedQuote.id}/items`);
+      const itemsRes = await authFetch(`${API_URL}/api/quotations/${selectedQuote.id}/items`);
       const items = await itemsRes.json();
 
       // Generate the CUSTOMER PDF (never internal!)
@@ -1456,7 +1457,7 @@ const QuotationManager = () => {
       formData.append('subject', emailSubject || `Quote #${quote.quote_number || quote.id}`);
       formData.append('message', emailMessage || 'Thank you for your interest. Please find your quote attached.');
 
-      const res = await fetch(`${API_URL}/api/quotations/${selectedQuote.id}/send-email`, {
+      const res = await authFetch(`${API_URL}/api/quotations/${selectedQuote.id}/send-email`, {
         method: 'POST',
         body: formData
       });
@@ -1543,7 +1544,7 @@ const QuotationManager = () => {
         ...(token && { 'Authorization': `Bearer ${token}` })
       };
 
-      const res = await fetch(`${API_URL}/api/quotes/${id}`, { headers });
+      const res = await authFetch(`${API_URL}/api/quotes/${id}`, { headers });
       if (!res.ok) {
         throw new Error(`Failed to fetch quote: ${res.status}`);
       }
@@ -1557,7 +1558,7 @@ const QuotationManager = () => {
       setSelectedQuote(data);
 
       // Fetch events with auth
-      const eventsRes = await fetch(`${API_URL}/api/quotes/${id}/events`, { headers });
+      const eventsRes = await authFetch(`${API_URL}/api/quotes/${id}/events`, { headers });
       const eventsData = await eventsRes.json();
       setQuoteEvents(Array.isArray(eventsData) ? eventsData : []);
 
@@ -1581,7 +1582,7 @@ const QuotationManager = () => {
         ...(token && { 'Authorization': `Bearer ${token}` })
       };
 
-      const res = await fetch(`${API_URL}/api/quotations/${selectedQuote.id}/events`, {
+      const res = await authFetch(`${API_URL}/api/quotations/${selectedQuote.id}/events`, {
         method: 'POST',
         headers,
         body: JSON.stringify({
@@ -1593,7 +1594,7 @@ const QuotationManager = () => {
       if (!res.ok) throw new Error('Failed to add event');
 
       // Refresh events with auth
-      const eventsRes = await fetch(`${API_URL}/api/quotes/${selectedQuote.id}/events`, { headers });
+      const eventsRes = await authFetch(`${API_URL}/api/quotes/${selectedQuote.id}/events`, { headers });
       const eventsData = await eventsRes.json();
       setQuoteEvents(Array.isArray(eventsData) ? eventsData : []);
 
@@ -1616,7 +1617,7 @@ const QuotationManager = () => {
         ...(token && { 'Authorization': `Bearer ${token}` })
       };
 
-      const res = await fetch(`${API_URL}/api/quotations/${quoteId}/approvals`, { headers });
+      const res = await authFetch(`${API_URL}/api/quotations/${quoteId}/approvals`, { headers });
       const data = await res.json();
       // Ensure data is an array before setting it
       setQuoteApprovals(Array.isArray(data) ? data : []);
@@ -1644,7 +1645,7 @@ const QuotationManager = () => {
     if (selectedQuote) {
       try {
         const token = localStorage.getItem('auth_token');
-        const res = await fetch(`${API_URL}/api/quotations/${selectedQuote.id}/default-approver`, {
+        const res = await authFetch(`${API_URL}/api/quotations/${selectedQuote.id}/default-approver`, {
           headers: {
             'Content-Type': 'application/json',
             ...(token && { 'Authorization': `Bearer ${token}` })
@@ -1675,7 +1676,7 @@ const QuotationManager = () => {
 
     try {
       const token = localStorage.getItem('auth_token');
-      const res = await fetch(`${API_URL}/api/quotations/${selectedQuote.id}/request-approval`, {
+      const res = await authFetch(`${API_URL}/api/quotations/${selectedQuote.id}/request-approval`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -1712,7 +1713,7 @@ const QuotationManager = () => {
       const url = approverEmail
         ? `${API_URL}/api/approvals/pending?approver_email=${encodeURIComponent(approverEmail)}`
         : `${API_URL}/api/approvals/pending`;
-      const res = await fetch(url, {
+      const res = await authFetch(url, {
         headers: {
           'Content-Type': 'application/json',
           ...(token && { 'Authorization': `Bearer ${token}` })
@@ -1744,7 +1745,7 @@ const QuotationManager = () => {
     try {
       const token = localStorage.getItem('auth_token');
       const endpoint = approvalAction === 'approve' ? 'approve' : 'reject';
-      const res = await fetch(`${API_URL}/api/approvals/${selectedApproval.id}/${endpoint}`, {
+      const res = await authFetch(`${API_URL}/api/approvals/${selectedApproval.id}/${endpoint}`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -1781,7 +1782,7 @@ const QuotationManager = () => {
         ...(token && { 'Authorization': `Bearer ${token}` })
       };
 
-      const res = await fetch(`${API_URL}/api/quotes/${quoteId}`, { headers });
+      const res = await authFetch(`${API_URL}/api/quotes/${quoteId}`, { headers });
       if (!res.ok) throw new Error(`Failed to fetch quote: ${res.status}`);
       const data = await res.json();
 
@@ -1855,7 +1856,7 @@ const QuotationManager = () => {
 
   const duplicateQuote = async (quoteId) => {
     try {
-      const res = await fetch(`${API_URL}/api/quotes/${quoteId}`);
+      const res = await authFetch(`${API_URL}/api/quotes/${quoteId}`);
       const data = await res.json();
 
       // Find the customer in the customers list
@@ -2032,7 +2033,7 @@ const QuotationManager = () => {
         ...(token && { 'Authorization': `Bearer ${token}` })
       };
 
-      const res = await fetch(`${API_URL}/api/quotes/${quoteId}/status`, {
+      const res = await authFetch(`${API_URL}/api/quotes/${quoteId}/status`, {
         method: 'PATCH',
         headers,
         body: JSON.stringify({
@@ -2045,12 +2046,12 @@ const QuotationManager = () => {
       if (!res.ok) throw new Error('Failed to update status');
 
       // Refresh quote details with auth
-      const updatedRes = await fetch(`${API_URL}/api/quotes/${quoteId}`, { headers });
+      const updatedRes = await authFetch(`${API_URL}/api/quotes/${quoteId}`, { headers });
       const updatedData = await updatedRes.json();
       setSelectedQuote(updatedData);
 
       // Refresh events with auth
-      const eventsRes = await fetch(`${API_URL}/api/quotes/${quoteId}/events`, { headers });
+      const eventsRes = await authFetch(`${API_URL}/api/quotes/${quoteId}/events`, { headers });
       const eventsData = await eventsRes.json();
       setQuoteEvents(Array.isArray(eventsData) ? eventsData : []);
 
@@ -2073,7 +2074,7 @@ const QuotationManager = () => {
         ...(token && { 'Authorization': `Bearer ${token}` })
       };
 
-      const res = await fetch(`${API_URL}/api/quotes/${quoteId}/status`, {
+      const res = await authFetch(`${API_URL}/api/quotes/${quoteId}/status`, {
         method: 'PATCH',
         headers,
         body: JSON.stringify({
@@ -2099,7 +2100,7 @@ const QuotationManager = () => {
     }
     
     try {
-      const res = await fetch(`${API_URL}/api/quotes/${quoteId}`, {
+      const res = await authFetch(`${API_URL}/api/quotes/${quoteId}`, {
         method: 'DELETE'
       });
       

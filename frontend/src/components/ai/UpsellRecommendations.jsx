@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 
+import { authFetch } from '../../services/authFetch';
 const API_URL = `${process.env.REACT_APP_API_URL || 'http://localhost:3001'}/api`;
 
 /**
@@ -30,7 +31,7 @@ const UpsellRecommendations = ({
 
     setLoading(true);
     try {
-      const response = await fetch(`${API_URL}/ai/upsell/for-quote`, {
+      const response = await authFetch(`${API_URL}/ai/upsell/for-quote`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -65,7 +66,7 @@ const UpsellRecommendations = ({
     if (onAddProduct) {
       // Track interaction
       try {
-        await fetch(`${API_URL}/ai/recommendations/interact`, {
+        await authFetch(`${API_URL}/ai/recommendations/interact`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({

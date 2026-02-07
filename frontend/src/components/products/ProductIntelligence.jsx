@@ -33,7 +33,7 @@ import {
   CheckCircle,
   Info
 } from '@mui/icons-material';
-import axios from 'axios';
+import apiClient from '../../services/apiClient';
 
 const API_BASE = process.env.REACT_APP_API_URL || 'http://localhost:3001/api';
 
@@ -121,7 +121,7 @@ const ProductIntelligence = ({ productId, onClose }) => {
     try {
       setLoading(true);
       setError(null);
-      const response = await axios.get(`${API_BASE}/product-metrics/${productId}/intelligence`);
+      const response = await apiClient.get(`${API_BASE}/product-metrics/${productId}/intelligence`);
       setIntelligence(response.data);
     } catch (err) {
       console.error('Error fetching product intelligence:', err);
@@ -134,7 +134,7 @@ const ProductIntelligence = ({ productId, onClose }) => {
   const handleRefreshMetrics = async () => {
     try {
       setRefreshing(true);
-      await axios.post(`${API_BASE}/product-metrics/${productId}/refresh`);
+      await apiClient.post(`${API_BASE}/product-metrics/${productId}/refresh`);
       await fetchIntelligence();
     } catch (err) {
       console.error('Error refreshing metrics:', err);

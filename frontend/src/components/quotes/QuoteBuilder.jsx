@@ -1,3 +1,4 @@
+import { authFetch } from '../../services/authFetch';
 /**
  * QuoteBuilder Component
  * Handles quote creation and editing with customer selection,
@@ -422,7 +423,7 @@ const QuoteBuilder = ({
 
     setStaffSignatureSaving(true);
     try {
-      const response = await fetch(`${API_URL}/api/quotations/${editingQuoteId}/staff-signature`, {
+      const response = await authFetch(`${API_URL}/api/quotations/${editingQuoteId}/staff-signature`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

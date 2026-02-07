@@ -41,7 +41,7 @@ class WarrantyService {
    * @param {number} productPrice - Product price (optional, fetched if not provided)
    * @returns {Promise<object>} Eligible warranties with sales script
    */
-  async getEligibleWarranties(productId, productPrice = null) {
+  async getEligibleWarranties(productId, productPrice = null, saleContext = 'at_sale') {
     try {
       // Get product details
       const product = await this._getProductDetails(productId);
@@ -52,7 +52,10 @@ class WarrantyService {
         };
       }
 
-      const price = productPrice ?? product.price;
+      // Use provided price, fall back to product price, then cost
+      const price = (productPrice && productPrice > 0)
+        ? productPrice
+        : (parseFloat(product.price) || parseFloat(product.cost) || 0);
 
       // Check if product is eligible for warranty
       const eligibilityCheck = this._checkProductEligibility(product);
@@ -69,7 +72,7 @@ class WarrantyService {
       }
 
       // Fetch eligible warranties from database
-      const warranties = await this._fetchEligibleWarranties(productId, product.category_id, price);
+      const warranties = await this._fetchEligibleWarranties(productId, product.category_id, price, saleContext);
 
       // Sort by margin (highest first) for best value to business
       warranties.sort((a, b) => b.margin - a.margin);
@@ -97,6 +100,8 @@ class WarrantyService {
           deductible: w.deductible_amount || 0,
           badge: w.badge_text,
           isFeatured: w.is_featured,
+          providerCode: w.provider_code,
+          providerSku: w.provider_sku,
           // Internal metrics (filter out in API response if needed)
           margin: w.margin,
           marginPercent: w.margin_percent,
@@ -665,14 +670,14 @@ class WarrantyService {
     const cacheKey = `product:${productId}`;
 
     if (this.cache) {
-      const cached = await this.cache.get(cacheKey);
-      if (cached) return JSON.parse(cached);
+      const cached = this.cache.get('short', cacheKey);
+      if (cached) return cached;
     }
 
     const query = `
       SELECT
         p.id,
-        p.name,
+        CONCAT(p.manufacturer, ' ', p.model) as name,
         p.sku,
         p.price,
         p.cost,
@@ -692,7 +697,7 @@ class WarrantyService {
     const product = result.rows[0];
 
     if (this.cache) {
-      await this.cache.setex(cacheKey, this.CACHE_TTL, JSON.stringify(product));
+      this.cache.set('short', cacheKey, product, this.CACHE_TTL);
     }
 
     return product;
@@ -723,7 +728,7 @@ class WarrantyService {
   /**
    * Fetch eligible warranties from database
    */
-  async _fetchEligibleWarranties(productId, categoryId, productPrice) {
+  async _fetchEligibleWarranties(productId, categoryId, productPrice, saleContext = 'at_sale') {
     const query = `
       SELECT DISTINCT
         wp.id,
@@ -740,6 +745,9 @@ class WarrantyService {
         wp.badge_text,
         wp.is_featured,
         wp.display_order,
+        wp.provider_code,
+        wp.provider_sku,
+        wp.sale_context,
         p.cost as warranty_cost,
         CASE
           WHEN we.custom_price_value IS NOT NULL THEN we.custom_price_value
@@ -750,6 +758,7 @@ class WarrantyService {
       JOIN products p ON p.id = wp.product_id
       JOIN warranty_eligibility we ON we.warranty_product_id = wp.id AND we.is_active = true
       WHERE wp.is_active = true
+        AND wp.sale_context = $4
         AND (
           we.product_id = $1
           OR we.category_id = $2
@@ -760,7 +769,7 @@ class WarrantyService {
       ORDER BY wp.display_order, wp.duration_months
     `;
 
-    const result = await this.pool.query(query, [productId, categoryId, productPrice]);
+    const result = await this.pool.query(query, [productId, categoryId, productPrice, saleContext]);
 
     // Calculate margin for each warranty
     return result.rows.map((w) => {
@@ -793,9 +802,11 @@ class WarrantyService {
     if (coverageDetails.accidental_drops) coverageItems.push('accidental drops');
     if (coverageDetails.liquid_spills) coverageItems.push('liquid damage');
     if (coverageDetails.cracked_screens) coverageItems.push('cracked screens');
-    if (coverageDetails.electrical_surge) coverageItems.push('power surges');
+    if (coverageDetails.electrical_surge || coverageDetails.power_surge) coverageItems.push('power surges');
     if (coverageDetails.mechanical_failure) coverageItems.push('mechanical failure');
     if (coverageDetails.in_home_service) coverageItems.push('in-home service');
+    if (coverageDetails.remote_replacement) coverageItems.push('remote replacement');
+    if (coverageDetails.food_spoilage) coverageItems.push('food spoilage');
 
     if (coverageItems.length === 0) {
       return 'Standard warranty coverage';
@@ -827,38 +838,91 @@ class WarrantyService {
     const pricePerMonth = warranty.pricePerMonth;
     const productType = this._getProductTypePhrase(product.category_name || product.category);
     const productName = product.name || product.productName;
+    const providerCode = warranty.providerCode || warranty.coverageDetails?.provider_code || '';
 
-    return {
-      mainScript: `I see you're getting the ${productName}. For just $${pricePerMonth.toFixed(2)} a month, ` +
-        `you can protect it with our ${warranty.name}. ${this._formatCoverageDescription(warranty.coverageDetails)} ` +
-        `for ${warranty.durationMonths} months. Would you like to add this protection?`,
+    // Provider-specific talking points
+    let talkingPoints;
+    let mainScript;
+    let objectionHandlers;
 
-      talkingPoints: [
+    if (providerCode === 'excelsior_appliance') {
+      mainScript = `I see you're getting the ${productName}. For just $${pricePerMonth.toFixed(2)} a month, ` +
+        `you can add our Excelsior service plan - ${warranty.durationMonths} months of complete coverage. ` +
+        `That includes in-home service, no deductible, power surge protection, and even food spoilage coverage. Would you like to add this protection?`;
+      talkingPoints = [
+        `Only $${pricePerMonth.toFixed(2)}/month for total peace of mind`,
+        'No deductible - zero out-of-pocket for service calls',
+        'In-home service - technician comes to you',
+        'Power surge protection included',
+        'Food spoilage coverage up to $500',
+        '4th failure = full replacement guarantee',
+        'Fully transferable if you sell or gift the appliance',
+      ];
+      objectionHandlers = {
+        'too expensive': `I understand. But consider that an appliance repair averages $200-$400. ` +
+          `For $${warranty.price.toFixed(2)} total, you get ${warranty.durationMonths} months of complete coverage with zero deductible.`,
+        'already have warranty': 'The manufacturer warranty typically only covers 1 year. ' +
+          'Our Excelsior plan extends that to ' + (warranty.durationMonths / 12) + ' years AND adds power surge and food spoilage coverage.',
+        'never needed one before': 'That\'s great! But appliance repair costs have gone up significantly. ' +
+          `This plan protects your $${product.price.toFixed(2)} investment with in-home service and no deductible.`,
+        'need to think about it': 'Of course! Just know that the at-sale price is the best rate available. ' +
+          `For only $${pricePerMonth.toFixed(2)}/month, it's a small price for total peace of mind.`,
+      };
+    } else if (providerCode === 'guardian_angel_tv') {
+      mainScript = `I see you're getting the ${productName}. For just $${pricePerMonth.toFixed(2)} a month, ` +
+        `you can add Guardian Angel protection - ${warranty.durationMonths} months beyond the manufacturer warranty. ` +
+        `Full parts & labor coverage plus a one-time remote replacement if needed. Would you like to add this?`;
+      talkingPoints = [
+        `Only $${pricePerMonth.toFixed(2)}/month - less than a streaming subscription`,
+        'Full parts & labor coverage',
+        'One-time remote replacement included',
+        'No deductible on claims',
+        'Fully transferable to new owner',
+      ];
+      objectionHandlers = {
+        'too expensive': `TV repairs can easily cost $${Math.round(product.price * 0.5)} or more for panel issues. ` +
+          `For $${warranty.price.toFixed(2)} total, you get ${warranty.durationMonths} months of coverage plus a replacement option.`,
+        'already have warranty': 'The manufacturer warranty only covers defects for 1 year. ' +
+          'Guardian Angel extends that and includes a one-time remote replacement if your TV can\'t be fixed.',
+        'never needed one before': 'Modern TVs have more technology packed in than ever. ' +
+          `This protects your $${product.price.toFixed(2)} investment with parts, labor, and replacement coverage.`,
+        'need to think about it': 'Of course! Just know that this plan must be purchased at the time of sale. ' +
+          `For only $${pricePerMonth.toFixed(2)}/month, many customers find the peace of mind worth it.`,
+      };
+    } else {
+      // Guardian Angel Electronics or generic
+      mainScript = `I see you're getting the ${productName}. For just $${pricePerMonth.toFixed(2)} a month, ` +
+        `you can protect it with Guardian Angel coverage - ${warranty.durationMonths} months beyond the manufacturer warranty. ` +
+        `${this._formatCoverageDescription(warranty.coverageDetails)} Would you like to add this protection?`;
+      talkingPoints = [
         `Only $${pricePerMonth.toFixed(2)}/month - less than a coffee`,
         `${warranty.durationMonths} months of complete peace of mind`,
         warranty.deductible === 0 ? 'No deductible on claims' : `Just $${warranty.deductible} deductible`,
         'Covers what manufacturer warranty doesn\'t',
-        'Easy claims process - we handle everything',
-      ],
-
-      objectionHandlers: {
+        'Fully transferable to new owner',
+      ];
+      objectionHandlers = {
         'too expensive': `I understand. But consider that a repair could cost $${Math.round(product.price * 0.4)} or more. ` +
           `For $${warranty.price.toFixed(2)} total, you get ${warranty.durationMonths} months of coverage.`,
-
         'already have warranty': 'The manufacturer warranty only covers defects for a limited time. ' +
-          'Our plan extends that AND covers accidents like drops and spills.',
-
+          'Our Guardian Angel plan extends that coverage significantly.',
         'never needed one before': 'That\'s great! But with today\'s electronics being more complex, ' +
           `repair costs have increased significantly. This protects your $${product.price.toFixed(2)} investment.`,
-
         'need to think about it': 'Of course! Just know that warranty must be purchased with the product. ' +
           `For only $${pricePerMonth.toFixed(2)}/month, many customers find the peace of mind worth it.`,
-      },
+      };
+    }
 
+    return {
+      mainScript,
+      talkingPoints,
+      objectionHandlers,
       closeStatements: [
         `Should I add the ${warranty.name} to your order?`,
         `Can I include the protection plan for you today?`,
-        `Would you like the basic or premium protection?`,
+        allWarranties.length > 1
+          ? `Would you prefer the ${allWarranties[0].durationMonths}-month or ${allWarranties[allWarranties.length - 1].durationMonths}-month plan?`
+          : `Would you like to add this protection?`,
       ],
     };
   }

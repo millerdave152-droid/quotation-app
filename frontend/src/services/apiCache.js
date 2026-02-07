@@ -11,6 +11,8 @@
  * - Proper error handling and propagation
  */
 
+import { buildAuthHeaders } from './authFetch';
+
 const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:3001';
 
 // Default request timeout in milliseconds
@@ -60,17 +62,6 @@ class APICache {
   }
 
   /**
-   * Get auth headers from localStorage
-   */
-  getAuthHeaders() {
-    const token = localStorage.getItem('auth_token');
-    if (token) {
-      return { 'Authorization': `Bearer ${token}` };
-    }
-    return {};
-  }
-
-  /**
    * Fetch with caching - main method
    * @param {string} url - API endpoint URL
    * @param {object} options - Fetch options
@@ -115,13 +106,14 @@ class APICache {
     }
 
     // Merge auth headers with provided options
-    const authHeaders = this.getAuthHeaders();
+    const authHeaders = buildAuthHeaders(fetchOpts.headers, {
+      includeJsonContentType: true,
+      body: fetchOpts.body
+    });
     const fetchOptions = {
       ...fetchOpts,
       headers: {
-        'Content-Type': 'application/json',
-        ...authHeaders,
-        ...fetchOpts.headers
+        ...authHeaders
       },
       signal: abortController.signal,
     };

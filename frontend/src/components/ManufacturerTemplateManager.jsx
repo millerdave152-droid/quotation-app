@@ -1,3 +1,4 @@
+import { authFetch } from '../services/authFetch';
 /**
  * ManufacturerTemplateManager.jsx
  *
@@ -57,7 +58,7 @@ const ManufacturerTemplateManager = () => {
   const loadTemplates = async () => {
     try {
       setLoading(true);
-      const response = await fetch(`${API_BASE}/import-templates?active_only=false`);
+      const response = await authFetch(`${API_BASE}/import-templates?active_only=false`);
       const data = await response.json();
       if (data.success) {
         setTemplates(data.data);
@@ -72,7 +73,7 @@ const ManufacturerTemplateManager = () => {
 
   const loadManufacturers = async () => {
     try {
-      const response = await fetch(`${API_BASE}/import-templates/manufacturers`);
+      const response = await authFetch(`${API_BASE}/import-templates/manufacturers`);
       const data = await response.json();
       if (data.success) {
         setManufacturers(data.data);
@@ -84,7 +85,7 @@ const ManufacturerTemplateManager = () => {
 
   const loadTargetFields = async () => {
     try {
-      const response = await fetch(`${API_BASE}/import-templates/target-fields`);
+      const response = await authFetch(`${API_BASE}/import-templates/target-fields`);
       const data = await response.json();
       if (data.success) {
         setTargetFields(data.data);
@@ -111,7 +112,7 @@ const ManufacturerTemplateManager = () => {
 
   const handleEditTemplate = async (template) => {
     try {
-      const response = await fetch(`${API_BASE}/import-templates/${template.id}`);
+      const response = await authFetch(`${API_BASE}/import-templates/${template.id}`);
       const data = await response.json();
       if (data.success) {
         const t = data.data;
@@ -143,13 +144,13 @@ const ManufacturerTemplateManager = () => {
 
       let response;
       if (selectedTemplate) {
-        response = await fetch(`${API_BASE}/import-templates/${selectedTemplate.id}`, {
+        response = await authFetch(`${API_BASE}/import-templates/${selectedTemplate.id}`, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(payload)
         });
       } else {
-        response = await fetch(`${API_BASE}/import-templates`, {
+        response = await authFetch(`${API_BASE}/import-templates`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(payload)
@@ -176,7 +177,7 @@ const ManufacturerTemplateManager = () => {
     if (!newName) return;
 
     try {
-      const response = await fetch(`${API_BASE}/import-templates/${template.id}/clone`, {
+      const response = await authFetch(`${API_BASE}/import-templates/${template.id}/clone`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ name: newName })
@@ -198,7 +199,7 @@ const ManufacturerTemplateManager = () => {
     if (!confirm(`Are you sure you want to delete "${template.name}"?`)) return;
 
     try {
-      const response = await fetch(`${API_BASE}/import-templates/${template.id}`, {
+      const response = await authFetch(`${API_BASE}/import-templates/${template.id}`, {
         method: 'DELETE'
       });
       const data = await response.json();
@@ -231,7 +232,7 @@ const ManufacturerTemplateManager = () => {
       const formData = new FormData();
       formData.append('file', testFile);
 
-      const parseResponse = await fetch(`${API_BASE}/import-templates/parse-file`, {
+      const parseResponse = await authFetch(`${API_BASE}/import-templates/parse-file`, {
         method: 'POST',
         body: formData
       });
@@ -243,7 +244,7 @@ const ManufacturerTemplateManager = () => {
       }
 
       // Then test the template
-      const testResponse = await fetch(`${API_BASE}/import-templates/${selectedTemplate.id}/test`, {
+      const testResponse = await authFetch(`${API_BASE}/import-templates/${selectedTemplate.id}/test`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 
+import { authFetch } from '../services/authFetch';
 const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:3001';
 
 const STATUS_OPTIONS = [
@@ -47,7 +48,7 @@ function DeliveryDashboard() {
       }
 
       const queryStr = params.toString();
-      const response = await fetch(`${url}${queryStr ? `?${queryStr}` : ''}`, {
+      const response = await authFetch(`${url}${queryStr ? `?${queryStr}` : ''}`, {
         headers: authHeaders()
       });
       const result = await response.json();
@@ -69,7 +70,7 @@ function DeliveryDashboard() {
   const updateStatus = async (fulfillmentId, newStatus) => {
     setUpdating(fulfillmentId);
     try {
-      const response = await fetch(`${API_URL}/api/delivery/fulfillment/${fulfillmentId}/status`, {
+      const response = await authFetch(`${API_URL}/api/delivery/fulfillment/${fulfillmentId}/status`, {
         method: 'PUT',
         headers: authHeaders(),
         body: JSON.stringify({ status: newStatus })

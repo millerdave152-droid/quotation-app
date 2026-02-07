@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 
+import { authFetch } from '../../services/authFetch';
 const API_URL = `${process.env.REACT_APP_API_URL || 'http://localhost:3001'}/api`;
 
 const getAuthHeaders = () => {
@@ -47,7 +48,7 @@ const ManufacturerPromotionsAdmin = () => {
       params.append('active_only', filters.active_only);
       params.append('include_expired', !filters.active_only);
 
-      const response = await fetch(`${API_URL}/promotions/manufacturer?${params}`, {
+      const response = await authFetch(`${API_URL}/promotions/manufacturer?${params}`, {
         headers: getAuthHeaders()
       });
       if (!response.ok) throw new Error('Failed to fetch promotions');
@@ -63,7 +64,7 @@ const ManufacturerPromotionsAdmin = () => {
   // Fetch import logs
   const fetchImportLogs = useCallback(async () => {
     try {
-      const response = await fetch(`${API_URL}/promotions/manufacturer/import/logs`, {
+      const response = await authFetch(`${API_URL}/promotions/manufacturer/import/logs`, {
         headers: getAuthHeaders()
       });
       if (!response.ok) throw new Error('Failed to fetch import logs');
@@ -78,7 +79,7 @@ const ManufacturerPromotionsAdmin = () => {
   // Fetch watch folders
   const fetchWatchFolders = useCallback(async () => {
     try {
-      const response = await fetch(`${API_URL}/promotions/manufacturer/watch-folders`, {
+      const response = await authFetch(`${API_URL}/promotions/manufacturer/watch-folders`, {
         headers: getAuthHeaders()
       });
       if (!response.ok) throw new Error('Failed to fetch watch folders');
@@ -113,7 +114,7 @@ const ManufacturerPromotionsAdmin = () => {
 
     try {
       const token = localStorage.getItem('auth_token');
-      const response = await fetch(`${API_URL}/promotions/manufacturer/import`, {
+      const response = await authFetch(`${API_URL}/promotions/manufacturer/import`, {
         method: 'POST',
         headers: {
           ...(token && { 'Authorization': `Bearer ${token}` })
@@ -176,7 +177,7 @@ const ManufacturerPromotionsAdmin = () => {
   // Toggle promotion active status
   const togglePromotionStatus = async (promoId, currentStatus) => {
     try {
-      const response = await fetch(`${API_URL}/promotions/manufacturer/${promoId}`, {
+      const response = await authFetch(`${API_URL}/promotions/manufacturer/${promoId}`, {
         method: 'PUT',
         headers: getAuthHeaders(),
         body: JSON.stringify({ is_active: !currentStatus })
@@ -195,7 +196,7 @@ const ManufacturerPromotionsAdmin = () => {
     if (!window.confirm('Are you sure you want to deactivate this promotion?')) return;
 
     try {
-      const response = await fetch(`${API_URL}/promotions/manufacturer/${promoId}`, {
+      const response = await authFetch(`${API_URL}/promotions/manufacturer/${promoId}`, {
         method: 'DELETE',
         headers: getAuthHeaders()
       });
@@ -216,7 +217,7 @@ const ManufacturerPromotionsAdmin = () => {
     const manufacturer = prompt('Enter manufacturer name (optional, press Enter to skip):');
 
     try {
-      const response = await fetch(`${API_URL}/promotions/manufacturer/watch-folders`, {
+      const response = await authFetch(`${API_URL}/promotions/manufacturer/watch-folders`, {
         method: 'POST',
         headers: getAuthHeaders(),
         body: JSON.stringify({
@@ -240,7 +241,7 @@ const ManufacturerPromotionsAdmin = () => {
   // Scan watch folders
   const scanWatchFolders = async () => {
     try {
-      const response = await fetch(`${API_URL}/promotions/manufacturer/watch-folders/scan`, {
+      const response = await authFetch(`${API_URL}/promotions/manufacturer/watch-folders/scan`, {
         method: 'POST',
         headers: getAuthHeaders()
       });

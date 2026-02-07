@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 
+import { authFetch } from '../services/authFetch';
 const API_BASE = `${process.env.REACT_APP_API_URL || 'http://localhost:3001'}/api`;
 
 function QuoteCreatorEnhanced({ onClose, onQuoteCreated }) {
@@ -85,7 +86,7 @@ function QuoteCreatorEnhanced({ onClose, onQuoteCreated }) {
 
   const fetchCustomers = async () => {
     try {
-      const response = await fetch(`${API_BASE}/customers`);
+      const response = await authFetch(`${API_BASE}/customers`);
       const data = await response.json();
       setCustomers(data);
     } catch (error) {
@@ -105,7 +106,7 @@ function QuoteCreatorEnhanced({ onClose, onQuoteCreated }) {
       }
       params.append('limit', '50'); // Only fetch 50 products at a time
 
-      const response = await fetch(`${API_BASE}/products?${params.toString()}`);
+      const response = await authFetch(`${API_BASE}/products?${params.toString()}`);
       const data = await response.json();
 
       // Filter out products without model names and with valid data
@@ -347,7 +348,7 @@ function QuoteCreatorEnhanced({ onClose, onQuoteCreated }) {
 
       console.log('📤 Quote payload:', JSON.stringify(quoteData, null, 2));
 
-      const response = await fetch(`${API_BASE}/quotes`, {
+      const response = await authFetch(`${API_BASE}/quotes`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(quoteData)

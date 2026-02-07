@@ -1,3 +1,4 @@
+import { authFetch } from '../../services/authFetch';
 /**
  * CloneQuoteDialog Component
  * Dialog for cloning a quote with options for customer selection
@@ -67,7 +68,7 @@ const CloneQuoteDialog = ({
         newCustomerId = selectedCustomerId;
       }
 
-      const response = await fetch(`${API_URL}/api/quotations/${quote.id}/clone`, {
+      const response = await authFetch(`${API_URL}/api/quotations/${quote.id}/clone`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

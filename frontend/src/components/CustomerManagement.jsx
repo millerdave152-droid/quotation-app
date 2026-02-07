@@ -12,6 +12,7 @@ import { useConfirmDialog } from './ui/ConfirmDialog';
 import { SkeletonTable, SkeletonStats } from './ui/LoadingSkeleton';
 import * as lookupService from '../services/lookupService';
 
+import { authFetch } from '../services/authFetch';
 const API_BASE = `${process.env.REACT_APP_API_URL || 'http://localhost:3001'}/api`;
 
 // Helper to get auth headers
@@ -365,7 +366,7 @@ function CustomerManagement() {
 
     try {
       setLoadingCustomerId(id);
-      const response = await fetch(`${API_BASE}/customers/${id}`, {
+      const response = await authFetch(`${API_BASE}/customers/${id}`, {
         headers: getAuthHeaders()
       });
       const result = await response.json();
@@ -433,7 +434,7 @@ function CustomerManagement() {
 
     try {
       setLoadingClv(true);
-      const response = await fetch(`${API_BASE}/customers/${customerId}/lifetime-value`, {
+      const response = await authFetch(`${API_BASE}/customers/${customerId}/lifetime-value`, {
         headers: getAuthHeaders()
       });
       const result = await response.json();
@@ -468,7 +469,7 @@ function CustomerManagement() {
   // Fetch cities for a specific province
   const fetchCitiesForProvince = async (provinceCode) => {
     try {
-      const response = await fetch(`${API_BASE}/cities/${provinceCode}`);
+      const response = await authFetch(`${API_BASE}/cities/${provinceCode}`);
       const data = await response.json();
 
       if (data.success) {
@@ -486,7 +487,7 @@ function CustomerManagement() {
 
     setLoadingPostalCode(true);
     try {
-      const response = await fetch(`${API_BASE}/postal-code/${postalCode.replace(/\s+/g, '')}`);
+      const response = await authFetch(`${API_BASE}/postal-code/${postalCode.replace(/\s+/g, '')}`);
       const data = await response.json();
 
       if (data.success && data.address) {
@@ -595,7 +596,7 @@ function CustomerManagement() {
       delete submitData.firstName;
       delete submitData.lastName;
 
-      const response = await fetch(url, {
+      const response = await authFetch(url, {
         method,
         headers: getAuthHeaders(),
         body: JSON.stringify(submitData)
@@ -689,7 +690,7 @@ function CustomerManagement() {
     if (!confirmed) return;
 
     try {
-      const response = await fetch(`${API_BASE}/customers/${id}`, {
+      const response = await authFetch(`${API_BASE}/customers/${id}`, {
         method: 'DELETE',
         headers: getAuthHeaders()
       });

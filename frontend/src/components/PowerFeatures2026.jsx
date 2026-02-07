@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { handleApiError } from '../utils/errorHandler';
 import { toast } from './ui/Toast';
 
+import { authFetch } from '../services/authFetch';
 const API_BASE = `${process.env.REACT_APP_API_URL || 'http://localhost:3001'}/api`;
 
 // Get auth headers for API calls
@@ -85,7 +86,7 @@ const PowerFeatures2026 = () => {
       if (stockFilter === 'out') url += '?in_stock=false';
       else if (stockFilter === 'orderable') url += '?orderable=true&in_stock=false';
 
-      const response = await fetch(url, { headers: getAuthHeaders() });
+      const response = await authFetch(url, { headers: getAuthHeaders() });
       if (!response.ok) {
         throw new Error(`HTTP ${response.status}: ${response.statusText}`);
       }
@@ -99,7 +100,7 @@ const PowerFeatures2026 = () => {
 
   const updateProductStock = async (productId, updates) => {
     try {
-      await fetch(`${API_BASE}/features/products/${productId}/stock`, {
+      await authFetch(`${API_BASE}/features/products/${productId}/stock`, {
         method: 'PUT',
         headers: getAuthHeaders(),
         body: JSON.stringify(updates)
@@ -116,7 +117,7 @@ const PowerFeatures2026 = () => {
   // =====================================================
   const loadTemplates = async () => {
     try {
-      const response = await fetch(`${API_BASE}/features/quote-templates`, { headers: getAuthHeaders() });
+      const response = await authFetch(`${API_BASE}/features/quote-templates`, { headers: getAuthHeaders() });
       if (!response.ok) {
         throw new Error(`HTTP ${response.status}: ${response.statusText}`);
       }
@@ -130,7 +131,7 @@ const PowerFeatures2026 = () => {
 
   const createTemplate = async () => {
     try {
-      await fetch(`${API_BASE}/features/quote-templates`, {
+      await authFetch(`${API_BASE}/features/quote-templates`, {
         method: 'POST',
         headers: getAuthHeaders(),
         body: JSON.stringify(newTemplate)
@@ -150,8 +151,8 @@ const PowerFeatures2026 = () => {
   const loadFollowUps = async () => {
     try {
       const [rulesRes, pendingRes] = await Promise.all([
-        fetch(`${API_BASE}/features/follow-up-rules`, { headers: getAuthHeaders() }),
-        fetch(`${API_BASE}/features/follow-ups/pending`, { headers: getAuthHeaders() })
+        authFetch(`${API_BASE}/features/follow-up-rules`, { headers: getAuthHeaders() }),
+        authFetch(`${API_BASE}/features/follow-ups/pending`, { headers: getAuthHeaders() })
       ]);
       if (!rulesRes.ok || !pendingRes.ok) {
         throw new Error('Failed to fetch follow-up data');
@@ -173,7 +174,7 @@ const PowerFeatures2026 = () => {
 
   const markFollowUpSent = async (id) => {
     try {
-      await fetch(`${API_BASE}/features/follow-ups/${id}/sent`, { method: 'PUT', headers: getAuthHeaders() });
+      await authFetch(`${API_BASE}/features/follow-ups/${id}/sent`, { method: 'PUT', headers: getAuthHeaders() });
       toast.success('Follow-up marked as sent');
       await loadFollowUps();
     } catch (error) {
@@ -187,8 +188,8 @@ const PowerFeatures2026 = () => {
   const loadPriceBooks = async () => {
     try {
       const [booksRes, notificationsRes] = await Promise.all([
-        fetch(`${API_BASE}/features/price-books`, { headers: getAuthHeaders() }),
-        fetch(`${API_BASE}/features/price-notifications?acknowledged=false`, { headers: getAuthHeaders() })
+        authFetch(`${API_BASE}/features/price-books`, { headers: getAuthHeaders() }),
+        authFetch(`${API_BASE}/features/price-notifications?acknowledged=false`, { headers: getAuthHeaders() })
       ]);
       if (!booksRes.ok || !notificationsRes.ok) {
         throw new Error('Failed to fetch price book data');
@@ -210,7 +211,7 @@ const PowerFeatures2026 = () => {
 
   const acknowledgeNotification = async (id) => {
     try {
-      await fetch(`${API_BASE}/features/price-notifications/${id}/acknowledge`, {
+      await authFetch(`${API_BASE}/features/price-notifications/${id}/acknowledge`, {
         method: 'PUT',
         headers: getAuthHeaders(),
         body: JSON.stringify({ acknowledged_by: 'System' })

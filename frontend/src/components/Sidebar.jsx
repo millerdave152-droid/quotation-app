@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
+import { authFetch } from '../services/authFetch';
 import {
   LayoutDashboard,
   Users,
@@ -127,7 +128,7 @@ const Sidebar = ({ children, isLayoutMode = false }) => {
     try {
       const token = localStorage.getItem('auth_token');
       if (!token) return;
-      const response = await fetch(`${API_URL}/api/counter-offers/pending`, {
+      const response = await authFetch(`${API_URL}/api/counter-offers/pending`, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
       const data = await response.json();

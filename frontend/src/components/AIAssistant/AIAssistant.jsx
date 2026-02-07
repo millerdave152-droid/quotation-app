@@ -29,7 +29,7 @@ import {
   Refresh as RefreshIcon,
   History as HistoryIcon
 } from '@mui/icons-material';
-import axios from 'axios';
+import apiClient from '../../services/apiClient';
 import ReactMarkdown from 'react-markdown';
 
 // API base URL
@@ -81,7 +81,7 @@ export default function AIAssistant() {
 
     try {
       const token = localStorage.getItem('auth_token');
-      const response = await axios.post(`${API_BASE}/api/ai/chat`, {
+      const response = await apiClient.post(`${API_BASE}/api/ai/chat`, {
         message,
         conversationId
       }, {
@@ -156,7 +156,7 @@ export default function AIAssistant() {
   const submitFeedback = async (messageId, feedback) => {
     try {
       const token = localStorage.getItem('auth_token');
-      await axios.post(`${API_BASE}/api/ai/feedback`, {
+      await apiClient.post(`${API_BASE}/api/ai/feedback`, {
         queryLogId: messageId,
         feedback
       }, {

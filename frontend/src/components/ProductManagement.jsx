@@ -8,6 +8,7 @@ import { Model3DUploader } from './ProductConfigurator';
 import CategoryPicker from './CategoryPicker';
 import { ModelTooltip } from './nomenclature';
 
+import { authFetch } from '../services/authFetch';
 const API_BASE = `${process.env.REACT_APP_API_URL || 'http://localhost:3001'}/api`;
 
 const ProductManagement = () => {
@@ -549,10 +550,10 @@ const ProductManagement = () => {
   const toggleFavorite = async (productId) => {
     try {
       if (favorites.includes(productId)) {
-        await fetch(`${API_BASE}/products/favorites/${productId}`, { method: 'DELETE' });
+        await authFetch(`${API_BASE}/products/favorites/${productId}`, { method: 'DELETE' });
         setFavorites(favorites.filter(id => id !== productId));
       } else {
-        await fetch(`${API_BASE}/products/favorites/${productId}`, { method: 'POST' });
+        await authFetch(`${API_BASE}/products/favorites/${productId}`, { method: 'POST' });
         setFavorites([...favorites, productId]);
       }
     } catch (err) {
@@ -618,7 +619,7 @@ const ProductManagement = () => {
         ? { cost_cents: newCents }
         : { msrp_cents: newCents };
 
-      const response = await fetch(`${API_BASE}/products/${productId}`, {
+      const response = await authFetch(`${API_BASE}/products/${productId}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(updates)
@@ -768,7 +769,7 @@ const ProductManagement = () => {
         }
 
         try {
-          const response = await fetch(`${API_BASE}/products/${p.id}`, {
+          const response = await authFetch(`${API_BASE}/products/${p.id}`, {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(updates)
@@ -821,7 +822,7 @@ const ProductManagement = () => {
 
       for (const productId of selectedIds) {
         try {
-          const response = await fetch(`${API_BASE}/products/${productId}`, {
+          const response = await authFetch(`${API_BASE}/products/${productId}`, {
             method: 'DELETE'
           });
 
@@ -929,7 +930,7 @@ const ProductManagement = () => {
     try {
       logger.log('➕ Creating product:', productData);
 
-      const response = await fetch(`${API_BASE}/products`, {
+      const response = await authFetch(`${API_BASE}/products`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(productData)
@@ -954,7 +955,7 @@ const ProductManagement = () => {
       logger.log('📝 Updating product ID:', productId);
       logger.log('📝 Updates:', updates);
 
-      const response = await fetch(`${API_BASE}/products/${productId}`, {
+      const response = await authFetch(`${API_BASE}/products/${productId}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(updates)
@@ -1044,7 +1045,7 @@ const ProductManagement = () => {
       formData.append('file', importFile);
 
       // Use the new universal import endpoint
-      const response = await fetch(`${API_BASE}/products/import-universal`, {
+      const response = await authFetch(`${API_BASE}/products/import-universal`, {
         method: 'POST',
         body: formData
       });

@@ -1,3 +1,4 @@
+import { authFetch } from '../../services/authFetch';
 /**
  * Customer 360 View
  *
@@ -70,12 +71,12 @@ const Customer360View = ({ customerId, onClose, onNavigate }) => {
 
       // Fetch all data in parallel
       const [customerRes, clvRes, predictiveRes, quotesRes, ordersRes, invoicesRes] = await Promise.all([
-        fetch(`${API_URL}/api/customers/${customerId}`, { headers }),
-        fetch(`${API_URL}/api/customers/${customerId}/lifetime-value`, { headers }),
-        fetch(`${API_URL}/api/customers/${customerId}/predictive-clv`, { headers }).catch(() => null),
-        fetch(`${API_URL}/api/quotations?customerId=${customerId}&limit=20`, { headers }),
-        fetch(`${API_URL}/api/orders?customerId=${customerId}&limit=20`, { headers }).catch(() => null),
-        fetch(`${API_URL}/api/invoices?customerId=${customerId}&limit=20`, { headers }).catch(() => null)
+        authFetch(`${API_URL}/api/customers/${customerId}`, { headers }),
+        authFetch(`${API_URL}/api/customers/${customerId}/lifetime-value`, { headers }),
+        authFetch(`${API_URL}/api/customers/${customerId}/predictive-clv`, { headers }).catch(() => null),
+        authFetch(`${API_URL}/api/quotations?customerId=${customerId}&limit=20`, { headers }),
+        authFetch(`${API_URL}/api/orders?customerId=${customerId}&limit=20`, { headers }).catch(() => null),
+        authFetch(`${API_URL}/api/invoices?customerId=${customerId}&limit=20`, { headers }).catch(() => null)
       ]);
 
       if (!customerRes.ok) throw new Error('Failed to fetch customer');

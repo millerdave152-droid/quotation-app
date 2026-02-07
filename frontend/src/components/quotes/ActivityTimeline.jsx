@@ -1,3 +1,4 @@
+import { authFetch } from '../../services/authFetch';
 /**
  * ActivityTimeline Component
  *
@@ -114,7 +115,7 @@ const ActivityTimeline = ({
 
     setSaving(true);
     try {
-      const response = await fetch(`${API_URL}/api/activities/quote/${quoteId}/note`, {
+      const response = await authFetch(`${API_URL}/api/activities/quote/${quoteId}/note`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -141,7 +142,7 @@ const ActivityTimeline = ({
   const handleLogContact = useCallback(async () => {
     setSaving(true);
     try {
-      const response = await fetch(`${API_URL}/api/activities/quote/${quoteId}/contact`, {
+      const response = await authFetch(`${API_URL}/api/activities/quote/${quoteId}/contact`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -170,7 +171,7 @@ const ActivityTimeline = ({
 
     setSaving(true);
     try {
-      const response = await fetch(`${API_URL}/api/activities/quote/${quoteId}/follow-up`, {
+      const response = await authFetch(`${API_URL}/api/activities/quote/${quoteId}/follow-up`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

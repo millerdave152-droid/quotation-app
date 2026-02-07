@@ -3,6 +3,7 @@ import ProductCard from './ProductCard';
 import CategoryFilter from './CategoryFilter';
 import SearchBar from './SearchBar';
 
+import { authFetch } from '../../services/authFetch';
 const API_BASE = '/api';
 
 // Helper to get auth headers
@@ -53,8 +54,8 @@ function ProductBrowser({ onProductSelect }) {
     try {
       const headers = getAuthHeaders();
       const [catRes, brandRes] = await Promise.all([
-        fetch(`${API_BASE}/vendor-products/categories`, { headers }),
-        fetch(`${API_BASE}/vendor-products/brands`, { headers })
+        authFetch(`${API_BASE}/vendor-products/categories`, { headers }),
+        authFetch(`${API_BASE}/vendor-products/brands`, { headers })
       ]);
 
       if (catRes.ok) {
@@ -87,7 +88,7 @@ function ProductBrowser({ onProductSelect }) {
       if (selectedBrand) params.append('brand', selectedBrand);
       if (searchQuery) params.append('search', searchQuery);
 
-      const response = await fetch(`${API_BASE}/vendor-products?${params}`, {
+      const response = await authFetch(`${API_BASE}/vendor-products?${params}`, {
         headers: getAuthHeaders()
       });
 

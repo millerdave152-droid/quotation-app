@@ -1,3 +1,4 @@
+import { authFetch } from '../services/authFetch';
 /**
  * CustomerPortalDashboard - Self-service customer portal
  * Features: Quote history, reorder, communication preferences, profile management
@@ -26,7 +27,7 @@ function CustomerPortalDashboard() {
   const fetchDashboard = async () => {
     try {
       setLoading(true);
-      const response = await fetch(`${API_URL}/api/customer-portal/dashboard/${token}`);
+      const response = await authFetch(`${API_URL}/api/customer-portal/dashboard/${token}`);
       const result = await response.json();
 
       if (!result.success) {
@@ -52,7 +53,7 @@ function CustomerPortalDashboard() {
 
     setProcessing(true);
     try {
-      const response = await fetch(`${API_URL}/api/customer-portal/reorder/${token}/${quoteId}`, {
+      const response = await authFetch(`${API_URL}/api/customer-portal/reorder/${token}/${quoteId}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({})
@@ -76,7 +77,7 @@ function CustomerPortalDashboard() {
   const handleSavePreferences = async (preferences) => {
     setProcessing(true);
     try {
-      const response = await fetch(`${API_URL}/api/customer-portal/preferences/${token}`, {
+      const response = await authFetch(`${API_URL}/api/customer-portal/preferences/${token}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(preferences)

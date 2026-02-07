@@ -1,3 +1,4 @@
+import { authFetch } from '../../services/authFetch';
 /**
  * BulkActionToolbar Component
  *
@@ -13,17 +14,6 @@
 import React, { useState, useEffect } from 'react';
 
 const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:3001';
-
-const getAuthHeaders = () => {
-  const token = localStorage.getItem('auth_token');
-  if (!token) {
-    return { 'Content-Type': 'application/json' };
-  }
-  return {
-    'Content-Type': 'application/json',
-    'Authorization': `Bearer ${token}`
-  };
-};
 
 // Email templates for bulk email
 const EMAIL_TEMPLATES = [
@@ -97,9 +87,7 @@ const BulkActionToolbar = ({
   useEffect(() => {
     const fetchSalespeople = async () => {
       try {
-        const res = await fetch(`${API_URL}/api/quotations/salespeople`, {
-          headers: getAuthHeaders()
-        });
+        const res = await authFetch(`${API_URL}/api/quotations/salespeople`);
         if (res.ok) {
           const data = await res.json();
           setSalespeople(data);
@@ -124,9 +112,8 @@ const BulkActionToolbar = ({
     setProgress({ current: 0, total: selectedIds.length, message: `Updating status to ${status}...` });
 
     try {
-      const res = await fetch(`${API_URL}/api/quotations/bulk/status`, {
+      const res = await authFetch(`${API_URL}/api/quotations/bulk/status`, {
         method: 'POST',
-        headers: getAuthHeaders(),
         body: JSON.stringify({ quoteIds: selectedIds, status })
       });
 
@@ -163,9 +150,8 @@ const BulkActionToolbar = ({
     setProgress({ current: 0, total: selectedIds.length, message: `Extending expiry by ${days} days...` });
 
     try {
-      const res = await fetch(`${API_URL}/api/quotations/bulk/extend-expiry`, {
+      const res = await authFetch(`${API_URL}/api/quotations/bulk/extend-expiry`, {
         method: 'POST',
-        headers: getAuthHeaders(),
         body: JSON.stringify({ quoteIds: selectedIds, days })
       });
 
@@ -202,9 +188,8 @@ const BulkActionToolbar = ({
     setProgress({ current: 0, total: selectedIds.length, message: `Assigning to ${salesRepName}...` });
 
     try {
-      const res = await fetch(`${API_URL}/api/quotations/bulk/assign`, {
+      const res = await authFetch(`${API_URL}/api/quotations/bulk/assign`, {
         method: 'POST',
-        headers: getAuthHeaders(),
         body: JSON.stringify({ quoteIds: selectedIds, salesRepId, salesRepName })
       });
 
@@ -241,9 +226,8 @@ const BulkActionToolbar = ({
     setProgress({ current: 0, total: selectedIds.length, message: 'Generating CSV export...' });
 
     try {
-      const res = await fetch(`${API_URL}/api/quotations/bulk/export`, {
+      const res = await authFetch(`${API_URL}/api/quotations/bulk/export`, {
         method: 'POST',
-        headers: getAuthHeaders(),
         body: JSON.stringify({ quoteIds: selectedIds })
       });
 
@@ -287,9 +271,8 @@ const BulkActionToolbar = ({
     setProgress({ current: 0, total: selectedIds.length, message: 'Deleting quotes...' });
 
     try {
-      const res = await fetch(`${API_URL}/api/quotations/bulk`, {
+      const res = await authFetch(`${API_URL}/api/quotations/bulk`, {
         method: 'DELETE',
-        headers: getAuthHeaders(),
         body: JSON.stringify({ quoteIds: selectedIds })
       });
 
@@ -383,9 +366,8 @@ const BulkActionToolbar = ({
     });
 
     try {
-      const res = await fetch(`${API_URL}/api/quotations/bulk/email`, {
+      const res = await authFetch(`${API_URL}/api/quotations/bulk/email`, {
         method: 'POST',
-        headers: getAuthHeaders(),
         body: JSON.stringify({
           quoteIds: selectedIds,
           subject: emailSubject,

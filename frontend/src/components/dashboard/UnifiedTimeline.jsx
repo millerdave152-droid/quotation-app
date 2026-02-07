@@ -1,3 +1,4 @@
+import { authFetch } from '../../services/authFetch';
 /**
  * Unified Timeline Widget
  *
@@ -74,7 +75,7 @@ const UnifiedTimeline = ({ onNavigate, customerId = null, limit = 20 }) => {
         url += `&customerId=${customerId}`;
       }
 
-      const response = await fetch(url, {
+      const response = await authFetch(url, {
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'

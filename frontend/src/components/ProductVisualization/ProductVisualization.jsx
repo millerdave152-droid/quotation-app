@@ -3,6 +3,7 @@ import ProductBrowser from './ProductBrowser';
 import ProductDetail from './ProductDetail';
 import ScraperAdmin from './ScraperAdmin';
 
+import { authFetch } from '../../services/authFetch';
 const API_BASE = '/api';
 
 // Helper to get auth headers
@@ -30,7 +31,7 @@ function ProductVisualization() {
 
   const fetchStats = async () => {
     try {
-      const response = await fetch(`${API_BASE}/vendor-products/stats`, {
+      const response = await authFetch(`${API_BASE}/vendor-products/stats`, {
         headers: getAuthHeaders()
       });
       if (response.ok) {

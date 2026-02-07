@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { authFetch } from '../../services/authFetch';
 import {
   Package, TrendingUp, TrendingDown, AlertTriangle, RefreshCw, CheckCircle,
   BarChart2, Brain, Clock, ShoppingCart, ChevronRight, Filter
@@ -43,7 +44,7 @@ const PurchasingIntelligence = () => {
 
     try {
       const token = localStorage.getItem('auth_token');
-      const response = await fetch(`${API_BASE}/purchasing-intelligence/dashboard`, {
+      const response = await authFetch(`${API_BASE}/purchasing-intelligence/dashboard`, {
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
@@ -74,7 +75,7 @@ const PurchasingIntelligence = () => {
     setIsAnalyzing(true);
     try {
       const token = localStorage.getItem('auth_token');
-      const response = await fetch(`${API_BASE}/purchasing-intelligence/analyze`, {
+      const response = await authFetch(`${API_BASE}/purchasing-intelligence/analyze`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -102,7 +103,7 @@ const PurchasingIntelligence = () => {
   const acknowledgeRecommendation = async (recommendationId) => {
     try {
       const token = localStorage.getItem('auth_token');
-      await fetch(`${API_BASE}/purchasing-intelligence/recommendations/${recommendationId}/acknowledge`, {
+      await authFetch(`${API_BASE}/purchasing-intelligence/recommendations/${recommendationId}/acknowledge`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`,

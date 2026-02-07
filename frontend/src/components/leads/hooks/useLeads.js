@@ -1,3 +1,4 @@
+import { authFetch } from '../../../services/authFetch';
 /**
  * useLeads Hook
  * Handles lead data fetching, caching, and state management
@@ -58,7 +59,7 @@ export function useLeads(options = {}) {
     });
 
     try {
-      const response = await fetch(
+      const response = await authFetch(
         `${API_BASE}/leads?${params}`,
         { headers: getAuthHeaders() }
       );
@@ -131,7 +132,7 @@ export function useLeadStats() {
   const fetchStats = useCallback(async () => {
     setLoading(true);
     try {
-      const response = await fetch(
+      const response = await authFetch(
         `${API_BASE}/leads/stats`,
         { headers: getAuthHeaders() }
       );
@@ -168,7 +169,7 @@ export function useLead(id) {
 
     setLoading(true);
     try {
-      const response = await fetch(`${API_BASE}/leads/${id}`, {
+      const response = await authFetch(`${API_BASE}/leads/${id}`, {
         headers: getAuthHeaders()
       });
 
@@ -191,7 +192,7 @@ export function useLead(id) {
 }
 
 export async function createLead(data) {
-  const response = await fetch(`${API_BASE}/leads`, {
+  const response = await authFetch(`${API_BASE}/leads`, {
     method: 'POST',
     headers: getAuthHeaders(),
     body: JSON.stringify(data)
@@ -207,7 +208,7 @@ export async function createLead(data) {
 }
 
 export async function updateLead(id, data) {
-  const response = await fetch(`${API_BASE}/leads/${id}`, {
+  const response = await authFetch(`${API_BASE}/leads/${id}`, {
     method: 'PUT',
     headers: getAuthHeaders(),
     body: JSON.stringify(data)
@@ -223,7 +224,7 @@ export async function updateLead(id, data) {
 }
 
 export async function updateLeadStatus(id, status, lostReason = null) {
-  const response = await fetch(`${API_BASE}/leads/${id}/status`, {
+  const response = await authFetch(`${API_BASE}/leads/${id}/status`, {
     method: 'PUT',
     headers: getAuthHeaders(),
     body: JSON.stringify({ status, lost_reason: lostReason })
@@ -239,7 +240,7 @@ export async function updateLeadStatus(id, status, lostReason = null) {
 }
 
 export async function convertToQuote(id, options = {}) {
-  const response = await fetch(`${API_BASE}/leads/${id}/convert-to-quote`, {
+  const response = await authFetch(`${API_BASE}/leads/${id}/convert-to-quote`, {
     method: 'POST',
     headers: getAuthHeaders(),
     body: JSON.stringify(options)
@@ -256,7 +257,7 @@ export async function convertToQuote(id, options = {}) {
 }
 
 export async function addLeadActivity(id, activityType, description, metadata = null) {
-  const response = await fetch(`${API_BASE}/leads/${id}/activities`, {
+  const response = await authFetch(`${API_BASE}/leads/${id}/activities`, {
     method: 'POST',
     headers: getAuthHeaders(),
     body: JSON.stringify({
@@ -275,7 +276,7 @@ export async function addLeadActivity(id, activityType, description, metadata = 
 }
 
 export async function deleteLead(id) {
-  const response = await fetch(`${API_BASE}/leads/${id}`, {
+  const response = await authFetch(`${API_BASE}/leads/${id}`, {
     method: 'DELETE',
     headers: getAuthHeaders()
   });
@@ -291,7 +292,7 @@ export async function deleteLead(id) {
 
 // AI Helpers
 export async function generateAISummary(id) {
-  const response = await fetch(`${API_BASE}/leads/${id}/ai/summarize`, {
+  const response = await authFetch(`${API_BASE}/leads/${id}/ai/summarize`, {
     method: 'POST',
     headers: getAuthHeaders()
   });
@@ -305,7 +306,7 @@ export async function generateAISummary(id) {
 }
 
 export async function generateProductSuggestions(id) {
-  const response = await fetch(`${API_BASE}/leads/${id}/ai/suggest-products`, {
+  const response = await authFetch(`${API_BASE}/leads/${id}/ai/suggest-products`, {
     method: 'POST',
     headers: getAuthHeaders()
   });
@@ -319,7 +320,7 @@ export async function generateProductSuggestions(id) {
 }
 
 export async function generateFollowUpDraft(id, tone = 'professional') {
-  const response = await fetch(`${API_BASE}/leads/${id}/ai/draft-followup`, {
+  const response = await authFetch(`${API_BASE}/leads/${id}/ai/draft-followup`, {
     method: 'POST',
     headers: getAuthHeaders(),
     body: JSON.stringify({ tone })

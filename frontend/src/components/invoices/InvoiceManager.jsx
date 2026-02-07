@@ -54,24 +54,15 @@ import {
   AutoMode,
   AccountBalance
 } from '@mui/icons-material';
-import axios from 'axios';
+import { createAuthorizedClient } from '../../services/apiClient';
 import AutoInvoicePanel from './AutoInvoicePanel';
 import ARDashboard from './ARDashboard';
 
 const API_BASE = (process.env.REACT_APP_API_URL || 'http://localhost:3001') + '/api';
 
 // Create axios instance with auth headers
-const api = axios.create({
+const api = createAuthorizedClient({
   baseURL: API_BASE
-});
-
-// Add auth interceptor
-api.interceptors.request.use((config) => {
-  const token = localStorage.getItem('auth_token');
-  if (token) {
-    config.headers.Authorization = `Bearer ${token}`;
-  }
-  return config;
 });
 
 const formatCurrency = (cents) => {

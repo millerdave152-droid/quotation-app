@@ -22,13 +22,14 @@ module.exports = function (warrantyService) {
   router.get('/eligible/:productId', async (req, res) => {
     try {
       const { productId } = req.params;
-      const { price } = req.query;
+      const { price, saleContext } = req.query;
 
       const productPrice = price ? parseFloat(price) : null;
 
       const result = await warrantyService.getEligibleWarranties(
         parseInt(productId),
-        productPrice
+        productPrice,
+        saleContext || 'at_sale'
       );
 
       if (!result.success) {
@@ -59,7 +60,7 @@ module.exports = function (warrantyService) {
    */
   router.post('/eligible', async (req, res) => {
     try {
-      const { products } = req.body;
+      const { products, saleContext } = req.body;
 
       if (!products || !Array.isArray(products)) {
         return res.status(400).json({
@@ -72,7 +73,8 @@ module.exports = function (warrantyService) {
         products.map(async (p) => {
           const result = await warrantyService.getEligibleWarranties(
             p.productId,
-            p.price
+            p.price,
+            saleContext || 'at_sale'
           );
 
           // Filter out margin data
@@ -492,6 +494,103 @@ module.exports = function (warrantyService) {
       });
     } catch (error) {
       console.error('[Warranty] List products error:', error);
+      res.status(500).json({
+        success: false,
+        error: error.message,
+      });
+    }
+  });
+
+  // ============================================================================
+  // PROVIDER REGISTRATION TRACKING
+  // ============================================================================
+
+  /**
+   * POST /api/warranty/register
+   * Register a warranty purchase with Excelsior/Phoenix AMD
+   */
+  router.post('/register', async (req, res) => {
+    try {
+      const { warrantyPurchaseId, providerCode, providerSku } = req.body;
+
+      if (!warrantyPurchaseId) {
+        return res.status(400).json({
+          success: false,
+          error: 'warrantyPurchaseId is required',
+        });
+      }
+
+      const pool = warrantyService.pool;
+
+      const result = await pool.query(
+        `INSERT INTO warranty_provider_registrations
+          (warranty_purchase_id, provider_code, provider_sku, registration_status)
+         VALUES ($1, $2, $3, 'pending')
+         ON CONFLICT DO NOTHING
+         RETURNING *`,
+        [warrantyPurchaseId, providerCode || null, providerSku || null]
+      );
+
+      res.status(201).json({
+        success: true,
+        registration: result.rows[0] || null,
+      });
+    } catch (error) {
+      console.error('[Warranty] Register error:', error);
+      res.status(500).json({
+        success: false,
+        error: error.message,
+      });
+    }
+  });
+
+  /**
+   * GET /api/warranty/registrations
+   * List warranty registrations (for monthly Excelsior reporting)
+   */
+  router.get('/registrations', async (req, res) => {
+    try {
+      const { status, limit } = req.query;
+      const pool = warrantyService.pool;
+
+      let whereClause = '';
+      const params = [];
+
+      if (status) {
+        params.push(status);
+        whereClause = `WHERE r.registration_status = $${params.length}`;
+      }
+
+      const limitClause = limit ? `LIMIT ${parseInt(limit)}` : 'LIMIT 100';
+
+      const query = `
+        SELECT
+          r.*,
+          wp.warranty_name,
+          wp.covered_product_name,
+          wp.covered_product_serial,
+          wp.warranty_price,
+          wp.customer_name,
+          wp.customer_email,
+          wp.customer_phone,
+          wp.coverage_start_date,
+          wp.coverage_end_date
+        FROM warranty_provider_registrations r
+        JOIN warranty_purchases wp ON wp.id = r.warranty_purchase_id
+        ${whereClause}
+        ORDER BY r.created_at DESC
+        ${limitClause}
+      `;
+
+      const result = await pool.query(query, params);
+
+      res.json({
+        success: true,
+        registrations: result.rows,
+        count: result.rows.length,
+      });
+    } catch (error) {
+      console.error('[Warranty] Registrations error:', error);
       res.status(500).json({
         success: false,
         error: error.message,

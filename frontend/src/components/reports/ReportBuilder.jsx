@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
+import { authFetch } from '../../services/authFetch';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
   LineChart, Line, PieChart, Pie, Cell
@@ -9,11 +10,11 @@ const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:3001';
 // Helper for API calls
 const api = {
   get: async (url) => {
-    const response = await fetch(`${API_URL}${url}`);
+    const response = await authFetch(`${API_URL}${url}`);
     return { data: await response.json() };
   },
   post: async (url, data) => {
-    const response = await fetch(`${API_URL}${url}`, {
+    const response = await authFetch(`${API_URL}${url}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(data)
@@ -21,7 +22,7 @@ const api = {
     return { data: await response.json() };
   },
   put: async (url, data) => {
-    const response = await fetch(`${API_URL}${url}`, {
+    const response = await authFetch(`${API_URL}${url}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(data)
@@ -29,7 +30,7 @@ const api = {
     return { data: await response.json() };
   },
   delete: async (url) => {
-    const response = await fetch(`${API_URL}${url}`, { method: 'DELETE' });
+    const response = await authFetch(`${API_URL}${url}`, { method: 'DELETE' });
     return { data: await response.json() };
   }
 };

@@ -1,3 +1,4 @@
+import { authFetch } from '../../services/authFetch';
 /**
  * ProductImportWizard
  * 4-step wizard for importing products from manufacturer price sheets
@@ -55,7 +56,7 @@ const ProductImportWizard = ({ onClose, onImportComplete }) => {
 
   const loadManufacturers = async () => {
     try {
-      const response = await fetch(`${API_BASE}/import-templates/manufacturers`);
+      const response = await authFetch(`${API_BASE}/import-templates/manufacturers`);
       const data = await response.json();
       if (data.success) {
         setManufacturers(data.data || []);
@@ -67,7 +68,7 @@ const ProductImportWizard = ({ onClose, onImportComplete }) => {
 
   const loadTargetFields = async () => {
     try {
-      const response = await fetch(`${API_BASE}/import-templates/target-fields`);
+      const response = await authFetch(`${API_BASE}/import-templates/target-fields`);
       const data = await response.json();
       if (data.success) {
         setTargetFields(data.data || []);
@@ -79,7 +80,7 @@ const ProductImportWizard = ({ onClose, onImportComplete }) => {
 
   const loadTemplatesForManufacturer = async (mfr) => {
     try {
-      const response = await fetch(`${API_BASE}/import-templates?manufacturer=${encodeURIComponent(mfr)}`);
+      const response = await authFetch(`${API_BASE}/import-templates?manufacturer=${encodeURIComponent(mfr)}`);
       const data = await response.json();
       if (data.success) {
         setTemplates(data.data || []);
@@ -140,7 +141,7 @@ const ProductImportWizard = ({ onClose, onImportComplete }) => {
       formData.append('file', file);
       formData.append('headerRowIndex', headerRowIndex.toString());
 
-      const response = await fetch(`${API_BASE}/import-templates/parse-file`, {
+      const response = await authFetch(`${API_BASE}/import-templates/parse-file`, {
         method: 'POST',
         body: formData
       });
@@ -280,7 +281,7 @@ const ProductImportWizard = ({ onClose, onImportComplete }) => {
         formData.append('manufacturer', manufacturer);
       }
 
-      const response = await fetch(`${API_BASE}/products/import-universal`, {
+      const response = await authFetch(`${API_BASE}/products/import-universal`, {
         method: 'POST',
         body: formData
       });
@@ -305,7 +306,7 @@ const ProductImportWizard = ({ onClose, onImportComplete }) => {
       // Record template usage if selected
       if (selectedTemplate) {
         try {
-          await fetch(`${API_BASE}/import-templates/${selectedTemplate.id}/record-usage`, {
+          await authFetch(`${API_BASE}/import-templates/${selectedTemplate.id}/record-usage`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
@@ -339,7 +340,7 @@ const ProductImportWizard = ({ onClose, onImportComplete }) => {
     }
 
     try {
-      const response = await fetch(`${API_BASE}/import-templates`, {
+      const response = await authFetch(`${API_BASE}/import-templates`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

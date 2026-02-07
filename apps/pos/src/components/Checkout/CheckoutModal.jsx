@@ -295,6 +295,7 @@ export function CheckoutModal({
   const [transaction, setTransaction] = useState(null);
   const [error, setError] = useState(null);
   const [signatureWarning, setSignatureWarning] = useState(null);
+  const [duplicatePaymentPrompt, setDuplicatePaymentPrompt] = useState(null);
   const [isProcessing, setIsProcessing] = useState(false);
   const processingRef = useRef(false);
   const paymentsRef = useRef([]);
@@ -447,6 +448,7 @@ export function CheckoutModal({
 
   // Handle fulfillment selection complete
   const handleFulfillmentComplete = useCallback((fulfillment) => {
+    console.log('[Checkout] Fulfillment complete, starting warranty flow. Cart items:', cart.items?.length);
     cart.setFulfillment(fulfillment);
     // Start warranty upsell flow
     warrantyUpsell.startFlow();
@@ -456,56 +458,6 @@ export function CheckoutModal({
   const handleSelectMethod = useCallback((method) => {
     setStep(method);
   }, []);
-
-  // Handle payment completion
-  const handlePaymentComplete = useCallback((payment) => {
-    // Synchronous guard - prevents double-click race condition
-    if (processingRef.current || isProcessing) return;
-    processingRef.current = true;
-
-    const newPayments = [...payments, payment];
-    setPayments(newPayments);
-    paymentsRef.current = newPayments;
-
-    // Deposit payments intentionally don't cover the full amount
-    if (payment.isDeposit) {
-      processTransaction(newPayments);
-      return;
-    }
-
-    const newPaidAmount = newPayments.reduce((sum, p) => sum + p.amount, 0);
-    const newRemaining = cart.total - newPaidAmount;
-
-    if (newRemaining <= 0.01) {
-      // Fully paid - check if signatures are required
-      if (signatureReq.hasRequirements && !signatureReq.isComplete) {
-        setStep('signature');
-        processingRef.current = false;
-      } else {
-        // No signatures needed - process transaction
-        processTransaction(newPayments);
-      }
-    } else {
-      // Show split payment or return to methods
-      setStep('split');
-      processingRef.current = false;
-    }
-  }, [payments, cart.total, signatureReq.hasRequirements, signatureReq.isComplete, isProcessing]);
-
-  // Handle signature step completion - use ref to avoid stale closure
-  const handleSignatureComplete = useCallback(() => {
-    processTransaction(paymentsRef.current);
-  }, []);
-
-  // Handle signature capture
-  const handleSignatureCapture = useCallback((type, signatureData) => {
-    signatureReq.recordSignature(type, signatureData);
-  }, [signatureReq]);
-
-  // Handle signature defer
-  const handleSignatureDefer = useCallback((type) => {
-    signatureReq.deferSignature(type);
-  }, [signatureReq]);
 
   // Process the transaction
   const processTransaction = useCallback(async (finalPayments) => {
@@ -567,6 +519,108 @@ export function CheckoutModal({
       setIsProcessing(false);
     }
   }, [cart, onComplete, signatureReq]);
+
+  // Handle payment completion
+  const handlePaymentComplete = useCallback((payment) => {
+    // Synchronous guard - prevents double-click race condition
+    if (processingRef.current || isProcessing) return;
+    processingRef.current = true;
+
+    const currentPaid = payments.reduce((sum, p) => sum + p.amount, 0);
+    const remainingBefore = Math.max(0, cart.total - currentPaid);
+    const isPartialPayment = payment.amount + 0.01 < remainingBefore;
+
+    if (payment.paymentMethod === 'cash' && isPartialPayment) {
+      const hasCashPayment = payments.some((p) => p.paymentMethod === 'cash');
+      if (hasCashPayment) {
+        setDuplicatePaymentPrompt({
+          payment,
+          message: `You are applying another partial cash payment of ${formatCurrency(payment.amount)}. Continue?`,
+        });
+        processingRef.current = false;
+        return;
+      }
+    }
+
+    const newPayments = [...payments, payment];
+    setPayments(newPayments);
+    paymentsRef.current = newPayments;
+
+    // Deposit payments intentionally don't cover the full amount
+    if (payment.isDeposit) {
+      processTransaction(newPayments);
+      return;
+    }
+
+    const newPaidAmount = newPayments.reduce((sum, p) => sum + p.amount, 0);
+    const newRemaining = cart.total - newPaidAmount;
+
+    if (newRemaining <= 0.01) {
+      // Fully paid - check if signatures are required
+      if (signatureReq.hasRequirements && !signatureReq.isComplete) {
+        setStep('signature');
+        processingRef.current = false;
+      } else {
+        // No signatures needed - process transaction
+        processTransaction(newPayments);
+      }
+    } else {
+      // Show split payment or return to methods
+      setStep('split');
+      processingRef.current = false;
+    }
+  }, [payments, cart.total, signatureReq.hasRequirements, signatureReq.isComplete, isProcessing, processTransaction]);
+
+  const confirmDuplicatePayment = useCallback(() => {
+    if (!duplicatePaymentPrompt?.payment) return;
+    processingRef.current = true;
+    const payment = duplicatePaymentPrompt.payment;
+    setDuplicatePaymentPrompt(null);
+
+    const newPayments = [...payments, payment];
+    setPayments(newPayments);
+    paymentsRef.current = newPayments;
+
+    if (payment.isDeposit) {
+      processTransaction(newPayments);
+      return;
+    }
+
+    const newPaidAmount = newPayments.reduce((sum, p) => sum + p.amount, 0);
+    const newRemaining = cart.total - newPaidAmount;
+
+    if (newRemaining <= 0.01) {
+      if (signatureReq.hasRequirements && !signatureReq.isComplete) {
+        setStep('signature');
+        processingRef.current = false;
+      } else {
+        processTransaction(newPayments);
+      }
+    } else {
+      setStep('split');
+      processingRef.current = false;
+    }
+  }, [duplicatePaymentPrompt, payments, cart.total, processTransaction, signatureReq.hasRequirements, signatureReq.isComplete]);
+
+  const cancelDuplicatePayment = useCallback(() => {
+    setDuplicatePaymentPrompt(null);
+    processingRef.current = false;
+  }, []);
+
+  // Handle signature step completion - use ref to avoid stale closure
+  const handleSignatureComplete = useCallback(() => {
+    processTransaction(paymentsRef.current);
+  }, [processTransaction]);
+
+  // Handle signature capture
+  const handleSignatureCapture = useCallback((type, signatureData) => {
+    signatureReq.recordSignature(type, signatureData);
+  }, [signatureReq]);
+
+  // Handle signature defer
+  const handleSignatureDefer = useCallback((type) => {
+    signatureReq.deferSignature(type);
+  }, [signatureReq]);
 
   // Handle going back
   const handleBack = useCallback(() => {
@@ -762,6 +816,29 @@ export function CheckoutModal({
         {error && (
           <div className="mx-6 mt-4 p-4 bg-red-50 border border-red-200 rounded-lg">
             <p className="text-sm text-red-700">{error}</p>
+          </div>
+        )}
+
+        {/* Duplicate Payment Confirmation */}
+        {duplicatePaymentPrompt && (
+          <div className="mx-6 mt-4 p-4 bg-amber-50 border border-amber-200 rounded-lg">
+            <p className="text-sm text-amber-800 mb-3">{duplicatePaymentPrompt.message}</p>
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={cancelDuplicatePayment}
+                className="h-10 px-4 rounded-lg border border-amber-200 text-amber-900 hover:bg-amber-100"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={confirmDuplicatePayment}
+                className="h-10 px-4 rounded-lg bg-amber-600 text-white hover:bg-amber-700"
+              >
+                Confirm
+              </button>
+            </div>
           </div>
         )}
 

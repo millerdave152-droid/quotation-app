@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import axios from 'axios';
+import apiClient from '../services/apiClient';
 
 /**
  * Product Mapping Tool for Best Buy Marketplace
@@ -75,7 +75,7 @@ const ProductMappingTool = () => {
 
   // Fetch categories
   const fetchCategories = async () => {
-    const response = await axios.get(`${API_BASE_URL}/api/marketplace/bestbuy-categories`);
+    const response = await apiClient.get(`${API_BASE_URL}/api/marketplace/bestbuy-categories`);
     if (isMounted.current) {
       setCategories(response.data.grouped || {});
     }
@@ -89,7 +89,7 @@ const ProductMappingTool = () => {
     };
     if (search) params.search = search;
 
-    const response = await axios.get(`${API_BASE_URL}/api/marketplace/products/unmapped`, { params });
+    const response = await apiClient.get(`${API_BASE_URL}/api/marketplace/products/unmapped`, { params });
     if (isMounted.current) {
       setUnmappedProducts(response.data.products || []);
       setUnmappedTotal(response.data.total || 0);
@@ -105,7 +105,7 @@ const ProductMappingTool = () => {
     if (search) params.search = search;
     if (categoryCode) params.category_code = categoryCode;
 
-    const response = await axios.get(`${API_BASE_URL}/api/marketplace/products/mapped`, { params });
+    const response = await apiClient.get(`${API_BASE_URL}/api/marketplace/products/mapped`, { params });
     if (isMounted.current) {
       setMappedProducts(response.data.products || []);
       setMappedTotal(response.data.total || 0);
@@ -114,7 +114,7 @@ const ProductMappingTool = () => {
 
   // Fetch mapping stats
   const fetchMappingStats = async () => {
-    const response = await axios.get(`${API_BASE_URL}/api/marketplace/mapping-stats`);
+    const response = await apiClient.get(`${API_BASE_URL}/api/marketplace/mapping-stats`);
     if (isMounted.current) {
       setMappingStats(response.data);
     }
@@ -137,7 +137,7 @@ const ProductMappingTool = () => {
       setMessage(null);
       setError(null);
 
-      await axios.post(`${API_BASE_URL}/api/marketplace/products/${productId}/map-category`, {
+      await apiClient.post(`${API_BASE_URL}/api/marketplace/products/${productId}/map-category`, {
         category_code: categoryCode
       });
 
@@ -165,7 +165,7 @@ const ProductMappingTool = () => {
       setMessage(null);
       setError(null);
 
-      await axios.post(`${API_BASE_URL}/api/marketplace/products/bulk-map`, {
+      await apiClient.post(`${API_BASE_URL}/api/marketplace/products/bulk-map`, {
         product_ids: selectedProducts,
         category_code: selectedCategory
       });
@@ -190,7 +190,7 @@ const ProductMappingTool = () => {
       setMessage(null);
       setError(null);
 
-      await axios.delete(`${API_BASE_URL}/api/marketplace/products/${productId}/map-category`);
+      await apiClient.delete(`${API_BASE_URL}/api/marketplace/products/${productId}/map-category`);
 
       setMessage('Mapping removed successfully!');
 

@@ -1,3 +1,4 @@
+import { authFetch } from '../../../services/authFetch';
 /**
  * useQuickSearch - Hook for managing quick search state and API calls
  */
@@ -99,7 +100,7 @@ export const useQuickSearch = (searchQuery, filters, sortBy, userRole) => {
         filters.page || 1
       );
 
-      const response = await fetch(`${API_BASE}/api/quick-search?${queryString}`, {
+      const response = await authFetch(`${API_BASE}/api/quick-search?${queryString}`, {
         signal: abortControllerRef.current.signal,
         headers: getAuthHeaders()
       });
@@ -132,7 +133,7 @@ export const useQuickSearch = (searchQuery, filters, sortBy, userRole) => {
   // Fetch filter options
   const fetchFilterOptions = useCallback(async () => {
     try {
-      const response = await fetch(`${API_BASE}/api/quick-search/filters`, {
+      const response = await authFetch(`${API_BASE}/api/quick-search/filters`, {
         headers: getAuthHeaders()
       });
 
@@ -151,7 +152,7 @@ export const useQuickSearch = (searchQuery, filters, sortBy, userRole) => {
   // Fetch presets
   const fetchPresets = useCallback(async () => {
     try {
-      const response = await fetch(`${API_BASE}/api/quick-search/presets`, {
+      const response = await authFetch(`${API_BASE}/api/quick-search/presets`, {
         headers: getAuthHeaders()
       });
 

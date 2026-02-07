@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 
+import { authFetch } from '../services/authFetch';
 const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:3001';
 
 // Result Card Components
@@ -205,7 +206,7 @@ const SearchResults = () => {
         // Determine which searches to run based on type
         if (type === 'all' || type === 'products') {
           searches.push(
-            fetch(`${API_URL}/api/products?search=${encodeURIComponent(query)}&limit=20`)
+            authFetch(`${API_URL}/api/products?search=${encodeURIComponent(query)}&limit=20`)
               .then(r => r.json())
               .then(data => ({ type: 'products', data: data.data?.products || data.products || [] }))
               .catch(() => ({ type: 'products', data: [] }))
@@ -214,7 +215,7 @@ const SearchResults = () => {
 
         if (type === 'all' || type === 'customers') {
           searches.push(
-            fetch(`${API_URL}/api/customers?search=${encodeURIComponent(query)}&limit=20`)
+            authFetch(`${API_URL}/api/customers?search=${encodeURIComponent(query)}&limit=20`)
               .then(r => r.json())
               .then(data => ({ type: 'customers', data: data.data?.customers || data.customers || data.data || [] }))
               .catch(() => ({ type: 'customers', data: [] }))
@@ -223,7 +224,7 @@ const SearchResults = () => {
 
         if (type === 'all' || type === 'quotes') {
           searches.push(
-            fetch(`${API_URL}/api/quotes/search?search=${encodeURIComponent(query)}&limit=20`)
+            authFetch(`${API_URL}/api/quotes/search?search=${encodeURIComponent(query)}&limit=20`)
               .then(r => r.json())
               .then(data => ({ type: 'quotes', data: data.data?.quotations || data.quotations || data.data || [] }))
               .catch(() => ({ type: 'quotes', data: [] }))

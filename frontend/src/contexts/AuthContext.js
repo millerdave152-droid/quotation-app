@@ -1,5 +1,6 @@
 import React, { createContext, useState, useContext, useEffect, useMemo, useCallback } from 'react';
 
+import { authFetch } from '../services/authFetch';
 const AuthContext = createContext(null);
 
 export const useAuth = () => {
@@ -31,7 +32,7 @@ export const AuthProvider = ({ children }) => {
   // Fetch current user from API to get latest data (including approval threshold)
   const fetchCurrentUser = useCallback(async (authToken) => {
     try {
-      const response = await fetch(`${API_URL}/api/auth/me`, {
+      const response = await authFetch(`${API_URL}/api/auth/me`, {
         headers: {
           'Authorization': `Bearer ${authToken}`,
           'Content-Type': 'application/json'
@@ -81,7 +82,7 @@ export const AuthProvider = ({ children }) => {
 
   const login = async (email, password) => {
     try {
-      const response = await fetch(`${API_URL}/api/auth/login`, {
+      const response = await authFetch(`${API_URL}/api/auth/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, password })

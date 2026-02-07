@@ -16,6 +16,7 @@ import GlobalSearch from './components/ui/GlobalSearch';
 import AIAssistant from './components/AIAssistant';
 import './services/authGuards';
 
+import { authFetch } from './services/authFetch';
 // Utility CSS classes for replacing inline styles
 import './styles/utilities.css';
 import './styles/theme.css';
@@ -105,7 +106,7 @@ const Dashboard = () => {
   const fetchLeadStats = async () => {
     try {
       const token = localStorage.getItem('auth_token');
-      const response = await fetch('/api/leads/stats', {
+      const response = await authFetch('/api/leads/stats', {
         headers: {
           'Authorization': `Bearer ${token}`
         }

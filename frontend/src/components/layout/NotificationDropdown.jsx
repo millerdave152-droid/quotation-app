@@ -1,3 +1,4 @@
+import { authFetch } from '../../services/authFetch';
 /**
  * NotificationDropdown - Dropdown list of notifications
  */
@@ -37,7 +38,7 @@ const NotificationDropdown = ({ isOpen, onClose }) => {
     try {
       setLoading(true);
       const token = localStorage.getItem('auth_token');
-      const response = await fetch(`${API_URL}/api/notifications?limit=20`, {
+      const response = await authFetch(`${API_URL}/api/notifications?limit=20`, {
         headers: {
           'Authorization': `Bearer ${token}`
         }
@@ -57,7 +58,7 @@ const NotificationDropdown = ({ isOpen, onClose }) => {
   const markAsRead = async (id) => {
     try {
       const token = localStorage.getItem('auth_token');
-      await fetch(`${API_URL}/api/notifications/${id}/read`, {
+      await authFetch(`${API_URL}/api/notifications/${id}/read`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`
@@ -75,7 +76,7 @@ const NotificationDropdown = ({ isOpen, onClose }) => {
   const markAllAsRead = async () => {
     try {
       const token = localStorage.getItem('auth_token');
-      await fetch(`${API_URL}/api/notifications/mark-all-read`, {
+      await authFetch(`${API_URL}/api/notifications/mark-all-read`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`

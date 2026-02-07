@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import VolumeDiscountEditor from './VolumeDiscountEditor';
 import PromotionManager from './PromotionManager';
 
+import { authFetch } from '../../services/authFetch';
 const API_URL = `${process.env.REACT_APP_API_URL || 'http://localhost:3001'}/api`;
 
 // Helper to get auth headers
@@ -42,9 +43,9 @@ const AdvancedPricingManager = () => {
       setError(null);
 
       const [rulesRes, promosRes, policyRes] = await Promise.all([
-        fetch(`${API_URL}/advanced-pricing/volume-rules?includeExpired=true`, { headers: getAuthHeaders() }),
-        fetch(`${API_URL}/advanced-pricing/promotions?includeExpired=true`, { headers: getAuthHeaders() }),
-        fetch(`${API_URL}/advanced-pricing/stacking-policy`, { headers: getAuthHeaders() })
+        authFetch(`${API_URL}/advanced-pricing/volume-rules?includeExpired=true`, { headers: getAuthHeaders() }),
+        authFetch(`${API_URL}/advanced-pricing/promotions?includeExpired=true`, { headers: getAuthHeaders() }),
+        authFetch(`${API_URL}/advanced-pricing/stacking-policy`, { headers: getAuthHeaders() })
       ]);
 
       if (!rulesRes.ok || !promosRes.ok || !policyRes.ok) {
@@ -80,7 +81,7 @@ const AdvancedPricingManager = () => {
         ? `${API_URL}/advanced-pricing/volume-rules/${ruleData.id}`
         : `${API_URL}/advanced-pricing/volume-rules`;
 
-      const response = await fetch(url, {
+      const response = await authFetch(url, {
         method: isEdit ? 'PUT' : 'POST',
         headers: getAuthHeaders(),
         body: JSON.stringify(ruleData)
@@ -107,7 +108,7 @@ const AdvancedPricingManager = () => {
     }
 
     try {
-      const response = await fetch(`${API_URL}/advanced-pricing/volume-rules/${ruleId}`, {
+      const response = await authFetch(`${API_URL}/advanced-pricing/volume-rules/${ruleId}`, {
         method: 'DELETE',
         headers: getAuthHeaders()
       });
@@ -131,7 +132,7 @@ const AdvancedPricingManager = () => {
         ? `${API_URL}/advanced-pricing/promotions/${promoData.id}`
         : `${API_URL}/advanced-pricing/promotions`;
 
-      const response = await fetch(url, {
+      const response = await authFetch(url, {
         method: isEdit ? 'PUT' : 'POST',
         headers: getAuthHeaders(),
         body: JSON.stringify(promoData)
@@ -158,7 +159,7 @@ const AdvancedPricingManager = () => {
     }
 
     try {
-      const response = await fetch(`${API_URL}/advanced-pricing/promotions/${promoId}`, {
+      const response = await authFetch(`${API_URL}/advanced-pricing/promotions/${promoId}`, {
         method: 'DELETE',
         headers: getAuthHeaders()
       });

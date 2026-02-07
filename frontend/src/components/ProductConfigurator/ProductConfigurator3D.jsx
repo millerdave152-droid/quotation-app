@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import Product3DViewer from './Product3DViewer';
 
+import { authFetch } from '../../services/authFetch';
 const API_URL = `${process.env.REACT_APP_API_URL || 'http://localhost:3001'}/api`;
 
 /**
@@ -37,7 +38,7 @@ const ProductConfigurator3D = ({
   const fetchModelData = async () => {
     try {
       setLoading(true);
-      const response = await fetch(`${API_URL}/product-3d/${product.id}`);
+      const response = await authFetch(`${API_URL}/product-3d/${product.id}`);
 
       if (!response.ok) {
         if (response.status === 404) {
@@ -73,7 +74,7 @@ const ProductConfigurator3D = ({
   const calculatePrice = async () => {
     try {
       const materialIds = Object.values(selectedMaterials).map(m => m.id);
-      const response = await fetch(`${API_URL}/product-3d/${product.id}/calculate-price`, {
+      const response = await authFetch(`${API_URL}/product-3d/${product.id}/calculate-price`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ selected_materials: materialIds })

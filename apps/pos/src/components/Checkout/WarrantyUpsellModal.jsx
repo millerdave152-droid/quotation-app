@@ -225,18 +225,58 @@ export function WarrantyUpsellModal({
 
         {/* Content */}
         <div className="flex-1 overflow-y-auto p-6">
-          {/* Hero section */}
-          <div className="text-center mb-6">
-            <div className="inline-flex items-center justify-center w-16 h-16 bg-gradient-to-br from-blue-100 to-indigo-100 rounded-full mb-4">
-              <ShieldCheckIcon className="w-8 h-8 text-blue-600" />
-            </div>
-            <h2 className="text-2xl font-bold text-gray-900 mb-2">
-              Protect Your Purchase
-            </h2>
-            <p className="text-gray-500">
-              Keep your new {currentItem.productName?.split(' ')[0] || 'item'} protected against the unexpected
-            </p>
-          </div>
+          {/* Hero section - with provider branding */}
+          {(() => {
+            const providerCode = currentItem.warranties?.[0]?.providerCode || '';
+            const isExcelsior = providerCode === 'excelsior_appliance';
+            const isGuardianAngelTV = providerCode === 'guardian_angel_tv';
+            const isGuardianAngel = providerCode.startsWith('guardian_angel');
+
+            let brandName = 'Protection Plan';
+            let tagline = `Keep your new ${currentItem.productName?.split(' ')[0] || 'item'} protected against the unexpected`;
+            let gradientFrom = 'from-blue-100';
+            let gradientTo = 'to-indigo-100';
+            let iconColor = 'text-blue-600';
+
+            if (isExcelsior) {
+              brandName = 'Excelsior Service Plan';
+              tagline = 'Complete appliance protection - no deductible, in-home service, power surge & food spoilage coverage';
+              gradientFrom = 'from-emerald-100';
+              gradientTo = 'to-teal-100';
+              iconColor = 'text-emerald-600';
+            } else if (isGuardianAngelTV) {
+              brandName = 'Guardian Angel TV Protection';
+              tagline = 'Extend your TV warranty with parts, labor & remote replacement coverage';
+              gradientFrom = 'from-violet-100';
+              gradientTo = 'to-purple-100';
+              iconColor = 'text-violet-600';
+            } else if (isGuardianAngel) {
+              brandName = 'Guardian Angel Electronics Protection';
+              tagline = 'Extend your manufacturer warranty with full parts & labor coverage';
+              gradientFrom = 'from-violet-100';
+              gradientTo = 'to-purple-100';
+              iconColor = 'text-violet-600';
+            }
+
+            return (
+              <div className="text-center mb-6">
+                <div className={`inline-flex items-center justify-center w-16 h-16 bg-gradient-to-br ${gradientFrom} ${gradientTo} rounded-full mb-4`}>
+                  <ShieldCheckIcon className={`w-8 h-8 ${iconColor}`} />
+                </div>
+                <h2 className="text-2xl font-bold text-gray-900 mb-2">
+                  {brandName}
+                </h2>
+                <p className="text-gray-500 text-sm">
+                  {tagline}
+                </p>
+                {(isExcelsior || isGuardianAngel) && (
+                  <p className="text-xs text-gray-400 mt-1">
+                    by Phoenix A.M.D. International Inc.
+                  </p>
+                )}
+              </div>
+            );
+          })()}
 
           {/* Product info */}
           <ProductSection item={currentItem} />

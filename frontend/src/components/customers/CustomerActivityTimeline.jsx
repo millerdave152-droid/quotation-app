@@ -1,3 +1,4 @@
+import { authFetch } from '../../services/authFetch';
 /**
  * CustomerActivityTimeline - CRM-style activity timeline for customers
  * Displays calls, emails, meetings, notes, and system events
@@ -173,7 +174,7 @@ const AddActivityForm = ({ customerId, onActivityAdded, onClose }) => {
         ? { meeting_type: metadata.type, attendees: metadata.attendees, notes: description, outcome: metadata.outcome }
         : { activity_type: activityType, title, description, metadata };
 
-      const res = await fetch(`${API_URL}${endpoint}`, {
+      const res = await authFetch(`${API_URL}${endpoint}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body)
@@ -390,7 +391,7 @@ function CustomerActivityTimeline({ customerId, limit = 25 }) {
     try {
       setLoading(true);
       const typeParam = filter !== 'all' ? `&type=${filter}` : '';
-      const res = await fetch(`${API_URL}/api/customers/${customerId}/activities?limit=${limit}${typeParam}`);
+      const res = await authFetch(`${API_URL}/api/customers/${customerId}/activities?limit=${limit}${typeParam}`);
 
       if (!res.ok) throw new Error('Failed to fetch activities');
 

@@ -16,6 +16,29 @@ const shakeKeyframes = `
 .animate-shake { animation: shake 0.3s ease-in-out; }
 `;
 
+const MAX_INPUT_LENGTH = 10;
+
+const sanitizeCashInput = (value) => {
+  if (!value) return '';
+  const cleaned = value.replace(/[^0-9.]/g, '');
+  const dotIndex = cleaned.indexOf('.');
+  let whole = cleaned;
+  let decimals = '';
+
+  if (dotIndex !== -1) {
+    whole = cleaned.slice(0, dotIndex);
+    decimals = cleaned.slice(dotIndex + 1).replace(/\./g, '');
+  }
+
+  if (whole.length > 1) {
+    whole = whole.replace(/^0+/, '') || '0';
+  }
+
+  if (decimals.length > 2) decimals = decimals.slice(0, 2);
+
+  return decimals ? `${whole}.${decimals}` : whole;
+};
+
 /**
  * Numpad button component
  */
@@ -166,22 +189,10 @@ export function CashPayment({
     let rejected = false;
 
     setInputValue((prev) => {
-      // Handle decimal
-      if (key === '.') {
-        if (prev.includes('.')) { rejected = true; return prev; }
-        return prev + '.';
-      }
-
-      // Limit decimal places to 2
-      if (prev.includes('.')) {
-        const [, decimals] = prev.split('.');
-        if (decimals && decimals.length >= 2) { rejected = true; return prev; }
-      }
-
-      // Limit total length
-      if (prev.length >= 10) { rejected = true; return prev; }
-
-      return prev + key;
+      const next = key === '.' ? `${prev}.` : `${prev}${key}`;
+      const sanitized = sanitizeCashInput(next);
+      if (sanitized.length > MAX_INPUT_LENGTH) { rejected = true; return prev; }
+      return sanitized;
     });
 
     // Trigger shake after state update if input was rejected
@@ -197,6 +208,15 @@ export function CashPayment({
   const handleClear = useCallback(() => {
     setInputValue('');
   }, []);
+
+  const handleInputChange = useCallback((e) => {
+    const sanitized = sanitizeCashInput(e.target.value);
+    if (sanitized.length > MAX_INPUT_LENGTH) {
+      triggerShake();
+      return;
+    }
+    setInputValue(sanitized);
+  }, [triggerShake]);
 
   // Handle quick amount selection
   const handleQuickAmount = useCallback((amount) => {
@@ -285,9 +305,23 @@ export function CashPayment({
           <span className="text-sm text-gray-500">
             Cash Tendered <span className="text-red-500">*</span>
           </span>
-          <span className="text-3xl font-bold text-gray-900 tabular-nums">
-            {inputValue ? `$${inputValue}` : '$0.00'}
-          </span>
+          <div className="flex items-center gap-1">
+            <span className="text-3xl font-bold text-gray-900">$</span>
+            <input
+              type="text"
+              inputMode="decimal"
+              value={inputValue}
+              onChange={handleInputChange}
+              placeholder="0.00"
+              aria-label="Cash tendered amount"
+              className="
+                w-32
+                text-3xl font-bold text-gray-900 tabular-nums text-right
+                bg-transparent outline-none
+                placeholder:text-gray-400
+              "
+            />
+          </div>
         </div>
 
         {!inputValue && (

@@ -1,3 +1,4 @@
+import { authFetch } from '../../services/authFetch';
 /**
  * LeadDashboard - Analytics dashboard for leads
  * Shows funnel visualization, conversion rates, source breakdown, and trends
@@ -23,10 +24,10 @@ function LeadDashboard({ onClose }) {
     setLoading(true);
     try {
       const [statsRes, leadsRes] = await Promise.all([
-        fetch(`${API_BASE}/leads/stats`, {
+        authFetch(`${API_BASE}/leads/stats`, {
           headers: { 'Authorization': `Bearer ${localStorage.getItem('auth_token')}` }
         }),
-        fetch(`${API_BASE}/leads?limit=1000`, {
+        authFetch(`${API_BASE}/leads?limit=1000`, {
           headers: { 'Authorization': `Bearer ${localStorage.getItem('auth_token')}` }
         })
       ]);

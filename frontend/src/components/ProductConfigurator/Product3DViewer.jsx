@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import '@google/model-viewer';
 
+import { authFetch } from '../../services/authFetch';
 const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:3001';
 const API_URL = `${API_BASE_URL}/api`;
 
@@ -54,7 +55,7 @@ const Product3DViewer = ({
   const fetchModelData = async () => {
     try {
       setLoading(true);
-      const response = await fetch(`${API_URL}/product-3d/${productId}`);
+      const response = await authFetch(`${API_URL}/product-3d/${productId}`);
       if (!response.ok) {
         if (response.status === 404) {
           setError('No 3D model available for this product');

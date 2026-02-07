@@ -1,3 +1,4 @@
+import { authFetch } from '../services/authFetch';
 /**
  * Quotation State Management Hook
  * Centralizes all quotation-related state and handlers
@@ -215,7 +216,7 @@ export const useQuotationState = () => {
 
   const fetchTemplates = useCallback(async () => {
     try {
-      const res = await fetch(`${API_URL}/api/quote-templates`);
+      const res = await authFetch(`${API_URL}/api/quote-templates`);
       const data = await res.json();
       if (isMounted.current) {
         setTemplates(Array.isArray(data) ? data : []);
@@ -228,7 +229,7 @@ export const useQuotationState = () => {
 
   const fetchPaymentTerms = useCallback(async () => {
     try {
-      const res = await fetch(`${API_URL}/api/payment-terms`);
+      const res = await authFetch(`${API_URL}/api/payment-terms`);
       const data = await res.json();
       if (isMounted.current) {
         setPaymentTermsTemplates(Array.isArray(data) ? data : []);
@@ -247,7 +248,7 @@ export const useQuotationState = () => {
     }
 
     try {
-      const res = await fetch(`${API_URL}/api/quotations/${quoteId}/events`);
+      const res = await authFetch(`${API_URL}/api/quotations/${quoteId}/events`);
       const data = await res.json();
       if (isMounted.current) {
         setQuoteEvents(Array.isArray(data) ? data : []);
@@ -260,7 +261,7 @@ export const useQuotationState = () => {
 
   const fetchCustomerQuotes = useCallback(async (customerId) => {
     try {
-      const res = await fetch(`${API_URL}/api/quotations?customer_id=${customerId}&limit=5`);
+      const res = await authFetch(`${API_URL}/api/quotations?customer_id=${customerId}&limit=5`);
       const data = await res.json();
       if (isMounted.current) {
         setCustomerQuotes(data?.quotations || data || []);
@@ -273,7 +274,7 @@ export const useQuotationState = () => {
 
   const fetchPendingApprovals = useCallback(async () => {
     try {
-      const res = await fetch(`${API_URL}/api/quotations/approvals/pending`);
+      const res = await authFetch(`${API_URL}/api/quotations/approvals/pending`);
       const data = await res.json();
       if (isMounted.current) {
         setPendingApprovals(Array.isArray(data) ? data : []);
@@ -287,9 +288,9 @@ export const useQuotationState = () => {
   const fetchFollowUpData = useCallback(async () => {
     try {
       const [pending, stale, statsRes] = await Promise.all([
-        fetch(`${API_URL}/api/quotations/follow-ups/pending`).then(r => r.json()),
-        fetch(`${API_URL}/api/quotations/stale`).then(r => r.json()),
-        fetch(`${API_URL}/api/quotations/follow-ups/stats`).then(r => r.json())
+        authFetch(`${API_URL}/api/quotations/follow-ups/pending`).then(r => r.json()),
+        authFetch(`${API_URL}/api/quotations/stale`).then(r => r.json()),
+        authFetch(`${API_URL}/api/quotations/follow-ups/stats`).then(r => r.json())
       ]);
 
       if (isMounted.current) {
@@ -339,7 +340,7 @@ export const useQuotationState = () => {
     }
 
     try {
-      const res = await fetch(`${API_URL}/api/quotations/${quote.id}`);
+      const res = await authFetch(`${API_URL}/api/quotations/${quote.id}`);
       const fullQuote = await res.json();
 
       setSelectedCustomer(customers.find(c => c.id === fullQuote.customer_id) || null);
@@ -372,7 +373,7 @@ export const useQuotationState = () => {
     }
 
     try {
-      const res = await fetch(`${API_URL}/api/quotations/${quote.id}`);
+      const res = await authFetch(`${API_URL}/api/quotations/${quote.id}`);
       const fullQuote = await res.json();
       setSelectedQuote(fullQuote);
       await fetchQuoteEvents(quote.id);
@@ -392,7 +393,7 @@ export const useQuotationState = () => {
     if (!window.confirm('Are you sure you want to delete this quotation?')) return;
 
     try {
-      await fetch(`${API_URL}/api/quotations/${quoteId}`, { method: 'DELETE' });
+      await authFetch(`${API_URL}/api/quotations/${quoteId}`, { method: 'DELETE' });
       invalidateCache('/api/quotations');
       await fetchQuotations();
     } catch (err) {

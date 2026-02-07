@@ -1,3 +1,4 @@
+import { authFetch } from '../../services/authFetch';
 /**
  * InteractiveDecoder.jsx
  * Enter a model number and see character-by-character breakdown
@@ -27,7 +28,7 @@ const InteractiveDecoder = ({ manufacturer, templates }) => {
       setError(null);
 
       const token = localStorage.getItem('auth_token');
-      const response = await fetch(`${API_BASE}/api/nomenclature/decode`, {
+      const response = await authFetch(`${API_BASE}/api/nomenclature/decode`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

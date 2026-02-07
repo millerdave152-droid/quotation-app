@@ -1,3 +1,4 @@
+import { authFetch } from '../services/authFetch';
 /**
  * CustomerQuoteView - Public page for customers to view quotes via magic link
  * Allows customers to view quote details, accept, or submit counter-offers
@@ -31,7 +32,7 @@ const CustomerQuoteView = () => {
   const fetchCounterOffer = async () => {
     try {
       setLoading(true);
-      const response = await fetch(`${API_URL}/api/counter-offers/magic/${token}`);
+      const response = await authFetch(`${API_URL}/api/counter-offers/magic/${token}`);
       const data = await response.json();
 
       if (!data.success) {
@@ -54,7 +55,7 @@ const CustomerQuoteView = () => {
   const handleAccept = async () => {
     try {
       setSubmitting(true);
-      const response = await fetch(`${API_URL}/api/counter-offers/magic/${token}`, {
+      const response = await authFetch(`${API_URL}/api/counter-offers/magic/${token}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -84,7 +85,7 @@ const CustomerQuoteView = () => {
       setSubmitting(true);
       const counterCents = Math.round(parseFloat(counterAmount) * 100);
 
-      const response = await fetch(`${API_URL}/api/counter-offers/magic/${token}`, {
+      const response = await authFetch(`${API_URL}/api/counter-offers/magic/${token}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

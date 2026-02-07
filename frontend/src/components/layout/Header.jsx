@@ -6,6 +6,7 @@ import NotificationBadge from './NotificationBadge';
 import NotificationDropdown from './NotificationDropdown';
 import ThemeToggle from '../ui/ThemeToggle';
 
+import { authFetch } from '../../services/authFetch';
 // Header Action Button Component
 const HeaderButton = ({ icon, badge, onClick, title, ariaExpanded, ariaHaspopup }) => {
   const [isHovered, setIsHovered] = useState(false);
@@ -361,7 +362,7 @@ const NotificationPanel = ({ isOpen, onClose, dropdownRef }) => {
     setLoading(true);
     try {
       const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:3001';
-      const res = await fetch(`${API_URL}/api/activities/recent?limit=10`);
+      const res = await authFetch(`${API_URL}/api/activities/recent?limit=10`);
       const data = await res.json();
       setNotifications(data.data?.activities || data.activities || []);
     } catch (err) {

@@ -1,3 +1,4 @@
+import { authFetch } from '../../services/authFetch';
 /**
  * Package Builder Wizard
  * Guided appliance package builder with Good/Better/Best recommendations
@@ -759,7 +760,7 @@ const PackageBuilder = ({
     setLoading(true);
     try {
       // Load questionnaire
-      const qRes = await fetch(`${API_URL}/api/package-builder/questionnaires/${packageType}`, {
+      const qRes = await authFetch(`${API_URL}/api/package-builder/questionnaires/${packageType}`, {
         headers: getAuthHeaders()
       });
       const qData = await qRes.json();
@@ -771,7 +772,7 @@ const PackageBuilder = ({
       setQuestionnaire(qData.data);
 
       // Create session
-      const sRes = await fetch(`${API_URL}/api/package-builder/sessions`, {
+      const sRes = await authFetch(`${API_URL}/api/package-builder/sessions`, {
         method: 'POST',
         headers: getAuthHeaders(),
         body: JSON.stringify({ package_type: packageType, customer_id: customerId })
@@ -844,7 +845,7 @@ const PackageBuilder = ({
       setGenerationStage(2);
 
       // Stage 2: Save answers to session
-      await fetch(`${API_URL}/api/package-builder/sessions/${sessionUuid}/answers`, {
+      await authFetch(`${API_URL}/api/package-builder/sessions/${sessionUuid}/answers`, {
         method: 'PUT',
         headers: getAuthHeaders(),
         body: JSON.stringify({
@@ -856,7 +857,7 @@ const PackageBuilder = ({
       setGenerationStage(3);
 
       // Stage 3: Generate packages
-      const res = await fetch(`${API_URL}/api/package-builder/sessions/${sessionUuid}/generate`, {
+      const res = await authFetch(`${API_URL}/api/package-builder/sessions/${sessionUuid}/generate`, {
         method: 'POST',
         headers: getAuthHeaders(),
         body: JSON.stringify({
@@ -893,14 +894,14 @@ const PackageBuilder = ({
 
     try {
       // Select tier in session
-      await fetch(`${API_URL}/api/package-builder/sessions/${sessionUuid}/select`, {
+      await authFetch(`${API_URL}/api/package-builder/sessions/${sessionUuid}/select`, {
         method: 'POST',
         headers: getAuthHeaders(),
         body: JSON.stringify({ tier: selectedTier })
       });
 
       // Get items for quote
-      const res = await fetch(`${API_URL}/api/package-builder/sessions/${sessionUuid}/add-to-quote`, {
+      const res = await authFetch(`${API_URL}/api/package-builder/sessions/${sessionUuid}/add-to-quote`, {
         method: 'POST',
         headers: getAuthHeaders(),
         body: JSON.stringify({})

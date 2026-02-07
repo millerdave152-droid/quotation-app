@@ -1,3 +1,4 @@
+import { authFetch } from '../../../services/authFetch';
 /**
  * RecommendationTester - Debug tool for testing recommendations
  * Enter a product or simulate a cart to see what recommendations would appear
@@ -37,7 +38,7 @@ function ProductSearchInput({ onSelect, placeholder }) {
       setLoading(true);
       try {
         const token = localStorage.getItem('auth_token');
-        const response = await fetch(
+        const response = await authFetch(
           `${API_BASE}/api/products?search=${encodeURIComponent(search)}&limit=8`,
           {
             headers: { Authorization: `Bearer ${token}` },
@@ -242,7 +243,7 @@ export default function RecommendationTester() {
       const token = localStorage.getItem('auth_token');
 
       // Get product recommendations
-      const recResponse = await fetch(
+      const recResponse = await authFetch(
         `${API_BASE}/api/recommendations/product/${selectedProduct.productId}?limit=10`,
         {
           headers: { Authorization: `Bearer ${token}` },
@@ -252,7 +253,7 @@ export default function RecommendationTester() {
       const recData = await recResponse.json();
 
       // Get cross-sell suggestions
-      const crossResponse = await fetch(
+      const crossResponse = await authFetch(
         `${API_BASE}/api/recommendations/cross-sell/${selectedProduct.productId}?limit=5&includeMargin=true`,
         {
           headers: { Authorization: `Bearer ${token}` },
@@ -315,7 +316,7 @@ export default function RecommendationTester() {
     try {
       const token = localStorage.getItem('auth_token');
 
-      const response = await fetch(`${API_BASE}/api/recommendations/cart`, {
+      const response = await authFetch(`${API_BASE}/api/recommendations/cart`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

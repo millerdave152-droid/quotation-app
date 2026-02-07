@@ -1,3 +1,4 @@
+import { authFetch } from '../../services/authFetch';
 /**
  * TrainingCenter.jsx
  * Main page for Model Nomenclature Decoder training system
@@ -32,7 +33,7 @@ const TrainingCenter = () => {
       };
 
       // Fetch grouped templates
-      const templatesRes = await fetch(`${API_BASE}/api/nomenclature/templates/grouped`, { headers });
+      const templatesRes = await authFetch(`${API_BASE}/api/nomenclature/templates/grouped`, { headers });
       if (templatesRes.ok) {
         const templatesData = await templatesRes.json();
         if (templatesData.success) {
@@ -42,7 +43,7 @@ const TrainingCenter = () => {
       }
 
       // Fetch user progress
-      const progressRes = await fetch(`${API_BASE}/api/nomenclature/progress`, { headers });
+      const progressRes = await authFetch(`${API_BASE}/api/nomenclature/progress`, { headers });
       if (progressRes.ok) {
         const progressData = await progressRes.json();
         if (progressData.success) {

@@ -17,15 +17,6 @@ import axios from 'axios';
 const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:3001';
 const DEFAULT_TIMEOUT = 30000; // 30 seconds
 
-// Create axios instance with timeout
-const apiClient = axios.create({
-  baseURL: API_URL,
-  timeout: DEFAULT_TIMEOUT,
-  headers: {
-    'Content-Type': 'application/json'
-  }
-});
-
 // Track refresh state to prevent multiple refresh calls
 let isRefreshing = false;
 let failedQueue = [];
@@ -88,22 +79,23 @@ const triggerLogout = () => {
   window.dispatchEvent(new CustomEvent('auth:logout'));
 };
 
-// Request interceptor - Add auth token to requests
-apiClient.interceptors.request.use(
-  (config) => {
-    const token = localStorage.getItem('auth_token');
-    if (token) {
-      config.headers.Authorization = `Bearer ${token}`;
-    }
-    return config;
-  },
-  (error) => Promise.reject(error)
-);
+const applyAuthInterceptors = (client) => {
+  // Request interceptor - Add auth token to requests
+  client.interceptors.request.use(
+    (config) => {
+      const token = localStorage.getItem('auth_token');
+      if (token) {
+        config.headers.Authorization = `Bearer ${token}`;
+      }
+      return config;
+    },
+    (error) => Promise.reject(error)
+  );
 
-// Response interceptor - Handle errors including 401 with token refresh
-apiClient.interceptors.response.use(
-  (response) => response,
-  async (error) => {
+  // Response interceptor - Handle errors including 401 with token refresh
+  client.interceptors.response.use(
+    (response) => response,
+    async (error) => {
     const originalRequest = error.config;
 
     // Handle timeout errors
@@ -153,7 +145,7 @@ apiClient.interceptors.response.use(
       })
         .then((token) => {
           originalRequest.headers.Authorization = `Bearer ${token}`;
-          return apiClient(originalRequest);
+          return client(originalRequest);
         })
         .catch((err) => Promise.reject(err));
     }
@@ -169,7 +161,7 @@ apiClient.interceptors.response.use(
 
       // Retry original request with new token
       originalRequest.headers.Authorization = `Bearer ${newToken}`;
-      return apiClient(originalRequest);
+      return client(originalRequest);
     } catch (refreshError) {
       // Process queued requests with error
       processQueue(refreshError, null);
@@ -181,10 +173,27 @@ apiClient.interceptors.response.use(
     } finally {
       isRefreshing = false;
     }
-  }
-);
+    }
+  );
+};
+
+const createBaseClient = (config = {}) => {
+  const defaultHeaders = { 'Content-Type': 'application/json' };
+  const mergedHeaders = { ...defaultHeaders, ...(config.headers || {}) };
+  return axios.create({
+    baseURL: API_URL,
+    timeout: DEFAULT_TIMEOUT,
+    ...config,
+    headers: mergedHeaders
+  });
+};
+
+// Create axios instance with timeout
+const apiClient = createBaseClient();
+applyAuthInterceptors(apiClient);
 
 export default apiClient;
+export { applyAuthInterceptors };
 
 /**
  * Helper function to make authenticated API calls
@@ -200,6 +209,12 @@ export const api = {
   put: (url, data, config = {}) => apiClient.put(url, data, config),
   patch: (url, data, config = {}) => apiClient.patch(url, data, config),
   delete: (url, config = {}) => apiClient.delete(url, config)
+};
+
+export const createAuthorizedClient = (config = {}) => {
+  const client = createBaseClient(config);
+  applyAuthInterceptors(client);
+  return client;
 };
 
 /**

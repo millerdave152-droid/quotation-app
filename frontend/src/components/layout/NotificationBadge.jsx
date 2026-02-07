@@ -1,3 +1,4 @@
+import { authFetch } from '../../services/authFetch';
 /**
  * NotificationBadge - Shows notification count with polling
  */
@@ -16,7 +17,7 @@ const NotificationBadge = ({ onClick, isOpen }) => {
       const token = localStorage.getItem('auth_token');
       if (!token) return;
 
-      const response = await fetch(`${API_URL}/api/notifications/unread-count`, {
+      const response = await authFetch(`${API_URL}/api/notifications/unread-count`, {
         headers: {
           'Authorization': `Bearer ${token}`
         }

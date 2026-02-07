@@ -1,5 +1,6 @@
 import React, { useState, useRef } from 'react';
 
+import { authFetch } from '../../services/authFetch';
 const API_URL = `${process.env.REACT_APP_API_URL || 'http://localhost:3001'}/api`;
 
 /**
@@ -66,7 +67,7 @@ const Model3DUploader = ({ productId, currentModel, onModelUpdated, compact = fa
       });
 
       // Fetch updated model data
-      const response = await fetch(`${API_URL}/product-3d/${productId}`);
+      const response = await authFetch(`${API_URL}/product-3d/${productId}`);
       if (response.ok) {
         const data = await response.json();
         onModelUpdated?.(data);
@@ -88,7 +89,7 @@ const Model3DUploader = ({ productId, currentModel, onModelUpdated, compact = fa
     if (!window.confirm('Are you sure you want to delete this 3D model?')) return;
 
     try {
-      const response = await fetch(`${API_URL}/product-3d/${productId}`, {
+      const response = await authFetch(`${API_URL}/product-3d/${productId}`, {
         method: 'DELETE'
       });
 

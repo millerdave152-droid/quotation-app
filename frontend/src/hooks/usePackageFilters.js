@@ -1,3 +1,4 @@
+import { authFetch } from '../services/authFetch';
 /**
  * usePackageFilters - Custom hook for Package Builder V2 filter state
  * Manages filter selections, API calls, and package generation
@@ -56,7 +57,7 @@ const usePackageFilters = (packageType = 'kitchen') => {
         }
       }
 
-      const response = await fetch(
+      const response = await authFetch(
         `${API_BASE}/api/package-builder-v2/filter-options?${params.toString()}`
       );
 
@@ -86,7 +87,7 @@ const usePackageFilters = (packageType = 'kitchen') => {
     setPreviewLoading(true);
 
     try {
-      const response = await fetch(`${API_BASE}/api/package-builder-v2/preview`, {
+      const response = await authFetch(`${API_BASE}/api/package-builder-v2/preview`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -121,7 +122,7 @@ const usePackageFilters = (packageType = 'kitchen') => {
     setPackagesError(null);
 
     try {
-      const response = await fetch(`${API_BASE}/api/package-builder-v2/generate`, {
+      const response = await authFetch(`${API_BASE}/api/package-builder-v2/generate`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

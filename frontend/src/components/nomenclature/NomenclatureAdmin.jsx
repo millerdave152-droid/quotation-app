@@ -1,3 +1,4 @@
+import { authFetch } from '../../services/authFetch';
 /**
  * NomenclatureAdmin.jsx
  * Admin dashboard for managing nomenclature data and scrape jobs
@@ -26,28 +27,28 @@ const NomenclatureAdmin = () => {
       const headers = { 'Authorization': `Bearer ${token}` };
 
       // Fetch templates
-      const templatesRes = await fetch(`${API_BASE}/api/nomenclature/templates`, { headers });
+      const templatesRes = await authFetch(`${API_BASE}/api/nomenclature/templates`, { headers });
       if (templatesRes.ok) {
         const data = await templatesRes.json();
         if (data.success) setTemplates(data.data);
       }
 
       // Fetch scrape history
-      const jobsRes = await fetch(`${API_BASE}/api/nomenclature/scrape/history`, { headers });
+      const jobsRes = await authFetch(`${API_BASE}/api/nomenclature/scrape/history`, { headers });
       if (jobsRes.ok) {
         const data = await jobsRes.json();
         if (data.success) setScrapeJobs(data.data);
       }
 
       // Fetch recent changes
-      const changesRes = await fetch(`${API_BASE}/api/nomenclature/changes?limit=20`, { headers });
+      const changesRes = await authFetch(`${API_BASE}/api/nomenclature/changes?limit=20`, { headers });
       if (changesRes.ok) {
         const data = await changesRes.json();
         if (data.success) setChanges(data.data);
       }
 
       // Check current job status
-      const statusRes = await fetch(`${API_BASE}/api/nomenclature/scrape/status`, { headers });
+      const statusRes = await authFetch(`${API_BASE}/api/nomenclature/scrape/status`, { headers });
       if (statusRes.ok) {
         const data = await statusRes.json();
         if (data.success && data.data?.status === 'running') {
@@ -74,7 +75,7 @@ const NomenclatureAdmin = () => {
     const interval = setInterval(async () => {
       try {
         const token = localStorage.getItem('auth_token');
-        const res = await fetch(`${API_BASE}/api/nomenclature/scrape/status/${currentJob.id}`, {
+        const res = await authFetch(`${API_BASE}/api/nomenclature/scrape/status/${currentJob.id}`, {
           headers: { 'Authorization': `Bearer ${token}` }
         });
 
@@ -101,7 +102,7 @@ const NomenclatureAdmin = () => {
     try {
       setScraping(true);
       const token = localStorage.getItem('auth_token');
-      const res = await fetch(`${API_BASE}/api/nomenclature/scrape/start`, {
+      const res = await authFetch(`${API_BASE}/api/nomenclature/scrape/start`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -126,7 +127,7 @@ const NomenclatureAdmin = () => {
     try {
       setScraping(true);
       const token = localStorage.getItem('auth_token');
-      const res = await fetch(`${API_BASE}/api/nomenclature/scrape/brand/${encodeURIComponent(brand)}`, {
+      const res = await authFetch(`${API_BASE}/api/nomenclature/scrape/brand/${encodeURIComponent(brand)}`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -150,7 +151,7 @@ const NomenclatureAdmin = () => {
   const exportTrainingData = async () => {
     try {
       const token = localStorage.getItem('auth_token');
-      const res = await fetch(`${API_BASE}/api/nomenclature/training-data`, {
+      const res = await authFetch(`${API_BASE}/api/nomenclature/training-data`, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
 

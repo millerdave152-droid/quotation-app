@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 
+import { authFetch } from './services/authFetch';
 const API_BASE = `${process.env.REACT_APP_API_URL || 'http://localhost:3001'}/api`;
 
 function QuoteManager() {
@@ -11,7 +12,7 @@ function QuoteManager() {
 
   const fetchQuotations = async () => {
     try {
-      const response = await fetch(`${API_BASE}/quotations`);
+      const response = await authFetch(`${API_BASE}/quotations`);
       if (!response.ok) {
         throw new Error(`HTTP ${response.status}: Failed to fetch quotations`);
       }
@@ -26,7 +27,7 @@ function QuoteManager() {
   const deleteQuotation = async (id) => {
     if (!window.confirm('Are you sure you want to delete this quote?')) return;
     try {
-      const response = await fetch(`${API_BASE}/quotations/${id}`, {
+      const response = await authFetch(`${API_BASE}/quotations/${id}`, {
         method: 'DELETE'
       });
       if (response.ok) {

@@ -31,7 +31,7 @@ export const calculateExchange = async ({ originalTransactionId, returnItemIds, 
     }
 
     const response = await api.post('/exchanges/calculate', { originalTransactionId, returnItemIds, newItems });
-    return response.data ?? response;
+    return response;
   } catch (error) {
     console.error('[Exchanges] calculateExchange error:', error);
     return { success: false, error: error.message || 'Failed to calculate exchange' };
@@ -59,7 +59,7 @@ export const processExchange = async (data) => {
     }
 
     const response = await api.post('/exchanges', data);
-    return response.data ?? response;
+    return response;
   } catch (error) {
     console.error('[Exchanges] processExchange error:', error);
     return { success: false, error: error.message || 'Failed to process exchange' };

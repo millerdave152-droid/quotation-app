@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { handleApiError } from '../utils/errorHandler';
 
+import { authFetch } from '../services/authFetch';
 const API_BASE = `${process.env.REACT_APP_API_URL || 'http://localhost:3001'}/api`;
 
 const CustomerCreditTracking = ({ customer, onUpdate }) => {
@@ -35,8 +36,8 @@ const CustomerCreditTracking = ({ customer, onUpdate }) => {
     setLoading(true);
     try {
       const [paymentsRes, summaryRes] = await Promise.all([
-        fetch(`${API_BASE}/payments/customer/${customer.id}`),
-        fetch(`${API_BASE}/payments/customer/${customer.id}/summary`)
+        authFetch(`${API_BASE}/payments/customer/${customer.id}`),
+        authFetch(`${API_BASE}/payments/customer/${customer.id}/summary`)
       ]);
 
       const paymentsData = await paymentsRes.json();
@@ -56,7 +57,7 @@ const CustomerCreditTracking = ({ customer, onUpdate }) => {
     setLoading(true);
 
     try {
-      const response = await fetch(`${API_BASE}/payments`, {
+      const response = await authFetch(`${API_BASE}/payments`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -92,7 +93,7 @@ const CustomerCreditTracking = ({ customer, onUpdate }) => {
     setLoading(true);
 
     try {
-      const response = await fetch(`${API_BASE}/payments/customer/${customer.id}/credit-limit`, {
+      const response = await authFetch(`${API_BASE}/payments/customer/${customer.id}/credit-limit`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(creditForm)

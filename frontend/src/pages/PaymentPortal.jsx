@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useSearchParams } from 'react-router-dom';
 
+import { authFetch } from '../services/authFetch';
 const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:3001';
 
 /**
@@ -32,7 +33,7 @@ const PaymentPortal = () => {
   const fetchPaymentDetails = async () => {
     try {
       setLoading(true);
-      const response = await fetch(`${API_URL}/api/stripe/payment-link/${token}`);
+      const response = await authFetch(`${API_URL}/api/stripe/payment-link/${token}`);
       const data = await response.json();
 
       if (!data.success) {
@@ -109,7 +110,7 @@ const PaymentPortal = () => {
 
     setProcessing(true);
     try {
-      const response = await fetch(`${API_URL}/api/stripe/process-payment`, {
+      const response = await authFetch(`${API_URL}/api/stripe/process-payment`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

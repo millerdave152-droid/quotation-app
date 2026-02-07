@@ -1,3 +1,4 @@
+import { authFetch } from '../../services/authFetch';
 /**
  * CounterOfferModal - Modal for submitting counter-offers on quotes
  * Used by salespeople and supervisors
@@ -57,7 +58,7 @@ const CounterOfferModal = ({
         };
       }
 
-      const response = await fetch(endpoint, {
+      const response = await authFetch(endpoint, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -92,7 +93,7 @@ const CounterOfferModal = ({
 
     try {
       const token = localStorage.getItem('auth_token');
-      const response = await fetch(`${API_URL}/api/counter-offers/${existingOffer.id}/accept`, {
+      const response = await authFetch(`${API_URL}/api/counter-offers/${existingOffer.id}/accept`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -127,7 +128,7 @@ const CounterOfferModal = ({
 
     try {
       const token = localStorage.getItem('auth_token');
-      const response = await fetch(`${API_URL}/api/counter-offers/${existingOffer.id}/reject`, {
+      const response = await authFetch(`${API_URL}/api/counter-offers/${existingOffer.id}/reject`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

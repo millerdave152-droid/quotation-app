@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 
+import { authFetch } from '../../services/authFetch';
 const API_URL = `${process.env.REACT_APP_API_URL || 'http://localhost:3001'}/api`;
 
 /**
@@ -27,7 +28,7 @@ const PromoCodeInput = ({
     setError(null);
 
     try {
-      const response = await fetch(`${API_URL}/advanced-pricing/promotions/validate-code`, {
+      const response = await authFetch(`${API_URL}/advanced-pricing/promotions/validate-code`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

@@ -1,3 +1,4 @@
+import { authFetch } from '../../services/authFetch';
 /**
  * AtRiskCustomers Component
  * Week 4.4 of 4-week sprint
@@ -258,7 +259,7 @@ const AtRiskCustomers = ({
       setLoading(true);
       setError(null);
 
-      const response = await fetch(`${API_BASE}/customers/at-risk?limit=${limit}`, {
+      const response = await authFetch(`${API_BASE}/customers/at-risk?limit=${limit}`, {
         headers: getAuthHeaders()
       });
 

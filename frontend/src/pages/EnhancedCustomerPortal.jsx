@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useParams, useSearchParams } from 'react-router-dom';
 import SignaturePad from '../components/common/SignaturePad';
 
+import { authFetch } from '../services/authFetch';
 const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:3001';
 
 /**
@@ -39,7 +40,7 @@ const EnhancedCustomerPortal = () => {
   const fetchQuoteDetails = async () => {
     try {
       setLoading(true);
-      const response = await fetch(`${API_URL}/api/customer-portal/quote/${token}`);
+      const response = await authFetch(`${API_URL}/api/customer-portal/quote/${token}`);
       const data = await response.json();
 
       if (!data.success) {
@@ -64,7 +65,7 @@ const EnhancedCustomerPortal = () => {
   const fetchDeliverySlots = useCallback(async (address) => {
     try {
       const postalCode = (address || deliveryAddress).match(/[A-Za-z]\d[A-Za-z][ -]?\d[A-Za-z]\d/)?.[0] || '';
-      const response = await fetch(
+      const response = await authFetch(
         `${API_URL}/api/delivery/slots?postal_code=${postalCode}&days=14`
       );
       const data = await response.json();
@@ -125,7 +126,7 @@ const EnhancedCustomerPortal = () => {
 
     setProcessing(true);
     try {
-      const response = await fetch(`${API_URL}/api/customer-portal/quote/${token}/accept`, {
+      const response = await authFetch(`${API_URL}/api/customer-portal/quote/${token}/accept`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -159,7 +160,7 @@ const EnhancedCustomerPortal = () => {
   const handleDeclineQuote = async () => {
     setProcessing(true);
     try {
-      const response = await fetch(`${API_URL}/api/customer-portal/quote/${token}/decline`, {
+      const response = await authFetch(`${API_URL}/api/customer-portal/quote/${token}/decline`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ reason: declineReason })
@@ -183,7 +184,7 @@ const EnhancedCustomerPortal = () => {
   const handleCounterOffer = async () => {
     setProcessing(true);
     try {
-      const response = await fetch(`${API_URL}/api/customer-portal/quote/${token}/counter-offer`, {
+      const response = await authFetch(`${API_URL}/api/customer-portal/quote/${token}/counter-offer`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

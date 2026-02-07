@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { authFetch } from '../../services/authFetch';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
   LineChart, Line, AreaChart, Area, PieChart, Pie, Cell
@@ -9,7 +10,7 @@ const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:3001';
 // Helper for API calls
 const api = {
   get: async (url) => {
-    const response = await fetch(`${API_URL}${url}`);
+    const response = await authFetch(`${API_URL}${url}`);
     return { data: await response.json() };
   }
 };

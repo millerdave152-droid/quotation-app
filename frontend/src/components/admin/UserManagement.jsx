@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
 
+import { authFetch } from '../../services/authFetch';
 const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:3001';
 
 const UserManagement = () => {
@@ -29,7 +30,7 @@ const UserManagement = () => {
       if (showInactive) params.append('includeInactive', 'true');
       if (searchTerm) params.append('search', searchTerm);
 
-      const response = await fetch(`${API_URL}/api/users?${params}`, {
+      const response = await authFetch(`${API_URL}/api/users?${params}`, {
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
@@ -70,7 +71,7 @@ const UserManagement = () => {
     setSaving(true);
 
     try {
-      const response = await fetch(`${API_URL}/api/users/${selectedUser.id}`, {
+      const response = await authFetch(`${API_URL}/api/users/${selectedUser.id}`, {
         method: 'PUT',
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -112,7 +113,7 @@ const UserManagement = () => {
     if (!window.confirm('Are you sure you want to deactivate this user?')) return;
 
     try {
-      const response = await fetch(`${API_URL}/api/users/${userId}`, {
+      const response = await authFetch(`${API_URL}/api/users/${userId}`, {
         method: 'DELETE',
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -134,7 +135,7 @@ const UserManagement = () => {
 
   const handleReactivateUser = async (userId) => {
     try {
-      const response = await fetch(`${API_URL}/api/users/${userId}/reactivate`, {
+      const response = await authFetch(`${API_URL}/api/users/${userId}/reactivate`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`,

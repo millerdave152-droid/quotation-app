@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 
+import { authFetch } from '../../services/authFetch';
 const API_URL = `${process.env.REACT_APP_API_URL || 'http://localhost:3001'}/api`;
 
 const getAuthHeaders = () => {
@@ -35,10 +36,10 @@ const QuotePromotionAlerts = ({ quotationId, onPromotionChange }) => {
       setError(null);
 
       const [eligibleRes, appliedRes] = await Promise.all([
-        fetch(`${API_URL}/promotions/manufacturer/quote/${quotationId}/eligible`, {
+        authFetch(`${API_URL}/promotions/manufacturer/quote/${quotationId}/eligible`, {
           headers: getAuthHeaders()
         }),
-        fetch(`${API_URL}/promotions/manufacturer/quote/${quotationId}/applied`, {
+        authFetch(`${API_URL}/promotions/manufacturer/quote/${quotationId}/applied`, {
           headers: getAuthHeaders()
         })
       ]);
@@ -74,7 +75,7 @@ const QuotePromotionAlerts = ({ quotationId, onPromotionChange }) => {
       setApplying(promotionId);
       setError(null);
 
-      const response = await fetch(
+      const response = await authFetch(
         `${API_URL}/promotions/manufacturer/quote/${quotationId}/apply/${promotionId}`,
         {
           method: 'POST',
@@ -109,7 +110,7 @@ const QuotePromotionAlerts = ({ quotationId, onPromotionChange }) => {
       setApplying(promotionId);
       setError(null);
 
-      const response = await fetch(
+      const response = await authFetch(
         `${API_URL}/promotions/manufacturer/quote/${quotationId}/remove/${promotionId}`,
         {
           method: 'DELETE',

@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { handleApiError } from '../utils/errorHandler';
 
+import { authFetch } from '../services/authFetch';
 const API_BASE = `${process.env.REACT_APP_API_URL || 'http://localhost:3001'}/api`;
 
 /**
@@ -43,7 +44,7 @@ function BulkOperationsCenter() {
 
   // Fetch categories
   useEffect(() => {
-    fetch(`${API_BASE}/marketplace/categories`)
+    authFetch(`${API_BASE}/marketplace/categories`)
       .then(res => res.json())
       .then(data => setCategories(data.categories || []))
       .catch(err => handleApiError(err, { context: 'Loading categories' }));
@@ -61,7 +62,7 @@ function BulkOperationsCenter() {
         ...(enabledFilter && { enabled: enabledFilter })
       });
 
-      const res = await fetch(`${API_BASE}/marketplace/bulk/products?${params}`);
+      const res = await authFetch(`${API_BASE}/marketplace/bulk/products?${params}`);
       const data = await res.json();
       setProducts(data.products || []);
       setTotalPages(data.totalPages || 1);
@@ -81,7 +82,7 @@ function BulkOperationsCenter() {
   // Fetch health score
   const fetchHealthScore = useCallback(async () => {
     try {
-      const res = await fetch(`${API_BASE}/marketplace/health-score`);
+      const res = await authFetch(`${API_BASE}/marketplace/health-score`);
       const data = await res.json();
       setHealthScore(data);
     } catch (err) {
@@ -102,7 +103,7 @@ function BulkOperationsCenter() {
         status: errorFilter,
         limit: 50
       });
-      const res = await fetch(`${API_BASE}/marketplace/errors?${params}`);
+      const res = await authFetch(`${API_BASE}/marketplace/errors?${params}`);
       const data = await res.json();
       setSyncErrors(data.errors || []);
     } catch (err) {
@@ -119,7 +120,7 @@ function BulkOperationsCenter() {
   // Fetch audit log
   const fetchAuditLog = useCallback(async () => {
     try {
-      const res = await fetch(`${API_BASE}/marketplace/audit-log?limit=50`);
+      const res = await authFetch(`${API_BASE}/marketplace/audit-log?limit=50`);
       const data = await res.json();
       setAuditLogs(data.entries || []);
     } catch (err) {
@@ -136,7 +137,7 @@ function BulkOperationsCenter() {
   // Fetch bulk history
   const fetchBulkHistory = useCallback(async () => {
     try {
-      const res = await fetch(`${API_BASE}/marketplace/bulk/history`);
+      const res = await authFetch(`${API_BASE}/marketplace/bulk/history`);
       const data = await res.json();
       setBulkHistory(data || []);
     } catch (err) {
@@ -183,7 +184,7 @@ function BulkOperationsCenter() {
 
     try {
       setLoading(true);
-      const res = await fetch(`${API_BASE}/marketplace/bulk/toggle-enabled`, {
+      const res = await authFetch(`${API_BASE}/marketplace/bulk/toggle-enabled`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ product_ids: selectedProducts, enabled })
@@ -214,7 +215,7 @@ function BulkOperationsCenter() {
 
     try {
       setLoading(true);
-      const res = await fetch(`${API_BASE}/marketplace/bulk/assign-category`, {
+      const res = await authFetch(`${API_BASE}/marketplace/bulk/assign-category`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ product_ids: selectedProducts, category_code: bulkCategory })
@@ -247,7 +248,7 @@ function BulkOperationsCenter() {
 
     try {
       setLoading(true);
-      const res = await fetch(`${API_BASE}/marketplace/bulk/adjust-prices`, {
+      const res = await authFetch(`${API_BASE}/marketplace/bulk/adjust-prices`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -281,7 +282,7 @@ function BulkOperationsCenter() {
   // Ignore sync error
   const handleIgnoreError = async (errorId) => {
     try {
-      await fetch(`${API_BASE}/marketplace/errors/${errorId}/ignore`, {
+      await authFetch(`${API_BASE}/marketplace/errors/${errorId}/ignore`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' }
       });
@@ -295,7 +296,7 @@ function BulkOperationsCenter() {
   // Retry sync error
   const handleRetryError = async (errorId) => {
     try {
-      await fetch(`${API_BASE}/marketplace/errors/${errorId}/retry`, {
+      await authFetch(`${API_BASE}/marketplace/errors/${errorId}/retry`, {
         method: 'POST'
       });
       fetchSyncErrors();

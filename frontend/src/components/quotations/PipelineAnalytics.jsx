@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
+import { authFetch } from '../../services/authFetch';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
   FunnelChart, Funnel, LabelList, Cell,
@@ -23,9 +24,9 @@ const PipelineAnalytics = () => {
     setLoading(true);
     try {
       const [pipelineRes, velocityRes, atRiskRes] = await Promise.all([
-        fetch(`${API_URL}/api/quotations/analytics/pipeline-win-rates`).then(r => r.json()),
-        fetch(`${API_URL}/api/analytics/sales-velocity?days=${dateRange}`).then(r => r.json()),
-        fetch(`${API_URL}/api/quotations/analytics/at-risk?limit=10`).then(r => r.json())
+        authFetch(`${API_URL}/api/quotations/analytics/pipeline-win-rates`).then(r => r.json()),
+        authFetch(`${API_URL}/api/analytics/sales-velocity?days=${dateRange}`).then(r => r.json()),
+        authFetch(`${API_URL}/api/quotations/analytics/at-risk?limit=10`).then(r => r.json())
       ]);
 
       setPipelineData(pipelineRes.data);
