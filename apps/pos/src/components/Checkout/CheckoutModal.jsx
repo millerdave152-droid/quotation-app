@@ -455,8 +455,10 @@ export function CheckoutModal({
   const handleFulfillmentComplete = useCallback((fulfillment) => {
     console.log('[Checkout] Fulfillment complete, starting warranty flow. Cart items:', cart.items?.length);
     cart.setFulfillment(fulfillment);
-    // Start warranty upsell flow
-    warrantyUpsell.startFlow();
+    // Start warranty upsell flow (only if not already open from useEffect)
+    if (!warrantyUpsell.isOpen && !warrantyUpsell.isLoading) {
+      warrantyUpsell.startFlow();
+    }
   }, [cart, warrantyUpsell]);
 
   // Handle payment method selection
