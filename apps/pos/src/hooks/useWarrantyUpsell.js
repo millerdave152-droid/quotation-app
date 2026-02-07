@@ -37,6 +37,9 @@ export function useWarrantyUpsell({
   const currentIndexRef = useRef(currentIndex);
   currentIndexRef.current = currentIndex;
 
+  // Guard against startFlow being called twice (React dev mode double-fires useEffect)
+  const flowInProgressRef = useRef(false);
+
   // Track mounted state to prevent state updates after unmount
   const isMountedRef = useRef(true);
   useEffect(() => {
@@ -138,6 +141,13 @@ export function useWarrantyUpsell({
    * Start the upsell flow
    */
   const startFlow = useCallback(async () => {
+    // Prevent double-execution (React dev mode double-fires useEffect)
+    if (flowInProgressRef.current) {
+      console.log('[useWarrantyUpsell] startFlow BLOCKED - already in progress');
+      return;
+    }
+    flowInProgressRef.current = true;
+
     console.log('[useWarrantyUpsell] startFlow called, cartItems:', cartItems?.length);
     setIsLoading(true);
     setError(null);
@@ -160,6 +170,7 @@ export function useWarrantyUpsell({
       }
     } finally {
       setIsLoading(false);
+      flowInProgressRef.current = false;
     }
   }, [fetchEligibility, onComplete]);
 
