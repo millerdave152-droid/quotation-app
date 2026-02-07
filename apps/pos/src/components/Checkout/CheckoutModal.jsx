@@ -381,6 +381,11 @@ export function CheckoutModal({
       signatureReq.reset();
       // Suppress auth redirect for the entire checkout session
       window.__posCheckoutActive = true;
+
+      // If fulfillment was already selected, start warranty upsell flow immediately
+      if (cart.selectedFulfillment) {
+        warrantyUpsell.startFlow();
+      }
     } else if (!isOpen && prevIsOpenRef.current) {
       // Checkout closed — allow auth redirects again
       window.__posCheckoutActive = false;
