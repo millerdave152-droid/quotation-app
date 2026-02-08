@@ -28,6 +28,8 @@ import WarrantyUpsellModal from './WarrantyUpsellModal';
 import SignatureStep from './SignatureStep';
 import SalespersonSelector from './SalespersonSelector';
 import CommissionSplitSelector from './CommissionSplitSelector';
+import FraudAlertBanner from './FraudAlertBanner';
+import FraudBlockedModal from './FraudBlockedModal';
 import useWarrantyUpsell from '../../hooks/useWarrantyUpsell';
 import useAutoPromotions from '../../hooks/useAutoPromotions';
 import useSignatureRequirements from '../../hooks/useSignatureRequirements';
@@ -297,6 +299,8 @@ export function CheckoutModal({
   const [signatureWarning, setSignatureWarning] = useState(null);
   const [duplicatePaymentPrompt, setDuplicatePaymentPrompt] = useState(null);
   const [isProcessing, setIsProcessing] = useState(false);
+  const [fraudAssessment, setFraudAssessment] = useState(null);
+  const [showFraudBlocked, setShowFraudBlocked] = useState(false);
   const processingRef = useRef(false);
   const paymentsRef = useRef([]);
   const prevIsOpenRef = useRef(false);
@@ -483,6 +487,12 @@ export function CheckoutModal({
       });
 
       if (result.success) {
+        // Capture fraud assessment from successful transaction
+        const txnFraud = result.transaction?.fraudAssessment;
+        if (txnFraud && txnFraud.riskScore >= 30) {
+          setFraudAssessment(txnFraud);
+        }
+
         // Save captured signatures to server
         if (Object.keys(signatureReq.capturedSignatures).length > 0) {
           try {
@@ -507,6 +517,10 @@ export function CheckoutModal({
         setTransaction(result.transaction);
         setStep('complete');
         onComplete?.(result.transaction);
+      } else if (result.code === 'FRAUD_BLOCKED' && result.fraudAssessment) {
+        // Transaction blocked by fraud detection
+        setFraudAssessment(result.fraudAssessment);
+        setShowFraudBlocked(true);
       } else {
         const errMsg = typeof result.error === 'string' ? result.error : result.error?.message || 'Transaction failed';
         setError(errMsg);
@@ -818,6 +832,27 @@ export function CheckoutModal({
             </button>
           </div>
         )}
+
+        {/* Fraud Alert Banner */}
+        <FraudAlertBanner
+          assessment={fraudAssessment}
+          onDismiss={() => setFraudAssessment(null)}
+        />
+
+        {/* Fraud Blocked Modal */}
+        <FraudBlockedModal
+          isOpen={showFraudBlocked}
+          assessment={fraudAssessment}
+          onOverride={() => {
+            setShowFraudBlocked(false);
+            setFraudAssessment(null);
+          }}
+          onCancel={() => {
+            setShowFraudBlocked(false);
+            setFraudAssessment(null);
+            onClose();
+          }}
+        />
 
         {/* Error Message */}
         {error && (

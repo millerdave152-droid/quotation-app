@@ -69,6 +69,9 @@ const NomenclatureAdmin = React.lazy(() => import('./components/nomenclature/Nom
 // Recommendation Rules Admin
 const RecommendationRulesPage = React.lazy(() => import('./components/admin/recommendations/RecommendationRulesPage'));
 
+// Fraud & Audit Dashboard
+const FraudDashboard = React.lazy(() => import('./components/admin/FraudDashboard'));
+
 // Quick Search (Universal Product Finder)
 const QuickSearch = React.lazy(() => import('./components/QuickSearch'));
 
@@ -552,6 +555,11 @@ function App() {
           <Route path="/admin/recommendations" element={
             <ProtectedRoute requiredRoles={['admin', 'manager']}>
               <RecommendationRulesPage />
+            </ProtectedRoute>
+          } />
+          <Route path="/admin/fraud" element={
+            <ProtectedRoute requiredRoles={['admin', 'manager']}>
+              <FraudDashboard />
             </ProtectedRoute>
           } />
           {/* 404 fallback */}

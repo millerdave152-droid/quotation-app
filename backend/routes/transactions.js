@@ -18,6 +18,7 @@ function logToFile(message) {
 }
 const { ApiError, asyncHandler } = require('../middleware/errorHandler');
 const { authenticate, requireRole, requirePermission } = require('../middleware/auth');
+const { fraudCheck } = require('../middleware/fraudCheck');
 
 // ============================================================================
 // MODULE STATE
@@ -245,7 +246,7 @@ function calculateLineItem(item, taxRates) {
  * POST /api/transactions
  * Create a new transaction
  */
-router.post('/', authenticate, asyncHandler(async (req, res) => {
+router.post('/', authenticate, fraudCheck('transaction.create'), asyncHandler(async (req, res) => {
   console.log('========================================');
   console.log('[Transaction] POST /api/transactions - START');
   console.log('[Transaction] User:', req.user?.id, req.user?.username);
@@ -769,6 +770,7 @@ router.post('/', authenticate, asyncHandler(async (req, res) => {
           status: 'deposit_paid',
         } : null,
         status: transactionStatus,
+        fraudAssessment: req.fraudAssessment || null,
       }
     });
 
@@ -1279,7 +1281,7 @@ router.get('/:id', authenticate, asyncHandler(async (req, res) => {
  * POST /api/transactions/:id/void
  * Void a completed transaction
  */
-router.post('/:id/void', authenticate, requirePermission('pos.checkout.void'), asyncHandler(async (req, res) => {
+router.post('/:id/void', authenticate, requirePermission('pos.checkout.void'), fraudCheck('transaction.void'), asyncHandler(async (req, res) => {
   const { id } = req.params;
 
   const { error, value } = voidTransactionSchema.validate(req.body, {
@@ -1522,7 +1524,7 @@ router.get('/:id/balance', authenticate, asyncHandler(async (req, res) => {
  * POST /api/transactions/:id/refund
  * Process full or partial refund
  */
-router.post('/:id/refund', authenticate, requirePermission('pos.returns.process_refund'), asyncHandler(async (req, res) => {
+router.post('/:id/refund', authenticate, requirePermission('pos.returns.process_refund'), fraudCheck('refund.process'), asyncHandler(async (req, res) => {
   const { id } = req.params;
 
   const { error, value } = refundSchema.validate(req.body, {

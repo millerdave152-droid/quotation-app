@@ -72,6 +72,7 @@ const QuoteExpiryDigestJob = require('./services/QuoteExpiryDigestJob');
 const emailService = require('./services/EmailService'); // singleton
 const NotificationService = require('./services/NotificationService');
 const TaxService = require('./services/TaxService');
+const FraudDetectionService = require('./services/FraudDetectionService');
 
 // New Enterprise Routes (Phase 2)
 const ordersRoutes = require('./routes/orders');
@@ -234,6 +235,9 @@ const batchEmailService = new BatchEmailService(pool, {
   sendDelayMs: parseInt(process.env.BATCH_EMAIL_DELAY_MS, 10) || 1000,
   maxRetries: parseInt(process.env.BATCH_EMAIL_MAX_RETRIES, 10) || 3,
 });
+
+const fraudService = new FraudDetectionService(pool);
+app.set('fraudService', fraudService);
 
 console.log('✅ Enterprise services initialized');
 
@@ -777,6 +781,21 @@ console.log('✅ Draft persistence routes loaded (offline sync support)');
 const { init: initTaxRoutes } = require('./routes/tax');
 app.use('/api/tax', initTaxRoutes({ taxService }));
 console.log('✅ Tax routes loaded');
+
+// ============================================
+// FRAUD DETECTION & AUDIT
+// ============================================
+const { init: initFraudRoutes } = require('./routes/fraud');
+app.use('/api/fraud', initFraudRoutes({ fraudService }));
+console.log('✅ Fraud detection routes loaded');
+
+const { init: initAuditRoutes } = require('./routes/audit');
+app.use('/api/audit', initAuditRoutes({ fraudService }));
+console.log('✅ Audit log routes loaded');
+
+const { init: initChargebackRoutes } = require('./routes/chargebacks');
+app.use('/api/chargebacks', initChargebackRoutes({ fraudService }));
+console.log('✅ Chargeback routes loaded');
 
 // ============================================
 // POS EMAIL (Receipt emails via AWS SES)

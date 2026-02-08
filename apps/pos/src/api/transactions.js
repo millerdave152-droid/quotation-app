@@ -98,9 +98,13 @@ export const createTransaction = async (data) => {
     console.error('[Transactions] createTransaction error:', error);
     console.error('[Transactions] Error response data:', error.response?.data || error.data || 'no response data');
     console.error('[Transactions] Error status:', error.response?.status || error.status || 'no status');
+
+    const responseData = error.response?.data || error.data;
     return {
       success: false,
-      error: error.message,
+      error: responseData?.error || error.message,
+      code: responseData?.code || null,
+      fraudAssessment: responseData?.fraudAssessment || null,
       data: null,
     };
   }

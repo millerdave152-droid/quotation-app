@@ -114,6 +114,8 @@ export function useCart() {
         return {
           success: false,
           error: result.error || 'Transaction failed',
+          code: result.code || null,
+          fraudAssessment: result.fraudAssessment || null,
         };
       } catch (error) {
         console.error('[useCart] processTransaction error:', error);
