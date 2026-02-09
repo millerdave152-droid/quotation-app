@@ -29,36 +29,52 @@ function ProductSkeleton() {
  * Empty state component
  */
 function EmptyState({ searchActive, categoryActive }) {
-  let title = 'No products available';
-  let message = 'Products will appear here once they are added to the inventory.';
+  let title = 'Ready to Sell';
+  let message = 'Search for a product, scan a barcode, or pick from your favorites above to get started.';
+  let icon = (
+    <svg className="w-10 h-10 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z" />
+    </svg>
+  );
+  let bgColor = 'bg-blue-50';
 
   if (searchActive) {
     title = 'No products found';
-    message = "Try adjusting your search to find what you're looking for.";
+    message = "Try adjusting your search or check the spelling.";
+    icon = (
+      <svg className="w-10 h-10 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
+      </svg>
+    );
+    bgColor = 'bg-gray-100';
   } else if (categoryActive) {
     title = 'No products in this category';
     message = 'Try selecting a different category or searching for products.';
+    icon = (
+      <svg className="w-10 h-10 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
+      </svg>
+    );
+    bgColor = 'bg-gray-100';
   }
 
   return (
     <div className="flex flex-col items-center justify-center py-16 px-4 text-center">
-      <div className="w-20 h-20 mb-4 rounded-full bg-gray-100 flex items-center justify-center">
-        <svg
-          className="w-10 h-10 text-gray-400"
-          fill="none"
-          stroke="currentColor"
-          viewBox="0 0 24 24"
-        >
-          <path
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            strokeWidth={1.5}
-            d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"
-          />
-        </svg>
+      <div className={`w-20 h-20 mb-4 rounded-full ${bgColor} flex items-center justify-center`}>
+        {icon}
       </div>
       <h3 className="text-lg font-semibold text-gray-900 mb-2">{title}</h3>
       <p className="text-sm text-gray-500 max-w-xs">{message}</p>
+      {!searchActive && !categoryActive && (
+        <div className="mt-4 flex items-center gap-4 text-xs text-gray-400">
+          <span className="flex items-center gap-1">
+            <kbd className="px-1.5 py-0.5 bg-gray-100 rounded text-gray-500 font-mono">F2</kbd> Search
+          </span>
+          <span className="flex items-center gap-1">
+            <kbd className="px-1.5 py-0.5 bg-gray-100 rounded text-gray-500 font-mono">F8</kbd> Price Check
+          </span>
+        </div>
+      )}
     </div>
   );
 }

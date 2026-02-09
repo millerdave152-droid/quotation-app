@@ -298,6 +298,23 @@ export const getMarketingSources = async () => {
   }
 };
 
+/**
+ * Get quick stats for a customer (transaction count, total spent, loyalty points)
+ * @param {number} customerId - Customer ID
+ * @returns {Promise<object>} Quick stats
+ */
+export const getCustomerQuickStats = async (customerId) => {
+  try {
+    const response = await api.get(`/customers/${customerId}/quick-stats`);
+    return {
+      success: true,
+      data: response.data || response,
+    };
+  } catch (error) {
+    return { success: false, data: null };
+  }
+};
+
 export default {
   searchCustomers,
   getCustomer,
@@ -309,4 +326,5 @@ export default {
   findByPhone,
   findByEmail,
   getMarketingSources,
+  getCustomerQuickStats,
 };

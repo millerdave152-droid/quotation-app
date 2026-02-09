@@ -835,6 +835,56 @@ router.post('/tags/evaluate-auto', authenticate, asyncHandler(async (req, res) =
 }));
 
 // ============================================================================
+// QUICK STATS (for POS customer lookup)
+// ============================================================================
+
+/**
+ * GET /api/customers/:id/quick-stats
+ * Lightweight endpoint returning last purchase, total spent, and loyalty points
+ */
+router.get('/:id/quick-stats', authenticate, asyncHandler(async (req, res) => {
+  const { id } = req.params;
+  const pool = customerService.pool;
+
+  // Single query for transaction stats
+  const txResult = await pool.query(`
+    SELECT
+      COUNT(*) AS transaction_count,
+      COALESCE(SUM(total_amount), 0) AS total_spent,
+      MAX(created_at) AS last_purchase_date
+    FROM transactions
+    WHERE customer_id = $1
+      AND status NOT IN ('voided', 'cancelled')
+  `, [id]);
+
+  const txStats = txResult.rows[0] || {};
+
+  // Loyalty points (graceful if table doesn't exist)
+  let loyaltyPoints = 0;
+  let loyaltyTier = 'none';
+  try {
+    const loyaltyResult = await pool.query(
+      `SELECT points_balance, tier_level FROM customer_loyalty WHERE customer_id = $1`,
+      [id]
+    );
+    if (loyaltyResult.rows.length > 0) {
+      loyaltyPoints = loyaltyResult.rows[0].points_balance || 0;
+      loyaltyTier = loyaltyResult.rows[0].tier_level || 'none';
+    }
+  } catch (err) {
+    // Table doesn't exist yet — ignore
+    if (err.code !== '42P01') throw err;
+  }
+
+  res.success({
+    transactionCount: parseInt(txStats.transaction_count) || 0,
+    totalSpent: parseFloat(txStats.total_spent) || 0,
+    lastPurchaseDate: txStats.last_purchase_date || null,
+    loyaltyPoints,
+    loyaltyTier,
+  });
+}));
+
 // LOYALTY POINTS
 // ============================================================================
 

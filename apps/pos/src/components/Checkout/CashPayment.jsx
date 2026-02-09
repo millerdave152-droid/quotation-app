@@ -279,8 +279,8 @@ export function CashPayment({
         </p>
       </div>
 
-      {/* Quick Amounts */}
-      <div className="grid grid-cols-5 gap-2 mb-6">
+      {/* Quick Amounts (rounded to nearest bills) */}
+      <div className="grid grid-cols-5 gap-2 mb-3">
         {quickAmounts.map((qa, index) => (
           <QuickAmountButton
             key={index}
@@ -289,6 +289,33 @@ export function CashPayment({
             onClick={handleQuickAmount}
             isExact={qa.isExact}
           />
+        ))}
+      </div>
+
+      {/* Fixed Denomination Buttons */}
+      <div className="flex gap-2 mb-6">
+        {[5, 10, 20, 50, 100].map((denom) => (
+          <button
+            key={denom}
+            type="button"
+            onClick={() => {
+              const current = parseFloat(inputValue) || 0;
+              setInputValue((current + denom).toFixed(2));
+            }}
+            className="
+              flex-1 h-11
+              flex items-center justify-center
+              text-sm font-bold
+              bg-emerald-50 hover:bg-emerald-100
+              text-emerald-700
+              border border-emerald-200
+              rounded-lg
+              transition-colors duration-150
+              active:scale-[0.97]
+            "
+          >
+            +${denom}
+          </button>
         ))}
       </div>
 

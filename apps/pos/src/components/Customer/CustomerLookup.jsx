@@ -15,9 +15,9 @@ import {
   ClockIcon,
   ArrowsRightLeftIcon,
 } from '@heroicons/react/24/outline';
-import { searchCustomers } from '../../api/customers';
+import { searchCustomers, getCustomerQuickStats } from '../../api/customers';
 import { getCustomerPendingQuotes } from '../../api/quotes';
-import { formatPhone } from '../../utils/formatters';
+import { formatPhone, formatCurrency } from '../../utils/formatters';
 import QuickAddCustomer from './QuickAddCustomer';
 import CustomerQuotesPanel from './CustomerQuotesPanel';
 import { CustomerPurchaseHistory } from './CustomerPurchaseHistory';
@@ -26,10 +26,11 @@ import { CustomerTradeInHistory } from './CustomerTradeInHistory';
 /**
  * Customer result item
  */
-function CustomerResultItem({ customer, pendingQuoteCount, onClick, onViewHistory, onViewTradeIns, isSelected }) {
+function CustomerResultItem({ customer, pendingQuoteCount, quickStats, onClick, onViewHistory, onViewTradeIns, isSelected }) {
   const name = customer.name || `${customer.firstName || ''} ${customer.lastName || ''}`.trim() || 'Unknown';
   const phone = customer.phone || customer.phoneNumber;
   const email = customer.email;
+  const stats = quickStats || null;
 
   return (
     <button
@@ -76,6 +77,28 @@ function CustomerResultItem({ customer, pendingQuoteCount, onClick, onViewHistor
             </span>
           )}
         </div>
+
+        {/* Quick Stats Row */}
+        {stats && stats.transactionCount > 0 && (
+          <div className="flex flex-wrap gap-x-3 gap-y-1 mt-1.5 text-xs">
+            <span className="text-gray-500">
+              {stats.transactionCount} {stats.transactionCount === 1 ? 'purchase' : 'purchases'}
+            </span>
+            <span className="font-medium text-gray-700">
+              {formatCurrency(stats.totalSpent)} spent
+            </span>
+            {stats.lastPurchaseDate && (
+              <span className="text-gray-400">
+                Last: {new Date(stats.lastPurchaseDate).toLocaleDateString('en-CA')}
+              </span>
+            )}
+            {stats.loyaltyPoints > 0 && (
+              <span className="text-amber-600 font-medium">
+                {stats.loyaltyPoints.toLocaleString()} pts
+              </span>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Action buttons */}
@@ -126,6 +149,7 @@ export function CustomerLookup({
   const [query, setQuery] = useState('');
   const [results, setResults] = useState([]);
   const [quoteCounts, setQuoteCounts] = useState({});
+  const [customerStats, setCustomerStats] = useState({});
   const [isLoading, setIsLoading] = useState(false);
   const [selectedCustomer, setSelectedCustomer] = useState(null);
   const [showQuickAdd, setShowQuickAdd] = useState(false);
@@ -149,6 +173,7 @@ export function CustomerLookup({
       setQuery('');
       setResults([]);
       setQuoteCounts({});
+      setCustomerStats({});
       setSelectedCustomer(null);
       setShowQuickAdd(false);
       setShowQuotesPanel(false);
@@ -162,6 +187,7 @@ export function CustomerLookup({
     if (!searchQuery || searchQuery.length < 2) {
       setResults([]);
       setQuoteCounts({});
+      setCustomerStats({});
       return;
     }
 
@@ -174,22 +200,30 @@ export function CustomerLookup({
         const customers = result.data || [];
         setResults(customers);
 
-        // Fetch pending quote counts for each customer
+        // Fetch pending quote counts and quick stats for each customer (in parallel)
         const counts = {};
+        const stats = {};
         await Promise.all(
           customers.slice(0, 10).map(async (customer) => {
             const customerId = customer.id || customer.customerId || customer.customer_id;
             try {
-              const quotesResult = await getCustomerPendingQuotes(customerId);
+              const [quotesResult, statsResult] = await Promise.all([
+                getCustomerPendingQuotes(customerId),
+                getCustomerQuickStats(customerId),
+              ]);
               if (quotesResult.success) {
                 counts[customerId] = (quotesResult.data || []).length;
               }
+              if (statsResult.success && statsResult.data) {
+                stats[customerId] = statsResult.data;
+              }
             } catch (err) {
-              // Ignore quote fetch errors
+              // Ignore fetch errors
             }
           })
         );
         setQuoteCounts(counts);
+        setCustomerStats(stats);
       } else {
         setResults([]);
       }
@@ -268,6 +302,7 @@ export function CustomerLookup({
     setQuery('');
     setResults([]);
     setQuoteCounts({});
+    setCustomerStats({});
     inputRef.current?.focus();
   };
 
@@ -506,6 +541,7 @@ export function CustomerLookup({
                         key={customerId}
                         customer={customer}
                         pendingQuoteCount={quoteCounts[customerId] || 0}
+                        quickStats={customerStats[customerId] || null}
                         onClick={handleSelectCustomer}
                         onViewHistory={(c) => { setSelectedCustomer(c); setShowDetailPanel('history'); }}
                         onViewTradeIns={(c) => { setSelectedCustomer(c); setShowDetailPanel('tradeins'); }}
@@ -547,15 +583,30 @@ export function CustomerLookup({
                   <h3 className="text-lg font-medium text-gray-900 mb-2">
                     Search for a Customer
                   </h3>
-                  <p className="text-sm text-gray-500 max-w-xs">
+                  <p className="text-sm text-gray-500 max-w-xs mb-6">
                     Enter a name, phone number, or email to find an existing customer.
                   </p>
+                  <button
+                    type="button"
+                    onClick={() => { onSelectCustomer?.(null); onClose?.(); }}
+                    className="
+                      flex items-center gap-2
+                      h-11 px-6
+                      bg-gray-100 hover:bg-gray-200
+                      text-gray-700 font-medium
+                      rounded-xl
+                      transition-colors duration-150
+                    "
+                  >
+                    <UserIcon className="w-5 h-5" />
+                    Continue as Guest
+                  </button>
                 </div>
               ) : null}
             </div>
 
-            {/* Quick Add Button (Footer) */}
-            <div className="p-4 border-t border-gray-200 bg-gray-50">
+            {/* Footer Actions */}
+            <div className="p-4 border-t border-gray-200 bg-gray-50 space-y-2">
               <button
                 type="button"
                 onClick={() => setShowQuickAdd(true)}
@@ -570,6 +621,21 @@ export function CustomerLookup({
               >
                 <UserPlusIcon className="w-5 h-5" />
                 Quick Add New Customer
+              </button>
+              <button
+                type="button"
+                onClick={() => { onSelectCustomer?.(null); onClose?.(); }}
+                className="
+                  w-full h-10
+                  flex items-center justify-center gap-2
+                  text-sm font-medium
+                  text-gray-500 hover:text-gray-700
+                  hover:bg-gray-100
+                  rounded-xl
+                  transition-colors duration-150
+                "
+              >
+                Skip — Continue as Guest
               </button>
             </div>
           </>

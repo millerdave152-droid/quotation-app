@@ -4,7 +4,7 @@
  */
 
 import { useState, useRef, useCallback, memo } from 'react';
-import { TrashIcon, MinusIcon, PlusIcon, PencilSquareIcon } from '@heroicons/react/24/outline';
+import { TrashIcon, MinusIcon, PlusIcon, PencilSquareIcon, ExclamationTriangleIcon } from '@heroicons/react/24/outline';
 import { formatCurrency } from '../../utils/formatters';
 
 /**
@@ -35,6 +35,11 @@ export const CartItem = memo(function CartItem({
   const baseAmount = item.unitPrice * item.quantity;
   const discountAmount = baseAmount * (item.discountPercent / 100);
   const lineTotal = baseAmount - discountAmount;
+
+  // Stock level check
+  const stockQty = item.stockQty ?? item.stock_quantity ?? item.qty_on_hand ?? item.stock ?? null;
+  const isLowStock = stockQty !== null && stockQty <= 3 && stockQty > 0;
+  const isOutOfStock = stockQty !== null && stockQty <= 0;
 
   // Touch handlers for swipe-to-remove
   const handleTouchStart = useCallback((e) => {
@@ -135,6 +140,20 @@ export const CartItem = memo(function CartItem({
               </p>
             )}
 
+            {/* Low stock / Out of stock warning */}
+            {isOutOfStock && (
+              <div className="mt-1 flex items-center gap-1 text-xs text-red-600 font-medium">
+                <ExclamationTriangleIcon className="w-3.5 h-3.5" />
+                Out of stock
+              </div>
+            )}
+            {isLowStock && !isOutOfStock && (
+              <div className="mt-1 flex items-center gap-1 text-xs text-amber-600 font-medium">
+                <ExclamationTriangleIcon className="w-3.5 h-3.5" />
+                Low stock ({stockQty} left)
+              </div>
+            )}
+
             {/* Serial number input */}
             {item.requiresSerial && (
               <div className="mt-2">
@@ -173,7 +192,7 @@ export const CartItem = memo(function CartItem({
               onClick={handleDecrement}
               disabled={disabled || item.quantity <= 1}
               className="
-                w-8 h-8
+                w-10 h-10
                 flex items-center justify-center
                 bg-gray-100 hover:bg-gray-200
                 rounded-lg
@@ -182,10 +201,10 @@ export const CartItem = memo(function CartItem({
               "
               aria-label="Decrease quantity"
             >
-              <MinusIcon className="w-4 h-4" />
+              <MinusIcon className="w-5 h-5" />
             </button>
 
-            <span className="w-8 text-center text-sm font-semibold">
+            <span className="w-10 text-center text-sm font-semibold">
               {item.quantity}
             </span>
 
@@ -194,7 +213,7 @@ export const CartItem = memo(function CartItem({
               onClick={handleIncrement}
               disabled={disabled}
               className="
-                w-8 h-8
+                w-10 h-10
                 flex items-center justify-center
                 bg-gray-100 hover:bg-gray-200
                 rounded-lg
@@ -203,7 +222,7 @@ export const CartItem = memo(function CartItem({
               "
               aria-label="Increase quantity"
             >
-              <PlusIcon className="w-4 h-4" />
+              <PlusIcon className="w-5 h-5" />
             </button>
           </div>
 

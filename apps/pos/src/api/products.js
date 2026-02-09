@@ -146,9 +146,12 @@ export const getCategories = async () => {
   try {
     const response = await api.get('/categories');
 
+    // Backend returns { success, categories: [...] } — extract correctly
+    const categories = response.categories || response.data || [];
+
     return {
       success: true,
-      data: response.data || [],
+      data: categories,
     };
   } catch (error) {
     console.error('[Products] getCategories error:', error);

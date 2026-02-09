@@ -154,9 +154,9 @@ export function PickupDetailsForm({ pickupType, customer, onComplete, onBack }) 
     return () => abortController.abort();
   }, []);
 
-  // Auto-select first location if only one
+  // Auto-select first location when locations load
   useEffect(() => {
-    if (locations.length === 1 && !selectedLocationId) {
+    if (locations.length > 0 && !selectedLocationId) {
       setSelectedLocationId(locations[0].id);
     }
   }, [locations, selectedLocationId]);
