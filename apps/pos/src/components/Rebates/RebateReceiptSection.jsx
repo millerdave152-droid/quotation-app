@@ -44,7 +44,7 @@ export function InstantRebateLineItem({ rebate, quantity = 1 }) {
   return (
     <div className="flex justify-between text-sm py-1 pl-4 text-green-700">
       <span className="flex items-center gap-1">
-        <span>\u{1F4B0}</span>
+        <span>{'\u{1F4B0}'}</span>
         <span>
           {rebate.rebateName || rebate.name}
           {rebate.manufacturer && ` (${rebate.manufacturer})`}
@@ -293,7 +293,7 @@ export function EmailRebateSection({
         fontWeight: 'bold',
         color: '#1E40AF',
       }}>
-        \u{1F4EC} Rebate Opportunities - Save {formatCurrency(totalPotential)}!
+        {'\u{1F4EC}'} Rebate Opportunities - Save {formatCurrency(totalPotential)}!
       </h3>
 
       {allRebates.map((rebate, index) => (

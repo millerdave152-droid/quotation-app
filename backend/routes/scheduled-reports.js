@@ -561,6 +561,7 @@ function init({ pool }) {
     '/:id',
     authenticate,
     async (req, res, next) => {
+      if (!/^\d+$/.test(req.params.id)) return next();
       try {
         const { id } = req.params;
         const result = await pool.query(
@@ -599,6 +600,7 @@ function init({ pool }) {
     authenticate,
     checkPermission('hub.inventory.adjust'),
     async (req, res, next) => {
+      if (!/^\d+$/.test(req.params.id)) return next();
       try {
         const { id } = req.params;
         const current = await pool.query('SELECT * FROM scheduled_reports WHERE id = $1', [id]);
@@ -646,6 +648,7 @@ function init({ pool }) {
     authenticate,
     checkPermission('hub.inventory.adjust'),
     async (req, res, next) => {
+      if (!/^\d+$/.test(req.params.id)) return next();
       try {
         const { id } = req.params;
         const result = await pool.query('DELETE FROM scheduled_reports WHERE id = $1 RETURNING id', [id]);
@@ -667,6 +670,7 @@ function init({ pool }) {
     authenticate,
     checkPermission('hub.inventory.adjust'),
     async (req, res, next) => {
+      if (!/^\d+$/.test(req.params.id)) return next();
       try {
         const { id } = req.params;
         const result = await pool.query('SELECT * FROM scheduled_reports WHERE id = $1', [id]);

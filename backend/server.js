@@ -5,7 +5,6 @@
 
 const express = require('express');
 const cors = require('cors');
-const { Pool } = require('pg');
 require('dotenv').config();
 const multer = require('multer');
 
@@ -177,18 +176,9 @@ app.use((req, res, next) => {
 });
 
 // ============================================
-// DATABASE CONNECTION
+// DATABASE CONNECTION (singleton from db.js)
 // ============================================
-const pool = new Pool({
-  host: process.env.DB_HOST,
-  port: process.env.DB_PORT,
-  user: process.env.DB_USER,
-  password: process.env.DB_PASSWORD,
-  database: process.env.DB_NAME,
-  ssl: process.env.NODE_ENV === 'production'
-    ? { rejectUnauthorized: true }  // ✅ SSL enforced in production
-    : { rejectUnauthorized: false }  // Development only
-});
+const pool = require('./db');
 
 pool.query('SELECT NOW()', (err, res) => {
   if (err) {

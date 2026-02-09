@@ -735,7 +735,7 @@ class FraudDetectionService {
     const { rows } = await this.pool.query(
       `SELECT cc.*,
               t.transaction_number, t.total_amount AS transaction_amount,
-              c.first_name || ' ' || c.last_name AS customer_name
+              c.name AS customer_name
        FROM chargeback_cases cc
        JOIN transactions t ON t.transaction_id = cc.transaction_id
        LEFT JOIN customers c ON c.id = cc.customer_id
@@ -752,7 +752,7 @@ class FraudDetectionService {
     const { rows: cbRows } = await this.pool.query(
       `SELECT cc.*,
               t.transaction_number, t.total_amount AS transaction_amount,
-              c.first_name || ' ' || c.last_name AS customer_name
+              c.name AS customer_name
        FROM chargeback_cases cc
        JOIN transactions t ON t.transaction_id = cc.transaction_id
        LEFT JOIN customers c ON c.id = cc.customer_id

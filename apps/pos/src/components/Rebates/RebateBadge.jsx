@@ -188,13 +188,13 @@ export function ProductRebateIndicator({ rebates = [], onClick }) {
     >
       {totalInstant > 0 && (
         <div className="flex items-center gap-1 px-2 py-1 bg-green-500 text-white text-xs font-bold rounded-full shadow-md">
-          <span>\u{1F4B0}</span>
+          <span>{'\u{1F4B0}'}</span>
           <span>-{formatCurrency(totalInstant)}</span>
         </div>
       )}
       {totalOther > 0 && (
         <div className="flex items-center gap-1 px-2 py-1 bg-blue-500 text-white text-xs font-bold rounded-full shadow-md">
-          <span>\u{1F4EC}</span>
+          <span>{'\u{1F4EC}'}</span>
           <span>{formatCurrency(totalOther)}</span>
         </div>
       )}
@@ -224,7 +224,7 @@ export function CartItemRebates({
           key={`instant-${index}`}
           className="inline-flex items-center gap-1 px-2 py-0.5 text-xs font-medium bg-green-100 text-green-800 rounded"
         >
-          <span>\u{1F4B0}</span>
+          <span>{'\u{1F4B0}'}</span>
           <span>-{formatCurrency(rebate.amount)}</span>
           {rebate.applied && <span className="text-green-600">applied</span>}
         </span>
@@ -237,7 +237,7 @@ export function CartItemRebates({
           onClick={onInfoClick}
           className="inline-flex items-center gap-1 px-2 py-0.5 text-xs font-medium bg-blue-100 text-blue-800 rounded hover:bg-blue-200 transition-colors"
         >
-          <span>\u{1F4EC}</span>
+          <span>{'\u{1F4EC}'}</span>
           <span>
             {formatCurrency(
               [...mailInRebates, ...onlineRebates].reduce((sum, r) => sum + r.amount, 0)

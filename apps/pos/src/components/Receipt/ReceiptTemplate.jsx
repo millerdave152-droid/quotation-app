@@ -30,6 +30,8 @@ export const ReceiptTemplate = forwardRef(function ReceiptTemplate(
   if (!receipt) return null;
 
   const { company, transaction, items, totals, payments, qrCodeUrl } = receipt;
+  const signatures = receipt.signatures || [];
+  const hasSignatures = signatures.length > 0;
 
   // Extract rebate data
   const instantRebates = rebates?.instantRebates || [];
@@ -55,6 +57,13 @@ export const ReceiptTemplate = forwardRef(function ReceiptTemplate(
       return `${payment.cardBrand} ****${payment.cardLastFour}`;
     }
     return payment.method.toUpperCase();
+  };
+
+  const normalizeSignatureSrc = (sig) => {
+    if (!sig?.signatureData) return null;
+    if (sig.signatureData.startsWith('data:')) return sig.signatureData;
+    const format = sig.signatureFormat || 'png';
+    return `data:image/${format};base64,${sig.signatureData}`;
   };
 
   // Thermal receipt (80mm / 302px width)
@@ -216,6 +225,21 @@ export const ReceiptTemplate = forwardRef(function ReceiptTemplate(
 
         <div className="border-t border-dashed border-gray-400 my-2" />
 
+        {/* Signatures */}
+        {hasSignatures && (
+          <>
+            <p className="font-bold">SIGNATURES ON FILE:</p>
+            {signatures.map((sig) => (
+              <div key={sig.id} className="mb-1">
+                <p>
+                  {sig.type?.toUpperCase() || 'SIGNATURE'} — {sig.signerName || 'Customer'}
+                </p>
+              </div>
+            ))}
+            <div className="border-t border-dashed border-gray-400 my-2" />
+          </>
+        )}
+
         {/* Footer */}
         <div className="text-center mt-3">
           <p>Thank you for shopping with us!</p>
@@ -342,7 +366,7 @@ export const ReceiptTemplate = forwardRef(function ReceiptTemplate(
                 >
                   <td className="py-2 px-4 pl-8">
                     <div className="flex items-start gap-2">
-                      <span className="text-green-500 text-sm">\u{1F4B0}</span>
+                      <span className="text-green-500 text-sm">{'\u{1F4B0}'}</span>
                       <div>
                         <p className="font-semibold text-green-700 text-sm">
                           {rebate.rebateName || 'Manufacturer Rebate'}
@@ -374,7 +398,7 @@ export const ReceiptTemplate = forwardRef(function ReceiptTemplate(
                 >
                   <td className="py-2 px-4 pl-8">
                     <div className="flex items-start gap-2">
-                      <span className="text-blue-500 text-sm">\u{21B3}</span>
+                      <span className="text-blue-500 text-sm">{'\u{21B3}'}</span>
                       <div>
                         <p className="font-semibold text-blue-600 text-sm">
                           {warranty.name || 'Protection Plan'}
@@ -396,7 +420,7 @@ export const ReceiptTemplate = forwardRef(function ReceiptTemplate(
                             rel="noopener noreferrer"
                             className="text-xs text-blue-500 hover:underline"
                           >
-                            View Terms \u{2192}
+                            View Terms {'\u{2192}'}
                           </a>
                         )}
                       </div>
@@ -448,6 +472,42 @@ export const ReceiptTemplate = forwardRef(function ReceiptTemplate(
               </div>
             ))}
           </div>
+
+          {/* Signatures */}
+          {hasSignatures && (
+            <div className="mt-4 bg-gray-50 border border-gray-200 rounded-lg p-4">
+              <h3 className="font-bold text-gray-900 mb-3">CUSTOMER SIGNATURES</h3>
+              <div className="space-y-3">
+                {signatures.map((sig) => {
+                  const src = normalizeSignatureSrc(sig);
+                  return (
+                    <div key={sig.id} className="flex items-center justify-between gap-4">
+                      <div>
+                        <p className="text-sm font-medium text-gray-900">
+                          {sig.type?.toUpperCase() || 'SIGNATURE'}
+                        </p>
+                        <p className="text-xs text-gray-500">
+                          {sig.signerName || 'Customer'}
+                        </p>
+                        {sig.capturedAt && (
+                          <p className="text-[11px] text-gray-400">
+                            {new Date(sig.capturedAt).toLocaleString('en-CA')}
+                          </p>
+                        )}
+                      </div>
+                      {src && (
+                        <img
+                          src={src}
+                          alt="Signature"
+                          className="h-16 w-40 object-contain border border-gray-200 bg-white rounded"
+                        />
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
 
           {/* QR Code */}
           {showQR && qrCodeUrl && (

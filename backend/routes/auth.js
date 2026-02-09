@@ -299,7 +299,7 @@ router.post('/refresh', validateRefreshToken, async (req, res) => {
       `SELECT rt.*, u.email, u.role, u.is_active
        FROM refresh_tokens rt
        JOIN users u ON rt.user_id = u.id
-       WHERE rt.token = $1 AND rt.is_revoked = false`,
+       WHERE rt.token = $1 AND rt.revoked = false`,
       [refreshToken]
     );
 
@@ -337,11 +337,8 @@ router.post('/refresh', validateRefreshToken, async (req, res) => {
 
     const newAccessToken = generateAccessToken(user);
 
-    // Update token's last used timestamp
-    await db.query(
-      'UPDATE refresh_tokens SET last_used_at = CURRENT_TIMESTAMP WHERE id = $1',
-      [tokenData.id]
-    );
+    // Touch token's updated timestamp (for tracking last use)
+    // Note: last_used_at column doesn't exist yet; no-op for now
 
     res.json({
       success: true,
@@ -372,7 +369,7 @@ router.post('/logout', authenticate, async (req, res) => {
       // Revoke the specific refresh token
       await db.query(
         `UPDATE refresh_tokens
-         SET is_revoked = true, revoked_at = CURRENT_TIMESTAMP
+         SET revoked = true, revoked_at = CURRENT_TIMESTAMP
          WHERE token = $1 AND user_id = $2`,
         [refreshToken, req.user.id]
       );
@@ -380,8 +377,8 @@ router.post('/logout', authenticate, async (req, res) => {
       // Revoke all refresh tokens for the user
       await db.query(
         `UPDATE refresh_tokens
-         SET is_revoked = true, revoked_at = CURRENT_TIMESTAMP
-         WHERE user_id = $1 AND is_revoked = false`,
+         SET revoked = true, revoked_at = CURRENT_TIMESTAMP
+         WHERE user_id = $1 AND revoked = false`,
         [req.user.id]
       );
     }
@@ -535,8 +532,8 @@ router.put('/change-password', authenticate, validateChangePassword, async (req,
     // Revoke all refresh tokens to force re-login on all devices
     await client.query(
       `UPDATE refresh_tokens
-       SET is_revoked = true, revoked_at = CURRENT_TIMESTAMP
-       WHERE user_id = $1 AND is_revoked = false`,
+       SET revoked = true, revoked_at = CURRENT_TIMESTAMP
+       WHERE user_id = $1 AND revoked = false`,
       [req.user.id]
     );
 
@@ -573,10 +570,10 @@ router.put('/change-password', authenticate, validateChangePassword, async (req,
 router.get('/sessions', authenticate, async (req, res) => {
   try {
     const sessions = await db.query(
-      `SELECT id, created_at, last_used_at, expires_at, ip_address, user_agent
+      `SELECT id, created_at, expires_at
        FROM refresh_tokens
-       WHERE user_id = $1 AND is_revoked = false AND expires_at > CURRENT_TIMESTAMP
-       ORDER BY last_used_at DESC`,
+       WHERE user_id = $1 AND revoked = false AND expires_at > CURRENT_TIMESTAMP
+       ORDER BY created_at DESC`,
       [req.user.id]
     );
 
@@ -586,10 +583,7 @@ router.get('/sessions', authenticate, async (req, res) => {
         sessions: sessions.rows.map(session => ({
           id: session.id,
           createdAt: session.created_at,
-          lastUsedAt: session.last_used_at,
-          expiresAt: session.expires_at,
-          ipAddress: session.ip_address,
-          userAgent: session.user_agent
+          expiresAt: session.expires_at
         }))
       }
     });
@@ -614,7 +608,7 @@ router.delete('/sessions/:id', authenticate, async (req, res) => {
     // Revoke the session, but only if it belongs to the current user
     const result = await db.query(
       `UPDATE refresh_tokens
-       SET is_revoked = true, revoked_at = CURRENT_TIMESTAMP
+       SET revoked = true, revoked_at = CURRENT_TIMESTAMP
        WHERE id = $1 AND user_id = $2`,
       [sessionId, req.user.id]
     );

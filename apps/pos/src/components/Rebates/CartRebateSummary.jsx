@@ -256,7 +256,7 @@ export function CheckoutRebateSummary({
       {hasInstant && (
         <div className="flex items-center justify-between">
           <span className="flex items-center gap-2 text-sm text-gray-600">
-            <span className="text-base">\u{1F4B0}</span>
+            <span className="text-base">{'\u{1F4B0}'}</span>
             Instant Rebates Applied
           </span>
           <span className="text-sm font-semibold text-green-600">
@@ -272,7 +272,7 @@ export function CheckoutRebateSummary({
             onClick={onMailInInfoClick}
             className="flex items-center gap-2 text-sm text-gray-600 hover:text-blue-600 transition-colors"
           >
-            <span className="text-base">\u{1F4EC}</span>
+            <span className="text-base">{'\u{1F4EC}'}</span>
             <span>Mail-in Rebates Available</span>
             <InformationCircleIcon className="w-4 h-4 text-blue-500" />
           </button>

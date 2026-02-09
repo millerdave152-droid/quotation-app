@@ -236,7 +236,7 @@ function startReminderCron() {
 
       const { rows } = await pool.query(
         `SELECT * FROM delivery_bookings
-         WHERE (scheduled_date = $1 OR delivery_date::date = $1)
+         WHERE scheduled_date = $1
            AND status IN ('scheduled', 'confirmed')`,
         [tomorrowStr]
       );
