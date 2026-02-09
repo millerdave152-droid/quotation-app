@@ -4,16 +4,19 @@
  */
 
 import { useState, useCallback } from 'react';
-import { ShoppingCartIcon, ArchiveBoxIcon, ArrowsRightLeftIcon } from '@heroicons/react/24/outline';
+import { ShoppingCartIcon, ArchiveBoxIcon, ArrowsRightLeftIcon, TagIcon, PlusIcon } from '@heroicons/react/24/outline';
 import { useCart } from '../../hooks/useCart';
+import { formatCurrency } from '../../utils/formatters';
 import CartItem from './CartItem';
 import CartTotals from './CartTotals';
 import CartActions from './CartActions';
 import CustomerBadge from './CustomerBadge';
 import HeldTransactions from './HeldTransactions';
 import { SalespersonSelector } from '../Checkout/SalespersonSelector';
+import DiscountInput from '../Checkout/DiscountInput';
 import { TradeInCartSection } from '../TradeIn/TradeInCartSection';
 import { TradeInModal } from '../TradeIn/TradeInModal';
+import { usePermissions, POS_PERMISSIONS } from '../../hooks/usePermissions';
 
 /**
  * Empty cart state component
@@ -79,8 +82,10 @@ export function Cart({
   className = '',
 }) {
   const cart = useCart();
+  const { can } = usePermissions();
   const [showHeldTransactions, setShowHeldTransactions] = useState(false);
   const [showTradeInModal, setShowTradeInModal] = useState(false);
+  const [showDiscountPanel, setShowDiscountPanel] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
 
   // Trade-in values from cart context
@@ -201,6 +206,20 @@ export function Cart({
     await cart.removeTradeIn(tradeInId, true);
   }, [cart]);
 
+  // Discount handlers
+  const handleToggleDiscount = useCallback(() => {
+    setShowDiscountPanel((prev) => !prev);
+  }, []);
+
+  const handleApplyDiscount = useCallback((amount, reason) => {
+    cart.setCartDiscount(amount, reason);
+    setShowDiscountPanel(false);
+  }, [cart]);
+
+  const handleClearDiscount = useCallback(() => {
+    cart.clearCartDiscount();
+  }, [cart]);
+
   return (
     <div
       className={`
@@ -303,6 +322,62 @@ export function Cart({
               </span>
             )}
           </button>
+        </div>
+      )}
+
+      {/* Cart Discount */}
+      {!cart.isEmpty && can(POS_PERMISSIONS.CHECKOUT_DISCOUNT) && (
+        <div className="px-4 py-2 border-t border-gray-100">
+          {showDiscountPanel ? (
+            <DiscountInput
+              subtotal={cart.subtotal}
+              currentDiscount={cart.discount}
+              onApply={handleApplyDiscount}
+              onClear={handleClearDiscount}
+              onClose={handleToggleDiscount}
+            />
+          ) : cart.discount?.amount > 0 ? (
+            <div className="p-3 bg-green-50 border border-green-200 rounded-lg">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <TagIcon className="w-4 h-4 text-green-600" />
+                  <div>
+                    <p className="text-sm font-medium text-green-800">
+                      {formatCurrency(cart.discount.amount)} discount applied
+                    </p>
+                    {cart.discount.reason && (
+                      <p className="text-xs text-green-600">{cart.discount.reason}</p>
+                    )}
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={handleToggleDiscount}
+                  className="text-xs font-medium text-green-700 hover:text-green-800"
+                >
+                  Edit
+                </button>
+              </div>
+            </div>
+          ) : (
+            <button
+              type="button"
+              onClick={handleToggleDiscount}
+              className="
+                w-full h-10
+                flex items-center justify-center gap-2
+                text-sm font-medium
+                text-blue-600 hover:text-blue-700
+                bg-blue-50 hover:bg-blue-100
+                border border-blue-200
+                rounded-lg
+                transition-colors duration-150
+              "
+            >
+              <PlusIcon className="w-4 h-4" />
+              Add Discount
+            </button>
+          )}
         </div>
       )}
 

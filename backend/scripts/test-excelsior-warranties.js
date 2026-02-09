@@ -2,7 +2,7 @@
  * Test Excelsior/Guardian Angel warranty integration
  */
 const { Pool } = require('pg');
-require('dotenv').config();
+require('dotenv').config({ path: require('path').join(__dirname, '..', '.env') });
 
 const pool = new Pool({
   host: process.env.DB_HOST,

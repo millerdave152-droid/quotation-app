@@ -179,6 +179,48 @@ class ReceiptService {
   }
 
   /**
+   * Get signature information for a transaction
+   * @param {number} transactionId - Transaction ID
+   * @returns {Promise<object>} Signature data for receipt
+   */
+  async getSignaturesForReceipt(transactionId) {
+    try {
+      const result = await this.pool.query(
+        `
+        SELECT
+          id,
+          signature_type,
+          signature_data,
+          signature_format,
+          signer_name,
+          captured_at,
+          legal_text
+        FROM signatures
+        WHERE transaction_id = $1
+          AND status = 'valid'
+        ORDER BY captured_at ASC
+      `,
+        [transactionId]
+      );
+
+      return {
+        signatures: result.rows.map((row) => ({
+          id: row.id,
+          signatureType: row.signature_type,
+          signatureData: row.signature_data,
+          signatureFormat: row.signature_format,
+          signerName: row.signer_name,
+          capturedAt: row.captured_at,
+          legalText: row.legal_text,
+        })),
+      };
+    } catch (error) {
+      console.error('[ReceiptService] Error fetching signatures:', error);
+      return { signatures: [] };
+    }
+  }
+
+  /**
    * Get rebate information for a transaction
    * @param {number} transactionId - Transaction ID
    * @returns {Promise<object>} Rebate data for receipt
@@ -365,6 +407,9 @@ class ReceiptService {
       ORDER BY processed_at
     `, [transactionId]);
 
+    // Get signatures
+    const signatures = await this.getSignaturesForReceipt(transactionId);
+
     // Group items with their warranties
     const groupedItems = this.groupItemsWithWarranties(
       itemsResult.rows,
@@ -391,7 +436,8 @@ class ReceiptService {
       payments: paymentsResult.rows,
       rebates,
       tradeIns,
-      financing
+      financing,
+      signatures
     };
   }
 
@@ -557,6 +603,39 @@ class ReceiptService {
       });
     } catch (err) {
       console.error('[ReceiptService] QR generation error:', err);
+      return null;
+    }
+  }
+
+  /**
+   * Normalize signature data URL for email/HTML
+   * @param {object} sig
+   * @returns {string|null}
+   */
+  normalizeSignatureDataUrl(sig) {
+    if (!sig?.signatureData) return null;
+    if (sig.signatureData.startsWith('data:')) return sig.signatureData;
+    const format = sig.signatureFormat || 'png';
+    return `data:image/${format};base64,${sig.signatureData}`;
+  }
+
+  /**
+   * Convert signature to image buffer for PDF (PNG/JPEG only)
+   * @param {object} sig
+   * @returns {Buffer|null}
+   */
+  signatureToImageBuffer(sig) {
+    if (!sig?.signatureData) return null;
+    const format = (sig.signatureFormat || 'png').toLowerCase();
+    if (format === 'svg') return null;
+    const data = sig.signatureData;
+    const base64 = data.startsWith('data:')
+      ? data.split(',')[1] || ''
+      : data;
+    if (!base64) return null;
+    try {
+      return Buffer.from(base64, 'base64');
+    } catch {
       return null;
     }
   }
@@ -937,7 +1016,8 @@ class ReceiptService {
          .text('PAYMENT DETAILS', 50, yPos);
 
       yPos += 14;
-      doc.roundedRect(50, yPos, 280, 16 + (payments.length * 20), 4)
+      const paymentBoxHeight = 16 + (payments.length * 20);
+      doc.roundedRect(50, yPos, 280, paymentBoxHeight, 4)
          .fillAndStroke(COLORS.bgLight, COLORS.border);
 
       let paymentY = yPos + 10;
@@ -989,6 +1069,51 @@ class ReceiptService {
           doc.fillColor(COLORS.success)
              .text(`Change: ${this.formatCurrency(payment.change_given || 0)}`, 200, paymentY, { width: 120, align: 'right' });
           paymentY += 14;
+        }
+      }
+
+      // Move cursor below payment box
+      yPos = yPos + paymentBoxHeight + 10;
+
+      // ============================================
+      // SIGNATURES (if present)
+      // ============================================
+
+      const sigs = data.signatures?.signatures || [];
+      if (sigs.length > 0) {
+        doc.fontSize(10)
+          .font('Helvetica-Bold')
+          .fillColor(COLORS.text)
+          .text('SIGNATURES ON FILE', 50, yPos);
+
+        yPos += 10;
+        for (const sig of sigs) {
+          const label = `${(sig.signatureType || 'signature').toUpperCase()} - ${sig.signerName || 'Customer'}`;
+          doc.fontSize(8)
+            .font('Helvetica')
+            .fillColor(COLORS.textSecondary)
+            .text(label, 60, yPos + 6);
+
+          if (sig.capturedAt) {
+            doc.fontSize(7)
+              .fillColor(COLORS.textMuted)
+              .text(this.formatDate(sig.capturedAt), 60, yPos + 18);
+          }
+
+          const imgBuffer = this.signatureToImageBuffer(sig);
+          if (imgBuffer) {
+            try {
+              doc.image(imgBuffer, 320, yPos, { width: 180, height: 50, fit: [180, 50] });
+            } catch (imgErr) {
+              console.error('[ReceiptService] Signature image embed error:', imgErr);
+            }
+          } else {
+            doc.fontSize(7)
+              .fillColor(COLORS.textMuted)
+              .text('Signature stored (image not embedded in PDF)', 320, yPos + 18, { width: 220 });
+          }
+
+          yPos += 60;
         }
       }
 
@@ -1904,6 +2029,28 @@ class ReceiptService {
     if (gst > 0) taxHtml += `<tr><td style="padding: 4px 0; color: #6b7280;">GST (5%)</td><td style="text-align: right; color: #374151;">${this.formatCurrency(gst)}</td></tr>`;
     if (pst > 0) taxHtml += `<tr><td style="padding: 4px 0; color: #6b7280;">PST</td><td style="text-align: right; color: #374151;">${this.formatCurrency(pst)}</td></tr>`;
 
+    const signatures = data.signatures?.signatures || [];
+    const signaturesHtml = signatures.length > 0
+      ? `
+        <div style="background-color: #f8fafc; border: 1px solid #e5e7eb; border-radius: 8px; padding: 15px; margin-bottom: 25px;">
+          <p style="margin: 0 0 10px; font-size: 12px; font-weight: 600; color: #1f2937;">SIGNATURES ON FILE</p>
+          ${signatures.map(sig => `
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+              <div>
+                <p style="margin: 0; font-size: 13px; font-weight: 600; color: #1f2937;">
+                  ${(sig.signatureType || 'signature').toUpperCase()} - ${sig.signerName || 'Customer'}
+                </p>
+                ${sig.capturedAt ? `<p style="margin: 2px 0 0; font-size: 11px; color: #6b7280;">${this.formatDate(sig.capturedAt)}</p>` : ''}
+              </div>
+              ${this.normalizeSignatureDataUrl(sig) ? `
+                <img src="${this.normalizeSignatureDataUrl(sig)}" alt="Signature" style="max-height: 60px; max-width: 200px; border: 1px solid #e5e7eb; background: #ffffff; border-radius: 6px; padding: 4px;" />
+              ` : ''}
+            </div>
+          `).join('')}
+        </div>
+      `
+      : '';
+
     const emailHtml = `
       <!DOCTYPE html>
       <html>
@@ -2017,6 +2164,8 @@ class ReceiptService {
                 ${paymentsHtml}
               </table>
             </div>
+
+            ${signaturesHtml}
 
             <!-- Thank you -->
             <div style="text-align: center; padding: 20px; background-color: #f0fdf4; border-radius: 8px;">
@@ -2357,7 +2506,16 @@ class ReceiptService {
         paymentSummary: `${data.financing.termMonths} payments of ${this.formatCurrency(data.financing.monthlyPayment)}`,
         termsNote: 'See financing agreement for full terms'
       } : null,
-      qrCodeUrl: `${this.receiptBaseUrl}/${data.transaction.transaction_number}`
+      qrCodeUrl: `${this.receiptBaseUrl}/${data.transaction.transaction_number}`,
+      signatures: (data.signatures?.signatures || []).map((sig) => ({
+        id: sig.id,
+        type: sig.signatureType,
+        signerName: sig.signerName,
+        signatureData: sig.signatureData,
+        signatureFormat: sig.signatureFormat,
+        capturedAt: sig.capturedAt,
+        legalText: sig.legalText
+      }))
     };
   }
 }

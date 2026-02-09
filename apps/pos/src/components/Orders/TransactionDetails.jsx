@@ -199,6 +199,13 @@ export function TransactionDetails({
   const [error, setError] = useState(null);
   const [receiptData, setReceiptData] = useState(null);
 
+  const normalizeSignatureSrc = useCallback((sig) => {
+    if (!sig?.signatureData) return null;
+    if (sig.signatureData.startsWith('data:')) return sig.signatureData;
+    const format = sig.signatureFormat || 'png';
+    return `data:image/${format};base64,${sig.signatureData}`;
+  }, []);
+
   // Fetch receipt data
   const fetchData = useCallback(async () => {
     if (!transactionId) return;
@@ -430,6 +437,42 @@ export function TransactionDetails({
                   ))}
                 </div>
               </div>
+
+              {/* Signatures */}
+              {receiptData.signatures?.length > 0 && (
+                <div>
+                  <h3 className="font-semibold text-gray-900 mb-3">Signatures</h3>
+                  <div className="space-y-3">
+                    {receiptData.signatures.map((sig) => {
+                      const src = normalizeSignatureSrc(sig);
+                      return (
+                        <div key={sig.id} className="p-3 bg-gray-50 rounded-lg flex items-center justify-between gap-4">
+                          <div>
+                            <p className="text-sm font-medium text-gray-900">
+                              {sig.type?.toUpperCase() || 'SIGNATURE'}
+                            </p>
+                            <p className="text-xs text-gray-500">
+                              {sig.signerName || 'Customer'}
+                            </p>
+                            {sig.capturedAt && (
+                              <p className="text-[11px] text-gray-400">
+                                {new Date(sig.capturedAt).toLocaleString('en-CA')}
+                              </p>
+                            )}
+                          </div>
+                          {src && (
+                            <img
+                              src={src}
+                              alt="Signature"
+                              className="h-16 w-40 object-contain border border-gray-200 bg-white rounded"
+                            />
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
             </div>
           ) : null}
         </div>
