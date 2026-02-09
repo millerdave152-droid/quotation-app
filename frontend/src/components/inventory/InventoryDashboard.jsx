@@ -247,7 +247,7 @@ const InventoryDashboard = () => {
         params: reservationFilters,
         headers: getAuthHeaders()
       });
-      setReservations(response.data);
+      setReservations(response.data?.reservations || response.data?.data || []);
     } catch (err) {
       console.error('Error fetching reservations:', err);
     }
