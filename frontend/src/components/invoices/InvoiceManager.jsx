@@ -226,6 +226,249 @@ const PaymentDialog = ({ open, onClose, invoice, onPaymentRecorded }) => {
   );
 };
 
+const CreateInvoiceDialog = ({ open, onClose, onCreated }) => {
+  const [step, setStep] = useState('search'); // 'search' | 'details'
+  const [sourceType, setSourceType] = useState('quote');
+  const [searchTerm, setSearchTerm] = useState('');
+  const [searchResults, setSearchResults] = useState([]);
+  const [searching, setSearching] = useState(false);
+  const [selectedSource, setSelectedSource] = useState(null);
+  const [dueDate, setDueDate] = useState('');
+  const [paymentTerms, setPaymentTerms] = useState('Net 30');
+  const [notes, setNotes] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState(null);
+
+  useEffect(() => {
+    if (open) {
+      setStep('search');
+      setSourceType('quote');
+      setSearchTerm('');
+      setSearchResults([]);
+      setSelectedSource(null);
+      const d = new Date();
+      d.setDate(d.getDate() + 30);
+      setDueDate(d.toISOString().slice(0, 10));
+      setPaymentTerms('Net 30');
+      setNotes('');
+      setError(null);
+      setSubmitting(false);
+    }
+  }, [open]);
+
+  const doSearch = async () => {
+    if (!searchTerm.trim()) return;
+    setSearching(true);
+    setError(null);
+    try {
+      const url = sourceType === 'quote' ? '/quotations' : '/orders';
+      const res = await api.get(url, { params: { search: searchTerm, limit: 10 } });
+      const data = res.data;
+      const list = data?.quotations || data?.orders || data?.data || [];
+      setSearchResults(Array.isArray(list) ? list : []);
+    } catch (err) {
+      console.error('Search error:', err);
+      setError('Failed to search. Please try again.');
+      setSearchResults([]);
+    } finally {
+      setSearching(false);
+    }
+  };
+
+  const handleSelect = (item) => {
+    setSelectedSource(item);
+    setStep('details');
+    setError(null);
+  };
+
+  const handleCreate = async () => {
+    if (!selectedSource) return;
+    setSubmitting(true);
+    setError(null);
+    try {
+      const endpoint = sourceType === 'quote'
+        ? '/invoices/from-quote/' + selectedSource.id
+        : '/invoices/from-order/' + selectedSource.id;
+      await api.post(endpoint, { dueDate, paymentTerms, notes });
+      onCreated();
+      onClose();
+    } catch (err) {
+      const msg = err.response?.data?.error || err.response?.data?.message || 'Failed to create invoice';
+      setError(msg);
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  if (!open) return null;
+
+  return (
+    <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth>
+      <DialogTitle>Create Invoice</DialogTitle>
+      <DialogContent dividers>
+        {error && (
+          <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError(null)}>{error}</Alert>
+        )}
+
+        {step === 'search' && (
+          <Box>
+            {/* Source type */}
+            <Typography variant="subtitle2" gutterBottom>Create From:</Typography>
+            <Box sx={{ display: 'flex', gap: 1, mb: 2 }}>
+              <Button
+                variant={sourceType === 'quote' ? 'contained' : 'outlined'}
+                size="small"
+                onClick={() => { setSourceType('quote'); setSearchResults([]); setSearchTerm(''); }}
+              >
+                Quotation
+              </Button>
+              <Button
+                variant={sourceType === 'order' ? 'contained' : 'outlined'}
+                size="small"
+                onClick={() => { setSourceType('order'); setSearchResults([]); setSearchTerm(''); }}
+              >
+                Order
+              </Button>
+            </Box>
+
+            {/* Search bar */}
+            <Box sx={{ display: 'flex', gap: 1, mb: 2 }}>
+              <TextField
+                fullWidth
+                size="small"
+                placeholder={sourceType === 'quote' ? 'Search by quote #, customer...' : 'Search by order #, customer...'}
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); doSearch(); } }}
+              />
+              <Button variant="outlined" onClick={doSearch} disabled={searching || !searchTerm.trim()}>
+                {searching ? <CircularProgress size={20} /> : 'Search'}
+              </Button>
+            </Box>
+
+            {/* Results */}
+            {searchResults.length > 0 && (
+              <TableContainer component={Paper} variant="outlined" sx={{ maxHeight: 280 }}>
+                <Table size="small" stickyHeader>
+                  <TableHead>
+                    <TableRow>
+                      <TableCell>{sourceType === 'quote' ? 'Quote #' : 'Order #'}</TableCell>
+                      <TableCell>Customer</TableCell>
+                      <TableCell>Status</TableCell>
+                      <TableCell align="right">Total</TableCell>
+                    </TableRow>
+                  </TableHead>
+                  <TableBody>
+                    {searchResults.map((item) => (
+                      <TableRow
+                        key={item.id}
+                        hover
+                        sx={{ cursor: 'pointer' }}
+                        onClick={() => handleSelect(item)}
+                      >
+                        <TableCell sx={{ fontWeight: 'bold' }}>
+                          {item.quote_number || item.order_number || '#' + item.id}
+                        </TableCell>
+                        <TableCell>{item.customer_name || item.company || '-'}</TableCell>
+                        <TableCell>
+                          <Chip label={item.status || '-'} size="small" />
+                        </TableCell>
+                        <TableCell align="right">
+                          {formatCurrency(item.total_cents != null ? item.total_cents : (item.total || 0) * 100)}
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </TableContainer>
+            )}
+
+            {searchResults.length === 0 && searchTerm && !searching && (
+              <Typography variant="body2" color="text.secondary" align="center" sx={{ py: 3 }}>
+                No {sourceType === 'quote' ? 'quotations' : 'orders'} found.
+              </Typography>
+            )}
+          </Box>
+        )}
+
+        {step === 'details' && selectedSource && (
+          <Box>
+            {/* Selected source summary */}
+            <Paper variant="outlined" sx={{ p: 2, mb: 3, bgcolor: 'grey.50' }}>
+              <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <Box>
+                  <Typography variant="subtitle2">
+                    {sourceType === 'quote' ? 'Quotation' : 'Order'}:{' '}
+                    {selectedSource.quote_number || selectedSource.order_number || '#' + selectedSource.id}
+                  </Typography>
+                  <Typography variant="body2" color="text.secondary">
+                    {selectedSource.customer_name || selectedSource.company || 'No customer'}
+                    {' — '}
+                    {formatCurrency(selectedSource.total_cents != null ? selectedSource.total_cents : (selectedSource.total || 0) * 100)}
+                  </Typography>
+                </Box>
+                <Button size="small" onClick={() => { setStep('search'); setSelectedSource(null); }}>
+                  Change
+                </Button>
+              </Box>
+            </Paper>
+
+            {/* Invoice fields */}
+            <TextField
+              fullWidth
+              size="small"
+              type="date"
+              label="Due Date"
+              value={dueDate}
+              onChange={(e) => setDueDate(e.target.value)}
+              slotProps={{ inputLabel: { shrink: true } }}
+              sx={{ mb: 2 }}
+            />
+
+            <FormControl fullWidth size="small" sx={{ mb: 2 }}>
+              <InputLabel>Payment Terms</InputLabel>
+              <Select
+                value={paymentTerms}
+                label="Payment Terms"
+                onChange={(e) => setPaymentTerms(e.target.value)}
+              >
+                <MenuItem value="Due on Receipt">Due on Receipt</MenuItem>
+                <MenuItem value="Net 15">Net 15</MenuItem>
+                <MenuItem value="Net 30">Net 30</MenuItem>
+                <MenuItem value="Net 45">Net 45</MenuItem>
+                <MenuItem value="Net 60">Net 60</MenuItem>
+                <MenuItem value="Net 90">Net 90</MenuItem>
+              </Select>
+            </FormControl>
+
+            <TextField
+              fullWidth
+              size="small"
+              label="Notes (optional)"
+              value={notes}
+              onChange={(e) => setNotes(e.target.value)}
+              multiline
+              rows={2}
+            />
+          </Box>
+        )}
+      </DialogContent>
+      <DialogActions>
+        <Button onClick={onClose}>Cancel</Button>
+        {step === 'details' && (
+          <Button
+            variant="contained"
+            onClick={handleCreate}
+            disabled={submitting || !selectedSource}
+          >
+            {submitting ? <CircularProgress size={20} /> : 'Create Invoice'}
+          </Button>
+        )}
+      </DialogActions>
+    </Dialog>
+  );
+};
+
 const InvoiceManager = () => {
   const [loading, setLoading] = useState(true);
   const [invoices, setInvoices] = useState([]);
@@ -247,6 +490,7 @@ const InvoiceManager = () => {
   const [selectedInvoice, setSelectedInvoice] = useState(null);
   const [paymentDialogOpen, setPaymentDialogOpen] = useState(false);
   const [viewDialogOpen, setViewDialogOpen] = useState(false);
+  const [createDialogOpen, setCreateDialogOpen] = useState(false);
 
   useEffect(() => {
     fetchInvoices();
@@ -352,7 +596,7 @@ const InvoiceManager = () => {
             A/R
           </Button>
           {viewMode === 'invoices' && (
-            <Button variant="contained" startIcon={<Add />} size="small">
+            <Button variant="contained" startIcon={<Add />} size="small" onClick={() => setCreateDialogOpen(true)}>
               Create Invoice
             </Button>
           )}
@@ -585,6 +829,13 @@ const InvoiceManager = () => {
       </Paper>
         </>
       )}
+
+      {/* Create Invoice Dialog */}
+      <CreateInvoiceDialog
+        open={createDialogOpen}
+        onClose={() => setCreateDialogOpen(false)}
+        onCreated={fetchInvoices}
+      />
 
       {/* Payment Dialog */}
       <PaymentDialog
