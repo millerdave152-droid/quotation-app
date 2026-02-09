@@ -175,10 +175,10 @@ function OtherButton({ onClick }) {
       style={{ minHeight: '80px' }}
     >
       <div className="w-12 h-12 rounded-full bg-gray-200 flex items-center justify-center">
-        <UserIcon className="w-6 h-6 text-gray-500" />
+        <UserGroupIcon className="w-6 h-6 text-gray-500" />
       </div>
-      <span className="mt-1.5 text-xs font-medium text-gray-600">Other</span>
-      <span className="text-[10px] text-gray-400">Search</span>
+      <span className="mt-1.5 text-xs font-medium text-gray-600">Change</span>
+      <span className="text-[10px] text-gray-400">Sales Rep</span>
     </button>
   );
 }

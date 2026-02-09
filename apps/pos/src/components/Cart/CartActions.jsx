@@ -3,7 +3,7 @@
  * Action buttons for cart operations
  */
 
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import {
   CreditCardIcon,
   PauseCircleIcon,
@@ -95,6 +95,18 @@ export function CartActions({
   className = '',
 }) {
   const [showClearConfirm, setShowClearConfirm] = useState(false);
+  const [pulseCheckout, setPulseCheckout] = useState(false);
+  const prevCanCheckout = useRef(canCheckout);
+
+  // Pulse checkout button when cart transitions from empty to ready
+  useEffect(() => {
+    if (canCheckout && !prevCanCheckout.current) {
+      setPulseCheckout(true);
+      const timer = setTimeout(() => setPulseCheckout(false), 2000);
+      return () => clearTimeout(timer);
+    }
+    prevCanCheckout.current = canCheckout;
+  }, [canCheckout]);
 
   const handleClearClick = () => {
     if (!isEmpty) {
@@ -114,34 +126,45 @@ export function CartActions({
   return (
     <div className={`p-4 bg-white border-t border-gray-200 ${className}`}>
       {/* Primary action: Checkout */}
-      <button
-        type="button"
-        onClick={onCheckout}
-        disabled={!canCheckout || isProcessing}
-        className="
-          w-full h-14
-          flex items-center justify-center gap-2
-          bg-green-600 hover:bg-green-700
-          disabled:bg-gray-300 disabled:cursor-not-allowed
-          text-white text-lg font-bold
-          rounded-xl
-          shadow-lg
-          transition-all duration-150
-          active:scale-[0.98]
-        "
-      >
-        {isProcessing ? (
-          <>
-            <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
-            <span>Processing...</span>
-          </>
-        ) : (
-          <>
-            <CreditCardIcon className="w-6 h-6" />
-            <span>Checkout</span>
-          </>
+      <div className="relative group">
+        <button
+          type="button"
+          onClick={onCheckout}
+          disabled={!canCheckout || isProcessing}
+          className={`
+            w-full h-14
+            flex items-center justify-center gap-2
+            bg-green-600 hover:bg-green-700
+            disabled:bg-gray-300 disabled:cursor-not-allowed
+            text-white text-lg font-bold
+            rounded-xl
+            shadow-lg
+            transition-all duration-150
+            active:scale-[0.98]
+            ${pulseCheckout ? 'animate-pulse ring-2 ring-green-400 ring-offset-2' : ''}
+          `}
+        >
+          {isProcessing ? (
+            <>
+              <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+              <span>Processing...</span>
+            </>
+          ) : (
+            <>
+              <CreditCardIcon className="w-6 h-6" />
+              <span>Checkout{!canCheckout && !isEmpty ? ' (F9)' : ''}</span>
+            </>
+          )}
+        </button>
+        {/* Tooltip when disabled */}
+        {!canCheckout && !isProcessing && (
+          <div className="absolute -top-8 left-1/2 -translate-x-1/2 hidden group-hover:block pointer-events-none">
+            <div className="px-3 py-1 bg-gray-800 text-white text-xs rounded-lg whitespace-nowrap shadow-lg">
+              {isEmpty ? 'Add items to cart to checkout' : 'Open a shift to checkout'}
+            </div>
+          </div>
         )}
-      </button>
+      </div>
 
       {/* Secondary actions */}
       <div className="mt-3 grid grid-cols-3 gap-2">

@@ -282,6 +282,7 @@ export function Cart({
               onRemove={handleRemoveItem}
               onSetSerialNumber={handleSetSerialNumber}
               onPriceOverride={onPriceOverride}
+              onApplyDiscount={(itemId, percent) => cart.applyItemDiscount(itemId, percent)}
               disabled={isProcessing}
             />
           ))}

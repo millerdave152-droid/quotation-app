@@ -159,53 +159,32 @@ const saveHeldCarts = (carts) => {
 export function CartProvider({ children }) {
   const { user } = useAuth();
 
-  // Cart state
-  const [items, setItems] = useState([]);
-  const [customer, setCustomerState] = useState(null);
-  const [quoteId, setQuoteId] = useState(null);
-  const [discount, setDiscountState] = useState({ amount: 0, reason: '' });
-  const [province, setProvinceState] = useState(DEFAULT_PROVINCE);
-  const [salespersonId, setSalespersonId] = useState(null);
+  // Lazy initialization from localStorage to prevent empty cart flash
+  const [initialCart] = useState(() => loadCartFromStorage());
+
+  // Cart state — initialized from localStorage synchronously
+  const [items, setItems] = useState(() => initialCart?.items || []);
+  const [customer, setCustomerState] = useState(() => initialCart?.customer || null);
+  const [quoteId, setQuoteId] = useState(() => initialCart?.quoteId || null);
+  const [discount, setDiscountState] = useState(() => initialCart?.discount || { amount: 0, reason: '' });
+  const [province, setProvinceState] = useState(() => initialCart?.province || DEFAULT_PROVINCE);
+  const [salespersonId, setSalespersonId] = useState(() => initialCart?.salespersonId || null);
   const [commissionSplit, setCommissionSplit] = useState(null); // { enabled, secondaryRepId, secondaryRepName, preset, primaryPct, secondaryPct }
-  const [appliedPromotion, setAppliedPromotion] = useState(null);
-  const [selectedFulfillment, setSelectedFulfillment] = useState(null);
+  const [appliedPromotion, setAppliedPromotion] = useState(() => initialCart?.appliedPromotion || null);
+  const [selectedFulfillment, setSelectedFulfillment] = useState(() => initialCart?.selectedFulfillment || null);
 
   // Trade-ins state
-  const [tradeIns, setTradeIns] = useState([]);
+  const [tradeIns, setTradeIns] = useState(() => initialCart?.tradeIns || []);
 
   // Held carts
-  const [heldCarts, setHeldCarts] = useState([]);
+  const [heldCarts, setHeldCarts] = useState(() => loadHeldCarts());
 
   // Loading state for async operations
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
 
-  // Track if initial load is done
-  const initialLoadDone = useRef(false);
-
-  // ============================================================================
-  // INITIALIZATION - Load from localStorage
-  // ============================================================================
-
-  useEffect(() => {
-    if (initialLoadDone.current) return;
-    initialLoadDone.current = true;
-
-    const savedCart = loadCartFromStorage();
-    if (savedCart) {
-      setItems(savedCart.items);
-      setCustomerState(savedCart.customer);
-      setQuoteId(savedCart.quoteId);
-      setDiscountState(savedCart.discount);
-      setProvinceState(savedCart.province);
-      setSalespersonId(savedCart.salespersonId);
-      setAppliedPromotion(savedCart.appliedPromotion);
-      setSelectedFulfillment(savedCart.selectedFulfillment);
-      setTradeIns(savedCart.tradeIns || []);
-    }
-
-    setHeldCarts(loadHeldCarts());
-  }, []);
+  // Track if initial load is done (always true now since we load synchronously)
+  const initialLoadDone = useRef(true);
 
   // Auto-set salesperson from logged-in user when no salesperson is selected
   useEffect(() => {
