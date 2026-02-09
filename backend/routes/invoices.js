@@ -106,6 +106,17 @@ module.exports = (pool, cache, invoiceService) => {
   // ============================================
 
   /**
+   * GET /api/invoices/search
+   * Search invoices by invoice number or customer name
+   */
+  router.get('/search', authenticate, asyncHandler(async (req, res) => {
+    const { q, limit = 5 } = req.query;
+    if (!q || q.trim().length < 2) return res.json([]);
+    const results = await invoiceService.searchInvoices(q.trim(), parseInt(limit));
+    res.json(results);
+  }));
+
+  /**
    * GET /api/invoices
    * List invoices with filters
    */

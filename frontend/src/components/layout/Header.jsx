@@ -7,6 +7,7 @@ import NotificationDropdown from './NotificationDropdown';
 import ThemeToggle from '../ui/ThemeToggle';
 
 import { authFetch } from '../../services/authFetch';
+import WhatsNewPanel, { getUnreadCount } from '../ui/WhatsNewPanel';
 // Header Action Button Component
 const HeaderButton = ({ icon, badge, onClick, title, ariaExpanded, ariaHaspopup }) => {
   const [isHovered, setIsHovered] = useState(false);
@@ -501,11 +502,11 @@ const NotificationPanel = ({ isOpen, onClose, dropdownRef }) => {
 };
 
 // Help Panel Dropdown
-const HelpPanel = ({ isOpen, onClose, dropdownRef }) => {
+const HelpPanel = ({ isOpen, onClose, dropdownRef, onWhatsNew }) => {
   const helpItems = [
     { icon: '📖', label: 'Documentation', action: () => window.open('https://docs.teletime.ca', '_blank') },
     { icon: '⌨️', label: 'Keyboard Shortcuts', action: null, disabled: true },
-    { icon: '🆕', label: "What's New", action: null, disabled: true },
+    { icon: '🆕', label: "What's New", action: onWhatsNew },
     { divider: true },
     { icon: '💬', label: 'Contact Support', action: () => window.location.href = 'mailto:support@teletime.ca' },
     { icon: '🐛', label: 'Report a Bug', action: () => window.location.href = 'mailto:bugs@teletime.ca' },
@@ -695,6 +696,8 @@ const Header = ({ isMobile }) => {
   const [notificationOpen, setNotificationOpen] = useState(false);
   const [helpOpen, setHelpOpen] = useState(false);
   const [appsOpen, setAppsOpen] = useState(false);
+  const [whatsNewOpen, setWhatsNewOpen] = useState(false);
+  const [whatsNewUnread, setWhatsNewUnread] = useState(getUnreadCount);
 
   // Refs for click-outside detection
   const helpRef = useRef(null);
@@ -833,6 +836,7 @@ const Header = ({ isMobile }) => {
             <div ref={helpRef} style={{ position: 'relative' }}>
               <HeaderButton
                 icon="❓"
+                badge={whatsNewUnread > 0 ? whatsNewUnread : undefined}
                 title="Help"
                 ariaExpanded={helpOpen}
                 ariaHaspopup="menu"
@@ -846,6 +850,10 @@ const Header = ({ isMobile }) => {
                 isOpen={helpOpen}
                 onClose={() => setHelpOpen(false)}
                 dropdownRef={helpRef}
+                onWhatsNew={() => {
+                  setHelpOpen(false);
+                  setWhatsNewOpen(true);
+                }}
               />
             </div>
 
@@ -877,6 +885,15 @@ const Header = ({ isMobile }) => {
         <div style={{ width: '1px', height: '24px', background: '#e5e7eb', margin: '0 8px' }} />
         <UserDropdown user={user} onLogout={handleLogout} />
       </div>
+
+      {/* What's New Panel */}
+      <WhatsNewPanel
+        isOpen={whatsNewOpen}
+        onClose={() => {
+          setWhatsNewOpen(false);
+          setWhatsNewUnread(getUnreadCount());
+        }}
+      />
     </header>
   );
 };

@@ -35,6 +35,17 @@ module.exports = (pool, cache, orderService, inventoryService) => {
   }));
 
   /**
+   * GET /api/orders/search
+   * Search orders by order number or customer name
+   */
+  router.get('/search', authenticate, asyncHandler(async (req, res) => {
+    const { q, limit = 5 } = req.query;
+    if (!q || q.trim().length < 2) return res.json([]);
+    const results = await orderService.searchOrders(q.trim(), parseInt(limit));
+    res.json(results);
+  }));
+
+  /**
    * GET /api/orders/:id
    * Get order by ID
    */

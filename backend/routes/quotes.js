@@ -1769,10 +1769,13 @@ router.post('/bulk/email', authenticate, asyncHandler(async (req, res) => {
     throw ApiError.validation('Email service not configured. Please set up AWS SES credentials.');
   }
 
-  // Import SES client and PDF service
+  // Import SES client, PDF service, and Quote Acceptance
   const { SESv2Client, SendEmailCommand, SendRawEmailCommand } = require('@aws-sdk/client-sesv2');
   const PdfService = require('../services/PdfService');
   const pdfService = new PdfService(pool);
+  const QuoteAcceptanceService = require('../services/QuoteAcceptanceService');
+  const quoteAcceptanceService = new QuoteAcceptanceService(pool);
+  const FRONTEND_URL = process.env.FRONTEND_URL || 'http://localhost:3000';
 
   const sesClient = new SESv2Client({
     region: process.env.AWS_REGION || 'us-east-1',
@@ -1806,6 +1809,15 @@ router.post('/bulk/email', authenticate, asyncHandler(async (req, res) => {
         .replace(/\{quote_number\}/gi, quote.quotation_number || '')
         .replace(/\{company\}/gi, quote.customer_company || '');
 
+      // Generate acceptance token for one-click accept
+      let acceptanceLink = '';
+      try {
+        const acceptToken = await quoteAcceptanceService.createAcceptanceToken(quote.id, quote.customer_email);
+        acceptanceLink = `${FRONTEND_URL}/quote/accept/${acceptToken.access_token}`;
+      } catch (tokenErr) {
+        console.error(`Error creating acceptance token for quote ${quote.id}:`, tokenErr);
+      }
+
       // Build HTML email
       const emailHTML = `
         <!DOCTYPE html>
@@ -1819,6 +1831,7 @@ router.post('/bulk/email', authenticate, asyncHandler(async (req, res) => {
             .quote-info { background: white; padding: 15px; border-radius: 8px; margin: 15px 0; border: 1px solid #e5e7eb; }
             .footer { text-align: center; padding: 20px; color: #6b7280; font-size: 12px; }
             .attachment-note { background: #dbeafe; color: #1d4ed8; padding: 10px; border-radius: 6px; margin-top: 15px; font-size: 14px; }
+            .accept-btn { display: inline-block; padding: 14px 32px; background: #10b981; color: white; text-decoration: none; border-radius: 8px; font-weight: bold; font-size: 16px; margin-top: 15px; }
           </style>
         </head>
         <body>
@@ -1833,6 +1846,7 @@ router.post('/bulk/email', authenticate, asyncHandler(async (req, res) => {
                 <strong>Quote Reference:</strong> ${quote.quotation_number}<br>
                 <strong>Total Amount:</strong> $${((quote.total_cents || 0) / 100).toLocaleString('en-US', { minimumFractionDigits: 2 })}
               </div>
+              ${acceptanceLink ? `<div style="text-align: center; margin-top: 20px;"><a href="${acceptanceLink}" class="accept-btn">✅ Accept Quote</a><p style="font-size: 12px; color: #6b7280; margin-top: 8px;">Click to review and accept this quote online</p></div>` : ''}
               ${attachPdf ? '<div class="attachment-note">📎 Your detailed quote is attached as a PDF document.</div>' : ''}
             </div>
             <div class="footer">

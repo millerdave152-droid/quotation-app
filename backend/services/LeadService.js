@@ -440,6 +440,14 @@ class LeadService {
         newStatus === 'lost' ? lostReason : null
       ]);
 
+      // Auto-set first_contacted_at on first contact
+      if (newStatus === 'contacted' && oldStatus === 'new') {
+        await client.query(
+          'UPDATE leads SET first_contacted_at = CURRENT_TIMESTAMP WHERE id = $1 AND first_contacted_at IS NULL',
+          [id]
+        );
+      }
+
       // Log activity
       await this.logActivity(
         client,
@@ -617,12 +625,35 @@ class LeadService {
         COUNT(*) FILTER (WHERE priority = 'warm') as warm_count,
         COUNT(*) FILTER (WHERE priority = 'cold') as cold_count,
         COUNT(*) FILTER (WHERE follow_up_date = CURRENT_DATE) as follow_up_today,
-        COUNT(*) FILTER (WHERE follow_up_date < CURRENT_DATE AND status NOT IN ('converted', 'lost')) as overdue_follow_ups
+        COUNT(*) FILTER (WHERE follow_up_date < CURRENT_DATE AND status NOT IN ('converted', 'lost')) as overdue_follow_ups,
+        AVG(EXTRACT(EPOCH FROM (first_contacted_at - created_at)) / 3600)
+          FILTER (WHERE first_contacted_at IS NOT NULL) as avg_response_hours,
+        COUNT(*) FILTER (WHERE first_contacted_at IS NOT NULL
+          AND EXTRACT(EPOCH FROM (first_contacted_at - created_at)) / 3600 <= 1) as responded_within_1h,
+        COUNT(*) FILTER (WHERE first_contacted_at IS NOT NULL) as total_responded
       FROM leads
     `;
 
     const result = await this.pool.query(statsQuery);
     return result.rows[0];
+  }
+
+  /**
+   * Search leads by name, email, phone, or lead number
+   */
+  async searchLeads(query, limit = 5) {
+    const pattern = `%${query}%`;
+    const result = await this.pool.query(`
+      SELECT id, lead_number, contact_name, contact_email, status, priority
+      FROM leads
+      WHERE lead_number ILIKE $1
+        OR contact_name ILIKE $1
+        OR contact_email ILIKE $1
+        OR contact_phone ILIKE $1
+      ORDER BY created_at DESC
+      LIMIT $2
+    `, [pattern, limit]);
+    return result.rows;
   }
 
   /**

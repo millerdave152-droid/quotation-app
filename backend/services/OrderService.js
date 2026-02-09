@@ -437,6 +437,25 @@ class OrderService {
   }
 
   /**
+   * Search orders by order number or customer name
+   */
+  async searchOrders(query, limit = 5) {
+    const pattern = `%${query}%`;
+    const result = await this.pool.query(`
+      SELECT o.id, o.order_number, o.status, o.total_cents, o.created_at,
+        c.name AS customer_name
+      FROM orders o
+      LEFT JOIN customers c ON o.customer_id = c.id
+      WHERE o.order_number ILIKE $1
+        OR c.name ILIKE $1
+        OR c.company ILIKE $1
+      ORDER BY o.created_at DESC
+      LIMIT $2
+    `, [pattern, limit]);
+    return result.rows;
+  }
+
+  /**
    * Get orders with filters
    * @param {object} options - Filter options
    * @returns {Promise<object>} Orders with pagination

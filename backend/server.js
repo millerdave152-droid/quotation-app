@@ -387,6 +387,13 @@ app.get('/api/users/me/permissions', authenticate, (req, res) => {
 console.log('✅ User management routes loaded');
 
 // ============================================
+// QUOTE ACCEPTANCE (PUBLIC) ROUTES
+// ============================================
+const quoteAcceptanceRoutes = require('./routes/quote-acceptance');
+app.use('/api/quote-accept', quoteAcceptanceRoutes({ pool }));
+console.log('✅ Quote acceptance routes loaded');
+
+// ============================================
 // COUNTER-OFFER / NEGOTIATION ROUTES
 // ============================================
 const counterOfferRoutes = require('./routes/counterOffers');
@@ -2980,6 +2987,14 @@ const server = app.listen(PORT, () => {
     const quoteExpiryDigestJob = new QuoteExpiryDigestJob(pool, emailService);
     quoteExpiryDigestJob.start();
     console.log('✅ Quote expiry digest scheduler started (Weekdays 8 AM)');
+  }
+
+  // Start daily digest job for morning overview emails to sales reps
+  if (process.env.ENABLE_DAILY_DIGEST !== 'false') {
+    const DailyDigestJob = require('./services/DailyDigestJob');
+    const dailyDigestJob = new DailyDigestJob(pool, emailService);
+    dailyDigestJob.start();
+    console.log('✅ Daily digest scheduler started (Weekdays 8:15 AM)');
   }
 
   // Start discontinued product auto-hide job (daily at 2 AM)

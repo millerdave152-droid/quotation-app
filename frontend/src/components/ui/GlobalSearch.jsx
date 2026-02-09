@@ -6,10 +6,10 @@ const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:3001';
 
 const GlobalSearch = ({ isOpen, onClose }) => {
   const [query, setQuery] = useState('');
-  const [results, setResults] = useState({ quotes: [], customers: [], products: [] });
+  const [results, setResults] = useState({ quotes: [], customers: [], products: [], leads: [], invoices: [], orders: [] });
   const [loading, setLoading] = useState(false);
   const [selectedIndex, setSelectedIndex] = useState(0);
-  const [activeCategory, setActiveCategory] = useState('all'); // 'all', 'quotes', 'customers', 'products'
+  const [activeCategory, setActiveCategory] = useState('all');
   const inputRef = useRef(null);
   const listRef = useRef(null);
   const navigate = useNavigate();
@@ -20,7 +20,7 @@ const GlobalSearch = ({ isOpen, onClose }) => {
     if (isOpen && inputRef.current) {
       inputRef.current.focus();
       setQuery('');
-      setResults({ quotes: [], customers: [], products: [] });
+      setResults({ quotes: [], customers: [], products: [], leads: [], invoices: [], orders: [] });
       setSelectedIndex(0);
       setActiveCategory('all');
     }
@@ -29,7 +29,7 @@ const GlobalSearch = ({ isOpen, onClose }) => {
   // Search function with debounce
   const performSearch = useCallback(async (searchQuery) => {
     if (searchQuery.length < 2) {
-      setResults({ quotes: [], customers: [], products: [] });
+      setResults({ quotes: [], customers: [], products: [], leads: [], invoices: [], orders: [] });
       return;
     }
 
@@ -42,27 +42,36 @@ const GlobalSearch = ({ isOpen, onClose }) => {
 
     try {
       // Search all endpoints in parallel
-      const [quotesRes, customersRes, productsRes] = await Promise.all([
+      const [quotesRes, customersRes, productsRes, leadsRes, invoicesRes, ordersRes] = await Promise.all([
         authFetch(`${API_URL}/api/quotes/search?q=${encodeURIComponent(searchQuery)}&limit=5`, { headers }),
         authFetch(`${API_URL}/api/customers/search?q=${encodeURIComponent(searchQuery)}&limit=5`, { headers }),
         authFetch(`${API_URL}/api/products/search?q=${encodeURIComponent(searchQuery)}&limit=5`, { headers }),
+        authFetch(`${API_URL}/api/leads/search?q=${encodeURIComponent(searchQuery)}&limit=5`, { headers }),
+        authFetch(`${API_URL}/api/invoices/search?q=${encodeURIComponent(searchQuery)}&limit=5`, { headers }),
+        authFetch(`${API_URL}/api/orders/search?q=${encodeURIComponent(searchQuery)}&limit=5`, { headers }),
       ]);
 
-      const [quotes, customers, products] = await Promise.all([
+      const [quotes, customers, products, leads, invoices, orders] = await Promise.all([
         quotesRes.ok ? quotesRes.json() : [],
         customersRes.ok ? customersRes.json() : [],
         productsRes.ok ? productsRes.json() : [],
+        leadsRes.ok ? leadsRes.json() : [],
+        invoicesRes.ok ? invoicesRes.json() : [],
+        ordersRes.ok ? ordersRes.json() : [],
       ]);
 
       setResults({
         quotes: Array.isArray(quotes) ? quotes : (quotes.quotes || []),
         customers: Array.isArray(customers) ? customers : (customers.customers || []),
         products: Array.isArray(products) ? products : (products.products || []),
+        leads: Array.isArray(leads) ? leads : (leads.data || []),
+        invoices: Array.isArray(invoices) ? invoices : (invoices.data || []),
+        orders: Array.isArray(orders) ? orders : (orders.data || []),
       });
       setSelectedIndex(0);
     } catch (error) {
       console.error('Global search error:', error);
-      setResults({ quotes: [], customers: [], products: [] });
+      setResults({ quotes: [], customers: [], products: [], leads: [], invoices: [], orders: [] });
     } finally {
       setLoading(false);
     }
@@ -97,6 +106,15 @@ const GlobalSearch = ({ isOpen, onClose }) => {
     if (activeCategory === 'all' || activeCategory === 'products') {
       results.products.forEach(p => all.push({ ...p, type: 'product' }));
     }
+    if (activeCategory === 'all' || activeCategory === 'leads') {
+      results.leads.forEach(l => all.push({ ...l, type: 'lead' }));
+    }
+    if (activeCategory === 'all' || activeCategory === 'invoices') {
+      results.invoices.forEach(i => all.push({ ...i, type: 'invoice' }));
+    }
+    if (activeCategory === 'all' || activeCategory === 'orders') {
+      results.orders.forEach(o => all.push({ ...o, type: 'order' }));
+    }
     return all;
   };
 
@@ -128,7 +146,7 @@ const GlobalSearch = ({ isOpen, onClose }) => {
       case 'Tab':
         e.preventDefault();
         // Cycle through categories
-        const categories = ['all', 'quotes', 'customers', 'products'];
+        const categories = ['all', 'quotes', 'customers', 'products', 'leads', 'invoices', 'orders'];
         const currentIndex = categories.indexOf(activeCategory);
         setActiveCategory(categories[(currentIndex + 1) % categories.length]);
         setSelectedIndex(0);
@@ -166,6 +184,15 @@ const GlobalSearch = ({ isOpen, onClose }) => {
       case 'product':
         navigate(`/products/${result.id}`);
         break;
+      case 'lead':
+        navigate(`/leads/${result.id}`);
+        break;
+      case 'invoice':
+        navigate(`/invoices`);
+        break;
+      case 'order':
+        navigate(`/invoices`);
+        break;
       default:
         break;
     }
@@ -177,9 +204,15 @@ const GlobalSearch = ({ isOpen, onClose }) => {
     return `$${(cents / 100).toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',')}`;
   };
 
+  const formatDollars = (val) => {
+    if (!val) return '$0.00';
+    return `$${Number(val).toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',')}`;
+  };
+
   if (!isOpen) return null;
 
-  const totalResults = results.quotes.length + results.customers.length + results.products.length;
+  const totalResults = results.quotes.length + results.customers.length + results.products.length
+    + results.leads.length + results.invoices.length + results.orders.length;
 
   return (
     <>
@@ -223,7 +256,7 @@ const GlobalSearch = ({ isOpen, onClose }) => {
               type="text"
               value={query}
               onChange={(e) => setQuery(e.target.value)}
-              placeholder="Search quotes, customers, products..."
+              placeholder="Search quotes, customers, products, leads, invoices, orders..."
               style={{
                 flex: 1,
                 border: 'none',
@@ -254,12 +287,16 @@ const GlobalSearch = ({ isOpen, onClose }) => {
           padding: '12px 16px',
           backgroundColor: '#f9fafb',
           borderBottom: '1px solid #e5e7eb',
+          flexWrap: 'wrap',
         }}>
           {[
             { id: 'all', label: 'All', count: totalResults },
             { id: 'quotes', label: 'Quotes', count: results.quotes.length, icon: '📋' },
             { id: 'customers', label: 'Customers', count: results.customers.length, icon: '👥' },
             { id: 'products', label: 'Products', count: results.products.length, icon: '📦' },
+            { id: 'leads', label: 'Leads', count: results.leads.length, icon: '📝' },
+            { id: 'invoices', label: 'Invoices', count: results.invoices.length, icon: '🧾' },
+            { id: 'orders', label: 'Orders', count: results.orders.length, icon: '🛒' },
           ].map(cat => (
             <button
               key={cat.id}
@@ -328,13 +365,7 @@ const GlobalSearch = ({ isOpen, onClose }) => {
               {(activeCategory === 'all' || activeCategory === 'quotes') && results.quotes.length > 0 && (
                 <div style={{ marginBottom: '16px' }}>
                   {activeCategory === 'all' && (
-                    <div style={{
-                      padding: '8px 12px',
-                      fontSize: '12px',
-                      fontWeight: '600',
-                      color: '#6b7280',
-                      textTransform: 'uppercase',
-                    }}>
+                    <div style={{ padding: '8px 12px', fontSize: '12px', fontWeight: '600', color: '#6b7280', textTransform: 'uppercase' }}>
                       Quotes
                     </div>
                   )}
@@ -346,12 +377,8 @@ const GlobalSearch = ({ isOpen, onClose }) => {
                         data-index={globalIndex}
                         onClick={() => handleSelectResult({ ...quote, type: 'quote' })}
                         style={{
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: '12px',
-                          padding: '12px',
-                          borderRadius: '8px',
-                          cursor: 'pointer',
+                          display: 'flex', alignItems: 'center', gap: '12px', padding: '12px',
+                          borderRadius: '8px', cursor: 'pointer',
                           backgroundColor: selectedIndex === globalIndex ? '#f3f4f6' : 'transparent',
                         }}
                         onMouseEnter={() => setSelectedIndex(globalIndex)}
@@ -370,9 +397,7 @@ const GlobalSearch = ({ isOpen, onClose }) => {
                             {formatCurrency(quote.total_amount)}
                           </div>
                           <div style={{
-                            fontSize: '11px',
-                            padding: '2px 8px',
-                            borderRadius: '10px',
+                            fontSize: '11px', padding: '2px 8px', borderRadius: '10px',
                             backgroundColor: quote.status === 'won' ? '#dcfce7' : quote.status === 'sent' ? '#dbeafe' : '#f3f4f6',
                             color: quote.status === 'won' ? '#166534' : quote.status === 'sent' ? '#1d4ed8' : '#6b7280',
                             textTransform: 'uppercase',
@@ -390,13 +415,7 @@ const GlobalSearch = ({ isOpen, onClose }) => {
               {(activeCategory === 'all' || activeCategory === 'customers') && results.customers.length > 0 && (
                 <div style={{ marginBottom: '16px' }}>
                   {activeCategory === 'all' && (
-                    <div style={{
-                      padding: '8px 12px',
-                      fontSize: '12px',
-                      fontWeight: '600',
-                      color: '#6b7280',
-                      textTransform: 'uppercase',
-                    }}>
+                    <div style={{ padding: '8px 12px', fontSize: '12px', fontWeight: '600', color: '#6b7280', textTransform: 'uppercase' }}>
                       Customers
                     </div>
                   )}
@@ -408,33 +427,21 @@ const GlobalSearch = ({ isOpen, onClose }) => {
                         data-index={globalIndex}
                         onClick={() => handleSelectResult({ ...customer, type: 'customer' })}
                         style={{
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: '12px',
-                          padding: '12px',
-                          borderRadius: '8px',
-                          cursor: 'pointer',
+                          display: 'flex', alignItems: 'center', gap: '12px', padding: '12px',
+                          borderRadius: '8px', cursor: 'pointer',
                           backgroundColor: selectedIndex === globalIndex ? '#f3f4f6' : 'transparent',
                         }}
                         onMouseEnter={() => setSelectedIndex(globalIndex)}
                       >
                         <span style={{ fontSize: '18px' }}>👤</span>
                         <div style={{ flex: 1 }}>
-                          <div style={{ fontWeight: '600', fontSize: '14px' }}>
-                            {customer.name}
-                          </div>
+                          <div style={{ fontWeight: '600', fontSize: '14px' }}>{customer.name}</div>
                           <div style={{ fontSize: '13px', color: '#6b7280' }}>
                             {customer.email || customer.phone || 'No contact info'}
                           </div>
                         </div>
                         {customer.company && (
-                          <div style={{
-                            fontSize: '12px',
-                            color: '#6b7280',
-                            backgroundColor: '#f3f4f6',
-                            padding: '4px 8px',
-                            borderRadius: '4px',
-                          }}>
+                          <div style={{ fontSize: '12px', color: '#6b7280', backgroundColor: '#f3f4f6', padding: '4px 8px', borderRadius: '4px' }}>
                             {customer.company}
                           </div>
                         )}
@@ -446,15 +453,9 @@ const GlobalSearch = ({ isOpen, onClose }) => {
 
               {/* Products Section */}
               {(activeCategory === 'all' || activeCategory === 'products') && results.products.length > 0 && (
-                <div>
+                <div style={{ marginBottom: '16px' }}>
                   {activeCategory === 'all' && (
-                    <div style={{
-                      padding: '8px 12px',
-                      fontSize: '12px',
-                      fontWeight: '600',
-                      color: '#6b7280',
-                      textTransform: 'uppercase',
-                    }}>
+                    <div style={{ padding: '8px 12px', fontSize: '12px', fontWeight: '600', color: '#6b7280', textTransform: 'uppercase' }}>
                       Products
                     </div>
                   )}
@@ -466,21 +467,15 @@ const GlobalSearch = ({ isOpen, onClose }) => {
                         data-index={globalIndex}
                         onClick={() => handleSelectResult({ ...product, type: 'product' })}
                         style={{
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: '12px',
-                          padding: '12px',
-                          borderRadius: '8px',
-                          cursor: 'pointer',
+                          display: 'flex', alignItems: 'center', gap: '12px', padding: '12px',
+                          borderRadius: '8px', cursor: 'pointer',
                           backgroundColor: selectedIndex === globalIndex ? '#f3f4f6' : 'transparent',
                         }}
                         onMouseEnter={() => setSelectedIndex(globalIndex)}
                       >
                         <span style={{ fontSize: '18px' }}>📦</span>
                         <div style={{ flex: 1 }}>
-                          <div style={{ fontWeight: '600', fontSize: '14px' }}>
-                            {product.name || product.model}
-                          </div>
+                          <div style={{ fontWeight: '600', fontSize: '14px' }}>{product.name || product.model}</div>
                           <div style={{ fontSize: '13px', color: '#6b7280' }}>
                             {product.model && product.name ? product.model : ''} {product.manufacturer && `• ${product.manufacturer}`}
                           </div>
@@ -490,10 +485,161 @@ const GlobalSearch = ({ isOpen, onClose }) => {
                             {formatCurrency(product.msrp_cents || product.cost_cents)}
                           </div>
                           {product.category && (
-                            <div style={{ fontSize: '11px', color: '#6b7280' }}>
-                              {product.category.split(' > ').pop()}
-                            </div>
+                            <div style={{ fontSize: '11px', color: '#6b7280' }}>{product.category.split(' > ').pop()}</div>
                           )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+
+              {/* Leads Section */}
+              {(activeCategory === 'all' || activeCategory === 'leads') && results.leads.length > 0 && (
+                <div style={{ marginBottom: '16px' }}>
+                  {activeCategory === 'all' && (
+                    <div style={{ padding: '8px 12px', fontSize: '12px', fontWeight: '600', color: '#6b7280', textTransform: 'uppercase' }}>
+                      Leads
+                    </div>
+                  )}
+                  {results.leads.map((lead, i) => {
+                    const globalIndex = allResults.findIndex(r => r.type === 'lead' && r.id === lead.id);
+                    return (
+                      <div
+                        key={`lead-${lead.id}`}
+                        data-index={globalIndex}
+                        onClick={() => handleSelectResult({ ...lead, type: 'lead' })}
+                        style={{
+                          display: 'flex', alignItems: 'center', gap: '12px', padding: '12px',
+                          borderRadius: '8px', cursor: 'pointer',
+                          backgroundColor: selectedIndex === globalIndex ? '#f3f4f6' : 'transparent',
+                        }}
+                        onMouseEnter={() => setSelectedIndex(globalIndex)}
+                      >
+                        <span style={{ fontSize: '18px' }}>📝</span>
+                        <div style={{ flex: 1 }}>
+                          <div style={{ fontWeight: '600', color: '#6366f1', fontSize: '14px' }}>
+                            {lead.lead_number}
+                          </div>
+                          <div style={{ fontSize: '13px', color: '#6b7280' }}>
+                            {lead.contact_name} {lead.contact_email ? `• ${lead.contact_email}` : ''}
+                          </div>
+                        </div>
+                        <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+                          {lead.priority && (
+                            <span style={{
+                              fontSize: '11px', padding: '2px 8px', borderRadius: '10px',
+                              backgroundColor: lead.priority === 'hot' ? '#fef2f2' : lead.priority === 'warm' ? '#fefce8' : '#f0f9ff',
+                              color: lead.priority === 'hot' ? '#dc2626' : lead.priority === 'warm' ? '#d97706' : '#0284c7',
+                              textTransform: 'uppercase', fontWeight: '600',
+                            }}>
+                              {lead.priority}
+                            </span>
+                          )}
+                          <span style={{
+                            fontSize: '11px', padding: '2px 8px', borderRadius: '10px',
+                            backgroundColor: '#f3f4f6', color: '#6b7280', textTransform: 'uppercase',
+                          }}>
+                            {lead.status}
+                          </span>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+
+              {/* Invoices Section */}
+              {(activeCategory === 'all' || activeCategory === 'invoices') && results.invoices.length > 0 && (
+                <div style={{ marginBottom: '16px' }}>
+                  {activeCategory === 'all' && (
+                    <div style={{ padding: '8px 12px', fontSize: '12px', fontWeight: '600', color: '#6b7280', textTransform: 'uppercase' }}>
+                      Invoices
+                    </div>
+                  )}
+                  {results.invoices.map((invoice, i) => {
+                    const globalIndex = allResults.findIndex(r => r.type === 'invoice' && r.id === invoice.id);
+                    return (
+                      <div
+                        key={`invoice-${invoice.id}`}
+                        data-index={globalIndex}
+                        onClick={() => handleSelectResult({ ...invoice, type: 'invoice' })}
+                        style={{
+                          display: 'flex', alignItems: 'center', gap: '12px', padding: '12px',
+                          borderRadius: '8px', cursor: 'pointer',
+                          backgroundColor: selectedIndex === globalIndex ? '#f3f4f6' : 'transparent',
+                        }}
+                        onMouseEnter={() => setSelectedIndex(globalIndex)}
+                      >
+                        <span style={{ fontSize: '18px' }}>🧾</span>
+                        <div style={{ flex: 1 }}>
+                          <div style={{ fontWeight: '600', color: '#6366f1', fontSize: '14px' }}>
+                            {invoice.invoice_number}
+                          </div>
+                          <div style={{ fontSize: '13px', color: '#6b7280' }}>
+                            {invoice.customer_name || 'No customer'}
+                          </div>
+                        </div>
+                        <div style={{ textAlign: 'right' }}>
+                          <div style={{ fontWeight: '600', fontSize: '14px' }}>
+                            {formatDollars(invoice.total)}
+                          </div>
+                          <div style={{
+                            fontSize: '11px', padding: '2px 8px', borderRadius: '10px',
+                            backgroundColor: invoice.status === 'paid' ? '#dcfce7' : invoice.status === 'overdue' ? '#fef2f2' : '#f3f4f6',
+                            color: invoice.status === 'paid' ? '#166534' : invoice.status === 'overdue' ? '#dc2626' : '#6b7280',
+                            textTransform: 'uppercase',
+                          }}>
+                            {invoice.status}
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+
+              {/* Orders Section */}
+              {(activeCategory === 'all' || activeCategory === 'orders') && results.orders.length > 0 && (
+                <div>
+                  {activeCategory === 'all' && (
+                    <div style={{ padding: '8px 12px', fontSize: '12px', fontWeight: '600', color: '#6b7280', textTransform: 'uppercase' }}>
+                      Orders
+                    </div>
+                  )}
+                  {results.orders.map((order, i) => {
+                    const globalIndex = allResults.findIndex(r => r.type === 'order' && r.id === order.id);
+                    return (
+                      <div
+                        key={`order-${order.id}`}
+                        data-index={globalIndex}
+                        onClick={() => handleSelectResult({ ...order, type: 'order' })}
+                        style={{
+                          display: 'flex', alignItems: 'center', gap: '12px', padding: '12px',
+                          borderRadius: '8px', cursor: 'pointer',
+                          backgroundColor: selectedIndex === globalIndex ? '#f3f4f6' : 'transparent',
+                        }}
+                        onMouseEnter={() => setSelectedIndex(globalIndex)}
+                      >
+                        <span style={{ fontSize: '18px' }}>🛒</span>
+                        <div style={{ flex: 1 }}>
+                          <div style={{ fontWeight: '600', color: '#6366f1', fontSize: '14px' }}>
+                            {order.order_number}
+                          </div>
+                          <div style={{ fontSize: '13px', color: '#6b7280' }}>
+                            {order.customer_name || 'No customer'}
+                          </div>
+                        </div>
+                        <div style={{ textAlign: 'right' }}>
+                          <div style={{ fontWeight: '600', fontSize: '14px' }}>
+                            {formatCurrency(order.total_cents)}
+                          </div>
+                          <span style={{
+                            fontSize: '11px', padding: '2px 8px', borderRadius: '10px',
+                            backgroundColor: '#f3f4f6', color: '#6b7280', textTransform: 'uppercase',
+                          }}>
+                            {order.status}
+                          </span>
                         </div>
                       </div>
                     );

@@ -72,6 +72,12 @@ const RecommendationRulesPage = React.lazy(() => import('./components/admin/reco
 // Fraud & Audit Dashboard
 const FraudDashboard = React.lazy(() => import('./components/admin/FraudDashboard'));
 
+// Sales Leaderboard
+const SalesLeaderboard = React.lazy(() => import('./components/commissions/SalesLeaderboard'));
+
+// Customer Quote Acceptance (public)
+const CustomerQuoteAcceptance = React.lazy(() => import('./pages/CustomerQuoteAcceptance'));
+
 // Quick Search (Universal Product Finder)
 const QuickSearch = React.lazy(() => import('./components/QuickSearch'));
 
@@ -267,6 +273,16 @@ const Dashboard = () => {
                 <div style={{ fontSize: '24px', fontWeight: 'bold', color: '#dc2626' }}>{(leadStats.follow_up_today || 0) + (leadStats.overdue_follow_ups || 0)}</div>
                 <div style={{ fontSize: '12px', color: '#6b7280', marginTop: '4px' }}>Follow-ups</div>
               </div>
+              {leadStats.avg_response_hours != null && (
+                <div style={{ textAlign: 'center', padding: '12px', background: '#f0fdf4', borderRadius: '8px' }}>
+                  <div style={{ fontSize: '24px', fontWeight: 'bold', color: '#15803d' }}>
+                    {Number(leadStats.avg_response_hours) < 1
+                      ? `${Math.round(Number(leadStats.avg_response_hours) * 60)}m`
+                      : `${Number(leadStats.avg_response_hours).toFixed(1)}h`}
+                  </div>
+                  <div style={{ fontSize: '12px', color: '#6b7280', marginTop: '4px' }}>Avg Response</div>
+                </div>
+              )}
             </div>
           </div>
         )}
@@ -497,6 +513,7 @@ function App() {
         <Route path="/quote/view/:token" element={<CustomerQuoteView />} />
         <Route path="/pay/:token" element={<PaymentPortal />} />
         <Route path="/customer-portal/:token" element={<EnhancedCustomerPortal />} />
+        <Route path="/quote/accept/:token" element={<CustomerQuoteAcceptance />} />
 
         {/* Protected routes - wrapped in MainLayout */}
         <Route element={<ProtectedRoute><MainLayout /></ProtectedRoute>}>
@@ -513,6 +530,7 @@ function App() {
           <Route path="/clv-dashboard" element={<CLVDashboard />} />
           <Route path="/purchasing-intelligence" element={<PurchasingIntelligence />} />
           <Route path="/pipeline-analytics" element={<PipelineAnalytics />} />
+          <Route path="/leaderboard" element={<SalesLeaderboard />} />
           <Route path="/report-builder" element={<ReportBuilder />} />
           <Route path="/executive-dashboard" element={<ExecutiveDashboard />} />
           <Route path="/training-center" element={<TrainingCenter />} />

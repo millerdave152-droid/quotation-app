@@ -500,6 +500,25 @@ class InvoiceService {
   }
 
   /**
+   * Search invoices by invoice number or customer name
+   */
+  async searchInvoices(query, limit = 5) {
+    const pattern = `%${query}%`;
+    const result = await this.pool.query(`
+      SELECT i.id, i.invoice_number, i.status, i.total, i.due_date,
+        c.name AS customer_name
+      FROM invoices i
+      LEFT JOIN customers c ON i.customer_id = c.id
+      WHERE i.invoice_number ILIKE $1
+        OR c.name ILIKE $1
+        OR c.company ILIKE $1
+      ORDER BY i.created_at DESC
+      LIMIT $2
+    `, [pattern, limit]);
+    return result.rows;
+  }
+
+  /**
    * Get invoices with filters
    * @param {object} options - Filter options
    * @returns {Promise<object>} Invoices with pagination

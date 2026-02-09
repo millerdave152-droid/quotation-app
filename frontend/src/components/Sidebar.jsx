@@ -33,7 +33,8 @@ import {
   Search,
   ClipboardCheck,
   Truck,
-  Shield
+  Shield,
+  Trophy
 } from 'lucide-react';
 
 const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:3001';
@@ -48,6 +49,7 @@ const navItems = {
   'product-visualization': { path: '/product-visualization', icon: Image, label: 'Product Gallery' },
   quotes: { path: '/quotes', icon: FileText, label: 'Quotations', hasBadge: true },
   'pipeline-analytics': { path: '/pipeline-analytics', icon: TrendingUp, label: 'Pipeline Analytics' },
+  leaderboard: { path: '/leaderboard', icon: Trophy, label: 'Leaderboard' },
   invoices: { path: '/invoices', icon: Receipt, label: 'Invoices' },
   inventory: { path: '/inventory', icon: Warehouse, label: 'Inventory' },
   pricing: { path: '/pricing', icon: DollarSign, label: 'Pricing Rules' },
@@ -80,7 +82,7 @@ const navSections = [
     id: 'sales',
     title: 'Sales',
     icon: Users,
-    items: ['customers', 'leads', 'quotes', 'pipeline-analytics', 'invoices']
+    items: ['customers', 'leads', 'quotes', 'pipeline-analytics', 'leaderboard', 'invoices']
   },
   {
     id: 'inventory',

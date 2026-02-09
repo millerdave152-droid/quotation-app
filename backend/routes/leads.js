@@ -61,6 +61,17 @@ router.get('/follow-ups', authenticate, asyncHandler(async (req, res) => {
 }));
 
 /**
+ * GET /api/leads/search
+ * Search leads by name, email, phone, or lead number
+ */
+router.get('/search', authenticate, asyncHandler(async (req, res) => {
+  const { q, limit = 5 } = req.query;
+  if (!q || q.trim().length < 2) return res.json([]);
+  const results = await leadService.searchLeads(q.trim(), parseInt(limit));
+  res.json(results);
+}));
+
+/**
  * GET /api/leads/:id
  * Get a single lead with full details
  */
