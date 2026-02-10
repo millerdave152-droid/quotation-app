@@ -115,6 +115,7 @@ function ReceiptOption({ icon: Icon, label, description, onClick, selected }) {
  */
 export function PaymentComplete({
   transaction,
+  payments: paymentsProp,
   onNewTransaction,
   onPrintReceipt,
   onEmailReceipt,
@@ -128,8 +129,9 @@ export function PaymentComplete({
 
   // Extract transaction details
   const transactionNumber = transaction?.transactionNumber || transaction?.transaction_number || 'N/A';
-  const totalAmount = transaction?.totalAmount || transaction?.total_amount || 0;
-  const payments = transaction?.payments || [];
+  const totalAmount = transaction?.totalAmount || transaction?.total_amount
+    || transaction?.totals?.totalAmount || transaction?.totals?.amountDue || 0;
+  const payments = paymentsProp || transaction?.payments || [];
 
   // Handle receipt action
   const handleReceiptAction = async () => {

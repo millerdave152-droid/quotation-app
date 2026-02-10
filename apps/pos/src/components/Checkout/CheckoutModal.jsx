@@ -1065,6 +1065,7 @@ export function CheckoutModal({
           {step === 'complete' && (
           <PaymentComplete
             transaction={transaction}
+            payments={payments}
             onNewTransaction={handleNewTransaction}
             onPrintReceipt={handlePrintReceipt}
             onEmailReceipt={handleEmailReceipt}

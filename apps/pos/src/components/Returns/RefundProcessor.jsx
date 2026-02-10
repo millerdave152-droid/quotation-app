@@ -21,6 +21,8 @@ const PAYMENT_METHOD_LABELS = {
   account: 'Customer Account',
 };
 
+const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:3001/api';
+
 export default function RefundProcessor({ returnRecord, transaction, onClose, onComplete }) {
   const [paymentInfo, setPaymentInfo] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -30,6 +32,9 @@ export default function RefundProcessor({ returnRecord, transaction, onClose, on
   const [restockingFeeCents, setRestockingFeeCents] = useState(0);
   const [completed, setCompleted] = useState(false);
   const [refundResult, setRefundResult] = useState(null);
+  const [receiptSending, setReceiptSending] = useState(false);
+  const [receiptSent, setReceiptSent] = useState(null); // 'print' | 'email' | 'both'
+  const [emailInput, setEmailInput] = useState(transaction?.customer_email || '');
 
   const fetchPaymentInfo = useCallback(async () => {
     setLoading(true);
@@ -77,6 +82,54 @@ export default function RefundProcessor({ returnRecord, transaction, onClose, on
       setCompleted(true);
     } else {
       setError(result.error || 'Refund processing failed');
+    }
+  };
+
+  // --- Receipt handlers ---
+  const transactionId = transaction?.id || transaction?.transaction_id;
+
+  const handlePrintReceipt = async () => {
+    if (!transactionId) return;
+    setReceiptSending(true);
+    try {
+      const response = await fetch(`${API_BASE}/receipts/${transactionId}/preview`, {
+        headers: { Authorization: `Bearer ${localStorage.getItem('pos_token')}` },
+      });
+      if (!response.ok) throw new Error('Failed to fetch receipt');
+      const blob = await response.blob();
+      const url = URL.createObjectURL(blob);
+      const printWindow = window.open(url, '_blank', 'width=800,height=600');
+      if (printWindow) {
+        printWindow.addEventListener('load', () => { printWindow.print(); });
+      }
+      setTimeout(() => URL.revokeObjectURL(url), 60000);
+      setReceiptSent(prev => prev === 'email' ? 'both' : 'print');
+    } catch (err) {
+      console.error('[Refund] Print receipt error:', err);
+    } finally {
+      setReceiptSending(false);
+    }
+  };
+
+  const handleEmailReceipt = async () => {
+    if (!transactionId || !emailInput) return;
+    setReceiptSending(true);
+    try {
+      const response = await fetch(`${API_BASE}/receipts/${transactionId}/email`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${localStorage.getItem('pos_token')}`,
+        },
+        body: JSON.stringify({ email: emailInput }),
+      });
+      const result = await response.json();
+      if (!response.ok || !result.success) throw new Error(result.error || 'Failed to email receipt');
+      setReceiptSent(prev => prev === 'print' ? 'both' : 'email');
+    } catch (err) {
+      console.error('[Refund] Email receipt error:', err);
+    } finally {
+      setReceiptSending(false);
     }
   };
 
@@ -134,6 +187,52 @@ export default function RefundProcessor({ returnRecord, transaction, onClose, on
                   <span>{formatCents(a.amountCents)}</span>
                 </div>
               ))}
+            </div>
+          )}
+
+          {/* Receipt Options */}
+          {transactionId && (
+            <div className="mb-4">
+              <p className="text-xs text-slate-400 mb-2 font-medium">Refund Receipt</p>
+              <div className="flex gap-2 justify-center">
+                <button
+                  onClick={handlePrintReceipt}
+                  disabled={receiptSending}
+                  className="flex items-center gap-1.5 px-4 py-2 bg-slate-700 hover:bg-slate-600 disabled:opacity-40 text-white text-sm rounded-lg transition-colors"
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
+                  </svg>
+                  {receiptSent === 'print' || receiptSent === 'both' ? 'Printed' : 'Print'}
+                </button>
+                <div className="flex gap-1">
+                  <input
+                    type="email"
+                    value={emailInput}
+                    onChange={(e) => setEmailInput(e.target.value)}
+                    placeholder="customer@email.com"
+                    className="w-48 px-3 py-2 bg-slate-900 border border-slate-600 rounded-lg text-sm text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                  <button
+                    onClick={handleEmailReceipt}
+                    disabled={receiptSending || !emailInput}
+                    className="flex items-center gap-1.5 px-4 py-2 bg-slate-700 hover:bg-slate-600 disabled:opacity-40 text-white text-sm rounded-lg transition-colors"
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                    </svg>
+                    {receiptSent === 'email' || receiptSent === 'both' ? 'Sent' : 'Email'}
+                  </button>
+                </div>
+              </div>
+              {receiptSending && (
+                <p className="text-xs text-slate-500 mt-2">Sending...</p>
+              )}
+              {receiptSent && (
+                <p className="text-xs text-green-400 mt-2">
+                  Receipt {receiptSent === 'both' ? 'printed & emailed' : receiptSent === 'print' ? 'printed' : 'emailed'} successfully
+                </p>
+              )}
             </div>
           )}
 
