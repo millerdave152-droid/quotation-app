@@ -4,6 +4,7 @@
  */
 
 const express = require('express');
+const { requireRole } = require('../middleware/auth');
 
 /**
  * Initialize commission routes
@@ -13,6 +14,10 @@ const express = require('express');
  */
 function init({ commissionService, pool }) {
   const router = express.Router();
+  const isManagerOrAdmin = (req) => {
+    const role = req.user?.role?.toLowerCase();
+    return role === 'admin' || role === 'manager';
+  };
 
   // ============================================
   // COMMISSION CALCULATION
@@ -25,7 +30,25 @@ function init({ commissionService, pool }) {
   router.post('/calculate/order/:orderId', async (req, res) => {
     try {
       const { orderId } = req.params;
-      const salesRepId = req.body.salesRepId || req.user?.id;
+      const requestedSalesRepId = req.body.salesRepId;
+      const userId = req.user?.id;
+      if (!userId) {
+        return res.status(401).json({
+          success: false,
+          error: 'Authentication required',
+        });
+      }
+
+      let salesRepId = userId;
+      if (requestedSalesRepId && parseInt(requestedSalesRepId, 10) !== userId) {
+        if (!isManagerOrAdmin(req)) {
+          return res.status(403).json({
+            success: false,
+            error: 'Access denied. Insufficient permissions.',
+          });
+        }
+        salesRepId = parseInt(requestedSalesRepId, 10);
+      }
 
       if (!salesRepId) {
         return res.status(400).json({
@@ -60,7 +83,24 @@ function init({ commissionService, pool }) {
   router.post('/calculate/cart', async (req, res) => {
     try {
       const { cart, salesRepId } = req.body;
-      const repId = salesRepId || req.user?.id;
+      const userId = req.user?.id;
+      if (!userId) {
+        return res.status(401).json({
+          success: false,
+          error: 'Authentication required',
+        });
+      }
+
+      let repId = userId;
+      if (salesRepId && parseInt(salesRepId, 10) !== userId) {
+        if (!isManagerOrAdmin(req)) {
+          return res.status(403).json({
+            success: false,
+            error: 'Access denied. Insufficient permissions.',
+          });
+        }
+        repId = parseInt(salesRepId, 10);
+      }
 
       if (!cart || !cart.items) {
         return res.status(400).json({
@@ -101,7 +141,25 @@ function init({ commissionService, pool }) {
   router.post('/record/:orderId', async (req, res) => {
     try {
       const { orderId } = req.params;
-      const salesRepId = req.body.salesRepId || req.user?.id;
+      const requestedSalesRepId = req.body.salesRepId;
+      const userId = req.user?.id;
+      if (!userId) {
+        return res.status(401).json({
+          success: false,
+          error: 'Authentication required',
+        });
+      }
+
+      let salesRepId = userId;
+      if (requestedSalesRepId && parseInt(requestedSalesRepId, 10) !== userId) {
+        if (!isManagerOrAdmin(req)) {
+          return res.status(403).json({
+            success: false,
+            error: 'Access denied. Insufficient permissions.',
+          });
+        }
+        salesRepId = parseInt(requestedSalesRepId, 10);
+      }
 
       if (!salesRepId) {
         return res.status(400).json({
@@ -155,7 +213,7 @@ function init({ commissionService, pool }) {
    * GET /api/commissions/summary/:userId
    * Get commission summary for a specific user (admin/manager)
    */
-  router.get('/summary/:userId', async (req, res) => {
+  router.get('/summary/:userId', requireRole('admin', 'manager'), async (req, res) => {
     try {
       const userId = parseInt(req.params.userId, 10);
       const summary = await commissionService.getCommissionSummary(userId);
@@ -211,12 +269,10 @@ function init({ commissionService, pool }) {
    * Get commission earnings for a specific rep (admin/manager only)
    * Query: startDate, endDate
    */
-  router.get('/rep/:repId', async (req, res) => {
+  router.get('/rep/:repId', requireRole('admin', 'manager'), async (req, res) => {
     try {
       const { repId } = req.params;
       const { startDate, endDate } = req.query;
-
-      // TODO: Add permission check for admin/manager
 
       const report = await commissionService.getRepCommissions(
         parseInt(repId, 10),
@@ -485,9 +541,8 @@ function init({ commissionService, pool }) {
    * Get commission summary for all reps (manager only)
    * Query: startDate, endDate
    */
-  router.get('/team', async (req, res) => {
+  router.get('/team', requireRole('admin', 'manager'), async (req, res) => {
     try {
-      // TODO: Verify user is manager/admin
       const { startDate, endDate } = req.query;
 
       const report = await commissionService.getTeamCommissions({ startDate, endDate });
@@ -510,7 +565,7 @@ function init({ commissionService, pool }) {
    * Get detailed commission data for a specific rep (manager only)
    * Query: startDate, endDate
    */
-  router.get('/rep/:repId/detailed', async (req, res) => {
+  router.get('/rep/:repId/detailed', requireRole('admin', 'manager'), async (req, res) => {
     try {
       const { repId } = req.params;
       const { startDate, endDate } = req.query;

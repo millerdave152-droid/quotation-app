@@ -74,22 +74,27 @@ class CommissionService {
    * Get sales rep specific commission settings
    */
   async getRepSettings(repId) {
-    const { rows } = await this.pool.query(`
-      SELECT * FROM sales_rep_commission_settings
-      WHERE user_id = $1 AND is_active = true
-    `, [repId]);
+    try {
+      const { rows } = await this.pool.query(`
+        SELECT * FROM sales_rep_commission_settings
+        WHERE user_id = $1 AND is_active = true
+      `, [repId]);
 
-    if (rows.length === 0) return null;
+      if (rows.length === 0) return null;
 
-    const settings = rows[0];
-    return {
-      baseRateOverride: settings.base_rate_override ? parseFloat(settings.base_rate_override) : null,
-      warrantyBonusOverride: settings.warranty_bonus_override ? parseFloat(settings.warranty_bonus_override) : null,
-      monthlyTarget: settings.monthly_target_cents ? settings.monthly_target_cents / 100 : null,
-      quarterlyTarget: settings.quarterly_target_cents ? settings.quarterly_target_cents / 100 : null,
-      acceleratorRate: settings.accelerator_rate ? parseFloat(settings.accelerator_rate) : null,
-      acceleratorThreshold: settings.accelerator_threshold ? parseFloat(settings.accelerator_threshold) : 1.0,
-    };
+      const settings = rows[0];
+      return {
+        baseRateOverride: settings.base_rate_override ? parseFloat(settings.base_rate_override) : null,
+        warrantyBonusOverride: settings.warranty_bonus_override ? parseFloat(settings.warranty_bonus_override) : null,
+        monthlyTarget: settings.monthly_target_cents ? settings.monthly_target_cents / 100 : null,
+        quarterlyTarget: settings.quarterly_target_cents ? settings.quarterly_target_cents / 100 : null,
+        acceleratorRate: settings.accelerator_rate ? parseFloat(settings.accelerator_rate) : null,
+        acceleratorThreshold: settings.accelerator_threshold ? parseFloat(settings.accelerator_threshold) : 1.0,
+      };
+    } catch (err) {
+      if (err.code === '42P01') return null; // table does not exist
+      throw err;
+    }
   }
 
   // ============================================
@@ -587,7 +592,9 @@ class CommissionService {
 
   /**
    * Get commission summary for logout/shift-close display
-   * Returns today + current pay period data in one call
+   * Returns today + current pay period data in one call.
+   * Uses transactions table as primary source, with commission_earnings
+   * and order_commission_splits as supplementary when available.
    */
   async getCommissionSummary(repId) {
     const today = new Date().toISOString().split('T')[0];
@@ -599,95 +606,88 @@ class CommissionService {
       ? new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().split('T')[0]
       : new Date(new Date().getFullYear(), new Date().getMonth(), 16).toISOString().split('T')[0];
 
-    // Query both commission_earnings and order_commission_splits
-    // commission_earnings tracks per-item commissions from the rules engine
-    // order_commission_splits tracks split commissions from POS checkout
-    const [todayEarnings, periodEarnings, todaySplits, periodSplits] = await Promise.all([
-      // Today from commission_earnings
+    // Get default commission rate from commission_rules (catch-all rule)
+    let defaultRate = 5.0; // fallback 5%
+    try {
+      const ruleResult = await this.pool.query(`
+        SELECT commission_percent FROM commission_rules
+        WHERE is_active = true
+        ORDER BY CASE WHEN product_category IS NULL THEN 1 ELSE 0 END DESC,
+                 commission_percent DESC
+        LIMIT 1
+      `);
+      if (ruleResult.rows.length > 0) {
+        defaultRate = parseFloat(ruleResult.rows[0].commission_percent) || 5.0;
+      }
+    } catch (err) {
+      // commission_rules table may not exist
+    }
+
+    // Primary source: transactions table (always has real sales data)
+    // Match on salesperson_id OR user_id to capture all sales by this rep
+    const [todayTxns, periodTxns] = await Promise.all([
       this.pool.query(`
-        SELECT
-          COUNT(DISTINCT order_id) AS order_count,
-          COALESCE(SUM(base_amount_cents), 0) AS total_sales_cents,
-          COALESCE(SUM(commission_amount_cents), 0) AS total_commission_cents
-        FROM commission_earnings
-        WHERE sales_rep_id = $1 AND order_date = $2
+        SELECT COUNT(*) AS sales_count,
+               COALESCE(SUM(total_amount), 0) AS total_revenue
+        FROM transactions
+        WHERE (salesperson_id = $1 OR user_id = $1)
+          AND status = 'completed'
+          AND created_at::date = $2::date
       `, [repId, today]),
 
-      // Pay period from commission_earnings
       this.pool.query(`
-        SELECT
-          COUNT(DISTINCT order_id) AS order_count,
-          COALESCE(SUM(base_amount_cents), 0) AS total_sales_cents,
-          COALESCE(SUM(commission_amount_cents), 0) AS total_commission_cents
-        FROM commission_earnings
-        WHERE sales_rep_id = $1 AND order_date >= $2 AND order_date <= $3
-      `, [repId, payPeriodStart, today]),
-
-      // Today from order_commission_splits
-      this.pool.query(`
-        SELECT
-          COUNT(DISTINCT ocs.transaction_id) AS order_count,
-          COALESCE(SUM(t.total_amount * 100), 0) AS total_sales_cents,
-          COALESCE(SUM(ocs.commission_amount_cents), 0) AS total_commission_cents
-        FROM order_commission_splits ocs
-        JOIN transactions t ON t.transaction_id = ocs.transaction_id
-        WHERE ocs.user_id = $1 AND ocs.created_at::date = $2::date
-      `, [repId, today]),
-
-      // Pay period from order_commission_splits
-      this.pool.query(`
-        SELECT
-          COUNT(DISTINCT ocs.transaction_id) AS order_count,
-          COALESCE(SUM(t.total_amount * 100), 0) AS total_sales_cents,
-          COALESCE(SUM(ocs.commission_amount_cents), 0) AS total_commission_cents
-        FROM order_commission_splits ocs
-        JOIN transactions t ON t.transaction_id = ocs.transaction_id
-        WHERE ocs.user_id = $1 AND ocs.created_at::date >= $2::date AND ocs.created_at::date <= $3::date
+        SELECT COUNT(*) AS sales_count,
+               COALESCE(SUM(total_amount), 0) AS total_revenue
+        FROM transactions
+        WHERE (salesperson_id = $1 OR user_id = $1)
+          AND status = 'completed'
+          AND created_at::date >= $2::date
+          AND created_at::date <= $3::date
       `, [repId, payPeriodStart, today]),
     ]);
 
-    const te = todayEarnings.rows[0];
-    const pe = periodEarnings.rows[0];
-    const ts = todaySplits.rows[0];
-    const ps = periodSplits.rows[0];
+    const todayRow = todayTxns.rows[0];
+    const periodRow = periodTxns.rows[0];
 
-    // Merge: use max order_count to avoid double-counting, sum commissions
-    const todayOrderCount = Math.max(parseInt(te.order_count) || 0, parseInt(ts.order_count) || 0);
-    const todaySalesCents = Math.max(parseInt(te.total_sales_cents) || 0, parseInt(ts.total_sales_cents) || 0);
-    const todayCommCents = (parseInt(te.total_commission_cents) || 0) + (parseInt(ts.total_commission_cents) || 0);
+    const todaySalesCount = parseInt(todayRow.sales_count) || 0;
+    const todayRevenueCents = Math.round((parseFloat(todayRow.total_revenue) || 0) * 100);
+    const todayCommCents = Math.round(todayRevenueCents * (defaultRate / 100));
 
-    const periodOrderCount = Math.max(parseInt(pe.order_count) || 0, parseInt(ps.order_count) || 0);
-    const periodSalesCents = Math.max(parseInt(pe.total_sales_cents) || 0, parseInt(ps.total_sales_cents) || 0);
-    const periodCommCents = (parseInt(pe.total_commission_cents) || 0) + (parseInt(ps.total_commission_cents) || 0);
+    const periodSalesCount = parseInt(periodRow.sales_count) || 0;
+    const periodRevenueCents = Math.round((parseFloat(periodRow.total_revenue) || 0) * 100);
+    const periodCommCents = Math.round(periodRevenueCents * (defaultRate / 100));
 
-    // Target progress
+    // Target progress from monthly sales
     const repSettings = await this.getRepSettings(repId);
     let targetProgress = null;
     if (repSettings?.monthlyTarget) {
       const mtdResult = await this.pool.query(`
-        SELECT COALESCE(SUM(commission_amount_cents), 0) AS total
-        FROM commission_earnings
-        WHERE sales_rep_id = $1 AND order_date >= $2
+        SELECT COALESCE(SUM(total_amount), 0) AS total
+        FROM transactions
+        WHERE (salesperson_id = $1 OR user_id = $1)
+          AND status = 'completed'
+          AND created_at::date >= $2::date
       `, [repId, monthStart]);
-      const mtdCents = parseInt(mtdResult.rows[0].total) || 0;
+      const mtdRevenue = parseFloat(mtdResult.rows[0].total) || 0;
+      const mtdCommCents = Math.round(mtdRevenue * 100 * (defaultRate / 100));
       targetProgress = {
         targetDollars: repSettings.monthlyTarget,
-        earnedDollars: mtdCents / 100,
-        percent: Math.round((mtdCents / 100) / repSettings.monthlyTarget * 1000) / 10,
+        earnedDollars: mtdCommCents / 100,
+        percent: Math.round((mtdCommCents / 100) / repSettings.monthlyTarget * 1000) / 10,
       };
     }
 
     return {
       today: {
-        salesCount: todayOrderCount,
-        totalSalesCents: todaySalesCents,
+        salesCount: todaySalesCount,
+        totalSalesCents: todayRevenueCents,
         commissionCents: todayCommCents,
       },
       payPeriod: {
         startDate: payPeriodStart,
         endDate: today,
-        salesCount: periodOrderCount,
-        totalSalesCents: periodSalesCents,
+        salesCount: periodSalesCount,
+        totalSalesCents: periodRevenueCents,
         commissionCents: periodCommCents,
       },
       targetProgress,

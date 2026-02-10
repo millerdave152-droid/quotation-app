@@ -52,8 +52,9 @@ export default function ShiftCommissionSummary({ isOpen, onClose, onViewDetails 
           )}
 
           {error && (
-            <div className="bg-red-50 border border-red-200 rounded-lg p-4 text-red-700 text-sm">
-              {error}
+            <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 text-amber-700 text-sm">
+              <p className="font-medium">Commission data unavailable</p>
+              <p className="mt-1 text-amber-600 text-xs">You can still close your shift normally.</p>
             </div>
           )}
 
