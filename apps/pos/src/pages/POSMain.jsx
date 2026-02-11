@@ -20,6 +20,7 @@ import {
   CubeIcon,
   ArrowUturnLeftIcon,
   ClipboardDocumentListIcon,
+  TableCellsIcon,
   UserGroupIcon,
   CurrencyDollarIcon,
   ShieldCheckIcon,
@@ -46,6 +47,7 @@ import { CheckoutModal } from '../components/Checkout/CheckoutModal';
 import { PriceOverrideModal } from '../components/Pricing/PriceOverrideModal';
 import { ShiftSummaryCompact, ShiftSummaryPanel } from '../components/Register/ShiftSummary';
 import ShiftCommissionSummary from '../components/Commission/ShiftCommissionSummary';
+import { ManagerApprovalQueue } from '../components/Discount/ManagerApprovalQueue';
 
 // Utils
 import { formatCurrency } from '../utils/formatters';
@@ -108,7 +110,9 @@ function QuickActionsBar({
   onHold,
   onPriceCheck,
   onReturns,
+  onDiscountApprovals,
   isEmpty,
+  isManager,
 }) {
   return (
     <div className="flex items-center gap-2 p-3 bg-slate-800 border-t border-slate-700">
@@ -144,6 +148,13 @@ function QuickActionsBar({
         shortcut="F8"
         onClick={onPriceCheck}
       />
+      {isManager && (
+        <QuickAction
+          icon={ShieldCheckIcon}
+          label="Discount Approvals"
+          onClick={onDiscountApprovals}
+        />
+      )}
     </div>
   );
 }
@@ -281,6 +292,15 @@ function Header({
                   <>
                     <div className="border-t border-gray-100 my-1" />
                     <p className="px-4 py-1 text-xs font-semibold text-gray-400 uppercase tracking-wider">Manager</p>
+
+                    <button
+                      type="button"
+                      onClick={() => { setShowUserMenu(false); navigate('/transactions'); }}
+                      className="w-full flex items-center gap-3 px-4 py-3 text-left text-gray-700 hover:bg-gray-50 transition-colors"
+                    >
+                      <TableCellsIcon className="w-5 h-5 text-gray-500" />
+                      <span>Transactions</span>
+                    </button>
 
                     <button
                       type="button"
@@ -520,6 +540,7 @@ export function POSMain() {
   const [showCheckout, setShowCheckout] = useState(false);
   const [showPriceCheck, setShowPriceCheck] = useState(false);
   const [priceOverrideItem, setPriceOverrideItem] = useState(null);
+  const [showDiscountApprovals, setShowDiscountApprovals] = useState(false);
 
   // Refs
   const searchInputRef = useRef(null);
@@ -797,7 +818,9 @@ export function POSMain() {
           onReturns={() => navigate('/returns')}
           onHold={handleHoldTransaction}
           onPriceCheck={() => setShowPriceCheck(true)}
+          onDiscountApprovals={() => setShowDiscountApprovals(true)}
           isEmpty={cart.isEmpty}
+          isManager={isAdminOrManager()}
         />
       </div>
 
@@ -837,6 +860,12 @@ export function POSMain() {
       <PriceCheckModal
         isOpen={showPriceCheck}
         onClose={() => setShowPriceCheck(false)}
+      />
+
+      {/* Manager Discount Approval Queue */}
+      <ManagerApprovalQueue
+        isOpen={showDiscountApprovals}
+        onClose={() => setShowDiscountApprovals(false)}
       />
 
       {/* Price Override Modal */}
@@ -950,6 +979,15 @@ export function POSMain() {
               {isAdminOrManager() && (
                 <div className="pt-4 border-t border-gray-200">
                   <p className="px-4 py-1 text-xs font-semibold text-gray-400 uppercase tracking-wider">Manager</p>
+
+                  <button
+                    type="button"
+                    onClick={() => { setShowMobileMenu(false); navigate('/transactions'); }}
+                    className="w-full flex items-center gap-3 px-4 py-3 text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
+                  >
+                    <TableCellsIcon className="w-5 h-5" />
+                    Transactions
+                  </button>
 
                   <button
                     type="button"

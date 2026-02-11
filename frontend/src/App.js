@@ -72,6 +72,9 @@ const RecommendationRulesPage = React.lazy(() => import('./components/admin/reco
 // Fraud & Audit Dashboard
 const FraudDashboard = React.lazy(() => import('./components/admin/FraudDashboard'));
 
+// Discount Analytics Dashboard
+const DiscountAnalyticsDashboard = React.lazy(() => import('./components/admin/DiscountAnalyticsDashboard'));
+
 // Sales Leaderboard
 const SalesLeaderboard = React.lazy(() => import('./components/commissions/SalesLeaderboard'));
 
@@ -578,6 +581,11 @@ function App() {
           <Route path="/admin/fraud" element={
             <ProtectedRoute requiredRoles={['admin', 'manager']}>
               <FraudDashboard />
+            </ProtectedRoute>
+          } />
+          <Route path="/admin/discount-analytics" element={
+            <ProtectedRoute requiredRoles={['admin', 'manager']}>
+              <DiscountAnalyticsDashboard />
             </ProtectedRoute>
           } />
           {/* 404 fallback */}

@@ -68,6 +68,7 @@ const navItems = {
   'admin-users': { path: '/admin/users', icon: UserCog, label: 'User Management', isAdmin: true },
   'admin-nomenclature': { path: '/admin/nomenclature', icon: Wrench, label: 'Nomenclature Admin', isAdmin: true },
   'admin-fraud': { path: '/admin/fraud', icon: Shield, label: 'Fraud & Audit', isAdmin: true },
+  'admin-discount-analytics': { path: '/admin/discount-analytics', icon: Tag, label: 'Discount Analytics', isAdmin: true },
 };
 
 // Section configuration
@@ -102,7 +103,7 @@ const adminSection = {
   id: 'admin',
   title: 'Admin',
   icon: UserCog,
-  items: ['admin-deliveries', 'admin-users', 'admin-nomenclature', 'admin-fraud']
+  items: ['admin-deliveries', 'admin-users', 'admin-nomenclature', 'admin-fraud', 'admin-discount-analytics']
 };
 
 /**

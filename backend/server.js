@@ -72,6 +72,7 @@ const emailService = require('./services/EmailService'); // singleton
 const NotificationService = require('./services/NotificationService');
 const TaxService = require('./services/TaxService');
 const FraudDetectionService = require('./services/FraudDetectionService');
+const DiscountAuthorityService = require('./services/DiscountAuthorityService');
 
 // New Enterprise Routes (Phase 2)
 const ordersRoutes = require('./routes/orders');
@@ -82,6 +83,9 @@ const pricingRoutes = require('./routes/pricing');
 const volumePricingRoutes = require('./routes/volume-pricing');
 const posPromotionsRoutes = require('./routes/pos-promotions');
 const managerOverrideRoutes = require('./routes/manager-overrides');
+const discountAuthorityRoutes = require('./routes/discount-authority');
+const discountEscalationRoutes = require('./routes/discount-escalations');
+const discountAnalyticsRoutes = require('./routes/discount-analytics');
 const deliveryFulfillmentRoutes = require('./routes/delivery-fulfillment');
 const warrantyRoutes = require('./routes/warranty');
 const stripeRoutes = require('./routes/stripe');
@@ -238,6 +242,7 @@ const batchEmailService = new BatchEmailService(pool, {
 
 const fraudService = new FraudDetectionService(pool);
 app.set('fraudService', fraudService);
+const discountAuthorityService = new DiscountAuthorityService(pool);
 
 console.log('✅ Enterprise services initialized');
 
@@ -2789,6 +2794,15 @@ console.log('✅ POS promotions routes loaded');
 
 app.use('/api/manager-overrides', managerOverrideRoutes(managerOverrideService));
 console.log('✅ Manager override routes loaded');
+
+app.use('/api/discount-authority', discountAuthorityRoutes(discountAuthorityService, fraudService));
+console.log('✅ Discount authority routes loaded (with fraud detection)');
+
+app.use('/api/discount-escalations', discountEscalationRoutes(discountAuthorityService, fraudService));
+console.log('✅ Discount escalation routes loaded (with audit logging)');
+
+app.use('/api/discount-analytics', discountAnalyticsRoutes(pool));
+console.log('✅ Discount analytics routes loaded');
 
 app.use('/api/delivery', deliveryFulfillmentRoutes(deliveryFulfillmentService));
 const deliveryWindowRoutes = require('./routes/delivery-windows');

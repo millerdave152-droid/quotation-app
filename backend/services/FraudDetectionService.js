@@ -214,6 +214,70 @@ class FraudDetectionService {
     return { riskScore, triggeredRules, action, alertId };
   }
 
+  /**
+   * Assess a discount application for fraud risk
+   * Checks 3 discount-specific patterns: tier maxing, discount+void, discount+refund ratio
+   * @param {object} discountData - { employee_id, product_id, discount_pct, discount_amount, original_price }
+   * @param {number} userId - Employee applying the discount
+   * @returns {Promise<object>} { riskScore, triggeredRules[], action, alertId? }
+   */
+  async assessDiscount(discountData, userId) {
+    const triggeredRules = [];
+    const rules = await this._loadRules();
+
+    // Rule 1: Discount tier maxing pattern
+    const maxPatternRule = rules.find(r => r.rule_code === 'discount_max_pattern' && r.is_active);
+    if (maxPatternRule) {
+      const result = await this._checkDiscountMaxPattern(userId, discountData.discount_pct, maxPatternRule);
+      if (result.triggered) triggeredRules.push(result);
+    }
+
+    // Rule 2: Discount + void pattern (check historical)
+    const voidPatternRule = rules.find(r => r.rule_code === 'discount_void_pattern' && r.is_active);
+    if (voidPatternRule) {
+      const result = await this._checkDiscountVoidPattern(userId, voidPatternRule);
+      if (result.triggered) triggeredRules.push(result);
+    }
+
+    // Rule 3: Discount to refund ratio
+    const refundRatioRule = rules.find(r => r.rule_code === 'discount_refund_ratio' && r.is_active);
+    if (refundRatioRule) {
+      const result = await this._checkDiscountRefundRatio(userId, refundRatioRule);
+      if (result.triggered) triggeredRules.push(result);
+    }
+
+    // Also check the existing high-discount rule
+    const highDiscountRule = rules.find(r => r.rule_code === 'amount_high_discount' && r.is_active);
+    if (highDiscountRule && discountData.discount_pct > (highDiscountRule.conditions.threshold_percent || 30)) {
+      triggeredRules.push({
+        triggered: true,
+        rule: highDiscountRule,
+        details: { discount_percent: discountData.discount_pct, threshold: highDiscountRule.conditions.threshold_percent }
+      });
+    }
+
+    const riskScore = this._calculateRiskScore(triggeredRules);
+    const action = this._determineAction(riskScore, triggeredRules);
+
+    let alertId = null;
+    if (triggeredRules.length > 0) {
+      const alert = await this.createAlert({
+        riskScore,
+        triggeredRules,
+        action,
+        alertType: 'discount',
+        severity: this._getHighestSeverity(triggeredRules)
+      }, {
+        userId,
+        entityType: 'discount_transaction',
+        customerId: null
+      });
+      alertId = alert?.id;
+    }
+
+    return { riskScore, triggeredRules, action, alertId };
+  }
+
   // ============================================================================
   // PUBLIC API — Alerts
   // ============================================================================
@@ -1043,6 +1107,120 @@ class FraudDetectionService {
       triggered: parseInt(rows[0].count) > 0,
       rule,
       details: { chargeback_count: parseInt(rows[0].count) }
+    };
+  }
+
+  // ============================================================================
+  // PRIVATE — Discount Fraud Checks
+  // ============================================================================
+
+  /**
+   * Check if employee is consistently maxing their discount tier limit.
+   * Looks at recent discount_transactions and counts how many are at or near the tier max.
+   */
+  async _checkDiscountMaxPattern(userId, currentDiscountPct, rule) {
+    const windowHours = rule.conditions.window_hours || 168; // 7 days default
+    const minTxns = rule.conditions.min_transactions || 5;
+    const nearMaxPct = rule.conditions.near_max_threshold_pct || 90;
+
+    // Get employee's tier max
+    const tierResult = await this.pool.query(
+      `SELECT dat.max_discount_pct_standard, dat.max_discount_pct_high_margin
+       FROM discount_authority_tiers dat
+       JOIN users u ON LOWER(
+         CASE WHEN u.role = 'user' THEN 'staff' WHEN u.role = 'admin' THEN 'master' ELSE u.role END
+       ) = dat.role_name
+       WHERE u.id = $1`,
+      [userId]
+    );
+    if (!tierResult.rows[0]) return { triggered: false, rule, details: {} };
+
+    const tierMax = Math.max(
+      parseFloat(tierResult.rows[0].max_discount_pct_standard) || 0,
+      parseFloat(tierResult.rows[0].max_discount_pct_high_margin) || 0
+    );
+    if (tierMax <= 0) return { triggered: false, rule, details: {} };
+
+    // Count recent discount transactions near the max
+    const { rows } = await this.pool.query(
+      `SELECT COUNT(*) as total,
+              COUNT(*) FILTER (WHERE discount_pct >= $1) as near_max_count
+       FROM discount_transactions
+       WHERE employee_id = $2
+         AND created_at > NOW() - ($3 || ' hours')::INTERVAL`,
+      [tierMax * (nearMaxPct / 100), userId, windowHours]
+    );
+
+    const total = parseInt(rows[0].total);
+    const nearMaxCount = parseInt(rows[0].near_max_count);
+
+    return {
+      triggered: total >= minTxns && nearMaxCount >= minTxns,
+      rule,
+      details: {
+        total_discount_txns: total,
+        near_max_count: nearMaxCount,
+        tier_max: tierMax,
+        window_hours: windowHours
+      }
+    };
+  }
+
+  /**
+   * Check if employee has a pattern of applying discounts then voiding transactions.
+   * Looks for voided transactions that had discounts applied by the same employee.
+   * Note: transactions table has voided_by but no voided_at timestamp,
+   * so we compare against the discount creation time window.
+   */
+  async _checkDiscountVoidPattern(userId, rule) {
+    const minDiscountPct = rule.conditions.min_discount_pct || 5;
+
+    const { rows } = await this.pool.query(
+      `SELECT COUNT(*) as pattern_count
+       FROM discount_transactions dt
+       JOIN transactions t ON t.transaction_id = dt.sale_id
+       WHERE dt.employee_id = $1
+         AND t.status = 'voided'
+         AND t.voided_by = $1
+         AND dt.discount_pct >= $2
+         AND dt.created_at > NOW() - INTERVAL '30 days'`,
+      [userId, minDiscountPct]
+    );
+
+    const count = parseInt(rows[0].pattern_count);
+    return {
+      triggered: count >= 2,
+      rule,
+      details: { discount_void_count: count, period: '30 days' }
+    };
+  }
+
+  /**
+   * Check employee's ratio of discounted transactions to refunds.
+   * High ratio may indicate discount-then-refund scheme.
+   */
+  async _checkDiscountRefundRatio(userId, rule) {
+    const windowDays = rule.conditions.window_days || 30;
+    const minDiscountTxns = rule.conditions.min_discount_txns || 3;
+    const ratioThreshold = rule.conditions.refund_ratio_threshold || 0.4;
+
+    const { rows } = await this.pool.query(
+      `SELECT
+         (SELECT COUNT(*) FROM discount_transactions
+          WHERE employee_id = $1 AND created_at > NOW() - ($2 || ' days')::INTERVAL) as discount_count,
+         (SELECT COUNT(*) FROM pos_returns
+          WHERE processed_by = $1 AND created_at > NOW() - ($2 || ' days')::INTERVAL) as refund_count`,
+      [userId, windowDays]
+    );
+
+    const discountCount = parseInt(rows[0].discount_count);
+    const refundCount = parseInt(rows[0].refund_count);
+    const ratio = discountCount > 0 ? refundCount / discountCount : 0;
+
+    return {
+      triggered: discountCount >= minDiscountTxns && ratio >= ratioThreshold,
+      rule,
+      details: { discount_count: discountCount, refund_count: refundCount, ratio: +ratio.toFixed(2), threshold: ratioThreshold }
     };
   }
 
