@@ -15,6 +15,7 @@ import {
   TagIcon,
 } from '@heroicons/react/24/outline';
 import { formatCurrency } from '../../utils/formatters';
+import { DiscountSlider } from '../Discount/DiscountSlider';
 
 const QUICK_DISCOUNTS = [5, 10, 15, 20];
 
@@ -36,6 +37,10 @@ export const CartItem = memo(function CartItem({
   onSetSerialNumber,
   onPriceOverride,
   onApplyDiscount,
+  discountTier,
+  discountBudget,
+  onRequestEscalation,
+  onBudgetUpdate,
   disabled = false,
 }) {
   const [swipeOffset, setSwipeOffset] = useState(0);
@@ -288,57 +293,71 @@ export const CartItem = memo(function CartItem({
         {/* Expanded detail panel */}
         {isExpanded && (
           <div className="px-3 pb-3 bg-gray-50 border-t border-gray-100">
-            {/* Quick Discount Buttons */}
+            {/* Discount Controls */}
             {onApplyDiscount && (
               <div className="mb-2 pt-2">
-                <div className="flex items-center gap-1.5 mb-1.5">
-                  <TagIcon className="w-3.5 h-3.5 text-gray-500" />
-                  <span className="text-xs font-medium text-gray-600">Quick Discount</span>
-                </div>
-                <div className="flex gap-1.5">
-                  {QUICK_DISCOUNTS.map((pct) => (
-                    <button
-                      key={pct}
-                      type="button"
-                      onClick={() => handleQuickDiscount(pct)}
-                      disabled={disabled}
-                      className={`
-                        flex-1 h-9
-                        flex items-center justify-center
-                        text-xs font-bold
-                        rounded-lg
-                        transition-all duration-150
-                        disabled:opacity-50
-                        ${
-                          item.discountPercent === pct
-                            ? 'bg-green-600 text-white shadow-sm'
-                            : 'bg-white border border-gray-200 text-gray-700 hover:border-green-300 hover:bg-green-50'
-                        }
-                      `}
-                    >
-                      {pct}%
-                    </button>
-                  ))}
-                  {/* Clear discount button */}
-                  {item.discountPercent > 0 && (
-                    <button
-                      type="button"
-                      onClick={() => onApplyDiscount(item.id, 0)}
-                      disabled={disabled}
-                      className="
-                        h-9 px-2
-                        flex items-center justify-center
-                        text-xs font-medium
-                        bg-white border border-red-200 text-red-600
-                        hover:bg-red-50
-                        rounded-lg
-                        transition-colors duration-150
-                      "
-                    >
-                      Clear
-                    </button>
-                  )}
-                </div>
+                {discountTier ? (
+                  /* Full Discount Slider with margin/commission/budget */
+                  <DiscountSlider
+                    item={item}
+                    tier={discountTier}
+                    budget={discountBudget}
+                    onApplyDiscount={onApplyDiscount}
+                    onRequestEscalation={onRequestEscalation}
+                    onBudgetUpdate={onBudgetUpdate}
+                  />
+                ) : (
+                  /* Fallback: Quick Discount Buttons (when tier not loaded) */
+                  <>
+                    <div className="flex items-center gap-1.5 mb-1.5">
+                      <TagIcon className="w-3.5 h-3.5 text-gray-500" />
+                      <span className="text-xs font-medium text-gray-600">Quick Discount</span>
+                    </div>
+                    <div className="flex gap-1.5">
+                      {QUICK_DISCOUNTS.map((pct) => (
+                        <button
+                          key={pct}
+                          type="button"
+                          onClick={() => handleQuickDiscount(pct)}
+                          disabled={disabled}
+                          className={`
+                            flex-1 h-9
+                            flex items-center justify-center
+                            text-xs font-bold
+                            rounded-lg
+                            transition-all duration-150
+                            disabled:opacity-50
+                            ${
+                              item.discountPercent === pct
+                                ? 'bg-green-600 text-white shadow-sm'
+                                : 'bg-white border border-gray-200 text-gray-700 hover:border-green-300 hover:bg-green-50'
+                            }
+                          `}
+                        >
+                          {pct}%
+                        </button>
+                      ))}
+                      {item.discountPercent > 0 && (
+                        <button
+                          type="button"
+                          onClick={() => onApplyDiscount(item.id, 0)}
+                          disabled={disabled}
+                          className="
+                            h-9 px-2
+                            flex items-center justify-center
+                            text-xs font-medium
+                            bg-white border border-red-200 text-red-600
+                            hover:bg-red-50
+                            rounded-lg
+                            transition-colors duration-150
+                          "
+                        >
+                          Clear
+                        </button>
+                      )}
+                    </div>
+                  </>
+                )}
               </div>
             )}
 

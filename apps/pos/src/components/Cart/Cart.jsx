@@ -79,6 +79,10 @@ export function Cart({
   onCustomerClick,
   onQuoteClick,
   onPriceOverride,
+  discountTier,
+  discountBudget,
+  onRequestEscalation,
+  onBudgetUpdate,
   className = '',
 }) {
   const cart = useCart();
@@ -283,6 +287,10 @@ export function Cart({
               onSetSerialNumber={handleSetSerialNumber}
               onPriceOverride={onPriceOverride}
               onApplyDiscount={(itemId, percent) => cart.applyItemDiscount(itemId, percent)}
+              discountTier={discountTier}
+              discountBudget={discountBudget}
+              onRequestEscalation={onRequestEscalation}
+              onBudgetUpdate={onBudgetUpdate}
               disabled={isProcessing}
             />
           ))}

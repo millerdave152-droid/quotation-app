@@ -331,9 +331,10 @@ export function CartProvider({ children }) {
     setItems((currentItems) => {
       // Check if product already exists (by productId, and no serial number)
       // Items with serial numbers are always added as new items
+      const pid = product.productId || product.product_id || product.id;
       const existingIndex = currentItems.findIndex(
         (item) =>
-          item.productId === (product.productId || product.product_id) &&
+          item.productId === pid &&
           !item.serialNumber &&
           !serialNumber
       );
@@ -349,15 +350,31 @@ export function CartProvider({ children }) {
       }
 
       // Add new item
+      // Resolve cost: check dollars fields first, then cents conversion
+      const rawCost = product.cost || product.unitCost || product.unit_cost;
+      const resolvedCost = rawCost
+        ? parseFloat(rawCost)
+        : product.cost_cents
+          ? parseFloat(product.cost_cents) / 100
+          : null;
+
+      // Resolve price: check dollars fields first, then cents conversion
+      const rawPrice = product.price || product.unitPrice || product.unit_price;
+      const resolvedPrice = rawPrice
+        ? parseFloat(rawPrice)
+        : product.msrp_cents
+          ? parseFloat(product.msrp_cents) / 100
+          : product.retail_price_cents
+            ? parseFloat(product.retail_price_cents) / 100
+            : 0;
+
       const newItem = {
         id: generateItemId(),
-        productId: product.productId || product.product_id,
+        productId: product.productId || product.product_id || product.id,
         productName: product.name || product.productName || product.product_name,
-        sku: product.sku || product.productSku || product.product_sku || '',
-        unitPrice: parseFloat(product.price || product.unitPrice || product.unit_price || 0),
-        unitCost: product.cost || product.unitCost || product.unit_cost
-          ? parseFloat(product.cost || product.unitCost || product.unit_cost)
-          : null,
+        sku: product.sku || product.model || product.productSku || product.product_sku || '',
+        unitPrice: resolvedPrice,
+        unitCost: resolvedCost,
         quantity,
         discountPercent,
         taxable: product.taxable !== false,
@@ -628,21 +645,23 @@ export function CartProvider({ children }) {
 
     // Load items
     const quoteItems = quoteData.items || [];
-    const cartItems = quoteItems.map((item) => ({
+    const cartItems = quoteItems.map((item) => {
+      const rawCost = item.unitCost || item.unit_cost || item.cost;
+      const rawPrice = item.unitPrice || item.unit_price || item.price;
+      return {
       id: generateItemId(),
-      productId: item.productId || item.product_id,
+      productId: item.productId || item.product_id || item.id,
       productName: item.productName || item.product_name || item.name,
-      sku: item.sku || item.productSku || item.product_sku || '',
-      unitPrice: parseFloat(item.unitPrice || item.unit_price || item.price || 0),
-      unitCost: item.unitCost || item.unit_cost || item.cost
-        ? parseFloat(item.unitCost || item.unit_cost || item.cost)
-        : null,
+      sku: item.sku || item.model || item.productSku || item.product_sku || '',
+      unitPrice: rawPrice ? parseFloat(rawPrice) : item.msrp_cents ? parseFloat(item.msrp_cents) / 100 : 0,
+      unitCost: rawCost ? parseFloat(rawCost) : item.cost_cents ? parseFloat(item.cost_cents) / 100 : null,
       quantity: item.quantity || 1,
       discountPercent: item.discountPercent || item.discount_percent || 0,
       taxable: item.taxable !== false,
       serialNumber: null,
       fromQuote: true,
-    }));
+    };
+    });
 
     setItems(cartItems);
 

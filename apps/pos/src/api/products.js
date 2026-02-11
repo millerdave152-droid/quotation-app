@@ -30,10 +30,14 @@ export const getProducts = async (params = {}) => {
 
     const response = await api.get(`/products?${queryParams}`);
 
+    // After axios interceptor unwrap, response may be an array or { data, pagination }
+    const products = Array.isArray(response) ? response : (response.data || response || []);
+    const pagination = Array.isArray(response) ? null : (response.pagination || null);
+
     return {
       success: true,
-      data: response.data || [],
-      pagination: response.pagination || null,
+      data: products,
+      pagination,
     };
   } catch (error) {
     console.error('[Products] getProducts error:', error);
@@ -179,10 +183,14 @@ export const getProductsByCategory = async (categoryId, params = {}) => {
 
     const response = await api.get(`/products?${queryParams}`);
 
+    // After axios interceptor unwrap, response may be an array or { data, pagination }
+    const products = Array.isArray(response) ? response : (response.data || response || []);
+    const pagination = Array.isArray(response) ? null : (response.pagination || null);
+
     return {
       success: true,
-      data: response.data || [],
-      pagination: response.pagination || null,
+      data: products,
+      pagination,
     };
   } catch (error) {
     console.error('[Products] getProductsByCategory error:', error);

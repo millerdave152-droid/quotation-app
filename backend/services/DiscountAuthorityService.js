@@ -144,17 +144,24 @@ class DiscountAuthorityService {
    * Looks up product price/cost and commission rate from DB.
    */
   async validateDiscountFull({ productId, proposedDiscountPct, employeeId, role }) {
-    // Look up product
+    // Look up product (include cents-based pricing columns as fallback)
     const prodResult = await this.pool.query(
-      'SELECT id, name, price, cost, category FROM products WHERE id = $1',
+      'SELECT id, name, price, cost, cost_cents, msrp_cents, retail_price_cents, category FROM products WHERE id = $1',
       [productId]
     );
     if (!prodResult.rows[0]) {
       return { allowed: false, reason: 'Product not found', calculations: null, escalation_required: false, escalation_reason: null };
     }
     const product = prodResult.rows[0];
-    const originalPrice = parseFloat(product.price);
-    const productCost = parseFloat(product.cost);
+    // Resolve price: prefer dollars column, fallback to cents conversion
+    const originalPrice = product.price ? parseFloat(product.price)
+      : product.msrp_cents ? parseFloat(product.msrp_cents) / 100
+      : product.retail_price_cents ? parseFloat(product.retail_price_cents) / 100
+      : 0;
+    // Resolve cost: prefer dollars column, fallback to cents conversion
+    const productCost = product.cost ? parseFloat(product.cost)
+      : product.cost_cents ? parseFloat(product.cost_cents) / 100
+      : 0;
     const discountPct = parseFloat(proposedDiscountPct);
 
     // Look up commission rate for this product's category

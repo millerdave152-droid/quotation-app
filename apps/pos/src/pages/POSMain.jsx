@@ -48,6 +48,10 @@ import { PriceOverrideModal } from '../components/Pricing/PriceOverrideModal';
 import { ShiftSummaryCompact, ShiftSummaryPanel } from '../components/Register/ShiftSummary';
 import ShiftCommissionSummary from '../components/Commission/ShiftCommissionSummary';
 import { ManagerApprovalQueue } from '../components/Discount/ManagerApprovalQueue';
+import { DiscountEscalationModal } from '../components/Discount/DiscountEscalationModal';
+
+// API
+import { getMyTier, initializeBudget } from '../api/discountAuthority';
 
 // Utils
 import { formatCurrency } from '../utils/formatters';
@@ -542,6 +546,12 @@ export function POSMain() {
   const [priceOverrideItem, setPriceOverrideItem] = useState(null);
   const [showDiscountApprovals, setShowDiscountApprovals] = useState(false);
 
+  // Discount Authority State
+  const [discountTier, setDiscountTier] = useState(null);
+  const [discountBudget, setDiscountBudget] = useState(null);
+  const [escalationItem, setEscalationItem] = useState(null);
+  const [escalationDesiredPct, setEscalationDesiredPct] = useState(0);
+
   // Refs
   const searchInputRef = useRef(null);
 
@@ -562,6 +572,54 @@ export function POSMain() {
     window.addEventListener('beforeunload', handleBeforeUnload);
     return () => window.removeEventListener('beforeunload', handleBeforeUnload);
   }, [cart.isEmpty]);
+
+  // Fetch discount tier and initialize budget on mount
+  useEffect(() => {
+    let cancelled = false;
+    async function fetchTier() {
+      try {
+        const res = await getMyTier();
+        const data = res.data?.data || res.data;
+        if (!cancelled && data) {
+          setDiscountTier(data.tier || data);
+          setDiscountBudget(data.budget || null);
+        }
+      } catch (err) {
+        console.warn('[POSMain] Could not fetch discount tier:', err.message);
+      }
+      // Initialize budget (idempotent - safe to call each session)
+      try {
+        await initializeBudget();
+        // Re-fetch to get updated budget
+        const res2 = await getMyTier();
+        const data2 = res2.data?.data || res2.data;
+        if (!cancelled && data2) {
+          setDiscountBudget(data2.budget || null);
+        }
+      } catch (err) {
+        console.warn('[POSMain] Could not initialize budget:', err.message);
+      }
+    }
+    if (hasActiveShift) fetchTier();
+    return () => { cancelled = true; };
+  }, [hasActiveShift]);
+
+  // Callback to refresh budget after a discount is applied
+  const handleBudgetUpdate = useCallback(async () => {
+    try {
+      const res = await getMyTier();
+      const data = res.data?.data || res.data;
+      if (data) setDiscountBudget(data.budget || null);
+    } catch (err) {
+      console.warn('[POSMain] Budget refresh failed:', err.message);
+    }
+  }, []);
+
+  // Callback when escalation is requested from DiscountSlider
+  const handleRequestEscalation = useCallback((item, desiredPct) => {
+    setEscalationItem(item);
+    setEscalationDesiredPct(desiredPct);
+  }, []);
 
   // Handle hold transaction (declared before keyboard shortcuts useEffect that references it)
   const handleHoldTransaction = useCallback(() => {
@@ -805,6 +863,10 @@ export function POSMain() {
             onCustomerClick={() => setShowCustomerLookup(true)}
             onQuoteClick={() => setShowQuoteLookup(true)}
             onPriceOverride={(item) => setPriceOverrideItem(item)}
+            discountTier={discountTier}
+            discountBudget={discountBudget}
+            onRequestEscalation={handleRequestEscalation}
+            onBudgetUpdate={handleBudgetUpdate}
             className="flex-1 w-full max-w-none"
           />
         </div>
@@ -866,6 +928,15 @@ export function POSMain() {
       <ManagerApprovalQueue
         isOpen={showDiscountApprovals}
         onClose={() => setShowDiscountApprovals(false)}
+      />
+
+      {/* Discount Escalation Modal */}
+      <DiscountEscalationModal
+        isOpen={!!escalationItem}
+        onClose={() => { setEscalationItem(null); setEscalationDesiredPct(0); }}
+        item={escalationItem}
+        desiredPct={escalationDesiredPct}
+        tier={discountTier}
       />
 
       {/* Price Override Modal */}
