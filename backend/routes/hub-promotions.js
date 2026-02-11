@@ -7,6 +7,7 @@
 const express = require('express');
 const { authenticate } = require('../middleware/auth');
 const { checkPermission } = require('../middleware/checkPermission');
+const { ApiError } = require('../middleware/errorHandler');
 
 const VALID_TYPES = ['percentage_off', 'fixed_amount_off', 'fixed_price', 'bogo', 'bundle'];
 const VALID_SCOPES = ['all', 'category', 'brand', 'product', 'collection'];
@@ -78,7 +79,7 @@ function init({ pool }) {
       try {
         const errors = validatePromotion(req.body);
         if (errors.length > 0) {
-          return res.status(400).json({ success: false, message: 'Validation failed', errors });
+          throw ApiError.badRequest('Validation failed', errors);
         }
 
         const {
@@ -93,7 +94,7 @@ function init({ pool }) {
         if (code) {
           const existing = await pool.query('SELECT id FROM promotions WHERE code = $1', [code]);
           if (existing.rows.length > 0) {
-            return res.status(409).json({ success: false, message: `Promotion code '${code}' already exists` });
+            throw ApiError.conflict(`Promotion code '${code}' already exists`);
           }
         }
 
@@ -242,7 +243,7 @@ function init({ pool }) {
           [id]
         );
         if (result.rows.length === 0) {
-          return res.status(404).json({ success: false, message: 'Promotion not found' });
+          throw ApiError.notFound('Promotion');
         }
 
         const promotion = result.rows[0];
@@ -297,30 +298,27 @@ function init({ pool }) {
         // Fetch current
         const current = await pool.query('SELECT * FROM promotions WHERE id = $1', [id]);
         if (current.rows.length === 0) {
-          return res.status(404).json({ success: false, message: 'Promotion not found' });
+          throw ApiError.notFound('Promotion');
         }
         const promo = current.rows[0];
 
         // Restrict edits on completed/cancelled
         if (['ended', 'cancelled'].includes(promo.status)) {
-          return res.status(400).json({
-            success: false,
-            message: `Cannot edit a promotion with status '${promo.status}'`,
-          });
+          throw ApiError.badRequest(`Cannot edit a promotion with status '${promo.status}'`);
         }
 
         // Merge with existing values for validation
         const merged = { ...promo, ...req.body };
         const errors = validatePromotion(merged);
         if (errors.length > 0) {
-          return res.status(400).json({ success: false, message: 'Validation failed', errors });
+          throw ApiError.badRequest('Validation failed', errors);
         }
 
         // Check code uniqueness if changed
         if (req.body.code && req.body.code !== promo.code) {
           const dup = await pool.query('SELECT id FROM promotions WHERE code = $1 AND id != $2', [req.body.code, id]);
           if (dup.rows.length > 0) {
-            return res.status(409).json({ success: false, message: `Promotion code '${req.body.code}' already exists` });
+            throw ApiError.conflict(`Promotion code '${req.body.code}' already exists`);
           }
         }
 
@@ -377,7 +375,7 @@ function init({ pool }) {
 
         const result = await pool.query('SELECT id, status FROM promotions WHERE id = $1', [id]);
         if (result.rows.length === 0) {
-          return res.status(404).json({ success: false, message: 'Promotion not found' });
+          throw ApiError.notFound('Promotion');
         }
 
         await pool.query(
@@ -405,13 +403,10 @@ function init({ pool }) {
 
         const result = await pool.query('SELECT id, status FROM promotions WHERE id = $1', [id]);
         if (result.rows.length === 0) {
-          return res.status(404).json({ success: false, message: 'Promotion not found' });
+          throw ApiError.notFound('Promotion');
         }
         if (result.rows[0].status !== 'active') {
-          return res.status(400).json({
-            success: false,
-            message: `Can only pause active promotions. Current status: '${result.rows[0].status}'`,
-          });
+          throw ApiError.badRequest(`Can only pause active promotions. Current status: '${result.rows[0].status}'`);
         }
 
         const updated = await pool.query(
@@ -439,23 +434,17 @@ function init({ pool }) {
 
         const result = await pool.query('SELECT id, status, start_date, end_date FROM promotions WHERE id = $1', [id]);
         if (result.rows.length === 0) {
-          return res.status(404).json({ success: false, message: 'Promotion not found' });
+          throw ApiError.notFound('Promotion');
         }
         if (result.rows[0].status !== 'paused') {
-          return res.status(400).json({
-            success: false,
-            message: `Can only resume paused promotions. Current status: '${result.rows[0].status}'`,
-          });
+          throw ApiError.badRequest(`Can only resume paused promotions. Current status: '${result.rows[0].status}'`);
         }
 
         // Check if end_date has passed while paused
         const promo = result.rows[0];
         if (new Date(promo.end_date) < new Date()) {
           await pool.query("UPDATE promotions SET status = 'ended', updated_at = NOW() WHERE id = $1", [id]);
-          return res.status(400).json({
-            success: false,
-            message: 'Cannot resume — promotion end date has passed. Update end_date first.',
-          });
+          throw ApiError.badRequest('Cannot resume — promotion end date has passed. Update end_date first.');
         }
 
         const updated = await pool.query(

@@ -21,6 +21,36 @@ import {
 
 const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:3001/api';
 
+const parseStreetParts = (street) => {
+  if (!street) return { streetNumber: '', streetName: '' };
+  const trimmed = street.trim();
+  const match = trimmed.match(/^(\d+)\s+(.*)$/);
+  if (match) {
+    return { streetNumber: match[1], streetName: match[2] };
+  }
+  return { streetNumber: '', streetName: trimmed };
+};
+
+const normalizeAddress = (address) => {
+  if (!address) return null;
+  if (address.streetNumber && address.streetName) {
+    return {
+      ...address,
+      street: address.street || `${address.streetNumber} ${address.streetName}`,
+    };
+  }
+
+  const parsed = parseStreetParts(address.street);
+  return {
+    ...address,
+    streetNumber: address.streetNumber || parsed.streetNumber || '',
+    streetName: address.streetName || parsed.streetName || '',
+    street: address.street || (parsed.streetNumber && parsed.streetName
+      ? `${parsed.streetNumber} ${parsed.streetName}`
+      : address.street || ''),
+  };
+};
+
 /**
  * Saved address card component
  */
@@ -412,8 +442,29 @@ export function DeliveryAddressForm({ customer, onComplete, onBack }) {
       return;
     }
 
+    const normalizedSelected = normalizeAddress(selectedAddress);
+    if (!normalizedSelected?.streetNumber || !normalizedSelected?.streetName) {
+      setErrors((prev) => ({
+        ...prev,
+        streetNumber: 'Street number is required. Please enter the full address.',
+        streetName: 'Street name is required. Please enter the full address.',
+      }));
+      setMode('new');
+      setSelectedAddress(null);
+      setFormData((prev) => ({
+        ...prev,
+        streetNumber: normalizedSelected?.streetNumber || '',
+        streetName: normalizedSelected?.streetName || '',
+        unit: normalizedSelected?.unit || '',
+        city: normalizedSelected?.city || '',
+        province: normalizedSelected?.province || 'ON',
+        postalCode: normalizedSelected?.postalCode || '',
+      }));
+      return;
+    }
+
     const addressWithExtras = {
-      ...selectedAddress,
+      ...normalizedSelected,
       dwellingType: formData.dwellingType,
       floorNumber: formData.floorNumber.trim() || null,
       entryPoint: formData.entryPoint,

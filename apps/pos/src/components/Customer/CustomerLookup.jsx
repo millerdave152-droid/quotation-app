@@ -55,6 +55,16 @@ function CustomerResultItem({ customer, pendingQuoteCount, quickStats, onClick, 
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2">
           <span className="font-semibold text-gray-900 truncate">{name}</span>
+          {customer.clv_segment && (
+            <span className={`px-1.5 py-0.5 text-xs font-bold rounded ${
+              customer.clv_segment === 'platinum' ? 'bg-purple-100 text-purple-700' :
+              customer.clv_segment === 'gold' ? 'bg-yellow-100 text-yellow-700' :
+              customer.clv_segment === 'silver' ? 'bg-gray-200 text-gray-700' :
+              'bg-orange-100 text-orange-700'
+            }`}>
+              {customer.clv_segment.toUpperCase()}
+            </span>
+          )}
           {pendingQuoteCount > 0 && (
             <span className="flex items-center gap-1 px-2 py-0.5 bg-blue-100 text-blue-700 text-xs font-medium rounded-full">
               <DocumentTextIcon className="w-3 h-3" />

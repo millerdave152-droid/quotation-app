@@ -21,6 +21,7 @@ const CustomerFinancingPage = lazy(() => import('./pages/CustomerFinancingPage')
 const MyCommissionsPage = lazy(() => import('./pages/MyCommissionsPage'));
 const TeamCommissionsPage = lazy(() => import('./pages/TeamCommissionsPage'));
 const ReturnInitiation = lazy(() => import('./pages/ReturnInitiation'));
+const TransactionsPage = lazy(() => import('./pages/Transactions'));
 
 // Lazy-loaded report components
 const ShiftReportPage = lazy(() =>
@@ -368,6 +369,15 @@ function App() {
           element={
             <ManagerRoute>
               <ShiftReportPage onBack={() => window.history.back()} />
+            </ManagerRoute>
+          }
+        />
+
+        <Route
+          path="/transactions"
+          element={
+            <ManagerRoute>
+              <TransactionsPage />
             </ManagerRoute>
           }
         />

@@ -7,6 +7,7 @@
 const express = require('express');
 const router = express.Router();
 const { authenticate } = require('../middleware/auth');
+const { ApiError } = require('../middleware/errorHandler');
 
 module.exports = function(pool) {
   const ActivityService = require('../services/ActivityService');
@@ -86,10 +87,7 @@ module.exports = function(pool) {
     } = req.body;
 
     if (!note || !note.trim()) {
-      return res.status(400).json({
-        success: false,
-        error: 'Note content is required'
-      });
+      throw ApiError.badRequest('Note content is required');
     }
 
     const activity = await activityService.logNoteAdded(
@@ -119,10 +117,7 @@ module.exports = function(pool) {
 
     const validMethods = ['phone', 'email', 'in-person', 'video-call', 'text', 'other'];
     if (!contactMethod || !validMethods.includes(contactMethod.toLowerCase())) {
-      return res.status(400).json({
-        success: false,
-        error: `Contact method is required. Valid methods: ${validMethods.join(', ')}`
-      });
+      throw ApiError.badRequest(`Contact method is required. Valid methods: ${validMethods.join(', ')}`);
     }
 
     const activity = await activityService.logCustomerContacted(
@@ -151,10 +146,7 @@ module.exports = function(pool) {
     } = req.body;
 
     if (!followUpDate) {
-      return res.status(400).json({
-        success: false,
-        error: 'Follow-up date is required'
-      });
+      throw ApiError.badRequest('Follow-up date is required');
     }
 
     const activity = await activityService.logFollowUpScheduled(
@@ -185,10 +177,7 @@ module.exports = function(pool) {
     } = req.body;
 
     if (!itemModel || oldPriceCents === undefined || newPriceCents === undefined) {
-      return res.status(400).json({
-        success: false,
-        error: 'Item model, old price, and new price are required'
-      });
+      throw ApiError.badRequest('Item model, old price, and new price are required');
     }
 
     const activity = await activityService.logPriceAdjusted(

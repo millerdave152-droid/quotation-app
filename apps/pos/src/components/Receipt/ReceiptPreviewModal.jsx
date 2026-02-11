@@ -153,7 +153,9 @@ export function ReceiptPreviewModal({ isOpen, onClose, transactionId }) {
       a.download = `Receipt-${receipt?.transaction?.number || transactionId}.pdf`;
       document.body.appendChild(a);
       a.click();
-      document.body.removeChild(a);
+      if (a && a.parentNode) {
+        a.parentNode.removeChild(a);
+      }
       URL.revokeObjectURL(url);
     } catch (err) {
       console.error('[ReceiptPreview] Download error:', err);

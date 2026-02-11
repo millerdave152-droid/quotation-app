@@ -7,6 +7,7 @@
 const express = require('express');
 const { authenticate } = require('../middleware/auth');
 const { checkPermission } = require('../middleware/checkPermission');
+const { ApiError } = require('../middleware/errorHandler');
 
 function init({ pool }) {
   const router = express.Router();
@@ -143,7 +144,7 @@ function init({ pool }) {
         const targetDate = date || new Date().toISOString().split('T')[0];
 
         if (!location_id) {
-          return res.status(400).json({ success: false, message: 'location_id (warehouse) is required' });
+          throw ApiError.badRequest('location_id (warehouse) is required');
         }
 
         await client.query('BEGIN');
@@ -155,7 +156,7 @@ function init({ pool }) {
         );
         if (locResult.rows.length === 0) {
           await client.query('ROLLBACK');
-          return res.status(404).json({ success: false, message: 'Location not found' });
+          throw ApiError.notFound('Location');
         }
         const warehouse = locResult.rows[0];
 
@@ -333,13 +334,13 @@ function init({ pool }) {
         );
         if (routeResult.rows.length === 0) {
           await client.query('ROLLBACK');
-          return res.status(404).json({ success: false, message: 'Route not found' });
+          throw ApiError.notFound('Route');
         }
         const route = routeResult.rows[0];
 
         if (['completed', 'cancelled'].includes(route.status)) {
           await client.query('ROLLBACK');
-          return res.status(400).json({ success: false, message: `Cannot optimize a ${route.status} route` });
+          throw ApiError.badRequest(`Cannot optimize a ${route.status} route`);
         }
 
         // Get current stops
@@ -491,20 +492,20 @@ function init({ pool }) {
         const { driver_id, vehicle_id } = req.body;
 
         if (!driver_id) {
-          return res.status(400).json({ success: false, message: 'driver_id is required' });
+          throw ApiError.badRequest('driver_id is required');
         }
 
         const routeResult = await pool.query('SELECT * FROM dispatch_routes WHERE id = $1', [id]);
         if (routeResult.rows.length === 0) {
-          return res.status(404).json({ success: false, message: 'Route not found' });
+          throw ApiError.notFound('Route');
         }
         if (['completed', 'cancelled'].includes(routeResult.rows[0].status)) {
-          return res.status(400).json({ success: false, message: `Cannot assign driver to ${routeResult.rows[0].status} route` });
+          throw ApiError.badRequest(`Cannot assign driver to ${routeResult.rows[0].status} route`);
         }
 
         const driverResult = await pool.query('SELECT id, name, vehicle_id FROM drivers WHERE id = $1 AND is_active = true', [driver_id]);
         if (driverResult.rows.length === 0) {
-          return res.status(404).json({ success: false, message: 'Driver not found' });
+          throw ApiError.notFound('Driver');
         }
         const driver = driverResult.rows[0];
 
@@ -547,12 +548,12 @@ function init({ pool }) {
         const { stop_order } = req.body;
 
         if (!stop_order || !Array.isArray(stop_order) || stop_order.length === 0) {
-          return res.status(400).json({ success: false, message: 'stop_order array of stop IDs is required' });
+          throw ApiError.badRequest('stop_order array of stop IDs is required');
         }
 
         const routeResult = await client.query('SELECT * FROM dispatch_routes WHERE id = $1', [id]);
         if (routeResult.rows.length === 0) {
-          return res.status(404).json({ success: false, message: 'Route not found' });
+          throw ApiError.notFound('Route');
         }
 
         await client.query('BEGIN');
@@ -617,7 +618,7 @@ function init({ pool }) {
           [id]
         );
         if (routeResult.rows.length === 0) {
-          return res.status(404).json({ success: false, message: 'Route not found' });
+          throw ApiError.notFound('Route');
         }
 
         const stopsResult = await pool.query(
@@ -665,7 +666,7 @@ function init({ pool }) {
           [id]
         );
         if (result.rows.length === 0) {
-          return res.status(404).json({ success: false, message: 'Route not found or cannot be started' });
+          throw ApiError.notFound('Route not found or cannot be started');
         }
 
         // Update driver status
@@ -701,7 +702,7 @@ function init({ pool }) {
           [id]
         );
         if (result.rows.length === 0) {
-          return res.status(404).json({ success: false, message: 'Route not found or not in progress' });
+          throw ApiError.notFound('Route not found or not in progress');
         }
 
         // Set driver to available
@@ -731,7 +732,7 @@ function init({ pool }) {
         const { status, notes } = req.body;
         const valid = ['pending', 'approaching', 'arrived', 'completed', 'skipped', 'failed'];
         if (!status || !valid.includes(status)) {
-          return res.status(400).json({ success: false, message: `status must be one of: ${valid.join(', ')}` });
+          throw ApiError.badRequest(`status must be one of: ${valid.join(', ')}`);
         }
 
         const updates = ['status = $1'];
@@ -748,7 +749,7 @@ function init({ pool }) {
           params
         );
         if (result.rows.length === 0) {
-          return res.status(404).json({ success: false, message: 'Stop not found' });
+          throw ApiError.notFound('Stop');
         }
 
         const stop = result.rows[0];

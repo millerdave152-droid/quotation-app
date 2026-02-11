@@ -53,6 +53,32 @@ class ApiError extends Error {
   static database(message = 'Database operation failed') {
     return new ApiError(ErrorCodes.DATABASE_ERROR, message);
   }
+
+  static insufficientStock(product, available, requested) {
+    return new ApiError(ErrorCodes.INSUFFICIENT_STOCK,
+      `Insufficient stock for ${product}: ${available} available, ${requested} requested`,
+      { details: { product, available, requested } });
+  }
+
+  static paymentFailed(message = 'Payment processing failed', details) {
+    return new ApiError(ErrorCodes.PAYMENT_FAILED, message, { details });
+  }
+
+  static duplicateEntry(field, value) {
+    return new ApiError(ErrorCodes.DUPLICATE_ENTRY,
+      `A record with this ${field} already exists`,
+      { details: { field, value: typeof value === 'string' && value.includes('@') ? '[REDACTED]' : value } });
+  }
+
+  static serviceUnavailable(service) {
+    return new ApiError(ErrorCodes.SERVICE_UNAVAILABLE,
+      `${service} is currently unavailable`, { statusCode: 503 });
+  }
+
+  static accountInactive() {
+    return new ApiError(ErrorCodes.ACCOUNT_INACTIVE,
+      'Account has been deactivated. Please contact administrator.');
+  }
 }
 
 /**
@@ -78,15 +104,32 @@ const notFoundHandler = (req, res, next) => {
  * Global error handler middleware
  */
 const errorHandler = (err, req, res, next) => {
-  // Log error for debugging (in production, use a proper logger)
-  console.error('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-  console.error(`❌ Error at ${new Date().toISOString()}`);
-  console.error(`   Path: ${req.method} ${req.originalUrl}`);
-  console.error(`   Message: ${err.message}`);
-  if (process.env.NODE_ENV === 'development') {
-    console.error(`   Stack: ${err.stack}`);
+  // Determine status code for log level
+  const statusCode = err.statusCode || (err instanceof ApiError ? err.statusCode : 500);
+  const duration = req._startTime ? Date.now() - req._startTime : null;
+
+  // Structured error logging
+  const logEntry = {
+    level: statusCode >= 500 ? 'error' : 'warn',
+    timestamp: new Date().toISOString(),
+    requestId: req.id || req.headers['x-request-id'] || null,
+    method: req.method,
+    path: req.originalUrl,
+    statusCode,
+    userId: req.user?.id || null,
+    errorCode: err.code || 'UNKNOWN',
+    message: err.message,
+    ...(duration !== null && { durationMs: duration })
+  };
+
+  if (statusCode >= 500) {
+    console.error('[ERROR]', JSON.stringify(logEntry));
+    if (process.env.NODE_ENV === 'development') {
+      console.error(`   Stack: ${err.stack}`);
+    }
+  } else {
+    console.warn('[WARN]', JSON.stringify(logEntry));
   }
-  console.error('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
 
   // Handle known ApiError instances
   if (err instanceof ApiError) {

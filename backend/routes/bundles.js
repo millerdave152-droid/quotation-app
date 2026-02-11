@@ -7,6 +7,7 @@
 const express = require('express');
 const { authenticate } = require('../middleware/auth');
 const { checkPermission } = require('../middleware/checkPermission');
+const { ApiError } = require('../middleware/errorHandler');
 
 const VALID_PRICING_TYPES = ['fixed', 'percentage_discount', 'sum_minus_discount'];
 
@@ -108,7 +109,7 @@ function init({ pool }) {
       try {
         const errors = validateBundle(req.body);
         if (errors.length > 0) {
-          return res.status(400).json({ success: false, message: 'Validation failed', errors });
+          throw ApiError.badRequest('Validation failed', errors);
         }
 
         const {
@@ -122,7 +123,7 @@ function init({ pool }) {
         // SKU uniqueness
         const existing = await client.query('SELECT id FROM bundles WHERE sku = $1', [sku.trim().toUpperCase()]);
         if (existing.rows.length > 0) {
-          return res.status(409).json({ success: false, message: `Bundle SKU '${sku}' already exists` });
+          throw ApiError.conflict(`Bundle SKU '${sku}' already exists`);
         }
 
         await client.query('BEGIN');
@@ -273,7 +274,7 @@ function init({ pool }) {
           [id]
         );
         if (result.rows.length === 0) {
-          return res.status(404).json({ success: false, message: 'Bundle not found' });
+          throw ApiError.notFound('Bundle');
         }
 
         const pricing = await calculateBundlePrice(parseInt(id, 10));
@@ -301,20 +302,20 @@ function init({ pool }) {
 
         const current = await pool.query('SELECT * FROM bundles WHERE id = $1', [id]);
         if (current.rows.length === 0) {
-          return res.status(404).json({ success: false, message: 'Bundle not found' });
+          throw ApiError.notFound('Bundle');
         }
 
         const merged = { ...current.rows[0], ...req.body };
         const errors = validateBundle(merged);
         if (errors.length > 0) {
-          return res.status(400).json({ success: false, message: 'Validation failed', errors });
+          throw ApiError.badRequest('Validation failed', errors);
         }
 
         // SKU uniqueness if changed
         if (req.body.sku && req.body.sku.trim().toUpperCase() !== current.rows[0].sku) {
           const dup = await pool.query('SELECT id FROM bundles WHERE sku = $1 AND id != $2', [req.body.sku.trim().toUpperCase(), id]);
           if (dup.rows.length > 0) {
-            return res.status(409).json({ success: false, message: `Bundle SKU '${req.body.sku}' already exists` });
+            throw ApiError.conflict(`Bundle SKU '${req.body.sku}' already exists`);
           }
         }
 
@@ -364,7 +365,7 @@ function init({ pool }) {
         const { id } = req.params;
         const result = await pool.query('SELECT id FROM bundles WHERE id = $1', [id]);
         if (result.rows.length === 0) {
-          return res.status(404).json({ success: false, message: 'Bundle not found' });
+          throw ApiError.notFound('Bundle');
         }
 
         await pool.query('UPDATE bundles SET is_active = false, updated_at = NOW() WHERE id = $1', [id]);
@@ -388,18 +389,18 @@ function init({ pool }) {
 
         const bundle = await pool.query('SELECT id FROM bundles WHERE id = $1', [id]);
         if (bundle.rows.length === 0) {
-          return res.status(404).json({ success: false, message: 'Bundle not found' });
+          throw ApiError.notFound('Bundle');
         }
 
         const { product_id, quantity, is_required, alternatives, sort_order } = req.body;
         if (!product_id) {
-          return res.status(400).json({ success: false, message: 'product_id is required' });
+          throw ApiError.badRequest('product_id is required');
         }
 
         // Verify product exists
         const prod = await pool.query('SELECT id FROM products WHERE id = $1', [product_id]);
         if (prod.rows.length === 0) {
-          return res.status(404).json({ success: false, message: 'Product not found' });
+          throw ApiError.notFound('Product');
         }
 
         // Get max sort_order
@@ -444,7 +445,7 @@ function init({ pool }) {
           [itemId, id]
         );
         if (result.rows.length === 0) {
-          return res.status(404).json({ success: false, message: 'Bundle item not found' });
+          throw ApiError.notFound('Bundle item');
         }
 
         await pool.query('UPDATE bundles SET updated_at = NOW() WHERE id = $1', [id]);

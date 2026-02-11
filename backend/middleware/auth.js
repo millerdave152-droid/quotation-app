@@ -7,57 +7,38 @@
 const { verifyAccessToken } = require('../utils/jwt');
 const db = require('../config/database');
 const { resolvePermissions, hasPermission: checkPermission } = require('../utils/permissions');
+const { ApiError } = require('./errorHandler');
 
 /**
  * Authenticate Middleware
  * Verifies JWT token from Authorization header and attaches user to request
  * Expects header format: "Authorization: Bearer <token>"
- * @param {Object} req - Express request object
- * @param {Object} res - Express response object
- * @param {Function} next - Express next middleware function
  */
 const authenticate = async (req, res, next) => {
   try {
-    // Extract token from Authorization header
     const authHeader = req.headers.authorization;
 
     if (!authHeader) {
-      return res.status(401).json({
-        success: false,
-        message: 'Access denied. No token provided.'
-      });
+      throw ApiError.unauthorized('Access denied. No token provided.');
     }
 
-    // Check if header follows "Bearer <token>" format
     if (!authHeader.startsWith('Bearer ')) {
-      return res.status(401).json({
-        success: false,
-        message: 'Invalid token format. Expected "Bearer <token>"'
-      });
+      throw ApiError.unauthorized('Invalid token format. Expected "Bearer <token>"');
     }
 
-    // Extract token
-    const token = authHeader.substring(7); // Remove "Bearer " prefix
+    const token = authHeader.substring(7);
 
     if (!token) {
-      return res.status(401).json({
-        success: false,
-        message: 'Access denied. No token provided.'
-      });
+      throw ApiError.unauthorized('Access denied. No token provided.');
     }
 
-    // Verify token
     let decoded;
     try {
       decoded = verifyAccessToken(token);
     } catch (error) {
-      return res.status(401).json({
-        success: false,
-        message: error.message || 'Invalid or expired token'
-      });
+      throw ApiError.unauthorized(error.message || 'Invalid or expired token');
     }
 
-    // Fetch user from database to ensure they still exist and are active
     const result = await db.query(
       `SELECT u.id, u.email, u.first_name, u.last_name, u.role, u.is_active,
               u.pos_role_id, u.role_id,
@@ -71,20 +52,13 @@ const authenticate = async (req, res, next) => {
     );
 
     if (result.rows.length === 0) {
-      return res.status(401).json({
-        success: false,
-        message: 'User not found. Token is invalid.'
-      });
+      throw ApiError.unauthorized('User not found. Token is invalid.');
     }
 
     const user = result.rows[0];
 
-    // Check if user account is active
     if (!user.is_active) {
-      return res.status(403).json({
-        success: false,
-        message: 'Account has been deactivated. Please contact administrator.'
-      });
+      throw ApiError.accountInactive();
     }
 
     // Load normalized permissions from role_permissions if role_id is set
@@ -99,12 +73,11 @@ const authenticate = async (req, res, next) => {
         );
         normalizedPermissions = permResult.rows.map(r => r.code);
       } catch (err) {
-        // Tables may not exist yet — fall back silently
+        // Tables may not exist yet -- fall back silently
         normalizedPermissions = null;
       }
     }
 
-    // Attach user information to request object
     const posPermissions = user.pos_permissions || null;
     req.user = {
       id: user.id,
@@ -122,32 +95,21 @@ const authenticate = async (req, res, next) => {
       permissions: normalizedPermissions,
     };
 
-    // Attach decoded token for additional context
     req.token = decoded;
-
     next();
   } catch (error) {
-    console.error('Authentication error:', error);
-    return res.status(500).json({
-      success: false,
-      message: 'Internal server error during authentication'
-    });
+    next(error);
   }
 };
 
 /**
  * Optional Authentication Middleware
  * Attempts to authenticate but doesn't fail if no token is provided
- * Useful for routes that have different behavior for authenticated vs anonymous users
- * @param {Object} req - Express request object
- * @param {Object} res - Express response object
- * @param {Function} next - Express next middleware function
  */
 const optionalAuth = async (req, res, next) => {
   try {
     const authHeader = req.headers.authorization;
 
-    // If no token, continue without authentication
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
       req.user = null;
       return next();
@@ -160,11 +122,9 @@ const optionalAuth = async (req, res, next) => {
       return next();
     }
 
-    // Try to verify token
     try {
       const decoded = verifyAccessToken(token);
 
-      // SECURITY: Fetch full user info including permissions, consistent with authenticate middleware
       const result = await db.query(
         `SELECT u.id, u.email, u.first_name, u.last_name, u.role, u.is_active,
                 u.pos_role_id, u.role_id,
@@ -180,7 +140,6 @@ const optionalAuth = async (req, res, next) => {
       if (result.rows.length > 0 && result.rows[0].is_active) {
         const user = result.rows[0];
 
-        // Load normalized permissions if role_id is set
         let normalizedPermissions = null;
         if (user.role_id) {
           try {
@@ -217,7 +176,6 @@ const optionalAuth = async (req, res, next) => {
         req.user = null;
       }
     } catch (error) {
-      // Token invalid or expired, continue without authentication
       req.user = null;
     }
 
@@ -235,45 +193,24 @@ const optionalAuth = async (req, res, next) => {
  * Must be used after authenticate middleware
  * @param {...string} allowedRoles - Role(s) that are allowed to access the route
  * @returns {Function} Express middleware function
- * @example
- * router.get('/admin', authenticate, requireRole('admin'), handler);
- * router.get('/staff', authenticate, requireRole('admin', 'manager'), handler);
  */
 const requireRole = (...allowedRoles) => {
   return (req, res, next) => {
-    try {
-      // Check if user is authenticated
-      if (!req.user) {
-        return res.status(401).json({
-          success: false,
-          message: 'Authentication required'
-        });
-      }
-
-      // Check if user has required role (case-insensitive comparison)
-      const userRole = req.user.role?.toLowerCase();
-      const hasRole = allowedRoles.some(role => role.toLowerCase() === userRole);
-
-      if (!hasRole) {
-        console.warn(
-          `Access denied for user ${req.user.email} (role: ${req.user.role}). Required roles: ${allowedRoles.join(', ')}`
-        );
-
-        return res.status(403).json({
-          success: false,
-          message: 'Access denied. Insufficient permissions.'
-          // SECURITY: Do not expose requiredRoles or userRole to prevent information leakage
-        });
-      }
-
-      next();
-    } catch (error) {
-      console.error('Role authorization error:', error);
-      return res.status(500).json({
-        success: false,
-        message: 'Internal server error during authorization'
-      });
+    if (!req.user) {
+      throw ApiError.unauthorized('Authentication required');
     }
+
+    const userRole = req.user.role?.toLowerCase();
+    const hasRole = allowedRoles.some(role => role.toLowerCase() === userRole);
+
+    if (!hasRole) {
+      console.warn(
+        `Access denied for user ${req.user.email} (role: ${req.user.role}). Required roles: ${allowedRoles.join(', ')}`
+      );
+      throw ApiError.forbidden('Access denied. Insufficient permissions.');
+    }
+
+    next();
   };
 };
 
@@ -282,64 +219,36 @@ const requireRole = (...allowedRoles) => {
  * Checks if user owns the resource or is an admin
  * @param {Function} getResourceOwnerId - Function that extracts owner ID from request
  * @returns {Function} Express middleware function
- * @example
- * router.put('/users/:id', authenticate,
- *   requireOwnershipOrAdmin(req => req.params.id),
- *   handler
- * );
  */
 const requireOwnershipOrAdmin = (getResourceOwnerId) => {
   return (req, res, next) => {
-    try {
-      if (!req.user) {
-        return res.status(401).json({
-          success: false,
-          message: 'Authentication required'
-        });
-      }
-
-      const resourceOwnerId = getResourceOwnerId(req);
-      const isOwner = String(req.user.id) === String(resourceOwnerId);
-      const isAdmin = req.user.role === 'admin';
-
-      if (!isOwner && !isAdmin) {
-        return res.status(403).json({
-          success: false,
-          message: 'Access denied. You can only access your own resources.'
-        });
-      }
-
-      next();
-    } catch (error) {
-      console.error('Ownership authorization error:', error);
-      return res.status(500).json({
-        success: false,
-        message: 'Internal server error during authorization'
-      });
+    if (!req.user) {
+      throw ApiError.unauthorized('Authentication required');
     }
+
+    const resourceOwnerId = getResourceOwnerId(req);
+    const isOwner = String(req.user.id) === String(resourceOwnerId);
+    const isAdmin = req.user.role === 'admin';
+
+    if (!isOwner && !isAdmin) {
+      throw ApiError.forbidden('Access denied. You can only access your own resources.');
+    }
+
+    next();
   };
 };
 
 /**
  * Require Active Account Middleware
  * Ensures user account is active (useful as additional check)
- * @param {Object} req - Express request object
- * @param {Object} res - Express response object
- * @param {Function} next - Express next middleware function
  */
 const requireActiveAccount = (req, res, next) => {
   if (!req.user) {
-    return res.status(401).json({
-      success: false,
-      message: 'Authentication required'
-    });
+    throw ApiError.unauthorized('Authentication required');
   }
 
   if (!req.user.isActive) {
-    return res.status(403).json({
-      success: false,
-      message: 'Account is inactive. Please contact administrator.'
-    });
+    throw ApiError.accountInactive();
   }
 
   next();
@@ -349,34 +258,19 @@ const requireActiveAccount = (req, res, next) => {
  * API Key Authentication Middleware
  * Alternative authentication method using API keys
  * Expects header: "X-API-Key: <api_key>"
- * @param {Object} req - Express request object
- * @param {Object} res - Express response object
- * @param {Function} next - Express next middleware function
  */
 const authenticateApiKey = async (req, res, next) => {
   try {
     const apiKey = req.headers['x-api-key'];
 
     if (!apiKey) {
-      return res.status(401).json({
-        success: false,
-        message: 'API key required'
-      });
+      throw ApiError.unauthorized('API key required');
     }
 
-    // SECURITY: Validate API key format before database lookup
-    // API keys should be alphanumeric with a specific length/format
     if (typeof apiKey !== 'string' || apiKey.length < 32 || apiKey.length > 128) {
-      return res.status(401).json({
-        success: false,
-        message: 'Invalid API key'
-      });
+      throw ApiError.unauthorized('Invalid API key');
     }
 
-    // SECURITY NOTE: API keys should ideally be hashed before storage.
-    // If using hashed keys, extract prefix for lookup and verify hash.
-    // Current implementation uses plaintext - consider migrating to hashed storage.
-    // Fetch API key from database
     const result = await db.query(
       `SELECT ak.*, u.id as user_id, u.email, u.first_name, u.last_name, u.role, u.is_active
        FROM api_keys ak
@@ -386,29 +280,20 @@ const authenticateApiKey = async (req, res, next) => {
     );
 
     if (result.rows.length === 0) {
-      return res.status(401).json({
-        success: false,
-        message: 'Invalid API key'
-      });
+      throw ApiError.unauthorized('Invalid API key');
     }
 
     const keyData = result.rows[0];
 
-    // Check expiration
     if (keyData.expires_at && new Date(keyData.expires_at) < new Date()) {
-      return res.status(401).json({
-        success: false,
-        message: 'API key has expired'
-      });
+      throw ApiError.unauthorized('API key has expired');
     }
 
-    // Update last used timestamp
     await db.query(
       'UPDATE api_keys SET last_used_at = CURRENT_TIMESTAMP WHERE id = $1',
       [keyData.id]
     );
 
-    // Attach user to request
     req.user = {
       id: keyData.user_id,
       email: keyData.email,
@@ -421,43 +306,30 @@ const authenticateApiKey = async (req, res, next) => {
 
     next();
   } catch (error) {
-    console.error('API key authentication error:', error);
-    return res.status(500).json({
-      success: false,
-      message: 'Internal server error during authentication'
-    });
+    next(error);
   }
 };
 
 /**
  * Require Permission Middleware Factory
  * Checks if authenticated user has a specific POS permission.
- * Falls back to role-based defaults if pos_roles table is not migrated.
- * Must be used after authenticate middleware.
  * @param {...string} requiredPermissions - Permission(s) the user must have (ANY match grants access)
  * @returns {Function} Express middleware function
- * @example
- * router.post('/void', authenticate, requirePermission('pos.checkout.void'), handler);
  */
 const requirePermission = (...requiredPermissions) => {
   return (req, res, next) => {
     if (!req.user) {
-      return res.status(401).json({ success: false, message: 'Authentication required' });
+      throw ApiError.unauthorized('Authentication required');
     }
 
     const userPerms = resolvePermissions(req.user);
     const hasAny = requiredPermissions.some(p => userPerms.includes(p));
 
     if (!hasAny) {
-      // SECURITY: Log only essential info - don't expose all user permissions in logs
       console.warn(
         `Permission denied for user ${req.user.id}. Required: ${requiredPermissions.join(' | ')}`
       );
-      return res.status(403).json({
-        success: false,
-        message: 'Access denied. Insufficient permissions.'
-        // SECURITY: Do not expose requiredPermissions to prevent permission enumeration
-      });
+      throw ApiError.forbidden('Access denied. Insufficient permissions.');
     }
 
     next();

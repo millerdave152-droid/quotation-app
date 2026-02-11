@@ -7,7 +7,7 @@ const express = require('express');
 const router = express.Router();
 const crypto = require('crypto');
 const { authenticate } = require('../middleware/auth');
-const { asyncHandler } = require('../middleware/errorHandler');
+const { ApiError, asyncHandler } = require('../middleware/errorHandler');
 
 let pool = null;
 let stripeService = null;
@@ -143,7 +143,7 @@ router.post('/', asyncHandler(async (req, res) => {
   const userId = req.user.id;
 
   if (!originalTransactionId) {
-    return res.status(400).json({ success: false, error: 'originalTransactionId is required' });
+    throw ApiError.badRequest('originalTransactionId is required');
   }
 
   // Verify the transaction exists and is completed
@@ -152,10 +152,10 @@ router.post('/', asyncHandler(async (req, res) => {
     [originalTransactionId]
   );
   if (txResult.rows.length === 0) {
-    return res.status(404).json({ success: false, error: 'Transaction not found' });
+    throw ApiError.notFound('Transaction');
   }
   if (txResult.rows[0].status !== 'completed') {
-    return res.status(400).json({ success: false, error: 'Only completed transactions can be returned' });
+    throw ApiError.badRequest('Only completed transactions can be returned');
   }
 
   // Generate return number
@@ -198,7 +198,7 @@ router.get('/:id/items', asyncHandler(async (req, res) => {
     [id]
   );
   if (returnResult.rows.length === 0) {
-    return res.status(404).json({ success: false, error: 'Return not found' });
+    throw ApiError.notFound('Return');
   }
 
   const txId = returnResult.rows[0].original_transaction_id;
@@ -241,7 +241,7 @@ router.post('/:id/items', asyncHandler(async (req, res) => {
   const { items } = req.body;
 
   if (!items || !Array.isArray(items) || items.length === 0) {
-    return res.status(400).json({ success: false, error: 'items array is required' });
+    throw ApiError.badRequest('items array is required');
   }
 
   // Verify return exists and is in initiated status
@@ -250,10 +250,10 @@ router.post('/:id/items', asyncHandler(async (req, res) => {
     [id]
   );
   if (returnResult.rows.length === 0) {
-    return res.status(404).json({ success: false, error: 'Return not found' });
+    throw ApiError.notFound('Return');
   }
   if (returnResult.rows[0].status !== 'initiated') {
-    return res.status(400).json({ success: false, error: 'Can only add items to returns in initiated status' });
+    throw ApiError.badRequest('Can only add items to returns in initiated status');
   }
 
   const txId = returnResult.rows[0].original_transaction_id;
@@ -267,16 +267,10 @@ router.post('/:id/items', asyncHandler(async (req, res) => {
 
   for (const item of items) {
     if (!validMap.has(item.transactionItemId)) {
-      return res.status(400).json({
-        success: false,
-        error: `Transaction item ${item.transactionItemId} does not belong to the original transaction`
-      });
+      throw ApiError.badRequest(`Transaction item ${item.transactionItemId} does not belong to the original transaction`);
     }
     if (item.quantity > validMap.get(item.transactionItemId)) {
-      return res.status(400).json({
-        success: false,
-        error: `Return quantity for item ${item.transactionItemId} exceeds original quantity`
-      });
+      throw ApiError.badRequest(`Return quantity for item ${item.transactionItemId} exceeds original quantity`);
     }
   }
 
@@ -335,7 +329,7 @@ router.get('/:id/payment-info', asyncHandler(async (req, res) => {
     [id]
   );
   if (returnResult.rows.length === 0) {
-    return res.status(404).json({ success: false, error: 'Return not found' });
+    throw ApiError.notFound('Return');
   }
   const returnData = returnResult.rows[0];
 
@@ -416,7 +410,7 @@ router.post('/:id/process-refund', asyncHandler(async (req, res) => {
   // refundMethod: 'original_payment' | 'store_credit' | 'cash' | 'gift_card'
 
   if (!refundMethod) {
-    return res.status(400).json({ success: false, error: 'refundMethod is required' });
+    throw ApiError.badRequest('refundMethod is required');
   }
 
   // Fetch return record
@@ -428,15 +422,15 @@ router.post('/:id/process-refund', asyncHandler(async (req, res) => {
     [id]
   );
   if (returnResult.rows.length === 0) {
-    return res.status(404).json({ success: false, error: 'Return not found' });
+    throw ApiError.notFound('Return');
   }
   const returnData = returnResult.rows[0];
 
   if (returnData.status === 'completed') {
-    return res.status(400).json({ success: false, error: 'Return has already been processed' });
+    throw ApiError.badRequest('Return has already been processed');
   }
   if (returnData.status === 'cancelled') {
-    return res.status(400).json({ success: false, error: 'Return has been cancelled' });
+    throw ApiError.badRequest('Return has been cancelled');
   }
 
   // Calculate refund amounts from return items
@@ -449,7 +443,7 @@ router.post('/:id/process-refund', asyncHandler(async (req, res) => {
   );
 
   if (returnItemsResult.rows.length === 0) {
-    return res.status(400).json({ success: false, error: 'No return items found. Add items before processing refund.' });
+    throw ApiError.badRequest('No return items found. Add items before processing refund.');
   }
 
   let refundSubtotal = 0;
@@ -471,7 +465,7 @@ router.post('/:id/process-refund', asyncHandler(async (req, res) => {
   const refundTotalCents = refundSubtotalCents + refundTaxCents - restockingFee;
 
   if (refundTotalCents <= 0) {
-    return res.status(400).json({ success: false, error: 'Refund total must be greater than zero' });
+    throw ApiError.badRequest('Refund total must be greater than zero');
   }
 
   // Get original payments

@@ -12,6 +12,7 @@ const XLSX = require('xlsx');
 const { SESv2Client, SendEmailCommand } = require('@aws-sdk/client-sesv2');
 const { authenticate } = require('../middleware/auth');
 const { checkPermission } = require('../middleware/checkPermission');
+const { ApiError } = require('../middleware/errorHandler');
 
 const REPORT_TYPES = ['stock_levels', 'low_stock', 'aging', 'turnover', 'daily_sales', 'commission'];
 const FREQUENCIES = ['daily', 'weekly', 'monthly'];
@@ -496,7 +497,7 @@ function init({ pool }) {
           errors.push('day_of_month (1-31) is required for monthly frequency');
         }
         if (errors.length > 0) {
-          return res.status(400).json({ success: false, message: 'Validation failed', errors });
+          throw ApiError.badRequest('Validation failed');
         }
 
         const reportData = {
@@ -571,7 +572,7 @@ function init({ pool }) {
            WHERE sr.id = $1`, [id]
         );
         if (result.rows.length === 0) {
-          return res.status(404).json({ success: false, message: 'Scheduled report not found' });
+          throw ApiError.notFound('Scheduled report');
         }
 
         // Recent logs
@@ -605,7 +606,7 @@ function init({ pool }) {
         const { id } = req.params;
         const current = await pool.query('SELECT * FROM scheduled_reports WHERE id = $1', [id]);
         if (current.rows.length === 0) {
-          return res.status(404).json({ success: false, message: 'Scheduled report not found' });
+          throw ApiError.notFound('Scheduled report');
         }
 
         const merged = { ...current.rows[0], ...req.body };
@@ -653,7 +654,7 @@ function init({ pool }) {
         const { id } = req.params;
         const result = await pool.query('DELETE FROM scheduled_reports WHERE id = $1 RETURNING id', [id]);
         if (result.rows.length === 0) {
-          return res.status(404).json({ success: false, message: 'Scheduled report not found' });
+          throw ApiError.notFound('Scheduled report');
         }
         res.json({ success: true, message: 'Scheduled report deleted' });
       } catch (err) {
@@ -675,7 +676,7 @@ function init({ pool }) {
         const { id } = req.params;
         const result = await pool.query('SELECT * FROM scheduled_reports WHERE id = $1', [id]);
         if (result.rows.length === 0) {
-          return res.status(404).json({ success: false, message: 'Scheduled report not found' });
+          throw ApiError.notFound('Scheduled report');
         }
 
         const report = result.rows[0];
@@ -707,10 +708,7 @@ function init({ pool }) {
         const { report_type, filters, format } = req.body;
 
         if (!report_type || !REPORT_TYPES.includes(report_type)) {
-          return res.status(400).json({
-            success: false,
-            message: `report_type must be one of: ${REPORT_TYPES.join(', ')}`,
-          });
+          throw ApiError.badRequest(`report_type must be one of: ${REPORT_TYPES.join(', ')}`);
         }
 
         const data = await generateReportData(report_type, filters || {});
@@ -752,7 +750,7 @@ function init({ pool }) {
       const filePath = path.join(REPORTS_DIR, safeName);
 
       if (!fs.existsSync(filePath)) {
-        return res.status(404).json({ success: false, message: 'Report file not found' });
+        throw ApiError.notFound('Report file');
       }
 
       res.download(filePath, safeName);

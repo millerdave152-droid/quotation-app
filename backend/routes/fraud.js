@@ -5,7 +5,7 @@
 
 const express = require('express');
 const router = express.Router();
-const { asyncHandler } = require('../middleware/errorHandler');
+const { ApiError, asyncHandler } = require('../middleware/errorHandler');
 const { authenticate, requirePermission } = require('../middleware/auth');
 
 // ============================================================================
@@ -43,7 +43,7 @@ router.get('/alerts', authenticate, requirePermission('fraud.alerts.view'), asyn
 router.get('/alerts/:id', authenticate, requirePermission('fraud.alerts.view'), asyncHandler(async (req, res) => {
   const alert = await fraudService.getAlertById(parseInt(req.params.id));
   if (!alert) {
-    return res.status(404).json({ success: false, error: 'Alert not found' });
+    throw ApiError.notFound('Alert');
   }
   res.json({ success: true, data: alert });
 }));
@@ -51,12 +51,12 @@ router.get('/alerts/:id', authenticate, requirePermission('fraud.alerts.view'), 
 router.put('/alerts/:id/review', authenticate, requirePermission('fraud.alerts.review'), asyncHandler(async (req, res) => {
   const { resolution, notes } = req.body;
   if (!resolution || !['confirmed_fraud', 'false_positive', 'dismissed'].includes(resolution)) {
-    return res.status(400).json({ success: false, error: 'Invalid resolution. Must be: confirmed_fraud, false_positive, or dismissed' });
+    throw ApiError.badRequest('Invalid resolution. Must be: confirmed_fraud, false_positive, or dismissed');
   }
 
   const alert = await fraudService.reviewAlert(parseInt(req.params.id), req.user.id, resolution, notes || '');
   if (!alert) {
-    return res.status(404).json({ success: false, error: 'Alert not found' });
+    throw ApiError.notFound('Alert');
   }
 
   await fraudService.logAuditEntry(req.user.id, 'fraud.alert.review', 'fraud_alert', parseInt(req.params.id), {
@@ -88,10 +88,10 @@ router.post('/incidents', authenticate, requirePermission('fraud.incidents.manag
   const { alert_ids, incident_type, employee_id, customer_id, total_loss, description, evidence } = req.body;
 
   if (!alert_ids || !Array.isArray(alert_ids) || alert_ids.length === 0) {
-    return res.status(400).json({ success: false, error: 'At least one alert ID is required' });
+    throw ApiError.badRequest('At least one alert ID is required');
   }
   if (!incident_type) {
-    return res.status(400).json({ success: false, error: 'Incident type is required' });
+    throw ApiError.badRequest('Incident type is required');
   }
 
   const incident = await fraudService.createIncident(alert_ids, {
@@ -125,7 +125,7 @@ router.get('/incidents', authenticate, requirePermission('fraud.incidents.manage
 router.get('/incidents/:id', authenticate, requirePermission('fraud.incidents.manage'), asyncHandler(async (req, res) => {
   const incident = await fraudService.getIncidentById(parseInt(req.params.id));
   if (!incident) {
-    return res.status(404).json({ success: false, error: 'Incident not found' });
+    throw ApiError.notFound('Incident');
   }
   res.json({ success: true, data: incident });
 }));
@@ -133,7 +133,7 @@ router.get('/incidents/:id', authenticate, requirePermission('fraud.incidents.ma
 router.put('/incidents/:id', authenticate, requirePermission('fraud.incidents.manage'), asyncHandler(async (req, res) => {
   const incident = await fraudService.updateIncident(parseInt(req.params.id), req.body, req.user.id);
   if (!incident) {
-    return res.status(404).json({ success: false, error: 'Incident not found or no changes' });
+    throw ApiError.notFound('Incident not found or no changes');
   }
 
   await fraudService.logAuditEntry(req.user.id, 'fraud.incident.update', 'fraud_incident', parseInt(req.params.id), {
@@ -155,7 +155,7 @@ router.get('/employee-metrics', authenticate, requirePermission('fraud.employee_
 router.get('/employee-metrics/:userId', authenticate, requirePermission('fraud.employee_metrics.view'), asyncHandler(async (req, res) => {
   const metrics = await fraudService.getEmployeeMetrics(parseInt(req.params.userId));
   if (!metrics) {
-    return res.status(404).json({ success: false, error: 'Employee metrics not found' });
+    throw ApiError.notFound('Employee metrics');
   }
   res.json({ success: true, data: metrics });
 }));
@@ -177,7 +177,7 @@ router.get('/rules', authenticate, requirePermission('fraud.rules.manage'), asyn
 router.put('/rules/:id', authenticate, requirePermission('fraud.rules.manage'), asyncHandler(async (req, res) => {
   const rule = await fraudService.updateRule(parseInt(req.params.id), req.body);
   if (!rule) {
-    return res.status(404).json({ success: false, error: 'Rule not found or no changes' });
+    throw ApiError.notFound('Rule not found or no changes');
   }
 
   await fraudService.logAuditEntry(req.user.id, 'fraud.rule.update', 'fraud_rule', parseInt(req.params.id), {

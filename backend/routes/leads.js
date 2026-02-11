@@ -98,10 +98,7 @@ router.post('/', authenticate, asyncHandler(async (req, res) => {
 
   if (error) {
     console.error('Lead creation validation error:', error.details);
-    return res.status(400).json({
-      error: 'Validation failed',
-      details: error.details.map(d => ({ field: d.path.join('.'), message: d.message }))
-    });
+    throw ApiError.validation('Validation failed', error.details.map(d => ({ field: d.path.join('.'), message: d.message })));
   }
 
   const lead = await leadService.createLead(value, req.user?.id);

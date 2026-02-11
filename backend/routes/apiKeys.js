@@ -8,6 +8,7 @@ const router = express.Router();
 const crypto = require('crypto');
 const pool = require('../db');
 const { authenticate, requireRole } = require('../middleware/auth');
+const { ApiError, asyncHandler } = require('../middleware/errorHandler');
 
 /**
  * Generate a secure API key and secret
@@ -30,233 +31,172 @@ function hashSecret(secret) {
  * List all API keys (without secrets)
  * @access Private (admin only)
  */
-router.get('/', authenticate, requireRole('admin'), async (req, res) => {
-  try {
-    const result = await pool.query(`
-      SELECT
-        id, key_name, api_key, permissions,
-        is_active, last_used_at, expires_at, created_at
-      FROM api_keys
-      ORDER BY created_at DESC
-    `);
+router.get('/', authenticate, requireRole('admin'), asyncHandler(async (req, res) => {
+  const result = await pool.query(`
+    SELECT
+      id, key_name, api_key, permissions,
+      is_active, last_used_at, expires_at, created_at
+    FROM api_keys
+    ORDER BY created_at DESC
+  `);
 
-    res.json({
-      success: true,
-      apiKeys: result.rows
-    });
-  } catch (error) {
-    console.error('Error fetching API keys:', error);
-    res.status(500).json({
-      success: false,
-      error: 'Failed to fetch API keys'
-    });
-  }
-});
+  res.json({
+    success: true,
+    apiKeys: result.rows
+  });
+}));
 
 /**
  * POST /api/api-keys
  * Create a new API key
  * @access Private (admin only)
  */
-router.post('/', authenticate, requireRole('admin'), async (req, res) => {
-  try {
-    const {
-      key_name,
-      permissions = { read: true, write: false, delete: false },
-      expires_at
-    } = req.body;
+router.post('/', authenticate, requireRole('admin'), asyncHandler(async (req, res) => {
+  const {
+    key_name,
+    permissions = { read: true, write: false, delete: false },
+    expires_at
+  } = req.body;
 
-    if (!key_name || !key_name.trim()) {
-      return res.status(400).json({
-        success: false,
-        error: 'Key name is required'
-      });
-    }
-
-    // Generate API key
-    const { apiKey } = generateApiKey();
-
-    const result = await pool.query(`
-      INSERT INTO api_keys (
-        key_name, api_key, user_id, permissions, expires_at
-      ) VALUES ($1, $2, $3, $4, $5)
-      RETURNING id, key_name, api_key, permissions,
-                is_active, expires_at, created_at
-    `, [
-      key_name.trim(),
-      apiKey,
-      req.user?.id || null,
-      JSON.stringify(permissions),
-      expires_at || null
-    ]);
-
-    res.status(201).json({
-      success: true,
-      apiKey: result.rows[0],
-      message: 'API key created successfully.'
-    });
-  } catch (error) {
-    console.error('Error creating API key:', error);
-    res.status(500).json({
-      success: false,
-      error: 'Failed to create API key'
-    });
+  if (!key_name || !key_name.trim()) {
+    throw ApiError.badRequest('Key name is required');
   }
-});
+
+  // Generate API key
+  const { apiKey } = generateApiKey();
+
+  const result = await pool.query(`
+    INSERT INTO api_keys (
+      key_name, api_key, user_id, permissions, expires_at
+    ) VALUES ($1, $2, $3, $4, $5)
+    RETURNING id, key_name, api_key, permissions,
+              is_active, expires_at, created_at
+  `, [
+    key_name.trim(),
+    apiKey,
+    req.user?.id || null,
+    JSON.stringify(permissions),
+    expires_at || null
+  ]);
+
+  res.status(201).json({
+    success: true,
+    apiKey: result.rows[0],
+    message: 'API key created successfully.'
+  });
+}));
 
 /**
  * PUT /api/api-keys/:id
  * Update an API key
  * @access Private (admin only)
  */
-router.put('/:id', authenticate, requireRole('admin'), async (req, res) => {
-  try {
-    const { id } = req.params;
+router.put('/:id', authenticate, requireRole('admin'), asyncHandler(async (req, res) => {
+  const { id } = req.params;
 
-    // Validate ID is a valid integer
-    const apiKeyId = parseInt(id, 10);
-    if (isNaN(apiKeyId) || apiKeyId <= 0) {
-      return res.status(400).json({
-        success: false,
-        error: 'Invalid API key ID'
-      });
-    }
-    const {
-      key_name,
-      permissions,
-      is_active,
-      expires_at
-    } = req.body;
-
-    const result = await pool.query(`
-      UPDATE api_keys
-      SET
-        key_name = COALESCE($1, key_name),
-        permissions = COALESCE($2, permissions),
-        is_active = COALESCE($3, is_active),
-        expires_at = COALESCE($4, expires_at)
-      WHERE id = $5
-      RETURNING id, key_name, api_key, permissions,
-                is_active, expires_at, created_at
-    `, [
-      key_name,
-      permissions ? JSON.stringify(permissions) : null,
-      is_active,
-      expires_at,
-      apiKeyId
-    ]);
-
-    if (result.rows.length === 0) {
-      return res.status(404).json({
-        success: false,
-        error: 'API key not found'
-      });
-    }
-
-    res.json({
-      success: true,
-      apiKey: result.rows[0],
-      message: 'API key updated successfully'
-    });
-  } catch (error) {
-    console.error('Error updating API key:', error);
-    res.status(500).json({
-      success: false,
-      error: 'Failed to update API key'
-    });
+  // Validate ID is a valid integer
+  const apiKeyId = parseInt(id, 10);
+  if (isNaN(apiKeyId) || apiKeyId <= 0) {
+    throw ApiError.badRequest('Invalid API key ID');
   }
-});
+  const {
+    key_name,
+    permissions,
+    is_active,
+    expires_at
+  } = req.body;
+
+  const result = await pool.query(`
+    UPDATE api_keys
+    SET
+      key_name = COALESCE($1, key_name),
+      permissions = COALESCE($2, permissions),
+      is_active = COALESCE($3, is_active),
+      expires_at = COALESCE($4, expires_at)
+    WHERE id = $5
+    RETURNING id, key_name, api_key, permissions,
+              is_active, expires_at, created_at
+  `, [
+    key_name,
+    permissions ? JSON.stringify(permissions) : null,
+    is_active,
+    expires_at,
+    apiKeyId
+  ]);
+
+  if (result.rows.length === 0) {
+    throw ApiError.notFound('API key');
+  }
+
+  res.json({
+    success: true,
+    apiKey: result.rows[0],
+    message: 'API key updated successfully'
+  });
+}));
 
 /**
  * DELETE /api/api-keys/:id
  * Delete an API key
  * @access Private (admin only)
  */
-router.delete('/:id', authenticate, requireRole('admin'), async (req, res) => {
-  try {
-    const { id } = req.params;
+router.delete('/:id', authenticate, requireRole('admin'), asyncHandler(async (req, res) => {
+  const { id } = req.params;
 
-    // Validate ID is a valid integer
-    const apiKeyId = parseInt(id, 10);
-    if (isNaN(apiKeyId) || apiKeyId <= 0) {
-      return res.status(400).json({
-        success: false,
-        error: 'Invalid API key ID'
-      });
-    }
-
-    const result = await pool.query(
-      'DELETE FROM api_keys WHERE id = $1 RETURNING *',
-      [apiKeyId]
-    );
-
-    if (result.rows.length === 0) {
-      return res.status(404).json({
-        success: false,
-        error: 'API key not found'
-      });
-    }
-
-    res.json({
-      success: true,
-      message: 'API key deleted successfully'
-    });
-  } catch (error) {
-    console.error('Error deleting API key:', error);
-    res.status(500).json({
-      success: false,
-      error: 'Failed to delete API key'
-    });
+  // Validate ID is a valid integer
+  const apiKeyId = parseInt(id, 10);
+  if (isNaN(apiKeyId) || apiKeyId <= 0) {
+    throw ApiError.badRequest('Invalid API key ID');
   }
-});
+
+  const result = await pool.query(
+    'DELETE FROM api_keys WHERE id = $1 RETURNING *',
+    [apiKeyId]
+  );
+
+  if (result.rows.length === 0) {
+    throw ApiError.notFound('API key');
+  }
+
+  res.json({
+    success: true,
+    message: 'API key deleted successfully'
+  });
+}));
 
 /**
  * POST /api/api-keys/:id/regenerate
  * Regenerate the secret for an existing API key
  * @access Private (admin only)
  */
-router.post('/:id/regenerate', authenticate, requireRole('admin'), async (req, res) => {
-  try {
-    const { id } = req.params;
+router.post('/:id/regenerate', authenticate, requireRole('admin'), asyncHandler(async (req, res) => {
+  const { id } = req.params;
 
-    // Validate ID is a valid integer
-    const apiKeyId = parseInt(id, 10);
-    if (isNaN(apiKeyId) || apiKeyId <= 0) {
-      return res.status(400).json({
-        success: false,
-        error: 'Invalid API key ID'
-      });
-    }
-
-    // Generate new API key value
-    const { apiKey: newApiKey } = generateApiKey();
-
-    const result = await pool.query(`
-      UPDATE api_keys
-      SET api_key = $1
-      WHERE id = $2
-      RETURNING id, key_name, api_key
-    `, [newApiKey, apiKeyId]);
-
-    if (result.rows.length === 0) {
-      return res.status(404).json({
-        success: false,
-        error: 'API key not found'
-      });
-    }
-
-    res.json({
-      success: true,
-      apiKey: result.rows[0],
-      message: 'API key regenerated successfully.'
-    });
-  } catch (error) {
-    console.error('Error regenerating API secret:', error);
-    res.status(500).json({
-      success: false,
-      error: 'Failed to regenerate API secret'
-    });
+  // Validate ID is a valid integer
+  const apiKeyId = parseInt(id, 10);
+  if (isNaN(apiKeyId) || apiKeyId <= 0) {
+    throw ApiError.badRequest('Invalid API key ID');
   }
-});
+
+  // Generate new API key value
+  const { apiKey: newApiKey } = generateApiKey();
+
+  const result = await pool.query(`
+    UPDATE api_keys
+    SET api_key = $1
+    WHERE id = $2
+    RETURNING id, key_name, api_key
+  `, [newApiKey, apiKeyId]);
+
+  if (result.rows.length === 0) {
+    throw ApiError.notFound('API key');
+  }
+
+  res.json({
+    success: true,
+    apiKey: result.rows[0],
+    message: 'API key regenerated successfully.'
+  });
+}));
 
 module.exports = { router, hashSecret };

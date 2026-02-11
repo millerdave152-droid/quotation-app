@@ -7,316 +7,276 @@ const express = require('express');
 const router = express.Router();
 const db = require('../config/database');
 const { authenticate, requireRole } = require('../middleware/auth');
+const { ApiError, asyncHandler } = require('../middleware/errorHandler');
 
 /**
  * @route   GET /api/users
  * @desc    Get all users (admin/manager only)
  * @access  Private (admin, manager)
  */
-router.get('/', authenticate, requireRole('admin', 'manager'), async (req, res) => {
-  try {
-    const { role, search, includeInactive } = req.query;
+router.get('/', authenticate, requireRole('admin', 'manager'), asyncHandler(async (req, res) => {
+  const { role, search, includeInactive } = req.query;
 
-    let query = `
-      SELECT
-        u.id,
-        u.email,
-        u.first_name,
-        u.last_name,
-        u.role,
-        u.is_active,
-        u.department,
-        u.job_title,
-        u.phone,
-        u.approval_threshold_percent,
-        u.can_approve_quotes,
-        u.max_approval_amount_cents,
-        u.manager_id,
-        u.created_at,
-        u.last_login,
-        m.first_name || ' ' || m.last_name as manager_name,
-        (SELECT COUNT(*) FROM quotations WHERE created_by = u.email) as quote_count
-      FROM users u
-      LEFT JOIN users m ON u.manager_id = m.id
-      WHERE 1=1
-    `;
+  let query = `
+    SELECT
+      u.id,
+      u.email,
+      u.first_name,
+      u.last_name,
+      u.role,
+      u.is_active,
+      u.department,
+      u.job_title,
+      u.phone,
+      u.approval_threshold_percent,
+      u.can_approve_quotes,
+      u.max_approval_amount_cents,
+      u.manager_id,
+      u.created_at,
+      u.last_login,
+      m.first_name || ' ' || m.last_name as manager_name,
+      (SELECT COUNT(*) FROM quotations WHERE created_by = u.email) as quote_count
+    FROM users u
+    LEFT JOIN users m ON u.manager_id = m.id
+    WHERE 1=1
+  `;
 
-    const params = [];
-    let paramIndex = 1;
+  const params = [];
+  let paramIndex = 1;
 
-    // Filter by role
-    if (role) {
-      query += ` AND u.role = $${paramIndex}`;
-      params.push(role);
-      paramIndex++;
-    }
-
-    // Filter by active status
-    if (!includeInactive || includeInactive === 'false') {
-      query += ` AND u.is_active = true`;
-    }
-
-    // Search by name or email
-    if (search) {
-      query += ` AND (
-        u.email ILIKE $${paramIndex} OR
-        u.first_name ILIKE $${paramIndex} OR
-        u.last_name ILIKE $${paramIndex} OR
-        (u.first_name || ' ' || u.last_name) ILIKE $${paramIndex}
-      )`;
-      params.push(`%${search}%`);
-      paramIndex++;
-    }
-
-    query += ` ORDER BY u.created_at DESC`;
-
-    const result = await db.query(query, params);
-
-    res.json({
-      success: true,
-      data: {
-        users: result.rows.map(user => ({
-          id: user.id,
-          email: user.email,
-          firstName: user.first_name,
-          lastName: user.last_name,
-          role: user.role,
-          isActive: user.is_active,
-          department: user.department,
-          jobTitle: user.job_title,
-          phone: user.phone,
-          approvalThresholdPercent: parseFloat(user.approval_threshold_percent) || null,
-          canApproveQuotes: user.can_approve_quotes,
-          maxApprovalAmountCents: user.max_approval_amount_cents,
-          managerId: user.manager_id,
-          managerName: user.manager_name,
-          quoteCount: parseInt(user.quote_count) || 0,
-          createdAt: user.created_at,
-          lastLogin: user.last_login
-        })),
-        total: result.rows.length
-      }
-    });
-  } catch (error) {
-    console.error('Error fetching users:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Failed to fetch users'
-    });
+  // Filter by role
+  if (role) {
+    query += ` AND u.role = $${paramIndex}`;
+    params.push(role);
+    paramIndex++;
   }
-});
+
+  // Filter by active status
+  if (!includeInactive || includeInactive === 'false') {
+    query += ` AND u.is_active = true`;
+  }
+
+  // Search by name or email
+  if (search) {
+    query += ` AND (
+      u.email ILIKE $${paramIndex} OR
+      u.first_name ILIKE $${paramIndex} OR
+      u.last_name ILIKE $${paramIndex} OR
+      (u.first_name || ' ' || u.last_name) ILIKE $${paramIndex}
+    )`;
+    params.push(`%${search}%`);
+    paramIndex++;
+  }
+
+  query += ` ORDER BY u.created_at DESC`;
+
+  const result = await db.query(query, params);
+
+  res.json({
+    success: true,
+    data: {
+      users: result.rows.map(user => ({
+        id: user.id,
+        email: user.email,
+        firstName: user.first_name,
+        lastName: user.last_name,
+        role: user.role,
+        isActive: user.is_active,
+        department: user.department,
+        jobTitle: user.job_title,
+        phone: user.phone,
+        approvalThresholdPercent: parseFloat(user.approval_threshold_percent) || null,
+        canApproveQuotes: user.can_approve_quotes,
+        maxApprovalAmountCents: user.max_approval_amount_cents,
+        managerId: user.manager_id,
+        managerName: user.manager_name,
+        quoteCount: parseInt(user.quote_count) || 0,
+        createdAt: user.created_at,
+        lastLogin: user.last_login
+      })),
+      total: result.rows.length
+    }
+  });
+}));
 
 /**
  * @route   GET /api/users/me
  * @desc    Get current user profile
  * @access  Private
  */
-router.get('/me', authenticate, async (req, res) => {
-  try {
-    const userId = req.user.id;
+router.get('/me', authenticate, asyncHandler(async (req, res) => {
+  const userId = req.user.id;
 
-    const result = await db.query(`
-      SELECT
-        u.id,
-        u.email,
-        u.first_name,
-        u.last_name,
-        u.role,
-        u.is_active,
-        u.department,
-        u.job_title,
-        u.phone,
-        u.approval_threshold_percent,
-        u.can_approve_quotes,
-        u.max_approval_amount_cents,
-        u.manager_id,
-        u.created_at,
-        u.last_login,
-        m.first_name || ' ' || m.last_name as manager_name,
-        m.email as manager_email
-      FROM users u
-      LEFT JOIN users m ON u.manager_id = m.id
-      WHERE u.id = $1
-    `, [userId]);
+  const result = await db.query(`
+    SELECT
+      u.id,
+      u.email,
+      u.first_name,
+      u.last_name,
+      u.role,
+      u.is_active,
+      u.department,
+      u.job_title,
+      u.phone,
+      u.approval_threshold_percent,
+      u.can_approve_quotes,
+      u.max_approval_amount_cents,
+      u.manager_id,
+      u.created_at,
+      u.last_login,
+      m.first_name || ' ' || m.last_name as manager_name,
+      m.email as manager_email
+    FROM users u
+    LEFT JOIN users m ON u.manager_id = m.id
+    WHERE u.id = $1
+  `, [userId]);
 
-    if (result.rows.length === 0) {
-      return res.status(404).json({
-        success: false,
-        message: 'User not found'
-      });
-    }
-
-    const user = result.rows[0];
-
-    res.json({
-      success: true,
-      data: {
-        user: {
-          id: user.id,
-          email: user.email,
-          firstName: user.first_name,
-          lastName: user.last_name,
-          role: user.role,
-          isActive: user.is_active,
-          department: user.department,
-          jobTitle: user.job_title,
-          phone: user.phone,
-          approvalThresholdPercent: parseFloat(user.approval_threshold_percent) || null,
-          canApproveQuotes: user.can_approve_quotes,
-          maxApprovalAmountCents: user.max_approval_amount_cents,
-          managerId: user.manager_id,
-          managerName: user.manager_name,
-          managerEmail: user.manager_email,
-          createdAt: user.created_at,
-          lastLogin: user.last_login
-        }
-      }
-    });
-  } catch (error) {
-    console.error('Error fetching current user:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Failed to fetch user profile'
-    });
+  if (result.rows.length === 0) {
+    throw ApiError.notFound('User');
   }
-});
+
+  const user = result.rows[0];
+
+  res.json({
+    success: true,
+    data: {
+      user: {
+        id: user.id,
+        email: user.email,
+        firstName: user.first_name,
+        lastName: user.last_name,
+        role: user.role,
+        isActive: user.is_active,
+        department: user.department,
+        jobTitle: user.job_title,
+        phone: user.phone,
+        approvalThresholdPercent: parseFloat(user.approval_threshold_percent) || null,
+        canApproveQuotes: user.can_approve_quotes,
+        maxApprovalAmountCents: user.max_approval_amount_cents,
+        managerId: user.manager_id,
+        managerName: user.manager_name,
+        managerEmail: user.manager_email,
+        createdAt: user.created_at,
+        lastLogin: user.last_login
+      }
+    }
+  });
+}));
 
 /**
  * @route   GET /api/users/approvers
  * @desc    Get list of users who can approve quotes
  * @access  Private
  */
-router.get('/approvers', authenticate, async (req, res) => {
-  try {
-    const result = await db.query(`
-      SELECT
-        id,
-        email,
-        first_name,
-        last_name,
-        role,
-        department
-      FROM users
-      WHERE can_approve_quotes = true
-        AND is_active = true
-      ORDER BY first_name, last_name
-    `);
+router.get('/approvers', authenticate, asyncHandler(async (req, res) => {
+  const result = await db.query(`
+    SELECT
+      id,
+      email,
+      first_name,
+      last_name,
+      role,
+      department
+    FROM users
+    WHERE can_approve_quotes = true
+      AND is_active = true
+    ORDER BY first_name, last_name
+  `);
 
-    res.json({
-      success: true,
-      data: {
-        approvers: result.rows.map(user => ({
-          id: user.id,
-          email: user.email,
-          firstName: user.first_name,
-          lastName: user.last_name,
-          name: `${user.first_name} ${user.last_name}`,
-          role: user.role,
-          department: user.department
-        }))
-      }
-    });
-  } catch (error) {
-    console.error('Error fetching approvers:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Failed to fetch approvers'
-    });
-  }
-});
+  res.json({
+    success: true,
+    data: {
+      approvers: result.rows.map(user => ({
+        id: user.id,
+        email: user.email,
+        firstName: user.first_name,
+        lastName: user.last_name,
+        name: `${user.first_name} ${user.last_name}`,
+        role: user.role,
+        department: user.department
+      }))
+    }
+  });
+}));
 
 /**
  * @route   GET /api/users/:id
  * @desc    Get single user details
  * @access  Private (admin, manager, or own profile)
  */
-router.get('/:id', authenticate, async (req, res) => {
-  try {
-    const userId = parseInt(req.params.id);
+router.get('/:id', authenticate, asyncHandler(async (req, res) => {
+  const userId = parseInt(req.params.id);
 
-    // Users can view their own profile, admins/managers can view any
-    const isOwnProfile = req.user.id === userId;
-    const isAdminOrManager = ['admin', 'manager'].includes(req.user.role?.toLowerCase());
+  // Users can view their own profile, admins/managers can view any
+  const isOwnProfile = req.user.id === userId;
+  const isAdminOrManager = ['admin', 'manager'].includes(req.user.role?.toLowerCase());
 
-    if (!isOwnProfile && !isAdminOrManager) {
-      return res.status(403).json({
-        success: false,
-        message: 'Access denied'
-      });
-    }
-
-    const result = await db.query(`
-      SELECT
-        u.id,
-        u.email,
-        u.first_name,
-        u.last_name,
-        u.role,
-        u.is_active,
-        u.department,
-        u.job_title,
-        u.phone,
-        u.approval_threshold_percent,
-        u.can_approve_quotes,
-        u.max_approval_amount_cents,
-        u.manager_id,
-        u.created_at,
-        u.last_login,
-        m.first_name || ' ' || m.last_name as manager_name,
-        m.email as manager_email
-      FROM users u
-      LEFT JOIN users m ON u.manager_id = m.id
-      WHERE u.id = $1
-    `, [userId]);
-
-    if (result.rows.length === 0) {
-      return res.status(404).json({
-        success: false,
-        message: 'User not found'
-      });
-    }
-
-    const user = result.rows[0];
-
-    res.json({
-      success: true,
-      data: {
-        user: {
-          id: user.id,
-          email: user.email,
-          firstName: user.first_name,
-          lastName: user.last_name,
-          role: user.role,
-          isActive: user.is_active,
-          department: user.department,
-          jobTitle: user.job_title,
-          phone: user.phone,
-          approvalThresholdPercent: parseFloat(user.approval_threshold_percent) || null,
-          canApproveQuotes: user.can_approve_quotes,
-          maxApprovalAmountCents: user.max_approval_amount_cents,
-          managerId: user.manager_id,
-          managerName: user.manager_name,
-          managerEmail: user.manager_email,
-          createdAt: user.created_at,
-          lastLogin: user.last_login
-        }
-      }
-    });
-  } catch (error) {
-    console.error('Error fetching user:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Failed to fetch user'
-    });
+  if (!isOwnProfile && !isAdminOrManager) {
+    throw ApiError.forbidden('Access denied');
   }
-});
+
+  const result = await db.query(`
+    SELECT
+      u.id,
+      u.email,
+      u.first_name,
+      u.last_name,
+      u.role,
+      u.is_active,
+      u.department,
+      u.job_title,
+      u.phone,
+      u.approval_threshold_percent,
+      u.can_approve_quotes,
+      u.max_approval_amount_cents,
+      u.manager_id,
+      u.created_at,
+      u.last_login,
+      m.first_name || ' ' || m.last_name as manager_name,
+      m.email as manager_email
+    FROM users u
+    LEFT JOIN users m ON u.manager_id = m.id
+    WHERE u.id = $1
+  `, [userId]);
+
+  if (result.rows.length === 0) {
+    throw ApiError.notFound('User');
+  }
+
+  const user = result.rows[0];
+
+  res.json({
+    success: true,
+    data: {
+      user: {
+        id: user.id,
+        email: user.email,
+        firstName: user.first_name,
+        lastName: user.last_name,
+        role: user.role,
+        isActive: user.is_active,
+        department: user.department,
+        jobTitle: user.job_title,
+        phone: user.phone,
+        approvalThresholdPercent: parseFloat(user.approval_threshold_percent) || null,
+        canApproveQuotes: user.can_approve_quotes,
+        maxApprovalAmountCents: user.max_approval_amount_cents,
+        managerId: user.manager_id,
+        managerName: user.manager_name,
+        managerEmail: user.manager_email,
+        createdAt: user.created_at,
+        lastLogin: user.last_login
+      }
+    }
+  });
+}));
 
 /**
  * @route   PUT /api/users/:id
  * @desc    Update user details
  * @access  Private (admin only, or own profile for limited fields)
  */
-router.put('/:id', authenticate, async (req, res) => {
+router.put('/:id', authenticate, asyncHandler(async (req, res) => {
   const client = await db.connect();
 
   try {
@@ -328,10 +288,7 @@ router.put('/:id', authenticate, async (req, res) => {
 
     if (!isOwnProfile && !isAdmin) {
       await client.query('ROLLBACK');
-      return res.status(403).json({
-        success: false,
-        message: 'Access denied'
-      });
+      throw ApiError.forbidden('Access denied');
     }
 
     const {
@@ -381,10 +338,7 @@ router.put('/:id', authenticate, async (req, res) => {
         );
         if (emailCheck.rows.length > 0) {
           await client.query('ROLLBACK');
-          return res.status(409).json({
-            success: false,
-            message: 'Email already in use'
-          });
+          throw ApiError.conflict('Email already in use');
         }
         updates.push(`email = $${paramIndex}`);
         values.push(email);
@@ -429,10 +383,7 @@ router.put('/:id', authenticate, async (req, res) => {
         // Prevent circular reference
         if (managerId === userId) {
           await client.query('ROLLBACK');
-          return res.status(400).json({
-            success: false,
-            message: 'User cannot be their own manager'
-          });
+          throw ApiError.badRequest('User cannot be their own manager');
         }
         updates.push(`manager_id = $${paramIndex}`);
         values.push(managerId || null);
@@ -442,10 +393,7 @@ router.put('/:id', authenticate, async (req, res) => {
 
     if (updates.length === 0) {
       await client.query('ROLLBACK');
-      return res.status(400).json({
-        success: false,
-        message: 'No valid fields to update'
-      });
+      throw ApiError.badRequest('No valid fields to update');
     }
 
     updates.push(`updated_at = CURRENT_TIMESTAMP`);
@@ -462,10 +410,7 @@ router.put('/:id', authenticate, async (req, res) => {
 
     if (result.rows.length === 0) {
       await client.query('ROLLBACK');
-      return res.status(404).json({
-        success: false,
-        message: 'User not found'
-      });
+      throw ApiError.notFound('User');
     }
 
     // Log the update in audit log
@@ -499,164 +444,124 @@ router.put('/:id', authenticate, async (req, res) => {
         }
       }
     });
-  } catch (error) {
+  } catch (err) {
     await client.query('ROLLBACK');
-    console.error('Error updating user:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Failed to update user'
-    });
+    throw err;
   } finally {
     client.release();
   }
-});
+}));
 
 /**
  * @route   PUT /api/users/:id/approval-settings
  * @desc    Update user's approval settings specifically
  * @access  Private (admin only)
  */
-router.put('/:id/approval-settings', authenticate, requireRole('admin'), async (req, res) => {
-  try {
-    const userId = parseInt(req.params.id);
-    const {
-      approvalThresholdPercent,
-      canApproveQuotes,
-      maxApprovalAmountCents,
-      managerId
-    } = req.body;
+router.put('/:id/approval-settings', authenticate, requireRole('admin'), asyncHandler(async (req, res) => {
+  const userId = parseInt(req.params.id);
+  const {
+    approvalThresholdPercent,
+    canApproveQuotes,
+    maxApprovalAmountCents,
+    managerId
+  } = req.body;
 
-    const result = await db.query(`
-      UPDATE users
-      SET
-        approval_threshold_percent = $1,
-        can_approve_quotes = $2,
-        max_approval_amount_cents = $3,
-        manager_id = $4,
-        updated_at = CURRENT_TIMESTAMP
-      WHERE id = $5
-      RETURNING id, email, first_name, last_name, role, approval_threshold_percent, can_approve_quotes, max_approval_amount_cents, manager_id
-    `, [
-      approvalThresholdPercent,
-      canApproveQuotes,
-      maxApprovalAmountCents,
-      managerId || null,
-      userId
-    ]);
+  const result = await db.query(`
+    UPDATE users
+    SET
+      approval_threshold_percent = $1,
+      can_approve_quotes = $2,
+      max_approval_amount_cents = $3,
+      manager_id = $4,
+      updated_at = CURRENT_TIMESTAMP
+    WHERE id = $5
+    RETURNING id, email, first_name, last_name, role, approval_threshold_percent, can_approve_quotes, max_approval_amount_cents, manager_id
+  `, [
+    approvalThresholdPercent,
+    canApproveQuotes,
+    maxApprovalAmountCents,
+    managerId || null,
+    userId
+  ]);
 
-    if (result.rows.length === 0) {
-      return res.status(404).json({
-        success: false,
-        message: 'User not found'
-      });
-    }
-
-    const user = result.rows[0];
-
-    res.json({
-      success: true,
-      message: 'Approval settings updated successfully',
-      data: {
-        user: {
-          id: user.id,
-          email: user.email,
-          firstName: user.first_name,
-          lastName: user.last_name,
-          role: user.role,
-          approvalThresholdPercent: parseFloat(user.approval_threshold_percent) || null,
-          canApproveQuotes: user.can_approve_quotes,
-          maxApprovalAmountCents: user.max_approval_amount_cents,
-          managerId: user.manager_id
-        }
-      }
-    });
-  } catch (error) {
-    console.error('Error updating approval settings:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Failed to update approval settings'
-    });
+  if (result.rows.length === 0) {
+    throw ApiError.notFound('User');
   }
-});
+
+  const user = result.rows[0];
+
+  res.json({
+    success: true,
+    message: 'Approval settings updated successfully',
+    data: {
+      user: {
+        id: user.id,
+        email: user.email,
+        firstName: user.first_name,
+        lastName: user.last_name,
+        role: user.role,
+        approvalThresholdPercent: parseFloat(user.approval_threshold_percent) || null,
+        canApproveQuotes: user.can_approve_quotes,
+        maxApprovalAmountCents: user.max_approval_amount_cents,
+        managerId: user.manager_id
+      }
+    }
+  });
+}));
 
 /**
  * @route   DELETE /api/users/:id
  * @desc    Deactivate a user (soft delete)
  * @access  Private (admin only)
  */
-router.delete('/:id', authenticate, requireRole('admin'), async (req, res) => {
-  try {
-    const userId = parseInt(req.params.id);
+router.delete('/:id', authenticate, requireRole('admin'), asyncHandler(async (req, res) => {
+  const userId = parseInt(req.params.id);
 
-    // Prevent admin from deactivating themselves
-    if (req.user.id === userId) {
-      return res.status(400).json({
-        success: false,
-        message: 'Cannot deactivate your own account'
-      });
-    }
-
-    const result = await db.query(`
-      UPDATE users
-      SET is_active = false, updated_at = CURRENT_TIMESTAMP
-      WHERE id = $1
-      RETURNING id, email
-    `, [userId]);
-
-    if (result.rows.length === 0) {
-      return res.status(404).json({
-        success: false,
-        message: 'User not found'
-      });
-    }
-
-    res.json({
-      success: true,
-      message: 'User deactivated successfully'
-    });
-  } catch (error) {
-    console.error('Error deactivating user:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Failed to deactivate user'
-    });
+  // Prevent admin from deactivating themselves
+  if (req.user.id === userId) {
+    throw ApiError.badRequest('Cannot deactivate your own account');
   }
-});
+
+  const result = await db.query(`
+    UPDATE users
+    SET is_active = false, updated_at = CURRENT_TIMESTAMP
+    WHERE id = $1
+    RETURNING id, email
+  `, [userId]);
+
+  if (result.rows.length === 0) {
+    throw ApiError.notFound('User');
+  }
+
+  res.json({
+    success: true,
+    message: 'User deactivated successfully'
+  });
+}));
 
 /**
  * @route   POST /api/users/:id/reactivate
  * @desc    Reactivate a deactivated user
  * @access  Private (admin only)
  */
-router.post('/:id/reactivate', authenticate, requireRole('admin'), async (req, res) => {
-  try {
-    const userId = parseInt(req.params.id);
+router.post('/:id/reactivate', authenticate, requireRole('admin'), asyncHandler(async (req, res) => {
+  const userId = parseInt(req.params.id);
 
-    const result = await db.query(`
-      UPDATE users
-      SET is_active = true, updated_at = CURRENT_TIMESTAMP
-      WHERE id = $1
-      RETURNING id, email
-    `, [userId]);
+  const result = await db.query(`
+    UPDATE users
+    SET is_active = true, updated_at = CURRENT_TIMESTAMP
+    WHERE id = $1
+    RETURNING id, email
+  `, [userId]);
 
-    if (result.rows.length === 0) {
-      return res.status(404).json({
-        success: false,
-        message: 'User not found'
-      });
-    }
-
-    res.json({
-      success: true,
-      message: 'User reactivated successfully'
-    });
-  } catch (error) {
-    console.error('Error reactivating user:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Failed to reactivate user'
-    });
+  if (result.rows.length === 0) {
+    throw ApiError.notFound('User');
   }
-});
+
+  res.json({
+    success: true,
+    message: 'User reactivated successfully'
+  });
+}));
 
 module.exports = router;

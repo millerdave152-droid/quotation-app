@@ -10,6 +10,7 @@ const XLSX = require('xlsx');
 const csvParser = require('csv-parser');
 const { Readable } = require('stream');
 const { authenticate } = require('../middleware/auth');
+const { ApiError, asyncHandler } = require('../middleware/errorHandler');
 
 // Configure multer for file uploads
 const upload = multer({
@@ -52,130 +53,90 @@ const init = (deps) => {
  * GET /api/import-templates
  * List all templates with optional filtering
  */
-router.get('/', authenticate, async (req, res) => {
-  try {
-    const { manufacturer, active_only = 'true', file_type } = req.query;
-    const templates = await templateService.listTemplates({
-      manufacturer,
-      activeOnly: active_only === 'true',
-      fileType: file_type
-    });
-    res.json({ success: true, data: templates });
-  } catch (error) {
-    console.error('Error listing templates:', error);
-    res.status(500).json({ success: false, error: error.message });
-  }
-});
+router.get('/', authenticate, asyncHandler(async (req, res) => {
+  const { manufacturer, active_only = 'true', file_type } = req.query;
+  const templates = await templateService.listTemplates({
+    manufacturer,
+    activeOnly: active_only === 'true',
+    fileType: file_type
+  });
+  res.json({ success: true, data: templates });
+}));
 
 /**
  * GET /api/import-templates/manufacturers
  * Get manufacturers with template counts
  */
-router.get('/manufacturers', authenticate, async (req, res) => {
-  try {
-    const manufacturers = await templateService.getManufacturersWithTemplates();
-    res.json({ success: true, data: manufacturers });
-  } catch (error) {
-    console.error('Error getting manufacturers:', error);
-    res.status(500).json({ success: false, error: error.message });
-  }
-});
+router.get('/manufacturers', authenticate, asyncHandler(async (req, res) => {
+  const manufacturers = await templateService.getManufacturersWithTemplates();
+  res.json({ success: true, data: manufacturers });
+}));
 
 /**
  * GET /api/import-templates/target-fields
  * Get available target fields for mapping
  */
-router.get('/target-fields', authenticate, async (req, res) => {
-  try {
-    const fields = columnDetectionEngine.getAvailableTargetFields();
-    res.json({ success: true, data: fields });
-  } catch (error) {
-    console.error('Error getting target fields:', error);
-    res.status(500).json({ success: false, error: error.message });
-  }
-});
+router.get('/target-fields', authenticate, asyncHandler(async (req, res) => {
+  const fields = columnDetectionEngine.getAvailableTargetFields();
+  res.json({ success: true, data: fields });
+}));
 
 /**
  * GET /api/import-templates/:id
  * Get template details by ID
  */
-router.get('/:id', authenticate, async (req, res) => {
-  try {
-    const template = await templateService.getTemplateById(req.params.id);
-    if (!template) {
-      return res.status(404).json({ success: false, error: 'Template not found' });
-    }
-    res.json({ success: true, data: template });
-  } catch (error) {
-    console.error('Error getting template:', error);
-    res.status(500).json({ success: false, error: error.message });
+router.get('/:id', authenticate, asyncHandler(async (req, res) => {
+  const template = await templateService.getTemplateById(req.params.id);
+  if (!template) {
+    throw ApiError.notFound('Template');
   }
-});
+  res.json({ success: true, data: template });
+}));
 
 /**
  * POST /api/import-templates
  * Create new template
  */
-router.post('/', authenticate, async (req, res) => {
-  try {
-    const templateId = await templateService.createTemplate(req.body);
-    const template = await templateService.getTemplateById(templateId);
-    res.status(201).json({ success: true, data: template });
-  } catch (error) {
-    console.error('Error creating template:', error);
-    res.status(500).json({ success: false, error: error.message });
-  }
-});
+router.post('/', authenticate, asyncHandler(async (req, res) => {
+  const templateId = await templateService.createTemplate(req.body);
+  const template = await templateService.getTemplateById(templateId);
+  res.status(201).json({ success: true, data: template });
+}));
 
 /**
  * PUT /api/import-templates/:id
  * Update existing template
  */
-router.put('/:id', authenticate, async (req, res) => {
-  try {
-    const template = await templateService.updateTemplate(req.params.id, req.body);
-    if (!template) {
-      return res.status(404).json({ success: false, error: 'Template not found' });
-    }
-    res.json({ success: true, data: template });
-  } catch (error) {
-    console.error('Error updating template:', error);
-    res.status(500).json({ success: false, error: error.message });
+router.put('/:id', authenticate, asyncHandler(async (req, res) => {
+  const template = await templateService.updateTemplate(req.params.id, req.body);
+  if (!template) {
+    throw ApiError.notFound('Template');
   }
-});
+  res.json({ success: true, data: template });
+}));
 
 /**
  * DELETE /api/import-templates/:id
  * Delete template
  */
-router.delete('/:id', authenticate, async (req, res) => {
-  try {
-    const deleted = await templateService.deleteTemplate(req.params.id);
-    if (!deleted) {
-      return res.status(404).json({ success: false, error: 'Template not found' });
-    }
-    res.json({ success: true, message: 'Template deleted successfully' });
-  } catch (error) {
-    console.error('Error deleting template:', error);
-    res.status(500).json({ success: false, error: error.message });
+router.delete('/:id', authenticate, asyncHandler(async (req, res) => {
+  const deleted = await templateService.deleteTemplate(req.params.id);
+  if (!deleted) {
+    throw ApiError.notFound('Template');
   }
-});
+  res.json({ success: true, message: 'Template deleted successfully' });
+}));
 
 /**
  * POST /api/import-templates/:id/clone
  * Clone a template
  */
-router.post('/:id/clone', authenticate, async (req, res) => {
-  try {
-    const { name, manufacturer } = req.body;
-    const newTemplateId = await templateService.cloneTemplate(req.params.id, { name, manufacturer });
-    const template = await templateService.getTemplateById(newTemplateId);
-    res.status(201).json({ success: true, data: template });
-  } catch (error) {
-    console.error('Error cloning template:', error);
-    res.status(500).json({ success: false, error: error.message });
-  }
-});
+router.post('/:id/clone', authenticate, asyncHandler(async (req, res) => {
+  const { name, manufacturer } = req.body;
+  const newTemplateId = await templateService.cloneTemplate(req.params.id, { name, manufacturer });
+  const template = await templateService.getTemplateById(newTemplateId);
+  res.status(201).json({ success: true, data: template });
+}));
 
 // ========================================
 // TEMPLATE MATCHING & DETECTION
@@ -185,128 +146,102 @@ router.post('/:id/clone', authenticate, async (req, res) => {
  * POST /api/import-templates/match
  * Find matching template for file
  */
-router.post('/match', authenticate, async (req, res) => {
-  try {
-    const { filename, headers, sampleRows } = req.body;
+router.post('/match', authenticate, asyncHandler(async (req, res) => {
+  const { filename, headers, sampleRows } = req.body;
 
-    if (!filename || !headers) {
-      return res.status(400).json({
-        success: false,
-        error: 'Filename and headers are required'
-      });
-    }
-
-    const result = await templateService.findMatchingTemplate(filename, headers, sampleRows);
-    res.json({ success: true, data: result });
-  } catch (error) {
-    console.error('Error matching template:', error);
-    res.status(500).json({ success: false, error: error.message });
+  if (!filename || !headers) {
+    throw ApiError.badRequest('Filename and headers are required');
   }
-});
+
+  const result = await templateService.findMatchingTemplate(filename, headers, sampleRows);
+  res.json({ success: true, data: result });
+}));
 
 /**
  * POST /api/import-templates/detect-columns
  * Detect column mappings from headers and sample data
  */
-router.post('/detect-columns', authenticate, async (req, res) => {
-  try {
-    const { headers, sampleRows, manufacturer } = req.body;
+router.post('/detect-columns', authenticate, asyncHandler(async (req, res) => {
+  const { headers, sampleRows, manufacturer } = req.body;
 
-    if (!headers || !Array.isArray(headers)) {
-      return res.status(400).json({
-        success: false,
-        error: 'Headers array is required'
-      });
-    }
-
-    const result = columnDetectionEngine.detectColumns(headers, sampleRows || [], manufacturer);
-    res.json({ success: true, data: result });
-  } catch (error) {
-    console.error('Error detecting columns:', error);
-    res.status(500).json({ success: false, error: error.message });
+  if (!headers || !Array.isArray(headers)) {
+    throw ApiError.badRequest('Headers array is required');
   }
-});
+
+  const result = columnDetectionEngine.detectColumns(headers, sampleRows || [], manufacturer);
+  res.json({ success: true, data: result });
+}));
 
 /**
  * POST /api/import-templates/parse-file
  * Parse uploaded file and extract headers + sample data
  */
-router.post('/parse-file', authenticate, upload.single('file'), async (req, res) => {
-  try {
-    if (!req.file) {
-      return res.status(400).json({ success: false, error: 'No file uploaded' });
-    }
-
-    const filename = req.file.originalname;
-    const ext = filename.toLowerCase().slice(filename.lastIndexOf('.'));
-    const headerRowIndex = parseInt(req.body.headerRowIndex) || 1;
-
-    let headers = [];
-    let sampleRows = [];
-    let totalRows = 0;
-
-    if (ext === '.csv') {
-      // Parse CSV
-      const results = await parseCSV(req.file.buffer, headerRowIndex);
-      headers = results.headers;
-      sampleRows = results.sampleRows;
-      totalRows = results.totalRows;
-    } else if (ext === '.xlsx' || ext === '.xls') {
-      // Parse Excel
-      const results = parseExcel(req.file.buffer, headerRowIndex, req.body.sheetName);
-      headers = results.headers;
-      sampleRows = results.sampleRows;
-      totalRows = results.totalRows;
-    } else {
-      return res.status(400).json({ success: false, error: 'Unsupported file type' });
-    }
-
-    // Detect columns automatically
-    const detection = columnDetectionEngine.detectColumns(headers, sampleRows);
-
-    // Try to match existing template
-    const templateMatch = await templateService.findMatchingTemplate(filename, headers, sampleRows);
-
-    res.json({
-      success: true,
-      data: {
-        filename,
-        fileType: ext.replace('.', ''),
-        fileSize: req.file.size,
-        headers,
-        sampleRows: sampleRows.slice(0, 10),
-        totalRows,
-        detection,
-        templateMatch,
-        parsedAt: new Date().toISOString()
-      }
-    });
-  } catch (error) {
-    console.error('Error parsing file:', error);
-    res.status(500).json({ success: false, error: error.message });
+router.post('/parse-file', authenticate, upload.single('file'), asyncHandler(async (req, res) => {
+  if (!req.file) {
+    throw ApiError.badRequest('No file uploaded');
   }
-});
+
+  const filename = req.file.originalname;
+  const ext = filename.toLowerCase().slice(filename.lastIndexOf('.'));
+  const headerRowIndex = parseInt(req.body.headerRowIndex) || 1;
+
+  let headers = [];
+  let sampleRows = [];
+  let totalRows = 0;
+
+  if (ext === '.csv') {
+    // Parse CSV
+    const results = await parseCSV(req.file.buffer, headerRowIndex);
+    headers = results.headers;
+    sampleRows = results.sampleRows;
+    totalRows = results.totalRows;
+  } else if (ext === '.xlsx' || ext === '.xls') {
+    // Parse Excel
+    const results = parseExcel(req.file.buffer, headerRowIndex, req.body.sheetName);
+    headers = results.headers;
+    sampleRows = results.sampleRows;
+    totalRows = results.totalRows;
+  } else {
+    throw ApiError.badRequest('Unsupported file type');
+  }
+
+  // Detect columns automatically
+  const detection = columnDetectionEngine.detectColumns(headers, sampleRows);
+
+  // Try to match existing template
+  const templateMatch = await templateService.findMatchingTemplate(filename, headers, sampleRows);
+
+  res.json({
+    success: true,
+    data: {
+      filename,
+      fileType: ext.replace('.', ''),
+      fileSize: req.file.size,
+      headers,
+      sampleRows: sampleRows.slice(0, 10),
+      totalRows,
+      detection,
+      templateMatch,
+      parsedAt: new Date().toISOString()
+    }
+  });
+}));
 
 /**
  * POST /api/import-templates/:id/test
  * Test template with sample data
  */
-router.post('/:id/test', authenticate, async (req, res) => {
-  try {
-    const { headers, sampleData } = req.body;
+router.post('/:id/test', authenticate, asyncHandler(async (req, res) => {
+  const { headers, sampleData } = req.body;
 
-    const template = await templateService.getTemplateById(req.params.id);
-    if (!template) {
-      return res.status(404).json({ success: false, error: 'Template not found' });
-    }
-
-    const testResult = await templateService.testTemplate(template, headers, sampleData || []);
-    res.json({ success: true, data: testResult });
-  } catch (error) {
-    console.error('Error testing template:', error);
-    res.status(500).json({ success: false, error: error.message });
+  const template = await templateService.getTemplateById(req.params.id);
+  if (!template) {
+    throw ApiError.notFound('Template');
   }
-});
+
+  const testResult = await templateService.testTemplate(template, headers, sampleData || []);
+  res.json({ success: true, data: testResult });
+}));
 
 // ========================================
 // TEMPLATE LEARNING
@@ -316,58 +251,38 @@ router.post('/:id/test', authenticate, async (req, res) => {
  * POST /api/import-templates/:id/corrections
  * Record user correction for learning
  */
-router.post('/:id/corrections', authenticate, async (req, res) => {
-  try {
-    await templateService.recordCorrection(req.params.id, req.body);
-    res.json({ success: true, message: 'Correction recorded' });
-  } catch (error) {
-    console.error('Error recording correction:', error);
-    res.status(500).json({ success: false, error: error.message });
-  }
-});
+router.post('/:id/corrections', authenticate, asyncHandler(async (req, res) => {
+  await templateService.recordCorrection(req.params.id, req.body);
+  res.json({ success: true, message: 'Correction recorded' });
+}));
 
 /**
  * GET /api/import-templates/:id/learning-history
  * Get learning history for template
  */
-router.get('/:id/learning-history', authenticate, async (req, res) => {
-  try {
-    const history = await templateService.getLearningHistory(req.params.id);
-    res.json({ success: true, data: history });
-  } catch (error) {
-    console.error('Error getting learning history:', error);
-    res.status(500).json({ success: false, error: error.message });
-  }
-});
+router.get('/:id/learning-history', authenticate, asyncHandler(async (req, res) => {
+  const history = await templateService.getLearningHistory(req.params.id);
+  res.json({ success: true, data: history });
+}));
 
 /**
  * GET /api/import-templates/:id/usage-history
  * Get usage history for template
  */
-router.get('/:id/usage-history', authenticate, async (req, res) => {
-  try {
-    const limit = parseInt(req.query.limit) || 20;
-    const history = await templateService.getUsageHistory(req.params.id, limit);
-    res.json({ success: true, data: history });
-  } catch (error) {
-    console.error('Error getting usage history:', error);
-    res.status(500).json({ success: false, error: error.message });
-  }
-});
+router.get('/:id/usage-history', authenticate, asyncHandler(async (req, res) => {
+  const limit = parseInt(req.query.limit) || 20;
+  const history = await templateService.getUsageHistory(req.params.id, limit);
+  res.json({ success: true, data: history });
+}));
 
 /**
  * POST /api/import-templates/:id/record-usage
  * Record template usage after import
  */
-router.post('/:id/record-usage', authenticate, async (req, res) => {
-  try {
-    await templateService.recordTemplateUsage(req.params.id, req.body);
-    res.json({ success: true, message: 'Usage recorded' });
-  } catch (error) {
-    console.error('Error recording usage:', error);
-    res.status(500).json({ success: false, error: error.message });
-  }
-});
+router.post('/:id/record-usage', authenticate, asyncHandler(async (req, res) => {
+  await templateService.recordTemplateUsage(req.params.id, req.body);
+  res.json({ success: true, message: 'Usage recorded' });
+}));
 
 // ========================================
 // HELPER FUNCTIONS

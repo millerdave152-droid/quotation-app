@@ -296,6 +296,7 @@ export function CheckoutModal({
   const [payments, setPayments] = useState([]);
   const [transaction, setTransaction] = useState(null);
   const [error, setError] = useState(null);
+  const [errorDetails, setErrorDetails] = useState(null);
   const [signatureWarning, setSignatureWarning] = useState(null);
   const [duplicatePaymentPrompt, setDuplicatePaymentPrompt] = useState(null);
   const [isProcessing, setIsProcessing] = useState(false);
@@ -474,6 +475,7 @@ export function CheckoutModal({
   const processTransaction = useCallback(async (finalPayments) => {
     setIsProcessing(true);
     setError(null);
+    setErrorDetails(null);
 
     // Suppress auth redirect during checkout — we handle 401 ourselves
     window.__posCheckoutActive = true;
@@ -524,14 +526,17 @@ export function CheckoutModal({
       } else {
         const errMsg = typeof result.error === 'string' ? result.error : result.error?.message || 'Transaction failed';
         setError(errMsg);
+        setErrorDetails(Array.isArray(result.details) ? result.details : null);
         setStep('methods');
       }
     } catch (err) {
       console.error('[Checkout] Transaction error:', err);
       if (err?.code === 'UNAUTHORIZED' || err?.status === 401) {
         setError('Session expired. Please log in again and retry checkout. Your cart items have been preserved.');
+        setErrorDetails(null);
       } else {
         setError(typeof err === 'string' ? err : err?.message || 'An unexpected error occurred');
+        setErrorDetails(null);
       }
       setStep('methods');
     } finally {
@@ -858,6 +863,16 @@ export function CheckoutModal({
         {error && (
           <div className="mx-6 mt-4 p-4 bg-red-50 border border-red-200 rounded-lg">
             <p className="text-sm text-red-700">{error}</p>
+            {Array.isArray(errorDetails) && errorDetails.length > 0 && (
+              <div className="mt-2">
+                {errorDetails.map((detail, index) => (
+                  <p key={`${detail?.field || 'field'}-${index}`} className="text-xs text-red-600">
+                    {detail?.field ? `${detail.field}: ` : ''}
+                    {detail?.message || String(detail)}
+                  </p>
+                ))}
+              </div>
+            )}
           </div>
         )}
 

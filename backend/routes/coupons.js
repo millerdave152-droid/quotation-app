@@ -8,6 +8,7 @@ const express = require('express');
 const crypto = require('crypto');
 const { authenticate } = require('../middleware/auth');
 const { checkPermission } = require('../middleware/checkPermission');
+const { ApiError } = require('../middleware/errorHandler');
 
 function init({ pool }) {
   const router = express.Router();
@@ -169,7 +170,7 @@ function init({ pool }) {
         // Verify promotion exists
         const promoResult = await pool.query('SELECT id, name, code_type FROM promotions WHERE id = $1', [id]);
         if (promoResult.rows.length === 0) {
-          return res.status(404).json({ success: false, message: 'Promotion not found' });
+          throw ApiError.notFound('Promotion');
         }
 
         // Mark promotion as requiring code with unique type if not already set
@@ -293,7 +294,7 @@ function init({ pool }) {
       try {
         const { code, customer_id, cart_items } = req.body;
         if (!code || !code.trim()) {
-          return res.status(400).json({ success: false, valid: false, error: 'Code is required' });
+          throw ApiError.badRequest('Code is required');
         }
 
         const resolved = await resolveCode(code.trim());
@@ -352,23 +353,21 @@ function init({ pool }) {
       try {
         const { code, order_id, customer_id } = req.body;
         if (!code || !order_id) {
-          return res.status(400).json({ success: false, message: 'code and order_id are required' });
+          throw ApiError.badRequest('code and order_id are required');
         }
 
         await client.query('BEGIN');
 
         const resolved = await resolveCode(code.trim());
         if (!resolved) {
-          await client.query('ROLLBACK');
-          return res.status(400).json({ success: false, message: 'Invalid coupon code' });
+          throw ApiError.badRequest('Invalid coupon code');
         }
 
         const { promotion, promoCode } = resolved;
         const custId = customer_id ? parseInt(customer_id, 10) : null;
         const validation = validateResolved(promotion, promoCode, custId);
         if (!validation.valid) {
-          await client.query('ROLLBACK');
-          return res.status(400).json({ success: false, message: validation.error });
+          throw ApiError.badRequest(validation.error);
         }
 
         // Get order to calculate actual discount
@@ -383,8 +382,7 @@ function init({ pool }) {
             [order_id]
           );
           if (txResult.rows.length === 0) {
-            await client.query('ROLLBACK');
-            return res.status(404).json({ success: false, message: 'Order not found' });
+            throw ApiError.notFound('Order');
           }
         }
 

@@ -68,6 +68,10 @@ export function CardPayment({
     const createPaymentIntent = async () => {
       // Only create for credit/debit payments, not gift cards
       if (paymentType === 'giftcard') return;
+      if (!Number.isFinite(amountDue) || amountDue <= 0) {
+        setStripeError('Invalid payment amount');
+        return;
+      }
 
       try {
         setStripeLoading(true);

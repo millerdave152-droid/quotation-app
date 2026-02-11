@@ -5,6 +5,7 @@
  */
 
 const express = require('express');
+const { ApiError } = require('../middleware/errorHandler');
 const { authenticate } = require('../middleware/auth');
 const { checkPermission } = require('../middleware/checkPermission');
 
@@ -33,13 +34,13 @@ function init({ pool }) {
         const { from_location_id, to_location_id, items, notes } = req.body;
 
         if (!from_location_id || !to_location_id) {
-          return res.status(400).json({ success: false, message: 'from_location_id and to_location_id are required' });
+          throw ApiError.badRequest('from_location_id and to_location_id are required');
         }
         if (parseInt(from_location_id) === parseInt(to_location_id)) {
-          return res.status(400).json({ success: false, message: 'Source and destination must be different locations' });
+          throw ApiError.badRequest('Source and destination must be different locations');
         }
         if (!items || !Array.isArray(items) || items.length === 0) {
-          return res.status(400).json({ success: false, message: 'items array is required' });
+          throw ApiError.badRequest('items array is required');
         }
 
         await client.query('BEGIN');
@@ -51,7 +52,7 @@ function init({ pool }) {
         );
         if (locResult.rows.length < 2) {
           await client.query('ROLLBACK');
-          return res.status(400).json({ success: false, message: 'One or both locations not found or inactive' });
+          throw ApiError.badRequest('One or both locations not found or inactive');
         }
 
         // Validate products and check source inventory
@@ -59,7 +60,7 @@ function init({ pool }) {
         for (const item of items) {
           if (!item.product_id || !item.quantity || item.quantity <= 0) {
             await client.query('ROLLBACK');
-            return res.status(400).json({ success: false, message: 'Each item needs product_id and positive quantity' });
+            throw ApiError.badRequest('Each item needs product_id and positive quantity');
           }
 
           const invResult = await client.query(
@@ -83,11 +84,7 @@ function init({ pool }) {
 
         if (insufficientStock.length > 0) {
           await client.query('ROLLBACK');
-          return res.status(400).json({
-            success: false,
-            message: 'Insufficient stock at source location',
-            insufficient_stock: insufficientStock,
-          });
+          throw ApiError.badRequest('Insufficient stock at source location');
         }
 
         // Generate transfer number and create transfer
@@ -229,7 +226,7 @@ function init({ pool }) {
           [id]
         );
         if (result.rows.length === 0) {
-          return res.status(404).json({ success: false, message: 'Transfer not found' });
+          throw ApiError.notFound('Transfer');
         }
 
         const itemsResult = await pool.query(
@@ -264,13 +261,10 @@ function init({ pool }) {
 
         const current = await pool.query('SELECT id, status FROM inventory_transfers WHERE id = $1', [id]);
         if (current.rows.length === 0) {
-          return res.status(404).json({ success: false, message: 'Transfer not found' });
+          throw ApiError.notFound('Transfer');
         }
         if (current.rows[0].status !== 'requested') {
-          return res.status(400).json({
-            success: false,
-            message: `Can only approve transfers with status 'requested'. Current: '${current.rows[0].status}'`,
-          });
+          throw ApiError.badRequest(`Can only approve transfers with status 'requested'. Current: '${current.rows[0].status}'`);
         }
 
         const result = await pool.query(
@@ -308,15 +302,12 @@ function init({ pool }) {
         );
         if (current.rows.length === 0) {
           await client.query('ROLLBACK');
-          return res.status(404).json({ success: false, message: 'Transfer not found' });
+          throw ApiError.notFound('Transfer');
         }
         const transfer = current.rows[0];
         if (!['requested', 'approved'].includes(transfer.status)) {
           await client.query('ROLLBACK');
-          return res.status(400).json({
-            success: false,
-            message: `Can only ship transfers with status 'requested' or 'approved'. Current: '${transfer.status}'`,
-          });
+          throw ApiError.badRequest(`Can only ship transfers with status 'requested' or 'approved'. Current: '${transfer.status}'`);
         }
 
         // Get transfer items
@@ -426,15 +417,12 @@ function init({ pool }) {
         );
         if (current.rows.length === 0) {
           await client.query('ROLLBACK');
-          return res.status(404).json({ success: false, message: 'Transfer not found' });
+          throw ApiError.notFound('Transfer');
         }
         const transfer = current.rows[0];
         if (transfer.status !== 'in_transit') {
           await client.query('ROLLBACK');
-          return res.status(400).json({
-            success: false,
-            message: `Can only receive transfers with status 'in_transit'. Current: '${transfer.status}'`,
-          });
+          throw ApiError.badRequest(`Can only receive transfers with status 'in_transit'. Current: '${transfer.status}'`);
         }
 
         const transferItems = await client.query(
@@ -556,16 +544,13 @@ function init({ pool }) {
         );
         if (current.rows.length === 0) {
           await client.query('ROLLBACK');
-          return res.status(404).json({ success: false, message: 'Transfer not found' });
+          throw ApiError.notFound('Transfer');
         }
         const transfer = current.rows[0];
 
         if (['completed', 'cancelled'].includes(transfer.status)) {
           await client.query('ROLLBACK');
-          return res.status(400).json({
-            success: false,
-            message: `Cannot cancel a transfer with status '${transfer.status}'`,
-          });
+          throw ApiError.badRequest(`Cannot cancel a transfer with status '${transfer.status}'`);
         }
 
         // Release reserved inventory at source (only if not yet shipped)

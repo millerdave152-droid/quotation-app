@@ -445,7 +445,9 @@ export function OverrideAuditReport() {
       a.download = `override_audit_${new Date().toISOString().slice(0, 10)}.csv`;
       document.body.appendChild(a);
       a.click();
-      document.body.removeChild(a);
+      if (a && a.parentNode) {
+        a.parentNode.removeChild(a);
+      }
       window.URL.revokeObjectURL(url);
     } catch (err) {
       console.error('Export failed:', err);

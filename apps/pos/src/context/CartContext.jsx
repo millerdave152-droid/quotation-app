@@ -879,6 +879,44 @@ export function CartProvider({ children }) {
    * Get cart data formatted for transaction API
    */
   const getTransactionData = useCallback((shiftId, payments) => {
+    const normalizeAddress = (address) => {
+      if (!address) return null;
+      if (address.streetNumber && address.streetName) {
+        return {
+          ...address,
+          street: address.street || `${address.streetNumber} ${address.streetName}`,
+        };
+      }
+
+      const street = (address.street || '').trim();
+      const match = street.match(/^(\d+)\s+(.*)$/);
+      const streetNumber = address.streetNumber || (match ? match[1] : '');
+      const streetName = address.streetName || (match ? match[2] : street);
+
+      return {
+        ...address,
+        streetNumber,
+        streetName,
+        street: address.street || (streetNumber && streetName ? `${streetNumber} ${streetName}` : street),
+      };
+    };
+
+    const normalizedFulfillment = selectedFulfillment?.type
+      ? {
+          ...selectedFulfillment,
+          fee: selectedFulfillment.fee || 0,
+          address: normalizeAddress(selectedFulfillment.address),
+          // Backend expects pathwayConfirmed at top-level fulfillment
+          pathwayConfirmed:
+            selectedFulfillment.pathwayConfirmed ??
+            selectedFulfillment.address?.pathwayConfirmed ??
+            false,
+        }
+      : {
+          type: 'pickup_now',
+          fee: 0,
+        };
+
     return {
       shiftId,
       customerId: customer?.customerId || customer?.customer_id || null,
@@ -909,12 +947,7 @@ export function CartProvider({ children }) {
           }
         : null,
       // Fulfillment data - spread all fields to include pickup-specific and delivery-specific data
-      fulfillment: selectedFulfillment
-        ? {
-            ...selectedFulfillment,
-            fee: selectedFulfillment.fee || 0,
-          }
-        : null,
+      fulfillment: normalizedFulfillment,
       // Trade-in data - simplified for backend (only needs assessmentId and creditAmount)
       tradeIns: tradeIns.map((ti) => ({
         assessmentId: ti.id,

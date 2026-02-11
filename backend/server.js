@@ -169,6 +169,16 @@ app.use('/vendor-images', express.static(path.join(__dirname, 'public/vendor-ima
 // Attach standardized response helpers to res object
 app.use(attachResponseHelpers);
 
+// Request ID and timing for structured logging
+app.use((req, res, next) => {
+  if (!req.id) {
+    req.id = req.requestId = `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+    req._startTime = Date.now();
+    res.setHeader('X-Request-ID', req.id);
+  }
+  next();
+});
+
 // Request logging middleware
 app.use((req, res, next) => {
   console.log(`📥 ${req.method} ${req.path}`);
@@ -2880,6 +2890,14 @@ app.use('/api/churn-alerts', churnAlertsRoutes);
 console.log('✅ Churn alerts routes loaded');
 
 // ============================================
+// CLV ADMIN (CLV Job Management & Trend Data)
+// ============================================
+const clvAdminRoutes = require('./routes/clv-admin');
+const clvCalculationJob = require('./jobs/clvCalculationJob');
+app.use('/api/clv', clvAdminRoutes);
+console.log('✅ CLV admin routes loaded');
+
+// ============================================
 // PURCHASING INTELLIGENCE (AI-Powered Purchasing Recommendations)
 // ============================================
 const purchasingIntelligenceRoutes = require('./routes/purchasingIntelligence');
@@ -3006,6 +3024,12 @@ const server = app.listen(PORT, () => {
   const autoTagJob = require('./jobs/autoTagJob');
   autoTagJob.start(process.env.AUTO_TAG_SCHEDULE || '0 3 * * *');
   console.log('✅ Customer auto-tag job started (Daily 3 AM)');
+
+  // Start CLV calculation job (daily at 2:30 AM)
+  if (process.env.ENABLE_CLV_JOB !== 'false') {
+    clvCalculationJob.start(process.env.CLV_JOB_SCHEDULE || '30 2 * * *');
+    console.log('✅ CLV calculation job started (Daily 2:30 AM)');
+  }
 });
 
 // Handle server errors

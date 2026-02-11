@@ -5,6 +5,7 @@
 
 const express = require('express');
 const router = express.Router();
+const { ApiError, asyncHandler } = require('../middleware/errorHandler');
 
 /**
  * Validation helpers
@@ -103,161 +104,312 @@ module.exports = function (pool) {
    * GET /api/admin/approval-rules
    * List all approval rules with filters
    */
-  router.get('/', async (req, res) => {
-    try {
-      const {
-        thresholdType,
-        categoryId,
-        isActive,
-        channel,
-        includeDeleted = 'false',
-        sortBy = 'priority',
-        sortOrder = 'desc',
-        limit = 50,
-        offset = 0,
-      } = req.query;
+  router.get('/', asyncHandler(async (req, res) => {
+    const {
+      thresholdType,
+      categoryId,
+      isActive,
+      channel,
+      includeDeleted = 'false',
+      sortBy = 'priority',
+      sortOrder = 'desc',
+      limit = 50,
+      offset = 0,
+    } = req.query;
 
-      let query = `
-        SELECT
-          ot.id,
-          ot.threshold_type,
-          ot.name,
-          ot.description,
-          ot.threshold_value,
-          ot.threshold_value_cents,
-          ot.requires_approval,
-          ot.approval_level AS default_approval_level,
-          ot.require_reason,
-          ot.applies_to_quotes,
-          ot.applies_to_pos,
-          ot.applies_to_online,
-          ot.category_id,
-          c.name AS category_name,
-          ot.valid_from,
-          ot.valid_to,
-          ot.active_start_time,
-          ot.active_end_time,
-          ot.active_days,
-          ot.is_active,
-          ot.priority,
-          ot.created_at,
-          ot.updated_at,
-          ot.created_by,
-          COALESCE(u.first_name || ' ' || u.last_name, 'Unknown') AS created_by_name,
-          COALESCE(
-            json_agg(
-              json_build_object(
-                'id', tal.id,
-                'level', tal.approval_level,
-                'maxValue', tal.max_value,
-                'maxValueCents', tal.max_value_cents,
-                'isUnlimited', tal.is_unlimited,
-                'description', tal.description
-              )
-              ORDER BY
-                CASE tal.approval_level
-                  WHEN 'shift_lead' THEN 1
-                  WHEN 'manager' THEN 2
-                  WHEN 'area_manager' THEN 3
-                  WHEN 'admin' THEN 4
-                END
-            ) FILTER (WHERE tal.id IS NOT NULL),
-            '[]'::json
-          ) AS approval_levels
-        FROM override_thresholds ot
-        LEFT JOIN categories c ON c.id = ot.category_id
-        LEFT JOIN users u ON u.id = ot.created_by
-        LEFT JOIN threshold_approval_levels tal ON tal.threshold_id = ot.id
-        WHERE 1=1
-      `;
-      const params = [];
-      let paramIndex = 1;
+    let query = `
+      SELECT
+        ot.id,
+        ot.threshold_type,
+        ot.name,
+        ot.description,
+        ot.threshold_value,
+        ot.threshold_value_cents,
+        ot.requires_approval,
+        ot.approval_level AS default_approval_level,
+        ot.require_reason,
+        ot.applies_to_quotes,
+        ot.applies_to_pos,
+        ot.applies_to_online,
+        ot.category_id,
+        c.name AS category_name,
+        ot.valid_from,
+        ot.valid_to,
+        ot.active_start_time,
+        ot.active_end_time,
+        ot.active_days,
+        ot.is_active,
+        ot.priority,
+        ot.created_at,
+        ot.updated_at,
+        ot.created_by,
+        COALESCE(u.first_name || ' ' || u.last_name, 'Unknown') AS created_by_name,
+        COALESCE(
+          json_agg(
+            json_build_object(
+              'id', tal.id,
+              'level', tal.approval_level,
+              'maxValue', tal.max_value,
+              'maxValueCents', tal.max_value_cents,
+              'isUnlimited', tal.is_unlimited,
+              'description', tal.description
+            )
+            ORDER BY
+              CASE tal.approval_level
+                WHEN 'shift_lead' THEN 1
+                WHEN 'manager' THEN 2
+                WHEN 'area_manager' THEN 3
+                WHEN 'admin' THEN 4
+              END
+          ) FILTER (WHERE tal.id IS NOT NULL),
+          '[]'::json
+        ) AS approval_levels
+      FROM override_thresholds ot
+      LEFT JOIN categories c ON c.id = ot.category_id
+      LEFT JOIN users u ON u.id = ot.created_by
+      LEFT JOIN threshold_approval_levels tal ON tal.threshold_id = ot.id
+      WHERE 1=1
+    `;
+    const params = [];
+    let paramIndex = 1;
 
-      // Apply filters
-      if (includeDeleted !== 'true') {
-        query += ' AND ot.is_active IS NOT NULL'; // Soft-deleted items would have is_active = NULL
+    // Apply filters
+    if (includeDeleted !== 'true') {
+      query += ' AND ot.is_active IS NOT NULL'; // Soft-deleted items would have is_active = NULL
+    }
+
+    if (thresholdType) {
+      query += ` AND ot.threshold_type = $${paramIndex++}`;
+      params.push(thresholdType);
+    }
+
+    if (categoryId) {
+      if (categoryId === 'null') {
+        query += ' AND ot.category_id IS NULL';
+      } else {
+        query += ` AND ot.category_id = $${paramIndex++}`;
+        params.push(parseInt(categoryId, 10));
       }
+    }
 
-      if (thresholdType) {
-        query += ` AND ot.threshold_type = $${paramIndex++}`;
-        params.push(thresholdType);
+    if (isActive !== undefined) {
+      query += ` AND ot.is_active = $${paramIndex++}`;
+      params.push(isActive === 'true');
+    }
+
+    if (channel) {
+      if (channel === 'pos') {
+        query += ' AND ot.applies_to_pos = TRUE';
+      } else if (channel === 'quote') {
+        query += ' AND ot.applies_to_quotes = TRUE';
+      } else if (channel === 'online') {
+        query += ' AND ot.applies_to_online = TRUE';
       }
+    }
 
-      if (categoryId) {
-        if (categoryId === 'null') {
-          query += ' AND ot.category_id IS NULL';
-        } else {
-          query += ` AND ot.category_id = $${paramIndex++}`;
-          params.push(parseInt(categoryId, 10));
+    // Group by for aggregation
+    query += `
+      GROUP BY ot.id, c.name, u.first_name, u.last_name
+    `;
+
+    // Sorting
+    const validSortColumns = ['priority', 'name', 'threshold_type', 'created_at', 'updated_at'];
+    const sortColumn = validSortColumns.includes(sortBy) ? sortBy : 'priority';
+    const order = sortOrder.toLowerCase() === 'asc' ? 'ASC' : 'DESC';
+    query += ` ORDER BY ot.${sortColumn} ${order}, ot.id`;
+
+    // Pagination
+    query += ` LIMIT $${paramIndex++} OFFSET $${paramIndex}`;
+    params.push(parseInt(limit, 10), parseInt(offset, 10));
+
+    const result = await pool.query(query, params);
+
+    // Get total count
+    let countQuery = `
+      SELECT COUNT(DISTINCT ot.id)
+      FROM override_thresholds ot
+      WHERE 1=1
+    `;
+    const countParams = [];
+    let countParamIndex = 1;
+
+    if (includeDeleted !== 'true') {
+      countQuery += ' AND ot.is_active IS NOT NULL';
+    }
+    if (thresholdType) {
+      countQuery += ` AND ot.threshold_type = $${countParamIndex++}`;
+      countParams.push(thresholdType);
+    }
+    if (categoryId) {
+      if (categoryId === 'null') {
+        countQuery += ' AND ot.category_id IS NULL';
+      } else {
+        countQuery += ` AND ot.category_id = $${countParamIndex++}`;
+        countParams.push(parseInt(categoryId, 10));
+      }
+    }
+    if (isActive !== undefined) {
+      countQuery += ` AND ot.is_active = $${countParamIndex++}`;
+      countParams.push(isActive === 'true');
+    }
+
+    const countResult = await pool.query(countQuery, countParams);
+    const total = parseInt(countResult.rows[0].count, 10);
+
+    // Format response
+    const rules = result.rows.map((row) => ({
+      id: row.id,
+      thresholdType: row.threshold_type,
+      name: row.name,
+      description: row.description,
+      thresholdValue: row.threshold_value ? parseFloat(row.threshold_value) : null,
+      thresholdValueCents: row.threshold_value_cents,
+      requiresApproval: row.requires_approval,
+      defaultApprovalLevel: row.default_approval_level,
+      requireReason: row.require_reason,
+      appliesToQuotes: row.applies_to_quotes,
+      appliesToPos: row.applies_to_pos,
+      appliesToOnline: row.applies_to_online,
+      categoryId: row.category_id,
+      categoryName: row.category_name,
+      validFrom: row.valid_from,
+      validTo: row.valid_to,
+      activeStartTime: row.active_start_time,
+      activeEndTime: row.active_end_time,
+      activeDays: row.active_days,
+      isActive: row.is_active,
+      priority: row.priority,
+      approvalLevels: row.approval_levels,
+      createdAt: row.created_at,
+      updatedAt: row.updated_at,
+      createdBy: row.created_by,
+      createdByName: row.created_by_name,
+    }));
+
+    res.json({
+      success: true,
+      data: rules,
+      pagination: {
+        total,
+        limit: parseInt(limit, 10),
+        offset: parseInt(offset, 10),
+        hasMore: parseInt(offset, 10) + rules.length < total,
+      },
+    });
+  }));
+
+  // ============================================================================
+  // GET EFFECTIVE RULES
+  // ============================================================================
+
+  /**
+   * GET /api/admin/approval-rules/effective
+   * Get currently active rules for a category (considering date validity)
+   */
+  router.get('/effective', asyncHandler(async (req, res) => {
+    const { categoryId, channel = 'pos', thresholdType } = req.query;
+
+    let query = `
+      SELECT
+        ot.id,
+        ot.threshold_type,
+        ot.name,
+        ot.description,
+        ot.threshold_value,
+        ot.threshold_value_cents,
+        ot.requires_approval,
+        ot.approval_level AS default_approval_level,
+        ot.require_reason,
+        ot.category_id,
+        c.name AS category_name,
+        ot.valid_from,
+        ot.valid_to,
+        ot.active_start_time,
+        ot.active_end_time,
+        ot.active_days,
+        ot.priority,
+        COALESCE(
+          json_agg(
+            json_build_object(
+              'level', tal.approval_level,
+              'maxValue', tal.max_value,
+              'isUnlimited', tal.is_unlimited
+            )
+            ORDER BY
+              CASE tal.approval_level
+                WHEN 'shift_lead' THEN 1
+                WHEN 'manager' THEN 2
+                WHEN 'area_manager' THEN 3
+                WHEN 'admin' THEN 4
+              END
+          ) FILTER (WHERE tal.id IS NOT NULL),
+          '[]'::json
+        ) AS approval_levels
+      FROM override_thresholds ot
+      LEFT JOIN categories c ON c.id = ot.category_id
+      LEFT JOIN threshold_approval_levels tal ON tal.threshold_id = ot.id
+      WHERE ot.is_active = TRUE
+        AND ot.requires_approval = TRUE
+        AND (ot.valid_from IS NULL OR ot.valid_from <= NOW())
+        AND (ot.valid_to IS NULL OR ot.valid_to >= NOW())
+    `;
+    const params = [];
+    let paramIndex = 1;
+
+    // Channel filter
+    if (channel === 'pos') {
+      query += ' AND ot.applies_to_pos = TRUE';
+    } else if (channel === 'quote') {
+      query += ' AND ot.applies_to_quotes = TRUE';
+    } else if (channel === 'online') {
+      query += ' AND ot.applies_to_online = TRUE';
+    }
+
+    // Category filter - include global rules (null) and category-specific
+    if (categoryId) {
+      query += ` AND (ot.category_id IS NULL OR ot.category_id = $${paramIndex++})`;
+      params.push(parseInt(categoryId, 10));
+    }
+
+    if (thresholdType) {
+      query += ` AND ot.threshold_type = $${paramIndex++}`;
+      params.push(thresholdType);
+    }
+
+    query += `
+      GROUP BY ot.id, c.name
+      ORDER BY
+        CASE WHEN ot.category_id IS NOT NULL THEN 0 ELSE 1 END,
+        ot.priority DESC,
+        ot.threshold_type
+    `;
+
+    const result = await pool.query(query, params);
+
+    // Check time-of-day and day-of-week restrictions
+    const now = new Date();
+    const currentTime = now.toTimeString().slice(0, 8);
+    const currentDay = now.getDay();
+
+    const effectiveRules = result.rows
+      .filter((row) => {
+        // Check time-of-day restrictions
+        if (row.active_start_time && row.active_end_time) {
+          if (currentTime < row.active_start_time || currentTime > row.active_end_time) {
+            return false;
+          }
         }
-      }
 
-      if (isActive !== undefined) {
-        query += ` AND ot.is_active = $${paramIndex++}`;
-        params.push(isActive === 'true');
-      }
-
-      if (channel) {
-        if (channel === 'pos') {
-          query += ' AND ot.applies_to_pos = TRUE';
-        } else if (channel === 'quote') {
-          query += ' AND ot.applies_to_quotes = TRUE';
-        } else if (channel === 'online') {
-          query += ' AND ot.applies_to_online = TRUE';
+        // Check day-of-week restrictions
+        if (row.active_days && row.active_days.length > 0) {
+          if (!row.active_days.includes(currentDay)) {
+            return false;
+          }
         }
-      }
 
-      // Group by for aggregation
-      query += `
-        GROUP BY ot.id, c.name, u.first_name, u.last_name
-      `;
-
-      // Sorting
-      const validSortColumns = ['priority', 'name', 'threshold_type', 'created_at', 'updated_at'];
-      const sortColumn = validSortColumns.includes(sortBy) ? sortBy : 'priority';
-      const order = sortOrder.toLowerCase() === 'asc' ? 'ASC' : 'DESC';
-      query += ` ORDER BY ot.${sortColumn} ${order}, ot.id`;
-
-      // Pagination
-      query += ` LIMIT $${paramIndex++} OFFSET $${paramIndex}`;
-      params.push(parseInt(limit, 10), parseInt(offset, 10));
-
-      const result = await pool.query(query, params);
-
-      // Get total count
-      let countQuery = `
-        SELECT COUNT(DISTINCT ot.id)
-        FROM override_thresholds ot
-        WHERE 1=1
-      `;
-      const countParams = [];
-      let countParamIndex = 1;
-
-      if (includeDeleted !== 'true') {
-        countQuery += ' AND ot.is_active IS NOT NULL';
-      }
-      if (thresholdType) {
-        countQuery += ` AND ot.threshold_type = $${countParamIndex++}`;
-        countParams.push(thresholdType);
-      }
-      if (categoryId) {
-        if (categoryId === 'null') {
-          countQuery += ' AND ot.category_id IS NULL';
-        } else {
-          countQuery += ` AND ot.category_id = $${countParamIndex++}`;
-          countParams.push(parseInt(categoryId, 10));
-        }
-      }
-      if (isActive !== undefined) {
-        countQuery += ` AND ot.is_active = $${countParamIndex++}`;
-        countParams.push(isActive === 'true');
-      }
-
-      const countResult = await pool.query(countQuery, countParams);
-      const total = parseInt(countResult.rows[0].count, 10);
-
-      // Format response
-      const rules = result.rows.map((row) => ({
+        return true;
+      })
+      .map((row) => ({
         id: row.id,
         thresholdType: row.threshold_type,
         name: row.name,
@@ -266,6 +418,109 @@ module.exports = function (pool) {
         thresholdValueCents: row.threshold_value_cents,
         requiresApproval: row.requires_approval,
         defaultApprovalLevel: row.default_approval_level,
+        requireReason: row.require_reason,
+        categoryId: row.category_id,
+        categoryName: row.category_name,
+        approvalLevels: row.approval_levels,
+        priority: row.priority,
+        isGlobal: row.category_id === null,
+      }));
+
+    res.json({
+      success: true,
+      data: effectiveRules,
+      meta: {
+        evaluatedAt: now.toISOString(),
+        categoryId: categoryId ? parseInt(categoryId, 10) : null,
+        channel,
+      },
+    });
+  }));
+
+  // ============================================================================
+  // GET SINGLE RULE
+  // ============================================================================
+
+  /**
+   * GET /api/admin/approval-rules/:id
+   * Get single rule details
+   */
+  router.get('/:id', asyncHandler(async (req, res) => {
+    const { id } = req.params;
+
+    const result = await pool.query(
+      `
+      SELECT
+        ot.*,
+        c.name AS category_name,
+        COALESCE(u.first_name || ' ' || u.last_name, 'Unknown') AS created_by_name,
+        COALESCE(
+          json_agg(
+            json_build_object(
+              'id', tal.id,
+              'level', tal.approval_level,
+              'maxValue', tal.max_value,
+              'maxValueCents', tal.max_value_cents,
+              'isUnlimited', tal.is_unlimited,
+              'description', tal.description,
+              'createdAt', tal.created_at,
+              'updatedAt', tal.updated_at
+            )
+            ORDER BY
+              CASE tal.approval_level
+                WHEN 'shift_lead' THEN 1
+                WHEN 'manager' THEN 2
+                WHEN 'area_manager' THEN 3
+                WHEN 'admin' THEN 4
+              END
+          ) FILTER (WHERE tal.id IS NOT NULL),
+          '[]'::json
+        ) AS approval_levels
+      FROM override_thresholds ot
+      LEFT JOIN categories c ON c.id = ot.category_id
+      LEFT JOIN users u ON u.id = ot.created_by
+      LEFT JOIN threshold_approval_levels tal ON tal.threshold_id = ot.id
+      WHERE ot.id = $1
+      GROUP BY ot.id, c.name, u.first_name, u.last_name
+      `,
+      [parseInt(id, 10)]
+    );
+
+    if (result.rows.length === 0) {
+      throw ApiError.notFound('Approval rule');
+    }
+
+    const row = result.rows[0];
+
+    // Get audit log for this rule
+    const auditResult = await pool.query(
+      `
+      SELECT
+        al.id,
+        al.action,
+        al.changes,
+        al.created_at,
+        COALESCE(u.first_name || ' ' || u.last_name, 'Unknown') AS admin_name
+      FROM approval_rule_audit_log al
+      LEFT JOIN users u ON u.id = al.admin_id
+      WHERE al.rule_id = $1
+      ORDER BY al.created_at DESC
+      LIMIT 20
+      `,
+      [parseInt(id, 10)]
+    );
+
+    res.json({
+      success: true,
+      data: {
+        id: row.id,
+        thresholdType: row.threshold_type,
+        name: row.name,
+        description: row.description,
+        thresholdValue: row.threshold_value ? parseFloat(row.threshold_value) : null,
+        thresholdValueCents: row.threshold_value_cents,
+        requiresApproval: row.requires_approval,
+        defaultApprovalLevel: row.approval_level,
         requireReason: row.require_reason,
         appliesToQuotes: row.applies_to_quotes,
         appliesToPos: row.applies_to_pos,
@@ -284,291 +539,10 @@ module.exports = function (pool) {
         updatedAt: row.updated_at,
         createdBy: row.created_by,
         createdByName: row.created_by_name,
-      }));
-
-      res.json({
-        success: true,
-        data: rules,
-        pagination: {
-          total,
-          limit: parseInt(limit, 10),
-          offset: parseInt(offset, 10),
-          hasMore: parseInt(offset, 10) + rules.length < total,
-        },
-      });
-    } catch (error) {
-      console.error('[Admin Approval Rules] List error:', error);
-      res.status(500).json({
-        success: false,
-        error: error.message,
-      });
-    }
-  });
-
-  // ============================================================================
-  // GET EFFECTIVE RULES
-  // ============================================================================
-
-  /**
-   * GET /api/admin/approval-rules/effective
-   * Get currently active rules for a category (considering date validity)
-   */
-  router.get('/effective', async (req, res) => {
-    try {
-      const { categoryId, channel = 'pos', thresholdType } = req.query;
-
-      let query = `
-        SELECT
-          ot.id,
-          ot.threshold_type,
-          ot.name,
-          ot.description,
-          ot.threshold_value,
-          ot.threshold_value_cents,
-          ot.requires_approval,
-          ot.approval_level AS default_approval_level,
-          ot.require_reason,
-          ot.category_id,
-          c.name AS category_name,
-          ot.valid_from,
-          ot.valid_to,
-          ot.active_start_time,
-          ot.active_end_time,
-          ot.active_days,
-          ot.priority,
-          COALESCE(
-            json_agg(
-              json_build_object(
-                'level', tal.approval_level,
-                'maxValue', tal.max_value,
-                'isUnlimited', tal.is_unlimited
-              )
-              ORDER BY
-                CASE tal.approval_level
-                  WHEN 'shift_lead' THEN 1
-                  WHEN 'manager' THEN 2
-                  WHEN 'area_manager' THEN 3
-                  WHEN 'admin' THEN 4
-                END
-            ) FILTER (WHERE tal.id IS NOT NULL),
-            '[]'::json
-          ) AS approval_levels
-        FROM override_thresholds ot
-        LEFT JOIN categories c ON c.id = ot.category_id
-        LEFT JOIN threshold_approval_levels tal ON tal.threshold_id = ot.id
-        WHERE ot.is_active = TRUE
-          AND ot.requires_approval = TRUE
-          AND (ot.valid_from IS NULL OR ot.valid_from <= NOW())
-          AND (ot.valid_to IS NULL OR ot.valid_to >= NOW())
-      `;
-      const params = [];
-      let paramIndex = 1;
-
-      // Channel filter
-      if (channel === 'pos') {
-        query += ' AND ot.applies_to_pos = TRUE';
-      } else if (channel === 'quote') {
-        query += ' AND ot.applies_to_quotes = TRUE';
-      } else if (channel === 'online') {
-        query += ' AND ot.applies_to_online = TRUE';
-      }
-
-      // Category filter - include global rules (null) and category-specific
-      if (categoryId) {
-        query += ` AND (ot.category_id IS NULL OR ot.category_id = $${paramIndex++})`;
-        params.push(parseInt(categoryId, 10));
-      }
-
-      if (thresholdType) {
-        query += ` AND ot.threshold_type = $${paramIndex++}`;
-        params.push(thresholdType);
-      }
-
-      query += `
-        GROUP BY ot.id, c.name
-        ORDER BY
-          CASE WHEN ot.category_id IS NOT NULL THEN 0 ELSE 1 END,
-          ot.priority DESC,
-          ot.threshold_type
-      `;
-
-      const result = await pool.query(query, params);
-
-      // Check time-of-day and day-of-week restrictions
-      const now = new Date();
-      const currentTime = now.toTimeString().slice(0, 8);
-      const currentDay = now.getDay();
-
-      const effectiveRules = result.rows
-        .filter((row) => {
-          // Check time-of-day restrictions
-          if (row.active_start_time && row.active_end_time) {
-            if (currentTime < row.active_start_time || currentTime > row.active_end_time) {
-              return false;
-            }
-          }
-
-          // Check day-of-week restrictions
-          if (row.active_days && row.active_days.length > 0) {
-            if (!row.active_days.includes(currentDay)) {
-              return false;
-            }
-          }
-
-          return true;
-        })
-        .map((row) => ({
-          id: row.id,
-          thresholdType: row.threshold_type,
-          name: row.name,
-          description: row.description,
-          thresholdValue: row.threshold_value ? parseFloat(row.threshold_value) : null,
-          thresholdValueCents: row.threshold_value_cents,
-          requiresApproval: row.requires_approval,
-          defaultApprovalLevel: row.default_approval_level,
-          requireReason: row.require_reason,
-          categoryId: row.category_id,
-          categoryName: row.category_name,
-          approvalLevels: row.approval_levels,
-          priority: row.priority,
-          isGlobal: row.category_id === null,
-        }));
-
-      res.json({
-        success: true,
-        data: effectiveRules,
-        meta: {
-          evaluatedAt: now.toISOString(),
-          categoryId: categoryId ? parseInt(categoryId, 10) : null,
-          channel,
-        },
-      });
-    } catch (error) {
-      console.error('[Admin Approval Rules] Get effective error:', error);
-      res.status(500).json({
-        success: false,
-        error: error.message,
-      });
-    }
-  });
-
-  // ============================================================================
-  // GET SINGLE RULE
-  // ============================================================================
-
-  /**
-   * GET /api/admin/approval-rules/:id
-   * Get single rule details
-   */
-  router.get('/:id', async (req, res) => {
-    try {
-      const { id } = req.params;
-
-      const result = await pool.query(
-        `
-        SELECT
-          ot.*,
-          c.name AS category_name,
-          COALESCE(u.first_name || ' ' || u.last_name, 'Unknown') AS created_by_name,
-          COALESCE(
-            json_agg(
-              json_build_object(
-                'id', tal.id,
-                'level', tal.approval_level,
-                'maxValue', tal.max_value,
-                'maxValueCents', tal.max_value_cents,
-                'isUnlimited', tal.is_unlimited,
-                'description', tal.description,
-                'createdAt', tal.created_at,
-                'updatedAt', tal.updated_at
-              )
-              ORDER BY
-                CASE tal.approval_level
-                  WHEN 'shift_lead' THEN 1
-                  WHEN 'manager' THEN 2
-                  WHEN 'area_manager' THEN 3
-                  WHEN 'admin' THEN 4
-                END
-            ) FILTER (WHERE tal.id IS NOT NULL),
-            '[]'::json
-          ) AS approval_levels
-        FROM override_thresholds ot
-        LEFT JOIN categories c ON c.id = ot.category_id
-        LEFT JOIN users u ON u.id = ot.created_by
-        LEFT JOIN threshold_approval_levels tal ON tal.threshold_id = ot.id
-        WHERE ot.id = $1
-        GROUP BY ot.id, c.name, u.first_name, u.last_name
-        `,
-        [parseInt(id, 10)]
-      );
-
-      if (result.rows.length === 0) {
-        return res.status(404).json({
-          success: false,
-          error: 'Approval rule not found',
-        });
-      }
-
-      const row = result.rows[0];
-
-      // Get audit log for this rule
-      const auditResult = await pool.query(
-        `
-        SELECT
-          al.id,
-          al.action,
-          al.changes,
-          al.created_at,
-          COALESCE(u.first_name || ' ' || u.last_name, 'Unknown') AS admin_name
-        FROM approval_rule_audit_log al
-        LEFT JOIN users u ON u.id = al.admin_id
-        WHERE al.rule_id = $1
-        ORDER BY al.created_at DESC
-        LIMIT 20
-        `,
-        [parseInt(id, 10)]
-      );
-
-      res.json({
-        success: true,
-        data: {
-          id: row.id,
-          thresholdType: row.threshold_type,
-          name: row.name,
-          description: row.description,
-          thresholdValue: row.threshold_value ? parseFloat(row.threshold_value) : null,
-          thresholdValueCents: row.threshold_value_cents,
-          requiresApproval: row.requires_approval,
-          defaultApprovalLevel: row.approval_level,
-          requireReason: row.require_reason,
-          appliesToQuotes: row.applies_to_quotes,
-          appliesToPos: row.applies_to_pos,
-          appliesToOnline: row.applies_to_online,
-          categoryId: row.category_id,
-          categoryName: row.category_name,
-          validFrom: row.valid_from,
-          validTo: row.valid_to,
-          activeStartTime: row.active_start_time,
-          activeEndTime: row.active_end_time,
-          activeDays: row.active_days,
-          isActive: row.is_active,
-          priority: row.priority,
-          approvalLevels: row.approval_levels,
-          createdAt: row.created_at,
-          updatedAt: row.updated_at,
-          createdBy: row.created_by,
-          createdByName: row.created_by_name,
-        },
-        auditLog: auditResult.rows,
-      });
-    } catch (error) {
-      console.error('[Admin Approval Rules] Get single error:', error);
-      res.status(500).json({
-        success: false,
-        error: error.message,
-      });
-    }
-  });
+      },
+      auditLog: auditResult.rows,
+    });
+  }));
 
   // ============================================================================
   // CREATE RULE
@@ -578,7 +552,7 @@ module.exports = function (pool) {
    * POST /api/admin/approval-rules
    * Create new approval rule
    */
-  router.post('/', async (req, res) => {
+  router.post('/', asyncHandler(async (req, res) => {
     const client = await pool.connect();
 
     try {
@@ -588,18 +562,12 @@ module.exports = function (pool) {
       // Validate input
       const validationErrors = validateRuleData(data, false);
       if (validationErrors.length > 0) {
-        return res.status(400).json({
-          success: false,
-          errors: validationErrors,
-        });
+        throw ApiError.badRequest('Validation failed', validationErrors);
       }
 
       // Check for at least one approval level
       if (!data.approvalLevels || data.approvalLevels.length === 0) {
-        return res.status(400).json({
-          success: false,
-          error: 'At least one approval level is required',
-        });
+        throw ApiError.badRequest('At least one approval level is required');
       }
 
       await client.query('BEGIN');
@@ -634,11 +602,7 @@ module.exports = function (pool) {
 
       if (conflictResult.rows.length > 0) {
         await client.query('ROLLBACK');
-        return res.status(409).json({
-          success: false,
-          error: 'Conflicting rule exists for this category and date range',
-          conflicts: conflictResult.rows,
-        });
+        throw ApiError.conflict('Conflicting rule exists for this category and date range', conflictResult.rows);
       }
 
       // Insert the rule
@@ -732,17 +696,13 @@ module.exports = function (pool) {
         },
         message: 'Approval rule created successfully',
       });
-    } catch (error) {
+    } catch (err) {
       await client.query('ROLLBACK');
-      console.error('[Admin Approval Rules] Create error:', error);
-      res.status(500).json({
-        success: false,
-        error: error.message,
-      });
+      throw err;
     } finally {
       client.release();
     }
-  });
+  }));
 
   // ============================================================================
   // UPDATE RULE
@@ -752,7 +712,7 @@ module.exports = function (pool) {
    * PUT /api/admin/approval-rules/:id
    * Update approval rule
    */
-  router.put('/:id', async (req, res) => {
+  router.put('/:id', asyncHandler(async (req, res) => {
     const client = await pool.connect();
 
     try {
@@ -763,10 +723,7 @@ module.exports = function (pool) {
       // Validate input
       const validationErrors = validateRuleData(data, true);
       if (validationErrors.length > 0) {
-        return res.status(400).json({
-          success: false,
-          errors: validationErrors,
-        });
+        throw ApiError.badRequest('Validation failed', validationErrors);
       }
 
       await client.query('BEGIN');
@@ -779,10 +736,7 @@ module.exports = function (pool) {
 
       if (existingResult.rows.length === 0) {
         await client.query('ROLLBACK');
-        return res.status(404).json({
-          success: false,
-          error: 'Approval rule not found',
-        });
+        throw ApiError.notFound('Approval rule');
       }
 
       const existingRule = existingResult.rows[0];
@@ -823,11 +777,7 @@ module.exports = function (pool) {
 
         if (conflictResult.rows.length > 0) {
           await client.query('ROLLBACK');
-          return res.status(409).json({
-            success: false,
-            error: 'Conflicting rule exists for this category and date range',
-            conflicts: conflictResult.rows,
-          });
+          throw ApiError.conflict('Conflicting rule exists for this category and date range', conflictResult.rows);
         }
       }
 
@@ -866,10 +816,7 @@ module.exports = function (pool) {
 
       if (updateFields.length === 0 && !data.approvalLevels) {
         await client.query('ROLLBACK');
-        return res.status(400).json({
-          success: false,
-          error: 'No fields to update',
-        });
+        throw ApiError.badRequest('No fields to update');
       }
 
       // Update rule if there are field changes
@@ -888,10 +835,7 @@ module.exports = function (pool) {
         // Ensure at least one level
         if (data.approvalLevels.length === 0) {
           await client.query('ROLLBACK');
-          return res.status(400).json({
-            success: false,
-            error: 'At least one approval level is required',
-          });
+          throw ApiError.badRequest('At least one approval level is required');
         }
 
         // Delete existing levels
@@ -952,17 +896,13 @@ module.exports = function (pool) {
         data: updatedResult.rows[0],
         message: 'Approval rule updated successfully',
       });
-    } catch (error) {
+    } catch (err) {
       await client.query('ROLLBACK');
-      console.error('[Admin Approval Rules] Update error:', error);
-      res.status(500).json({
-        success: false,
-        error: error.message,
-      });
+      throw err;
     } finally {
       client.release();
     }
-  });
+  }));
 
   // ============================================================================
   // DELETE RULE (SOFT DELETE)
@@ -972,7 +912,7 @@ module.exports = function (pool) {
    * DELETE /api/admin/approval-rules/:id
    * Soft delete approval rule (keep for audit)
    */
-  router.delete('/:id', async (req, res) => {
+  router.delete('/:id', asyncHandler(async (req, res) => {
     const client = await pool.connect();
 
     try {
@@ -989,10 +929,7 @@ module.exports = function (pool) {
 
       if (existingResult.rows.length === 0) {
         await client.query('ROLLBACK');
-        return res.status(404).json({
-          success: false,
-          error: 'Approval rule not found',
-        });
+        throw ApiError.notFound('Approval rule');
       }
 
       const existingRule = existingResult.rows[0];
@@ -1028,17 +965,13 @@ module.exports = function (pool) {
           deletedAt: new Date().toISOString(),
         },
       });
-    } catch (error) {
+    } catch (err) {
       await client.query('ROLLBACK');
-      console.error('[Admin Approval Rules] Delete error:', error);
-      res.status(500).json({
-        success: false,
-        error: error.message,
-      });
+      throw err;
     } finally {
       client.release();
     }
-  });
+  }));
 
   // ============================================================================
   // BULK OPERATIONS
@@ -1048,7 +981,7 @@ module.exports = function (pool) {
    * POST /api/admin/approval-rules/bulk-update
    * Update multiple rules at once (e.g., activate/deactivate)
    */
-  router.post('/bulk-update', async (req, res) => {
+  router.post('/bulk-update', asyncHandler(async (req, res) => {
     const client = await pool.connect();
 
     try {
@@ -1056,17 +989,11 @@ module.exports = function (pool) {
       const { ruleIds, updates } = req.body;
 
       if (!ruleIds || !Array.isArray(ruleIds) || ruleIds.length === 0) {
-        return res.status(400).json({
-          success: false,
-          error: 'ruleIds array is required',
-        });
+        throw ApiError.badRequest('ruleIds array is required');
       }
 
       if (!updates || Object.keys(updates).length === 0) {
-        return res.status(400).json({
-          success: false,
-          error: 'updates object is required',
-        });
+        throw ApiError.badRequest('updates object is required');
       }
 
       // Only allow certain fields for bulk update
@@ -1076,10 +1003,7 @@ module.exports = function (pool) {
       );
 
       if (invalidFields.length > 0) {
-        return res.status(400).json({
-          success: false,
-          error: `Invalid fields for bulk update: ${invalidFields.join(', ')}. Allowed: ${allowedBulkFields.join(', ')}`,
-        });
+        throw ApiError.badRequest(`Invalid fields for bulk update: ${invalidFields.join(', ')}. Allowed: ${allowedBulkFields.join(', ')}`);
       }
 
       await client.query('BEGIN');
@@ -1134,23 +1058,19 @@ module.exports = function (pool) {
           updates,
         },
       });
-    } catch (error) {
+    } catch (err) {
       await client.query('ROLLBACK');
-      console.error('[Admin Approval Rules] Bulk update error:', error);
-      res.status(500).json({
-        success: false,
-        error: error.message,
-      });
+      throw err;
     } finally {
       client.release();
     }
-  });
+  }));
 
   /**
    * POST /api/admin/approval-rules/:id/duplicate
    * Duplicate a rule (useful for creating category-specific versions)
    */
-  router.post('/:id/duplicate', async (req, res) => {
+  router.post('/:id/duplicate', asyncHandler(async (req, res) => {
     const client = await pool.connect();
 
     try {
@@ -1172,10 +1092,7 @@ module.exports = function (pool) {
 
       if (sourceResult.rows.length === 0) {
         await client.query('ROLLBACK');
-        return res.status(404).json({
-          success: false,
-          error: 'Source rule not found',
-        });
+        throw ApiError.notFound('Source rule');
       }
 
       const source = sourceResult.rows[0];
@@ -1253,17 +1170,13 @@ module.exports = function (pool) {
           sourceId: parseInt(id, 10),
         },
       });
-    } catch (error) {
+    } catch (err) {
       await client.query('ROLLBACK');
-      console.error('[Admin Approval Rules] Duplicate error:', error);
-      res.status(500).json({
-        success: false,
-        error: error.message,
-      });
+      throw err;
     } finally {
       client.release();
     }
-  });
+  }));
 
   return router;
 };

@@ -12,233 +12,166 @@
 const express = require('express');
 const router = express.Router();
 const { authenticate } = require('../middleware/auth');
+const { ApiError, asyncHandler } = require('../middleware/errorHandler');
 
 module.exports = function(pool, productService) {
   /**
    * GET /api/categories
    * Returns full category hierarchy with product counts
    */
-  router.get('/', authenticate, async (req, res) => {
-    try {
-      const hierarchy = await productService.getCategoryHierarchy();
-      res.json({
-        success: true,
-        categories: hierarchy
-      });
-    } catch (err) {
-      console.error('Error fetching category hierarchy:', err);
-      res.status(500).json({
-        success: false,
-        error: 'Failed to fetch categories'
-      });
-    }
-  });
+  router.get('/', authenticate, asyncHandler(async (req, res) => {
+    const hierarchy = await productService.getCategoryHierarchy();
+    res.json({
+      success: true,
+      categories: hierarchy
+    });
+  }));
 
   /**
    * GET /api/categories/main
    * Returns flat list of level-2 categories (main categories)
    */
-  router.get('/main', authenticate, async (req, res) => {
-    try {
-      const categories = await productService.getMainCategories();
-      res.json({
-        success: true,
-        categories
-      });
-    } catch (err) {
-      console.error('Error fetching main categories:', err);
-      res.status(500).json({
-        success: false,
-        error: 'Failed to fetch main categories'
-      });
-    }
-  });
+  router.get('/main', authenticate, asyncHandler(async (req, res) => {
+    const categories = await productService.getMainCategories();
+    res.json({
+      success: true,
+      categories
+    });
+  }));
 
   /**
    * GET /api/categories/legacy
    * Returns legacy raw category strings (for backward compatibility)
    */
-  router.get('/legacy', authenticate, async (req, res) => {
-    try {
-      const categories = await productService.getCategories();
-      res.json({
-        success: true,
-        categories
-      });
-    } catch (err) {
-      console.error('Error fetching legacy categories:', err);
-      res.status(500).json({
-        success: false,
-        error: 'Failed to fetch legacy categories'
-      });
-    }
-  });
+  router.get('/legacy', authenticate, asyncHandler(async (req, res) => {
+    const categories = await productService.getCategories();
+    res.json({
+      success: true,
+      categories
+    });
+  }));
 
   /**
    * GET /api/categories/:slug
    * Returns single category by slug with subcategories
    */
-  router.get('/:slug', authenticate, async (req, res) => {
-    try {
-      const { slug } = req.params;
-      const category = await productService.getCategoryBySlug(slug);
+  router.get('/:slug', authenticate, asyncHandler(async (req, res) => {
+    const { slug } = req.params;
+    const category = await productService.getCategoryBySlug(slug);
 
-      if (!category) {
-        return res.status(404).json({
-          success: false,
-          error: 'Category not found'
-        });
-      }
-
-      res.json({
-        success: true,
-        category
-      });
-    } catch (err) {
-      console.error('Error fetching category:', err);
-      res.status(500).json({
-        success: false,
-        error: 'Failed to fetch category'
-      });
+    if (!category) {
+      throw ApiError.notFound('Category');
     }
-  });
+
+    res.json({
+      success: true,
+      category
+    });
+  }));
 
   /**
    * GET /api/categories/:slug/subcategories
    * Returns subcategories for a category
    */
-  router.get('/:slug/subcategories', authenticate, async (req, res) => {
-    try {
-      const { slug } = req.params;
-      const category = await productService.getCategoryBySlug(slug);
+  router.get('/:slug/subcategories', authenticate, asyncHandler(async (req, res) => {
+    const { slug } = req.params;
+    const category = await productService.getCategoryBySlug(slug);
 
-      if (!category) {
-        return res.status(404).json({
-          success: false,
-          error: 'Category not found'
-        });
-      }
-
-      const subcategories = await productService.getSubcategories(category.id);
-      res.json({
-        success: true,
-        category: {
-          id: category.id,
-          name: category.name,
-          slug: category.slug
-        },
-        subcategories
-      });
-    } catch (err) {
-      console.error('Error fetching subcategories:', err);
-      res.status(500).json({
-        success: false,
-        error: 'Failed to fetch subcategories'
-      });
+    if (!category) {
+      throw ApiError.notFound('Category');
     }
-  });
+
+    const subcategories = await productService.getSubcategories(category.id);
+    res.json({
+      success: true,
+      category: {
+        id: category.id,
+        name: category.name,
+        slug: category.slug
+      },
+      subcategories
+    });
+  }));
 
   /**
    * GET /api/categories/:slug/products
    * Returns products in a category (including subcategories)
    */
-  router.get('/:slug/products', authenticate, async (req, res) => {
-    try {
-      const { slug } = req.params;
-      const {
-        page = 1,
-        limit = 50,
-        sortBy = 'model',
-        sortOrder = 'ASC',
-        search = '',
-        manufacturer = '',
-        includeSubcategories = 'true'
-      } = req.query;
+  router.get('/:slug/products', authenticate, asyncHandler(async (req, res) => {
+    const { slug } = req.params;
+    const {
+      page = 1,
+      limit = 50,
+      sortBy = 'model',
+      sortOrder = 'ASC',
+      search = '',
+      manufacturer = '',
+      includeSubcategories = 'true'
+    } = req.query;
 
-      // Get category to verify it exists
-      const category = await productService.getCategoryBySlug(slug);
-      if (!category) {
-        return res.status(404).json({
-          success: false,
-          error: 'Category not found'
-        });
-      }
-
-      // Fetch products using categorySlug filter
-      const result = await productService.getProducts({
-        categorySlug: slug,
-        page: parseInt(page),
-        limit: parseInt(limit),
-        sortBy,
-        sortOrder,
-        search,
-        manufacturer,
-        includeSubcategories
-      });
-
-      res.json({
-        success: true,
-        category: {
-          id: category.id,
-          name: category.name,
-          slug: category.slug,
-          display_name: category.display_name
-        },
-        ...result
-      });
-    } catch (err) {
-      console.error('Error fetching products by category:', err);
-      res.status(500).json({
-        success: false,
-        error: 'Failed to fetch products'
-      });
+    // Get category to verify it exists
+    const category = await productService.getCategoryBySlug(slug);
+    if (!category) {
+      throw ApiError.notFound('Category');
     }
-  });
+
+    // Fetch products using categorySlug filter
+    const result = await productService.getProducts({
+      categorySlug: slug,
+      page: parseInt(page),
+      limit: parseInt(limit),
+      sortBy,
+      sortOrder,
+      search,
+      manufacturer,
+      includeSubcategories
+    });
+
+    res.json({
+      success: true,
+      category: {
+        id: category.id,
+        name: category.name,
+        slug: category.slug,
+        display_name: category.display_name
+      },
+      ...result
+    });
+  }));
 
   /**
    * GET /api/categories/id/:id
    * Returns category by ID
    */
-  router.get('/id/:id', authenticate, async (req, res) => {
-    try {
-      const { id } = req.params;
+  router.get('/id/:id', authenticate, asyncHandler(async (req, res) => {
+    const { id } = req.params;
 
-      const result = await pool.query(`
-        SELECT
-          c.*,
-          parent.name as parent_name,
-          parent.slug as parent_slug
-        FROM categories c
-        LEFT JOIN categories parent ON c.parent_id = parent.id
-        WHERE c.id = $1 AND c.is_active = true
-      `, [parseInt(id)]);
+    const result = await pool.query(`
+      SELECT
+        c.*,
+        parent.name as parent_name,
+        parent.slug as parent_slug
+      FROM categories c
+      LEFT JOIN categories parent ON c.parent_id = parent.id
+      WHERE c.id = $1 AND c.is_active = true
+    `, [parseInt(id)]);
 
-      if (result.rows.length === 0) {
-        return res.status(404).json({
-          success: false,
-          error: 'Category not found'
-        });
-      }
-
-      const category = result.rows[0];
-
-      // Get subcategories if level-2
-      if (category.level === 2) {
-        category.subcategories = await productService.getSubcategories(category.id);
-      }
-
-      res.json({
-        success: true,
-        category
-      });
-    } catch (err) {
-      console.error('Error fetching category by ID:', err);
-      res.status(500).json({
-        success: false,
-        error: 'Failed to fetch category'
-      });
+    if (result.rows.length === 0) {
+      throw ApiError.notFound('Category');
     }
-  });
+
+    const category = result.rows[0];
+
+    // Get subcategories if level-2
+    if (category.level === 2) {
+      category.subcategories = await productService.getSubcategories(category.id);
+    }
+
+    res.json({
+      success: true,
+      category
+    });
+  }));
 
   return router;
 };

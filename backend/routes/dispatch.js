@@ -7,6 +7,7 @@
 const express = require('express');
 const { authenticate } = require('../middleware/auth');
 const { checkPermission } = require('../middleware/checkPermission');
+const { ApiError } = require('../middleware/errorHandler');
 
 function init({ pool }) {
   const router = express.Router();
@@ -495,7 +496,7 @@ function init({ pool }) {
         const { status } = req.body;
         const validStatuses = ['available', 'on_route', 'break', 'off_duty'];
         if (!status || !validStatuses.includes(status)) {
-          return res.status(400).json({ success: false, message: `status must be one of: ${validStatuses.join(', ')}` });
+          throw ApiError.badRequest(`status must be one of: ${validStatuses.join(', ')}`);
         }
 
         const result = await pool.query(
@@ -503,7 +504,7 @@ function init({ pool }) {
           [status, id]
         );
         if (result.rows.length === 0) {
-          return res.status(404).json({ success: false, message: 'Driver not found' });
+          throw ApiError.notFound('Driver');
         }
 
         res.json({ success: true, driver: result.rows[0] });
@@ -525,7 +526,7 @@ function init({ pool }) {
         const { id } = req.params;
         const { lat, lng, speed_kmh, heading } = req.body;
         if (lat === undefined || lng === undefined) {
-          return res.status(400).json({ success: false, message: 'lat and lng are required' });
+          throw ApiError.badRequest('lat and lng are required');
         }
 
         await pool.query(
@@ -560,13 +561,13 @@ function init({ pool }) {
         const { driver_id, route_id, route_order } = req.body;
 
         if (!driver_id) {
-          return res.status(400).json({ success: false, message: 'driver_id is required' });
+          throw ApiError.badRequest('driver_id is required');
         }
 
         // Verify driver
         const driver = await pool.query('SELECT id, name FROM drivers WHERE id = $1 AND is_active = true', [driver_id]);
         if (driver.rows.length === 0) {
-          return res.status(404).json({ success: false, message: 'Driver not found' });
+          throw ApiError.notFound('Driver');
         }
 
         const result = await pool.query(
@@ -578,7 +579,7 @@ function init({ pool }) {
           [driver_id, driver.rows[0].name, route_id || null, route_order || null, id]
         );
         if (result.rows.length === 0) {
-          return res.status(404).json({ success: false, message: 'Delivery not found' });
+          throw ApiError.notFound('Delivery');
         }
 
         res.json({ success: true, delivery: result.rows[0] });
@@ -600,7 +601,7 @@ function init({ pool }) {
         const { status, notes } = req.body;
         const validStatuses = ['scheduled', 'dispatched', 'en_route', 'in_progress', 'completed', 'delivered', 'failed', 'cancelled'];
         if (!status || !validStatuses.includes(status)) {
-          return res.status(400).json({ success: false, message: `status must be one of: ${validStatuses.join(', ')}` });
+          throw ApiError.badRequest(`status must be one of: ${validStatuses.join(', ')}`);
         }
 
         const updates = ['status = $1', 'updated_at = NOW()'];
@@ -629,7 +630,7 @@ function init({ pool }) {
           params
         );
         if (result.rows.length === 0) {
-          return res.status(404).json({ success: false, message: 'Delivery not found' });
+          throw ApiError.notFound('Delivery');
         }
 
         // Update route completed_stops if completing
@@ -659,7 +660,7 @@ function init({ pool }) {
         const { route_date, driver_id, vehicle_id, location_id, delivery_ids, notes } = req.body;
 
         if (!route_date) {
-          return res.status(400).json({ success: false, message: 'route_date is required' });
+          throw ApiError.badRequest('route_date is required');
         }
 
         // Generate route number
@@ -769,7 +770,7 @@ function init({ pool }) {
            WHERE dr.id = $1`, [id]
         );
         if (routeResult.rows.length === 0) {
-          return res.status(404).json({ success: false, message: 'Route not found' });
+          throw ApiError.notFound('Route');
         }
 
         const stopsResult = await pool.query(

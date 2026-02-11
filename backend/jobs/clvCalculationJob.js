@@ -52,7 +52,7 @@ class CLVCalculationJob {
   /**
    * Run the CLV calculation for all active customers
    */
-  async run() {
+  async run(triggeredBy = 'scheduled') {
     if (this.isRunning) {
       console.log('[CLV Job] Already running, skipping...');
       return { skipped: true };
@@ -70,18 +70,25 @@ class CLVCalculationJob {
     console.log('[CLV Job] Starting CLV calculation...');
 
     try {
-      // Get all active customers
+      // Log job start
+      const jobLog = await pool.query(
+        `INSERT INTO clv_job_log (started_at, status, triggered_by)
+         VALUES (NOW(), 'running', $1) RETURNING id`,
+        [triggeredBy || 'scheduled']
+      ).catch(() => ({ rows: [{ id: null }] }));
+      const jobLogId = jobLog.rows[0]?.id;
+
+      // Get all customers
       const customersResult = await pool.query(`
         SELECT id, name FROM customers
-        WHERE active = true OR active IS NULL
         ORDER BY id
       `);
 
       const customers = customersResult.rows;
       console.log(`[CLV Job] Processing ${customers.length} customers...`);
 
-      // Process in batches of 50
-      const batchSize = 50;
+      // Process in configurable batches
+      const batchSize = parseInt(process.env.CLV_BATCH_SIZE) || 50;
       for (let i = 0; i < customers.length; i += batchSize) {
         const batch = customers.slice(i, i + batchSize);
 
@@ -108,6 +115,20 @@ class CLVCalculationJob {
       const duration = Date.now() - startTime;
       console.log(`[CLV Job] Completed in ${duration}ms: ${stats.updated} updated, ${stats.errors} errors`);
 
+      // Log job completion
+      if (jobLogId) {
+        await pool.query(
+          `UPDATE clv_job_log SET
+            completed_at = NOW(), status = 'completed',
+            customers_processed = $1, customers_updated = $2,
+            errors = $3, error_details = $4, duration_ms = $5
+           WHERE id = $6`,
+          [stats.processed, stats.updated, stats.errors,
+           stats.errorDetails.length > 0 ? JSON.stringify(stats.errorDetails.slice(0, 50)) : null,
+           duration, jobLogId]
+        ).catch(err => console.error('[CLV Job] Failed to update job log:', err.message));
+      }
+
       this.lastRun = new Date();
       this.lastRunStats = { ...stats, duration };
 
@@ -116,6 +137,20 @@ class CLVCalculationJob {
     } catch (error) {
       console.error('[CLV Job] Fatal error:', error.message);
       stats.errorDetails.push({ fatal: true, error: error.message });
+      // Log job failure
+      if (jobLogId) {
+        const duration = Date.now() - startTime;
+        await pool.query(
+          `UPDATE clv_job_log SET
+            completed_at = NOW(), status = 'failed',
+            customers_processed = $1, customers_updated = $2,
+            errors = $3, error_details = $4, duration_ms = $5
+           WHERE id = $6`,
+          [stats.processed, stats.updated, stats.errors,
+           JSON.stringify([...stats.errorDetails.slice(0, 50)]),
+           duration, jobLogId]
+        ).catch(err => console.error('[CLV Job] Failed to update job log:', err.message));
+      }
       throw error;
     } finally {
       this.isRunning = false;
@@ -143,6 +178,11 @@ class CLVCalculationJob {
     // Calculate days since last activity
     const daysSinceActivity = await this.getDaysSinceLastActivity(customerId);
 
+    const clvScore = Math.round((clvData.metrics?.lifetimeValue || 0) * 100);
+    const churnRisk = clvData.engagement?.churnRisk || 'unknown';
+    const totalTransactions = clvData.metrics?.totalTransactions || 0;
+    const avgOrderValueCents = Math.round((clvData.metrics?.averageOrderValue || 0) * 100);
+
     // Update customer record
     await pool.query(`
       UPDATE customers SET
@@ -156,15 +196,30 @@ class CLVCalculationJob {
         clv_trend = $7
       WHERE id = $8
     `, [
-      Math.round((clvData.metrics?.lifetimeValue || 0) * 100), // Convert to cents
-      clvData.engagement?.churnRisk || 'unknown',
+      clvScore,
+      churnRisk,
       segment,
-      clvData.metrics?.totalTransactions || 0,
-      Math.round((clvData.metrics?.averageOrderValue || 0) * 100), // Convert to cents
+      totalTransactions,
+      avgOrderValueCents,
       daysSinceActivity,
       trend,
       customerId
     ]);
+
+    // Record history snapshot (one per day per customer)
+    await pool.query(`
+      INSERT INTO clv_history (customer_id, clv_score, churn_risk, clv_segment,
+        total_transactions, avg_order_value_cents, days_since_last_activity, snapshot_date)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, CURRENT_DATE)
+      ON CONFLICT (customer_id, snapshot_date) DO UPDATE SET
+        clv_score = EXCLUDED.clv_score,
+        churn_risk = EXCLUDED.churn_risk,
+        clv_segment = EXCLUDED.clv_segment,
+        total_transactions = EXCLUDED.total_transactions,
+        avg_order_value_cents = EXCLUDED.avg_order_value_cents,
+        days_since_last_activity = EXCLUDED.days_since_last_activity
+    `, [customerId, clvScore, churnRisk, segment, totalTransactions, avgOrderValueCents, daysSinceActivity])
+      .catch(err => console.warn(`[CLV Job] History insert failed for customer ${customerId}:`, err.message));
   }
 
   /**
@@ -217,9 +272,12 @@ class CLVCalculationJob {
    */
   async getDaysSinceLastActivity(customerId) {
     const result = await pool.query(`
-      SELECT EXTRACT(DAY FROM NOW() - MAX(created_at)) as days
-      FROM quotations
-      WHERE customer_id = $1
+      SELECT EXTRACT(DAY FROM NOW() - MAX(last_activity)) as days
+      FROM (
+        SELECT MAX(created_at) as last_activity FROM quotations WHERE customer_id = $1
+        UNION ALL
+        SELECT MAX(created_at) as last_activity FROM transactions WHERE customer_id = $1
+      ) combined
     `, [customerId]);
 
     return result.rows[0]?.days ? Math.floor(result.rows[0].days) : null;

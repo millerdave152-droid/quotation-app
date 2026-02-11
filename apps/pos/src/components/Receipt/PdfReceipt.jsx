@@ -30,7 +30,9 @@ export async function downloadReceiptPdf(transactionId, transactionNumber) {
   a.download = `Receipt-${transactionNumber || transactionId}.pdf`;
   document.body.appendChild(a);
   a.click();
-  document.body.removeChild(a);
+  if (a && a.parentNode) {
+    a.parentNode.removeChild(a);
+  }
   URL.revokeObjectURL(url);
 }
 

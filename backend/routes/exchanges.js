@@ -7,7 +7,7 @@ const express = require('express');
 const router = express.Router();
 const crypto = require('crypto');
 const { authenticate } = require('../middleware/auth');
-const { asyncHandler } = require('../middleware/errorHandler');
+const { ApiError, asyncHandler } = require('../middleware/errorHandler');
 
 let pool = null;
 let stripeService = null;
@@ -33,13 +33,13 @@ router.post('/', asyncHandler(async (req, res) => {
 
   // Validate inputs
   if (!originalTransactionId) {
-    return res.status(400).json({ success: false, error: 'originalTransactionId is required' });
+    throw ApiError.badRequest('originalTransactionId is required');
   }
   if (!returnItems?.length) {
-    return res.status(400).json({ success: false, error: 'returnItems are required' });
+    throw ApiError.badRequest('returnItems are required');
   }
   if (!newItems?.length) {
-    return res.status(400).json({ success: false, error: 'newItems are required' });
+    throw ApiError.badRequest('newItems are required');
   }
 
   // Fetch original transaction
@@ -51,11 +51,11 @@ router.post('/', asyncHandler(async (req, res) => {
     [originalTransactionId]
   );
   if (origTxResult.rows.length === 0) {
-    return res.status(404).json({ success: false, error: 'Original transaction not found' });
+    throw ApiError.notFound('Original transaction');
   }
   const origTx = origTxResult.rows[0];
   if (origTx.status !== 'completed') {
-    return res.status(400).json({ success: false, error: 'Only completed transactions can be exchanged' });
+    throw ApiError.badRequest('Only completed transactions can be exchanged');
   }
 
   // Validate return items belong to original transaction
@@ -70,10 +70,10 @@ router.post('/', asyncHandler(async (req, res) => {
   for (const ri of returnItems) {
     const orig = origItemMap.get(ri.transactionItemId);
     if (!orig) {
-      return res.status(400).json({ success: false, error: `Item ${ri.transactionItemId} not found in original transaction` });
+      throw ApiError.badRequest(`Item ${ri.transactionItemId} not found in original transaction`);
     }
     if (ri.quantity > orig.quantity) {
-      return res.status(400).json({ success: false, error: `Return quantity exceeds original for item ${ri.transactionItemId}` });
+      throw ApiError.badRequest(`Return quantity exceeds original for item ${ri.transactionItemId}`);
     }
   }
 
@@ -88,7 +88,7 @@ router.post('/', asyncHandler(async (req, res) => {
 
   for (const ni of newItems) {
     if (!productMap.has(ni.productId)) {
-      return res.status(400).json({ success: false, error: `Product ${ni.productId} not found` });
+      throw ApiError.badRequest(`Product ${ni.productId} not found`);
     }
   }
 
@@ -157,10 +157,7 @@ router.post('/', asyncHandler(async (req, res) => {
 
   // If customer owes more, we need payment info
   if (differenceCents > 0 && !paymentMethod) {
-    return res.status(400).json({
-      success: false,
-      error: `Customer owes ${(differenceCents / 100).toFixed(2)} — paymentMethod is required`
-    });
+    throw ApiError.badRequest(`Customer owes ${(differenceCents / 100).toFixed(2)} — paymentMethod is required`);
   }
 
   const client = await pool.connect();
@@ -374,7 +371,7 @@ router.post('/calculate', asyncHandler(async (req, res) => {
   // newItems: [{ productId, quantity }]
 
   if (!originalTransactionId || !returnItemIds?.length || !newItems?.length) {
-    return res.status(400).json({ success: false, error: 'originalTransactionId, returnItemIds, and newItems are required' });
+    throw ApiError.badRequest('originalTransactionId, returnItemIds, and newItems are required');
   }
 
   // Fetch original transaction
@@ -382,7 +379,7 @@ router.post('/calculate', asyncHandler(async (req, res) => {
     'SELECT * FROM transactions WHERE transaction_id = $1', [originalTransactionId]
   );
   if (origTx.rows.length === 0) {
-    return res.status(404).json({ success: false, error: 'Transaction not found' });
+    throw ApiError.notFound('Transaction');
   }
   const tx = origTx.rows[0];
 

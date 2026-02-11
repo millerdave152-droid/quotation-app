@@ -12,6 +12,7 @@ const XLSX = require('xlsx');
 const csvParser = require('csv-parser');
 const { authenticate } = require('../middleware/auth');
 const { checkPermission } = require('../middleware/checkPermission');
+const { ApiError } = require('../middleware/errorHandler');
 
 // Ensure uploads directory exists
 const UPLOADS_DIR = path.join(__dirname, '..', 'uploads', 'price-lists');
@@ -141,7 +142,7 @@ function init({ pool }) {
     async (req, res, next) => {
       try {
         if (!req.file) {
-          return res.status(400).json({ success: false, message: 'No file provided' });
+          throw ApiError.badRequest('No file provided');
         }
 
         const { vendor_id, effective_from, effective_to } = req.body;
@@ -155,7 +156,7 @@ function init({ pool }) {
           if (vendorResult.rows.length === 0) {
             // Clean up uploaded file
             fs.unlink(req.file.path, () => {});
-            return res.status(400).json({ success: false, message: 'Vendor not found or inactive' });
+            throw ApiError.badRequest('Vendor not found or inactive');
           }
         }
 
@@ -165,12 +166,12 @@ function init({ pool }) {
           parsed = await parseFile(req.file.path);
         } catch (parseErr) {
           fs.unlink(req.file.path, () => {});
-          return res.status(400).json({ success: false, message: `File parse error: ${parseErr.message}` });
+          throw ApiError.badRequest(`File parse error: ${parseErr.message}`);
         }
 
         if (parsed.totalRows === 0) {
           fs.unlink(req.file.path, () => {});
-          return res.status(400).json({ success: false, message: 'File is empty or contains only headers' });
+          throw ApiError.badRequest('File is empty or contains only headers');
         }
 
         // Create price_list_imports record
@@ -477,57 +478,45 @@ function init({ pool }) {
           [id]
         );
         if (importResult.rows.length === 0) {
-          return res.status(404).json({ success: false, message: 'Import not found' });
+          throw ApiError.notFound('Import');
         }
 
         const imp = importResult.rows[0];
 
         // Only allow mapping from pending or mapping status
         if (!['pending', 'mapping'].includes(imp.status)) {
-          return res.status(400).json({
-            success: false,
-            message: `Cannot set mapping when import status is '${imp.status}'. Must be 'pending' or 'mapping'.`,
-          });
+          throw ApiError.badRequest(`Cannot set mapping when import status is '${imp.status}'. Must be 'pending' or 'mapping'.`);
         }
 
         // Validate column_mapping
         if (!column_mapping || typeof column_mapping !== 'object') {
-          return res.status(400).json({ success: false, message: 'column_mapping is required and must be an object' });
+          throw ApiError.badRequest('column_mapping is required and must be an object');
         }
 
         if (!column_mapping.sku) {
-          return res.status(400).json({ success: false, message: 'column_mapping.sku is required' });
+          throw ApiError.badRequest('column_mapping.sku is required');
         }
         if (!column_mapping.cost) {
-          return res.status(400).json({ success: false, message: 'column_mapping.cost is required' });
+          throw ApiError.badRequest('column_mapping.cost is required');
         }
 
         // Validate column letters are valid (A-ZZ)
         const validColPattern = /^[A-Z]{1,3}$/;
         for (const [key, value] of Object.entries(column_mapping)) {
           if (value && !validColPattern.test(value.toUpperCase())) {
-            return res.status(400).json({
-              success: false,
-              message: `Invalid column letter for '${key}': '${value}'`,
-            });
+            throw ApiError.badRequest(`Invalid column letter for '${key}': '${value}'`);
           }
         }
 
         // Validate decimal_format
         if (!['dollars', 'cents'].includes(decimal_format)) {
-          return res.status(400).json({
-            success: false,
-            message: "decimal_format must be 'dollars' or 'cents'",
-          });
+          throw ApiError.badRequest("decimal_format must be 'dollars' or 'cents'");
         }
 
         // Validate skip_rows
         const skipRowsInt = parseInt(skip_rows, 10);
         if (isNaN(skipRowsInt) || skipRowsInt < 0) {
-          return res.status(400).json({
-            success: false,
-            message: 'skip_rows must be a non-negative integer',
-          });
+          throw ApiError.badRequest('skip_rows must be a non-negative integer');
         }
 
         // Store mapping with metadata
@@ -584,15 +573,12 @@ function init({ pool }) {
           [id]
         );
         if (impResult.rows.length === 0) {
-          return res.status(404).json({ success: false, message: 'Import not found' });
+          throw ApiError.notFound('Import');
         }
         const imp = impResult.rows[0];
 
         if (!['preview', 'validating', 'importing', 'completed'].includes(imp.status)) {
-          return res.status(400).json({
-            success: false,
-            message: `Preview not available. Import status is '${imp.status}'. Validation must complete first.`,
-          });
+          throw ApiError.badRequest(`Preview not available. Import status is '${imp.status}'. Validation must complete first.`);
         }
 
         // Build summary from DB aggregates
@@ -693,15 +679,12 @@ function init({ pool }) {
           [id]
         );
         if (impResult.rows.length === 0) {
-          return res.status(404).json({ success: false, message: 'Import not found' });
+          throw ApiError.notFound('Import');
         }
         const imp = impResult.rows[0];
 
         if (!['preview', 'completed'].includes(imp.status)) {
-          return res.status(400).json({
-            success: false,
-            message: `Simulation not available. Import status is '${imp.status}'. Must be in 'preview' status.`,
-          });
+          throw ApiError.badRequest(`Simulation not available. Import status is '${imp.status}'. Must be in 'preview' status.`);
         }
 
         // ---- Overall summary ----
@@ -874,7 +857,7 @@ function init({ pool }) {
           [id]
         );
         if (impResult.rows.length === 0) {
-          return res.status(404).json({ success: false, message: 'Import not found' });
+          throw ApiError.notFound('Import');
         }
 
         const conditions = ['r.import_id = $1'];
@@ -1113,15 +1096,12 @@ function init({ pool }) {
           [id]
         );
         if (impResult.rows.length === 0) {
-          return res.status(404).json({ success: false, message: 'Import not found' });
+          throw ApiError.notFound('Import');
         }
         const imp = impResult.rows[0];
 
         if (imp.status !== 'preview') {
-          return res.status(400).json({
-            success: false,
-            message: `Cannot commit import with status '${imp.status}'. Must be 'preview'.`,
-          });
+          throw ApiError.badRequest(`Cannot commit import with status '${imp.status}'. Must be 'preview'.`);
         }
 
         // Check for errors if skip_errors is false
@@ -1131,11 +1111,7 @@ function init({ pool }) {
             [id]
           );
           if (errorCount.rows[0].count > 0) {
-            return res.status(400).json({
-              success: false,
-              message: `Import has ${errorCount.rows[0].count} error rows. Set skip_errors: true to import valid rows only, or fix errors first.`,
-              error_count: errorCount.rows[0].count,
-            });
+            throw ApiError.badRequest(`Import has ${errorCount.rows[0].count} error rows. Set skip_errors: true to import valid rows only, or fix errors first.`);
           }
         }
 
@@ -1185,7 +1161,7 @@ function init({ pool }) {
           [id]
         );
         if (result.rows.length === 0) {
-          return res.status(404).json({ success: false, message: 'Import not found' });
+          throw ApiError.notFound('Import');
         }
 
         const imp = result.rows[0];
@@ -1230,16 +1206,13 @@ function init({ pool }) {
           [id]
         );
         if (result.rows.length === 0) {
-          return res.status(404).json({ success: false, message: 'Import not found' });
+          throw ApiError.notFound('Import');
         }
 
         const imp = result.rows[0];
 
         if (imp.status === 'completed') {
-          return res.status(400).json({
-            success: false,
-            message: 'Cannot cancel a completed import.',
-          });
+          throw ApiError.badRequest('Cannot cancel a completed import.');
         }
 
         if (imp.status === 'cancelled') {
@@ -1368,7 +1341,7 @@ function init({ pool }) {
         );
 
         if (result.rows.length === 0) {
-          return res.status(404).json({ success: false, message: 'Import not found' });
+          throw ApiError.notFound('Import');
         }
 
         const importRecord = result.rows[0];

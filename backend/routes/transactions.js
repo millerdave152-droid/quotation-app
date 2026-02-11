@@ -260,14 +260,7 @@ router.post('/', authenticate, fraudCheck('transaction.create'), asyncHandler(as
 
   if (error) {
     console.error('[Transaction] Validation errors:', error.details.map(d => `${d.path.join('.')}: ${d.message}`).join('; '));
-    return res.status(400).json({
-      success: false,
-      error: 'Validation failed',
-      details: error.details.map(d => ({
-        field: d.path.join('.'),
-        message: d.message
-      }))
-    });
+    throw ApiError.badRequest('Validation failed');
   }
 
   const {
@@ -316,11 +309,7 @@ router.post('/', authenticate, fraudCheck('transaction.create'), asyncHandler(as
       missingFields.push({ field: 'fulfillment.pathwayConfirmed', message: 'Pathway confirmation is required for delivery orders' });
     }
     if (missingFields.length > 0) {
-      return res.status(400).json({
-        success: false,
-        error: 'Validation failed',
-        details: missingFields
-      });
+      throw ApiError.badRequest('Validation failed');
     }
   }
 
@@ -802,14 +791,7 @@ router.get('/', authenticate, asyncHandler(async (req, res) => {
   });
 
   if (error) {
-    return res.status(400).json({
-      success: false,
-      error: 'Validation failed',
-      details: error.details.map(d => ({
-        field: d.path.join('.'),
-        message: d.message
-      }))
-    });
+    throw ApiError.badRequest('Validation failed');
   }
 
   const { page, limit, startDate, endDate, dateRange, customerId, status, shiftId, salesRepId, search, includeCounts } = value;
@@ -1290,14 +1272,7 @@ router.post('/:id/void', authenticate, requirePermission('pos.checkout.void'), f
   });
 
   if (error) {
-    return res.status(400).json({
-      success: false,
-      error: 'Validation failed',
-      details: error.details.map(d => ({
-        field: d.path.join('.'),
-        message: d.message
-      }))
-    });
+    throw ApiError.badRequest('Validation failed');
   }
 
   const { reason } = value;
@@ -1533,14 +1508,7 @@ router.post('/:id/refund', authenticate, requirePermission('pos.returns.process_
   });
 
   if (error) {
-    return res.status(400).json({
-      success: false,
-      error: 'Validation failed',
-      details: error.details.map(d => ({
-        field: d.path.join('.'),
-        message: d.message
-      }))
-    });
+    throw ApiError.badRequest('Validation failed');
   }
 
   const { amount, items, reason } = value;

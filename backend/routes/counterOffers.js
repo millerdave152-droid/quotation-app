@@ -8,6 +8,7 @@ const router = express.Router();
 const CounterOfferService = require('../services/CounterOfferService');
 const db = require('../config/database');
 const { authenticate, requireRole } = require('../middleware/auth');
+const { ApiError, asyncHandler } = require('../middleware/errorHandler');
 const { SendEmailCommand } = require('@aws-sdk/client-ses');
 
 // Initialize service
@@ -24,380 +25,269 @@ router.setSesClient = (client) => {
  * @desc    Submit a counter-offer (salesperson or supervisor)
  * @access  Private
  */
-router.post('/quotes/:id/counter-offers', authenticate, async (req, res) => {
-  try {
-    const quotationId = parseInt(req.params.id);
-    const { counterOfferTotalCents, message } = req.body;
+router.post('/quotes/:id/counter-offers', authenticate, asyncHandler(async (req, res) => {
+  const quotationId = parseInt(req.params.id);
+  const { counterOfferTotalCents, message } = req.body;
 
-    if (!counterOfferTotalCents || counterOfferTotalCents <= 0) {
-      return res.status(400).json({
-        success: false,
-        message: 'Counter-offer amount is required'
-      });
-    }
-
-    const submittedByType = ['admin', 'manager', 'supervisor'].includes(req.user.role?.toLowerCase())
-      ? 'supervisor'
-      : 'salesperson';
-
-    const counterOffer = await counterOfferService.createCounterOffer({
-      quotationId,
-      submittedByType,
-      submittedByUserId: req.user.id,
-      submittedByName: `${req.user.firstName || ''} ${req.user.lastName || ''}`.trim() || req.user.email,
-      submittedByEmail: req.user.email,
-      counterOfferTotalCents,
-      message
-    });
-
-    // Send email notification if supervisor submitted (customer needs to respond)
-    if (submittedByType === 'supervisor' && counterOffer.access_url && sesClient) {
-      try {
-        await sendCounterOfferEmail(counterOffer, 'customer');
-      } catch (emailErr) {
-        console.error('Failed to send counter-offer email:', emailErr);
-      }
-    }
-
-    res.status(201).json({
-      success: true,
-      message: 'Counter-offer submitted',
-      data: { counterOffer }
-    });
-
-  } catch (error) {
-    console.error('Error creating counter-offer:', error);
-    res.status(500).json({
-      success: false,
-      message: error.message || 'Failed to create counter-offer'
-    });
+  if (!counterOfferTotalCents || counterOfferTotalCents <= 0) {
+    throw ApiError.badRequest('Counter-offer amount is required');
   }
-});
+
+  const submittedByType = ['admin', 'manager', 'supervisor'].includes(req.user.role?.toLowerCase())
+    ? 'supervisor'
+    : 'salesperson';
+
+  const counterOffer = await counterOfferService.createCounterOffer({
+    quotationId,
+    submittedByType,
+    submittedByUserId: req.user.id,
+    submittedByName: `${req.user.firstName || ''} ${req.user.lastName || ''}`.trim() || req.user.email,
+    submittedByEmail: req.user.email,
+    counterOfferTotalCents,
+    message
+  });
+
+  // Send email notification if supervisor submitted (customer needs to respond)
+  if (submittedByType === 'supervisor' && counterOffer.access_url && sesClient) {
+    try {
+      await sendCounterOfferEmail(counterOffer, 'customer');
+    } catch (emailErr) {
+      console.error('Failed to send counter-offer email:', emailErr);
+    }
+  }
+
+  res.status(201).json({
+    success: true,
+    message: 'Counter-offer submitted',
+    data: { counterOffer }
+  });
+}));
 
 /**
  * @route   GET /api/quotes/:id/counter-offers
  * @desc    Get negotiation history for a quote
  * @access  Private
  */
-router.get('/quotes/:id/counter-offers', authenticate, async (req, res) => {
-  try {
-    const quotationId = parseInt(req.params.id);
-    const counterOffers = await counterOfferService.getCounterOffersForQuote(quotationId);
+router.get('/quotes/:id/counter-offers', authenticate, asyncHandler(async (req, res) => {
+  const quotationId = parseInt(req.params.id);
+  const counterOffers = await counterOfferService.getCounterOffersForQuote(quotationId);
 
-    res.json({
-      success: true,
-      data: { counterOffers }
-    });
-
-  } catch (error) {
-    console.error('Error fetching counter-offers:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Failed to fetch counter-offers'
-    });
-  }
-});
+  res.json({
+    success: true,
+    data: { counterOffers }
+  });
+}));
 
 /**
  * @route   POST /api/counter-offers/:id/accept
  * @desc    Accept a counter-offer
  * @access  Private (supervisor/admin)
  */
-router.post('/counter-offers/:id/accept', authenticate, requireRole('admin', 'manager', 'supervisor'), async (req, res) => {
-  try {
-    const counterOfferId = parseInt(req.params.id);
-    const { message } = req.body;
+router.post('/counter-offers/:id/accept', authenticate, requireRole('admin', 'manager', 'supervisor'), asyncHandler(async (req, res) => {
+  const counterOfferId = parseInt(req.params.id);
+  const { message } = req.body;
 
-    const result = await counterOfferService.acceptCounterOffer(
-      counterOfferId,
-      {
-        id: req.user.id,
-        name: `${req.user.firstName || ''} ${req.user.lastName || ''}`.trim() || req.user.email
-      },
-      message
-    );
+  const result = await counterOfferService.acceptCounterOffer(
+    counterOfferId,
+    {
+      id: req.user.id,
+      name: `${req.user.firstName || ''} ${req.user.lastName || ''}`.trim() || req.user.email
+    },
+    message
+  );
 
-    res.json({
-      success: true,
-      message: 'Counter-offer accepted',
-      data: result
-    });
-
-  } catch (error) {
-    console.error('Error accepting counter-offer:', error);
-    res.status(500).json({
-      success: false,
-      message: error.message || 'Failed to accept counter-offer'
-    });
-  }
-});
+  res.json({
+    success: true,
+    message: 'Counter-offer accepted',
+    data: result
+  });
+}));
 
 /**
  * @route   POST /api/counter-offers/:id/reject
  * @desc    Reject a counter-offer
  * @access  Private (supervisor/admin)
  */
-router.post('/counter-offers/:id/reject', authenticate, requireRole('admin', 'manager', 'supervisor'), async (req, res) => {
-  try {
-    const counterOfferId = parseInt(req.params.id);
-    const { message } = req.body;
+router.post('/counter-offers/:id/reject', authenticate, requireRole('admin', 'manager', 'supervisor'), asyncHandler(async (req, res) => {
+  const counterOfferId = parseInt(req.params.id);
+  const { message } = req.body;
 
-    if (!message) {
-      return res.status(400).json({
-        success: false,
-        message: 'Rejection reason is required'
-      });
-    }
-
-    const result = await counterOfferService.rejectCounterOffer(
-      counterOfferId,
-      {
-        id: req.user.id,
-        name: `${req.user.firstName || ''} ${req.user.lastName || ''}`.trim() || req.user.email
-      },
-      message
-    );
-
-    res.json({
-      success: true,
-      message: 'Counter-offer rejected',
-      data: result
-    });
-
-  } catch (error) {
-    console.error('Error rejecting counter-offer:', error);
-    res.status(500).json({
-      success: false,
-      message: error.message || 'Failed to reject counter-offer'
-    });
+  if (!message) {
+    throw ApiError.badRequest('Rejection reason is required');
   }
-});
+
+  const result = await counterOfferService.rejectCounterOffer(
+    counterOfferId,
+    {
+      id: req.user.id,
+      name: `${req.user.firstName || ''} ${req.user.lastName || ''}`.trim() || req.user.email
+    },
+    message
+  );
+
+  res.json({
+    success: true,
+    message: 'Counter-offer rejected',
+    data: result
+  });
+}));
 
 /**
  * @route   POST /api/counter-offers/:id/counter
  * @desc    Supervisor sends counter-proposal
  * @access  Private (supervisor/admin)
  */
-router.post('/counter-offers/:id/counter', authenticate, requireRole('admin', 'manager', 'supervisor'), async (req, res) => {
-  try {
-    const counterOfferId = parseInt(req.params.id);
-    const { newOfferTotalCents, message } = req.body;
+router.post('/counter-offers/:id/counter', authenticate, requireRole('admin', 'manager', 'supervisor'), asyncHandler(async (req, res) => {
+  const counterOfferId = parseInt(req.params.id);
+  const { newOfferTotalCents, message } = req.body;
 
-    if (!newOfferTotalCents || newOfferTotalCents <= 0) {
-      return res.status(400).json({
-        success: false,
-        message: 'Counter-offer amount is required'
-      });
-    }
-
-    const result = await counterOfferService.sendSupervisorCounter(
-      counterOfferId,
-      {
-        id: req.user.id,
-        name: `${req.user.firstName || ''} ${req.user.lastName || ''}`.trim() || req.user.email,
-        email: req.user.email
-      },
-      newOfferTotalCents,
-      message
-    );
-
-    // Send email to customer with magic link
-    if (result.success && sesClient) {
-      try {
-        await sendCounterOfferEmail(result.counterOffer, 'customer');
-      } catch (emailErr) {
-        console.error('Failed to send counter-offer email:', emailErr);
-      }
-    }
-
-    res.json({
-      success: true,
-      message: 'Counter-offer sent to customer',
-      data: result
-    });
-
-  } catch (error) {
-    console.error('Error sending supervisor counter:', error);
-    res.status(500).json({
-      success: false,
-      message: error.message || 'Failed to send counter-offer'
-    });
+  if (!newOfferTotalCents || newOfferTotalCents <= 0) {
+    throw ApiError.badRequest('Counter-offer amount is required');
   }
-});
+
+  const result = await counterOfferService.sendSupervisorCounter(
+    counterOfferId,
+    {
+      id: req.user.id,
+      name: `${req.user.firstName || ''} ${req.user.lastName || ''}`.trim() || req.user.email,
+      email: req.user.email
+    },
+    newOfferTotalCents,
+    message
+  );
+
+  // Send email to customer with magic link
+  if (result.success && sesClient) {
+    try {
+      await sendCounterOfferEmail(result.counterOffer, 'customer');
+    } catch (emailErr) {
+      console.error('Failed to send counter-offer email:', emailErr);
+    }
+  }
+
+  res.json({
+    success: true,
+    message: 'Counter-offer sent to customer',
+    data: result
+  });
+}));
 
 /**
  * @route   GET /api/counter-offers/magic/:token
  * @desc    Validate magic link and get counter-offer details
  * @access  Public
  */
-router.get('/counter-offers/magic/:token', async (req, res) => {
-  try {
-    const { token } = req.params;
-    const offer = await counterOfferService.getCounterOfferByToken(token);
+router.get('/counter-offers/magic/:token', asyncHandler(async (req, res) => {
+  const { token } = req.params;
+  const offer = await counterOfferService.getCounterOfferByToken(token);
 
-    if (!offer) {
-      return res.status(404).json({
-        success: false,
-        message: 'Invalid or expired link'
-      });
-    }
-
-    // Get quote items for display
-    const items = await db.query(
-      'SELECT * FROM quotation_items WHERE quotation_id = $1',
-      [offer.quotation_id]
-    );
-
-    res.json({
-      success: true,
-      data: {
-        counterOffer: offer,
-        quoteItems: items.rows
-      }
-    });
-
-  } catch (error) {
-    console.error('Error validating magic link:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Failed to validate link'
-    });
+  if (!offer) {
+    throw ApiError.notFound('Invalid or expired link');
   }
-});
+
+  // Get quote items for display
+  const items = await db.query(
+    'SELECT * FROM quotation_items WHERE quotation_id = $1',
+    [offer.quotation_id]
+  );
+
+  res.json({
+    success: true,
+    data: {
+      counterOffer: offer,
+      quoteItems: items.rows
+    }
+  });
+}));
 
 /**
  * @route   POST /api/counter-offers/magic/:token
  * @desc    Customer responds via magic link
  * @access  Public
  */
-router.post('/counter-offers/magic/:token', async (req, res) => {
-  try {
-    const { token } = req.params;
-    const { action, name, email, newOfferCents, message } = req.body;
+router.post('/counter-offers/magic/:token', asyncHandler(async (req, res) => {
+  const { token } = req.params;
+  const { action, name, email, newOfferCents, message } = req.body;
 
-    if (!action || !['accept', 'counter'].includes(action)) {
-      return res.status(400).json({
-        success: false,
-        message: 'Invalid action. Must be "accept" or "counter"'
-      });
-    }
-
-    if (action === 'counter' && (!newOfferCents || newOfferCents <= 0)) {
-      return res.status(400).json({
-        success: false,
-        message: 'Counter-offer amount is required'
-      });
-    }
-
-    const result = await counterOfferService.customerResponse(
-      token,
-      action,
-      { name, email },
-      newOfferCents,
-      message
-    );
-
-    // Notify supervisor about customer's response
-    if (sesClient && result.counterOffer?.submitted_by_email) {
-      try {
-        await sendSupervisorNotificationEmail(result.counterOffer, action, name, newOfferCents);
-      } catch (emailErr) {
-        console.error('Failed to send supervisor notification email:', emailErr);
-      }
-    }
-
-    res.json({
-      success: true,
-      message: action === 'accept' ? 'Offer accepted!' : 'Counter-offer submitted',
-      data: result
-    });
-
-  } catch (error) {
-    console.error('Error processing customer response:', error);
-    res.status(500).json({
-      success: false,
-      message: error.message || 'Failed to process response'
-    });
+  if (!action || !['accept', 'counter'].includes(action)) {
+    throw ApiError.badRequest('Invalid action. Must be "accept" or "counter"');
   }
-});
+
+  if (action === 'counter' && (!newOfferCents || newOfferCents <= 0)) {
+    throw ApiError.badRequest('Counter-offer amount is required');
+  }
+
+  const result = await counterOfferService.customerResponse(
+    token,
+    action,
+    { name, email },
+    newOfferCents,
+    message
+  );
+
+  // Notify supervisor about customer's response
+  if (sesClient && result.counterOffer?.submitted_by_email) {
+    try {
+      await sendSupervisorNotificationEmail(result.counterOffer, action, name, newOfferCents);
+    } catch (emailErr) {
+      console.error('Failed to send supervisor notification email:', emailErr);
+    }
+  }
+
+  res.json({
+    success: true,
+    message: action === 'accept' ? 'Offer accepted!' : 'Counter-offer submitted',
+    data: result
+  });
+}));
 
 /**
  * @route   GET /api/counter-offers/pending
  * @desc    Get all pending counter-offers for supervisors
  * @access  Private (supervisor/admin)
  */
-router.get('/counter-offers/pending', authenticate, requireRole('admin', 'manager', 'supervisor'), async (req, res) => {
-  try {
-    const pendingOffers = await counterOfferService.getPendingCounterOffers(req.user.id);
+router.get('/counter-offers/pending', authenticate, requireRole('admin', 'manager', 'supervisor'), asyncHandler(async (req, res) => {
+  const pendingOffers = await counterOfferService.getPendingCounterOffers(req.user.id);
 
-    res.json({
-      success: true,
-      data: { counterOffers: pendingOffers }
-    });
-
-  } catch (error) {
-    console.error('Error fetching pending counter-offers:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Failed to fetch pending counter-offers'
-    });
-  }
-});
+  res.json({
+    success: true,
+    data: { counterOffers: pendingOffers }
+  });
+}));
 
 /**
  * @route   POST /api/quotes/:id/portal-link
  * @desc    Generate customer portal link
  * @access  Private
  */
-router.post('/quotes/:id/portal-link', authenticate, async (req, res) => {
-  try {
-    const quotationId = parseInt(req.params.id);
-    const portalUrl = await counterOfferService.generateCustomerPortalLink(quotationId);
+router.post('/quotes/:id/portal-link', authenticate, asyncHandler(async (req, res) => {
+  const quotationId = parseInt(req.params.id);
+  const portalUrl = await counterOfferService.generateCustomerPortalLink(quotationId);
 
-    res.json({
-      success: true,
-      data: { portalUrl }
-    });
-
-  } catch (error) {
-    console.error('Error generating portal link:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Failed to generate portal link'
-    });
-  }
-});
+  res.json({
+    success: true,
+    data: { portalUrl }
+  });
+}));
 
 /**
  * @route   GET /api/quote/view/:token
  * @desc    Public quote view via portal token
  * @access  Public
  */
-router.get('/quote/view/:token', async (req, res) => {
-  try {
-    const { token } = req.params;
-    const quote = await counterOfferService.getQuoteByPortalToken(token);
+router.get('/quote/view/:token', asyncHandler(async (req, res) => {
+  const { token } = req.params;
+  const quote = await counterOfferService.getQuoteByPortalToken(token);
 
-    if (!quote) {
-      return res.status(404).json({
-        success: false,
-        message: 'Quote not found or link expired'
-      });
-    }
-
-    res.json({
-      success: true,
-      data: { quote }
-    });
-
-  } catch (error) {
-    console.error('Error fetching quote by portal token:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Failed to fetch quote'
-    });
+  if (!quote) {
+    throw ApiError.notFound('Quote not found or link expired');
   }
-});
+
+  res.json({
+    success: true,
+    data: { quote }
+  });
+}));
 
 /**
  * Helper function to send counter-offer email

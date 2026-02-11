@@ -11,6 +11,7 @@ const path = require('path');
 const fs = require('fs').promises;
 const Product3DService = require('../services/Product3DService');
 const { authenticate } = require('../middleware/auth');
+const { ApiError, asyncHandler } = require('../middleware/errorHandler');
 
 // Configure multer for file uploads
 const storage = multer.diskStorage({
@@ -50,84 +51,59 @@ const upload = multer({
  * GET /api/product-3d/products
  * Get all products that have 3D models
  */
-router.get('/products', authenticate, async (req, res) => {
-  try {
-    const { category, manufacturer, limit, offset } = req.query;
-    const products = await Product3DService.getProductsWithModels({
-      category,
-      manufacturer,
-      limit: parseInt(limit) || 50,
-      offset: parseInt(offset) || 0
-    });
-    res.json(products);
-  } catch (error) {
-    console.error('Error fetching products with 3D models:', error);
-    res.status(500).json({ error: 'Failed to fetch products' });
-  }
-});
+router.get('/products', authenticate, asyncHandler(async (req, res) => {
+  const { category, manufacturer, limit, offset } = req.query;
+  const products = await Product3DService.getProductsWithModels({
+    category,
+    manufacturer,
+    limit: parseInt(limit) || 50,
+    offset: parseInt(offset) || 0
+  });
+  res.json(products);
+}));
 
 /**
  * GET /api/product-3d/stats
  * Get 3D model statistics
  */
-router.get('/stats', authenticate, async (req, res) => {
-  try {
-    const stats = await Product3DService.getModelStats();
-    res.json(stats);
-  } catch (error) {
-    console.error('Error fetching 3D model stats:', error);
-    res.status(500).json({ error: 'Failed to fetch stats' });
-  }
-});
+router.get('/stats', authenticate, asyncHandler(async (req, res) => {
+  const stats = await Product3DService.getModelStats();
+  res.json(stats);
+}));
 
 /**
  * GET /api/product-3d/samples
  * Get sample/demo 3D models
  */
-router.get('/samples', authenticate, async (req, res) => {
-  try {
-    const samples = await Product3DService.getSampleModels();
-    res.json(samples);
-  } catch (error) {
-    console.error('Error fetching sample models:', error);
-    res.status(500).json({ error: 'Failed to fetch samples' });
-  }
-});
+router.get('/samples', authenticate, asyncHandler(async (req, res) => {
+  const samples = await Product3DService.getSampleModels();
+  res.json(samples);
+}));
 
 /**
  * GET /api/product-3d/:productId
  * Get 3D model for a specific product
  */
-router.get('/:productId', authenticate, async (req, res) => {
-  try {
-    const { productId } = req.params;
-    const model = await Product3DService.getProductModel(productId);
+router.get('/:productId', authenticate, asyncHandler(async (req, res) => {
+  const { productId } = req.params;
+  const model = await Product3DService.getProductModel(productId);
 
-    if (!model) {
-      return res.status(404).json({ error: 'No 3D model found for this product' });
-    }
-
-    res.json(model);
-  } catch (error) {
-    console.error('Error fetching product 3D model:', error);
-    res.status(500).json({ error: 'Failed to fetch 3D model' });
+  if (!model) {
+    throw ApiError.notFound('3D model');
   }
-});
+
+  res.json(model);
+}));
 
 /**
  * POST /api/product-3d/:productId
  * Create or update 3D model for a product
  */
-router.post('/:productId', authenticate, async (req, res) => {
-  try {
-    const { productId } = req.params;
-    const model = await Product3DService.upsertProductModel(productId, req.body);
-    res.json(model);
-  } catch (error) {
-    console.error('Error saving product 3D model:', error);
-    res.status(500).json({ error: 'Failed to save 3D model' });
-  }
-});
+router.post('/:productId', authenticate, asyncHandler(async (req, res) => {
+  const { productId } = req.params;
+  const model = await Product3DService.upsertProductModel(productId, req.body);
+  res.json(model);
+}));
 
 /**
  * POST /api/product-3d/:productId/upload
@@ -138,58 +114,48 @@ router.post('/:productId/upload', authenticate, upload.fields([
   { name: 'usdz', maxCount: 1 },
   { name: 'poster', maxCount: 1 },
   { name: 'thumbnail', maxCount: 1 }
-]), async (req, res) => {
-  try {
-    const { productId } = req.params;
-    const files = req.files;
+]), asyncHandler(async (req, res) => {
+  const { productId } = req.params;
+  const files = req.files;
 
-    const modelData = { ...req.body };
+  const modelData = { ...req.body };
 
-    // Process uploaded files
-    if (files.model && files.model[0]) {
-      modelData.model_url = `/models/${files.model[0].filename}`;
-      modelData.file_size_bytes = files.model[0].size;
-    }
-
-    if (files.usdz && files.usdz[0]) {
-      modelData.usdz_url = `/models/${files.usdz[0].filename}`;
-    }
-
-    if (files.poster && files.poster[0]) {
-      modelData.poster_url = `/models/${files.poster[0].filename}`;
-    }
-
-    if (files.thumbnail && files.thumbnail[0]) {
-      modelData.thumbnail_url = `/models/${files.thumbnail[0].filename}`;
-    }
-
-    const model = await Product3DService.upsertProductModel(productId, modelData);
-    res.json(model);
-  } catch (error) {
-    console.error('Error uploading 3D model:', error);
-    res.status(500).json({ error: 'Failed to upload 3D model' });
+  // Process uploaded files
+  if (files.model && files.model[0]) {
+    modelData.model_url = `/models/${files.model[0].filename}`;
+    modelData.file_size_bytes = files.model[0].size;
   }
-});
+
+  if (files.usdz && files.usdz[0]) {
+    modelData.usdz_url = `/models/${files.usdz[0].filename}`;
+  }
+
+  if (files.poster && files.poster[0]) {
+    modelData.poster_url = `/models/${files.poster[0].filename}`;
+  }
+
+  if (files.thumbnail && files.thumbnail[0]) {
+    modelData.thumbnail_url = `/models/${files.thumbnail[0].filename}`;
+  }
+
+  const model = await Product3DService.upsertProductModel(productId, modelData);
+  res.json(model);
+}));
 
 /**
  * DELETE /api/product-3d/:productId
  * Delete 3D model for a product
  */
-router.delete('/:productId', authenticate, async (req, res) => {
-  try {
-    const { productId } = req.params;
-    const deleted = await Product3DService.deleteProductModel(productId);
+router.delete('/:productId', authenticate, asyncHandler(async (req, res) => {
+  const { productId } = req.params;
+  const deleted = await Product3DService.deleteProductModel(productId);
 
-    if (!deleted) {
-      return res.status(404).json({ error: 'No 3D model found for this product' });
-    }
-
-    res.json({ success: true, deleted });
-  } catch (error) {
-    console.error('Error deleting product 3D model:', error);
-    res.status(500).json({ error: 'Failed to delete 3D model' });
+  if (!deleted) {
+    throw ApiError.notFound('3D model');
   }
-});
+
+  res.json({ success: true, deleted });
+}));
 
 // ============================================
 // Material Routes
@@ -199,66 +165,51 @@ router.delete('/:productId', authenticate, async (req, res) => {
  * GET /api/product-3d/:productId/materials
  * Get materials for a product's 3D model
  */
-router.get('/:productId/materials', authenticate, async (req, res) => {
-  try {
-    const { productId } = req.params;
-    const { category } = req.query;
+router.get('/:productId/materials', authenticate, asyncHandler(async (req, res) => {
+  const { productId } = req.params;
+  const { category } = req.query;
 
-    // First get the model
-    const model = await Product3DService.getProductModel(productId);
-    if (!model) {
-      return res.status(404).json({ error: 'No 3D model found for this product' });
-    }
-
-    const materials = await Product3DService.getMaterials(model.id, category);
-    res.json(materials);
-  } catch (error) {
-    console.error('Error fetching materials:', error);
-    res.status(500).json({ error: 'Failed to fetch materials' });
+  // First get the model
+  const model = await Product3DService.getProductModel(productId);
+  if (!model) {
+    throw ApiError.notFound('3D model');
   }
-});
+
+  const materials = await Product3DService.getMaterials(model.id, category);
+  res.json(materials);
+}));
 
 /**
  * POST /api/product-3d/:productId/materials
  * Add or update a material for a product's 3D model
  */
-router.post('/:productId/materials', authenticate, async (req, res) => {
-  try {
-    const { productId } = req.params;
+router.post('/:productId/materials', authenticate, asyncHandler(async (req, res) => {
+  const { productId } = req.params;
 
-    // First get the model
-    const model = await Product3DService.getProductModel(productId);
-    if (!model) {
-      return res.status(404).json({ error: 'No 3D model found for this product' });
-    }
-
-    const material = await Product3DService.upsertMaterial(model.id, req.body);
-    res.json(material);
-  } catch (error) {
-    console.error('Error saving material:', error);
-    res.status(500).json({ error: 'Failed to save material' });
+  // First get the model
+  const model = await Product3DService.getProductModel(productId);
+  if (!model) {
+    throw ApiError.notFound('3D model');
   }
-});
+
+  const material = await Product3DService.upsertMaterial(model.id, req.body);
+  res.json(material);
+}));
 
 /**
  * DELETE /api/product-3d/:productId/materials/:materialId
  * Delete a material
  */
-router.delete('/:productId/materials/:materialId', authenticate, async (req, res) => {
-  try {
-    const { materialId } = req.params;
-    const deleted = await Product3DService.deleteMaterial(materialId);
+router.delete('/:productId/materials/:materialId', authenticate, asyncHandler(async (req, res) => {
+  const { materialId } = req.params;
+  const deleted = await Product3DService.deleteMaterial(materialId);
 
-    if (!deleted) {
-      return res.status(404).json({ error: 'Material not found' });
-    }
-
-    res.json({ success: true, deleted });
-  } catch (error) {
-    console.error('Error deleting material:', error);
-    res.status(500).json({ error: 'Failed to delete material' });
+  if (!deleted) {
+    throw ApiError.notFound('Material');
   }
-});
+
+  res.json({ success: true, deleted });
+}));
 
 // ============================================
 // Hotspot Routes
@@ -268,43 +219,33 @@ router.delete('/:productId/materials/:materialId', authenticate, async (req, res
  * POST /api/product-3d/:productId/hotspots
  * Add a hotspot annotation to a product's 3D model
  */
-router.post('/:productId/hotspots', authenticate, async (req, res) => {
-  try {
-    const { productId } = req.params;
+router.post('/:productId/hotspots', authenticate, asyncHandler(async (req, res) => {
+  const { productId } = req.params;
 
-    // First get the model
-    const model = await Product3DService.getProductModel(productId);
-    if (!model) {
-      return res.status(404).json({ error: 'No 3D model found for this product' });
-    }
-
-    const hotspot = await Product3DService.addHotspot(model.id, req.body);
-    res.json(hotspot);
-  } catch (error) {
-    console.error('Error adding hotspot:', error);
-    res.status(500).json({ error: 'Failed to add hotspot' });
+  // First get the model
+  const model = await Product3DService.getProductModel(productId);
+  if (!model) {
+    throw ApiError.notFound('3D model');
   }
-});
+
+  const hotspot = await Product3DService.addHotspot(model.id, req.body);
+  res.json(hotspot);
+}));
 
 /**
  * DELETE /api/product-3d/:productId/hotspots/:hotspotId
  * Delete a hotspot
  */
-router.delete('/:productId/hotspots/:hotspotId', authenticate, async (req, res) => {
-  try {
-    const { hotspotId } = req.params;
-    const deleted = await Product3DService.deleteHotspot(hotspotId);
+router.delete('/:productId/hotspots/:hotspotId', authenticate, asyncHandler(async (req, res) => {
+  const { hotspotId } = req.params;
+  const deleted = await Product3DService.deleteHotspot(hotspotId);
 
-    if (!deleted) {
-      return res.status(404).json({ error: 'Hotspot not found' });
-    }
-
-    res.json({ success: true, deleted });
-  } catch (error) {
-    console.error('Error deleting hotspot:', error);
-    res.status(500).json({ error: 'Failed to delete hotspot' });
+  if (!deleted) {
+    throw ApiError.notFound('Hotspot');
   }
-});
+
+  res.json({ success: true, deleted });
+}));
 
 // ============================================
 // Configuration Routes
@@ -314,72 +255,52 @@ router.delete('/:productId/hotspots/:hotspotId', authenticate, async (req, res) 
  * GET /api/product-3d/:productId/configurations
  * Get saved configurations for a product
  */
-router.get('/:productId/configurations', authenticate, async (req, res) => {
-  try {
-    const { productId } = req.params;
-    const { templates_only } = req.query;
+router.get('/:productId/configurations', authenticate, asyncHandler(async (req, res) => {
+  const { productId } = req.params;
+  const { templates_only } = req.query;
 
-    const configurations = await Product3DService.getProductConfigurations(
-      productId,
-      templates_only === 'true'
-    );
-    res.json(configurations);
-  } catch (error) {
-    console.error('Error fetching configurations:', error);
-    res.status(500).json({ error: 'Failed to fetch configurations' });
-  }
-});
+  const configurations = await Product3DService.getProductConfigurations(
+    productId,
+    templates_only === 'true'
+  );
+  res.json(configurations);
+}));
 
 /**
  * POST /api/product-3d/:productId/configurations
  * Save a product configuration
  */
-router.post('/:productId/configurations', authenticate, async (req, res) => {
-  try {
-    const { productId } = req.params;
-    const configuration = await Product3DService.saveConfiguration(productId, req.body);
-    res.json(configuration);
-  } catch (error) {
-    console.error('Error saving configuration:', error);
-    res.status(500).json({ error: 'Failed to save configuration' });
-  }
-});
+router.post('/:productId/configurations', authenticate, asyncHandler(async (req, res) => {
+  const { productId } = req.params;
+  const configuration = await Product3DService.saveConfiguration(productId, req.body);
+  res.json(configuration);
+}));
 
 /**
  * GET /api/product-3d/configurations/:configId
  * Get a specific configuration
  */
-router.get('/configurations/:configId', authenticate, async (req, res) => {
-  try {
-    const { configId } = req.params;
-    const configuration = await Product3DService.getConfiguration(configId);
+router.get('/configurations/:configId', authenticate, asyncHandler(async (req, res) => {
+  const { configId } = req.params;
+  const configuration = await Product3DService.getConfiguration(configId);
 
-    if (!configuration) {
-      return res.status(404).json({ error: 'Configuration not found' });
-    }
-
-    res.json(configuration);
-  } catch (error) {
-    console.error('Error fetching configuration:', error);
-    res.status(500).json({ error: 'Failed to fetch configuration' });
+  if (!configuration) {
+    throw ApiError.notFound('Configuration');
   }
-});
+
+  res.json(configuration);
+}));
 
 /**
  * POST /api/product-3d/:productId/calculate-price
  * Calculate price for a configuration
  */
-router.post('/:productId/calculate-price', authenticate, async (req, res) => {
-  try {
-    const { productId } = req.params;
-    const { selected_materials = [] } = req.body;
+router.post('/:productId/calculate-price', authenticate, asyncHandler(async (req, res) => {
+  const { productId } = req.params;
+  const { selected_materials = [] } = req.body;
 
-    const pricing = await Product3DService.calculateConfigurationPrice(productId, selected_materials);
-    res.json(pricing);
-  } catch (error) {
-    console.error('Error calculating configuration price:', error);
-    res.status(500).json({ error: 'Failed to calculate price' });
-  }
-});
+  const pricing = await Product3DService.calculateConfigurationPrice(productId, selected_materials);
+  res.json(pricing);
+}));
 
 module.exports = router;

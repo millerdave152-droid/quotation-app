@@ -5,6 +5,7 @@
  */
 
 const express = require('express');
+const { ApiError } = require('../middleware/errorHandler');
 const { authenticate } = require('../middleware/auth');
 const { checkPermission } = require('../middleware/checkPermission');
 
@@ -99,7 +100,7 @@ function init({ pool }) {
           [productId]
         );
         if (prodResult.rows.length === 0) {
-          return res.status(404).json({ success: false, message: 'Product not found' });
+          throw ApiError.notFound('Product');
         }
 
         const invResult = await pool.query(
@@ -162,7 +163,7 @@ function init({ pool }) {
 
         const locResult = await pool.query('SELECT * FROM locations WHERE id = $1', [locationId]);
         if (locResult.rows.length === 0) {
-          return res.status(404).json({ success: false, message: 'Location not found' });
+          throw ApiError.notFound('Location');
         }
 
         const conditions = ['li.location_id = $1'];
@@ -246,7 +247,7 @@ function init({ pool }) {
         const { quantity_on_hand, bin_location, reorder_point, reorder_quantity, reason } = req.body;
 
         if (quantity_on_hand === undefined && bin_location === undefined && reorder_point === undefined && reorder_quantity === undefined) {
-          return res.status(400).json({ success: false, message: 'No fields to update' });
+          throw ApiError.badRequest('No fields to update');
         }
 
         await client.query('BEGIN');
@@ -255,12 +256,12 @@ function init({ pool }) {
         const locCheck = await client.query('SELECT id FROM locations WHERE id = $1', [locationId]);
         if (locCheck.rows.length === 0) {
           await client.query('ROLLBACK');
-          return res.status(404).json({ success: false, message: 'Location not found' });
+          throw ApiError.notFound('Location');
         }
         const prodCheck = await client.query('SELECT id FROM products WHERE id = $1', [productId]);
         if (prodCheck.rows.length === 0) {
           await client.query('ROLLBACK');
-          return res.status(404).json({ success: false, message: 'Product not found' });
+          throw ApiError.notFound('Product');
         }
 
         // Upsert location_inventory row

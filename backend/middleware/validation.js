@@ -6,6 +6,7 @@
 
 const { body, param, query, validationResult } = require('express-validator');
 const { PASSWORD_MIN_LENGTH } = require('../utils/password');
+const { ApiError } = require('./errorHandler');
 
 /**
  * Handle Validation Errors
@@ -35,11 +36,7 @@ const handleValidationErrors = (req, res, next) => {
       };
     });
 
-    return res.status(400).json({
-      success: false,
-      message: 'Validation failed',
-      errors: formattedErrors
-    });
+    throw ApiError.validation('Validation failed', formattedErrors);
   }
 
   next();
@@ -383,10 +380,7 @@ const validateJoi = (schema, property = 'body') => {
         field: detail.path.join('.'),
         message: detail.message
       }));
-      return res.status(400).json({
-        error: 'Validation failed',
-        details: errors
-      });
+      throw ApiError.validation('Validation failed', errors);
     }
 
     req[property] = value;

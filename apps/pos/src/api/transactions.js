@@ -21,6 +21,16 @@ import api from './axios';
  */
 export const createTransaction = async (data) => {
   try {
+    const normalizedFulfillment = data.fulfillment?.type
+      ? {
+          ...data.fulfillment,
+          fee: data.fulfillment.fee || 0,
+        }
+      : {
+          type: 'pickup_now',
+          fee: 0,
+        };
+
     // Validate required fields
     if (!data.shiftId) {
       return {
@@ -84,7 +94,7 @@ export const createTransaction = async (data) => {
       discountReason: data.discountReason || null,
       taxProvince: data.taxProvince || 'ON',
       deliveryFee: data.deliveryFee || 0,
-      fulfillment: data.fulfillment || null,
+      fulfillment: normalizedFulfillment,
       promotion: data.promotion || null,
       commissionSplit: data.commissionSplit || null,
     });
@@ -96,15 +106,22 @@ export const createTransaction = async (data) => {
     };
   } catch (error) {
     console.error('[Transactions] createTransaction error:', error);
-    console.error('[Transactions] Error response data:', error.response?.data || error.data || 'no response data');
+    console.error(
+      '[Transactions] Error response data:',
+      error.response?.data || error.data || error.details || 'no response data'
+    );
     console.error('[Transactions] Error status:', error.response?.status || error.status || 'no status');
+    if (error.details) {
+      console.error('[Transactions] Validation details:', error.details);
+    }
 
-    const responseData = error.response?.data || error.data;
+    const responseData = error.response?.data || error.data || null;
     return {
       success: false,
       error: responseData?.error || error.message,
-      code: responseData?.code || null,
-      fraudAssessment: responseData?.fraudAssessment || null,
+      code: responseData?.code || error.code || null,
+      fraudAssessment: responseData?.fraudAssessment || error.fraudAssessment || null,
+      details: responseData?.details || error.details || null,
       data: null,
     };
   }

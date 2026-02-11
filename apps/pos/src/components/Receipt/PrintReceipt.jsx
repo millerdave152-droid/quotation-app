@@ -159,7 +159,9 @@ export function PrintReceipt({
 
         // Cleanup
         setTimeout(() => {
-          document.body.removeChild(iframe);
+          if (iframe && iframe.parentNode) {
+            iframe.parentNode.removeChild(iframe);
+          }
           setPrintStatus('success');
           onPrintComplete?.({ success: true, method: 'iframe' });
         }, 1000);
@@ -313,7 +315,9 @@ export async function printReceipt(transaction, storeInfo = {}) {
         resolve({ success: false, error: error.message });
       } finally {
         // Cleanup
-        document.body.removeChild(container);
+        if (container && container.parentNode) {
+          container.parentNode.removeChild(container);
+        }
       }
     }, 100);
   });

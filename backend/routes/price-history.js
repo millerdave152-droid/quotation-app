@@ -5,6 +5,7 @@
  */
 
 const express = require('express');
+const { ApiError } = require('../middleware/errorHandler');
 const { authenticate } = require('../middleware/auth');
 const { checkPermission } = require('../middleware/checkPermission');
 
@@ -31,7 +32,7 @@ function init({ pool }) {
           [id]
         );
         if (prodResult.rows.length === 0) {
-          return res.status(404).json({ success: false, message: 'Product not found' });
+          throw ApiError.notFound('Product');
         }
         const product = prodResult.rows[0];
 

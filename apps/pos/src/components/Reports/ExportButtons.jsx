@@ -92,7 +92,9 @@ export function ExportButtons({ date, shiftId, onPrint }) {
       link.download = filename;
       document.body.appendChild(link);
       link.click();
-      document.body.removeChild(link);
+      if (link && link.parentNode) {
+        link.parentNode.removeChild(link);
+      }
       window.URL.revokeObjectURL(downloadUrl);
     } catch (error) {
       console.error('[ExportButtons] CSV export error:', error);
@@ -135,7 +137,9 @@ export function ExportButtons({ date, shiftId, onPrint }) {
       link.download = filename;
       document.body.appendChild(link);
       link.click();
-      document.body.removeChild(link);
+      if (link && link.parentNode) {
+        link.parentNode.removeChild(link);
+      }
       window.URL.revokeObjectURL(downloadUrl);
     } catch (error) {
       console.error('[ExportButtons] ZIP export error:', error);
@@ -291,7 +295,9 @@ export function CompactExportButtons({ date, shiftId }) {
       link.download = `report-${date || 'export'}.${format}`;
       document.body.appendChild(link);
       link.click();
-      document.body.removeChild(link);
+      if (link && link.parentNode) {
+        link.parentNode.removeChild(link);
+      }
       window.URL.revokeObjectURL(downloadUrl);
     } catch (error) {
       console.error('[CompactExportButtons] Export error:', error);

@@ -6,6 +6,7 @@
 const express = require('express');
 const { authenticate } = require('../middleware/auth');
 const { checkPermission } = require('../middleware/checkPermission');
+const { ApiError } = require('../middleware/errorHandler');
 
 function init({ pool }) {
   const router = express.Router();
@@ -415,14 +416,14 @@ function init({ pool }) {
         const { product_ids, clearance_percentage, reason } = req.body;
 
         if (!product_ids || !Array.isArray(product_ids) || product_ids.length === 0) {
-          return res.status(400).json({ success: false, message: 'product_ids array is required' });
+          throw ApiError.badRequest('product_ids array is required');
         }
         const pct = parseFloat(clearance_percentage);
         if (isNaN(pct) || pct <= 0 || pct > 100) {
-          return res.status(400).json({ success: false, message: 'clearance_percentage must be between 0 and 100' });
+          throw ApiError.badRequest('clearance_percentage must be between 0 and 100');
         }
         if (product_ids.length > 500) {
-          return res.status(400).json({ success: false, message: 'Maximum 500 products per batch' });
+          throw ApiError.badRequest('Maximum 500 products per batch');
         }
 
         await client.query('BEGIN');
@@ -488,7 +489,7 @@ function init({ pool }) {
       try {
         const { product_ids } = req.body;
         if (!product_ids || !Array.isArray(product_ids) || product_ids.length === 0) {
-          return res.status(400).json({ success: false, message: 'product_ids array is required' });
+          throw ApiError.badRequest('product_ids array is required');
         }
 
         const result = await pool.query(

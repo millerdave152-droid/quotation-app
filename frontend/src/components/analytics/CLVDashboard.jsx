@@ -1,9 +1,9 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Users, TrendingUp, DollarSign, Crown, Award, Medal, Star, Filter, RefreshCw } from 'lucide-react';
+import { Users, TrendingUp, DollarSign, Crown, Award, Medal, Star, Filter, RefreshCw, PlayCircle, Clock, Activity } from 'lucide-react';
 import { cachedFetch } from '../../services/apiCache';
 import {
   PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, CartesianGrid,
-  Tooltip, ResponsiveContainer, Legend
+  Tooltip, ResponsiveContainer, Legend, LineChart, Line
 } from 'recharts';
 import ChurnRiskPanel from './ChurnRiskPanel';
 
@@ -29,6 +29,9 @@ const CLVDashboard = () => {
   const [sortBy, setSortBy] = useState('lifetime_value');
   const [sortOrder, setSortOrder] = useState('DESC');
   const [limit, setLimit] = useState(20);
+  const [jobStatus, setJobStatus] = useState(null);
+  const [recalculating, setRecalculating] = useState(false);
+  const [trendData, setTrendData] = useState([]);
 
   const isMounted = useRef(true);
   const loadedOnce = useRef(false);
@@ -83,6 +86,44 @@ const CLVDashboard = () => {
       }
     }
   };
+
+  const fetchJobStatus = async () => {
+    try {
+      const res = await cachedFetch('/api/clv/job-status');
+      if (isMounted.current) setJobStatus(res?.data || res);
+    } catch (err) { /* ignore */ }
+  };
+
+  const fetchTrends = async () => {
+    try {
+      const res = await cachedFetch('/api/clv/trends?days=30');
+      if (isMounted.current) setTrendData(res?.data || res || []);
+    } catch (err) { /* ignore */ }
+  };
+
+  const handleRecalculate = async () => {
+    setRecalculating(true);
+    try {
+      const token = localStorage.getItem('token');
+      await fetch(`${API_BASE}/clv/run-job`, {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' }
+      });
+      // Poll status briefly
+      setTimeout(fetchJobStatus, 2000);
+      setTimeout(fetchJobStatus, 8000);
+    } catch (err) {
+      console.error('Failed to trigger recalculation:', err);
+    } finally {
+      setRecalculating(false);
+    }
+  };
+
+  // Fetch job status and trends on mount
+  useEffect(() => {
+    fetchJobStatus();
+    fetchTrends();
+  }, []);
 
   const formatCurrency = (value) => {
     if (value === null || value === undefined || isNaN(value)) return '$0.00';
@@ -197,6 +238,81 @@ const CLVDashboard = () => {
           Refresh
         </button>
       </div>
+
+      {/* Admin Controls */}
+      <div style={{ display: 'flex', gap: '16px', marginBottom: '24px', flexWrap: 'wrap', alignItems: 'center' }}>
+        <button
+          onClick={handleRecalculate}
+          disabled={recalculating || jobStatus?.isRunning}
+          style={{
+            padding: '10px 20px',
+            background: recalculating || jobStatus?.isRunning ? '#9ca3af' : '#059669',
+            color: 'white',
+            border: 'none',
+            borderRadius: '8px',
+            cursor: recalculating || jobStatus?.isRunning ? 'not-allowed' : 'pointer',
+            fontSize: '14px',
+            fontWeight: '600',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '8px'
+          }}
+        >
+          <PlayCircle size={16} />
+          {jobStatus?.isRunning ? 'Job Running...' : recalculating ? 'Starting...' : 'Recalculate CLV'}
+        </button>
+
+        {jobStatus && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px', color: '#6b7280' }}>
+            <Clock size={14} />
+            {jobStatus.lastRun
+              ? `Last run: ${new Date(jobStatus.lastRun).toLocaleString('en-CA')}`
+              : 'Never run'}
+            {jobStatus.lastRunStats && (
+              <span style={{ color: '#10b981', fontWeight: '600' }}>
+                ({jobStatus.lastRunStats.updated} updated, {jobStatus.lastRunStats.duration}ms)
+              </span>
+            )}
+            {jobStatus.isRunning && (
+              <span style={{ color: '#f59e0b', fontWeight: '600' }}>Running now</span>
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* CLV Trend Chart */}
+      {trendData.length > 1 && (
+        <div style={{ background: 'white', padding: '24px', borderRadius: '12px', boxShadow: '0 1px 3px rgba(0,0,0,0.1)', marginBottom: '24px' }}>
+          <h2 style={{ fontSize: '18px', fontWeight: 'bold', color: '#111827', marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <Activity size={20} color="#8b5cf6" />
+            CLV Trends (Last 30 Days)
+          </h2>
+          <ResponsiveContainer width="100%" height={250}>
+            <LineChart data={trendData}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#f3f4f6" />
+              <XAxis
+                dataKey="snapshot_date"
+                tickFormatter={(d) => new Date(d).toLocaleDateString('en-CA', { month: 'short', day: 'numeric' })}
+                fontSize={12}
+              />
+              <YAxis
+                tickFormatter={(v) => `$${(v / 100).toLocaleString()}`}
+                fontSize={12}
+              />
+              <Tooltip
+                labelFormatter={(d) => new Date(d).toLocaleDateString('en-CA')}
+                formatter={(value, name) => {
+                  if (name === 'avg_clv') return [`$${(value / 100).toFixed(2)}`, 'Avg CLV'];
+                  if (name === 'high_risk_count') return [value, 'High Risk'];
+                  return [value, name];
+                }}
+              />
+              <Line type="monotone" dataKey="avg_clv" stroke="#8b5cf6" strokeWidth={2} dot={false} name="avg_clv" />
+              <Line type="monotone" dataKey="high_risk_count" stroke="#ef4444" strokeWidth={2} dot={false} name="high_risk_count" yAxisId={0} />
+            </LineChart>
+          </ResponsiveContainer>
+        </div>
+      )}
 
       {/* Summary Cards */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '20px', marginBottom: '30px' }}>

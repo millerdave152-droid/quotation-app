@@ -17,6 +17,7 @@ const {
   validateRefreshToken,
 } = require('../middleware/validation');
 const { authLimiter } = require('../middleware/security');
+const { ApiError, asyncHandler } = require('../middleware/errorHandler');
 const crypto = require('crypto');
 
 // Constants
@@ -28,7 +29,7 @@ const LOCK_TIME = 15 * 60 * 1000; // 15 minutes in milliseconds
  * @desc    Register a new user
  * @access  Public
  */
-router.post('/register', authLimiter, validateRegister, async (req, res) => {
+router.post('/register', authLimiter, validateRegister, asyncHandler(async (req, res) => {
   const client = await db.connect();
 
   try {
@@ -44,21 +45,14 @@ router.post('/register', authLimiter, validateRegister, async (req, res) => {
 
     if (existingUsers.rows.length > 0) {
       await client.query('ROLLBACK');
-      return res.status(409).json({
-        success: false,
-        message: 'Email already registered'
-      });
+      throw ApiError.conflict('Email already registered');
     }
 
     // Validate password strength
     const passwordValidation = validatePasswordStrength(password);
     if (!passwordValidation.isValid) {
       await client.query('ROLLBACK');
-      return res.status(400).json({
-        success: false,
-        message: 'Password does not meet security requirements',
-        errors: passwordValidation.errors
-      });
+      throw ApiError.badRequest('Password does not meet security requirements', passwordValidation.errors);
     }
 
     // Hash password
@@ -119,354 +113,286 @@ router.post('/register', authLimiter, validateRegister, async (req, res) => {
         refreshToken
       }
     });
-  } catch (error) {
+  } catch (err) {
     await client.query('ROLLBACK');
-    console.error('Registration error:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Registration failed. Please try again.'
-    });
+    throw err;
   } finally {
     client.release();
   }
-});
+}));
 
 /**
  * @route   POST /api/auth/login
  * @desc    Login user and return JWT tokens
  * @access  Public
  */
-router.post('/login', authLimiter, validateLogin, async (req, res) => {
-  try {
-    const { email, password } = req.body;
+router.post('/login', authLimiter, validateLogin, asyncHandler(async (req, res) => {
+  const { email, password } = req.body;
 
-    // Fetch user from database
-    const users = await db.query(
-      `SELECT id, email, password_hash, first_name, last_name, role, is_active,
-              failed_login_attempts, locked_until
-       FROM users WHERE email = $1`,
-      [email]
-    );
+  // Fetch user from database
+  const users = await db.query(
+    `SELECT id, email, password_hash, first_name, last_name, role, is_active,
+            failed_login_attempts, locked_until
+     FROM users WHERE email = $1`,
+    [email]
+  );
 
-    if (users.rows.length === 0) {
-      // Don't reveal that email doesn't exist
-      return res.status(401).json({
-        success: false,
-        message: 'Invalid email or password'
-      });
-    }
+  if (users.rows.length === 0) {
+    // Don't reveal that email doesn't exist
+    throw ApiError.unauthorized('Invalid email or password');
+  }
 
-    const user = users.rows[0];
+  const user = users.rows[0];
 
-    // Check if account is locked
-    if (user.locked_until && new Date(user.locked_until) > new Date()) {
-      const lockTimeRemaining = Math.ceil((new Date(user.locked_until) - new Date()) / 1000 / 60);
+  // Check if account is locked
+  if (user.locked_until && new Date(user.locked_until) > new Date()) {
+    const lockTimeRemaining = Math.ceil((new Date(user.locked_until) - new Date()) / 1000 / 60);
 
-      return res.status(423).json({
-        success: false,
-        message: `Account is locked due to too many failed login attempts. Please try again in ${lockTimeRemaining} minutes.`,
-        lockedUntil: user.locked_until
-      });
-    }
+    throw new ApiError('ACCOUNT_LOCKED', `Account is locked due to too many failed login attempts. Please try again in ${lockTimeRemaining} minutes.`, { statusCode: 423 });
+  }
 
-    // Check if account is active
-    if (!user.is_active) {
-      return res.status(403).json({
-        success: false,
-        message: 'Account is inactive. Please contact administrator.'
-      });
-    }
+  // Check if account is active
+  if (!user.is_active) {
+    throw ApiError.forbidden('Account is inactive. Please contact administrator.');
+  }
 
-    // Verify password
-    const isPasswordValid = await comparePassword(password, user.password_hash);
+  // Verify password
+  const isPasswordValid = await comparePassword(password, user.password_hash);
 
-    if (!isPasswordValid) {
-      // Increment failed login attempts
-      const failedAttempts = (user.failed_login_attempts || 0) + 1;
-      const isLocked = failedAttempts >= MAX_FAILED_ATTEMPTS;
-      const lockUntil = isLocked ? new Date(Date.now() + LOCK_TIME) : null;
+  if (!isPasswordValid) {
+    // Increment failed login attempts
+    const failedAttempts = (user.failed_login_attempts || 0) + 1;
+    const isLocked = failedAttempts >= MAX_FAILED_ATTEMPTS;
+    const lockUntil = isLocked ? new Date(Date.now() + LOCK_TIME) : null;
 
-      await db.query(
-        `UPDATE users
-         SET failed_login_attempts = $1,
-             locked_until = $2
-         WHERE id = $3`,
-        [failedAttempts, lockUntil, user.id]
-      );
-
-      // Log failed attempt
-      await db.query(
-        `INSERT INTO audit_log (user_id, action, entity_type, entity_id, ip_address, user_agent, details, created_at)
-         VALUES ($1, 'login_failed', 'user', $2, $3, $4, $5, CURRENT_TIMESTAMP)`,
-        [user.id, user.id, req.ip, req.get('user-agent'), JSON.stringify({ failedAttempts, isLocked })]
-      );
-
-      if (isLocked) {
-        return res.status(423).json({
-          success: false,
-          message: 'Account has been locked due to too many failed login attempts. Please try again after 15 minutes.'
-        });
-      }
-
-      return res.status(401).json({
-        success: false,
-        message: 'Invalid email or password',
-        attemptsRemaining: MAX_FAILED_ATTEMPTS - failedAttempts
-      });
-    }
-
-    // Successful login - reset failed attempts
     await db.query(
       `UPDATE users
-       SET failed_login_attempts = 0,
-           locked_until = NULL,
-           last_login = CURRENT_TIMESTAMP
-       WHERE id = $1`,
-      [user.id]
+       SET failed_login_attempts = $1,
+           locked_until = $2
+       WHERE id = $3`,
+      [failedAttempts, lockUntil, user.id]
     );
 
-    // Generate tokens
-    const tokenPayload = {
-      id: user.id,
-      email: user.email,
-      role: user.role
-    };
-
-    const accessToken = generateAccessToken(tokenPayload);
-    const refreshToken = generateRefreshToken(tokenPayload);
-
-    // Store refresh token in database
-    const tokenExpiry = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000); // 7 days
+    // Log failed attempt
     await db.query(
-      `INSERT INTO refresh_tokens (user_id, token, expires_at, created_at)
-       VALUES ($1, $2, $3, CURRENT_TIMESTAMP)`,
-      [user.id, refreshToken, tokenExpiry]
+      `INSERT INTO audit_log (user_id, action, entity_type, entity_id, ip_address, user_agent, details, created_at)
+       VALUES ($1, 'login_failed', 'user', $2, $3, $4, $5, CURRENT_TIMESTAMP)`,
+      [user.id, user.id, req.ip, req.get('user-agent'), JSON.stringify({ failedAttempts, isLocked })]
     );
 
-    // Log successful login
-    await db.query(
-      `INSERT INTO audit_log (user_id, action, entity_type, entity_id, ip_address, user_agent, created_at)
-       VALUES ($1, 'login_success', 'user', $2, $3, $4, CURRENT_TIMESTAMP)`,
-      [user.id, user.id, req.ip, req.get('user-agent')]
-    );
+    if (isLocked) {
+      throw new ApiError('ACCOUNT_LOCKED', 'Account has been locked due to too many failed login attempts. Please try again after 15 minutes.', { statusCode: 423 });
+    }
 
-    res.json({
-      success: true,
-      message: 'Login successful',
-      data: {
-        user: {
-          id: user.id,
-          email: user.email,
-          firstName: user.first_name,
-          lastName: user.last_name,
-          role: user.role
-        },
-        accessToken,
-        refreshToken
-      }
-    });
-  } catch (error) {
-    console.error('Login error:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Login failed. Please try again.'
-    });
+    throw ApiError.unauthorized('Invalid email or password');
   }
-});
+
+  // Successful login - reset failed attempts
+  await db.query(
+    `UPDATE users
+     SET failed_login_attempts = 0,
+         locked_until = NULL,
+         last_login = CURRENT_TIMESTAMP
+     WHERE id = $1`,
+    [user.id]
+  );
+
+  // Generate tokens
+  const tokenPayload = {
+    id: user.id,
+    email: user.email,
+    role: user.role
+  };
+
+  const accessToken = generateAccessToken(tokenPayload);
+  const refreshToken = generateRefreshToken(tokenPayload);
+
+  // Store refresh token in database
+  const tokenExpiry = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000); // 7 days
+  await db.query(
+    `INSERT INTO refresh_tokens (user_id, token, expires_at, created_at)
+     VALUES ($1, $2, $3, CURRENT_TIMESTAMP)`,
+    [user.id, refreshToken, tokenExpiry]
+  );
+
+  // Log successful login
+  await db.query(
+    `INSERT INTO audit_log (user_id, action, entity_type, entity_id, ip_address, user_agent, created_at)
+     VALUES ($1, 'login_success', 'user', $2, $3, $4, CURRENT_TIMESTAMP)`,
+    [user.id, user.id, req.ip, req.get('user-agent')]
+  );
+
+  res.json({
+    success: true,
+    message: 'Login successful',
+    data: {
+      user: {
+        id: user.id,
+        email: user.email,
+        firstName: user.first_name,
+        lastName: user.last_name,
+        role: user.role
+      },
+      accessToken,
+      refreshToken
+    }
+  });
+}));
 
 /**
  * @route   POST /api/auth/refresh
  * @desc    Refresh access token using refresh token
  * @access  Public
  */
-router.post('/refresh', validateRefreshToken, async (req, res) => {
+router.post('/refresh', validateRefreshToken, asyncHandler(async (req, res) => {
+  const { refreshToken } = req.body;
+
+  // Verify refresh token
+  let decoded;
   try {
-    const { refreshToken } = req.body;
-
-    // Verify refresh token
-    let decoded;
-    try {
-      decoded = verifyRefreshToken(refreshToken);
-    } catch (error) {
-      return res.status(401).json({
-        success: false,
-        message: error.message || 'Invalid refresh token'
-      });
-    }
-
-    // Check if refresh token exists in database and is not revoked
-    const tokens = await db.query(
-      `SELECT rt.*, u.email, u.role, u.is_active
-       FROM refresh_tokens rt
-       JOIN users u ON rt.user_id = u.id
-       WHERE rt.token = $1 AND rt.revoked = false`,
-      [refreshToken]
-    );
-
-    if (tokens.rows.length === 0) {
-      return res.status(401).json({
-        success: false,
-        message: 'Refresh token has been revoked or does not exist'
-      });
-    }
-
-    const tokenData = tokens.rows[0];
-
-    // Check if token has expired
-    if (new Date(tokenData.expires_at) < new Date()) {
-      return res.status(401).json({
-        success: false,
-        message: 'Refresh token has expired'
-      });
-    }
-
-    // Check if user is still active
-    if (!tokenData.is_active) {
-      return res.status(403).json({
-        success: false,
-        message: 'User account is inactive'
-      });
-    }
-
-    // Generate new access token
-    const user = {
-      id: tokenData.user_id,
-      email: tokenData.email,
-      role: tokenData.role
-    };
-
-    const newAccessToken = generateAccessToken(user);
-
-    // Touch token's updated timestamp (for tracking last use)
-    // Note: last_used_at column doesn't exist yet; no-op for now
-
-    res.json({
-      success: true,
-      message: 'Token refreshed successfully',
-      data: {
-        accessToken: newAccessToken
-      }
-    });
+    decoded = verifyRefreshToken(refreshToken);
   } catch (error) {
-    console.error('Token refresh error:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Token refresh failed. Please try again.'
-    });
+    throw ApiError.unauthorized(error.message || 'Invalid refresh token');
   }
-});
+
+  // Check if refresh token exists in database and is not revoked
+  const tokens = await db.query(
+    `SELECT rt.*, u.email, u.role, u.is_active
+     FROM refresh_tokens rt
+     JOIN users u ON rt.user_id = u.id
+     WHERE rt.token = $1 AND rt.revoked = false`,
+    [refreshToken]
+  );
+
+  if (tokens.rows.length === 0) {
+    throw ApiError.unauthorized('Refresh token has been revoked or does not exist');
+  }
+
+  const tokenData = tokens.rows[0];
+
+  // Check if token has expired
+  if (new Date(tokenData.expires_at) < new Date()) {
+    throw ApiError.unauthorized('Refresh token has expired');
+  }
+
+  // Check if user is still active
+  if (!tokenData.is_active) {
+    throw ApiError.forbidden('User account is inactive');
+  }
+
+  // Generate new access token
+  const user = {
+    id: tokenData.user_id,
+    email: tokenData.email,
+    role: tokenData.role
+  };
+
+  const newAccessToken = generateAccessToken(user);
+
+  // Touch token's updated timestamp (for tracking last use)
+  // Note: last_used_at column doesn't exist yet; no-op for now
+
+  res.json({
+    success: true,
+    message: 'Token refreshed successfully',
+    data: {
+      accessToken: newAccessToken
+    }
+  });
+}));
 
 /**
  * @route   POST /api/auth/logout
  * @desc    Logout user and revoke refresh token
  * @access  Private
  */
-router.post('/logout', authenticate, async (req, res) => {
-  try {
-    const { refreshToken } = req.body;
+router.post('/logout', authenticate, asyncHandler(async (req, res) => {
+  const { refreshToken } = req.body;
 
-    if (refreshToken) {
-      // Revoke the specific refresh token
-      await db.query(
-        `UPDATE refresh_tokens
-         SET revoked = true, revoked_at = CURRENT_TIMESTAMP
-         WHERE token = $1 AND user_id = $2`,
-        [refreshToken, req.user.id]
-      );
-    } else {
-      // Revoke all refresh tokens for the user
-      await db.query(
-        `UPDATE refresh_tokens
-         SET revoked = true, revoked_at = CURRENT_TIMESTAMP
-         WHERE user_id = $1 AND revoked = false`,
-        [req.user.id]
-      );
-    }
-
-    // Log logout
+  if (refreshToken) {
+    // Revoke the specific refresh token
     await db.query(
-      `INSERT INTO audit_log (user_id, action, entity_type, entity_id, ip_address, user_agent, created_at)
-       VALUES ($1, 'logout', 'user', $2, $3, $4, CURRENT_TIMESTAMP)`,
-      [req.user.id, req.user.id, req.ip, req.get('user-agent')]
+      `UPDATE refresh_tokens
+       SET revoked = true, revoked_at = CURRENT_TIMESTAMP
+       WHERE token = $1 AND user_id = $2`,
+      [refreshToken, req.user.id]
     );
-
-    res.json({
-      success: true,
-      message: 'Logout successful'
-    });
-  } catch (error) {
-    console.error('Logout error:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Logout failed. Please try again.'
-    });
+  } else {
+    // Revoke all refresh tokens for the user
+    await db.query(
+      `UPDATE refresh_tokens
+       SET revoked = true, revoked_at = CURRENT_TIMESTAMP
+       WHERE user_id = $1 AND revoked = false`,
+      [req.user.id]
+    );
   }
-});
+
+  // Log logout
+  await db.query(
+    `INSERT INTO audit_log (user_id, action, entity_type, entity_id, ip_address, user_agent, created_at)
+     VALUES ($1, 'logout', 'user', $2, $3, $4, CURRENT_TIMESTAMP)`,
+    [req.user.id, req.user.id, req.ip, req.get('user-agent')]
+  );
+
+  res.json({
+    success: true,
+    message: 'Logout successful'
+  });
+}));
 
 /**
  * @route   GET /api/auth/me
  * @desc    Get current user information
  * @access  Private
  */
-router.get('/me', authenticate, async (req, res) => {
-  try {
-    const { resolvePermissions } = require('../utils/permissions');
+router.get('/me', authenticate, asyncHandler(async (req, res) => {
+  const { resolvePermissions } = require('../utils/permissions');
 
-    // Fetch full user details from database
-    const users = await db.query(
-      `SELECT u.id, u.email, u.first_name, u.last_name, u.role, u.is_active, u.created_at, u.last_login,
-              u.pos_role_id, pr.name as pos_role_name, pr.display_name as pos_role_display, pr.permissions as pos_permissions
-       FROM users u
-       LEFT JOIN pos_roles pr ON u.pos_role_id = pr.id
-       WHERE u.id = $1`,
-      [req.user.id]
-    );
+  // Fetch full user details from database
+  const users = await db.query(
+    `SELECT u.id, u.email, u.first_name, u.last_name, u.role, u.is_active, u.created_at, u.last_login,
+            u.pos_role_id, pr.name as pos_role_name, pr.display_name as pos_role_display, pr.permissions as pos_permissions
+     FROM users u
+     LEFT JOIN pos_roles pr ON u.pos_role_id = pr.id
+     WHERE u.id = $1`,
+    [req.user.id]
+  );
 
-    if (users.rows.length === 0) {
-      return res.status(404).json({
-        success: false,
-        message: 'User not found'
-      });
-    }
-
-    const user = users.rows[0];
-    const userObj = {
-      id: user.id,
-      email: user.email,
-      firstName: user.first_name,
-      lastName: user.last_name,
-      role: user.role,
-      isActive: user.is_active,
-      createdAt: user.created_at,
-      lastLogin: user.last_login,
-      posRoleId: user.pos_role_id,
-      posRoleName: user.pos_role_name,
-      posRoleDisplay: user.pos_role_display,
-      posPermissions: Array.isArray(user.pos_permissions) ? user.pos_permissions : null,
-    };
-
-    res.json({
-      success: true,
-      data: {
-        user: userObj,
-        permissions: resolvePermissions(userObj),
-      }
-    });
-  } catch (error) {
-    console.error('Get current user error:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Failed to fetch user information'
-    });
+  if (users.rows.length === 0) {
+    throw ApiError.notFound('User');
   }
-});
+
+  const user = users.rows[0];
+  const userObj = {
+    id: user.id,
+    email: user.email,
+    firstName: user.first_name,
+    lastName: user.last_name,
+    role: user.role,
+    isActive: user.is_active,
+    createdAt: user.created_at,
+    lastLogin: user.last_login,
+    posRoleId: user.pos_role_id,
+    posRoleName: user.pos_role_name,
+    posRoleDisplay: user.pos_role_display,
+    posPermissions: Array.isArray(user.pos_permissions) ? user.pos_permissions : null,
+  };
+
+  res.json({
+    success: true,
+    data: {
+      user: userObj,
+      permissions: resolvePermissions(userObj),
+    }
+  });
+}));
 
 /**
  * @route   PUT /api/auth/change-password
  * @desc    Change user password
  * @access  Private
  */
-router.put('/change-password', authenticate, validateChangePassword, async (req, res) => {
+router.put('/change-password', authenticate, validateChangePassword, asyncHandler(async (req, res) => {
   const client = await db.connect();
 
   try {
@@ -482,10 +408,7 @@ router.put('/change-password', authenticate, validateChangePassword, async (req,
 
     if (users.rows.length === 0) {
       await client.query('ROLLBACK');
-      return res.status(404).json({
-        success: false,
-        message: 'User not found'
-      });
+      throw ApiError.notFound('User');
     }
 
     const user = users.rows[0];
@@ -503,21 +426,14 @@ router.put('/change-password', authenticate, validateChangePassword, async (req,
         [req.user.id, req.user.id, req.ip, req.get('user-agent'), JSON.stringify({ reason: 'invalid_current_password' })]
       );
 
-      return res.status(401).json({
-        success: false,
-        message: 'Current password is incorrect'
-      });
+      throw ApiError.unauthorized('Current password is incorrect');
     }
 
     // Validate new password strength
     const passwordValidation = validatePasswordStrength(newPassword);
     if (!passwordValidation.isValid) {
       await client.query('ROLLBACK');
-      return res.status(400).json({
-        success: false,
-        message: 'New password does not meet security requirements',
-        errors: passwordValidation.errors
-      });
+      throw ApiError.badRequest('New password does not meet security requirements', passwordValidation.errors);
     }
 
     // Hash new password
@@ -550,87 +466,64 @@ router.put('/change-password', authenticate, validateChangePassword, async (req,
       success: true,
       message: 'Password changed successfully. Please login again with your new password.'
     });
-  } catch (error) {
+  } catch (err) {
     await client.query('ROLLBACK');
-    console.error('Password change error:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Password change failed. Please try again.'
-    });
+    throw err;
   } finally {
     client.release();
   }
-});
+}));
 
 /**
  * @route   GET /api/auth/sessions
  * @desc    Get all active sessions (refresh tokens) for current user
  * @access  Private
  */
-router.get('/sessions', authenticate, async (req, res) => {
-  try {
-    const sessions = await db.query(
-      `SELECT id, created_at, expires_at
-       FROM refresh_tokens
-       WHERE user_id = $1 AND revoked = false AND expires_at > CURRENT_TIMESTAMP
-       ORDER BY created_at DESC`,
-      [req.user.id]
-    );
+router.get('/sessions', authenticate, asyncHandler(async (req, res) => {
+  const sessions = await db.query(
+    `SELECT id, created_at, expires_at
+     FROM refresh_tokens
+     WHERE user_id = $1 AND revoked = false AND expires_at > CURRENT_TIMESTAMP
+     ORDER BY created_at DESC`,
+    [req.user.id]
+  );
 
-    res.json({
-      success: true,
-      data: {
-        sessions: sessions.rows.map(session => ({
-          id: session.id,
-          createdAt: session.created_at,
-          expiresAt: session.expires_at
-        }))
-      }
-    });
-  } catch (error) {
-    console.error('Get sessions error:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Failed to fetch sessions'
-    });
-  }
-});
+  res.json({
+    success: true,
+    data: {
+      sessions: sessions.rows.map(session => ({
+        id: session.id,
+        createdAt: session.created_at,
+        expiresAt: session.expires_at
+      }))
+    }
+  });
+}));
 
 /**
  * @route   DELETE /api/auth/sessions/:id
  * @desc    Revoke a specific session (refresh token)
  * @access  Private
  */
-router.delete('/sessions/:id', authenticate, async (req, res) => {
-  try {
-    const sessionId = req.params.id;
+router.delete('/sessions/:id', authenticate, asyncHandler(async (req, res) => {
+  const sessionId = req.params.id;
 
-    // Revoke the session, but only if it belongs to the current user
-    const result = await db.query(
-      `UPDATE refresh_tokens
-       SET revoked = true, revoked_at = CURRENT_TIMESTAMP
-       WHERE id = $1 AND user_id = $2`,
-      [sessionId, req.user.id]
-    );
+  // Revoke the session, but only if it belongs to the current user
+  const result = await db.query(
+    `UPDATE refresh_tokens
+     SET revoked = true, revoked_at = CURRENT_TIMESTAMP
+     WHERE id = $1 AND user_id = $2`,
+    [sessionId, req.user.id]
+  );
 
-    if (result.rowCount === 0) {
-      return res.status(404).json({
-        success: false,
-        message: 'Session not found'
-      });
-    }
-
-    res.json({
-      success: true,
-      message: 'Session revoked successfully'
-    });
-  } catch (error) {
-    console.error('Revoke session error:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Failed to revoke session'
-    });
+  if (result.rowCount === 0) {
+    throw ApiError.notFound('Session');
   }
-});
+
+  res.json({
+    success: true,
+    message: 'Session revoked successfully'
+  });
+}));
 
 module.exports = router;

@@ -104,14 +104,10 @@ router.post(
     });
 
     if (error) {
-      return res.status(400).json({
-        success: false,
-        error: 'Validation failed',
-        details: error.details.map((d) => ({
-          field: d.path.join('.'),
-          message: d.message,
-        })),
-      });
+      throw ApiError.validation('Validation failed', error.details.map((d) => ({
+        field: d.path.join('.'),
+        message: d.message,
+      })));
     }
 
     const { items, customerId, limit } = value;
@@ -240,14 +236,10 @@ router.post(
     });
 
     if (error) {
-      return res.status(400).json({
-        success: false,
-        error: 'Validation failed',
-        details: error.details.map((d) => ({
-          field: d.path.join('.'),
-          message: d.message,
-        })),
-      });
+      throw ApiError.validation('Validation failed', error.details.map((d) => ({
+        field: d.path.join('.'),
+        message: d.message,
+      })));
     }
 
     // Add user context if available
@@ -288,14 +280,10 @@ router.get(
     });
 
     if (error) {
-      return res.status(400).json({
-        success: false,
-        error: 'Validation failed',
-        details: error.details.map((d) => ({
-          field: d.path.join('.'),
-          message: d.message,
-        })),
-      });
+      throw ApiError.validation('Validation failed', error.details.map((d) => ({
+        field: d.path.join('.'),
+        message: d.message,
+      })));
     }
 
     const result = await recommendationService.getPerformanceMetrics(value);

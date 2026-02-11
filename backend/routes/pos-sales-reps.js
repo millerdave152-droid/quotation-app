@@ -5,7 +5,7 @@
 
 const express = require('express');
 const router = express.Router();
-const { asyncHandler } = require('../middleware/errorHandler');
+const { ApiError, asyncHandler } = require('../middleware/errorHandler');
 const { authenticate } = require('../middleware/auth');
 const SalesRepService = require('../services/SalesRepService');
 
@@ -117,19 +117,13 @@ router.get('/sales-reps/:id', authenticate, asyncHandler(async (req, res) => {
   const repId = parseInt(req.params.id, 10);
 
   if (!repId || isNaN(repId)) {
-    return res.status(400).json({
-      success: false,
-      error: 'Invalid rep ID',
-    });
+    throw ApiError.badRequest('Invalid rep ID');
   }
 
   const rep = await salesRepService.getSalesRepById(repId);
 
   if (!rep) {
-    return res.status(404).json({
-      success: false,
-      error: 'Sales rep not found',
-    });
+    throw ApiError.notFound('Sales rep');
   }
 
   res.json({

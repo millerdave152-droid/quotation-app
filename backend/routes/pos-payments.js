@@ -123,11 +123,7 @@ router.post('/card/confirm', authenticate, asyncHandler(async (req, res) => {
   const result = await posPaymentService.confirmCardPayment(value.paymentIntentId);
 
   if (!result.success) {
-    return res.status(400).json({
-      success: false,
-      error: result.error,
-      status: result.status
-    });
+    throw ApiError.badRequest(result.error);
   }
 
   res.json({
@@ -210,11 +206,7 @@ router.post('/gift-card/balance', authenticate, asyncHandler(async (req, res) =>
   const result = await posPaymentService.validateGiftCard(value.cardNumber, value.pin);
 
   if (!result.valid) {
-    return res.status(400).json({
-      success: false,
-      error: result.error,
-      cardNumber: result.cardNumber
-    });
+    throw ApiError.badRequest(result.error);
   }
 
   res.json({

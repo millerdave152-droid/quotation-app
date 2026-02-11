@@ -116,6 +116,7 @@ export function useCart() {
           error: result.error || 'Transaction failed',
           code: result.code || null,
           fraudAssessment: result.fraudAssessment || null,
+          details: result.details || null,
         };
       } catch (error) {
         console.error('[useCart] processTransaction error:', error);

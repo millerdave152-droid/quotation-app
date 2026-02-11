@@ -7,6 +7,7 @@
 const express = require('express');
 const { authenticate } = require('../middleware/auth');
 const { checkPermission } = require('../middleware/checkPermission');
+const { ApiError } = require('../middleware/errorHandler');
 
 function init({ pool }) {
   const router = express.Router();
@@ -24,7 +25,7 @@ function init({ pool }) {
       try {
         const { name, phone, email, license_number, user_id, vehicle_id, home_location_id } = req.body;
         if (!name || !name.trim()) {
-          return res.status(400).json({ success: false, message: 'name is required' });
+          throw ApiError.badRequest('name is required');
         }
 
         const result = await pool.query(
@@ -51,7 +52,7 @@ function init({ pool }) {
         const { id } = req.params;
         const current = await pool.query('SELECT * FROM drivers WHERE id = $1', [id]);
         if (current.rows.length === 0) {
-          return res.status(404).json({ success: false, message: 'Driver not found' });
+          throw ApiError.notFound('Driver');
         }
 
         const merged = { ...current.rows[0], ...req.body };
@@ -95,7 +96,7 @@ function init({ pool }) {
         );
         if (driverResult.rows.length === 0) {
           await client.query('ROLLBACK');
-          return res.status(404).json({ success: false, message: 'Driver not found' });
+          throw ApiError.notFound('Driver');
         }
 
         const today = new Date().toISOString().split('T')[0];
@@ -157,7 +158,7 @@ function init({ pool }) {
         );
         if (shiftResult.rows.length === 0) {
           await client.query('ROLLBACK');
-          return res.status(400).json({ success: false, message: 'No active shift found for today' });
+          throw ApiError.badRequest('No active shift found for today');
         }
         const shift = shiftResult.rows[0];
 
@@ -245,7 +246,7 @@ function init({ pool }) {
 
         // Single point
         if (latitude === undefined || longitude === undefined) {
-          return res.status(400).json({ success: false, message: 'latitude and longitude are required' });
+          throw ApiError.badRequest('latitude and longitude are required');
         }
 
         await pool.query(
@@ -286,7 +287,7 @@ function init({ pool }) {
           [driverId]
         );
         if (result.rows.length === 0) {
-          return res.status(404).json({ success: false, message: 'Driver not found' });
+          throw ApiError.notFound('Driver');
         }
         const d = result.rows[0];
 
@@ -357,7 +358,7 @@ function init({ pool }) {
         const { status } = req.body;
         const valid = ['available', 'on_route', 'break', 'off_duty'];
         if (!status || !valid.includes(status)) {
-          return res.status(400).json({ success: false, message: `status must be one of: ${valid.join(', ')}` });
+          throw ApiError.badRequest(`status must be one of: ${valid.join(', ')}`);
         }
 
         const result = await pool.query(
@@ -365,7 +366,7 @@ function init({ pool }) {
           [status, driverId]
         );
         if (result.rows.length === 0) {
-          return res.status(404).json({ success: false, message: 'Driver not found' });
+          throw ApiError.notFound('Driver');
         }
 
         // Update shift if going on break
@@ -438,7 +439,7 @@ function init({ pool }) {
       try {
         const { driver_id, shift_date, scheduled_start, scheduled_end, vehicle_id, notes } = req.body;
         if (!driver_id || !shift_date) {
-          return res.status(400).json({ success: false, message: 'driver_id and shift_date are required' });
+          throw ApiError.badRequest('driver_id and shift_date are required');
         }
 
         const result = await pool.query(
@@ -569,11 +570,11 @@ function init({ pool }) {
         } = req.body;
 
         if (!name || !name.trim()) {
-          return res.status(400).json({ success: false, message: 'name is required' });
+          throw ApiError.badRequest('name is required');
         }
         const validTypes = ['van', 'truck', 'box_truck', 'flatbed'];
         if (vehicle_type && !validTypes.includes(vehicle_type)) {
-          return res.status(400).json({ success: false, message: `vehicle_type must be one of: ${validTypes.join(', ')}` });
+          throw ApiError.badRequest(`vehicle_type must be one of: ${validTypes.join(', ')}`);
         }
 
         const result = await pool.query(
@@ -604,7 +605,7 @@ function init({ pool }) {
         const { id } = req.params;
         const current = await pool.query('SELECT * FROM vehicles WHERE id = $1', [id]);
         if (current.rows.length === 0) {
-          return res.status(404).json({ success: false, message: 'Vehicle not found' });
+          throw ApiError.notFound('Vehicle');
         }
 
         const m = { ...current.rows[0], ...req.body };
@@ -644,12 +645,12 @@ function init({ pool }) {
 
         const validTypes = ['pre_trip', 'post_trip', 'periodic'];
         if (!inspection_type || !validTypes.includes(inspection_type)) {
-          return res.status(400).json({ success: false, message: `inspection_type must be one of: ${validTypes.join(', ')}` });
+          throw ApiError.badRequest(`inspection_type must be one of: ${validTypes.join(', ')}`);
         }
 
         const vehicleResult = await pool.query('SELECT id FROM vehicles WHERE id = $1', [vehicleId]);
         if (vehicleResult.rows.length === 0) {
-          return res.status(404).json({ success: false, message: 'Vehicle not found' });
+          throw ApiError.notFound('Vehicle');
         }
 
         const result = await pool.query(

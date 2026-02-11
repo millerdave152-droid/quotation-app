@@ -52,7 +52,9 @@ export function ETransferPayment({ amountDue, onComplete, onBack, isPartial, cus
       document.body.appendChild(el);
       el.select();
       document.execCommand('copy');
-      document.body.removeChild(el);
+      if (el && el.parentNode) {
+        el.parentNode.removeChild(el);
+      }
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     }

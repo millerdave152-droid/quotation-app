@@ -13,6 +13,7 @@ const router = express.Router();
 const Joi = require('joi');
 const InventorySyncService = require('../services/InventorySyncService');
 const { authenticate } = require('../middleware/auth');
+const { ApiError, asyncHandler } = require('../middleware/errorHandler');
 
 // Apply authentication to all inventory sync routes
 router.use(authenticate);
@@ -87,44 +88,34 @@ const getService = (req) => {
  * GET /api/inventory-sync/check/:productId/:quantity
  * Check availability for a product
  */
-router.get('/check/:productId/:quantity', async (req, res) => {
-  try {
-    const productId = parseInt(req.params.productId);
-    const quantity = parseInt(req.params.quantity);
-    const excludeReservationId = req.query.excludeReservation
-      ? parseInt(req.query.excludeReservation)
-      : null;
+router.get('/check/:productId/:quantity', asyncHandler(async (req, res) => {
+  const productId = parseInt(req.params.productId);
+  const quantity = parseInt(req.params.quantity);
+  const excludeReservationId = req.query.excludeReservation
+    ? parseInt(req.query.excludeReservation)
+    : null;
 
-    const service = getService(req);
-    const result = await service.checkAvailability(productId, quantity, excludeReservationId);
+  const service = getService(req);
+  const result = await service.checkAvailability(productId, quantity, excludeReservationId);
 
-    res.json({ success: true, data: result });
-  } catch (error) {
-    console.error('Error checking availability:', error);
-    res.status(500).json({ success: false, error: 'Failed to check availability' });
-  }
-});
+  res.json({ success: true, data: result });
+}));
 
 /**
  * POST /api/inventory-sync/check-bulk
  * Check availability for multiple products
  */
-router.post('/check-bulk', async (req, res) => {
-  try {
-    const { items } = req.body;
-    if (!items || !Array.isArray(items)) {
-      return res.status(400).json({ success: false, error: 'items array is required' });
-    }
-
-    const service = getService(req);
-    const result = await service.checkBulkAvailability(items);
-
-    res.json({ success: true, data: result });
-  } catch (error) {
-    console.error('Error checking bulk availability:', error);
-    res.status(500).json({ success: false, error: 'Failed to check availability' });
+router.post('/check-bulk', asyncHandler(async (req, res) => {
+  const { items } = req.body;
+  if (!items || !Array.isArray(items)) {
+    throw ApiError.badRequest('items array is required');
   }
-});
+
+  const service = getService(req);
+  const result = await service.checkBulkAvailability(items);
+
+  res.json({ success: true, data: result });
+}));
 
 // ============================================================================
 // RESERVATIONS (Quote Soft Holds)
@@ -134,154 +125,120 @@ router.post('/check-bulk', async (req, res) => {
  * POST /api/inventory-sync/reserve
  * Create a single reservation
  */
-router.post('/reserve', async (req, res) => {
-  try {
-    const { error, value } = reservationSchema.validate(req.body);
-    if (error) {
-      return res.status(400).json({ success: false, error: error.details[0].message });
-    }
-
-    const service = getService(req);
-    const result = await service.createReservation({ ...value, userId: req.user?.id });
-
-    if (!result.success) {
-      return res.status(400).json({ success: false, error: result.message });
-    }
-
-    res.json({ success: true, data: result });
-  } catch (error) {
-    console.error('Error creating reservation:', error);
-    res.status(500).json({ success: false, error: 'Failed to create reservation' });
+router.post('/reserve', asyncHandler(async (req, res) => {
+  const { error, value } = reservationSchema.validate(req.body);
+  if (error) {
+    throw ApiError.badRequest(error.details[0].message);
   }
-});
+
+  const service = getService(req);
+  const result = await service.createReservation({ ...value, userId: req.user?.id });
+
+  if (!result.success) {
+    throw ApiError.badRequest(result.message);
+  }
+
+  res.json({ success: true, data: result });
+}));
 
 /**
  * POST /api/inventory-sync/reserve-quote
  * Create reservations for all items in a quote
  */
-router.post('/reserve-quote', async (req, res) => {
-  try {
-    const { error, value } = bulkReservationSchema.validate(req.body);
-    if (error) {
-      return res.status(400).json({ success: false, error: error.details[0].message });
-    }
-
-    const service = getService(req);
-    const result = await service.reserveQuoteItems(value.quoteId, value.items, {
-      customerId: value.customerId,
-      expiresHours: value.expiresHours,
-      userId: req.user?.id,
-      locationId: value.locationId,
-    });
-
-    if (!result.success) {
-      return res.status(400).json({
-        success: false,
-        errors: result.errors,
-        message: result.message,
-      });
-    }
-
-    res.json({ success: true, data: result });
-  } catch (error) {
-    console.error('Error creating quote reservations:', error);
-    res.status(500).json({ success: false, error: 'Failed to create reservations' });
+router.post('/reserve-quote', asyncHandler(async (req, res) => {
+  const { error, value } = bulkReservationSchema.validate(req.body);
+  if (error) {
+    throw ApiError.badRequest(error.details[0].message);
   }
-});
+
+  const service = getService(req);
+  const result = await service.reserveQuoteItems(value.quoteId, value.items, {
+    customerId: value.customerId,
+    expiresHours: value.expiresHours,
+    userId: req.user?.id,
+    locationId: value.locationId,
+  });
+
+  if (!result.success) {
+    throw ApiError.badRequest(result.message);
+  }
+
+  res.json({ success: true, data: result });
+}));
 
 /**
  * GET /api/inventory-sync/reservations/quote/:quoteId
  * Get all reservations for a quote
  */
-router.get('/reservations/quote/:quoteId', async (req, res) => {
-  try {
-    const quoteId = parseInt(req.params.quoteId);
-    const service = getService(req);
-    const reservations = await service.getQuoteReservations(quoteId);
+router.get('/reservations/quote/:quoteId', asyncHandler(async (req, res) => {
+  const quoteId = parseInt(req.params.quoteId);
+  const service = getService(req);
+  const reservations = await service.getQuoteReservations(quoteId);
 
-    res.json({ success: true, data: reservations });
-  } catch (error) {
-    console.error('Error fetching quote reservations:', error);
-    res.status(500).json({ success: false, error: 'Failed to fetch reservations' });
-  }
-});
+  res.json({ success: true, data: reservations });
+}));
 
 /**
  * POST /api/inventory-sync/reservations/:id/release
  * Release a reservation
  */
-router.post('/reservations/:id/release', async (req, res) => {
-  try {
-    const reservationId = parseInt(req.params.id);
-    const { reason } = req.body;
+router.post('/reservations/:id/release', asyncHandler(async (req, res) => {
+  const reservationId = parseInt(req.params.id);
+  const { reason } = req.body;
 
-    const service = getService(req);
-    const result = await service.releaseReservation(
-      reservationId,
-      reason || 'Manual release',
-      req.user?.id
-    );
+  const service = getService(req);
+  const result = await service.releaseReservation(
+    reservationId,
+    reason || 'Manual release',
+    req.user?.id
+  );
 
-    if (!result.success) {
-      return res.status(400).json({ success: false, error: result.message });
-    }
-
-    res.json({ success: true, data: result });
-  } catch (error) {
-    console.error('Error releasing reservation:', error);
-    res.status(500).json({ success: false, error: 'Failed to release reservation' });
+  if (!result.success) {
+    throw ApiError.badRequest(result.message);
   }
-});
+
+  res.json({ success: true, data: result });
+}));
 
 /**
  * POST /api/inventory-sync/release-quote/:quoteId
  * Release all reservations for a quote
  */
-router.post('/release-quote/:quoteId', async (req, res) => {
-  try {
-    const quoteId = parseInt(req.params.quoteId);
-    const { reason } = req.body;
+router.post('/release-quote/:quoteId', asyncHandler(async (req, res) => {
+  const quoteId = parseInt(req.params.quoteId);
+  const { reason } = req.body;
 
-    const service = getService(req);
-    const result = await service.releaseQuoteReservations(
-      quoteId,
-      reason || 'Quote cancelled',
-      req.user?.id
-    );
+  const service = getService(req);
+  const result = await service.releaseQuoteReservations(
+    quoteId,
+    reason || 'Quote cancelled',
+    req.user?.id
+  );
 
-    res.json({ success: true, data: result });
-  } catch (error) {
-    console.error('Error releasing quote reservations:', error);
-    res.status(500).json({ success: false, error: 'Failed to release reservations' });
-  }
-});
+  res.json({ success: true, data: result });
+}));
 
 /**
  * POST /api/inventory-sync/reservations/:id/extend
  * Extend reservation expiry
  */
-router.post('/reservations/:id/extend', async (req, res) => {
-  try {
-    const reservationId = parseInt(req.params.id);
-    const { hours } = req.body;
+router.post('/reservations/:id/extend', asyncHandler(async (req, res) => {
+  const reservationId = parseInt(req.params.id);
+  const { hours } = req.body;
 
-    if (!hours || hours < 1) {
-      return res.status(400).json({ success: false, error: 'Valid hours is required' });
-    }
-
-    const service = getService(req);
-    const result = await service.extendReservation(reservationId, hours, req.user?.id);
-
-    if (!result.success) {
-      return res.status(400).json({ success: false, error: result.message });
-    }
-
-    res.json({ success: true, data: result });
-  } catch (error) {
-    console.error('Error extending reservation:', error);
-    res.status(500).json({ success: false, error: 'Failed to extend reservation' });
+  if (!hours || hours < 1) {
+    throw ApiError.badRequest('Valid hours is required');
   }
-});
+
+  const service = getService(req);
+  const result = await service.extendReservation(reservationId, hours, req.user?.id);
+
+  if (!result.success) {
+    throw ApiError.badRequest(result.message);
+  }
+
+  res.json({ success: true, data: result });
+}));
 
 // ============================================================================
 // CONVERSION (Quote to Order)
@@ -291,52 +248,42 @@ router.post('/reservations/:id/extend', async (req, res) => {
  * POST /api/inventory-sync/convert-quote/:quoteId
  * Convert all quote reservations to sales
  */
-router.post('/convert-quote/:quoteId', async (req, res) => {
-  try {
-    const quoteId = parseInt(req.params.quoteId);
-    const { orderId } = req.body;
+router.post('/convert-quote/:quoteId', asyncHandler(async (req, res) => {
+  const quoteId = parseInt(req.params.quoteId);
+  const { orderId } = req.body;
 
-    if (!orderId) {
-      return res.status(400).json({ success: false, error: 'orderId is required' });
-    }
-
-    const service = getService(req);
-    const result = await service.convertQuoteToOrder(quoteId, orderId, req.user?.id);
-
-    res.json({ success: true, data: result });
-  } catch (error) {
-    console.error('Error converting quote:', error);
-    res.status(500).json({ success: false, error: 'Failed to convert quote' });
+  if (!orderId) {
+    throw ApiError.badRequest('orderId is required');
   }
-});
+
+  const service = getService(req);
+  const result = await service.convertQuoteToOrder(quoteId, orderId, req.user?.id);
+
+  res.json({ success: true, data: result });
+}));
 
 /**
  * POST /api/inventory-sync/reservations/:id/convert
  * Convert single reservation to sale
  */
-router.post('/reservations/:id/convert', async (req, res) => {
-  try {
-    const reservationId = parseInt(req.params.id);
-    const { orderId, quantity } = req.body;
+router.post('/reservations/:id/convert', asyncHandler(async (req, res) => {
+  const reservationId = parseInt(req.params.id);
+  const { orderId, quantity } = req.body;
 
-    const service = getService(req);
-    const result = await service.convertReservationToSale(
-      reservationId,
-      orderId,
-      quantity,
-      req.user?.id
-    );
+  const service = getService(req);
+  const result = await service.convertReservationToSale(
+    reservationId,
+    orderId,
+    quantity,
+    req.user?.id
+  );
 
-    if (!result.success) {
-      return res.status(400).json({ success: false, error: result.message });
-    }
-
-    res.json({ success: true, data: result });
-  } catch (error) {
-    console.error('Error converting reservation:', error);
-    res.status(500).json({ success: false, error: 'Failed to convert reservation' });
+  if (!result.success) {
+    throw ApiError.badRequest(result.message);
   }
-});
+
+  res.json({ success: true, data: result });
+}));
 
 // ============================================================================
 // SALES DEDUCTIONS (POS)
@@ -346,62 +293,48 @@ router.post('/reservations/:id/convert', async (req, res) => {
  * POST /api/inventory-sync/deduct
  * Deduct inventory for a single sale
  */
-router.post('/deduct', async (req, res) => {
-  try {
-    const { error, value } = deductSchema.validate(req.body);
-    if (error) {
-      return res.status(400).json({ success: false, error: error.details[0].message });
-    }
-
-    const service = getService(req);
-    const result = await service.deductForSale({ ...value, userId: req.user?.id });
-
-    if (!result.success) {
-      return res.status(400).json({ success: false, error: result.message });
-    }
-
-    res.json({ success: true, data: result });
-  } catch (error) {
-    console.error('Error deducting inventory:', error);
-    res.status(500).json({ success: false, error: 'Failed to deduct inventory' });
+router.post('/deduct', asyncHandler(async (req, res) => {
+  const { error, value } = deductSchema.validate(req.body);
+  if (error) {
+    throw ApiError.badRequest(error.details[0].message);
   }
-});
+
+  const service = getService(req);
+  const result = await service.deductForSale({ ...value, userId: req.user?.id });
+
+  if (!result.success) {
+    throw ApiError.badRequest(result.message);
+  }
+
+  res.json({ success: true, data: result });
+}));
 
 /**
  * POST /api/inventory-sync/deduct-transaction
  * Deduct inventory for a POS transaction (multiple items)
  */
-router.post('/deduct-transaction', async (req, res) => {
-  try {
-    const { error, value } = bulkDeductSchema.validate(req.body);
-    if (error) {
-      return res.status(400).json({ success: false, error: error.details[0].message });
-    }
-
-    const service = getService(req);
-    const result = await service.deductForTransaction(value.items, {
-      orderId: value.orderId,
-      transactionId: value.transactionId,
-      referenceNumber: value.referenceNumber,
-      userId: req.user?.id,
-      locationId: value.locationId,
-      allowNegative: value.allowNegative,
-    });
-
-    if (!result.success) {
-      return res.status(400).json({
-        success: false,
-        errors: result.errors,
-        message: result.message,
-      });
-    }
-
-    res.json({ success: true, data: result });
-  } catch (error) {
-    console.error('Error deducting transaction inventory:', error);
-    res.status(500).json({ success: false, error: 'Failed to deduct inventory' });
+router.post('/deduct-transaction', asyncHandler(async (req, res) => {
+  const { error, value } = bulkDeductSchema.validate(req.body);
+  if (error) {
+    throw ApiError.badRequest(error.details[0].message);
   }
-});
+
+  const service = getService(req);
+  const result = await service.deductForTransaction(value.items, {
+    orderId: value.orderId,
+    transactionId: value.transactionId,
+    referenceNumber: value.referenceNumber,
+    userId: req.user?.id,
+    locationId: value.locationId,
+    allowNegative: value.allowNegative,
+  });
+
+  if (!result.success) {
+    throw ApiError.badRequest(result.message);
+  }
+
+  res.json({ success: true, data: result });
+}));
 
 // ============================================================================
 // VOID/RESTORE
@@ -411,93 +344,78 @@ router.post('/deduct-transaction', async (req, res) => {
  * POST /api/inventory-sync/restore
  * Restore inventory for a single item (void/return)
  */
-router.post('/restore', async (req, res) => {
-  try {
-    const { productId, quantity, reason, referenceType, referenceId, referenceNumber } = req.body;
+router.post('/restore', asyncHandler(async (req, res) => {
+  const { productId, quantity, reason, referenceType, referenceId, referenceNumber } = req.body;
 
-    if (!productId || !quantity || quantity < 1) {
-      return res.status(400).json({ success: false, error: 'productId and quantity are required' });
-    }
-
-    const service = getService(req);
-    const result = await service.restoreForVoid({
-      productId,
-      quantity,
-      referenceType,
-      referenceId,
-      referenceNumber,
-      userId: req.user?.id,
-    });
-
-    if (!result.success) {
-      return res.status(400).json({ success: false, error: result.message });
-    }
-
-    res.json({ success: true, data: result });
-  } catch (error) {
-    console.error('Error restoring inventory:', error);
-    res.status(500).json({ success: false, error: 'Failed to restore inventory' });
+  if (!productId || !quantity || quantity < 1) {
+    throw ApiError.badRequest('productId and quantity are required');
   }
-});
+
+  const service = getService(req);
+  const result = await service.restoreForVoid({
+    productId,
+    quantity,
+    referenceType,
+    referenceId,
+    referenceNumber,
+    userId: req.user?.id,
+  });
+
+  if (!result.success) {
+    throw ApiError.badRequest(result.message);
+  }
+
+  res.json({ success: true, data: result });
+}));
 
 /**
  * POST /api/inventory-sync/void-transaction
  * Restore inventory for a voided transaction (multiple items)
  */
-router.post('/void-transaction', async (req, res) => {
-  try {
-    const { items, referenceType, referenceId, referenceNumber } = req.body;
+router.post('/void-transaction', asyncHandler(async (req, res) => {
+  const { items, referenceType, referenceId, referenceNumber } = req.body;
 
-    if (!items || !Array.isArray(items)) {
-      return res.status(400).json({ success: false, error: 'items array is required' });
-    }
-
-    const service = getService(req);
-    const result = await service.restoreForVoidedTransaction(items, {
-      referenceType,
-      referenceId,
-      referenceNumber,
-      userId: req.user?.id,
-    });
-
-    res.json({ success: true, data: result });
-  } catch (error) {
-    console.error('Error voiding transaction:', error);
-    res.status(500).json({ success: false, error: 'Failed to void transaction' });
+  if (!items || !Array.isArray(items)) {
+    throw ApiError.badRequest('items array is required');
   }
-});
+
+  const service = getService(req);
+  const result = await service.restoreForVoidedTransaction(items, {
+    referenceType,
+    referenceId,
+    referenceNumber,
+    userId: req.user?.id,
+  });
+
+  res.json({ success: true, data: result });
+}));
 
 /**
  * POST /api/inventory-sync/return
  * Process customer return
  */
-router.post('/return', async (req, res) => {
-  try {
-    const { productId, quantity, orderId, returnReason } = req.body;
+router.post('/return', asyncHandler(async (req, res) => {
+  const { productId, quantity, orderId, returnReason } = req.body;
 
-    if (!productId || !quantity || quantity < 1) {
-      return res.status(400).json({ success: false, error: 'productId and quantity are required' });
-    }
-
-    const service = getService(req);
-    const result = await service.processReturn({
-      productId,
-      quantity,
-      orderId,
-      returnReason: returnReason || 'Customer return',
-      userId: req.user?.id,
-    });
-
-    if (!result.success) {
-      return res.status(400).json({ success: false, error: result.message });
-    }
-
-    res.json({ success: true, data: result });
-  } catch (error) {
-    console.error('Error processing return:', error);
-    res.status(500).json({ success: false, error: 'Failed to process return' });
+  if (!productId || !quantity || quantity < 1) {
+    throw ApiError.badRequest('productId and quantity are required');
   }
-});
+
+  const service = getService(req);
+  const result = await service.processReturn({
+    productId,
+    quantity,
+    orderId,
+    returnReason: returnReason || 'Customer return',
+    userId: req.user?.id,
+  });
+
+  if (!result.success) {
+    throw ApiError.badRequest(result.message);
+  }
+
+  res.json({ success: true, data: result });
+}));
 
 // ============================================================================
 // AUDIT LOG
@@ -507,67 +425,52 @@ router.post('/return', async (req, res) => {
  * GET /api/inventory-sync/history/:productId
  * Get inventory transaction history for a product
  */
-router.get('/history/:productId', async (req, res) => {
-  try {
-    const productId = parseInt(req.params.productId);
-    const { limit, offset, startDate, endDate, types } = req.query;
+router.get('/history/:productId', asyncHandler(async (req, res) => {
+  const productId = parseInt(req.params.productId);
+  const { limit, offset, startDate, endDate, types } = req.query;
 
-    const service = getService(req);
-    const history = await service.getProductHistory(productId, {
-      limit: limit ? parseInt(limit) : 50,
-      offset: offset ? parseInt(offset) : 0,
-      startDate,
-      endDate,
-      transactionTypes: types ? types.split(',') : null,
-    });
+  const service = getService(req);
+  const history = await service.getProductHistory(productId, {
+    limit: limit ? parseInt(limit) : 50,
+    offset: offset ? parseInt(offset) : 0,
+    startDate,
+    endDate,
+    transactionTypes: types ? types.split(',') : null,
+  });
 
-    res.json({ success: true, data: history });
-  } catch (error) {
-    console.error('Error fetching history:', error);
-    res.status(500).json({ success: false, error: 'Failed to fetch history' });
-  }
-});
+  res.json({ success: true, data: history });
+}));
 
 /**
  * GET /api/inventory-sync/movements
  * Get recent inventory movements
  */
-router.get('/movements', async (req, res) => {
-  try {
-    const { limit, types, locationId } = req.query;
+router.get('/movements', asyncHandler(async (req, res) => {
+  const { limit, types, locationId } = req.query;
 
-    const service = getService(req);
-    const movements = await service.getRecentMovements({
-      limit: limit ? parseInt(limit) : 100,
-      transactionTypes: types ? types.split(',') : null,
-      locationId: locationId ? parseInt(locationId) : null,
-    });
+  const service = getService(req);
+  const movements = await service.getRecentMovements({
+    limit: limit ? parseInt(limit) : 100,
+    transactionTypes: types ? types.split(',') : null,
+    locationId: locationId ? parseInt(locationId) : null,
+  });
 
-    res.json({ success: true, data: movements });
-  } catch (error) {
-    console.error('Error fetching movements:', error);
-    res.status(500).json({ success: false, error: 'Failed to fetch movements' });
-  }
-});
+  res.json({ success: true, data: movements });
+}));
 
 /**
  * POST /api/inventory-sync/expire-reservations
  * Manually trigger reservation expiration check
  */
-router.post('/expire-reservations', async (req, res) => {
-  try {
-    const service = getService(req);
-    const result = await service.expireOldReservations();
+router.post('/expire-reservations', asyncHandler(async (req, res) => {
+  const service = getService(req);
+  const result = await service.expireOldReservations();
 
-    res.json({
-      success: true,
-      data: result,
-      message: `Expired ${result.expired} reservation(s)`,
-    });
-  } catch (error) {
-    console.error('Error expiring reservations:', error);
-    res.status(500).json({ success: false, error: 'Failed to expire reservations' });
-  }
-});
+  res.json({
+    success: true,
+    data: result,
+    message: `Expired ${result.expired} reservation(s)`,
+  });
+}));
 
 module.exports = router;

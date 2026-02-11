@@ -7,6 +7,7 @@
 const express = require('express');
 const { authenticate } = require('../middleware/auth');
 const { checkPermission } = require('../middleware/checkPermission');
+const { ApiError } = require('../middleware/errorHandler');
 
 const VALID_RULE_TYPES = ['low_stock', 'out_of_stock', 'overstock', 'stuck_inventory'];
 const VALID_SCOPES = ['all', 'category', 'brand', 'location'];
@@ -195,7 +196,7 @@ function init({ pool }) {
           errors.push('threshold_days required for stuck_inventory rules');
         }
         if (errors.length > 0) {
-          return res.status(400).json({ success: false, message: 'Validation failed', errors });
+          throw ApiError.badRequest('Validation failed', errors);
         }
 
         const result = await pool.query(
@@ -252,7 +253,7 @@ function init({ pool }) {
         const { id } = req.params;
         const current = await pool.query('SELECT * FROM inventory_alert_rules WHERE id = $1', [id]);
         if (current.rows.length === 0) {
-          return res.status(404).json({ success: false, message: 'Alert rule not found' });
+          throw ApiError.notFound('Alert rule');
         }
 
         const merged = { ...current.rows[0], ...req.body };
@@ -292,7 +293,7 @@ function init({ pool }) {
         const { id } = req.params;
         const result = await pool.query('DELETE FROM inventory_alert_rules WHERE id = $1 RETURNING id', [id]);
         if (result.rows.length === 0) {
-          return res.status(404).json({ success: false, message: 'Alert rule not found' });
+          throw ApiError.notFound('Alert rule');
         }
         res.json({ success: true, message: 'Alert rule deleted' });
       } catch (err) {
@@ -387,10 +388,10 @@ function init({ pool }) {
         const { id } = req.params;
         const current = await pool.query("SELECT id, status FROM inventory_alerts WHERE id = $1", [id]);
         if (current.rows.length === 0) {
-          return res.status(404).json({ success: false, message: 'Alert not found' });
+          throw ApiError.notFound('Alert');
         }
         if (current.rows[0].status !== 'active') {
-          return res.status(400).json({ success: false, message: `Alert is already '${current.rows[0].status}'` });
+          throw ApiError.badRequest(`Alert is already '${current.rows[0].status}'`);
         }
 
         const result = await pool.query(
@@ -420,7 +421,7 @@ function init({ pool }) {
           [id]
         );
         if (result.rows.length === 0) {
-          return res.status(404).json({ success: false, message: 'Alert not found or already resolved' });
+          throw ApiError.notFound('Alert not found or already resolved');
         }
         res.json({ success: true, alert: result.rows[0] });
       } catch (err) {

@@ -7,6 +7,7 @@
 const express = require('express');
 const crypto = require('crypto');
 const { authenticate } = require('../middleware/auth');
+const { ApiError, asyncHandler } = require('../middleware/errorHandler');
 
 const TAX_RATES = {
   ON: { hst: 0.13, gst: 0, pst: 0 },
@@ -37,7 +38,7 @@ function init({ pool }) {
   // POST / — Process exchange
   // ===========================================================================
 
-  router.post('/', async (req, res) => {
+  router.post('/', asyncHandler(async (req, res) => {
     const {
       original_order_id,
       return_items,    // [{ order_item_id, quantity, reason_code_id, reason_notes, item_condition }]
@@ -49,9 +50,9 @@ function init({ pool }) {
     const userId = req.user?.userId || req.user?.id;
 
     // ---- Validate inputs ----
-    if (!original_order_id) return res.status(400).json({ error: 'original_order_id is required' });
-    if (!return_items?.length) return res.status(400).json({ error: 'return_items are required' });
-    if (!new_items?.length) return res.status(400).json({ error: 'new_items are required' });
+    if (!original_order_id) throw ApiError.badRequest('original_order_id is required');
+    if (!return_items?.length) throw ApiError.badRequest('return_items are required');
+    if (!new_items?.length) throw ApiError.badRequest('new_items are required');
 
     const client = await pool.connect();
     try {
@@ -67,14 +68,12 @@ function init({ pool }) {
         [original_order_id]
       );
       if (!orderResult.rows.length) {
-        await client.query('ROLLBACK');
-        return res.status(404).json({ error: 'Original order not found' });
+        throw ApiError.notFound('Original order');
       }
       const origOrder = orderResult.rows[0];
 
       if (!['completed', 'paid', 'fulfilled', 'delivered'].includes(origOrder.status)) {
-        await client.query('ROLLBACK');
-        return res.status(400).json({ error: `Cannot exchange: order status is '${origOrder.status}'` });
+        throw ApiError.badRequest(`Cannot exchange: order status is '${origOrder.status}'`);
       }
 
       // ---- 2. Validate return items & calculate return value ----
@@ -93,12 +92,10 @@ function init({ pool }) {
       for (const ri of return_items) {
         const origItem = origItemMap[ri.order_item_id];
         if (!origItem) {
-          await client.query('ROLLBACK');
-          return res.status(400).json({ error: `Order item ${ri.order_item_id} not found in this order` });
+          throw ApiError.badRequest(`Order item ${ri.order_item_id} not found in this order`);
         }
         if (ri.quantity < 1 || ri.quantity > origItem.quantity) {
-          await client.query('ROLLBACK');
-          return res.status(400).json({ error: `Invalid quantity ${ri.quantity} for '${origItem.product_name}' (max ${origItem.quantity})` });
+          throw ApiError.badRequest(`Invalid quantity ${ri.quantity} for '${origItem.product_name}' (max ${origItem.quantity})`);
         }
 
         // Check already-returned quantity
@@ -110,8 +107,7 @@ function init({ pool }) {
         );
         const maxReturnable = origItem.quantity - existingResult.rows[0].returned;
         if (ri.quantity > maxReturnable) {
-          await client.query('ROLLBACK');
-          return res.status(400).json({ error: `Cannot return ${ri.quantity} of '${origItem.product_name}': only ${maxReturnable} remaining` });
+          throw ApiError.badRequest(`Cannot return ${ri.quantity} of '${origItem.product_name}': only ${maxReturnable} remaining`);
         }
 
         const itemRefund = origItem.unit_price_cents * ri.quantity;
@@ -136,8 +132,7 @@ function init({ pool }) {
 
       for (const ni of new_items) {
         if (!ni.product_id || !ni.quantity || ni.quantity < 1) {
-          await client.query('ROLLBACK');
-          return res.status(400).json({ error: 'Each new item requires product_id and quantity >= 1' });
+          throw ApiError.badRequest('Each new item requires product_id and quantity >= 1');
         }
 
         // Get product info + price
@@ -146,8 +141,7 @@ function init({ pool }) {
           [ni.product_id]
         );
         if (!prodResult.rows.length) {
-          await client.query('ROLLBACK');
-          return res.status(400).json({ error: `Product ${ni.product_id} not found` });
+          throw ApiError.badRequest(`Product ${ni.product_id} not found`);
         }
         const product = prodResult.rows[0];
 
@@ -553,16 +547,15 @@ function init({ pool }) {
     } finally {
       client.release();
     }
-  });
+  }));
 
   // ===========================================================================
   // GET /:id — Get exchange details by return ID
   // ===========================================================================
 
-  router.get('/:id', async (req, res) => {
-    try {
+  router.get('/:id', asyncHandler(async (req, res) => {
       const id = parseInt(req.params.id);
-      if (isNaN(id)) return res.status(400).json({ error: 'Invalid ID' });
+      if (isNaN(id)) throw ApiError.badRequest('Invalid ID');
 
       const result = await pool.query(
         `SELECT hr.*,
@@ -578,7 +571,7 @@ function init({ pool }) {
         [id]
       );
 
-      if (!result.rows.length) return res.status(404).json({ error: 'Exchange not found' });
+      if (!result.rows.length) throw ApiError.notFound('Exchange');
 
       const row = result.rows[0];
 
@@ -629,11 +622,7 @@ function init({ pool }) {
           completedAt: row.completed_at,
         },
       });
-    } catch (err) {
-      console.error('[Exchange] GET error:', err);
-      res.status(500).json({ error: 'Failed to get exchange details' });
-    }
-  });
+  }));
 
   return router;
 }

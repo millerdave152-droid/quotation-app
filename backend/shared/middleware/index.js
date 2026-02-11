@@ -16,7 +16,8 @@ const { validate, validateId } = require('../validation/schemas');
  * Adds unique request ID to each request for tracing
  */
 const requestId = (req, res, next) => {
-  req.requestId = `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+  req.id = req.requestId = `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+  req._startTime = Date.now();
   res.setHeader('X-Request-ID', req.requestId);
   next();
 };

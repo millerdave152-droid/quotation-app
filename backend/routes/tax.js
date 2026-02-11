@@ -8,6 +8,7 @@ const express = require('express');
 const router = express.Router();
 const Joi = require('joi');
 const { authenticate } = require('../middleware/auth');
+const { ApiError, asyncHandler } = require('../middleware/errorHandler');
 
 // Apply authentication to all tax routes
 router.use(authenticate);
@@ -66,46 +67,30 @@ const customerExemptionSchema = Joi.object({
  * GET /api/tax/rates
  * Get all current tax rates by province
  */
-router.get('/rates', async (req, res) => {
-  try {
-    const taxService = _injectedTaxService;
-    const rates = await taxService.getAllTaxRates();
+router.get('/rates', asyncHandler(async (req, res) => {
+  const taxService = _injectedTaxService;
+  const rates = await taxService.getAllTaxRates();
 
-    res.json({
-      success: true,
-      data: rates,
-    });
-  } catch (error) {
-    console.error('Error fetching tax rates:', error);
-    res.status(500).json({
-      success: false,
-      error: 'Failed to fetch tax rates',
-    });
-  }
-});
+  res.json({
+    success: true,
+    data: rates,
+  });
+}));
 
 /**
  * GET /api/tax/rates/:provinceCode
  * Get tax rates for a specific province
  */
-router.get('/rates/:provinceCode', async (req, res) => {
-  try {
-    const { provinceCode } = req.params;
-    const taxService = _injectedTaxService;
-    const rates = await taxService.getTaxRates(provinceCode.toUpperCase());
+router.get('/rates/:provinceCode', asyncHandler(async (req, res) => {
+  const { provinceCode } = req.params;
+  const taxService = _injectedTaxService;
+  const rates = await taxService.getTaxRates(provinceCode.toUpperCase());
 
-    res.json({
-      success: true,
-      data: rates,
-    });
-  } catch (error) {
-    console.error('Error fetching province tax rates:', error);
-    res.status(500).json({
-      success: false,
-      error: 'Failed to fetch tax rates',
-    });
-  }
-});
+  res.json({
+    success: true,
+    data: rates,
+  });
+}));
 
 // ============================================================================
 // TAX CALCULATIONS
@@ -115,125 +100,81 @@ router.get('/rates/:provinceCode', async (req, res) => {
  * POST /api/tax/calculate
  * Calculate tax for a single amount
  */
-router.post('/calculate', async (req, res) => {
-  try {
-    const { error, value } = calculateTaxSchema.validate(req.body);
-    if (error) {
-      return res.status(400).json({
-        success: false,
-        error: error.details[0].message,
-      });
-    }
-
-    const taxService = _injectedTaxService;
-    const result = await taxService.calculateTax(value);
-
-    res.json({
-      success: true,
-      data: result,
-    });
-  } catch (error) {
-    console.error('Error calculating tax:', error);
-    res.status(500).json({
-      success: false,
-      error: 'Failed to calculate tax',
-    });
+router.post('/calculate', asyncHandler(async (req, res) => {
+  const { error, value } = calculateTaxSchema.validate(req.body);
+  if (error) {
+    throw ApiError.badRequest(error.details[0].message);
   }
-});
+
+  const taxService = _injectedTaxService;
+  const result = await taxService.calculateTax(value);
+
+  res.json({
+    success: true,
+    data: result,
+  });
+}));
 
 /**
  * POST /api/tax/calculate-order
  * Calculate tax for an order with multiple items
  */
-router.post('/calculate-order', async (req, res) => {
-  try {
-    const { error, value } = calculateOrderTaxSchema.validate(req.body);
-    if (error) {
-      return res.status(400).json({
-        success: false,
-        error: error.details[0].message,
-      });
-    }
-
-    const taxService = _injectedTaxService;
-    const result = await taxService.calculateOrderTax(value);
-
-    res.json({
-      success: true,
-      data: result,
-    });
-  } catch (error) {
-    console.error('Error calculating order tax:', error);
-    res.status(500).json({
-      success: false,
-      error: 'Failed to calculate tax',
-    });
+router.post('/calculate-order', asyncHandler(async (req, res) => {
+  const { error, value } = calculateOrderTaxSchema.validate(req.body);
+  if (error) {
+    throw ApiError.badRequest(error.details[0].message);
   }
-});
+
+  const taxService = _injectedTaxService;
+  const result = await taxService.calculateOrderTax(value);
+
+  res.json({
+    success: true,
+    data: result,
+  });
+}));
 
 /**
  * GET /api/tax/add/:amountCents/:provinceCode?
  * Quick endpoint to add tax to an amount
  */
-router.get(['/add/:amountCents', '/add/:amountCents/:provinceCode'], async (req, res) => {
-  try {
-    const amountCents = parseInt(req.params.amountCents);
-    const provinceCode = req.params.provinceCode?.toUpperCase() || 'ON';
+router.get(['/add/:amountCents', '/add/:amountCents/:provinceCode'], asyncHandler(async (req, res) => {
+  const amountCents = parseInt(req.params.amountCents);
+  const provinceCode = req.params.provinceCode?.toUpperCase() || 'ON';
 
-    if (isNaN(amountCents) || amountCents < 0) {
-      return res.status(400).json({
-        success: false,
-        error: 'Invalid amount',
-      });
-    }
-
-    const taxService = _injectedTaxService;
-    const result = await taxService.addTax(amountCents, provinceCode);
-
-    res.json({
-      success: true,
-      data: result,
-    });
-  } catch (error) {
-    console.error('Error adding tax:', error);
-    res.status(500).json({
-      success: false,
-      error: 'Failed to calculate tax',
-    });
+  if (isNaN(amountCents) || amountCents < 0) {
+    throw ApiError.badRequest('Invalid amount');
   }
-});
+
+  const taxService = _injectedTaxService;
+  const result = await taxService.addTax(amountCents, provinceCode);
+
+  res.json({
+    success: true,
+    data: result,
+  });
+}));
 
 /**
  * GET /api/tax/extract/:totalCents/:provinceCode?
  * Extract tax from a tax-inclusive amount
  */
-router.get(['/extract/:totalCents', '/extract/:totalCents/:provinceCode'], async (req, res) => {
-  try {
-    const totalCents = parseInt(req.params.totalCents);
-    const provinceCode = req.params.provinceCode?.toUpperCase() || 'ON';
+router.get(['/extract/:totalCents', '/extract/:totalCents/:provinceCode'], asyncHandler(async (req, res) => {
+  const totalCents = parseInt(req.params.totalCents);
+  const provinceCode = req.params.provinceCode?.toUpperCase() || 'ON';
 
-    if (isNaN(totalCents) || totalCents < 0) {
-      return res.status(400).json({
-        success: false,
-        error: 'Invalid amount',
-      });
-    }
-
-    const taxService = _injectedTaxService;
-    const result = await taxService.extractTax(totalCents, provinceCode);
-
-    res.json({
-      success: true,
-      data: result,
-    });
-  } catch (error) {
-    console.error('Error extracting tax:', error);
-    res.status(500).json({
-      success: false,
-      error: 'Failed to calculate tax',
-    });
+  if (isNaN(totalCents) || totalCents < 0) {
+    throw ApiError.badRequest('Invalid amount');
   }
-});
+
+  const taxService = _injectedTaxService;
+  const result = await taxService.extractTax(totalCents, provinceCode);
+
+  res.json({
+    success: true,
+    data: result,
+  });
+}));
 
 // ============================================================================
 // EXEMPTION CHECKS
@@ -243,60 +184,44 @@ router.get(['/extract/:totalCents', '/extract/:totalCents/:provinceCode'], async
  * GET /api/tax/exempt/customer/:customerId
  * Check if customer is tax exempt
  */
-router.get('/exempt/customer/:customerId', async (req, res) => {
-  try {
-    const customerId = parseInt(req.params.customerId);
-    const provinceCode = req.query.province?.toUpperCase() || null;
+router.get('/exempt/customer/:customerId', asyncHandler(async (req, res) => {
+  const customerId = parseInt(req.params.customerId);
+  const provinceCode = req.query.province?.toUpperCase() || null;
 
-    const taxService = _injectedTaxService;
-    const isExempt = await taxService.isCustomerTaxExempt(customerId, provinceCode);
-    const exemptions = await taxService.getCustomerExemptions(customerId);
+  const taxService = _injectedTaxService;
+  const isExempt = await taxService.isCustomerTaxExempt(customerId, provinceCode);
+  const exemptions = await taxService.getCustomerExemptions(customerId);
 
-    res.json({
-      success: true,
-      data: {
-        customerId,
-        isExempt,
-        exemptions,
-      },
-    });
-  } catch (error) {
-    console.error('Error checking customer exemption:', error);
-    res.status(500).json({
-      success: false,
-      error: 'Failed to check exemption status',
-    });
-  }
-});
+  res.json({
+    success: true,
+    data: {
+      customerId,
+      isExempt,
+      exemptions,
+    },
+  });
+}));
 
 /**
  * GET /api/tax/exempt/product/:productId
  * Check if product is tax exempt
  */
-router.get('/exempt/product/:productId', async (req, res) => {
-  try {
-    const productId = parseInt(req.params.productId);
-    const provinceCode = req.query.province?.toUpperCase() || null;
+router.get('/exempt/product/:productId', asyncHandler(async (req, res) => {
+  const productId = parseInt(req.params.productId);
+  const provinceCode = req.query.province?.toUpperCase() || null;
 
-    const taxService = _injectedTaxService;
-    const isExempt = await taxService.isProductTaxExempt(productId, provinceCode);
+  const taxService = _injectedTaxService;
+  const isExempt = await taxService.isProductTaxExempt(productId, provinceCode);
 
-    res.json({
-      success: true,
-      data: {
-        productId,
-        isExempt,
-        provinceCode,
-      },
-    });
-  } catch (error) {
-    console.error('Error checking product exemption:', error);
-    res.status(500).json({
-      success: false,
-      error: 'Failed to check exemption status',
-    });
-  }
-});
+  res.json({
+    success: true,
+    data: {
+      productId,
+      isExempt,
+      provinceCode,
+    },
+  });
+}));
 
 // ============================================================================
 // EXEMPTION MANAGEMENT
@@ -306,66 +231,44 @@ router.get('/exempt/product/:productId', async (req, res) => {
  * POST /api/tax/exempt/customer
  * Add tax exemption for a customer
  */
-router.post('/exempt/customer', async (req, res) => {
-  try {
-    const { error, value } = customerExemptionSchema.validate(req.body);
-    if (error) {
-      return res.status(400).json({
-        success: false,
-        error: error.details[0].message,
-      });
-    }
-
-    const taxService = _injectedTaxService;
-    const result = await taxService.addCustomerExemption({
-      ...value,
-      verifiedBy: req.user?.id,
-    });
-
-    res.json({
-      success: true,
-      data: result,
-      message: 'Tax exemption added successfully',
-    });
-  } catch (error) {
-    console.error('Error adding customer exemption:', error);
-    res.status(500).json({
-      success: false,
-      error: 'Failed to add tax exemption',
-    });
+router.post('/exempt/customer', asyncHandler(async (req, res) => {
+  const { error, value } = customerExemptionSchema.validate(req.body);
+  if (error) {
+    throw ApiError.badRequest(error.details[0].message);
   }
-});
+
+  const taxService = _injectedTaxService;
+  const result = await taxService.addCustomerExemption({
+    ...value,
+    verifiedBy: req.user?.id,
+  });
+
+  res.json({
+    success: true,
+    data: result,
+    message: 'Tax exemption added successfully',
+  });
+}));
 
 /**
  * DELETE /api/tax/exempt/customer/:exemptionId
  * Remove customer tax exemption
  */
-router.delete('/exempt/customer/:exemptionId', async (req, res) => {
-  try {
-    const exemptionId = parseInt(req.params.exemptionId);
+router.delete('/exempt/customer/:exemptionId', asyncHandler(async (req, res) => {
+  const exemptionId = parseInt(req.params.exemptionId);
 
-    const taxService = _injectedTaxService;
-    const success = await taxService.removeCustomerExemption(exemptionId);
+  const taxService = _injectedTaxService;
+  const success = await taxService.removeCustomerExemption(exemptionId);
 
-    if (success) {
-      res.json({
-        success: true,
-        message: 'Tax exemption removed successfully',
-      });
-    } else {
-      res.status(404).json({
-        success: false,
-        error: 'Exemption not found',
-      });
-    }
-  } catch (error) {
-    console.error('Error removing customer exemption:', error);
-    res.status(500).json({
-      success: false,
-      error: 'Failed to remove tax exemption',
-    });
+  if (!success) {
+    throw ApiError.notFound('Exemption');
   }
-});
+
+  res.json({
+    success: true,
+    message: 'Tax exemption removed successfully',
+  });
+}));
 
 // ============================================================================
 // EXEMPTION REASONS (for dropdowns)
@@ -375,28 +278,20 @@ router.delete('/exempt/customer/:exemptionId', async (req, res) => {
  * GET /api/tax/exemption-reasons
  * Get list of valid exemption reasons
  */
-router.get('/exemption-reasons', async (req, res) => {
-  try {
-    const pool = req.app.get('pool');
-    const result = await pool.query(`
-      SELECT id, code, description, requires_certificate
-      FROM tax_exemption_reasons
-      WHERE is_active = TRUE
-      ORDER BY description
-    `);
+router.get('/exemption-reasons', asyncHandler(async (req, res) => {
+  const pool = req.app.get('pool');
+  const result = await pool.query(`
+    SELECT id, code, description, requires_certificate
+    FROM tax_exemption_reasons
+    WHERE is_active = TRUE
+    ORDER BY description
+  `);
 
-    res.json({
-      success: true,
-      data: result.rows,
-    });
-  } catch (error) {
-    console.error('Error fetching exemption reasons:', error);
-    res.status(500).json({
-      success: false,
-      error: 'Failed to fetch exemption reasons',
-    });
-  }
-});
+  res.json({
+    success: true,
+    data: result.rows,
+  });
+}));
 
 module.exports = { init: initTaxRoutes };
 

@@ -5,7 +5,7 @@
 
 const express = require('express');
 const router = express.Router();
-const { asyncHandler } = require('../middleware/errorHandler');
+const { ApiError, asyncHandler } = require('../middleware/errorHandler');
 const QuoteAcceptanceService = require('../services/QuoteAcceptanceService');
 
 module.exports = ({ pool }) => {
@@ -20,7 +20,7 @@ module.exports = ({ pool }) => {
     const data = await acceptanceService.getQuoteByToken(token);
 
     if (!data) {
-      return res.status(404).json({ success: false, message: 'Invalid or expired link' });
+      throw ApiError.notFound('Invalid or expired link');
     }
 
     if (data.expired) {

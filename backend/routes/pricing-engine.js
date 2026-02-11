@@ -5,6 +5,7 @@
  */
 
 const express = require('express');
+const { ApiError } = require('../middleware/errorHandler');
 const { authenticate } = require('../middleware/auth');
 
 function init({ pool }) {
@@ -112,10 +113,10 @@ function init({ pool }) {
         const { items, customer_id } = req.body;
 
         if (!items || !Array.isArray(items) || items.length === 0) {
-          return res.status(400).json({ success: false, message: 'items array is required' });
+          throw ApiError.badRequest('items array is required');
         }
         if (items.length > 200) {
-          return res.status(400).json({ success: false, message: 'Maximum 200 items per request' });
+          throw ApiError.badRequest('Maximum 200 items per request');
         }
 
         // First pass: sum original prices for cart total (needed for min_purchase_amount checks)
@@ -206,7 +207,7 @@ function init({ pool }) {
         );
 
         if (result.error) {
-          return res.status(404).json({ success: false, message: result.error });
+          throw ApiError.notFound(result.error);
         }
 
         res.json({ success: true, pricing: result });

@@ -82,7 +82,6 @@ router.get('/at-risk', authenticate, asyncHandler(async (req, res) => {
         c.clv_last_calculated
       FROM customers c
       WHERE c.churn_risk = 'high'
-        AND (c.active = true OR c.active IS NULL)
       ORDER BY c.clv_score DESC NULLS LAST
       LIMIT $1
     `, [limitNum]);
@@ -131,7 +130,7 @@ router.get('/clv-summary', authenticate, asyncHandler(async (req, res) => {
         AVG(clv_score) as avg_clv,
         COUNT(*) FILTER (WHERE churn_risk = 'high') as high_risk_count
       FROM customers
-      WHERE active = true OR active IS NULL
+      WHERE clv_segment IS NOT NULL
       GROUP BY clv_segment
       ORDER BY
         CASE clv_segment
@@ -151,7 +150,6 @@ router.get('/clv-summary', authenticate, asyncHandler(async (req, res) => {
         COUNT(*) FILTER (WHERE churn_risk = 'high') as total_high_risk,
         COUNT(*) FILTER (WHERE clv_last_calculated IS NOT NULL) as customers_calculated
       FROM customers
-      WHERE active = true OR active IS NULL
     `);
 
     return { segments: result.rows, overall: overallResult.rows[0] };
@@ -184,8 +182,7 @@ router.get('/top-clv', authenticate, asyncHandler(async (req, res) => {
         c.avg_order_value_cents,
         c.clv_trend
       FROM customers c
-      WHERE (c.active = true OR c.active IS NULL)
-        AND c.clv_score IS NOT NULL
+      WHERE c.clv_score IS NOT NULL
       ORDER BY c.clv_score DESC
       LIMIT $1
     `, [limitNum]);
@@ -876,12 +873,32 @@ router.get('/:id/quick-stats', authenticate, asyncHandler(async (req, res) => {
     if (err.code !== '42P01') throw err;
   }
 
+  // CLV data (graceful if columns don't exist yet)
+  let clvData = {};
+  try {
+    const clvResult = await pool.query(
+      `SELECT clv_score, clv_segment, churn_risk, clv_trend FROM customers WHERE id = $1`,
+      [id]
+    );
+    if (clvResult.rows.length > 0) {
+      clvData = {
+        clvScore: clvResult.rows[0].clv_score,
+        clvSegment: clvResult.rows[0].clv_segment,
+        churnRisk: clvResult.rows[0].churn_risk,
+        clvTrend: clvResult.rows[0].clv_trend,
+      };
+    }
+  } catch (err) {
+    if (err.code !== '42703') throw err; // column doesn't exist yet
+  }
+
   res.success({
     transactionCount: parseInt(txStats.transaction_count) || 0,
     totalSpent: parseFloat(txStats.total_spent) || 0,
     lastPurchaseDate: txStats.last_purchase_date || null,
     loyaltyPoints,
     loyaltyTier,
+    ...clvData,
   });
 }));
 
@@ -936,10 +953,7 @@ router.get('/:id/loyalty', authenticate, asyncHandler(async (req, res) => {
   } catch (err) {
     // Table doesn't exist yet — loyalty system not migrated
     if (err.code === '42P01') {
-      return res.status(404).json({
-        success: false,
-        error: 'Loyalty system not yet configured',
-      });
+      throw ApiError.notFound('Loyalty system not yet configured');
     }
     throw err;
   }
@@ -1007,10 +1021,7 @@ router.post('/:id/loyalty/redeem', authenticate, asyncHandler(async (req, res) =
     await client.query('ROLLBACK');
     // Table doesn't exist yet
     if (err.code === '42P01') {
-      return res.status(404).json({
-        success: false,
-        error: 'Loyalty system not yet configured',
-      });
+      throw ApiError.notFound('Loyalty system not yet configured');
     }
     throw err;
   } finally {

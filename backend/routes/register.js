@@ -111,14 +111,7 @@ router.post('/', authenticate, requireRole('admin', 'manager'), asyncHandler(asy
   });
 
   if (error) {
-    return res.status(400).json({
-      success: false,
-      error: 'Validation failed',
-      details: error.details.map(d => ({
-        field: d.path.join('.'),
-        message: d.message
-      }))
-    });
+    throw ApiError.badRequest('Validation failed');
   }
 
   const { registerName, location } = value;
@@ -173,14 +166,7 @@ router.put('/:id', authenticate, requireRole('admin', 'manager'), asyncHandler(a
   });
 
   if (error) {
-    return res.status(400).json({
-      success: false,
-      error: 'Validation failed',
-      details: error.details.map(d => ({
-        field: d.path.join('.'),
-        message: d.message
-      }))
-    });
+    throw ApiError.badRequest('Validation failed');
   }
 
   const { registerName, location, isActive } = value;
@@ -265,14 +251,7 @@ router.post('/open', authenticate, asyncHandler(async (req, res) => {
   });
 
   if (error) {
-    return res.status(400).json({
-      success: false,
-      error: 'Validation failed',
-      details: error.details.map(d => ({
-        field: d.path.join('.'),
-        message: d.message
-      }))
-    });
+    throw ApiError.badRequest('Validation failed');
   }
 
   const { registerId, openingCash } = value;
@@ -628,14 +607,7 @@ router.post('/close', authenticate, asyncHandler(async (req, res) => {
   });
 
   if (error) {
-    return res.status(400).json({
-      success: false,
-      error: 'Validation failed',
-      details: error.details.map(d => ({
-        field: d.path.join('.'),
-        message: d.message
-      }))
-    });
+    throw ApiError.badRequest('Validation failed');
   }
 
   const { shiftId, closingCash, notes } = value;
