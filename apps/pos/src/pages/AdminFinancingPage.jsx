@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   DollarSign,
   Clock,
@@ -21,6 +22,7 @@ import {
   RefreshCw,
   Download,
   AlertCircle,
+  ArrowLeft,
 } from 'lucide-react';
 import financingApi from '../api/financing';
 
@@ -482,6 +484,7 @@ function ManualApprovalModal({ application, action, onConfirm, onCancel, isLoadi
 
 // Main Admin Financing Page
 export default function AdminFinancingPage() {
+  const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState('applications');
   const [dashboard, setDashboard] = useState(null);
   const [applications, setApplications] = useState([]);
@@ -646,9 +649,17 @@ export default function AdminFinancingPage() {
       {/* Header */}
       <div className="bg-white border-b border-gray-200 px-6 py-4">
         <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-2xl font-bold text-gray-900">Financing Administration</h1>
-            <p className="text-sm text-gray-500 mt-1">Manage applications, approvals, and collections</p>
+          <div className="flex items-center gap-4">
+            <button
+              onClick={() => navigate(-1)}
+              className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
+            >
+              <ArrowLeft className="w-5 h-5" />
+            </button>
+            <div>
+              <h1 className="text-2xl font-bold text-gray-900">Financing Administration</h1>
+              <p className="text-sm text-gray-500 mt-1">Manage applications, approvals, and collections</p>
+            </div>
           </div>
           <div className="flex items-center gap-3">
             <button
