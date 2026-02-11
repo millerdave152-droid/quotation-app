@@ -194,8 +194,8 @@ CREATE TABLE IF NOT EXISTS override_requests (
 
   -- Context
   transaction_id INTEGER REFERENCES transactions(transaction_id),
-  quotation_id INTEGER REFERENCES quotations(quotation_id),
-  shift_id INTEGER REFERENCES shifts(id),
+  quotation_id INTEGER REFERENCES quotations(id),
+  shift_id INTEGER REFERENCES register_shifts(shift_id),
   register_id INTEGER,
 
   -- Requesting user
@@ -271,8 +271,8 @@ CREATE TABLE IF NOT EXISTS override_log (
 
   -- Context references
   transaction_id INTEGER REFERENCES transactions(transaction_id),
-  quotation_id INTEGER REFERENCES quotations(quotation_id),
-  shift_id INTEGER REFERENCES shifts(id),
+  quotation_id INTEGER REFERENCES quotations(id),
+  shift_id INTEGER REFERENCES register_shifts(shift_id),
   register_id INTEGER,
 
   -- Who was involved
@@ -333,7 +333,7 @@ CREATE INDEX IF NOT EXISTS idx_override_log_quotation
 CREATE INDEX IF NOT EXISTS idx_override_log_cashier
   ON override_log(cashier_id) WHERE cashier_id IS NOT NULL;
 CREATE INDEX IF NOT EXISTS idx_override_log_date
-  ON override_log(DATE(approved_at));
+  ON override_log(approved_at);
 CREATE INDEX IF NOT EXISTS idx_override_log_outcome
   ON override_log(was_approved);
 
@@ -756,14 +756,14 @@ SELECT
   r.reason,
   r.requested_at,
   r.expires_at,
-  u.name as requested_by_name,
+  COALESCE(u.first_name || ' ' || u.last_name, 'Unknown') as requested_by_name,
   t.transaction_number,
   q.quotation_number,
   ot.approval_level as required_level
 FROM override_requests r
 LEFT JOIN users u ON r.requested_by = u.id
 LEFT JOIN transactions t ON r.transaction_id = t.transaction_id
-LEFT JOIN quotations q ON r.quotation_id = q.quotation_id
+LEFT JOIN quotations q ON r.quotation_id = q.id
 LEFT JOIN override_thresholds ot ON r.threshold_id = ot.id
 WHERE r.status = 'pending'
   AND (r.expires_at IS NULL OR r.expires_at > NOW())
@@ -787,7 +787,7 @@ ORDER BY date DESC, total_overrides DESC;
 CREATE OR REPLACE VIEW v_manager_override_activity AS
 SELECT
   u.id as user_id,
-  u.name as manager_name,
+  COALESCE(u.first_name || ' ' || u.last_name, 'Unknown') as manager_name,
   mp.approval_level,
   COUNT(ol.id) as total_overrides,
   SUM(CASE WHEN ol.was_approved THEN 1 ELSE 0 END) as approvals,
@@ -797,7 +797,7 @@ SELECT
 FROM users u
 JOIN manager_pins mp ON u.id = mp.user_id AND mp.is_active = TRUE
 LEFT JOIN override_log ol ON u.id = ol.approved_by
-GROUP BY u.id, u.name, mp.approval_level
+GROUP BY u.id, u.first_name, u.last_name, mp.approval_level
 ORDER BY total_overrides DESC;
 
 -- ============================================================================

@@ -234,13 +234,14 @@ router.post('/gift-card/redeem', authenticate, asyncHandler(async (req, res) => 
     throw ApiError.badRequest(error.details[0].message);
   }
 
-  const { cardNumber, amountCents, transactionId } = value;
+  const { cardNumber, amountCents, transactionId, pin } = value;
 
   const result = await posPaymentService.redeemGiftCard(
     cardNumber,
     amountCents,
     transactionId,
-    req.user.id
+    req.user.id,
+    pin
   );
 
   res.json({

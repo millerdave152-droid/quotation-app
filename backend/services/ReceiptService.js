@@ -328,7 +328,7 @@ class ReceiptService {
         c.name as customer_name,
         c.email as customer_email,
         c.phone as customer_phone,
-        c.company_name,
+        c.company as company_name,
         c.address as customer_address,
         c.city as customer_city,
         c.province as customer_province,

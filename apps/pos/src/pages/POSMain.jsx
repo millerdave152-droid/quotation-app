@@ -19,6 +19,12 @@ import {
   ShoppingCartIcon,
   CubeIcon,
   ArrowUturnLeftIcon,
+  ClipboardDocumentListIcon,
+  UserGroupIcon,
+  CurrencyDollarIcon,
+  ShieldCheckIcon,
+  Cog6ToothIcon,
+  BanknotesIcon,
 } from '@heroicons/react/24/outline';
 
 // Context hooks
@@ -152,10 +158,12 @@ function Header({
   onUserMenuClick,
   onCloseShift,
 }) {
-  const { user, logout } = useAuth();
+  const navigate = useNavigate();
+  const { user, logout, isAdminOrManager } = useAuth();
   const { currentShift, shiftSummary, hasActiveShift } = useRegister();
   const [showUserMenu, setShowUserMenu] = useState(false);
   const [showCommissionSummary, setShowCommissionSummary] = useState(false);
+  const isManager = isAdminOrManager();
 
   const userName = user?.name || user?.username || 'Staff';
   const registerName = currentShift?.registerName || currentShift?.register_name || 'Register';
@@ -268,6 +276,81 @@ function Header({
                   <ClockIcon className="w-5 h-5 text-gray-500" />
                   <span>Close Shift</span>
                 </button>
+
+                {isManager && (
+                  <>
+                    <div className="border-t border-gray-100 my-1" />
+                    <p className="px-4 py-1 text-xs font-semibold text-gray-400 uppercase tracking-wider">Manager</p>
+
+                    <button
+                      type="button"
+                      onClick={() => { setShowUserMenu(false); navigate('/reports'); }}
+                      className="w-full flex items-center gap-3 px-4 py-3 text-left text-gray-700 hover:bg-gray-50 transition-colors"
+                    >
+                      <ClipboardDocumentListIcon className="w-5 h-5 text-gray-500" />
+                      <span>Reports</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => { setShowUserMenu(false); navigate('/reports/shift'); }}
+                      className="w-full flex items-center gap-3 px-4 py-3 text-left text-gray-700 hover:bg-gray-50 transition-colors"
+                    >
+                      <ClockIcon className="w-5 h-5 text-gray-500" />
+                      <span>Shift Reports</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => { setShowUserMenu(false); navigate('/reports/overrides'); }}
+                      className="w-full flex items-center gap-3 px-4 py-3 text-left text-gray-700 hover:bg-gray-50 transition-colors"
+                    >
+                      <ShieldCheckIcon className="w-5 h-5 text-gray-500" />
+                      <span>Override Audit</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => { setShowUserMenu(false); navigate('/commissions/team'); }}
+                      className="w-full flex items-center gap-3 px-4 py-3 text-left text-gray-700 hover:bg-gray-50 transition-colors"
+                    >
+                      <UserGroupIcon className="w-5 h-5 text-gray-500" />
+                      <span>Team Commissions</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => { setShowUserMenu(false); navigate('/admin/approval-rules'); }}
+                      className="w-full flex items-center gap-3 px-4 py-3 text-left text-gray-700 hover:bg-gray-50 transition-colors"
+                    >
+                      <Cog6ToothIcon className="w-5 h-5 text-gray-500" />
+                      <span>Approval Rules</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => { setShowUserMenu(false); navigate('/admin/financing'); }}
+                      className="w-full flex items-center gap-3 px-4 py-3 text-left text-gray-700 hover:bg-gray-50 transition-colors"
+                    >
+                      <BanknotesIcon className="w-5 h-5 text-gray-500" />
+                      <span>Financing Admin</span>
+                    </button>
+                  </>
+                )}
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowUserMenu(false);
+                    navigate('/commissions/my');
+                  }}
+                  className="w-full flex items-center gap-3 px-4 py-3 text-left text-gray-700 hover:bg-gray-50 transition-colors"
+                >
+                  <CurrencyDollarIcon className="w-5 h-5 text-gray-500" />
+                  <span>My Commissions</span>
+                </button>
+
+                <div className="border-t border-gray-100 my-1" />
 
                 <button
                   type="button"
@@ -420,7 +503,7 @@ function PriceCheckModal({ isOpen, onClose }) {
 
 export function POSMain() {
   const navigate = useNavigate();
-  const { user } = useAuth();
+  const { user, isAdminOrManager } = useAuth();
   const { hasActiveShift, currentShift, shiftSummary } = useRegister();
   const cart = useCart();
 
@@ -471,11 +554,12 @@ export function POSMain() {
   // Keyboard shortcuts
   useEffect(() => {
     const handleKeyDown = (e) => {
-      // Don't trigger if typing in an input (except for ESC)
+      // Don't trigger if typing in an input (except for ESC or function keys)
       const isInput = ['INPUT', 'TEXTAREA'].includes(document.activeElement?.tagName);
       const isEsc = e.key === 'Escape';
+      const isFunctionKey = /^F\d{1,2}$/.test(e.key);
 
-      if (isInput && !isEsc) return;
+      if (isInput && !isEsc && !isFunctionKey) return;
 
       switch (e.key) {
         case 'F2':
@@ -851,6 +935,77 @@ export function POSMain() {
                 <ArrowUturnLeftIcon className="w-5 h-5" />
                 Returns & Exchanges (F6)
               </button>
+
+              {/* My Commissions - all users */}
+              <button
+                type="button"
+                onClick={() => { setShowMobileMenu(false); navigate('/commissions/my'); }}
+                className="w-full flex items-center gap-3 px-4 py-3 text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
+              >
+                <CurrencyDollarIcon className="w-5 h-5" />
+                My Commissions
+              </button>
+
+              {/* Manager-only section */}
+              {isAdminOrManager() && (
+                <div className="pt-4 border-t border-gray-200">
+                  <p className="px-4 py-1 text-xs font-semibold text-gray-400 uppercase tracking-wider">Manager</p>
+
+                  <button
+                    type="button"
+                    onClick={() => { setShowMobileMenu(false); navigate('/reports'); }}
+                    className="w-full flex items-center gap-3 px-4 py-3 text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
+                  >
+                    <ClipboardDocumentListIcon className="w-5 h-5" />
+                    Reports
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => { setShowMobileMenu(false); navigate('/reports/shift'); }}
+                    className="w-full flex items-center gap-3 px-4 py-3 text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
+                  >
+                    <ClockIcon className="w-5 h-5" />
+                    Shift Reports
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => { setShowMobileMenu(false); navigate('/reports/overrides'); }}
+                    className="w-full flex items-center gap-3 px-4 py-3 text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
+                  >
+                    <ShieldCheckIcon className="w-5 h-5" />
+                    Override Audit
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => { setShowMobileMenu(false); navigate('/commissions/team'); }}
+                    className="w-full flex items-center gap-3 px-4 py-3 text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
+                  >
+                    <UserGroupIcon className="w-5 h-5" />
+                    Team Commissions
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => { setShowMobileMenu(false); navigate('/admin/approval-rules'); }}
+                    className="w-full flex items-center gap-3 px-4 py-3 text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
+                  >
+                    <Cog6ToothIcon className="w-5 h-5" />
+                    Approval Rules
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => { setShowMobileMenu(false); navigate('/admin/financing'); }}
+                    className="w-full flex items-center gap-3 px-4 py-3 text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
+                  >
+                    <BanknotesIcon className="w-5 h-5" />
+                    Financing Admin
+                  </button>
+                </div>
+              )}
 
               <div className="pt-4 border-t border-gray-200">
                 <button

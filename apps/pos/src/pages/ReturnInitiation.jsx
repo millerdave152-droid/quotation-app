@@ -4,6 +4,7 @@
  */
 
 import { useState, useEffect, useCallback, useRef } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { searchInvoices } from '../api/returns';
 import ReturnReasonSelector from '../components/Returns/ReturnReasonSelector';
 import RefundProcessor from '../components/Returns/RefundProcessor';
@@ -18,6 +19,7 @@ const DATE_RANGE_OPTIONS = [
 ];
 
 export default function ReturnInitiation() {
+  const navigate = useNavigate();
   const [searchQuery, setSearchQuery] = useState('');
   const [dateRange, setDateRange] = useState('all_time');
   const [results, setResults] = useState([]);
@@ -107,9 +109,21 @@ export default function ReturnInitiation() {
   return (
     <div className="min-h-screen bg-slate-900 text-white p-6">
       {/* Header */}
-      <div className="mb-6">
-        <h1 className="text-2xl font-bold">Returns</h1>
-        <p className="text-slate-400 text-sm mt-1">Search for a transaction to initiate a return</p>
+      <div className="flex items-center gap-4 mb-6">
+        <button
+          type="button"
+          onClick={() => navigate('/')}
+          className="flex items-center gap-1.5 px-3 py-2 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-300 hover:text-white text-sm font-medium rounded-lg transition-colors"
+        >
+          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+          </svg>
+          Back
+        </button>
+        <div>
+          <h1 className="text-2xl font-bold">Returns</h1>
+          <p className="text-slate-400 text-sm mt-0.5">Search for a transaction to initiate a return</p>
+        </div>
       </div>
 
       {/* Search & Filters */}

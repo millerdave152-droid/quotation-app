@@ -227,9 +227,11 @@ describe('CustomerPricingService', () => {
 
   describe('setCustomerProductPrice', () => {
     it('should set customer-specific product price', async () => {
-      mockPool.query
+      mockClient.query
+        .mockResolvedValueOnce({}) // BEGIN
         .mockResolvedValueOnce({}) // Expire existing
-        .mockResolvedValueOnce({ rows: [{ id: 1 }] }); // Insert new
+        .mockResolvedValueOnce({ rows: [{ id: 1 }] }) // Insert new
+        .mockResolvedValueOnce({}); // COMMIT
 
       const result = await service.setCustomerProductPrice(1, 100, {
         pricingType: 'fixed',
@@ -239,7 +241,7 @@ describe('CustomerPricingService', () => {
 
       expect(result.success).toBe(true);
       expect(result.id).toBe(1);
-      expect(mockPool.query).toHaveBeenCalledTimes(2);
+      expect(mockClient.query).toHaveBeenCalledTimes(4);
     });
   });
 

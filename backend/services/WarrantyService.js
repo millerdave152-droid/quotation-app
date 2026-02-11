@@ -821,6 +821,17 @@ class WarrantyService {
       return { eligible: false, reason: 'Warranty products are not eligible' };
     }
 
+    // Enforce category eligibility (use slug/name/string when available)
+    const categoryKey = this._normalizeCategoryKey(
+      product.category_slug || product.category_name || product.category_string
+    );
+    if (!categoryKey || !this._isCategoryEligible(categoryKey)) {
+      return {
+        eligible: false,
+        reason: 'Product category is not eligible for warranty',
+      };
+    }
+
     // Check manufacturer warranty
     const mfrWarrantyMonths = product.manufacturer_warranty_months || 0;
     if (mfrWarrantyMonths > this.MIN_MANUFACTURER_WARRANTY_MONTHS) {
@@ -832,6 +843,26 @@ class WarrantyService {
 
     // Category eligibility is checked via DB in _fetchEligibleWarranties
     return { eligible: true };
+  }
+
+  _normalizeCategoryKey(value) {
+    if (!value) return null;
+    return String(value)
+      .toLowerCase()
+      .trim()
+      .replace(/&/g, 'and')
+      .replace(/[\s-]+/g, '_')
+      .replace(/[^a-z0-9_]/g, '');
+  }
+
+  _isCategoryEligible(categoryKey) {
+    if (this.eligibleCategories.has(categoryKey)) return true;
+    // Handle simple singular/plural variants
+    if (categoryKey.endsWith('s') && this.eligibleCategories.has(categoryKey.slice(0, -1))) {
+      return true;
+    }
+    if (this.eligibleCategories.has(`${categoryKey}s`)) return true;
+    return false;
   }
 
   /**

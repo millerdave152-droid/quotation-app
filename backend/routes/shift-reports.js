@@ -42,6 +42,145 @@ const compareParamsSchema = Joi.object({
 // ============================================================================
 
 /**
+ * GET /api/reports/shifts
+ * List shifts for a given date (used by ShiftReportPage shift selector)
+ * Query: ?date=YYYY-MM-DD
+ */
+router.get('/shifts', authenticate, asyncHandler(async (req, res) => {
+  const { date } = req.query;
+
+  // Default to today if no date provided
+  let targetDate;
+  if (date) {
+    targetDate = new Date(date + 'T00:00:00');
+  } else {
+    targetDate = new Date();
+    targetDate.setHours(0, 0, 0, 0);
+  }
+
+  const nextDay = new Date(targetDate);
+  nextDay.setDate(nextDay.getDate() + 1);
+
+  const result = await reportService.pool.query(`
+    SELECT
+      rs.shift_id as id,
+      rs.user_id,
+      rs.register_id,
+      rs.opened_at as "startedAt",
+      rs.closed_at as "endedAt",
+      rs.status,
+      rs.opening_cash,
+      rs.closing_cash,
+      COALESCE(u.first_name || ' ' || u.last_name, 'Staff') as "userName",
+      COALESCE(r.register_name, 'Register') as "registerName",
+      COUNT(DISTINCT t.transaction_id) FILTER (WHERE t.status = 'completed') as "transactionCount",
+      COALESCE(SUM(t.total_amount) FILTER (WHERE t.status = 'completed'), 0) as "totalSales"
+    FROM register_shifts rs
+    LEFT JOIN users u ON rs.user_id = u.id
+    LEFT JOIN registers r ON rs.register_id = r.register_id
+    LEFT JOIN transactions t ON t.shift_id = rs.shift_id
+    WHERE rs.opened_at >= $1 AND rs.opened_at < $2
+    GROUP BY rs.shift_id, rs.user_id, rs.register_id, rs.opened_at, rs.closed_at,
+             rs.status, rs.opening_cash, rs.closing_cash, u.first_name, u.last_name, r.register_name
+    ORDER BY rs.opened_at ASC
+  `, [targetDate.toISOString(), nextDay.toISOString()]);
+
+  res.json({
+    success: true,
+    shifts: result.rows.map(row => ({
+      ...row,
+      transactionCount: parseInt(row.transactionCount, 10) || 0,
+      totalSales: parseFloat(row.totalSales) || 0,
+    })),
+  });
+}));
+
+/**
+ * POST /api/reports/reconciliation
+ * Submit cash reconciliation for a shift or date
+ */
+router.post('/reconciliation', authenticate, asyncHandler(async (req, res) => {
+  const { shiftId, date, countedCash, denominations, notes } = req.body;
+
+  if (!countedCash && countedCash !== 0) {
+    throw ApiError.badRequest('countedCash is required');
+  }
+
+  // Determine which shift to reconcile
+  let targetShiftId = shiftId;
+
+  if (!targetShiftId && date) {
+    // Find the most recent closed shift for the given date
+    const targetDate = new Date(date + 'T00:00:00');
+    const nextDay = new Date(targetDate);
+    nextDay.setDate(nextDay.getDate() + 1);
+
+    const shiftResult = await reportService.pool.query(`
+      SELECT shift_id FROM register_shifts
+      WHERE opened_at >= $1 AND opened_at < $2
+      ORDER BY closed_at DESC NULLS LAST
+      LIMIT 1
+    `, [targetDate.toISOString(), nextDay.toISOString()]);
+
+    if (shiftResult.rows.length > 0) {
+      targetShiftId = shiftResult.rows[0].shift_id;
+    }
+  }
+
+  // Get expected cash from shift
+  let expectedCash = 0;
+  let openingCash = 0;
+  if (targetShiftId) {
+    const shiftData = await reportService.pool.query(`
+      SELECT opening_cash, closing_cash FROM register_shifts WHERE shift_id = $1
+    `, [targetShiftId]);
+
+    if (shiftData.rows.length > 0) {
+      openingCash = parseFloat(shiftData.rows[0].opening_cash) || 0;
+    }
+
+    // Calculate expected cash from cash transactions
+    const cashTxns = await reportService.pool.query(`
+      SELECT COALESCE(SUM(
+        CASE
+          WHEN p.payment_method = 'cash' AND t.status = 'completed' THEN p.amount
+          WHEN p.payment_method = 'cash' AND t.status = 'refunded' THEN -p.amount
+          ELSE 0
+        END
+      ), 0) as cash_total
+      FROM transactions t
+      JOIN payments p ON p.transaction_id = t.transaction_id
+      WHERE t.shift_id = $1
+    `, [targetShiftId]);
+
+    expectedCash = openingCash + (parseFloat(cashTxns.rows[0]?.cash_total) || 0);
+
+    // Update shift with reconciliation data
+    await reportService.pool.query(`
+      UPDATE register_shifts
+      SET closing_cash = $1, notes = COALESCE(notes || E'\n', '') || $2
+      WHERE shift_id = $3
+    `, [countedCash, notes || `Reconciliation: counted $${countedCash}`, targetShiftId]);
+  }
+
+  const variance = countedCash - expectedCash;
+
+  res.json({
+    success: true,
+    data: {
+      shiftId: targetShiftId,
+      countedCash,
+      expectedCash,
+      openingCash,
+      variance,
+      denominations: denominations || null,
+      reconciledAt: new Date().toISOString(),
+      reconciledBy: req.user.id,
+    },
+  });
+}));
+
+/**
  * GET /api/reports/shift/:shiftId
  * Generate full report for a specific shift
  */

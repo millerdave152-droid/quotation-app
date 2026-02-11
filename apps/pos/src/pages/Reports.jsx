@@ -20,9 +20,7 @@ import {
 } from '@heroicons/react/24/outline';
 import { useAuth } from '../context/AuthContext';
 import { formatCurrency, formatDate, formatDateTime } from '../utils/formatters';
-
-// API import (to be implemented)
-// import { getShiftReports, getDailySummary, getWeeklySummary } from '../api/reports';
+import api from '../api/axios';
 
 /**
  * Stat card component
@@ -145,56 +143,75 @@ export function Reports() {
     setError(null);
 
     try {
-      // TODO: Implement actual API calls
-      // const [shiftsRes, summaryRes] = await Promise.all([
-      //   getShiftReports({ dateRange }),
-      //   getDailySummary({ dateRange }),
-      // ]);
+      // Build date params based on selected range
+      const now = new Date();
+      let startTime, endTime;
 
-      // Mock data for now
-      await new Promise(resolve => setTimeout(resolve, 500));
+      if (dateRange === 'today') {
+        const today = new Date(now);
+        today.setHours(0, 0, 0, 0);
+        const tomorrow = new Date(today);
+        tomorrow.setDate(tomorrow.getDate() + 1);
+        startTime = today.toISOString();
+        endTime = tomorrow.toISOString();
+      } else if (dateRange === 'week') {
+        const weekStart = new Date(now);
+        weekStart.setDate(weekStart.getDate() - weekStart.getDay());
+        weekStart.setHours(0, 0, 0, 0);
+        const weekEnd = new Date(now);
+        weekEnd.setDate(weekEnd.getDate() + 1);
+        weekEnd.setHours(0, 0, 0, 0);
+        startTime = weekStart.toISOString();
+        endTime = weekEnd.toISOString();
+      } else {
+        const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+        const monthEnd = new Date(now);
+        monthEnd.setDate(monthEnd.getDate() + 1);
+        monthEnd.setHours(0, 0, 0, 0);
+        startTime = monthStart.toISOString();
+        endTime = monthEnd.toISOString();
+      }
+
+      // Fetch report summary and shifts list in parallel
+      const [reportRes, shiftsRes] = await Promise.all([
+        api.post('/reports/period/summary', { startTime, endTime }),
+        api.get(`/reports/shifts?date=${now.toISOString().split('T')[0]}`).catch(() => null),
+      ]);
+
+      const data = reportRes?.data || reportRes;
+
+      const sales = data?.sales || {};
+      const txns = sales?.transactions || {};
+      const revenue = sales?.revenue || {};
+      const averages = sales?.averages || {};
 
       setSummary({
-        totalSales: 4523.45,
-        transactionCount: 47,
-        averageTicket: 96.24,
-        shiftCount: 3,
-        topPaymentMethod: 'Credit Card',
-        varianceTotal: -2.50,
+        totalSales: revenue.grossRevenue || 0,
+        netRevenue: revenue.netRevenue || 0,
+        transactionCount: txns.total || 0,
+        refundCount: txns.refunded || 0,
+        voidCount: txns.voided || 0,
+        refundAmount: revenue.refundAmount || 0,
+        averageTicket: averages.transactionValue || 0,
+        itemsSold: sales.itemsSold || 0,
+        shiftCount: data?.shift?.shiftId ? 1 : 0,
+        varianceTotal: 0,
       });
 
-      setShifts([
-        {
-          shiftId: 1,
-          registerName: 'Register 1',
-          userName: 'John Doe',
-          openedAt: new Date().toISOString(),
-          closedAt: new Date().toISOString(),
-          totalSales: 1523.45,
-          transactionCount: 15,
-          variance: -1.25,
-        },
-        {
-          shiftId: 2,
-          registerName: 'Register 2',
-          userName: 'Jane Smith',
-          openedAt: new Date(Date.now() - 86400000).toISOString(),
-          closedAt: new Date(Date.now() - 86400000 + 28800000).toISOString(),
-          totalSales: 2000.00,
-          transactionCount: 22,
-          variance: 0,
-        },
-      ]);
+      // Populate shifts list from the shifts endpoint
+      const shiftsData = shiftsRes?.data?.shifts || shiftsRes?.shifts || [];
+      setShifts(shiftsData);
     } catch (err) {
-      setError(err.message);
+      console.error('[Reports] Load error:', err);
+      setError(err.message || 'Failed to load report data');
     } finally {
       setLoading(false);
     }
   };
 
   const handleViewShiftDetails = (shift) => {
-    // TODO: Open shift details modal
-    console.log('View shift:', shift);
+    const shiftId = shift.shiftId || shift.shift_id || shift.id;
+    navigate(`/reports/shift?shiftId=${shiftId}`);
   };
 
   const handlePrint = () => {
@@ -269,19 +286,19 @@ export function Reports() {
         ) : (
           <>
             {/* Summary Stats */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
               <StatCard
                 icon={CurrencyDollarIcon}
-                label="Total Sales"
+                label="Gross Sales"
                 value={formatCurrency(summary?.totalSales || 0)}
-                subValue={`${summary?.shiftCount || 0} shifts`}
+                subValue={`${summary?.transactionCount || 0} transactions`}
                 color="green"
               />
               <StatCard
                 icon={DocumentTextIcon}
                 label="Transactions"
                 value={summary?.transactionCount || 0}
-                subValue="completed"
+                subValue={`${summary?.itemsSold || 0} items sold`}
                 color="blue"
               />
               <StatCard
@@ -291,13 +308,52 @@ export function Reports() {
                 color="purple"
               />
               <StatCard
-                icon={UserGroupIcon}
-                label="Total Variance"
-                value={formatCurrency(Math.abs(summary?.varianceTotal || 0))}
-                subValue={summary?.varianceTotal >= 0 ? 'over' : 'short'}
-                color={Math.abs(summary?.varianceTotal || 0) > 10 ? 'yellow' : 'blue'}
+                icon={CurrencyDollarIcon}
+                label="Net Revenue"
+                value={formatCurrency(summary?.netRevenue || 0)}
+                color="green"
               />
             </div>
+
+            {/* Refunds & Returns Row */}
+            {(summary?.refundCount > 0 || summary?.voidCount > 0) && (
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
+                <div className="bg-white rounded-xl border border-red-200 p-5">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-lg bg-red-50 flex items-center justify-center">
+                      <CurrencyDollarIcon className="w-5 h-5 text-red-600" />
+                    </div>
+                    <div>
+                      <p className="text-xl font-bold text-red-600">-{formatCurrency(summary?.refundAmount || 0)}</p>
+                      <p className="text-sm text-gray-500">Refunds ({summary?.refundCount || 0})</p>
+                    </div>
+                  </div>
+                </div>
+                <div className="bg-white rounded-xl border border-amber-200 p-5">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-lg bg-amber-50 flex items-center justify-center">
+                      <DocumentTextIcon className="w-5 h-5 text-amber-600" />
+                    </div>
+                    <div>
+                      <p className="text-xl font-bold text-amber-600">{summary?.voidCount || 0}</p>
+                      <p className="text-sm text-gray-500">Voided Transactions</p>
+                    </div>
+                  </div>
+                </div>
+                <div className="bg-white rounded-xl border border-gray-200 p-5">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-lg bg-blue-50 flex items-center justify-center">
+                      <ChartBarIcon className="w-5 h-5 text-blue-600" />
+                    </div>
+                    <div>
+                      <p className="text-xl font-bold text-gray-900">{formatCurrency(summary?.netRevenue || 0)}</p>
+                      <p className="text-sm text-gray-500">Net After Refunds</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+            {!(summary?.refundCount > 0 || summary?.voidCount > 0) && <div className="mb-8" />}
 
             {/* Report Links */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">

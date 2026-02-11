@@ -624,6 +624,22 @@ router.post('/:id/process-refund', asyncHandler(async (req, res) => {
       ]
     );
 
+    // Update original transaction status so it appears in reports
+    // Full return → 'refunded', partial return → keep 'completed' but record void_reason
+    if (returnData.return_type === 'full') {
+      await client.query(
+        `UPDATE transactions SET status = 'refunded', void_reason = $1
+         WHERE transaction_id = $2`,
+        [`Return ${returnData.return_number}: full refund via ${refundMethod}`, returnData.original_transaction_id]
+      );
+    } else {
+      await client.query(
+        `UPDATE transactions SET void_reason = $1
+         WHERE transaction_id = $2`,
+        [`Return ${returnData.return_number}: partial refund of $${(refundTotalCents / 100).toFixed(2)} via ${refundMethod}`, returnData.original_transaction_id]
+      );
+    }
+
     await client.query('COMMIT');
 
     // Extract store credit info if issued

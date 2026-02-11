@@ -78,13 +78,18 @@ const DATE_PRESETS = [
 function RepDetailPanel({ rep, dateRange, onClose }) {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [detailError, setDetailError] = useState(null);
 
   useEffect(() => {
     if (rep) {
       setLoading(true);
+      setDetailError(null);
       getRepDetailedCommissions(rep.repId, dateRange)
         .then(result => setData(result.data))
-        .catch(console.error)
+        .catch(err => {
+          console.error('[TeamCommissions] Failed to load rep details:', err);
+          setDetailError(err.message || 'Failed to load rep details');
+        })
         .finally(() => setLoading(false));
     }
   }, [rep, dateRange]);
@@ -184,8 +189,22 @@ function RepDetailPanel({ rep, dateRange, onClose }) {
               </div>
             </>
           ) : (
-            <div className="text-center py-12 text-slate-500">
-              Failed to load rep details
+            <div className="text-center py-12">
+              <p className="text-red-600 font-medium mb-2">Failed to load rep details</p>
+              {detailError && <p className="text-sm text-slate-500 mb-4">{detailError}</p>}
+              <button
+                onClick={() => {
+                  setLoading(true);
+                  setDetailError(null);
+                  getRepDetailedCommissions(rep.repId, dateRange)
+                    .then(result => setData(result.data))
+                    .catch(err => setDetailError(err.message || 'Failed to load rep details'))
+                    .finally(() => setLoading(false));
+                }}
+                className="px-4 py-2 text-sm font-medium text-blue-600 hover:bg-blue-50 rounded-lg"
+              >
+                Try Again
+              </button>
             </div>
           )}
         </div>

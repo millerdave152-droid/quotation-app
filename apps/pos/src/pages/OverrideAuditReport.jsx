@@ -26,6 +26,18 @@ import { formatCurrency, formatDateTime } from '../utils/formatters';
 
 const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:3001';
 
+/** Authenticated fetch using POS Bearer token */
+function authFetch(url, options = {}) {
+  const token = localStorage.getItem('pos_token');
+  return fetch(url, {
+    ...options,
+    headers: {
+      ...options.headers,
+      Authorization: `Bearer ${token}`,
+    },
+  });
+}
+
 // ============================================================================
 // STAT CARD COMPONENT
 // ============================================================================
@@ -340,9 +352,9 @@ export function OverrideAuditReport() {
   const loadFilterOptions = async () => {
     try {
       const [managersRes, cashiersRes, typesRes] = await Promise.all([
-        fetch(`${API_BASE}/api/admin/overrides/managers`, { credentials: 'include' }),
-        fetch(`${API_BASE}/api/admin/overrides/cashiers`, { credentials: 'include' }),
-        fetch(`${API_BASE}/api/admin/overrides/types`, { credentials: 'include' }),
+        authFetch(`${API_BASE}/api/admin/overrides/managers`),
+        authFetch(`${API_BASE}/api/admin/overrides/cashiers`),
+        authFetch(`${API_BASE}/api/admin/overrides/types`),
       ]);
 
       const [managersData, cashiersData, typesData] = await Promise.all([
@@ -377,8 +389,8 @@ export function OverrideAuditReport() {
 
       // Fetch data and summary in parallel
       const [dataRes, summaryRes] = await Promise.all([
-        fetch(`${API_BASE}/api/admin/overrides?${params}`, { credentials: 'include' }),
-        fetch(`${API_BASE}/api/admin/overrides/summary?${params}`, { credentials: 'include' }),
+        authFetch(`${API_BASE}/api/admin/overrides?${params}`),
+        authFetch(`${API_BASE}/api/admin/overrides/summary?${params}`),
       ]);
 
       const [dataResult, summaryResult] = await Promise.all([
@@ -417,9 +429,8 @@ export function OverrideAuditReport() {
       if (overrideType) params.set('override_type', overrideType);
       if (statusFilter !== '') params.set('was_approved', statusFilter);
 
-      const response = await fetch(
-        `${API_BASE}/api/admin/overrides/export?${params}`,
-        { credentials: 'include' }
+      const response = await authFetch(
+        `${API_BASE}/api/admin/overrides/export?${params}`
       );
 
       if (!response.ok) {

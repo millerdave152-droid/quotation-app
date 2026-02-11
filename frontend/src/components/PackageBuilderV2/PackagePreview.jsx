@@ -26,6 +26,82 @@ const PackagePreview = ({
     }).format(cents / 100);
   };
 
+  // Sort options for the packages
+  const sortOptions = [
+    { value: 'price_asc', label: 'Price: Low â†’ High' },
+    { value: 'price_desc', label: 'Price: High â†’ Low' },
+    { value: 'cohesion', label: 'Brand Cohesion' },
+    { value: 'savings', label: 'Best Savings' }
+  ];
+
+  const tiers = ['good', 'better', 'best'];
+  const tierLabels = {
+    good: { label: 'Good', color: '#48bb78', description: 'Budget-Friendly', icon: 'ðŸ‘' },
+    better: { label: 'Better', color: '#4299e1', description: 'Best Value', icon: 'â­' },
+    best: { label: 'Best', color: '#9f7aea', description: 'Premium Choice', icon: 'ðŸ’Ž' }
+  };
+
+  // Helper to extract product data (handles nested product structure)
+  const getProductData = (item) => {
+    if (item.product) {
+      // Nested structure: { slot, product: { model, manufacturer, msrp_cents } }
+      return {
+        slot: item.slot || item.slot_label,
+        model: item.product.model,
+        manufacturer: item.product.manufacturer,
+        name: item.product.name,
+        msrp_cents: parseInt(item.product.msrp_cents) || 0,
+        category: item.product.category,
+        image_url: item.product.image_url
+      };
+    }
+    // Flat structure: { model, manufacturer, msrp_cents }
+    return {
+      slot: item.slot || item.category,
+      model: item.model,
+      manufacturer: item.manufacturer,
+      name: item.name,
+      msrp_cents: parseInt(item.msrp_cents) || 0,
+      category: item.category,
+      image_url: item.image_url
+    };
+  };
+
+  // Calculate package total for sorting
+  const getPackageTotal = (pkg) => {
+    if (!pkg?.items) return 0;
+    return pkg.items.reduce((sum, item) => {
+      const data = getProductData(item);
+      return sum + (data.msrp_cents || 0);
+    }, 0);
+  };
+
+  const packagesData = packages || {};
+
+  // Sort tiers based on selected option
+  const sortedTiers = useMemo(() => {
+    const tiersWithData = tiers.map(tier => ({
+      tier,
+      pkg: packagesData[tier],
+      total: packagesData[tier] ? getPackageTotal(packagesData[tier]) : 0,
+      cohesion: packagesData[tier]?.brand_cohesion_score || 0,
+      savings: packagesData[tier]?.savings_percent || 0
+    }));
+
+    switch (sortBy) {
+      case 'price_asc':
+        return tiersWithData.sort((a, b) => a.total - b.total).map(t => t.tier);
+      case 'price_desc':
+        return tiersWithData.sort((a, b) => b.total - a.total).map(t => t.tier);
+      case 'cohesion':
+        return tiersWithData.sort((a, b) => b.cohesion - a.cohesion).map(t => t.tier);
+      case 'savings':
+        return tiersWithData.sort((a, b) => b.savings - a.savings).map(t => t.tier);
+      default:
+        return tiers;
+    }
+  }, [getPackageTotal, packagesData, sortBy, tiers]);
+
   // Show loading state
   if (loading) {
     return (
@@ -140,80 +216,6 @@ const PackagePreview = ({
     );
   }
 
-  // Sort options for the packages
-  const sortOptions = [
-    { value: 'price_asc', label: 'Price: Low → High' },
-    { value: 'price_desc', label: 'Price: High → Low' },
-    { value: 'cohesion', label: 'Brand Cohesion' },
-    { value: 'savings', label: 'Best Savings' }
-  ];
-
-  const tiers = ['good', 'better', 'best'];
-  const tierLabels = {
-    good: { label: 'Good', color: '#48bb78', description: 'Budget-Friendly', icon: '👍' },
-    better: { label: 'Better', color: '#4299e1', description: 'Best Value', icon: '⭐' },
-    best: { label: 'Best', color: '#9f7aea', description: 'Premium Choice', icon: '💎' }
-  };
-
-  // Helper to extract product data (handles nested product structure)
-  const getProductData = (item) => {
-    if (item.product) {
-      // Nested structure: { slot, product: { model, manufacturer, msrp_cents } }
-      return {
-        slot: item.slot || item.slot_label,
-        model: item.product.model,
-        manufacturer: item.product.manufacturer,
-        name: item.product.name,
-        msrp_cents: parseInt(item.product.msrp_cents) || 0,
-        category: item.product.category,
-        image_url: item.product.image_url
-      };
-    }
-    // Flat structure: { model, manufacturer, msrp_cents }
-    return {
-      slot: item.slot || item.category,
-      model: item.model,
-      manufacturer: item.manufacturer,
-      name: item.name,
-      msrp_cents: parseInt(item.msrp_cents) || 0,
-      category: item.category,
-      image_url: item.image_url
-    };
-  };
-
-  // Calculate package total for sorting
-  const getPackageTotal = (pkg) => {
-    if (!pkg?.items) return 0;
-    return pkg.items.reduce((sum, item) => {
-      const data = getProductData(item);
-      return sum + (data.msrp_cents || 0);
-    }, 0);
-  };
-
-  // Sort tiers based on selected option
-  const sortedTiers = useMemo(() => {
-    const tiersWithData = tiers.map(tier => ({
-      tier,
-      pkg: packages[tier],
-      total: packages[tier] ? getPackageTotal(packages[tier]) : 0,
-      cohesion: packages[tier]?.brand_cohesion_score || 0,
-      savings: packages[tier]?.savings_percent || 0
-    }));
-
-    switch (sortBy) {
-      case 'price_asc':
-        return tiersWithData.sort((a, b) => a.total - b.total).map(t => t.tier);
-      case 'price_desc':
-        return tiersWithData.sort((a, b) => b.total - a.total).map(t => t.tier);
-      case 'cohesion':
-        return tiersWithData.sort((a, b) => b.cohesion - a.cohesion).map(t => t.tier);
-      case 'savings':
-        return tiersWithData.sort((a, b) => b.savings - a.savings).map(t => t.tier);
-      default:
-        return tiers;
-    }
-  }, [packages, sortBy]);
-
   return (
     <div className="package-preview">
       {/* Sort controls */}
@@ -229,13 +231,13 @@ const PackagePreview = ({
           ))}
         </select>
         <span className="packages-count">
-          {Object.keys(packages).filter(k => packages[k]).length} packages available
+          {Object.keys(packagesData).filter(k => packagesData[k]).length} packages available
         </span>
       </div>
 
       <div className="package-tiers">
         {sortedTiers.map((tier, idx) => {
-          const pkg = packages[tier];
+          const pkg = packagesData[tier];
           if (!pkg) return null;
 
           const tierInfo = tierLabels[tier];
@@ -335,3 +337,4 @@ const PackagePreview = ({
 };
 
 export default PackagePreview;
+

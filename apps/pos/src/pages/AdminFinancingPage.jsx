@@ -660,6 +660,30 @@ export default function AdminFinancingPage() {
               Refresh
             </button>
             <button
+              onClick={() => {
+                // Export filtered applications as CSV
+                const rows = filteredApplications.length > 0 ? filteredApplications : applications;
+                if (rows.length === 0) return;
+                const headers = ['Application #', 'Customer', 'Email', 'Provider', 'Plan', 'Amount', 'Status', 'Date'];
+                const csvRows = rows.map(app => [
+                  app.application_number || '',
+                  app.customer_name || '',
+                  app.customer_email || '',
+                  app.provider || '',
+                  app.plan_name || '',
+                  app.amount_cents ? (app.amount_cents / 100).toFixed(2) : '0.00',
+                  app.status || '',
+                  app.created_at ? new Date(app.created_at).toLocaleDateString() : '',
+                ]);
+                const csv = [headers, ...csvRows].map(r => r.map(c => `"${String(c).replace(/"/g, '""')}"`).join(',')).join('\n');
+                const blob = new Blob([csv], { type: 'text/csv' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `financing-applications-${new Date().toISOString().split('T')[0]}.csv`;
+                a.click();
+                URL.revokeObjectURL(url);
+              }}
               className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700"
             >
               <Download className="w-4 h-4" />
@@ -758,7 +782,7 @@ export default function AdminFinancingPage() {
                               onToggleExpand={() => toggleRowExpand(app.id)}
                               onApprove={handleApprove}
                               onDecline={handleDecline}
-                              onViewDetails={() => {}}
+                              onViewDetails={() => toggleRowExpand(app.id)}
                             />
                           ))}
                       </tbody>

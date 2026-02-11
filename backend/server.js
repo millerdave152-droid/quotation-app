@@ -895,7 +895,7 @@ app.use('/api/financing', initFinancingRoutes({ financingService }));
 console.log('✅ Financing routes loaded');
 
 // Commission Service
-app.use('/api/commissions', initCommissionsRoutes({ commissionService, pool }));
+app.use('/api/commissions', authenticate, initCommissionsRoutes({ commissionService, pool }));
 app.use('/api/signatures', initSignaturesRoutes({ signatureService }));
 app.use('/api/batch-email', initBatchEmailRoutes({ batchEmailService, receiptService }));
 
@@ -906,7 +906,7 @@ console.log('✅ Commission and batch email routes loaded');
 // ============================================
 // EMAIL ENDPOINTS (PHASE 5)
 // ============================================
-app.get('/api/test-email', async (req, res) => {
+app.get('/api/test-email', authenticate, requireRole('admin', 'manager'), async (req, res) => {
   try {
     const testParams = {
       Content: {
@@ -927,7 +927,7 @@ app.get('/api/test-email', async (req, res) => {
   }
 });
 
-app.post('/api/quotations/:id/send-email', upload.single('pdf'), async (req, res) => {
+app.post('/api/quotations/:id/send-email', authenticate, upload.single('pdf'), async (req, res) => {
   try {
     const { id } = req.params;
     const { recipientEmail, recipientName, message, subject } = req.body;

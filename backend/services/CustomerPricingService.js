@@ -288,7 +288,7 @@ class CustomerPricingService {
           customer_id, product_id, pricing_type,
           fixed_price_cents, discount_percent, cost_plus_percent,
           effective_from, effective_to, notes, created_by
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+        ) VALUES ($1, $2, $3, $4, $5, $6, COALESCE($7, CURRENT_DATE), $8, $9, $10)
         RETURNING id`,
         [
           customerId,
@@ -297,7 +297,7 @@ class CustomerPricingService {
           fixedPriceCents || null,
           discountPercent || null,
           costPlusPercent || null,
-          effectiveFrom || 'CURRENT_DATE',
+          effectiveFrom || null,
           effectiveTo || null,
           notes || null,
           userId,

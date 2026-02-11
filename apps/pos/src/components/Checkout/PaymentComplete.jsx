@@ -157,7 +157,8 @@ export function PaymentComplete({
   };
 
   return (
-    <div className="flex flex-col h-full items-center justify-center p-8">
+    <div className="flex flex-col h-full items-center overflow-y-auto p-8">
+      <div className="flex-shrink-0 mt-auto" />
       {/* Success Animation */}
       <SuccessAnimation />
 
@@ -166,13 +167,17 @@ export function PaymentComplete({
         Payment Complete!
       </h2>
 
-      {/* Transaction Details */}
-      <div className="text-center mb-8">
-        <p className="text-sm text-gray-500">Transaction Number</p>
-        <p className="text-lg font-mono font-semibold text-gray-900">
+      {/* Reference Number - prominent display */}
+      <div className="w-full max-w-md mb-6 p-4 bg-blue-50 border-2 border-blue-200 rounded-xl text-center">
+        <p className="text-xs font-medium text-blue-600 uppercase tracking-wider mb-1">Reference Number</p>
+        <p className="text-2xl font-mono font-bold text-blue-900 tracking-wide">
           {transactionNumber}
         </p>
-        <p className="text-3xl font-bold text-green-600 mt-2 tabular-nums">
+      </div>
+
+      {/* Amount & Date */}
+      <div className="text-center mb-8">
+        <p className="text-3xl font-bold text-green-600 tabular-nums">
           {formatCurrency(totalAmount)}
         </p>
         <p className="text-xs text-gray-400 mt-1">
@@ -329,6 +334,7 @@ export function PaymentComplete({
         <ArrowPathIcon className="w-6 h-6" />
         New Transaction
       </button>
+      <div className="flex-shrink-0 mb-auto" />
     </div>
   );
 }

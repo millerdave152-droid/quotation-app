@@ -138,14 +138,17 @@ describe('InventorySyncService', () => {
 
   describe('checkBulkAvailability', () => {
     it('should check multiple products at once', async () => {
-      // First product available
-      mockPool.query.mockResolvedValueOnce({
-        rows: [{ id: 1, qty_on_hand: 100, qty_reserved: 0, qty_available: 100, track_inventory: true, allow_backorder: false }],
-      });
-      // Second product not available
-      mockPool.query.mockResolvedValueOnce({
-        rows: [{ id: 2, qty_on_hand: 5, qty_reserved: 5, qty_available: 0, track_inventory: true, allow_backorder: false }],
-      });
+      mockClient.query
+        .mockResolvedValueOnce({}) // BEGIN
+        // First product available
+        .mockResolvedValueOnce({
+          rows: [{ id: 1, qty_on_hand: 100, qty_reserved: 0, qty_available: 100, track_inventory: true, allow_backorder: false }],
+        })
+        // Second product not available
+        .mockResolvedValueOnce({
+          rows: [{ id: 2, qty_on_hand: 5, qty_reserved: 5, qty_available: 0, track_inventory: true, allow_backorder: false }],
+        })
+        .mockResolvedValueOnce({}); // COMMIT
 
       const result = await service.checkBulkAvailability([
         { productId: 1, quantity: 10 },

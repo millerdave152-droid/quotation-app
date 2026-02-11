@@ -1,3 +1,5 @@
+const bcrypt = require('bcrypt');
+
 /**
  * POS Payment Service
  * Handles payment processing for POS transactions including:
@@ -317,7 +319,24 @@ class POSPaymentService {
       };
     }
 
-    // TODO: Implement PIN verification if pin_hash exists
+    if (card.pin_hash) {
+      if (!pin) {
+        return {
+          valid: false,
+          error: 'PIN required',
+          cardNumber: card.card_number
+        };
+      }
+
+      const pinValid = await bcrypt.compare(String(pin), card.pin_hash);
+      if (!pinValid) {
+        return {
+          valid: false,
+          error: 'Invalid PIN',
+          cardNumber: card.card_number
+        };
+      }
+    }
 
     return {
       valid: true,
@@ -339,9 +358,9 @@ class POSPaymentService {
    * @param {number} userId - User performing the redemption
    * @returns {Promise<object>} Redemption result
    */
-  async redeemGiftCard(cardNumber, amountCents, transactionId, userId) {
+  async redeemGiftCard(cardNumber, amountCents, transactionId, userId, pin = null) {
     // Validate the card first
-    const validation = await this.validateGiftCard(cardNumber);
+    const validation = await this.validateGiftCard(cardNumber, pin);
 
     if (!validation.valid) {
       throw new Error(validation.error);

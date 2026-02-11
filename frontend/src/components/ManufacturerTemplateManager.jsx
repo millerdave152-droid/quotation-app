@@ -196,7 +196,7 @@ const ManufacturerTemplateManager = () => {
   };
 
   const handleDeleteTemplate = async (template) => {
-    if (!confirm(`Are you sure you want to delete "${template.name}"?`)) return;
+    if (!window.confirm(`Are you sure you want to delete "${template.name}"?`)) return;
 
     try {
       const response = await authFetch(`${API_BASE}/import-templates/${template.id}`, {
