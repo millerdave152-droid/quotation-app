@@ -2917,7 +2917,7 @@ console.log('✅ Admin routes loaded (email monitoring, queue management)');
 // ADMIN APPROVAL RULES (Threshold Configuration)
 // ============================================
 const adminApprovalRulesRoutes = require('./routes/admin-approval-rules');
-app.use('/api/admin/approval-rules', authenticate, requireRole(['admin', 'manager']), adminApprovalRulesRoutes(pool));
+app.use('/api/admin/approval-rules', authenticate, requireRole('admin', 'manager'), adminApprovalRulesRoutes(pool));
 console.log('✅ Admin approval rules routes loaded');
 
 // ============================================

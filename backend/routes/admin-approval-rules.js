@@ -143,7 +143,7 @@ module.exports = function (pool) {
           ot.created_at,
           ot.updated_at,
           ot.created_by,
-          u.name AS created_by_name,
+          COALESCE(u.first_name || ' ' || u.last_name, 'Unknown') AS created_by_name,
           COALESCE(
             json_agg(
               json_build_object(
@@ -209,7 +209,7 @@ module.exports = function (pool) {
 
       // Group by for aggregation
       query += `
-        GROUP BY ot.id, c.name, u.name
+        GROUP BY ot.id, c.name, u.first_name, u.last_name
       `;
 
       // Sorting
@@ -469,7 +469,7 @@ module.exports = function (pool) {
         SELECT
           ot.*,
           c.name AS category_name,
-          u.name AS created_by_name,
+          COALESCE(u.first_name || ' ' || u.last_name, 'Unknown') AS created_by_name,
           COALESCE(
             json_agg(
               json_build_object(
@@ -497,7 +497,7 @@ module.exports = function (pool) {
         LEFT JOIN users u ON u.id = ot.created_by
         LEFT JOIN threshold_approval_levels tal ON tal.threshold_id = ot.id
         WHERE ot.id = $1
-        GROUP BY ot.id, c.name, u.name
+        GROUP BY ot.id, c.name, u.first_name, u.last_name
         `,
         [parseInt(id, 10)]
       );
@@ -519,7 +519,7 @@ module.exports = function (pool) {
           al.action,
           al.changes,
           al.created_at,
-          u.name AS admin_name
+          COALESCE(u.first_name || ' ' || u.last_name, 'Unknown') AS admin_name
         FROM approval_rule_audit_log al
         LEFT JOIN users u ON u.id = al.admin_id
         WHERE al.rule_id = $1
