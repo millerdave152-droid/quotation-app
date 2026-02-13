@@ -19,6 +19,7 @@ function logToFile(message) {
 const { ApiError, asyncHandler } = require('../middleware/errorHandler');
 const { authenticate, requireRole, requirePermission } = require('../middleware/auth');
 const { fraudCheck } = require('../middleware/fraudCheck');
+const miraklService = require('../services/miraklService');
 
 // ============================================================================
 // MODULE STATE
@@ -113,9 +114,9 @@ const createTransactionSchema = Joi.object({
       street: Joi.string().optional(),
       unit: Joi.string().allow(null, '').optional(),
       buzzer: Joi.string().allow(null, '').optional(),
-      city: Joi.string().required(),
+      city: Joi.string().allow('').required(),
       province: Joi.string().length(2).uppercase().required(),
-      postalCode: Joi.string().pattern(/^[A-Z]\d[A-Z]\s?\d[A-Z]\d$/i).required(),
+      postalCode: Joi.string().pattern(/^[A-Z]\d[A-Z]\s?\d[A-Z]\d$/i).allow('').required(),
       dwellingType: Joi.string().valid('house', 'townhouse', 'condo', 'apartment', 'commercial').optional(),
       entryPoint: Joi.string().valid('front_door', 'back_door', 'side_door', 'garage', 'loading_dock', 'concierge').optional(),
       floorNumber: Joi.string().max(20).allow(null, '').optional(),
@@ -261,8 +262,13 @@ router.post('/', authenticate, fraudCheck('transaction.create'), asyncHandler(as
   });
 
   if (error) {
-    console.error('[Transaction] Validation errors:', error.details.map(d => `${d.path.join('.')}: ${d.message}`).join('; '));
-    throw ApiError.badRequest('Validation failed');
+    const validationDetails = error.details.map(d => `${d.path.join('.')}: ${d.message}`);
+    logToFile('========== VALIDATION ERROR ==========');
+    logToFile('ERRORS: ' + validationDetails.join('; '));
+    logToFile('BODY FULFILLMENT: ' + JSON.stringify(req.body?.fulfillment, null, 2));
+    logToFile('=========================================');
+    console.error('[Transaction] Validation errors:', validationDetails.join('; '));
+    throw ApiError.badRequest('Validation failed: ' + validationDetails.join('; '), validationDetails);
   }
 
   const {
@@ -300,8 +306,8 @@ router.post('/', authenticate, fraudCheck('transaction.create'), asyncHandler(as
     req._discountEnforcementResult = enforcement;
   }
 
-  // Validate dwelling type and entry point are provided for delivery fulfillment types
-  if (fulfillment && ['local_delivery', 'shipping'].includes(fulfillment.type)) {
+  // Validate dwelling type and entry point are provided for local delivery fulfillment
+  if (fulfillment && fulfillment.type === 'local_delivery') {
     const missingFields = [];
     const dwellingType = fulfillment.dwellingType || fulfillment.address?.dwellingType;
     if (!dwellingType) {
@@ -475,6 +481,7 @@ router.post('/', authenticate, fraudCheck('transaction.create'), asyncHandler(as
     const transaction = transactionResult.rows[0];
 
     // Insert transaction items
+    const _inventoryQueue = [];
     for (const item of processedItems) {
       await client.query(
         `INSERT INTO transaction_items (
@@ -501,10 +508,12 @@ router.post('/', authenticate, fraudCheck('transaction.create'), asyncHandler(as
       );
 
       // Update inventory
-      await client.query(
-        'UPDATE products SET qty_on_hand = COALESCE(qty_on_hand, 0) - $1 WHERE id = $2',
+      const _stockRes = await client.query(
+        'UPDATE products SET qty_on_hand = COALESCE(qty_on_hand, 0) - $1 WHERE id = $2 RETURNING qty_on_hand',
         [item.quantity, item.productId]
       );
+      const _newQty = _stockRes.rows[0]?.qty_on_hand ?? 0;
+      _inventoryQueue.push({ productId: item.productId, sku: item.productSku, oldQty: _newQty + item.quantity, newQty: _newQty, source: 'POS_SALE' });
     }
 
     // Insert payments
@@ -749,6 +758,15 @@ router.post('/', authenticate, fraudCheck('transaction.create'), asyncHandler(as
             console.error('[Transaction] Failed to mark escalation used:', escErr.message);
           }
         }
+      }
+    }
+
+    // Queue marketplace inventory changes (non-blocking, after commit)
+    for (const qi of _inventoryQueue) {
+      try {
+        await miraklService.queueInventoryChange(qi.productId, qi.sku, qi.oldQty, qi.newQty, qi.source);
+      } catch (queueErr) {
+        console.error('[MarketplaceQueue] POS_SALE queue error:', queueErr.message);
       }
     }
 
@@ -1330,16 +1348,19 @@ router.post('/:id/void', authenticate, requirePermission('pos.checkout.void'), f
 
     // Get items to restore inventory
     const itemsResult = await client.query(
-      'SELECT product_id, quantity FROM transaction_items WHERE transaction_id = $1',
+      'SELECT ti.product_id, ti.quantity, ti.product_sku FROM transaction_items ti WHERE ti.transaction_id = $1',
       [id]
     );
 
     // Restore inventory
+    const _voidQueue = [];
     for (const item of itemsResult.rows) {
-      await client.query(
-        'UPDATE products SET qty_on_hand = COALESCE(qty_on_hand, 0) + $1 WHERE id = $2',
+      const _stockRes = await client.query(
+        'UPDATE products SET qty_on_hand = COALESCE(qty_on_hand, 0) + $1 WHERE id = $2 RETURNING qty_on_hand',
         [item.quantity, item.product_id]
       );
+      const _newQty = _stockRes.rows[0]?.qty_on_hand ?? 0;
+      _voidQueue.push({ productId: item.product_id, sku: item.product_sku, oldQty: _newQty - item.quantity, newQty: _newQty, source: 'RETURN' });
     }
 
     // Update transaction status
@@ -1369,6 +1390,15 @@ router.post('/:id/void', authenticate, requirePermission('pos.checkout.void'), f
     );
 
     await client.query('COMMIT');
+
+    // Queue marketplace inventory changes (non-blocking, after commit)
+    for (const qi of _voidQueue) {
+      try {
+        await miraklService.queueInventoryChange(qi.productId, qi.sku, qi.oldQty, qi.newQty, qi.source);
+      } catch (queueErr) {
+        console.error('[MarketplaceQueue] RETURN (void) queue error:', queueErr.message);
+      }
+    }
 
     // Invalidate caches
     if (cache) {
@@ -1566,6 +1596,7 @@ router.post('/:id/refund', authenticate, requirePermission('pos.returns.process_
 
     let refundAmount = amount;
     let refundedItems = [];
+    const _refundQueue = [];
 
     // If specific items provided, calculate refund amount from items
     if (items && items.length > 0) {
@@ -1573,7 +1604,7 @@ router.post('/:id/refund', authenticate, requirePermission('pos.returns.process_
 
       for (const refundItem of items) {
         const itemResult = await client.query(
-          'SELECT item_id, product_id, quantity, line_total FROM transaction_items WHERE item_id = $1 AND transaction_id = $2',
+          'SELECT item_id, product_id, product_sku, quantity, line_total FROM transaction_items WHERE item_id = $1 AND transaction_id = $2',
           [refundItem.itemId, id]
         );
 
@@ -1592,10 +1623,12 @@ router.post('/:id/refund', authenticate, requirePermission('pos.returns.process_
         refundAmount += itemRefundAmount;
 
         // Restore inventory
-        await client.query(
-          'UPDATE products SET qty_on_hand = COALESCE(qty_on_hand, 0) + $1 WHERE id = $2',
+        const _stockRes = await client.query(
+          'UPDATE products SET qty_on_hand = COALESCE(qty_on_hand, 0) + $1 WHERE id = $2 RETURNING qty_on_hand',
           [refundItem.quantity, item.product_id]
         );
+        const _newQty = _stockRes.rows[0]?.qty_on_hand ?? 0;
+        _refundQueue.push({ productId: item.product_id, sku: item.product_sku, oldQty: _newQty - refundItem.quantity, newQty: _newQty, source: 'RETURN' });
 
         refundedItems.push({
           itemId: refundItem.itemId,
@@ -1613,15 +1646,17 @@ router.post('/:id/refund', authenticate, requirePermission('pos.returns.process_
 
       // Restore all inventory
       const allItemsResult = await client.query(
-        'SELECT product_id, quantity FROM transaction_items WHERE transaction_id = $1',
+        'SELECT product_id, product_sku, quantity FROM transaction_items WHERE transaction_id = $1',
         [id]
       );
 
       for (const item of allItemsResult.rows) {
-        await client.query(
-          'UPDATE products SET qty_on_hand = COALESCE(qty_on_hand, 0) + $1 WHERE id = $2',
+        const _stockRes = await client.query(
+          'UPDATE products SET qty_on_hand = COALESCE(qty_on_hand, 0) + $1 WHERE id = $2 RETURNING qty_on_hand',
           [item.quantity, item.product_id]
         );
+        const _newQty = _stockRes.rows[0]?.qty_on_hand ?? 0;
+        _refundQueue.push({ productId: item.product_id, sku: item.product_sku, oldQty: _newQty - item.quantity, newQty: _newQty, source: 'RETURN' });
       }
     }
 
@@ -1649,6 +1684,15 @@ router.post('/:id/refund', authenticate, requirePermission('pos.returns.process_
     );
 
     await client.query('COMMIT');
+
+    // Queue marketplace inventory changes (non-blocking, after commit)
+    for (const qi of _refundQueue) {
+      try {
+        await miraklService.queueInventoryChange(qi.productId, qi.sku, qi.oldQty, qi.newQty, qi.source);
+      } catch (queueErr) {
+        console.error('[MarketplaceQueue] RETURN (refund) queue error:', queueErr.message);
+      }
+    }
 
     // Invalidate caches
     if (cache) {

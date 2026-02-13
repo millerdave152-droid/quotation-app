@@ -8,6 +8,7 @@ const router = express.Router();
 const crypto = require('crypto');
 const { authenticate } = require('../middleware/auth');
 const { ApiError, asyncHandler } = require('../middleware/errorHandler');
+const miraklService = require('../services/miraklService');
 
 let pool = null;
 let stripeService = null;
@@ -188,6 +189,7 @@ router.post('/', asyncHandler(async (req, res) => {
     const returnRecord = returnResult.rows[0];
 
     // 2. Insert return items
+    const _exchangeQueue = [];
     for (const ri of returnItems) {
       await client.query(
         `INSERT INTO return_items (return_id, transaction_item_id, quantity, reason_code_id, reason_notes, condition)
@@ -197,10 +199,12 @@ router.post('/', asyncHandler(async (req, res) => {
 
       // Restore inventory for returned items
       const orig = origItemMap.get(ri.transactionItemId);
-      await client.query(
-        'UPDATE products SET qty_on_hand = COALESCE(qty_on_hand, 0) + $1 WHERE id = $2',
+      const _stockRes = await client.query(
+        'UPDATE products SET qty_on_hand = COALESCE(qty_on_hand, 0) + $1 WHERE id = $2 RETURNING qty_on_hand',
         [ri.quantity, orig.product_id]
       );
+      const _newQty = _stockRes.rows[0]?.qty_on_hand ?? 0;
+      _exchangeQueue.push({ productId: orig.product_id, sku: orig.product_sku, oldQty: _newQty - ri.quantity, newQty: _newQty, source: 'RETURN' });
     }
 
     // 3. Create the new exchange transaction
@@ -248,10 +252,12 @@ router.post('/', asyncHandler(async (req, res) => {
         ]
       );
 
-      await client.query(
-        'UPDATE products SET qty_on_hand = COALESCE(qty_on_hand, 0) - $1 WHERE id = $2',
+      const _stockRes2 = await client.query(
+        'UPDATE products SET qty_on_hand = COALESCE(qty_on_hand, 0) - $1 WHERE id = $2 RETURNING qty_on_hand',
         [item.quantity, item.productId]
       );
+      const _newQty2 = _stockRes2.rows[0]?.qty_on_hand ?? 0;
+      _exchangeQueue.push({ productId: item.productId, sku: item.productSku, oldQty: _newQty2 + item.quantity, newQty: _newQty2, source: 'POS_SALE' });
     }
 
     // 5. Handle payment for difference
@@ -333,6 +339,15 @@ router.post('/', asyncHandler(async (req, res) => {
     );
 
     await client.query('COMMIT');
+
+    // Queue marketplace inventory changes (non-blocking, after commit)
+    for (const qi of _exchangeQueue) {
+      try {
+        await miraklService.queueInventoryChange(qi.productId, qi.sku, qi.oldQty, qi.newQty, qi.source);
+      } catch (queueErr) {
+        console.error('[MarketplaceQueue] Exchange queue error:', queueErr.message);
+      }
+    }
 
     res.status(201).json({
       success: true,

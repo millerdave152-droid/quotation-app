@@ -129,7 +129,8 @@ function AddressInput({ label, name, value, onChange, placeholder, error, requir
 /**
  * Delivery address form component
  */
-export function DeliveryAddressForm({ customer, onComplete, onBack }) {
+export function DeliveryAddressForm({ customer, onComplete, onBack, fulfillmentType = 'local_delivery' }) {
+  const isLocalDelivery = fulfillmentType === 'local_delivery';
   const [mode, setMode] = useState('select'); // 'select' or 'new'
   const [savedAddresses, setSavedAddresses] = useState([]);
   const [selectedAddress, setSelectedAddress] = useState(null);
@@ -170,41 +171,19 @@ export function DeliveryAddressForm({ customer, onComplete, onBack }) {
   const [validating, setValidating] = useState(false);
   const [validationResult, setValidationResult] = useState(null);
 
-  // Canadian provinces
-  const provinces = [
-    { code: 'ON', name: 'Ontario' },
-    { code: 'QC', name: 'Quebec' },
-    { code: 'BC', name: 'British Columbia' },
-    { code: 'AB', name: 'Alberta' },
-    { code: 'MB', name: 'Manitoba' },
-    { code: 'SK', name: 'Saskatchewan' },
-    { code: 'NS', name: 'Nova Scotia' },
-    { code: 'NB', name: 'New Brunswick' },
-    { code: 'NL', name: 'Newfoundland and Labrador' },
-    { code: 'PE', name: 'Prince Edward Island' },
-    { code: 'NT', name: 'Northwest Territories' },
-    { code: 'YT', name: 'Yukon' },
-    { code: 'NU', name: 'Nunavut' },
-  ];
-
-  // Dwelling types for delivery
-  const dwellingTypes = [
-    { value: 'house', label: 'House', Icon: HomeIcon },
-    { value: 'townhouse', label: 'Townhouse', Icon: HomeIcon },
-    { value: 'condo', label: 'Condo', Icon: BuildingOffice2Icon },
-    { value: 'apartment', label: 'Apartment', Icon: BuildingOfficeIcon },
-    { value: 'commercial', label: 'Commercial', Icon: BuildingOfficeIcon },
-  ];
-
-  // Entry point options for delivery
-  const entryPoints = [
-    { value: 'front_door', label: 'Front Door' },
-    { value: 'back_door', label: 'Back Door' },
-    { value: 'side_door', label: 'Side Door' },
-    { value: 'garage', label: 'Garage' },
-    { value: 'loading_dock', label: 'Loading Dock' },
-    { value: 'concierge', label: 'Concierge / Lobby' },
-  ];
+  const resolveDateInputValue = useCallback((input) => {
+    if (!input) return '';
+    const rawValue = input.value;
+    if (rawValue) return rawValue;
+    if (input.valueAsDate instanceof Date && !Number.isNaN(input.valueAsDate.getTime())) {
+      return input.valueAsDate.toISOString().split('T')[0];
+    }
+    const parsed = new Date(rawValue);
+    if (!Number.isNaN(parsed.getTime())) {
+      return parsed.toISOString().split('T')[0];
+    }
+    return '';
+  }, []);
 
   // Mock delivery windows - will be replaced by Hub API call
   const [loadingWindows, setLoadingWindows] = useState(false);
@@ -240,6 +219,55 @@ export function DeliveryAddressForm({ customer, onComplete, onBack }) {
       setLoadingWindows(false);
     }, 400);
   }, []);
+
+  const handleDeliveryDateChange = useCallback((input) => {
+    const newDate = resolveDateInputValue(input);
+    setFormData((prev) => ({
+      ...prev,
+      deliveryDate: newDate,
+      deliveryWindowId: null,
+      deliveryWindowStart: '',
+      deliveryWindowEnd: '',
+    }));
+    setErrors((prev) => ({ ...prev, deliveryDate: null, deliveryWindow: null }));
+    generateMockWindows(newDate);
+  }, [generateMockWindows, resolveDateInputValue]);
+
+  // Canadian provinces
+  const provinces = [
+    { code: 'ON', name: 'Ontario' },
+    { code: 'QC', name: 'Quebec' },
+    { code: 'BC', name: 'British Columbia' },
+    { code: 'AB', name: 'Alberta' },
+    { code: 'MB', name: 'Manitoba' },
+    { code: 'SK', name: 'Saskatchewan' },
+    { code: 'NS', name: 'Nova Scotia' },
+    { code: 'NB', name: 'New Brunswick' },
+    { code: 'NL', name: 'Newfoundland and Labrador' },
+    { code: 'PE', name: 'Prince Edward Island' },
+    { code: 'NT', name: 'Northwest Territories' },
+    { code: 'YT', name: 'Yukon' },
+    { code: 'NU', name: 'Nunavut' },
+  ];
+
+  // Dwelling types for delivery
+  const dwellingTypes = [
+    { value: 'house', label: 'House', Icon: HomeIcon },
+    { value: 'townhouse', label: 'Townhouse', Icon: HomeIcon },
+    { value: 'condo', label: 'Condo', Icon: BuildingOffice2Icon },
+    { value: 'apartment', label: 'Apartment', Icon: BuildingOfficeIcon },
+    { value: 'commercial', label: 'Commercial', Icon: BuildingOfficeIcon },
+  ];
+
+  // Entry point options for delivery
+  const entryPoints = [
+    { value: 'front_door', label: 'Front Door' },
+    { value: 'back_door', label: 'Back Door' },
+    { value: 'side_door', label: 'Side Door' },
+    { value: 'garage', label: 'Garage' },
+    { value: 'loading_dock', label: 'Loading Dock' },
+    { value: 'concierge', label: 'Concierge / Lobby' },
+  ];
 
   // Load customer's saved addresses
   useEffect(() => {
@@ -377,32 +405,34 @@ export function DeliveryAddressForm({ customer, onComplete, onBack }) {
       }
     }
 
-    if (!formData.dwellingType) {
-      newErrors.dwellingType = 'Dwelling type is required for delivery';
-    }
-
-    if (!formData.entryPoint) {
-      newErrors.entryPoint = 'Entry point is required for delivery';
-    }
-
-    if (formData.elevatorRequired) {
-      if (!formData.elevatorDate) {
-        newErrors.elevatorDate = 'Booking date is required';
+    if (isLocalDelivery) {
+      if (!formData.dwellingType) {
+        newErrors.dwellingType = 'Dwelling type is required for delivery';
       }
-      if (!formData.elevatorTime) {
-        newErrors.elevatorTime = 'Booking time window is required';
+
+      if (!formData.entryPoint) {
+        newErrors.entryPoint = 'Entry point is required for delivery';
       }
-    }
 
-    if (!formData.pathwayConfirmed) {
-      newErrors.pathwayConfirmed = 'Pathway confirmation is required for delivery orders';
-    }
+      if (formData.elevatorRequired) {
+        if (!formData.elevatorDate) {
+          newErrors.elevatorDate = 'Booking date is required';
+        }
+        if (!formData.elevatorTime) {
+          newErrors.elevatorTime = 'Booking time window is required';
+        }
+      }
 
-    if (!formData.deliveryDate) {
-      newErrors.deliveryDate = 'Delivery date is required';
-    }
-    if (!formData.deliveryWindowStart || !formData.deliveryWindowEnd) {
-      newErrors.deliveryWindow = 'Please select a delivery time window';
+      if (!formData.pathwayConfirmed) {
+        newErrors.pathwayConfirmed = 'Pathway confirmation is required for delivery orders';
+      }
+
+      if (!formData.deliveryDate) {
+        newErrors.deliveryDate = 'Delivery date is required';
+      }
+      if (!formData.deliveryWindowStart || !formData.deliveryWindowEnd) {
+        newErrors.deliveryWindow = 'Please select a delivery time window';
+      }
     }
 
     setErrors(newErrors);
@@ -414,28 +444,30 @@ export function DeliveryAddressForm({ customer, onComplete, onBack }) {
     if (!selectedAddress) return;
 
     const selectErrors = {};
-    if (!formData.dwellingType) {
-      selectErrors.dwellingType = 'Dwelling type is required for delivery';
-    }
-    if (!formData.entryPoint) {
-      selectErrors.entryPoint = 'Entry point is required for delivery';
-    }
-    if (formData.elevatorRequired) {
-      if (!formData.elevatorDate) {
-        selectErrors.elevatorDate = 'Booking date is required';
+    if (isLocalDelivery) {
+      if (!formData.dwellingType) {
+        selectErrors.dwellingType = 'Dwelling type is required for delivery';
       }
-      if (!formData.elevatorTime) {
-        selectErrors.elevatorTime = 'Booking time window is required';
+      if (!formData.entryPoint) {
+        selectErrors.entryPoint = 'Entry point is required for delivery';
       }
-    }
-    if (!formData.pathwayConfirmed) {
-      selectErrors.pathwayConfirmed = 'Pathway confirmation is required for delivery orders';
-    }
-    if (!formData.deliveryDate) {
-      selectErrors.deliveryDate = 'Delivery date is required';
-    }
-    if (!formData.deliveryWindowStart || !formData.deliveryWindowEnd) {
-      selectErrors.deliveryWindow = 'Please select a delivery time window';
+      if (formData.elevatorRequired) {
+        if (!formData.elevatorDate) {
+          selectErrors.elevatorDate = 'Booking date is required';
+        }
+        if (!formData.elevatorTime) {
+          selectErrors.elevatorTime = 'Booking time window is required';
+        }
+      }
+      if (!formData.pathwayConfirmed) {
+        selectErrors.pathwayConfirmed = 'Pathway confirmation is required for delivery orders';
+      }
+      if (!formData.deliveryDate) {
+        selectErrors.deliveryDate = 'Delivery date is required';
+      }
+      if (!formData.deliveryWindowStart || !formData.deliveryWindowEnd) {
+        selectErrors.deliveryWindow = 'Please select a delivery time window';
+      }
     }
     if (Object.keys(selectErrors).length > 0) {
       setErrors(selectErrors);
@@ -465,28 +497,28 @@ export function DeliveryAddressForm({ customer, onComplete, onBack }) {
 
     const addressWithExtras = {
       ...normalizedSelected,
-      dwellingType: formData.dwellingType,
-      floorNumber: formData.floorNumber.trim() || null,
-      entryPoint: formData.entryPoint,
-      elevatorRequired: formData.elevatorRequired,
-      elevatorDate: formData.elevatorRequired ? formData.elevatorDate : null,
-      elevatorTime: formData.elevatorRequired ? formData.elevatorTime : null,
+      dwellingType: isLocalDelivery ? formData.dwellingType : null,
+      floorNumber: isLocalDelivery ? (formData.floorNumber.trim() || null) : null,
+      entryPoint: isLocalDelivery ? formData.entryPoint : null,
+      elevatorRequired: isLocalDelivery ? formData.elevatorRequired : false,
+      elevatorDate: isLocalDelivery && formData.elevatorRequired ? formData.elevatorDate : null,
+      elevatorTime: isLocalDelivery && formData.elevatorRequired ? formData.elevatorTime : null,
       conciergePhone: formData.conciergePhone.trim() || null,
       conciergeNotes: formData.conciergeNotes.trim() || null,
-      accessSteps: parseInt(formData.accessSteps, 10) || 0,
-      accessNarrowStairs: formData.accessNarrowStairs,
-      accessHeightRestriction: formData.accessHeightRestriction ? (parseInt(formData.accessMaxHeight, 10) || null) : null,
-      accessWidthRestriction: formData.accessWidthRestriction ? (parseInt(formData.accessMaxWidth, 10) || null) : null,
-      accessNotes: formData.accessNotes.trim() || null,
+      accessSteps: isLocalDelivery ? (parseInt(formData.accessSteps, 10) || 0) : 0,
+      accessNarrowStairs: isLocalDelivery ? formData.accessNarrowStairs : false,
+      accessHeightRestriction: isLocalDelivery && formData.accessHeightRestriction ? (parseInt(formData.accessMaxHeight, 10) || null) : null,
+      accessWidthRestriction: isLocalDelivery && formData.accessWidthRestriction ? (parseInt(formData.accessMaxWidth, 10) || null) : null,
+      accessNotes: isLocalDelivery ? (formData.accessNotes.trim() || null) : null,
       parkingType: formData.parkingType || null,
       parkingDistance: parseInt(formData.parkingDistance, 10) || null,
       parkingNotes: formData.parkingNotes.trim() || null,
-      pathwayConfirmed: formData.pathwayConfirmed,
-      pathwayNotes: formData.pathwayNotes.trim() || null,
-      deliveryDate: formData.deliveryDate || null,
-      deliveryWindowId: formData.deliveryWindowId,
-      deliveryWindowStart: formData.deliveryWindowStart || null,
-      deliveryWindowEnd: formData.deliveryWindowEnd || null,
+      pathwayConfirmed: isLocalDelivery ? formData.pathwayConfirmed : false,
+      pathwayNotes: isLocalDelivery ? (formData.pathwayNotes.trim() || null) : null,
+      deliveryDate: isLocalDelivery ? (formData.deliveryDate || null) : null,
+      deliveryWindowId: isLocalDelivery ? formData.deliveryWindowId : null,
+      deliveryWindowStart: isLocalDelivery ? (formData.deliveryWindowStart || null) : null,
+      deliveryWindowEnd: isLocalDelivery ? (formData.deliveryWindowEnd || null) : null,
     };
     const result = await validateAddress(addressWithExtras);
     onComplete(addressWithExtras, result);
@@ -505,28 +537,28 @@ export function DeliveryAddressForm({ customer, onComplete, onBack }) {
       city: formData.city.trim(),
       province: formData.province,
       postalCode: formData.postalCode.trim(),
-      dwellingType: formData.dwellingType,
-      floorNumber: formData.floorNumber.trim() || null,
-      entryPoint: formData.entryPoint,
-      elevatorRequired: formData.elevatorRequired,
-      elevatorDate: formData.elevatorRequired ? formData.elevatorDate : null,
-      elevatorTime: formData.elevatorRequired ? formData.elevatorTime : null,
+      dwellingType: isLocalDelivery ? formData.dwellingType : null,
+      floorNumber: isLocalDelivery ? (formData.floorNumber.trim() || null) : null,
+      entryPoint: isLocalDelivery ? formData.entryPoint : null,
+      elevatorRequired: isLocalDelivery ? formData.elevatorRequired : false,
+      elevatorDate: isLocalDelivery && formData.elevatorRequired ? formData.elevatorDate : null,
+      elevatorTime: isLocalDelivery && formData.elevatorRequired ? formData.elevatorTime : null,
       conciergePhone: formData.conciergePhone.trim() || null,
       conciergeNotes: formData.conciergeNotes.trim() || null,
-      accessSteps: parseInt(formData.accessSteps, 10) || 0,
-      accessNarrowStairs: formData.accessNarrowStairs,
-      accessHeightRestriction: formData.accessHeightRestriction ? (parseInt(formData.accessMaxHeight, 10) || null) : null,
-      accessWidthRestriction: formData.accessWidthRestriction ? (parseInt(formData.accessMaxWidth, 10) || null) : null,
-      accessNotes: formData.accessNotes.trim() || null,
+      accessSteps: isLocalDelivery ? (parseInt(formData.accessSteps, 10) || 0) : 0,
+      accessNarrowStairs: isLocalDelivery ? formData.accessNarrowStairs : false,
+      accessHeightRestriction: isLocalDelivery && formData.accessHeightRestriction ? (parseInt(formData.accessMaxHeight, 10) || null) : null,
+      accessWidthRestriction: isLocalDelivery && formData.accessWidthRestriction ? (parseInt(formData.accessMaxWidth, 10) || null) : null,
+      accessNotes: isLocalDelivery ? (formData.accessNotes.trim() || null) : null,
       parkingType: formData.parkingType || null,
       parkingDistance: parseInt(formData.parkingDistance, 10) || null,
       parkingNotes: formData.parkingNotes.trim() || null,
-      pathwayConfirmed: formData.pathwayConfirmed,
-      pathwayNotes: formData.pathwayNotes.trim() || null,
-      deliveryDate: formData.deliveryDate || null,
-      deliveryWindowId: formData.deliveryWindowId,
-      deliveryWindowStart: formData.deliveryWindowStart || null,
-      deliveryWindowEnd: formData.deliveryWindowEnd || null,
+      pathwayConfirmed: isLocalDelivery ? formData.pathwayConfirmed : false,
+      pathwayNotes: isLocalDelivery ? (formData.pathwayNotes.trim() || null) : null,
+      deliveryDate: isLocalDelivery ? (formData.deliveryDate || null) : null,
+      deliveryWindowId: isLocalDelivery ? formData.deliveryWindowId : null,
+      deliveryWindowStart: isLocalDelivery ? (formData.deliveryWindowStart || null) : null,
+      deliveryWindowEnd: isLocalDelivery ? (formData.deliveryWindowEnd || null) : null,
     };
 
     const result = await validateAddress(address);
@@ -723,18 +755,8 @@ export function DeliveryAddressForm({ customer, onComplete, onBack }) {
                 id="deliveryDate"
                 name="deliveryDate"
                 value={formData.deliveryDate}
-                onChange={(e) => {
-                  const newDate = e.target.value;
-                  setFormData((prev) => ({
-                    ...prev,
-                    deliveryDate: newDate,
-                    deliveryWindowId: null,
-                    deliveryWindowStart: '',
-                    deliveryWindowEnd: '',
-                  }));
-                  setErrors((prev) => ({ ...prev, deliveryDate: null, deliveryWindow: null }));
-                  generateMockWindows(newDate);
-                }}
+                onChange={(e) => handleDeliveryDateChange(e.target)}
+                onInput={(e) => handleDeliveryDateChange(e.target)}
                 min={(() => {
                   const tomorrow = new Date();
                   tomorrow.setDate(tomorrow.getDate() + 1);

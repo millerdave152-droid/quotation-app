@@ -204,9 +204,9 @@ api.interceptors.response.use(
       if (status === 422 || status === 400) {
         return Promise.reject({
           status,
-          message: data?.message || data?.error || 'Validation failed.',
-          code: 'VALIDATION_ERROR',
-          details: data?.details || null,
+          message: data?.error?.message || data?.message || (typeof data?.error === 'string' ? data.error : 'Validation failed.'),
+          code: data?.error?.code || 'VALIDATION_ERROR',
+          details: data?.error?.details || data?.details || null,
         });
       }
 

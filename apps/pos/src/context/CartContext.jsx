@@ -920,16 +920,36 @@ export function CartProvider({ children }) {
       };
     };
 
+    // Promote delivery-specific fields from address to fulfillment level
+    // (backend Joi schema expects these at fulfillment level, not nested in address)
+    const addr = selectedFulfillment?.address || {};
     const normalizedFulfillment = selectedFulfillment?.type
       ? {
           ...selectedFulfillment,
           fee: selectedFulfillment.fee || 0,
           address: normalizeAddress(selectedFulfillment.address),
-          // Backend expects pathwayConfirmed at top-level fulfillment
-          pathwayConfirmed:
-            selectedFulfillment.pathwayConfirmed ??
-            selectedFulfillment.address?.pathwayConfirmed ??
-            false,
+          dwellingType: selectedFulfillment.dwellingType ?? addr.dwellingType ?? null,
+          entryPoint: selectedFulfillment.entryPoint ?? addr.entryPoint ?? null,
+          floorNumber: selectedFulfillment.floorNumber ?? addr.floorNumber ?? null,
+          elevatorRequired: selectedFulfillment.elevatorRequired ?? addr.elevatorRequired ?? false,
+          elevatorDate: selectedFulfillment.elevatorDate ?? addr.elevatorDate ?? null,
+          elevatorTime: selectedFulfillment.elevatorTime ?? addr.elevatorTime ?? null,
+          conciergePhone: selectedFulfillment.conciergePhone ?? addr.conciergePhone ?? null,
+          conciergeNotes: selectedFulfillment.conciergeNotes ?? addr.conciergeNotes ?? null,
+          accessSteps: selectedFulfillment.accessSteps ?? addr.accessSteps ?? 0,
+          accessNarrowStairs: selectedFulfillment.accessNarrowStairs ?? addr.accessNarrowStairs ?? false,
+          accessHeightRestriction: selectedFulfillment.accessHeightRestriction ?? addr.accessHeightRestriction ?? null,
+          accessWidthRestriction: selectedFulfillment.accessWidthRestriction ?? addr.accessWidthRestriction ?? null,
+          accessNotes: selectedFulfillment.accessNotes ?? addr.accessNotes ?? null,
+          parkingType: selectedFulfillment.parkingType ?? addr.parkingType ?? null,
+          parkingDistance: selectedFulfillment.parkingDistance ?? addr.parkingDistance ?? null,
+          parkingNotes: selectedFulfillment.parkingNotes ?? addr.parkingNotes ?? null,
+          pathwayConfirmed: selectedFulfillment.pathwayConfirmed ?? addr.pathwayConfirmed ?? false,
+          pathwayNotes: selectedFulfillment.pathwayNotes ?? addr.pathwayNotes ?? null,
+          deliveryDate: selectedFulfillment.deliveryDate ?? addr.deliveryDate ?? null,
+          deliveryWindowId: selectedFulfillment.deliveryWindowId ?? addr.deliveryWindowId ?? null,
+          deliveryWindowStart: selectedFulfillment.deliveryWindowStart ?? addr.deliveryWindowStart ?? null,
+          deliveryWindowEnd: selectedFulfillment.deliveryWindowEnd ?? addr.deliveryWindowEnd ?? null,
         }
       : {
           type: 'pickup_now',

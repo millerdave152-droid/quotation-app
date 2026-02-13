@@ -287,7 +287,7 @@ export function FulfillmentSelector({
   const handleContinue = useCallback(() => {
     if (!selectedOption) return;
 
-    if (selectedOption.type === 'local_delivery') {
+    if (selectedOption.type === 'local_delivery' || selectedOption.type === 'shipping') {
       // Need address input
       setStep('address');
     } else if (selectedOption.type === 'pickup_scheduled' || selectedOption.type === 'pickup_now') {
@@ -383,6 +383,7 @@ export function FulfillmentSelector({
     return (
       <DeliveryAddressForm
         customer={customer}
+        fulfillmentType={selectedOption?.type}
         onComplete={handleAddressComplete}
         onBack={handleBack}
       />

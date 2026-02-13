@@ -77,6 +77,7 @@ export const createTransaction = async (data) => {
         unitCost: item.unitCost || null,
         discountPercent: item.discountPercent || 0,
         discountAmount: item.discountAmount || 0,
+        escalationId: item.escalationId || null,
         serialNumber: item.serialNumber || null,
         taxable: item.taxable !== false,
       })),
@@ -89,7 +90,14 @@ export const createTransaction = async (data) => {
         processorReference: payment.processorReference || null,
         cashTendered: payment.cashTendered || null,
         changeGiven: payment.changeGiven || null,
+        etransferReference: payment.etransferReference || null,
+        storeCreditCode: payment.storeCreditCode || null,
+        storeCreditId: payment.storeCreditId || null,
+        storeCreditAmountCents: payment.storeCreditAmountCents || null,
+        loyaltyPointsUsed: payment.loyaltyPointsUsed || null,
+        loyaltyCustomerId: payment.loyaltyCustomerId || null,
       })),
+      tradeIns: data.tradeIns || [],
       discountAmount: data.discountAmount || 0,
       discountReason: data.discountReason || null,
       taxProvince: data.taxProvince || 'ON',
@@ -97,6 +105,9 @@ export const createTransaction = async (data) => {
       fulfillment: normalizedFulfillment,
       promotion: data.promotion || null,
       commissionSplit: data.commissionSplit || null,
+      isDeposit: data.isDeposit || false,
+      marketingSource: data.marketingSource || null,
+      marketingSourceDetail: data.marketingSourceDetail || null,
     });
 
     const result = response.data || response;
@@ -106,22 +117,18 @@ export const createTransaction = async (data) => {
     };
   } catch (error) {
     console.error('[Transactions] createTransaction error:', error);
-    console.error(
-      '[Transactions] Error response data:',
-      error.response?.data || error.data || error.details || 'no response data'
-    );
-    console.error('[Transactions] Error status:', error.response?.status || error.status || 'no status');
+    console.error('[Transactions] Error message:', error.message || 'no message');
+    console.error('[Transactions] Error status:', error.status || 'no status');
     if (error.details) {
       console.error('[Transactions] Validation details:', error.details);
     }
 
-    const responseData = error.response?.data || error.data || null;
     return {
       success: false,
-      error: responseData?.error || error.message,
-      code: responseData?.code || error.code || null,
-      fraudAssessment: responseData?.fraudAssessment || error.fraudAssessment || null,
-      details: responseData?.details || error.details || null,
+      error: error.message || 'Transaction failed',
+      code: error.code || null,
+      fraudAssessment: error.fraudAssessment || null,
+      details: error.details || null,
       data: null,
     };
   }

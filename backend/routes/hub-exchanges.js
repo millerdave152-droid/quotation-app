@@ -8,6 +8,7 @@ const express = require('express');
 const crypto = require('crypto');
 const { authenticate } = require('../middleware/auth');
 const { ApiError, asyncHandler } = require('../middleware/errorHandler');
+const miraklService = require('../services/miraklService');
 
 const TAX_RATES = {
   ON: { hst: 0.13, gst: 0, pst: 0 },
@@ -307,6 +308,7 @@ function init({ pool }) {
       const newOrder = newOrderResult.rows[0];
 
       // ---- 8. Insert new order items & deduct inventory ----
+      const _hubExchangeQueue = [];
       let sortOrder = 0;
       for (const item of validatedNewItems) {
         sortOrder++;
@@ -324,10 +326,12 @@ function init({ pool }) {
         );
 
         // Deduct inventory for new items
-        await client.query(
-          `UPDATE products SET qty_on_hand = qty_on_hand - $1, updated_at = NOW() WHERE id = $2`,
+        const _stockRes = await client.query(
+          `UPDATE products SET qty_on_hand = qty_on_hand - $1, updated_at = NOW() WHERE id = $2 RETURNING qty_on_hand`,
           [item.quantity, item.productId]
         );
+        const _newQty = _stockRes.rows[0]?.qty_on_hand ?? 0;
+        _hubExchangeQueue.push({ productId: item.productId, sku: item.productSku, oldQty: _newQty + item.quantity, newQty: _newQty, source: 'POS_SALE' });
         await client.query(
           `INSERT INTO inventory_transactions (
             product_id, transaction_type, quantity, qty_before, qty_after,
@@ -500,6 +504,15 @@ function init({ pool }) {
       );
 
       await client.query('COMMIT');
+
+      // Queue marketplace inventory changes (non-blocking, after commit)
+      for (const qi of _hubExchangeQueue) {
+        try {
+          await miraklService.queueInventoryChange(qi.productId, qi.sku, qi.oldQty, qi.newQty, qi.source);
+        } catch (queueErr) {
+          console.error('[MarketplaceQueue] Hub exchange queue error:', queueErr.message);
+        }
+      }
 
       res.status(201).json({
         success: true,

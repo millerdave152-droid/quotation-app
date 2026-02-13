@@ -68,6 +68,38 @@ const MarketplaceManager = () => {
   const [selectedInventoryProducts, setSelectedInventoryProducts] = useState([]);
   const [bulkBufferValue, setBulkBufferValue] = useState('');
 
+  // New: Inventory Queue & Drift state
+  const [queueStatus, setQueueStatus] = useState(null);
+  const [driftResults, setDriftResults] = useState(null);
+  const [driftLoading, setDriftLoading] = useState(false);
+  const [forceSyncing, setForceSyncing] = useState(false);
+  const [recentStockImports, setRecentStockImports] = useState([]);
+
+  // New: Offers tab state
+  const [offerProducts, setOfferProducts] = useState([]);
+  const [offerTotal, setOfferTotal] = useState(0);
+  const [offerPage, setOfferPage] = useState(1);
+  const [offerSearch, setOfferSearch] = useState('');
+  const [selectedOfferProducts, setSelectedOfferProducts] = useState([]);
+  const [offerImports, setOfferImports] = useState([]);
+  const [pushingOffers, setPushingOffers] = useState(false);
+
+  // New: Settings tab state
+  const [pollingStatus, setPollingStatus] = useState(null);
+  const [testingConnection, setTestingConnection] = useState(false);
+  const [connectionResult, setConnectionResult] = useState(null);
+
+  // New: Orders filter state
+  const [orderStateFilter, setOrderStateFilter] = useState('');
+  const [orderSearch, setOrderSearch] = useState('');
+  const [orderPage, setOrderPage] = useState(1);
+  const [orderTotal, setOrderTotal] = useState(0);
+
+  // New: Shipping modal state
+  const [showShipModal, setShowShipModal] = useState(false);
+  const [shipOrderId, setShipOrderId] = useState(null);
+  const [shipForm, setShipForm] = useState({ tracking_number: '', carrier_code: 'canada_post', carrier_name: '', carrier_url: '' });
+
   // Anti-flickering refs
   const isMounted = useRef(true);
   const loadedOnce = useRef(false);
@@ -89,7 +121,9 @@ const MarketplaceManager = () => {
         salesByCategoryRes,
         inventoryHealthRes,
         activityFeedRes,
-        ordersByStateRes
+        ordersByStateRes,
+        queueStatusRes,
+        syncHistoryRes
       ] = await Promise.all([
         axios.get(`${API_BASE_URL}/api/marketplace/dashboard-analytics`).catch(() => ({ data: null })),
         axios.get(`${API_BASE_URL}/api/marketplace/sales-chart`).catch(() => ({ data: [] })),
@@ -97,7 +131,9 @@ const MarketplaceManager = () => {
         axios.get(`${API_BASE_URL}/api/marketplace/sales-by-category`).catch(() => ({ data: [] })),
         axios.get(`${API_BASE_URL}/api/marketplace/inventory-health`).catch(() => ({ data: null })),
         axios.get(`${API_BASE_URL}/api/marketplace/activity-feed`).catch(() => ({ data: [] })),
-        axios.get(`${API_BASE_URL}/api/marketplace/orders-by-state`).catch(() => ({ data: [] }))
+        axios.get(`${API_BASE_URL}/api/marketplace/orders-by-state`).catch(() => ({ data: [] })),
+        axios.get(`${API_BASE_URL}/api/marketplace/inventory/queue-status`).catch(() => ({ data: null })),
+        axios.get(`${API_BASE_URL}/api/marketplace/sync-history?limit=10`).catch(() => ({ data: [] }))
       ]);
 
       if (!isMounted.current) return;
@@ -109,6 +145,8 @@ const MarketplaceManager = () => {
       setInventoryHealth(inventoryHealthRes.data);
       setActivityFeed(activityFeedRes.data || []);
       setOrdersByState(ordersByStateRes.data || []);
+      setQueueStatus(queueStatusRes.data);
+      setSyncHistory(syncHistoryRes.data || []);
       setError(null);
     } catch (err) {
       if (!isMounted.current) return;
@@ -231,6 +269,74 @@ const MarketplaceManager = () => {
     }
   }, [API_BASE_URL]);
 
+  // Fetch inventory queue status
+  const fetchQueueStatus = useCallback(async () => {
+    try {
+      const response = await axios.get(`${API_BASE_URL}/api/marketplace/inventory/queue-status`);
+      setQueueStatus(response.data);
+    } catch (err) {
+      handleApiError(err, { context: 'Loading queue status', silent: true });
+    }
+  }, [API_BASE_URL]);
+
+  // Fetch recent stock imports
+  const fetchRecentStockImports = useCallback(async () => {
+    try {
+      const response = await axios.get(`${API_BASE_URL}/api/marketplace/offers/recent-imports`);
+      setRecentStockImports((response.data || []).filter(i => i.import_type === 'STOCK'));
+    } catch (err) {
+      handleApiError(err, { context: 'Loading stock imports', silent: true });
+    }
+  }, [API_BASE_URL]);
+
+  // Fetch offers/products for Offers tab
+  const fetchOfferProducts = useCallback(async (page = 1, search = '') => {
+    try {
+      const response = await axios.get(`${API_BASE_URL}/api/marketplace/offers/products`, {
+        params: { page, limit: 30, search }
+      });
+      setOfferProducts(response.data?.products || []);
+      setOfferTotal(response.data?.total || 0);
+    } catch (err) {
+      handleApiError(err, { context: 'Loading offer products', silent: true });
+    }
+  }, [API_BASE_URL]);
+
+  // Fetch offer imports
+  const fetchOfferImports = useCallback(async () => {
+    try {
+      const response = await axios.get(`${API_BASE_URL}/api/marketplace/offers/recent-imports`);
+      setOfferImports(response.data || []);
+    } catch (err) {
+      handleApiError(err, { context: 'Loading offer imports', silent: true });
+    }
+  }, [API_BASE_URL]);
+
+  // Fetch polling status
+  const fetchPollingStatus = useCallback(async () => {
+    try {
+      const response = await axios.get(`${API_BASE_URL}/api/marketplace/polling-status`);
+      setPollingStatus(response.data);
+    } catch (err) {
+      handleApiError(err, { context: 'Loading polling status', silent: true });
+    }
+  }, [API_BASE_URL]);
+
+  // Fetch orders with filters
+  const fetchFilteredOrders = useCallback(async (state = '', search = '', page = 1) => {
+    try {
+      const params = { limit: 30, offset: (page - 1) * 30 };
+      if (state) params.state = state;
+      if (search) params.search = search;
+      const response = await axios.get(`${API_BASE_URL}/api/marketplace/orders`, { params });
+      const data = response.data;
+      setOrders(Array.isArray(data) ? data : data.orders || []);
+      setOrderTotal(data.total || (Array.isArray(data) ? data.length : 0));
+    } catch (err) {
+      handleApiError(err, { context: 'Loading orders', silent: true });
+    }
+  }, [API_BASE_URL]);
+
   // Play notification sound
   const playNotificationSound = () => {
     try {
@@ -260,10 +366,11 @@ const MarketplaceManager = () => {
       requestNotificationPermission();
     }
 
-    // Set up notification polling
+    // Set up notification + dashboard auto-refresh (every 60s)
     notificationCheckInterval.current = setInterval(() => {
       fetchNotifications();
-    }, 60000); // Check every minute
+      if (activeSection === 'dashboard') fetchDashboardData();
+    }, 60000);
 
     return () => {
       isMounted.current = false;
@@ -271,7 +378,7 @@ const MarketplaceManager = () => {
         clearInterval(notificationCheckInterval.current);
       }
     };
-  }, [fetchDashboardData, fetchNotifications, fetchSettings]);
+  }, [fetchDashboardData, fetchNotifications, fetchSettings, activeSection]);
 
   // Handlers
   const handleSyncInventory = async () => {
@@ -591,6 +698,147 @@ const MarketplaceManager = () => {
       setOrderDetailId(orderId);
     } catch (err) {
       setError('Failed to fetch order details: ' + (err.response?.data?.error || err.message));
+    }
+  };
+
+  // Inventory: Drift check
+  const handleDriftCheck = async () => {
+    setDriftLoading(true);
+    setDriftResults(null);
+    try {
+      const response = await axios.get(`${API_BASE_URL}/api/marketplace/inventory/drift-check`);
+      setDriftResults(response.data);
+    } catch (err) {
+      setError('Drift check failed: ' + (err.response?.data?.error || err.message));
+    } finally {
+      setDriftLoading(false);
+    }
+  };
+
+  // Inventory: Force full sync
+  const handleForceFullSync = async () => {
+    if (!window.confirm('This will push ALL inventory to Best Buy. This is an intensive operation. Are you sure?')) return;
+    setForceSyncing(true);
+    try {
+      const response = await axios.post(`${API_BASE_URL}/api/marketplace/inventory/force-full-sync`, { confirm: true });
+      setMessage(`Full sync complete: ${response.data.processed} products pushed`);
+      fetchQueueStatus();
+      fetchRecentStockImports();
+    } catch (err) {
+      setError('Force sync failed: ' + (err.response?.data?.error || err.message));
+    } finally {
+      setForceSyncing(false);
+    }
+  };
+
+  // Inventory: Sync now
+  const handleInventorySyncNow = async () => {
+    setInventorySyncing(true);
+    try {
+      const response = await axios.post(`${API_BASE_URL}/api/marketplace/inventory/sync-now`);
+      setMessage(`Inventory sync complete: ${response.data.processed} products pushed`);
+      fetchQueueStatus();
+      fetchRecentStockImports();
+    } catch (err) {
+      setError('Sync failed: ' + (err.response?.data?.error || err.message));
+    } finally {
+      setInventorySyncing(false);
+    }
+  };
+
+  // Offers: Toggle marketplace enabled
+  const handleToggleOfferEnabled = async (productId, currentEnabled) => {
+    try {
+      await axios.post(`${API_BASE_URL}/api/marketplace/offers/enable`, {
+        product_ids: [productId],
+        enabled: !currentEnabled
+      });
+      fetchOfferProducts(offerPage, offerSearch);
+    } catch (err) {
+      setError('Failed to toggle marketplace status');
+    }
+  };
+
+  // Offers: Bulk enable/disable
+  const handleBulkOfferToggle = async (enabled) => {
+    if (selectedOfferProducts.length === 0) return;
+    try {
+      await axios.post(`${API_BASE_URL}/api/marketplace/offers/enable`, {
+        product_ids: selectedOfferProducts,
+        enabled
+      });
+      setSelectedOfferProducts([]);
+      setMessage(`${enabled ? 'Enabled' : 'Disabled'} ${selectedOfferProducts.length} products`);
+      fetchOfferProducts(offerPage, offerSearch);
+    } catch (err) {
+      setError('Failed to update marketplace status');
+    }
+  };
+
+  // Offers: Push all enabled to Best Buy
+  const handlePushAllOffers = async () => {
+    setPushingOffers(true);
+    try {
+      const response = await axios.post(`${API_BASE_URL}/api/marketplace/offers/bulk-push`);
+      setMessage(`Push complete: ${response.data.synced || 0} synced, ${response.data.failed || 0} failed`);
+      fetchOfferProducts(offerPage, offerSearch);
+      fetchOfferImports();
+    } catch (err) {
+      setError('Push failed: ' + (err.response?.data?.error || err.message));
+    } finally {
+      setPushingOffers(false);
+    }
+  };
+
+  // Settings: Test connection
+  const handleTestConnection = async () => {
+    setTestingConnection(true);
+    setConnectionResult(null);
+    try {
+      const response = await axios.get(`${API_BASE_URL}/api/marketplace/credentials`);
+      if (response.data?.api_key) {
+        setConnectionResult({ success: true, message: 'Connection successful' });
+      } else {
+        setConnectionResult({ success: false, message: 'No API credentials configured' });
+      }
+    } catch (err) {
+      setConnectionResult({ success: false, message: err.response?.data?.error || err.message });
+    } finally {
+      setTestingConnection(false);
+    }
+  };
+
+  // Ship order
+  const handleShipOrder = async () => {
+    if (!shipForm.tracking_number) {
+      setError('Tracking number is required');
+      return;
+    }
+    try {
+      await axios.post(`${API_BASE_URL}/api/marketplace/orders/${shipOrderId}/ship`, {
+        tracking_number: shipForm.tracking_number,
+        carrier_code: shipForm.carrier_code,
+        carrier_name: shipForm.carrier_code === 'other' ? shipForm.carrier_name : undefined,
+        carrier_url: shipForm.carrier_code === 'other' ? shipForm.carrier_url : undefined,
+      });
+      setMessage('Shipment submitted successfully');
+      setShowShipModal(false);
+      setShipForm({ tracking_number: '', carrier_code: 'canada_post', carrier_name: '', carrier_url: '' });
+      fetchFilteredOrders(orderStateFilter, orderSearch, orderPage);
+    } catch (err) {
+      setError('Ship failed: ' + (err.response?.data?.error || err.message));
+    }
+  };
+
+  // Accept single order
+  const handleAcceptOrder = async (orderId) => {
+    try {
+      await axios.post(`${API_BASE_URL}/api/marketplace/orders/${orderId}/accept`);
+      setMessage('Order accepted');
+      fetchFilteredOrders(orderStateFilter, orderSearch, orderPage);
+      fetchDashboardData();
+    } catch (err) {
+      setError('Accept failed: ' + (err.response?.data?.error || err.message));
     }
   };
 
@@ -1106,77 +1354,26 @@ const MarketplaceManager = () => {
         </div>
       </div>
 
-      {/* Section Navigation */}
+      {/* Section Navigation — 5 main tabs + legacy sub-tabs */}
       <div style={styles.sectionNav}>
-        <button
-          style={{
-            ...styles.navButton,
-            ...(activeSection === 'dashboard' ? styles.navButtonActive : {})
-          }}
-          onClick={() => setActiveSection('dashboard')}
-        >
-          Dashboard
-        </button>
-        <button
-          style={{
-            ...styles.navButton,
-            ...(activeSection === 'orders' ? styles.navButtonActive : {})
-          }}
-          onClick={() => {
-            setActiveSection('orders');
-            fetchOrders();
-          }}
-        >
-          Orders
-        </button>
-        <button
-          style={{
-            ...styles.navButton,
-            ...(activeSection === 'automation' ? styles.navButtonActive : {})
-          }}
-          onClick={() => {
-            setActiveSection('automation');
-            fetchAutoRules();
-          }}
-        >
-          Automation Rules
-        </button>
-        <button
-          style={{
-            ...styles.navButton,
-            ...(activeSection === 'mapping' ? styles.navButtonActive : {})
-          }}
-          onClick={() => setActiveSection('mapping')}
-        >
-          Product Mapping
-        </button>
-        <button
-          style={{
-            ...styles.navButton,
-            ...(activeSection === 'inventory' ? styles.navButtonActive : {})
-          }}
-          onClick={() => {
-            setActiveSection('inventory');
-            fetchSyncSettings();
-            fetchSyncHistory();
-            fetchInventoryProducts(1, '');
-          }}
-        >
-          Inventory Sync
-        </button>
-        <button
-          style={{
-            ...styles.navButton,
-            ...(activeSection === 'pricing' ? styles.navButtonActive : {})
-          }}
-          onClick={() => {
-            setActiveSection('pricing');
-            fetchPriceRules();
-            fetchPricePreviews();
-          }}
-        >
-          Pricing Rules
-        </button>
+        {[
+          { key: 'dashboard', label: 'Overview', onSwitch: () => {} },
+          { key: 'orders', label: 'Orders', onSwitch: () => { fetchFilteredOrders(orderStateFilter, orderSearch, 1); fetchAutoRules(); } },
+          { key: 'offers', label: 'Offers', onSwitch: () => { fetchOfferProducts(1, ''); fetchOfferImports(); } },
+          { key: 'inventory', label: 'Inventory', onSwitch: () => { fetchQueueStatus(); fetchRecentStockImports(); fetchSyncSettings(); fetchSyncHistory(); fetchInventoryProducts(1, ''); } },
+          { key: 'settings', label: 'Settings', onSwitch: () => { fetchPollingStatus(); fetchSettings(); fetchSyncSettings(); fetchPriceRules(); } },
+        ].map(tab => (
+          <button
+            key={tab.key}
+            style={{
+              ...styles.navButton,
+              ...(activeSection === tab.key ? styles.navButtonActive : {})
+            }}
+            onClick={() => { setActiveSection(tab.key); tab.onSwitch(); }}
+          >
+            {tab.label}
+          </button>
+        ))}
       </div>
 
       {/* Messages */}
@@ -1194,806 +1391,45 @@ const MarketplaceManager = () => {
         </div>
       )}
 
-      {/* Product Mapping Section */}
-      {activeSection === 'mapping' && <ProductMappingTool />}
 
-      {/* Inventory Sync Section */}
-      {activeSection === 'inventory' && (
-        <div style={styles.section}>
-          <div style={styles.sectionHeader}>
-            <h2 style={styles.sectionTitle}>Inventory Sync Settings</h2>
-            <button
-              style={{
-                ...styles.button,
-                ...styles.primaryButton,
-                opacity: inventorySyncing ? 0.6 : 1
-              }}
-              onClick={async () => {
-                setInventorySyncing(true);
-                try {
-                  const response = await axios.post(`${API_BASE_URL}/api/marketplace/run-inventory-sync`);
-                  setMessage(`Sync completed: ${response.data.products_synced} products synced`);
-                  fetchSyncHistory();
-                } catch (err) {
-                  setError('Sync failed: ' + (err.response?.data?.error || err.message));
-                } finally {
-                  setInventorySyncing(false);
-                }
-              }}
-              disabled={inventorySyncing}
-            >
-              {inventorySyncing ? 'Syncing...' : 'Run Sync Now'}
-            </button>
-            <button
-              style={{
-                ...styles.button,
-                marginLeft: '12px',
-                background: '#f59e0b',
-                color: 'white'
-              }}
-              onClick={async () => {
-                try {
-                  const response = await axios.get(`${API_BASE_URL}/api/marketplace/sync-diagnostics`);
-                  const data = response.data;
-                  const diag = data.breakdown || {};
-                  const env = data.environment || {};
-                  const recommendations = data.recommendations || [];
-
-                  let diagMessage = `SYNC DIAGNOSTICS:\n\n`;
-                  diagMessage += `Products: ${diag.total_active_products || 0} active, ${diag.never_synced || 0} never synced\n`;
-                  diagMessage += `Synced: ${diag.synced_products || 0} with Mirakl ID\n`;
-                  diagMessage += `Zero stock: ${diag.zero_stock || 0}\n\n`;
-                  diagMessage += `API Config: ${env.mirakl_api_configured ? 'Configured' : 'NOT CONFIGURED'}\n`;
-                  diagMessage += `API URL: ${env.mirakl_base_url || 'Not set'}\n\n`;
-
-                  if (recommendations.length > 0) {
-                    diagMessage += `Recommendations:\n`;
-                    recommendations.forEach(r => {
-                      diagMessage += `- ${r.message}\n`;
-                    });
-                  }
-
-                  alert(diagMessage);
-                } catch (err) {
-                  setError('Failed to get diagnostics: ' + (err.response?.data?.error || err.message));
-                }
-              }}
-            >
-              Check Sync Status
-            </button>
-          </div>
-
-          {/* Sync Settings Cards */}
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '20px', marginBottom: '24px' }}>
-            {/* Auto-Sync Toggle */}
-            <div style={styles.card}>
-              <h3 style={{ margin: '0 0 16px 0', fontSize: '16px' }}>Auto-Sync</h3>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                <span>Enable automatic sync</span>
-                <label style={styles.toggle}>
-                  <input
-                    type="checkbox"
-                    checked={syncSettings.auto_sync_enabled?.enabled || false}
-                    onChange={async (e) => {
-                      try {
-                        await axios.put(`${API_BASE_URL}/api/marketplace/sync-settings/auto_sync_enabled`, {
-                          value: { enabled: e.target.checked }
-                        });
-                        fetchSyncSettings();
-                        setMessage(e.target.checked ? 'Auto-sync enabled' : 'Auto-sync disabled');
-                      } catch (err) {
-                        setError('Failed to update setting');
-                      }
-                    }}
-                    style={{ display: 'none' }}
-                  />
-                  <span style={{
-                    ...styles.toggleSlider,
-                    backgroundColor: syncSettings.auto_sync_enabled?.enabled ? '#0071dc' : '#ccc'
-                  }}>
-                    <span style={{
-                      position: 'absolute',
-                      width: '22px',
-                      height: '22px',
-                      left: syncSettings.auto_sync_enabled?.enabled ? '26px' : '2px',
-                      bottom: '2px',
-                      backgroundColor: 'white',
-                      borderRadius: '50%',
-                      transition: '.3s'
-                    }}/>
-                  </span>
-                </label>
-              </div>
-            </div>
-
-            {/* Sync Frequency */}
-            <div style={styles.card}>
-              <h3 style={{ margin: '0 0 16px 0', fontSize: '16px' }}>Sync Frequency</h3>
-              <select
-                style={styles.select}
-                value={syncSettings.sync_frequency_hours?.value || 4}
-                onChange={async (e) => {
-                  try {
-                    await axios.put(`${API_BASE_URL}/api/marketplace/sync-settings/sync_frequency_hours`, {
-                      value: { value: parseInt(e.target.value) }
-                    });
-                    fetchSyncSettings();
-                    setMessage(`Sync frequency set to every ${e.target.value} hours`);
-                  } catch (err) {
-                    setError('Failed to update frequency');
-                  }
-                }}
-              >
-                <option value="1">Every 1 hour</option>
-                <option value="2">Every 2 hours</option>
-                <option value="4">Every 4 hours</option>
-                <option value="6">Every 6 hours</option>
-                <option value="12">Every 12 hours</option>
-                <option value="24">Every 24 hours</option>
-              </select>
-              <p style={{ margin: '8px 0 0 0', fontSize: '12px', color: '#666' }}>
-                Last synced: {syncSettings.last_sync_time?.timestamp
-                  ? new Date(syncSettings.last_sync_time.timestamp).toLocaleString()
-                  : 'Never'}
-              </p>
-            </div>
-
-            {/* Global Stock Buffer */}
-            <div style={styles.card}>
-              <h3 style={{ margin: '0 0 16px 0', fontSize: '16px' }}>Global Stock Buffer</h3>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                <span>Reserve</span>
-                <input
-                  type="number"
-                  min="0"
-                  value={globalBuffer}
-                  onChange={(e) => setGlobalBuffer(parseInt(e.target.value) || 0)}
-                  style={{ ...styles.input, width: '80px' }}
-                />
-                <span>units</span>
-                <button
-                  style={{ ...styles.button, ...styles.primaryButton, padding: '8px 16px' }}
-                  onClick={async () => {
-                    try {
-                      await axios.put(`${API_BASE_URL}/api/marketplace/stock-buffer`, {
-                        value: globalBuffer
-                      });
-                      setMessage(`Stock buffer set to ${globalBuffer} units`);
-                    } catch (err) {
-                      setError('Failed to update buffer');
-                    }
-                  }}
-                >
-                  Save
-                </button>
-              </div>
-              <p style={{ margin: '8px 0 0 0', fontSize: '12px', color: '#666' }}>
-                This many units will be held back from marketplace listing
-              </p>
-            </div>
-          </div>
-
-          {/* Sync History */}
-          <div style={styles.card}>
-            <h3 style={{ margin: '0 0 16px 0', fontSize: '16px' }}>Sync History</h3>
-            <table style={styles.table}>
-              <thead>
-                <tr>
-                  <th style={styles.th}>Date</th>
-                  <th style={styles.th}>Status</th>
-                  <th style={styles.th}>Checked</th>
-                  <th style={styles.th}>Synced</th>
-                  <th style={styles.th}>Failed</th>
-                </tr>
-              </thead>
-              <tbody>
-                {syncHistory.length === 0 ? (
-                  <tr><td colSpan="5" style={{ ...styles.td, textAlign: 'center' }}>No sync history yet</td></tr>
-                ) : syncHistory.map(job => (
-                  <tr key={job.id}>
-                    <td style={styles.td}>{new Date(job.started_at).toLocaleString()}</td>
-                    <td style={styles.td}>
-                      <span style={{
-                        padding: '4px 8px',
-                        borderRadius: '4px',
-                        fontSize: '12px',
-                        backgroundColor: job.status === 'completed' ? '#d4edda' : job.status === 'running' ? '#fff3cd' : '#f8d7da',
-                        color: job.status === 'completed' ? '#155724' : job.status === 'running' ? '#856404' : '#721c24'
-                      }}>
-                        {job.status}
-                      </span>
-                    </td>
-                    <td style={styles.td}>{job.products_checked}</td>
-                    <td style={styles.td}>{job.products_synced}</td>
-                    <td style={styles.td}>{job.products_failed}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-
-          {/* Inventory Products with Buffer */}
-          <div style={{ ...styles.card, marginTop: '24px' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
-              <h3 style={{ margin: 0, fontSize: '16px' }}>Product Stock Buffers</h3>
-              <input
-                type="text"
-                placeholder="Search products..."
-                value={inventorySearch}
-                onChange={(e) => setInventorySearch(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') {
-                    fetchInventoryProducts(1, inventorySearch);
-                    setInventoryPage(1);
-                  }
-                }}
-                style={{ ...styles.input, width: '250px' }}
-              />
-            </div>
-
-            {/* Bulk Operations Bar */}
-            {selectedInventoryProducts.length > 0 && (
-              <div style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: '16px',
-                padding: '12px 16px',
-                backgroundColor: '#e3f2fd',
-                borderRadius: '8px',
-                marginBottom: '16px'
-              }}>
-                <span style={{ fontWeight: '600', color: '#1565c0' }}>
-                  {selectedInventoryProducts.length} selected
-                </span>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <span>Set buffer:</span>
-                  <input
-                    type="number"
-                    min="0"
-                    placeholder="Enter value"
-                    value={bulkBufferValue}
-                    onChange={(e) => setBulkBufferValue(e.target.value)}
-                    style={{ ...styles.input, width: '100px', padding: '6px 10px' }}
-                  />
-                  <button
-                    style={{ ...styles.button, ...styles.primaryButton, padding: '6px 16px' }}
-                    onClick={async () => {
-                      try {
-                        await axios.put(`${API_BASE_URL}/api/marketplace/products/bulk-stock-buffer`, {
-                          product_ids: selectedInventoryProducts,
-                          buffer: bulkBufferValue === '' ? null : parseInt(bulkBufferValue)
-                        });
-                        setMessage(`Updated buffer for ${selectedInventoryProducts.length} products`);
-                        setSelectedInventoryProducts([]);
-                        setBulkBufferValue('');
-                        fetchInventoryProducts(inventoryPage, inventorySearch);
-                      } catch (err) {
-                        setError('Failed to bulk update buffers');
-                      }
-                    }}
-                  >
-                    Apply
-                  </button>
-                  <button
-                    style={{ ...styles.button, padding: '6px 16px' }}
-                    onClick={() => {
-                      setBulkBufferValue('');
-                      setSelectedInventoryProducts([]);
-                    }}
-                  >
-                    Cancel
-                  </button>
-                </div>
-              </div>
-            )}
-
-            <table style={styles.table}>
-              <thead>
-                <tr>
-                  <th style={styles.th}>
-                    <input
-                      type="checkbox"
-                      checked={selectedInventoryProducts.length === inventoryProducts.length && inventoryProducts.length > 0}
-                      onChange={(e) => {
-                        if (e.target.checked) {
-                          setSelectedInventoryProducts(inventoryProducts.map(p => p.id));
-                        } else {
-                          setSelectedInventoryProducts([]);
-                        }
-                      }}
-                    />
-                  </th>
-                  <th style={styles.th}>Product</th>
-                  <th style={styles.th}>SKU</th>
-                  <th style={styles.th}>Actual Stock</th>
-                  <th style={styles.th}>Buffer</th>
-                  <th style={styles.th}>Effective Stock</th>
-                  <th style={styles.th}>Last Synced</th>
-                </tr>
-              </thead>
-              <tbody>
-                {inventoryProducts.map(product => (
-                  <tr key={product.id} style={{
-                    backgroundColor: selectedInventoryProducts.includes(product.id) ? '#e3f2fd' : 'transparent'
-                  }}>
-                    <td style={styles.td}>
-                      <input
-                        type="checkbox"
-                        checked={selectedInventoryProducts.includes(product.id)}
-                        onChange={(e) => {
-                          if (e.target.checked) {
-                            setSelectedInventoryProducts(prev => [...prev, product.id]);
-                          } else {
-                            setSelectedInventoryProducts(prev => prev.filter(id => id !== product.id));
-                          }
-                        }}
-                      />
-                    </td>
-                    <td style={styles.td}>
-                      <div>
-                        <strong>{product.model}</strong>
-                        <div style={{ fontSize: '12px', color: '#666' }}>{product.manufacturer}</div>
-                      </div>
-                    </td>
-                    <td style={styles.td}>{product.sku || '-'}</td>
-                    <td style={styles.td}>{product.stock_quantity}</td>
-                    <td style={styles.td}>
-                      <input
-                        type="number"
-                        min="0"
-                        placeholder={`Global (${globalBuffer})`}
-                        value={product.marketplace_stock_buffer ?? ''}
-                        onChange={async (e) => {
-                          const newBuffer = e.target.value === '' ? null : parseInt(e.target.value);
-                          try {
-                            await axios.put(`${API_BASE_URL}/api/marketplace/products/${product.id}/stock-buffer`, {
-                              buffer: newBuffer
-                            });
-                            fetchInventoryProducts(inventoryPage, inventorySearch);
-                          } catch (err) {
-                            setError('Failed to update buffer');
-                          }
-                        }}
-                        style={{ ...styles.input, width: '80px', padding: '4px 8px' }}
-                      />
-                    </td>
-                    <td style={{ ...styles.td, fontWeight: 'bold', color: product.effective_stock > 0 ? '#28a745' : '#dc3545' }}>
-                      {product.effective_stock}
-                    </td>
-                    <td style={styles.td}>
-                      {product.marketplace_last_synced
-                        ? new Date(product.marketplace_last_synced).toLocaleDateString()
-                        : 'Never'}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-            {inventoryTotal > 25 && (
-              <div style={{ display: 'flex', justifyContent: 'center', gap: '10px', marginTop: '16px' }}>
-                <button
-                  style={styles.button}
-                  disabled={inventoryPage === 1}
-                  onClick={() => {
-                    setInventoryPage(p => p - 1);
-                    fetchInventoryProducts(inventoryPage - 1, inventorySearch);
-                  }}
-                >
-                  Previous
-                </button>
-                <span style={{ padding: '8px' }}>Page {inventoryPage} of {Math.ceil(inventoryTotal / 25)}</span>
-                <button
-                  style={styles.button}
-                  disabled={inventoryPage >= Math.ceil(inventoryTotal / 25)}
-                  onClick={() => {
-                    setInventoryPage(p => p + 1);
-                    fetchInventoryProducts(inventoryPage + 1, inventorySearch);
-                  }}
-                >
-                  Next
-                </button>
-              </div>
-            )}
-          </div>
-        </div>
-      )}
-
-      {/* Pricing Rules Section */}
-      {activeSection === 'pricing' && (
-        <div style={styles.section}>
-          <div style={styles.sectionHeader}>
-            <h2 style={styles.sectionTitle}>Pricing Rules</h2>
-            <button
-              style={{ ...styles.button, ...styles.primaryButton }}
-              onClick={() => {
-                setEditingPriceRule(null);
-                setShowPriceRuleModal(true);
-              }}
-            >
-              + Create Rule
-            </button>
-          </div>
-
-          {/* Price Rules Cards */}
-          <div style={styles.rulesGrid}>
-            {priceRules.map(rule => (
-              <div key={rule.id} style={styles.ruleCard}>
-                <div style={styles.ruleHeader}>
-                  <div>
-                    <h3 style={styles.ruleName}>{rule.name}</h3>
-                    <span style={{
-                      ...styles.ruleTypeBadge,
-                      backgroundColor: rule.rule_type === 'markup_percent' ? '#e3f2fd' :
-                                       rule.rule_type === 'markup_fixed' ? '#fff3e0' :
-                                       rule.rule_type === 'minimum_margin' ? '#e8f5e9' : '#fce4ec',
-                      color: rule.rule_type === 'markup_percent' ? '#1565c0' :
-                             rule.rule_type === 'markup_fixed' ? '#ef6c00' :
-                             rule.rule_type === 'minimum_margin' ? '#2e7d32' : '#c2185b'
-                    }}>
-                      {rule.rule_type === 'markup_percent' ? `+${rule.value}%` :
-                       rule.rule_type === 'markup_fixed' ? `+$${rule.value}` :
-                       rule.rule_type === 'minimum_margin' ? `Min ${rule.value}% margin` :
-                       `Round to .${String(rule.value).split('.')[1] || '99'}`}
-                    </span>
-                  </div>
-                  <label style={styles.toggle}>
-                    <input
-                      type="checkbox"
-                      checked={rule.enabled}
-                      onChange={async () => {
-                        try {
-                          await axios.put(`${API_BASE_URL}/api/marketplace/price-rules/${rule.id}/toggle`);
-                          fetchPriceRules();
-                          fetchPricePreviews();
-                        } catch (err) {
-                          setError('Failed to toggle rule');
-                        }
-                      }}
-                      style={{ display: 'none' }}
-                    />
-                    <span style={{
-                      ...styles.toggleSlider,
-                      backgroundColor: rule.enabled ? '#0071dc' : '#ccc'
-                    }}>
-                      <span style={{
-                        position: 'absolute',
-                        width: '22px',
-                        height: '22px',
-                        left: rule.enabled ? '26px' : '2px',
-                        bottom: '2px',
-                        backgroundColor: 'white',
-                        borderRadius: '50%',
-                        transition: '.3s'
-                      }}/>
-                    </span>
-                  </label>
-                </div>
-                <p style={styles.ruleDescription}>{rule.description}</p>
-                <div style={{ display: 'flex', gap: '8px', fontSize: '12px', color: '#666', marginBottom: '12px' }}>
-                  <span>Priority: {rule.priority}</span>
-                  {rule.apply_globally && <span style={{ color: '#0071dc' }}>Global</span>}
-                  {rule.category_code && <span>Category: {rule.category_code}</span>}
-                </div>
-                <div style={{ display: 'flex', gap: '8px' }}>
-                  <button
-                    style={{ ...styles.button, flex: 1 }}
-                    onClick={() => {
-                      setEditingPriceRule(rule);
-                      setShowPriceRuleModal(true);
-                    }}
-                  >
-                    Edit
-                  </button>
-                  <button
-                    style={{ ...styles.button, ...styles.dangerButton, flex: 1 }}
-                    onClick={async () => {
-                      if (window.confirm('Delete this price rule?')) {
-                        try {
-                          await axios.delete(`${API_BASE_URL}/api/marketplace/price-rules/${rule.id}`);
-                          fetchPriceRules();
-                          fetchPricePreviews();
-                          setMessage('Price rule deleted');
-                        } catch (err) {
-                          setError('Failed to delete rule');
-                        }
-                      }
-                    }}
-                  >
-                    Delete
-                  </button>
-                </div>
-              </div>
-            ))}
-          </div>
-
-          {/* Price Preview Table */}
-          <div style={{ ...styles.card, marginTop: '24px' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
-              <h3 style={{ margin: 0, fontSize: '16px' }}>Price Preview (with rules applied)</h3>
-              <button
-                style={styles.button}
-                onClick={fetchPricePreviews}
-              >
-                Refresh Preview
-              </button>
-            </div>
-            <table style={styles.table}>
-              <thead>
-                <tr>
-                  <th style={styles.th}>Product</th>
-                  <th style={styles.th}>Category</th>
-                  <th style={styles.th}>Cost</th>
-                  <th style={styles.th}>Original Price</th>
-                  <th style={styles.th}>Best Buy Price</th>
-                  <th style={styles.th}>Margin</th>
-                </tr>
-              </thead>
-              <tbody>
-                {pricePreviews.map(preview => (
-                  <tr key={preview.id}>
-                    <td style={styles.td}>
-                      <div>
-                        <strong>{preview.model}</strong>
-                        <div style={{ fontSize: '12px', color: '#666' }}>{preview.manufacturer}</div>
-                      </div>
-                    </td>
-                    <td style={styles.td}>{preview.category || '-'}</td>
-                    <td style={styles.td}>${preview.cost?.toFixed(2) || '-'}</td>
-                    <td style={styles.td}>${preview.original_price?.toFixed(2)}</td>
-                    <td style={{ ...styles.td, fontWeight: 'bold', color: '#0071dc' }}>
-                      ${preview.marketplace_price?.toFixed(2)}
-                      {preview.price_difference > 0 && (
-                        <span style={{ fontSize: '11px', color: '#28a745', marginLeft: '4px' }}>
-                          (+${preview.price_difference.toFixed(2)})
-                        </span>
-                      )}
-                    </td>
-                    <td style={{
-                      ...styles.td,
-                      color: parseFloat(preview.margin_percent) >= 20 ? '#28a745' :
-                             parseFloat(preview.margin_percent) >= 10 ? '#ffc107' : '#dc3545'
-                    }}>
-                      {preview.margin_percent ? `${preview.margin_percent}%` : '-'}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      )}
-
-      {/* Price Rule Modal */}
-      {showPriceRuleModal && (
-        <div style={styles.modalOverlay} onClick={() => setShowPriceRuleModal(false)}>
-          <div style={styles.modal} onClick={e => e.stopPropagation()}>
-            <div style={styles.modalHeader}>
-              <h2 style={styles.modalTitle}>{editingPriceRule ? 'Edit Price Rule' : 'Create Price Rule'}</h2>
-              <button style={styles.closeButton} onClick={() => setShowPriceRuleModal(false)}>×</button>
-            </div>
-            <form onSubmit={async (e) => {
-              e.preventDefault();
-              const formData = new FormData(e.target);
-              const ruleData = {
-                name: formData.get('name'),
-                description: formData.get('description'),
-                rule_type: formData.get('rule_type'),
-                value: parseFloat(formData.get('value')),
-                priority: parseInt(formData.get('priority')),
-                apply_globally: formData.get('apply_globally') === 'on',
-                category_code: formData.get('category_code') || null,
-                enabled: editingPriceRule ? editingPriceRule.enabled : true
-              };
-
-              try {
-                if (editingPriceRule) {
-                  await axios.put(`${API_BASE_URL}/api/marketplace/price-rules/${editingPriceRule.id}`, ruleData);
-                  setMessage('Price rule updated');
-                } else {
-                  await axios.post(`${API_BASE_URL}/api/marketplace/price-rules`, ruleData);
-                  setMessage('Price rule created');
-                }
-                setShowPriceRuleModal(false);
-                fetchPriceRules();
-                fetchPricePreviews();
-              } catch (err) {
-                setError('Failed to save price rule');
-              }
-            }}>
-              <div style={{ display: 'grid', gap: '16px' }}>
-                <div>
-                  <label style={styles.label}>Rule Name</label>
-                  <input
-                    name="name"
-                    defaultValue={editingPriceRule?.name || ''}
-                    required
-                    style={styles.input}
-                    placeholder="e.g., Standard 15% Markup"
-                  />
-                </div>
-                <div>
-                  <label style={styles.label}>Description</label>
-                  <input
-                    name="description"
-                    defaultValue={editingPriceRule?.description || ''}
-                    style={styles.input}
-                    placeholder="Describe what this rule does"
-                  />
-                </div>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
-                  <div>
-                    <label style={styles.label}>Rule Type</label>
-                    <select name="rule_type" defaultValue={editingPriceRule?.rule_type || 'markup_percent'} style={styles.select}>
-                      <option value="markup_percent">Markup Percent (+%)</option>
-                      <option value="markup_fixed">Markup Fixed (+$)</option>
-                      <option value="minimum_margin">Minimum Margin (%)</option>
-                      <option value="round_to">Round To (e.g., .99)</option>
-                    </select>
-                  </div>
-                  <div>
-                    <label style={styles.label}>Value</label>
-                    <input
-                      name="value"
-                      type="number"
-                      step="0.01"
-                      defaultValue={editingPriceRule?.value || ''}
-                      required
-                      style={styles.input}
-                      placeholder="15 for 15%, 50 for $50"
-                    />
-                  </div>
-                </div>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
-                  <div>
-                    <label style={styles.label}>Priority (higher = applied first)</label>
-                    <input
-                      name="priority"
-                      type="number"
-                      defaultValue={editingPriceRule?.priority || 100}
-                      style={styles.input}
-                    />
-                  </div>
-                  <div>
-                    <label style={styles.label}>Category (optional)</label>
-                    <input
-                      name="category_code"
-                      defaultValue={editingPriceRule?.category_code || ''}
-                      style={styles.input}
-                      placeholder="Leave empty for all categories"
-                    />
-                  </div>
-                </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <input
-                    type="checkbox"
-                    name="apply_globally"
-                    id="apply_globally"
-                    defaultChecked={editingPriceRule?.apply_globally ?? true}
-                  />
-                  <label htmlFor="apply_globally">Apply globally (to all products)</label>
-                </div>
-              </div>
-              <div style={{ display: 'flex', gap: '12px', marginTop: '24px', justifyContent: 'flex-end' }}>
-                <button type="button" style={styles.button} onClick={() => setShowPriceRuleModal(false)}>
-                  Cancel
-                </button>
-                <button type="submit" style={{ ...styles.button, ...styles.primaryButton }}>
-                  {editingPriceRule ? 'Update Rule' : 'Create Rule'}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* Automation Rules Section */}
-      {activeSection === 'automation' && (
-        <div style={styles.section}>
-          <div style={styles.sectionHeader}>
-            <h2 style={styles.sectionTitle}>Automation Rules</h2>
-            <button
-              style={{ ...styles.button, ...styles.primaryButton }}
-              onClick={() => {
-                setEditingRule(null);
-                setShowRuleModal(true);
-              }}
-            >
-              + Create Rule
-            </button>
-          </div>
-
-          <div style={styles.rulesGrid}>
-            {autoRules.map(rule => (
-              <div key={rule.id} style={styles.ruleCard}>
-                <div style={styles.ruleHeader}>
-                  <div>
-                    <h3 style={styles.ruleName}>{rule.name}</h3>
-                    <span style={{
-                      ...styles.ruleTypeBadge,
-                      backgroundColor: rule.rule_type === 'auto_accept' ? '#d4edda' :
-                                       rule.rule_type === 'auto_reject' ? '#f8d7da' : '#fff3cd',
-                      color: rule.rule_type === 'auto_accept' ? '#155724' :
-                             rule.rule_type === 'auto_reject' ? '#721c24' : '#856404'
-                    }}>
-                      {rule.rule_type.replace('_', ' ')}
-                    </span>
-                  </div>
-                  <label style={styles.toggleSwitch}>
-                    <input
-                      type="checkbox"
-                      checked={rule.enabled}
-                      onChange={() => handleToggleRule(rule.id)}
-                    />
-                    <span style={styles.toggleSlider}></span>
-                  </label>
-                </div>
-                <p style={styles.ruleDescription}>{rule.description || 'No description'}</p>
-                <div style={styles.ruleStats}>
-                  <span>Priority: {rule.priority}</span>
-                  <span>Triggered: {rule.trigger_count || 0} times</span>
-                </div>
-                <div style={styles.ruleConditions}>
-                  {(rule.conditions || []).map((cond, idx) => (
-                    <span key={idx} style={styles.conditionTag}>
-                      {cond.field} {cond.operator} {String(cond.value)}
-                    </span>
-                  ))}
-                </div>
-                <div style={styles.ruleActions}>
-                  <button
-                    style={{ ...styles.button, ...styles.smallButton }}
-                    onClick={() => {
-                      setEditingRule(rule);
-                      setShowRuleModal(true);
-                    }}
-                  >
-                    Edit
-                  </button>
-                  <button
-                    style={{ ...styles.button, ...styles.smallButton, ...styles.dangerButton }}
-                    onClick={() => handleDeleteRule(rule.id)}
-                  >
-                    Delete
-                  </button>
-                </div>
-              </div>
-            ))}
-            {autoRules.length === 0 && (
-              <div style={styles.noData}>
-                No automation rules configured. Create one to automate order processing.
-              </div>
-            )}
-          </div>
-        </div>
-      )}
-
-      {/* Orders Section */}
+      {/* Orders Section — Enhanced with filters */}
       {activeSection === 'orders' && (
         <div style={styles.section}>
           <div style={styles.sectionHeader}>
             <h2 style={styles.sectionTitle}>Marketplace Orders</h2>
             <div style={styles.orderActions}>
-              <button
-                style={{ ...styles.button, ...styles.primaryButton }}
-                onClick={handlePullOrders}
-                disabled={pulling}
-              >
+              <button style={{ ...styles.button, ...styles.primaryButton }} onClick={handlePullOrders} disabled={pulling}>
                 {pulling ? 'Pulling...' : 'Pull New Orders'}
               </button>
             </div>
           </div>
 
-          {/* Order States Summary */}
-          <div style={styles.orderStatesGrid}>
-            {ordersByState.map((state, index) => (
-              <div key={index} style={styles.orderStateCard}>
-                <div style={styles.orderStateLabel}>{(state.order_state || 'Unknown').replace(/_/g, ' ')}</div>
-                <div style={styles.orderStateCount}>{state.count}</div>
-              </div>
-            ))}
-            {ordersByState.length === 0 && (
-              <div style={styles.noData}>No orders yet</div>
-            )}
+          {/* Filters Bar */}
+          <div style={{ display: 'flex', gap: '12px', marginBottom: '16px', flexWrap: 'wrap', alignItems: 'center' }}>
+            <select
+              style={{ ...styles.select, width: '220px' }}
+              value={orderStateFilter}
+              onChange={(e) => { setOrderStateFilter(e.target.value); setOrderPage(1); fetchFilteredOrders(e.target.value, orderSearch, 1); }}
+            >
+              <option value="">All States</option>
+              <option value="WAITING_ACCEPTANCE">Waiting Acceptance</option>
+              <option value="SHIPPING">Awaiting Shipment</option>
+              <option value="SHIPPED">Shipped</option>
+              <option value="RECEIVED">Received</option>
+              <option value="REFUSED">Refused</option>
+              <option value="CANCELED">Cancelled</option>
+            </select>
+            <input
+              type="text"
+              placeholder="Search orders..."
+              value={orderSearch}
+              onChange={(e) => setOrderSearch(e.target.value)}
+              onKeyDown={(e) => { if (e.key === 'Enter') { setOrderPage(1); fetchFilteredOrders(orderStateFilter, orderSearch, 1); } }}
+              style={{ ...styles.input, width: '220px' }}
+            />
+            <button style={{ ...styles.button, ...styles.outlineButton }} onClick={() => fetchFilteredOrders(orderStateFilter, orderSearch, 1)}>
+              Search
+            </button>
           </div>
 
           {/* Batch Actions Bar */}
@@ -2001,32 +1437,10 @@ const MarketplaceManager = () => {
             <div style={styles.batchActionsBar}>
               <span style={styles.selectedCount}>{selectedOrders.length} selected</span>
               <div style={styles.batchButtons}>
-                <button
-                  style={{ ...styles.button, ...styles.primaryButton }}
-                  onClick={handleBatchAccept}
-                  disabled={batchProcessing}
-                >
-                  Accept Selected
-                </button>
-                <button
-                  style={{ ...styles.button, ...styles.dangerButton }}
-                  onClick={() => setShowRejectModal(true)}
-                  disabled={batchProcessing}
-                >
-                  Reject Selected
-                </button>
-                <button
-                  style={{ ...styles.button, ...styles.secondaryButton }}
-                  onClick={handleGeneratePackingSlips}
-                >
-                  Print Packing Slips
-                </button>
-                <button
-                  style={{ ...styles.button, ...styles.outlineButton }}
-                  onClick={() => handleExportOrders('csv')}
-                >
-                  Export CSV
-                </button>
+                <button style={{ ...styles.button, ...styles.primaryButton }} onClick={handleBatchAccept} disabled={batchProcessing}>Accept Selected</button>
+                <button style={{ ...styles.button, ...styles.dangerButton }} onClick={() => setShowRejectModal(true)} disabled={batchProcessing}>Reject Selected</button>
+                <button style={{ ...styles.button, ...styles.secondaryButton }} onClick={handleGeneratePackingSlips}>Packing Slips</button>
+                <button style={{ ...styles.button, ...styles.outlineButton }} onClick={() => handleExportOrders('csv')}>Export CSV</button>
               </div>
             </div>
           )}
@@ -2037,62 +1451,106 @@ const MarketplaceManager = () => {
               <thead>
                 <tr>
                   <th style={styles.checkboxCell}>
-                    <input
-                      type="checkbox"
-                      checked={selectedOrders.length > 0 && selectedOrders.length === orders.filter(o => o.order_state === 'WAITING_ACCEPTANCE').length}
-                      onChange={handleSelectAllOrders}
-                    />
+                    <input type="checkbox" checked={selectedOrders.length > 0 && selectedOrders.length === orders.filter(o => o.order_state === 'WAITING_ACCEPTANCE').length} onChange={handleSelectAllOrders} />
                   </th>
-                  <th>Order ID</th>
-                  <th>Status</th>
-                  <th>Customer</th>
-                  <th>Total</th>
-                  <th>Date</th>
-                  <th>Actions</th>
+                  <th style={styles.th}>Order ID</th>
+                  <th style={styles.th}>Customer</th>
+                  <th style={styles.th}>Date</th>
+                  <th style={styles.th}>State</th>
+                  <th style={styles.th}>Items</th>
+                  <th style={styles.th}>Total</th>
+                  <th style={styles.th}>Commission</th>
+                  <th style={styles.th}>Deadline</th>
+                  <th style={styles.th}>Actions</th>
                 </tr>
               </thead>
               <tbody>
-                {orders.map(order => (
-                  <tr key={order.id}>
-                    <td style={styles.checkboxCell}>
-                      {order.order_state === 'WAITING_ACCEPTANCE' && (
-                        <input
-                          type="checkbox"
-                          checked={selectedOrders.includes(order.id)}
-                          onChange={() => handleSelectOrder(order.id)}
-                        />
-                      )}
-                    </td>
-                    <td>{order.mirakl_order_id?.substring(0, 8) || order.id}</td>
-                    <td>
-                      <span style={{
-                        ...styles.statusBadge,
-                        backgroundColor: getOrderStateColor(order.order_state),
-                        color: '#fff'
-                      }}>
-                        {order.order_state?.replace(/_/g, ' ')}
-                      </span>
-                    </td>
-                    <td>{order.customer_name || 'N/A'}</td>
-                    <td>{formatCurrency(order.total_price_cents / 100)}</td>
-                    <td>{order.order_date ? new Date(order.order_date).toLocaleDateString() : 'N/A'}</td>
-                    <td>
-                      <button
-                        style={{ ...styles.button, ...styles.smallButton }}
-                        onClick={() => handleViewOrderDetail(order.id)}
-                      >
-                        View
-                      </button>
-                    </td>
-                  </tr>
-                ))}
+                {orders.map(order => {
+                  const deadline = order.acceptance_deadline ? new Date(order.acceptance_deadline) : null;
+                  const minsLeft = deadline ? Math.floor((deadline - Date.now()) / 60000) : null;
+                  return (
+                    <tr key={order.id}>
+                      <td style={styles.checkboxCell}>
+                        {order.order_state === 'WAITING_ACCEPTANCE' && (
+                          <input type="checkbox" checked={selectedOrders.includes(order.id)} onChange={() => handleSelectOrder(order.id)} />
+                        )}
+                      </td>
+                      <td style={styles.td}>{order.mirakl_order_id?.substring(0, 10) || order.id}</td>
+                      <td style={styles.td}>{order.customer_name || 'N/A'}</td>
+                      <td style={styles.td}>{order.order_date ? new Date(order.order_date).toLocaleDateString() : 'N/A'}</td>
+                      <td style={styles.td}>
+                        <span style={{ ...styles.statusBadge, backgroundColor: getOrderStateColor(order.order_state || order.mirakl_order_state), color: '#fff' }}>
+                          {(order.order_state || order.mirakl_order_state || '').replace(/_/g, ' ')}
+                        </span>
+                      </td>
+                      <td style={styles.td}>{order.item_count || order.items_count || '-'}</td>
+                      <td style={styles.td}>{formatCurrency((order.total_price_cents || 0) / 100)}</td>
+                      <td style={styles.td}>{order.commission_amount ? formatCurrency(order.commission_amount) : '-'}</td>
+                      <td style={styles.td}>
+                        {order.order_state === 'WAITING_ACCEPTANCE' && minsLeft !== null ? (
+                          <span style={{ color: minsLeft < 30 ? '#dc3545' : minsLeft < 120 ? '#f59e0b' : '#28a745', fontWeight: '600', fontSize: '13px' }}>
+                            {minsLeft < 60 ? `${minsLeft}m` : `${Math.floor(minsLeft / 60)}h ${minsLeft % 60}m`}
+                          </span>
+                        ) : ''}
+                      </td>
+                      <td style={styles.td}>
+                        <div style={{ display: 'flex', gap: '4px' }}>
+                          {order.order_state === 'WAITING_ACCEPTANCE' && (
+                            <button style={{ ...styles.button, ...styles.smallButton, backgroundColor: '#28a745', color: '#fff' }} onClick={() => handleAcceptOrder(order.id)}>Accept</button>
+                          )}
+                          {order.order_state === 'SHIPPING' && (
+                            <button style={{ ...styles.button, ...styles.smallButton, ...styles.primaryButton }} onClick={() => { setShipOrderId(order.id); setShowShipModal(true); }}>Ship</button>
+                          )}
+                          <button style={{ ...styles.button, ...styles.smallButton }} onClick={() => handleViewOrderDetail(order.id)}>View</button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
                 {orders.length === 0 && (
-                  <tr>
-                    <td colSpan="7" style={styles.noDataCell}>No orders found. Click "Pull New Orders" to fetch orders from Best Buy.</td>
-                  </tr>
+                  <tr><td colSpan="10" style={styles.noDataCell}>No orders found. Click "Pull New Orders" to fetch orders from Best Buy.</td></tr>
                 )}
               </tbody>
             </table>
+          </div>
+
+          {/* Pagination */}
+          {orderTotal > 30 && (
+            <div style={{ display: 'flex', justifyContent: 'center', gap: '10px', marginTop: '16px' }}>
+              <button style={styles.button} disabled={orderPage === 1} onClick={() => { setOrderPage(p => p - 1); fetchFilteredOrders(orderStateFilter, orderSearch, orderPage - 1); }}>Previous</button>
+              <span style={{ padding: '8px' }}>Page {orderPage} of {Math.ceil(orderTotal / 30)}</span>
+              <button style={styles.button} disabled={orderPage >= Math.ceil(orderTotal / 30)} onClick={() => { setOrderPage(p => p + 1); fetchFilteredOrders(orderStateFilter, orderSearch, orderPage + 1); }}>Next</button>
+            </div>
+          )}
+
+          {/* Automation Rules sub-section */}
+          <div style={{ marginTop: '32px' }}>
+            <div style={styles.sectionHeader}>
+              <h3 style={{ ...styles.sectionTitle, fontSize: '18px' }}>Automation Rules</h3>
+              <button style={{ ...styles.button, ...styles.primaryButton }} onClick={() => { setEditingRule(null); setShowRuleModal(true); }}>+ Create Rule</button>
+            </div>
+            <div style={styles.rulesGrid}>
+              {autoRules.map(rule => (
+                <div key={rule.id} style={styles.ruleCard}>
+                  <div style={styles.ruleHeader}>
+                    <div>
+                      <h4 style={styles.ruleName}>{rule.name}</h4>
+                      <span style={{ ...styles.ruleTypeBadge, backgroundColor: rule.rule_type === 'auto_accept' ? '#d4edda' : rule.rule_type === 'auto_reject' ? '#f8d7da' : '#fff3cd', color: rule.rule_type === 'auto_accept' ? '#155724' : rule.rule_type === 'auto_reject' ? '#721c24' : '#856404' }}>
+                        {rule.rule_type.replace('_', ' ')}
+                      </span>
+                    </div>
+                  </div>
+                  <p style={styles.ruleDescription}>{rule.description || 'No description'}</p>
+                  <div style={styles.ruleStats}><span>Triggered: {rule.trigger_count || 0}x</span></div>
+                  <div style={styles.ruleActions}>
+                    <button style={{ ...styles.button, ...styles.smallButton }} onClick={() => { setEditingRule(rule); setShowRuleModal(true); }}>Edit</button>
+                    <button style={{ ...styles.button, ...styles.smallButton, ...styles.dangerButton }} onClick={() => handleDeleteRule(rule.id)}>Delete</button>
+                    <button style={{ ...styles.button, ...styles.smallButton }} onClick={() => handleToggleRule(rule.id)}>{rule.enabled ? 'Disable' : 'Enable'}</button>
+                  </div>
+                </div>
+              ))}
+              {autoRules.length === 0 && <div style={styles.noData}>No automation rules. Create one to auto-process orders.</div>}
+            </div>
           </div>
         </div>
       )}
@@ -2107,50 +1565,77 @@ const MarketplaceManager = () => {
             </div>
           ) : (
           <>
-          {/* KPI Header Cards */}
+          {/* Top Row: Operational Stat Cards */}
           <div style={styles.kpiGrid}>
-            <div style={styles.kpiCard}>
-              <div style={styles.kpiIcon}>$</div>
+            <div style={{ ...styles.kpiCard, borderLeft: '4px solid #ffc107' }}>
+              <div style={{ ...styles.kpiIcon, backgroundColor: '#fff8e1' }}>!</div>
               <div style={styles.kpiContent}>
-                <div style={styles.kpiLabel}>Total Revenue</div>
-                <div style={styles.kpiValue}>{formatCurrency(analytics?.revenue?.total)}</div>
-                <div style={styles.kpiSubtext}>All time</div>
+                <div style={styles.kpiLabel}>Pending Acceptance</div>
+                <div style={styles.kpiValue}>
+                  {analytics?.orders?.pending_acceptance || ordersByState.find(s => s.order_state === 'WAITING_ACCEPTANCE')?.count || 0}
+                  {(analytics?.orders?.urgent_acceptance > 0) && (
+                    <span style={{ ...styles.statusBadge, backgroundColor: '#dc3545', color: '#fff', marginLeft: '8px', fontSize: '12px', verticalAlign: 'middle' }}>
+                      {analytics.orders.urgent_acceptance} urgent
+                    </span>
+                  )}
+                </div>
+                <div style={styles.kpiSubtext}>Orders awaiting review</div>
               </div>
             </div>
 
-            <div style={styles.kpiCard}>
-              <div style={styles.kpiIcon}>📦</div>
+            <div style={{ ...styles.kpiCard, borderLeft: '4px solid #17a2b8' }}>
+              <div style={{ ...styles.kpiIcon, backgroundColor: '#e3f2fd' }}>📦</div>
               <div style={styles.kpiContent}>
-                <div style={styles.kpiLabel}>Orders</div>
-                <div style={styles.kpiValue}>{analytics?.orders?.total || 0}</div>
+                <div style={styles.kpiLabel}>Awaiting Shipment</div>
+                <div style={styles.kpiValue}>
+                  {ordersByState.find(s => s.order_state === 'SHIPPING')?.count || 0}
+                </div>
+                <div style={styles.kpiSubtext}>Ready to ship</div>
+              </div>
+            </div>
+
+            <div style={{ ...styles.kpiCard, borderLeft: '4px solid #28a745' }}>
+              <div style={{ ...styles.kpiIcon, backgroundColor: '#e8f5e9' }}>&#10003;</div>
+              <div style={styles.kpiContent}>
+                <div style={styles.kpiLabel}>Shipped Today</div>
+                <div style={styles.kpiValue}>{analytics?.orders?.shipped_today || 0}</div>
+                <div style={styles.kpiSubtext}>Dispatched today</div>
+              </div>
+            </div>
+
+            <div style={{ ...styles.kpiCard, borderLeft: `4px solid ${(queueStatus?.pendingChanges > 0) ? '#f59e0b' : '#28a745'}` }}>
+              <div style={{ ...styles.kpiIcon, backgroundColor: (queueStatus?.pendingChanges > 0) ? '#fff8e1' : '#e8f5e9' }}>&#8693;</div>
+              <div style={styles.kpiContent}>
+                <div style={styles.kpiLabel}>Inventory Queue</div>
+                <div style={styles.kpiValue}>{queueStatus?.pendingChanges ?? '...'}</div>
                 <div style={styles.kpiSubtext}>
-                  Today: {analytics?.orders?.today || 0} | Week: {analytics?.orders?.this_week || 0}
+                  {queueStatus?.lastSync ? `Last sync: ${formatRelativeTime(queueStatus.lastSync)}` : 'No recent sync'}
                 </div>
               </div>
             </div>
+          </div>
 
+          {/* Revenue Row */}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '20px', marginBottom: '24px' }}>
             <div style={styles.kpiCard}>
-              <div style={styles.kpiIcon}>📋</div>
+              <div style={{ ...styles.kpiIcon, backgroundColor: '#e8f5e9' }}>$</div>
               <div style={styles.kpiContent}>
-                <div style={styles.kpiLabel}>Products Listed</div>
-                <div style={styles.kpiValue}>{analytics?.products?.listed || 0}</div>
-                <div style={styles.kpiSubtext}>
-                  of {analytics?.products?.total || 0} active products
-                </div>
+                <div style={styles.kpiLabel}>30-Day Revenue</div>
+                <div style={styles.kpiValue}>{formatCurrency(analytics?.revenue?.this_month || 0)}</div>
               </div>
             </div>
-
             <div style={styles.kpiCard}>
-              <div style={styles.kpiIcon}>{getPercentageChange() >= 0 ? '📈' : '📉'}</div>
+              <div style={{ ...styles.kpiIcon, backgroundColor: '#fce4ec' }}>%</div>
               <div style={styles.kpiContent}>
-                <div style={styles.kpiLabel}>This Month</div>
-                <div style={styles.kpiValue}>{formatCurrency(analytics?.revenue?.this_month)}</div>
-                <div style={{
-                  ...styles.kpiSubtext,
-                  color: getPercentageChange() >= 0 ? '#28a745' : '#dc3545'
-                }}>
-                  {getPercentageChange() >= 0 ? '+' : ''}{getPercentageChange()}% vs last month
-                </div>
+                <div style={styles.kpiLabel}>30-Day Commission</div>
+                <div style={styles.kpiValue}>{formatCurrency(analytics?.commission?.this_month || 0)}</div>
+              </div>
+            </div>
+            <div style={styles.kpiCard}>
+              <div style={{ ...styles.kpiIcon, backgroundColor: '#e3f2fd' }}>&#8594;</div>
+              <div style={styles.kpiContent}>
+                <div style={styles.kpiLabel}>Net Revenue</div>
+                <div style={styles.kpiValue}>{formatCurrency((analytics?.revenue?.this_month || 0) - (analytics?.commission?.this_month || 0))}</div>
               </div>
             </div>
           </div>
@@ -2238,6 +1723,40 @@ const MarketplaceManager = () => {
               </div>
 
               <div style={styles.activityCard}>
+                <h3 style={styles.cardTitle}>Sync Activity</h3>
+                <div style={styles.activityList}>
+                  {syncHistory.slice(0, 10).map((entry, index) => (
+                    <div key={index} style={styles.activityItem}>
+                      <span style={styles.activityIcon}>
+                        {entry.status === 'completed' || entry.status === 'SUCCESS' ? '✓' : entry.status === 'FAILED' ? '✗' : '~'}
+                      </span>
+                      <div style={styles.activityContent}>
+                        <div style={styles.activityTitle}>
+                          {(entry.sync_type || entry.job_type || 'sync').replace(/_/g, ' ')}
+                        </div>
+                        <div style={styles.activityDesc}>
+                          <span style={{
+                            color: (entry.status === 'completed' || entry.status === 'SUCCESS') ? '#28a745' :
+                                   entry.status === 'FAILED' ? '#dc3545' : '#ffc107',
+                            fontWeight: '500'
+                          }}>
+                            {entry.status}
+                          </span>
+                          {entry.records_processed > 0 && ` — ${entry.records_processed} processed`}
+                        </div>
+                      </div>
+                      <div style={styles.activityTime}>
+                        {formatRelativeTime(entry.started_at || entry.created_at || entry.sync_start_time)}
+                      </div>
+                    </div>
+                  ))}
+                  {syncHistory.length === 0 && activityFeed.length === 0 && (
+                    <div style={styles.noData}>No recent activity</div>
+                  )}
+                </div>
+              </div>
+
+              <div style={styles.activityCard}>
                 <h3 style={styles.cardTitle}>Recent Activity</h3>
                 <div style={styles.activityList}>
                   {activityFeed.slice(0, 10).map((activity, index) => (
@@ -2264,10 +1783,531 @@ const MarketplaceManager = () => {
         </>
       )}
 
+      {/* ============ TAB 3: OFFERS ============ */}
+      {activeSection === 'offers' && (
+        <div style={styles.section}>
+          <div style={styles.sectionHeader}>
+            <h2 style={styles.sectionTitle}>Marketplace Offers</h2>
+            <div style={{ display: 'flex', gap: '8px' }}>
+              <button style={{ ...styles.button, ...styles.primaryButton, opacity: pushingOffers ? 0.6 : 1 }} onClick={handlePushAllOffers} disabled={pushingOffers}>
+                {pushingOffers ? 'Pushing...' : 'Push All Enabled'}
+              </button>
+            </div>
+          </div>
+
+          {/* Search & Bulk Actions */}
+          <div style={{ display: 'flex', gap: '12px', marginBottom: '16px', flexWrap: 'wrap', alignItems: 'center' }}>
+            <input
+              type="text" placeholder="Search by name, SKU, UPC..." value={offerSearch}
+              onChange={(e) => setOfferSearch(e.target.value)}
+              onKeyDown={(e) => { if (e.key === 'Enter') { setOfferPage(1); fetchOfferProducts(1, offerSearch); } }}
+              style={{ ...styles.input, width: '280px' }}
+            />
+            <button style={{ ...styles.button, ...styles.outlineButton }} onClick={() => { setOfferPage(1); fetchOfferProducts(1, offerSearch); }}>Search</button>
+          </div>
+
+          {selectedOfferProducts.length > 0 && (
+            <div style={styles.batchActionsBar}>
+              <span style={styles.selectedCount}>{selectedOfferProducts.length} selected</span>
+              <div style={styles.batchButtons}>
+                <button style={{ ...styles.button, backgroundColor: '#28a745', color: '#fff' }} onClick={() => handleBulkOfferToggle(true)}>Enable Selected</button>
+                <button style={{ ...styles.button, ...styles.secondaryButton }} onClick={() => handleBulkOfferToggle(false)}>Disable Selected</button>
+                <button style={{ ...styles.button, ...styles.outlineButton }} onClick={() => setSelectedOfferProducts([])}>Clear</button>
+              </div>
+            </div>
+          )}
+
+          {/* Offers Table */}
+          <div style={styles.tableContainer}>
+            <table style={styles.table}>
+              <thead>
+                <tr>
+                  <th style={styles.checkboxCell}>
+                    <input type="checkbox" checked={selectedOfferProducts.length > 0 && selectedOfferProducts.length === offerProducts.length}
+                      onChange={(e) => setSelectedOfferProducts(e.target.checked ? offerProducts.map(p => p.id) : [])} />
+                  </th>
+                  <th style={styles.th}>Name</th>
+                  <th style={styles.th}>SKU</th>
+                  <th style={styles.th}>UPC</th>
+                  <th style={styles.th}>Category</th>
+                  <th style={styles.th}>Price</th>
+                  <th style={styles.th}>Stock</th>
+                  <th style={styles.th}>Marketplace</th>
+                  <th style={styles.th}>Mirakl Status</th>
+                  <th style={styles.th}>Last Synced</th>
+                </tr>
+              </thead>
+              <tbody>
+                {offerProducts.map(p => (
+                  <tr key={p.id} style={{ backgroundColor: selectedOfferProducts.includes(p.id) ? '#e3f2fd' : 'transparent' }}>
+                    <td style={styles.checkboxCell}>
+                      <input type="checkbox" checked={selectedOfferProducts.includes(p.id)}
+                        onChange={(e) => setSelectedOfferProducts(prev => e.target.checked ? [...prev, p.id] : prev.filter(id => id !== p.id))} />
+                    </td>
+                    <td style={styles.td}>
+                      <div><strong>{p.name || p.model}</strong></div>
+                      <div style={{ fontSize: '12px', color: '#6c757d' }}>{p.manufacturer}</div>
+                    </td>
+                    <td style={styles.td}>{p.sku || '-'}</td>
+                    <td style={styles.td}>
+                      {p.upc ? p.upc : <span style={{ color: '#dc3545', fontWeight: '500', fontSize: '12px' }}>Missing</span>}
+                    </td>
+                    <td style={styles.td}>{p.category || '-'}</td>
+                    <td style={styles.td}>${(p.price || 0).toFixed(2)}</td>
+                    <td style={{ ...styles.td, fontWeight: '600', color: p.stock_quantity > 0 ? '#28a745' : '#dc3545' }}>{p.stock_quantity}</td>
+                    <td style={styles.td}>
+                      <label style={styles.toggleSwitch} className="toggle-switch">
+                        <input type="checkbox" checked={!!p.marketplace_enabled} onChange={() => handleToggleOfferEnabled(p.id, p.marketplace_enabled)} />
+                        <span className="toggle-slider" style={styles.toggleSlider}></span>
+                      </label>
+                    </td>
+                    <td style={styles.td}>
+                      {p.mirakl_offer_state ? (
+                        <span style={{ ...styles.statusBadge, backgroundColor: p.mirakl_offer_state === 'ACTIVE' ? '#d4edda' : '#fff3cd', color: p.mirakl_offer_state === 'ACTIVE' ? '#155724' : '#856404' }}>
+                          {p.mirakl_offer_state}
+                        </span>
+                      ) : <span style={{ color: '#6c757d', fontSize: '12px' }}>Not pushed</span>}
+                    </td>
+                    <td style={styles.td}>{p.mirakl_last_offer_sync ? formatRelativeTime(p.mirakl_last_offer_sync) : 'Never'}</td>
+                  </tr>
+                ))}
+                {offerProducts.length === 0 && (
+                  <tr><td colSpan="10" style={styles.noDataCell}>No marketplace-eligible products found</td></tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+
+          {offerTotal > 30 && (
+            <div style={{ display: 'flex', justifyContent: 'center', gap: '10px', marginTop: '16px' }}>
+              <button style={styles.button} disabled={offerPage === 1} onClick={() => { setOfferPage(p => p - 1); fetchOfferProducts(offerPage - 1, offerSearch); }}>Previous</button>
+              <span style={{ padding: '8px' }}>Page {offerPage} of {Math.ceil(offerTotal / 30)}</span>
+              <button style={styles.button} disabled={offerPage >= Math.ceil(offerTotal / 30)} onClick={() => { setOfferPage(p => p + 1); fetchOfferProducts(offerPage + 1, offerSearch); }}>Next</button>
+            </div>
+          )}
+
+          {/* Import Status Section */}
+          <div style={{ ...styles.card, marginTop: '24px' }}>
+            <h3 style={{ margin: '0 0 16px 0', fontSize: '16px' }}>Recent Imports</h3>
+            <table style={styles.table}>
+              <thead>
+                <tr>
+                  <th style={styles.th}>Type</th>
+                  <th style={styles.th}>Mirakl Import ID</th>
+                  <th style={styles.th}>Status</th>
+                  <th style={styles.th}>Records</th>
+                  <th style={styles.th}>Errors</th>
+                  <th style={styles.th}>Submitted</th>
+                </tr>
+              </thead>
+              <tbody>
+                {offerImports.map(imp => (
+                  <tr key={imp.id}>
+                    <td style={styles.td}>{imp.import_type}</td>
+                    <td style={styles.td}>{imp.mirakl_import_id?.substring(0, 12) || '-'}</td>
+                    <td style={styles.td}>
+                      <span style={{
+                        ...styles.statusBadge,
+                        backgroundColor: (imp.status === 'COMPLETE' || imp.status === 'COMPLETED') ? '#d4edda' :
+                          (imp.status === 'QUEUED' || imp.status === 'PROCESSING') ? '#fff3cd' : '#f8d7da',
+                        color: (imp.status === 'COMPLETE' || imp.status === 'COMPLETED') ? '#155724' :
+                          (imp.status === 'QUEUED' || imp.status === 'PROCESSING') ? '#856404' : '#721c24'
+                      }}>
+                        {imp.status}
+                      </span>
+                      {(imp.status === 'QUEUED' || imp.status === 'PROCESSING') && (
+                        <div style={{ marginTop: '4px', height: '4px', backgroundColor: '#e9ecef', borderRadius: '2px', overflow: 'hidden' }}>
+                          <div style={{ width: imp.status === 'PROCESSING' ? '60%' : '20%', height: '100%', backgroundColor: '#ffc107', transition: 'width 0.3s' }} />
+                        </div>
+                      )}
+                    </td>
+                    <td style={styles.td}>{imp.records_processed || 0}</td>
+                    <td style={{ ...styles.td, color: imp.records_with_errors > 0 ? '#dc3545' : 'inherit' }}>{imp.records_with_errors || 0}</td>
+                    <td style={styles.td}>{imp.submitted_at ? new Date(imp.submitted_at).toLocaleString() : '-'}</td>
+                  </tr>
+                ))}
+                {offerImports.length === 0 && <tr><td colSpan="6" style={styles.noDataCell}>No recent imports</td></tr>}
+              </tbody>
+            </table>
+          </div>
+
+          {/* Product Mapping Sub-section */}
+          <div style={{ marginTop: '32px' }}>
+            <h3 style={{ ...styles.sectionTitle, fontSize: '18px', marginBottom: '16px' }}>Product Category Mapping</h3>
+            <ProductMappingTool />
+          </div>
+        </div>
+      )}
+
+      {/* ============ TAB 4: INVENTORY ============ */}
+      {activeSection === 'inventory' && (
+        <div style={styles.section}>
+          <h2 style={styles.sectionTitle}>Inventory Management</h2>
+
+          {/* Status Cards */}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '20px', margin: '20px 0' }}>
+            <div style={styles.kpiCard}>
+              <div style={{ ...styles.kpiIcon, backgroundColor: (queueStatus?.pendingChanges > 0) ? '#fff8e1' : '#e8f5e9' }}>&#8693;</div>
+              <div style={styles.kpiContent}>
+                <div style={styles.kpiLabel}>Pending Changes</div>
+                <div style={styles.kpiValue}>{queueStatus?.pendingChanges ?? '...'}</div>
+              </div>
+            </div>
+            <div style={styles.kpiCard}>
+              <div style={{ ...styles.kpiIcon, backgroundColor: '#e3f2fd' }}>&#9201;</div>
+              <div style={styles.kpiContent}>
+                <div style={styles.kpiLabel}>Oldest Pending</div>
+                <div style={{ ...styles.kpiValue, fontSize: '20px' }}>{queueStatus?.oldestPending ? formatRelativeTime(queueStatus.oldestPending) : 'None'}</div>
+              </div>
+            </div>
+            <div style={styles.kpiCard}>
+              <div style={{ ...styles.kpiIcon, backgroundColor: '#e8f5e9' }}>&#10003;</div>
+              <div style={styles.kpiContent}>
+                <div style={styles.kpiLabel}>Last Sync</div>
+                <div style={{ ...styles.kpiValue, fontSize: '20px' }}>{queueStatus?.lastSync ? formatRelativeTime(queueStatus.lastSync) : 'Never'}</div>
+              </div>
+            </div>
+          </div>
+
+          {/* Action Buttons */}
+          <div style={{ display: 'flex', gap: '12px', marginBottom: '24px' }}>
+            <button style={{ ...styles.button, ...styles.primaryButton, opacity: inventorySyncing ? 0.6 : 1 }} onClick={handleInventorySyncNow} disabled={inventorySyncing}>
+              {inventorySyncing ? 'Syncing...' : 'Sync Now'}
+            </button>
+            <button style={{ ...styles.button, ...styles.outlineButton, opacity: driftLoading ? 0.6 : 1 }} onClick={handleDriftCheck} disabled={driftLoading}>
+              {driftLoading ? 'Checking...' : 'Drift Check'}
+            </button>
+            <button style={{ ...styles.button, ...styles.dangerButton, opacity: forceSyncing ? 0.6 : 1 }} onClick={handleForceFullSync} disabled={forceSyncing}>
+              {forceSyncing ? 'Syncing...' : 'Force Full Sync'}
+            </button>
+          </div>
+
+          {/* Drift Check Results */}
+          {driftResults && (
+            <div style={{ ...styles.card, marginBottom: '24px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+                <h3 style={{ margin: 0, fontSize: '16px' }}>Drift Check Results</h3>
+                <span style={{ fontSize: '13px', color: '#6c757d' }}>
+                  {driftResults.inSync || 0} in sync, {driftResults.drifted?.length || 0} drifted, {driftResults.unknown?.length || 0} unknown
+                </span>
+              </div>
+              {(driftResults.drifted?.length > 0) ? (
+                <table style={styles.table}>
+                  <thead>
+                    <tr>
+                      <th style={styles.th}>SKU</th>
+                      <th style={styles.th}>Product</th>
+                      <th style={styles.th}>Our Stock</th>
+                      <th style={styles.th}>Best Buy Stock</th>
+                      <th style={styles.th}>Difference</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {driftResults.drifted.map((item, idx) => {
+                      const diff = (item.internal_qty || 0) - (item.mirakl_qty || 0);
+                      return (
+                        <tr key={idx}>
+                          <td style={styles.td}>{item.sku}</td>
+                          <td style={styles.td}>{item.name || item.model || '-'}</td>
+                          <td style={styles.td}>{item.internal_qty}</td>
+                          <td style={styles.td}>{item.mirakl_qty}</td>
+                          <td style={{ ...styles.td, color: diff < 0 ? '#dc3545' : diff > 0 ? '#f59e0b' : '#28a745', fontWeight: '600' }}>
+                            {diff > 0 ? '+' : ''}{diff}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              ) : (
+                <div style={styles.noData}>All products are in sync!</div>
+              )}
+            </div>
+          )}
+
+          {/* Stock Buffer Management — existing functionality preserved */}
+          <div style={{ ...styles.card, marginBottom: '24px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+              <h3 style={{ margin: 0, fontSize: '16px' }}>Global Stock Buffer</h3>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <span>Reserve</span>
+                <input type="number" min="0" value={globalBuffer} onChange={(e) => setGlobalBuffer(parseInt(e.target.value) || 0)}
+                  style={{ ...styles.input, width: '80px' }} />
+                <span>units</span>
+                <button style={{ ...styles.button, ...styles.primaryButton, padding: '8px 16px' }}
+                  onClick={async () => { try { await axios.put(`${API_BASE_URL}/api/marketplace/stock-buffer`, { value: globalBuffer }); setMessage(`Stock buffer set to ${globalBuffer}`); } catch (err) { setError('Failed to update buffer'); } }}>Save</button>
+              </div>
+            </div>
+          </div>
+
+          {/* Product Stock Buffers table — existing functionality */}
+          <div style={styles.card}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+              <h3 style={{ margin: 0, fontSize: '16px' }}>Product Stock Buffers</h3>
+              <input type="text" placeholder="Search products..." value={inventorySearch}
+                onChange={(e) => setInventorySearch(e.target.value)}
+                onKeyDown={(e) => { if (e.key === 'Enter') { fetchInventoryProducts(1, inventorySearch); setInventoryPage(1); } }}
+                style={{ ...styles.input, width: '250px' }} />
+            </div>
+            <table style={styles.table}>
+              <thead>
+                <tr>
+                  <th style={styles.th}>Product</th>
+                  <th style={styles.th}>SKU</th>
+                  <th style={styles.th}>Actual Stock</th>
+                  <th style={styles.th}>Buffer</th>
+                  <th style={styles.th}>Effective</th>
+                  <th style={styles.th}>Last Synced</th>
+                </tr>
+              </thead>
+              <tbody>
+                {inventoryProducts.map(product => (
+                  <tr key={product.id}>
+                    <td style={styles.td}><strong>{product.model}</strong><div style={{ fontSize: '12px', color: '#666' }}>{product.manufacturer}</div></td>
+                    <td style={styles.td}>{product.sku || '-'}</td>
+                    <td style={styles.td}>{product.stock_quantity}</td>
+                    <td style={styles.td}>
+                      <input type="number" min="0" placeholder={`Global (${globalBuffer})`} value={product.marketplace_stock_buffer ?? ''}
+                        onChange={async (e) => { const v = e.target.value === '' ? null : parseInt(e.target.value); try { await axios.put(`${API_BASE_URL}/api/marketplace/products/${product.id}/stock-buffer`, { buffer: v }); fetchInventoryProducts(inventoryPage, inventorySearch); } catch (err) { setError('Failed to update buffer'); } }}
+                        style={{ ...styles.input, width: '80px', padding: '4px 8px' }} />
+                    </td>
+                    <td style={{ ...styles.td, fontWeight: 'bold', color: product.effective_stock > 0 ? '#28a745' : '#dc3545' }}>{product.effective_stock}</td>
+                    <td style={styles.td}>{product.marketplace_last_synced ? new Date(product.marketplace_last_synced).toLocaleDateString() : 'Never'}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            {inventoryTotal > 25 && (
+              <div style={{ display: 'flex', justifyContent: 'center', gap: '10px', marginTop: '16px' }}>
+                <button style={styles.button} disabled={inventoryPage === 1} onClick={() => { setInventoryPage(p => p - 1); fetchInventoryProducts(inventoryPage - 1, inventorySearch); }}>Previous</button>
+                <span style={{ padding: '8px' }}>Page {inventoryPage} of {Math.ceil(inventoryTotal / 25)}</span>
+                <button style={styles.button} disabled={inventoryPage >= Math.ceil(inventoryTotal / 25)} onClick={() => { setInventoryPage(p => p + 1); fetchInventoryProducts(inventoryPage + 1, inventorySearch); }}>Next</button>
+              </div>
+            )}
+          </div>
+
+          {/* Recent Stock Sync History */}
+          <div style={{ ...styles.card, marginTop: '24px' }}>
+            <h3 style={{ margin: '0 0 16px 0', fontSize: '16px' }}>Recent Stock Sync History</h3>
+            <table style={styles.table}>
+              <thead>
+                <tr><th style={styles.th}>Date</th><th style={styles.th}>Status</th><th style={styles.th}>Records</th><th style={styles.th}>Errors</th></tr>
+              </thead>
+              <tbody>
+                {recentStockImports.map(imp => (
+                  <tr key={imp.id}>
+                    <td style={styles.td}>{imp.submitted_at ? new Date(imp.submitted_at).toLocaleString() : '-'}</td>
+                    <td style={styles.td}>
+                      <span style={{ ...styles.statusBadge, backgroundColor: (imp.status === 'COMPLETE' || imp.status === 'COMPLETED') ? '#d4edda' : '#fff3cd', color: (imp.status === 'COMPLETE' || imp.status === 'COMPLETED') ? '#155724' : '#856404' }}>
+                        {imp.status}
+                      </span>
+                    </td>
+                    <td style={styles.td}>{imp.records_processed || 0}</td>
+                    <td style={{ ...styles.td, color: imp.records_with_errors > 0 ? '#dc3545' : 'inherit' }}>{imp.records_with_errors || 0}</td>
+                  </tr>
+                ))}
+                {recentStockImports.length === 0 && <tr><td colSpan="4" style={styles.noDataCell}>No stock sync history</td></tr>}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* ============ TAB 5: SETTINGS ============ */}
+      {activeSection === 'settings' && (
+        <div style={styles.section}>
+          <h2 style={styles.sectionTitle}>Settings</h2>
+
+          {/* Connection Info */}
+          <div style={{ ...styles.card, marginTop: '20px' }}>
+            <h3 style={{ margin: '0 0 16px 0', fontSize: '16px' }}>Best Buy Marketplace Connection</h3>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '16px', marginBottom: '16px' }}>
+              <div>
+                <div style={styles.label}>API URL</div>
+                <div style={{ fontSize: '14px', color: '#212529', fontFamily: 'monospace', wordBreak: 'break-all' }}>
+                  {process.env.REACT_APP_MIRAKL_BASE_URL ? '***' + process.env.REACT_APP_MIRAKL_BASE_URL.replace(/https?:\/\//, '').split('/')[0] : 'marketplace-bestbuy.mirakl.net'}
+                </div>
+              </div>
+              <div>
+                <div style={styles.label}>API Key</div>
+                <div style={{ fontSize: '14px', color: '#212529', fontFamily: 'monospace' }}>****-****-****</div>
+              </div>
+              <div>
+                <div style={styles.label}>Shop ID</div>
+                <div style={{ fontSize: '14px', color: '#212529', fontFamily: 'monospace' }}>{process.env.REACT_APP_MIRAKL_SHOP_ID || 'Configured on server'}</div>
+              </div>
+            </div>
+            <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
+              <button style={{ ...styles.button, ...styles.primaryButton, opacity: testingConnection ? 0.6 : 1 }} onClick={handleTestConnection} disabled={testingConnection}>
+                {testingConnection ? 'Testing...' : 'Test Connection'}
+              </button>
+              {connectionResult && (
+                <span style={{ fontWeight: '500', color: connectionResult.success ? '#28a745' : '#dc3545' }}>
+                  {connectionResult.success ? '✓ ' : '✗ '}{connectionResult.message}
+                </span>
+              )}
+            </div>
+          </div>
+
+          {/* Polling Status */}
+          <div style={{ ...styles.card, marginTop: '20px' }}>
+            <h3 style={{ margin: '0 0 16px 0', fontSize: '16px' }}>
+              Polling Jobs
+              <button style={{ ...styles.button, ...styles.smallButton, ...styles.outlineButton, marginLeft: '12px' }} onClick={fetchPollingStatus}>Refresh</button>
+            </h3>
+            {pollingStatus ? (
+              <table style={styles.table}>
+                <thead>
+                  <tr>
+                    <th style={styles.th}>Job</th>
+                    <th style={styles.th}>Interval</th>
+                    <th style={styles.th}>Status</th>
+                    <th style={styles.th}>Last Run</th>
+                    <th style={styles.th}>Last Result</th>
+                    <th style={styles.th}>Next Run</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {(pollingStatus.jobs || []).map(job => (
+                    <tr key={job.name}>
+                      <td style={styles.td}>
+                        <strong>{job.name.charAt(0).toUpperCase() + job.name.slice(1)}</strong>
+                      </td>
+                      <td style={styles.td}>{job.intervalMinutes} min</td>
+                      <td style={styles.td}>
+                        <span style={{ display: 'inline-block', width: '10px', height: '10px', borderRadius: '50%', backgroundColor: job.active ? '#28a745' : '#6c757d', marginRight: '6px' }} />
+                        {job.active ? 'Running' : 'Stopped'}
+                      </td>
+                      <td style={styles.td}>{job.lastRun ? formatRelativeTime(job.lastRun) : 'Never'}</td>
+                      <td style={styles.td}>
+                        {job.lastResult ? (
+                          <span style={{ color: job.lastResult.status === 'success' ? '#28a745' : job.lastResult.status === 'skipped' ? '#f59e0b' : '#dc3545' }}>
+                            {job.lastResult.status}
+                          </span>
+                        ) : '-'}
+                      </td>
+                      <td style={styles.td}>{job.nextRun ? new Date(job.nextRun).toLocaleTimeString() : '-'}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            ) : (
+              <div style={styles.noData}>
+                {pollingStatus?.error || 'Polling status unavailable. Set MARKETPLACE_POLLING_ENABLED=true to enable.'}
+              </div>
+            )}
+            <div style={{ marginTop: '8px', fontSize: '12px', color: '#6c757d' }}>
+              Master switch: <code>MARKETPLACE_POLLING_ENABLED</code> = {pollingStatus?.enabled ? 'true' : 'false'}
+            </div>
+          </div>
+
+          {/* Sync Settings — existing functionality preserved */}
+          <div style={{ ...styles.card, marginTop: '20px' }}>
+            <h3 style={{ margin: '0 0 16px 0', fontSize: '16px' }}>Sync Settings</h3>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
+              <div>
+                <div style={styles.label}>Auto-Sync</div>
+                <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
+                  <input type="checkbox" checked={syncSettings.auto_sync_enabled?.enabled || false}
+                    onChange={async (e) => { try { await axios.put(`${API_BASE_URL}/api/marketplace/sync-settings/auto_sync_enabled`, { value: { enabled: e.target.checked } }); fetchSyncSettings(); setMessage(e.target.checked ? 'Auto-sync enabled' : 'Auto-sync disabled'); } catch (err) { setError('Failed to update'); } }} />
+                  {syncSettings.auto_sync_enabled?.enabled ? 'Enabled' : 'Disabled'}
+                </label>
+              </div>
+              <div>
+                <div style={styles.label}>Sync Frequency</div>
+                <select style={styles.select} value={syncSettings.sync_frequency_hours?.value || 4}
+                  onChange={async (e) => { try { await axios.put(`${API_BASE_URL}/api/marketplace/sync-settings/sync_frequency_hours`, { value: { value: parseInt(e.target.value) } }); fetchSyncSettings(); setMessage(`Frequency set to every ${e.target.value}h`); } catch (err) { setError('Failed to update'); } }}>
+                  <option value="1">Every 1 hour</option>
+                  <option value="2">Every 2 hours</option>
+                  <option value="4">Every 4 hours</option>
+                  <option value="6">Every 6 hours</option>
+                  <option value="12">Every 12 hours</option>
+                  <option value="24">Every 24 hours</option>
+                </select>
+              </div>
+            </div>
+          </div>
+
+          {/* Pricing Rules — existing functionality preserved */}
+          <div style={{ ...styles.card, marginTop: '20px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+              <h3 style={{ margin: 0, fontSize: '16px' }}>Pricing Rules</h3>
+              <button style={{ ...styles.button, ...styles.primaryButton }} onClick={() => { setEditingPriceRule(null); setShowPriceRuleModal(true); }}>+ Create Rule</button>
+            </div>
+            <div style={styles.rulesGrid}>
+              {priceRules.map(rule => (
+                <div key={rule.id} style={styles.ruleCard}>
+                  <div style={styles.ruleHeader}>
+                    <div>
+                      <h4 style={styles.ruleName}>{rule.name}</h4>
+                      <span style={{ ...styles.ruleTypeBadge, backgroundColor: rule.rule_type === 'markup_percent' ? '#e3f2fd' : rule.rule_type === 'markup_fixed' ? '#fff3e0' : '#e8f5e9', color: rule.rule_type === 'markup_percent' ? '#1565c0' : rule.rule_type === 'markup_fixed' ? '#ef6c00' : '#2e7d32' }}>
+                        {rule.rule_type === 'markup_percent' ? `+${rule.value}%` : rule.rule_type === 'markup_fixed' ? `+$${rule.value}` : `Min ${rule.value}%`}
+                      </span>
+                    </div>
+                  </div>
+                  <p style={styles.ruleDescription}>{rule.description}</p>
+                  <div style={{ display: 'flex', gap: '8px' }}>
+                    <button style={{ ...styles.button, ...styles.smallButton }} onClick={() => { setEditingPriceRule(rule); setShowPriceRuleModal(true); }}>Edit</button>
+                    <button style={{ ...styles.button, ...styles.smallButton, ...styles.dangerButton }} onClick={async () => { if (window.confirm('Delete this rule?')) { try { await axios.delete(`${API_BASE_URL}/api/marketplace/price-rules/${rule.id}`); fetchPriceRules(); } catch (err) { setError('Failed'); } } }}>Delete</button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Modals */}
       {showRejectModal && <RejectModal />}
       {orderDetailId && <OrderDetailModal />}
       {showRuleModal && <RuleEditorModal />}
+
+      {/* Ship Order Modal */}
+      {showShipModal && (
+        <div style={styles.modalOverlay} onClick={() => setShowShipModal(false)}>
+          <div style={{ ...styles.modal, maxWidth: '500px' }} onClick={e => e.stopPropagation()}>
+            <div style={styles.modalHeader}>
+              <h3 style={styles.modalTitle}>Ship Order</h3>
+              <button style={styles.closeModalBtn} onClick={() => setShowShipModal(false)}>x</button>
+            </div>
+            <div style={styles.formGroup}>
+              <label style={styles.label}>Tracking Number *</label>
+              <input type="text" style={styles.input} value={shipForm.tracking_number}
+                onChange={(e) => setShipForm(prev => ({ ...prev, tracking_number: e.target.value }))} placeholder="Enter tracking number" />
+            </div>
+            <div style={styles.formGroup}>
+              <label style={styles.label}>Carrier</label>
+              <select style={styles.select} value={shipForm.carrier_code}
+                onChange={(e) => setShipForm(prev => ({ ...prev, carrier_code: e.target.value }))}>
+                <option value="canada_post">Canada Post</option>
+                <option value="purolator">Purolator</option>
+                <option value="ups">UPS</option>
+                <option value="fedex">FedEx</option>
+                <option value="dhl">DHL</option>
+                <option value="other">Other</option>
+              </select>
+            </div>
+            {shipForm.carrier_code === 'other' && (
+              <>
+                <div style={styles.formGroup}>
+                  <label style={styles.label}>Carrier Name</label>
+                  <input type="text" style={styles.input} value={shipForm.carrier_name}
+                    onChange={(e) => setShipForm(prev => ({ ...prev, carrier_name: e.target.value }))} placeholder="Carrier name" />
+                </div>
+                <div style={styles.formGroup}>
+                  <label style={styles.label}>Tracking URL</label>
+                  <input type="text" style={styles.input} value={shipForm.carrier_url}
+                    onChange={(e) => setShipForm(prev => ({ ...prev, carrier_url: e.target.value }))} placeholder="https://..." />
+                </div>
+              </>
+            )}
+            <div style={styles.modalActions}>
+              <button style={{ ...styles.button, ...styles.secondaryButton }} onClick={() => setShowShipModal(false)}>Cancel</button>
+              <button style={{ ...styles.button, ...styles.primaryButton }} onClick={handleShipOrder}>Submit Shipment</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

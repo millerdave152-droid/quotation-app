@@ -6,6 +6,29 @@ const { validateJoi, marketplaceSchemas } = require('../middleware/validation');
 const { authenticate } = require('../middleware/auth');
 const { ApiError, asyncHandler } = require('../middleware/errorHandler');
 
+// Cached column lookup for products table
+let productsColumnCache = { columns: null, loadedAt: 0 };
+const PRODUCTS_COLUMN_CACHE_MS = 5 * 60 * 1000;
+
+async function getProductsColumns() {
+  const now = Date.now();
+  if (productsColumnCache.columns && (now - productsColumnCache.loadedAt) < PRODUCTS_COLUMN_CACHE_MS) {
+    return productsColumnCache.columns;
+  }
+  const result = await pool.query(
+    `SELECT column_name
+     FROM information_schema.columns
+     WHERE table_schema = 'public' AND table_name = 'products'`
+  );
+  const cols = result.rows.map(r => r.column_name);
+  productsColumnCache = { columns: cols, loadedAt: now };
+  return cols;
+}
+
+function pickFirstColumn(columns, candidates) {
+  return candidates.find(c => columns.includes(c));
+}
+
 // Helper to generate unique return/refund numbers
 const generateReturnNumber = () => `RET-${Date.now()}-${Math.random().toString(36).substr(2, 6).toUpperCase()}`;
 const generateRefundNumber = () => `REF-${Date.now()}-${Math.random().toString(36).substr(2, 6).toUpperCase()}`;
@@ -14,314 +37,672 @@ const generateRefundNumber = () => `REF-${Date.now()}-${Math.random().toString(3
 // MARKETPLACE ORDERS
 // ============================================
 
-// Get all marketplace orders
-router.get('/orders', authenticate, asyncHandler(async (req, res) => {
-  const { status, limit = 50, offset = 0 } = req.query;
+// -- Static routes BEFORE parameterized routes --
 
-  // PERF: Specify columns instead of SELECT * to reduce data transfer
-  let query = `SELECT id, order_id, order_state, order_date, total_price_cents,
-    customer_name, customer_email, shipping_address, items_count, created_at, updated_at
-  FROM marketplace_orders WHERE 1=1`;
-  const params = [];
-  let paramIndex = 1;
+// Dashboard stats for orders
+router.get('/orders/dashboard-stats', authenticate, asyncHandler(async (req, res) => {
+  const [pending, urgent, shipping, shippedToday, revenue, byState] = await Promise.all([
+    pool.query(`SELECT COUNT(*) as cnt FROM marketplace_orders WHERE mirakl_order_state = 'WAITING_ACCEPTANCE'`),
+    pool.query(`SELECT COUNT(*) as cnt FROM marketplace_orders WHERE mirakl_order_state = 'WAITING_ACCEPTANCE' AND acceptance_deadline < NOW() + INTERVAL '4 hours'`),
+    pool.query(`SELECT COUNT(*) as cnt FROM marketplace_orders WHERE mirakl_order_state = 'SHIPPING'`),
+    pool.query(`SELECT COUNT(*) as cnt FROM marketplace_orders WHERE mirakl_order_state = 'SHIPPED' AND shipped_date >= CURRENT_DATE`),
+    pool.query(`
+      SELECT
+        COALESCE(SUM(total_price_cents / 100.0), 0) as total_revenue,
+        COALESCE(SUM(commission_amount), 0) as total_commission
+      FROM marketplace_orders
+      WHERE created_at >= NOW() - INTERVAL '30 days'
+    `),
+    pool.query(`
+      SELECT mirakl_order_state as state, COUNT(*) as cnt
+      FROM marketplace_orders
+      WHERE mirakl_order_state IS NOT NULL
+      GROUP BY mirakl_order_state
+    `),
+  ]);
 
-  if (status) {
-    query += ` AND order_state = $${paramIndex}`;
-    params.push(status);
-    paramIndex++;
-  }
-
-  query += ` ORDER BY order_date DESC LIMIT $${paramIndex} OFFSET $${paramIndex + 1}`;
-  params.push(limit, offset);
-
-  const result = await pool.query(query, params);
-
-  // Get count
-  const countQuery = 'SELECT COUNT(*) as total FROM marketplace_orders' +
-                    (status ? ' WHERE order_state = $1' : '');
-  const countParams = status ? [status] : [];
-  const countResult = await pool.query(countQuery, countParams);
+  const ordersByState = {};
+  byState.rows.forEach(r => { ordersByState[r.state] = parseInt(r.cnt); });
 
   res.json({
-    orders: result.rows,
-    total: parseInt(countResult.rows[0].total),
-    limit: parseInt(limit),
-    offset: parseInt(offset)
+    pendingAcceptance: parseInt(pending.rows[0].cnt),
+    urgentAcceptance: parseInt(urgent.rows[0].cnt),
+    awaitingShipment: parseInt(shipping.rows[0].cnt),
+    shippedToday: parseInt(shippedToday.rows[0].cnt),
+    totalRevenue30Days: parseFloat(revenue.rows[0].total_revenue) || 0,
+    totalCommission30Days: parseFloat(revenue.rows[0].total_commission) || 0,
+    ordersByState
   });
 }));
 
-// Get single marketplace order
+// Poll orders from Mirakl (trigger immediate sync)
+router.get('/orders/poll', authenticate, asyncHandler(async (req, res) => {
+  const result = await miraklService.pollOrders({
+    states: req.query.states || undefined,
+    since: req.query.since || undefined
+  });
+
+  res.json({
+    success: true,
+    newOrders: result.newOrders,
+    updatedOrders: result.updatedOrders,
+    totalPolled: result.totalPolled,
+    errors: result.errors,
+    lastPollTime: new Date()
+  });
+}));
+
+// Legacy pull-orders endpoint — redirects to pollOrders
+router.get('/pull-orders', authenticate, asyncHandler(async (req, res) => {
+  const result = await miraklService.pollOrders();
+  res.json({
+    success: true,
+    imported: result.newOrders,
+    updated: result.updatedOrders,
+    failed: result.errors.length,
+    total: result.totalPolled
+  });
+}));
+
+// Sync orders (POST variant with body params)
+router.post('/orders/sync', authenticate, asyncHandler(async (req, res) => {
+  const { start_date, order_state_codes } = req.body || {};
+  const result = await miraklService.pollOrders({
+    states: order_state_codes || undefined,
+    since: start_date || undefined
+  });
+
+  res.json({
+    success: true,
+    total: result.totalPolled,
+    succeeded: result.newOrders + result.updatedOrders,
+    failed: result.errors.length,
+    errors: result.errors
+  });
+}));
+
+// -- Parameterized order routes --
+
+// List marketplace orders with filters
+router.get('/orders', authenticate, asyncHandler(async (req, res) => {
+  const {
+    state, status, dateFrom, dateTo, search,
+    limit: rawLimit = 50, offset: rawOffset = 0
+  } = req.query;
+  const limit = Math.min(parseInt(rawLimit) || 50, 200);
+  const offset = parseInt(rawOffset) || 0;
+  const filterState = state || status; // support both param names
+
+  const conditions = [];
+  const params = [];
+  let pi = 1;
+
+  if (filterState) {
+    conditions.push(`mo.mirakl_order_state = $${pi++}`);
+    params.push(filterState);
+  }
+  if (dateFrom) {
+    conditions.push(`mo.order_date >= $${pi++}`);
+    params.push(dateFrom);
+  }
+  if (dateTo) {
+    conditions.push(`mo.order_date <= $${pi++}::date + INTERVAL '1 day'`);
+    params.push(dateTo);
+  }
+  if (search) {
+    conditions.push(`(mo.customer_name ILIKE $${pi} OR mo.customer_email ILIKE $${pi} OR mo.mirakl_order_id ILIKE $${pi})`);
+    params.push(`%${search}%`);
+    pi++;
+  }
+
+  const where = conditions.length > 0 ? 'WHERE ' + conditions.join(' AND ') : '';
+
+  const [ordersResult, countResult] = await Promise.all([
+    pool.query(`
+      SELECT
+        mo.id, mo.mirakl_order_id, mo.order_state, mo.mirakl_order_state,
+        mo.order_date, mo.total_price_cents, mo.total_price_cents / 100.0 as total_price,
+        mo.shipping_price_cents / 100.0 as shipping_price,
+        mo.commission_amount, mo.taxes_total,
+        mo.customer_name, mo.customer_email, mo.customer_phone,
+        mo.shipping_address, mo.acceptance_deadline, mo.shipped_date,
+        mo.customer_id, mo.customer_match_type,
+        mo.created_at, mo.updated_at, mo.last_polled_at,
+        CASE WHEN mo.mirakl_order_state = 'WAITING_ACCEPTANCE' AND mo.acceptance_deadline IS NOT NULL
+          THEN EXTRACT(EPOCH FROM (mo.acceptance_deadline - NOW())) / 3600.0
+          ELSE NULL
+        END as hours_until_deadline,
+        (SELECT COUNT(*) FROM marketplace_order_items oi WHERE oi.order_id = mo.id) as item_count
+      FROM marketplace_orders mo
+      ${where}
+      ORDER BY mo.order_date DESC
+      LIMIT $${pi} OFFSET $${pi + 1}
+    `, [...params, limit, offset]),
+    pool.query(`SELECT COUNT(*) as total FROM marketplace_orders mo ${where}`, params)
+  ]);
+
+  res.json({
+    orders: ordersResult.rows,
+    total: parseInt(countResult.rows[0].total),
+    limit,
+    offset
+  });
+}));
+
+// Get single order with full details
 router.get('/orders/:id', authenticate, asyncHandler(async (req, res) => {
   const { id } = req.params;
 
-  // PERF: Specify columns instead of SELECT * to reduce data transfer
-  const orderQuery = await pool.query(
-    `SELECT id, order_id, order_state, order_date, total_price_cents,
-      customer_name, customer_email, shipping_address, items_count,
-      shipping_carrier, tracking_number, created_at, updated_at
-    FROM marketplace_orders WHERE id = $1`,
-    [id]
-  );
+  const orderResult = await pool.query(`
+    SELECT
+      mo.*,
+      mo.total_price_cents / 100.0 as total_price,
+      mo.shipping_price_cents / 100.0 as shipping_price_dollars,
+      mo.tax_cents / 100.0 as tax_dollars,
+      mo.commission_fee_cents / 100.0 as commission_fee_dollars,
+      CASE WHEN mo.mirakl_order_state = 'WAITING_ACCEPTANCE' AND mo.acceptance_deadline IS NOT NULL
+        THEN EXTRACT(EPOCH FROM (mo.acceptance_deadline - NOW())) / 3600.0
+        ELSE NULL
+      END as hours_until_deadline
+    FROM marketplace_orders mo
+    WHERE mo.id = $1
+  `, [id]);
 
-  if (orderQuery.rows.length === 0) {
+  if (orderResult.rows.length === 0) {
     throw ApiError.notFound('Order');
   }
 
-  // Get order items
-  const itemsQuery = await pool.query(
-    `SELECT oi.*, p.name as product_name, p.manufacturer
-     FROM marketplace_order_items oi
-     LEFT JOIN products p ON oi.product_id = p.id
-     WHERE oi.order_id = $1`,
+  const order = orderResult.rows[0];
+
+  // Items with product details
+  const itemsResult = await pool.query(`
+    SELECT
+      oi.*,
+      oi.unit_price_cents / 100.0 as unit_price_dollars,
+      oi.total_price_cents / 100.0 as total_price_dollars,
+      p.name as product_name, p.sku as internal_sku,
+      p.model, p.manufacturer,
+      p.stock_quantity, p.bestbuy_category_code
+    FROM marketplace_order_items oi
+    LEFT JOIN products p ON oi.product_id = p.id
+    WHERE oi.order_id = $1
+    ORDER BY oi.id
+  `, [id]);
+
+  // Shipments
+  const shipmentsResult = await pool.query(
+    'SELECT * FROM marketplace_shipments WHERE order_id = $1 ORDER BY shipment_date DESC',
     [id]
   );
 
-  // Get shipments
-  const shipmentsQuery = await pool.query(
-    'SELECT * FROM marketplace_shipments WHERE order_id = $1',
-    [id]
-  );
-
-  const order = orderQuery.rows[0];
-  order.items = itemsQuery.rows;
-  order.shipments = shipmentsQuery.rows;
+  // Computed counts
+  const items = itemsResult.rows;
+  order.items = items;
+  order.shipments = shipmentsResult.rows;
+  order.items_accepted = items.filter(i => i.status === 'ACCEPTED').length;
+  order.items_refused = items.filter(i => i.status === 'REFUSED').length;
+  order.items_shipped = items.filter(i => i.status === 'SHIPPED').length;
+  order.items_pending = items.filter(i => i.status === 'PENDING').length;
+  order.items_refunded = items.filter(i => i.status === 'REFUNDED').length;
 
   res.json(order);
 }));
 
-// Pull orders from Mirakl (GET endpoint for frontend button)
-router.get('/pull-orders', authenticate, asyncHandler(async (req, res) => {
-  const miraklOrders = await miraklService.getOrders({
-    order_state_codes: 'WAITING_ACCEPTANCE,SHIPPING,SHIPPED'
-  });
-
-  let imported = 0;
-  let failed = 0;
-
-  for (const miraklOrder of miraklOrders) {
-    try {
-      await miraklService.syncOrderToDatabase(miraklOrder);
-      imported++;
-    } catch (error) {
-      failed++;
-      console.error(`❌ Failed to import order ${miraklOrder.order_id}:`, error.message);
-    }
-  }
-
-  res.json({
-    success: true,
-    imported: imported,
-    failed: failed,
-    total: miraklOrders.length
-  });
-}));
-
-// Sync orders from Mirakl (with database transaction support)
-router.post('/orders/sync', authenticate, validateJoi(marketplaceSchemas.orderSync), asyncHandler(async (req, res) => {
-  const client = await pool.connect();
-  const syncStartTime = new Date();
-
-  try {
-    const { start_date, order_state_codes } = req.body;
-
-    // Start transaction
-    await client.query('BEGIN');
-
-    // Log sync start
-    const syncLogResult = await client.query(`
-      INSERT INTO marketplace_sync_log
-      (sync_type, sync_direction, entity_type, status, sync_start_time)
-      VALUES ('order', 'inbound', 'order', 'in_progress', $1)
-      RETURNING id
-    `, [syncStartTime]);
-    const syncLogId = syncLogResult.rows[0].id;
-
-    // Fetch orders from Mirakl
-    const miraklOrders = await miraklService.getOrders({
-      start_date,
-      order_state_codes
-    });
-
-    const results = {
-      total: miraklOrders.length,
-      succeeded: 0,
-      failed: 0,
-      errors: []
-    };
-
-    // Sync each order to database within the transaction
-    for (const miraklOrder of miraklOrders) {
-      try {
-        await miraklService.syncOrderToDatabase(miraklOrder, client);
-        results.succeeded++;
-      } catch (error) {
-        results.failed++;
-        results.errors.push({
-          order_id: miraklOrder.order_id,
-          error: error.message
-        });
-        // Log individual order error but continue processing
-        console.error(`⚠️ Failed to sync order ${miraklOrder.order_id}:`, error.message);
-      }
-    }
-
-    const syncEndTime = new Date();
-    const durationMs = syncEndTime - syncStartTime;
-
-    // Update sync log with results
-    await client.query(`
-      UPDATE marketplace_sync_log
-      SET status = $1,
-          records_processed = $2,
-          records_succeeded = $3,
-          records_failed = $4,
-          sync_end_time = $5,
-          duration_ms = $6,
-          error_details = $7
-      WHERE id = $8
-    `, [
-      results.failed > 0 && results.succeeded === 0 ? 'FAILED' : 'SUCCESS',
-      results.total,
-      results.succeeded,
-      results.failed,
-      syncEndTime,
-      durationMs,
-      results.errors.length > 0 ? JSON.stringify(results.errors) : null,
-      syncLogId
-    ]);
-
-    // Commit transaction
-    await client.query('COMMIT');
-
-    res.json({
-      ...results,
-      sync_id: syncLogId,
-      duration_ms: durationMs
-    });
-  } catch (err) {
-    await client.query('ROLLBACK');
-    throw err;
-  } finally {
-    client.release();
-  }
-}));
-
-// Accept an order
+// Accept or refuse order lines
 router.post('/orders/:id/accept', authenticate, asyncHandler(async (req, res) => {
   const { id } = req.params;
+  const { lines } = req.body;
 
-  // Get order from database
-  const orderQuery = await pool.query(
+  if (!lines || !Array.isArray(lines) || lines.length === 0) {
+    throw ApiError.badRequest('lines array is required');
+  }
+
+  // Get order
+  const orderResult = await pool.query(
     'SELECT * FROM marketplace_orders WHERE id = $1',
     [id]
   );
+  if (orderResult.rows.length === 0) throw ApiError.notFound('Order');
+  const order = orderResult.rows[0];
 
-  if (orderQuery.rows.length === 0) {
-    throw ApiError.notFound('Order');
+  const currentState = (order.mirakl_order_state || order.order_state || '').toUpperCase();
+  if (currentState !== 'WAITING_ACCEPTANCE') {
+    throw ApiError.badRequest(`Order is in state ${currentState}, expected WAITING_ACCEPTANCE`);
   }
 
-  const order = orderQuery.rows[0];
-
-  // Accept order on Mirakl
-  const orderLines = order.order_lines.map(line => ({ id: line.order_line_id }));
-  await miraklService.acceptOrder(order.mirakl_order_id, orderLines);
-
-  // Update order status in database
-  await pool.query(
-    `UPDATE marketplace_orders
-     SET order_state = 'SHIPPING', acceptance_decision_date = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP
-     WHERE id = $1`,
+  // Validate all lineIds exist for this order
+  const orderItems = await pool.query(
+    'SELECT mirakl_order_line_id FROM marketplace_order_items WHERE order_id = $1',
     [id]
   );
+  const validLineIds = new Set(orderItems.rows.map(r => r.mirakl_order_line_id));
+  for (const line of lines) {
+    if (!validLineIds.has(line.lineId)) {
+      throw ApiError.badRequest(`Line ID ${line.lineId} not found on this order`);
+    }
+  }
 
-  res.json({ message: 'Order accepted successfully' });
+  // Call Mirakl API
+  const miraklLines = lines.map(l => ({
+    id: l.lineId,
+    accepted: l.accepted,
+    reason_code: l.reason || undefined
+  }));
+  const data = await miraklService.acceptOrderLines(order.mirakl_order_id, miraklLines);
+
+  // For accepted lines on marketplace_enabled products, decrement inventory
+  const acceptedLineIds = lines.filter(l => l.accepted).map(l => l.lineId);
+  if (acceptedLineIds.length > 0) {
+    const acceptedItems = await pool.query(
+      `SELECT oi.product_id, oi.quantity
+       FROM marketplace_order_items oi
+       WHERE oi.order_id = $1 AND oi.mirakl_order_line_id = ANY($2) AND oi.product_id IS NOT NULL`,
+      [id, acceptedLineIds]
+    );
+    for (const item of acceptedItems.rows) {
+      const _stockRes = await pool.query(
+        `UPDATE products SET stock_quantity = GREATEST(0, COALESCE(stock_quantity, 0) - $1)
+         WHERE id = $2 AND marketplace_enabled = true RETURNING stock_quantity, sku`,
+        [item.quantity, item.product_id]
+      );
+      // Queue marketplace inventory sync (non-blocking)
+      try {
+        if (_stockRes.rows.length > 0) {
+          const _newQty = _stockRes.rows[0].stock_quantity ?? 0;
+          await miraklService.queueInventoryChange(item.product_id, _stockRes.rows[0].sku, _newQty + item.quantity, _newQty, 'ORDER_ACCEPT');
+        }
+      } catch (queueErr) {
+        console.error('[MarketplaceQueue] ORDER_ACCEPT queue error:', queueErr.message);
+      }
+    }
+  }
+
+  // Fetch updated order
+  const updated = await pool.query('SELECT * FROM marketplace_orders WHERE id = $1', [id]);
+  res.json({ success: true, order: updated.rows[0], miraklResponse: data });
 }));
 
-// Refuse an order
+// Refuse an order (all lines)
 router.post('/orders/:id/refuse', authenticate, asyncHandler(async (req, res) => {
   const { id } = req.params;
   const { reason } = req.body;
 
-  // Get order from database
-  const orderQuery = await pool.query(
-    'SELECT * FROM marketplace_orders WHERE id = $1',
+  const orderResult = await pool.query('SELECT * FROM marketplace_orders WHERE id = $1', [id]);
+  if (orderResult.rows.length === 0) throw ApiError.notFound('Order');
+  const order = orderResult.rows[0];
+
+  // Build refuse lines for all items
+  const items = await pool.query(
+    'SELECT mirakl_order_line_id FROM marketplace_order_items WHERE order_id = $1',
     [id]
   );
+  const miraklLines = items.rows.map(i => ({
+    id: i.mirakl_order_line_id,
+    accepted: false,
+    reason_code: reason || 'OUT_OF_STOCK'
+  }));
 
-  if (orderQuery.rows.length === 0) {
-    throw ApiError.notFound('Order');
-  }
+  await miraklService.acceptOrderLines(order.mirakl_order_id, miraklLines);
 
-  const order = orderQuery.rows[0];
-
-  // Refuse order on Mirakl
-  const orderLines = order.order_lines.map(line => ({ id: line.order_line_id }));
-  await miraklService.refuseOrder(order.mirakl_order_id, orderLines, reason);
-
-  // Update order status in database
   await pool.query(
     `UPDATE marketplace_orders
-     SET order_state = 'REFUSED', canceled_date = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP
+     SET order_state = 'REFUSED', mirakl_order_state = 'REFUSED',
+         canceled_date = NOW(), updated_at = CURRENT_TIMESTAMP
      WHERE id = $1`,
     [id]
   );
 
-  res.json({ message: 'Order refused successfully' });
+  res.json({ success: true, message: 'Order refused successfully' });
 }));
 
 // ============================================
 // SHIPMENTS
 // ============================================
 
-// Create shipment for an order
-router.post('/orders/:id/shipments', authenticate, validateJoi(marketplaceSchemas.shipment), asyncHandler(async (req, res) => {
+// Ship an order — add tracking + confirm shipment
+router.post('/orders/:id/ship', authenticate, asyncHandler(async (req, res) => {
   const { id } = req.params;
-  const { tracking_number, carrier_code, carrier_name, shipped_items } = req.body;
+  const { trackingNumber, carrierCode, carrierName, carrierUrl } = req.body;
 
-  // Get order
-  const orderQuery = await pool.query(
-    'SELECT * FROM marketplace_orders WHERE id = $1',
-    [id]
-  );
-
-  if (orderQuery.rows.length === 0) {
-    throw ApiError.notFound('Order');
+  if (!trackingNumber) {
+    throw ApiError.badRequest('trackingNumber is required');
   }
 
-  const order = orderQuery.rows[0];
+  const orderResult = await pool.query('SELECT * FROM marketplace_orders WHERE id = $1', [id]);
+  if (orderResult.rows.length === 0) throw ApiError.notFound('Order');
+  const order = orderResult.rows[0];
 
-  // Create shipment on Mirakl
-  await miraklService.createShipment({
-    order_id: order.mirakl_order_id,
-    tracking_number,
-    carrier_code,
-    carrier_name,
-    shipped_items
-  });
+  const currentState = (order.mirakl_order_state || order.order_state || '').toUpperCase();
+  if (currentState !== 'SHIPPING') {
+    throw ApiError.badRequest(`Order is in state ${currentState}, expected SHIPPING`);
+  }
 
-  // Save shipment to database
-  const result = await pool.query(
+  // 1. Update tracking on Mirakl
+  await miraklService.updateTracking(order.mirakl_order_id, trackingNumber, carrierCode, carrierName, carrierUrl);
+
+  // 2. Confirm shipment on Mirakl
+  await miraklService.confirmShipment(order.mirakl_order_id);
+
+  // 3. Save shipment record locally
+  const shipment = await pool.query(
     `INSERT INTO marketplace_shipments
-     (order_id, tracking_number, carrier_code, carrier_name, shipment_date, shipment_status, shipped_items)
-     VALUES ($1, $2, $3, $4, CURRENT_TIMESTAMP, 'SHIPPED', $5)
+     (order_id, tracking_number, carrier_code, carrier_name, shipment_date, shipment_status)
+     VALUES ($1, $2, $3, $4, NOW(), 'SHIPPED')
      RETURNING *`,
-    [id, tracking_number, carrier_code, carrier_name, JSON.stringify(shipped_items)]
+    [id, trackingNumber, carrierCode || null, carrierName || carrierCode || 'Other']
   );
 
-  // Update order status
-  await pool.query(
-    `UPDATE marketplace_orders
-     SET order_state = 'SHIPPED', shipped_date = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP
-     WHERE id = $1`,
+  res.status(201).json({ success: true, shipment: shipment.rows[0] });
+}));
+
+// Legacy shipments endpoint — kept for backward compatibility
+router.post('/orders/:id/shipments', authenticate, asyncHandler(async (req, res) => {
+  const { id } = req.params;
+  const { tracking_number, carrier_code, carrier_name } = req.body;
+
+  const orderResult = await pool.query('SELECT * FROM marketplace_orders WHERE id = $1', [id]);
+  if (orderResult.rows.length === 0) throw ApiError.notFound('Order');
+  const order = orderResult.rows[0];
+
+  await miraklService.updateTracking(order.mirakl_order_id, tracking_number, carrier_code, carrier_name);
+  await miraklService.confirmShipment(order.mirakl_order_id);
+
+  const shipment = await pool.query(
+    `INSERT INTO marketplace_shipments
+     (order_id, tracking_number, carrier_code, carrier_name, shipment_date, shipment_status)
+     VALUES ($1, $2, $3, $4, NOW(), 'SHIPPED')
+     RETURNING *`,
+    [id, tracking_number, carrier_code || null, carrier_name || carrier_code || 'Other']
+  );
+
+  res.status(201).json(shipment.rows[0]);
+}));
+
+// Process refund on order lines
+router.post('/orders/:id/refund', authenticate, asyncHandler(async (req, res) => {
+  const { id } = req.params;
+  const { lines } = req.body;
+
+  if (!lines || !Array.isArray(lines) || lines.length === 0) {
+    throw ApiError.badRequest('lines array is required');
+  }
+
+  const orderResult = await pool.query('SELECT * FROM marketplace_orders WHERE id = $1', [id]);
+  if (orderResult.rows.length === 0) throw ApiError.notFound('Order');
+  const order = orderResult.rows[0];
+
+  // Validate refund amounts don't exceed original line amounts
+  const orderItems = await pool.query(
+    'SELECT mirakl_order_line_id, line_total, unit_price, quantity FROM marketplace_order_items WHERE order_id = $1',
     [id]
   );
+  const itemMap = new Map(orderItems.rows.map(r => [r.mirakl_order_line_id, r]));
 
-  res.status(201).json(result.rows[0]);
+  for (const line of lines) {
+    const item = itemMap.get(line.lineId);
+    if (!item) {
+      throw ApiError.badRequest(`Line ID ${line.lineId} not found on this order`);
+    }
+    const maxAmount = parseFloat(item.line_total || item.unit_price * item.quantity || 0);
+    if (line.amount > maxAmount) {
+      throw ApiError.badRequest(`Refund amount ${line.amount} exceeds line total ${maxAmount} for line ${line.lineId}`);
+    }
+  }
+
+  const refunds = lines.map(l => ({
+    order_line_id: l.lineId,
+    amount: l.amount,
+    reason_code: l.reason || 'PRODUCT_RETURNED',
+    shipping_amount: l.shippingAmount || 0
+  }));
+
+  const data = await miraklService.processRefund(order.mirakl_order_id, refunds);
+
+  const updated = await pool.query('SELECT * FROM marketplace_orders WHERE id = $1', [id]);
+  res.json({ success: true, order: updated.rows[0], miraklResponse: data });
 }));
 
 // ============================================
 // PRODUCT SYNC
 // ============================================
+
+// Bulk push marketplace-enabled offers to Mirakl (OF01)
+router.post('/offers/bulk-push', authenticate, asyncHandler(async (req, res) => {
+  const columns = await getProductsColumns();
+  const upcCol = pickFirstColumn(columns, ['upc', 'barcode', 'ean', 'gtin']);
+  if (!upcCol) {
+    throw ApiError.badRequest('No UPC/barcode column found on products table');
+  }
+  const stockCol = pickFirstColumn(columns, ['stock_quantity', 'qty_on_hand', 'quantity_in_stock', 'stock', 'quantity', 'qty_available']);
+
+  const selectCols = [
+    'id',
+    'name',
+    'description',
+    'sku',
+    'price',
+    'msrp_cents',
+    'marketplace_enabled',
+    'bestbuy_category_id',
+    'bestbuy_logistic_class',
+    'bestbuy_min_quantity_alert',
+    'bestbuy_leadtime_to_ship',
+    'bestbuy_product_tax_code',
+    'marketplace_discount_price',
+    'marketplace_discount_start',
+    'marketplace_discount_end',
+    stockCol ? `${stockCol} AS stock_quantity` : '0::integer AS stock_quantity',
+    `${upcCol} AS upc`
+  ];
+
+  const productsQuery = await pool.query(
+    `SELECT ${selectCols.join(', ')}
+     FROM products
+     WHERE marketplace_enabled = true
+       AND bestbuy_category_id IS NOT NULL
+       AND ${upcCol} IS NOT NULL`
+  );
+
+  const products = productsQuery.rows;
+  if (products.length === 0) {
+    return res.json({ success: true, importId: null, productsSubmitted: 0 });
+  }
+
+  const csvString = miraklService.generateOfferCSV(products);
+  const uploadResult = await miraklService.uploadOfferCSV(csvString);
+  const importId = uploadResult?.import_id || uploadResult?.import?.import_id || null;
+
+  await pool.query(
+    `UPDATE products
+     SET mirakl_last_offer_sync = NOW()
+     WHERE id = ANY($1)`,
+    [products.map(p => p.id)]
+  );
+
+  res.json({
+    success: true,
+    importId,
+    productsSubmitted: products.length
+  });
+}));
+
+// Push or update a single offer (OF24)
+router.post('/offers/push-single/:productId', authenticate, asyncHandler(async (req, res) => {
+  const { productId } = req.params;
+  const columns = await getProductsColumns();
+  const upcCol = pickFirstColumn(columns, ['upc', 'barcode', 'ean', 'gtin']);
+  if (!upcCol) {
+    throw ApiError.badRequest('No UPC/barcode column found on products table');
+  }
+  const stockCol = pickFirstColumn(columns, ['stock_quantity', 'qty_on_hand', 'quantity_in_stock', 'stock', 'quantity', 'qty_available']);
+
+  const selectCols = [
+    'id',
+    'name',
+    'description',
+    'sku',
+    'price',
+    'msrp_cents',
+    'marketplace_enabled',
+    'bestbuy_category_id',
+    'bestbuy_logistic_class',
+    'bestbuy_min_quantity_alert',
+    'bestbuy_leadtime_to_ship',
+    'bestbuy_product_tax_code',
+    'marketplace_discount_price',
+    'marketplace_discount_start',
+    'marketplace_discount_end',
+    stockCol ? `${stockCol} AS stock_quantity` : '0::integer AS stock_quantity',
+    `${upcCol} AS upc`
+  ];
+
+  const productQuery = await pool.query(
+    `SELECT ${selectCols.join(', ')} FROM products WHERE id = $1`,
+    [productId]
+  );
+
+  if (productQuery.rows.length === 0) {
+    throw ApiError.notFound('Product');
+  }
+
+  const product = productQuery.rows[0];
+  if (!product.marketplace_enabled) {
+    throw ApiError.badRequest('Product is not marketplace-enabled');
+  }
+  if (!product.bestbuy_category_id) {
+    throw ApiError.badRequest('Product is missing bestbuy_category_id');
+  }
+  if (!product.upc) {
+    throw ApiError.badRequest('Product is missing UPC/barcode');
+  }
+
+  await miraklService.updateSingleOffer(product);
+
+  res.json({
+    success: true,
+    productName: product.name,
+    sku: product.sku
+  });
+}));
+
+// Check status of an offer import
+router.get('/offers/import-status/:importId', authenticate, asyncHandler(async (req, res) => {
+  const { importId } = req.params;
+  const importQuery = await pool.query(
+    'SELECT * FROM marketplace_offer_imports WHERE import_id = $1',
+    [importId]
+  );
+
+  if (importQuery.rows.length === 0) {
+    throw ApiError.notFound('Import');
+  }
+
+  const record = importQuery.rows[0];
+  if (!['COMPLETE', 'COMPLETED', 'FAILED'].includes((record.status || '').toUpperCase())) {
+    await miraklService.checkImportStatus(record.mirakl_import_id);
+  }
+
+  const refreshed = await pool.query(
+    'SELECT * FROM marketplace_offer_imports WHERE import_id = $1',
+    [importId]
+  );
+
+  res.json({
+    success: true,
+    import: refreshed.rows[0]
+  });
+}));
+
+// Reconcile our offers against Mirakl
+router.get('/offers/reconcile', authenticate, asyncHandler(async (req, res) => {
+  const columns = await getProductsColumns();
+  const stockCol = pickFirstColumn(columns, ['stock_quantity', 'qty_on_hand', 'quantity_in_stock', 'stock', 'quantity', 'qty_available']);
+
+  const productsQuery = await pool.query(
+    `SELECT id, sku, price, msrp_cents, bestbuy_logistic_class, bestbuy_leadtime_to_ship,
+            ${stockCol ? `${stockCol} AS stock_quantity` : '0::integer AS stock_quantity'}
+     FROM products
+     WHERE marketplace_enabled = true AND sku IS NOT NULL`
+  );
+  const products = productsQuery.rows;
+
+  const offers = await miraklService.getOfferList({
+    offset: req.query.offset ? parseInt(req.query.offset, 10) : 0,
+    max: req.query.max ? parseInt(req.query.max, 10) : 100
+  });
+
+  const offerBySku = new Map();
+  for (const offer of offers) {
+    const sku = offer.shop_sku || offer.sku || offer.offer_sku;
+    if (sku) offerBySku.set(String(sku), offer);
+  }
+
+  const matched = [];
+  const mismatched = [];
+  const missing = [];
+
+  for (const product of products) {
+    const sku = String(product.sku);
+    const offer = offerBySku.get(sku);
+    if (!offer) {
+      missing.push(sku);
+      continue;
+    }
+
+    matched.push(sku);
+
+    const ourPrice = parseFloat(product.price || (product.msrp_cents ? product.msrp_cents / 100 : 0)) || 0;
+    const ourQty = parseInt(product.stock_quantity || 0, 10);
+    const ourLogistic = product.bestbuy_logistic_class || 'L';
+    const ourLeadtime = product.bestbuy_leadtime_to_ship != null ? product.bestbuy_leadtime_to_ship : 2;
+
+    if (offer.price != null && parseFloat(offer.price) !== ourPrice) {
+      mismatched.push({ sku, field: 'price', ours: ourPrice, theirs: offer.price });
+    }
+    if (offer.quantity != null && parseInt(offer.quantity, 10) !== ourQty) {
+      mismatched.push({ sku, field: 'quantity', ours: ourQty, theirs: offer.quantity });
+    }
+    if (offer.logistic_class && offer.logistic_class !== ourLogistic) {
+      mismatched.push({ sku, field: 'logistic_class', ours: ourLogistic, theirs: offer.logistic_class });
+    }
+    if (offer.leadtime_to_ship != null && parseInt(offer.leadtime_to_ship, 10) !== ourLeadtime) {
+      mismatched.push({ sku, field: 'leadtime_to_ship', ours: ourLeadtime, theirs: offer.leadtime_to_ship });
+    }
+  }
+
+  const missingSet = new Set(missing);
+  const orphaned = [];
+  for (const sku of offerBySku.keys()) {
+    if (!missingSet.has(sku) && !matched.includes(sku)) {
+      orphaned.push(sku);
+    }
+  }
+
+  res.json({
+    matched,
+    mismatched,
+    orphaned,
+    missing
+  });
+}));
+
+// Bulk enable/disable marketplace
+router.post('/offers/enable', authenticate, asyncHandler(async (req, res) => {
+  const { productIds, enabled } = req.body;
+  if (!Array.isArray(productIds) || productIds.length === 0) {
+    throw ApiError.badRequest('productIds array is required');
+  }
+  if (enabled === undefined) {
+    throw ApiError.badRequest('enabled is required');
+  }
+
+  const result = await pool.query(
+    `UPDATE products SET marketplace_enabled = $2 WHERE id = ANY($1)`,
+    [productIds, enabled]
+  );
+
+  res.json({ updated: result.rowCount });
+}));
 
 // Sync all active products to Mirakl (inventory sync)
 router.post('/sync-offers', authenticate, asyncHandler(async (req, res) => {
@@ -501,9 +882,18 @@ router.post('/products/set-default-stock', authenticate, asyncHandler(async (req
     params.push(manufacturer);
   }
 
-  query += ' RETURNING id';
+  query += ' RETURNING id, sku';
 
   const result = await pool.query(query, params);
+
+  // Queue marketplace inventory changes for all updated products (non-blocking)
+  for (const row of result.rows) {
+    try {
+      await miraklService.queueInventoryChange(row.id, row.sku, 0, default_stock, 'MANUAL_ADJUST');
+    } catch (queueErr) {
+      console.error('[MarketplaceQueue] MANUAL_ADJUST (set-default-stock) queue error:', queueErr.message);
+    }
+  }
 
   res.json({
     success: true,
@@ -2864,6 +3254,140 @@ router.get('/inventory-products', authenticate, asyncHandler(async (req, res) =>
     limit: parseInt(limit),
     global_buffer: globalBuffer
   });
+}));
+
+// ============================================
+// INVENTORY SYNC MANAGEMENT
+// ============================================
+
+// Trigger immediate batch inventory sync to Best Buy
+router.post('/inventory/sync-now', authenticate, asyncHandler(async (req, res) => {
+  const result = await miraklService.processInventoryBatch();
+  res.json({
+    success: true,
+    processed: result.processed,
+    importId: result.importId || null,
+    syncTime: new Date()
+  });
+}));
+
+// Show pending inventory changes waiting to sync
+router.get('/inventory/queue-status', authenticate, asyncHandler(async (req, res) => {
+  const [pendingResult, lastSyncResult] = await Promise.all([
+    pool.query(`
+      SELECT
+        COUNT(*) as pending_changes,
+        MIN(queued_at) as oldest_pending
+      FROM marketplace_inventory_queue
+      WHERE synced_at IS NULL
+    `),
+    pool.query(`
+      SELECT submitted_at as last_sync
+      FROM marketplace_offer_imports
+      WHERE import_type = 'STOCK'
+      ORDER BY submitted_at DESC
+      LIMIT 1
+    `)
+  ]);
+
+  res.json({
+    pendingChanges: parseInt(pendingResult.rows[0].pending_changes) || 0,
+    oldestPending: pendingResult.rows[0].oldest_pending || null,
+    lastSync: lastSyncResult.rows[0]?.last_sync || null
+  });
+}));
+
+// Compare our stock vs Best Buy's stock levels
+router.get('/inventory/drift-check', authenticate, asyncHandler(async (req, res) => {
+  const drift = await miraklService.getInventoryDrift();
+  res.json(drift);
+}));
+
+// Push ALL inventory to Best Buy (emergency/initial sync)
+router.post('/inventory/force-full-sync', authenticate, asyncHandler(async (req, res) => {
+  if (!req.body.confirm) {
+    throw ApiError.badRequest('Must include { confirm: true } to force a full inventory sync');
+  }
+
+  const result = await miraklService.forceFullInventorySync();
+  res.json({
+    success: true,
+    ...result
+  });
+}));
+
+// Get polling job status
+router.get('/polling-status', authenticate, asyncHandler(async (req, res) => {
+  try {
+    const marketplaceJobs = require('../jobs/marketplaceJobs');
+    res.json(marketplaceJobs.getPollingStatus());
+  } catch (err) {
+    res.json({ enabled: false, jobs: [], error: 'Polling module not available' });
+  }
+}));
+
+// Manually trigger a polling job
+router.post('/polling/run/:jobName', authenticate, asyncHandler(async (req, res) => {
+  const marketplaceJobs = require('../jobs/marketplaceJobs');
+  const result = await marketplaceJobs.runJobNow(req.params.jobName);
+  res.json({ success: true, result });
+}));
+
+// Get offers/products for Offers tab (includes marketplace_enabled, mirakl state, UPC)
+router.get('/offers/products', authenticate, asyncHandler(async (req, res) => {
+  const { page = 1, limit = 50, search = '', enabled_only } = req.query;
+  const offset = (parseInt(page) - 1) * parseInt(limit);
+  const params = [];
+  let paramIndex = 1;
+  let where = 'WHERE p.bestbuy_category_id IS NOT NULL OR p.marketplace_enabled = true';
+
+  if (search) {
+    where += ` AND (p.name ILIKE $${paramIndex} OR p.model ILIKE $${paramIndex} OR p.sku ILIKE $${paramIndex} OR p.upc ILIKE $${paramIndex})`;
+    params.push(`%${search}%`);
+    paramIndex++;
+  }
+  if (enabled_only === 'true') {
+    where += ' AND p.marketplace_enabled = true';
+  }
+
+  const dataQuery = `
+    SELECT p.id, p.name, p.model, p.sku, p.upc, p.price, p.cost,
+      COALESCE(p.stock_quantity, 0) as stock_quantity,
+      p.bestbuy_category_id, p.marketplace_enabled,
+      p.mirakl_offer_state, p.mirakl_last_offer_sync,
+      p.manufacturer, p.category
+    FROM products p
+    ${where}
+    ORDER BY p.marketplace_enabled DESC NULLS LAST, p.name ASC
+    LIMIT $${paramIndex} OFFSET $${paramIndex + 1}
+  `;
+  params.push(parseInt(limit), offset);
+
+  const countQuery = `SELECT COUNT(*) as total FROM products p ${where}`;
+
+  const [dataResult, countResult] = await Promise.all([
+    pool.query(dataQuery, params),
+    pool.query(countQuery, params.slice(0, -2))
+  ]);
+
+  res.json({
+    products: dataResult.rows,
+    total: parseInt(countResult.rows[0]?.total || 0),
+    page: parseInt(page),
+    limit: parseInt(limit)
+  });
+}));
+
+// Get recent offer imports for Offers tab
+router.get('/offers/recent-imports', authenticate, asyncHandler(async (req, res) => {
+  const result = await pool.query(`
+    SELECT id, mirakl_import_id, import_type, status, records_processed,
+      records_with_errors, submitted_at, completed_at
+    FROM marketplace_offer_imports
+    ORDER BY submitted_at DESC
+    LIMIT 10
+  `);
+  res.json(result.rows);
 }));
 
 // ============================================

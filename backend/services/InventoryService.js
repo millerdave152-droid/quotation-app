@@ -3,6 +3,8 @@
  * Handles inventory reservations, stock tracking, and availability
  */
 
+const miraklService = require('./miraklService');
+
 class InventoryService {
   constructor(pool, cache) {
     this.pool = pool;
@@ -252,12 +254,13 @@ class InventoryService {
         notFound: [],
         errors: []
       };
+      const _erpQueue = [];
 
       for (const product of products) {
         try {
           // Find product by model
           const findResult = await client.query(`
-            SELECT id, qty_on_hand FROM products WHERE model = $1
+            SELECT id, sku, qty_on_hand FROM products WHERE model = $1
           `, [product.model]);
 
           if (findResult.rows.length === 0) {
@@ -267,6 +270,7 @@ class InventoryService {
 
           const productId = findResult.rows[0].id;
           const oldQty = findResult.rows[0].qty_on_hand;
+          const productSku = findResult.rows[0].sku;
 
           // Update stock
           await client.query(`
@@ -296,6 +300,7 @@ class InventoryService {
               'system',
               client
             );
+            _erpQueue.push({ productId, sku: productSku, oldQty: oldQty || 0, newQty: product.qty_on_hand, source: 'RECEIVING' });
           }
 
           results.updated++;
@@ -312,6 +317,15 @@ class InventoryService {
       `, [source, products.length, results.updated, results.errors.length, JSON.stringify({ notFound: results.notFound })]);
 
       await client.query('COMMIT');
+
+      // Queue marketplace inventory changes (non-blocking, after commit)
+      for (const qi of _erpQueue) {
+        try {
+          await miraklService.queueInventoryChange(qi.productId, qi.sku, qi.oldQty, qi.newQty, qi.source);
+        } catch (queueErr) {
+          console.error('[MarketplaceQueue] RECEIVING (ERP sync) queue error:', queueErr.message);
+        }
+      }
 
       // Invalidate cache
       this.cache?.invalidatePattern('inventory:*');
@@ -487,7 +501,7 @@ class InventoryService {
 
       // Get current quantity
       const current = await client.query(`
-        SELECT qty_on_hand FROM products WHERE id = $1
+        SELECT qty_on_hand, sku FROM products WHERE id = $1
       `, [productId]);
 
       if (current.rows.length === 0) {
@@ -495,6 +509,7 @@ class InventoryService {
       }
 
       const oldQty = current.rows[0].qty_on_hand || 0;
+      const productSku = current.rows[0].sku;
       const difference = newQuantity - oldQty;
 
       // Update quantity
@@ -515,6 +530,13 @@ class InventoryService {
       );
 
       await client.query('COMMIT');
+
+      // Queue marketplace inventory change (non-blocking, after commit)
+      try {
+        await miraklService.queueInventoryChange(productId, productSku, oldQty, newQuantity, 'MANUAL_ADJUST');
+      } catch (queueErr) {
+        console.error('[MarketplaceQueue] MANUAL_ADJUST queue error:', queueErr.message);
+      }
 
       // Invalidate cache
       this.cache?.invalidatePattern(`inventory:availability:${productId}`);

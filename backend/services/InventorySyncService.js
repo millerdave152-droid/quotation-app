@@ -9,6 +9,8 @@
  * - Audit logging
  */
 
+const miraklService = require('./miraklService');
+
 class InventorySyncService {
   constructor(pool, cache = null) {
     this.pool = pool;
@@ -864,7 +866,7 @@ class InventorySyncService {
 
       // Get current quantities
       const current = await client.query(`
-        SELECT qty_on_hand, qty_reserved
+        SELECT qty_on_hand, qty_reserved, sku
         FROM products WHERE id = $1 FOR UPDATE
       `, [productId]);
 
@@ -875,6 +877,7 @@ class InventorySyncService {
 
       const qtyBefore = current.rows[0].qty_on_hand;
       const reservedBefore = current.rows[0].qty_reserved;
+      const productSku = current.rows[0].sku;
 
       // Update product
       await client.query(`
@@ -918,6 +921,14 @@ class InventorySyncService {
       ]);
 
       await client.query('COMMIT');
+
+      // Queue marketplace inventory change (non-blocking, after commit)
+      try {
+        await miraklService.queueInventoryChange(productId, productSku, qtyBefore, qtyBefore + quantity, 'RECEIVING');
+      } catch (queueErr) {
+        console.error('[MarketplaceQueue] RECEIVING queue error:', queueErr.message);
+      }
+
       await this._invalidateCache(productId);
 
       return {

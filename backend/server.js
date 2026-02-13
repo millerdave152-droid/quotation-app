@@ -3054,6 +3054,17 @@ const server = app.listen(PORT, () => {
     clvCalculationJob.start(process.env.CLV_JOB_SCHEDULE || '30 2 * * *');
     console.log('✅ CLV calculation job started (Daily 2:30 AM)');
   }
+
+  // Start marketplace polling jobs (order sync, inventory push, import checks, deadline monitor)
+  try {
+    const marketplaceJobs = require('./jobs/marketplaceJobs');
+    if (process.env.MARKETPLACE_POLLING_ENABLED === 'true' && process.env.MIRAKL_API_KEY) {
+      marketplaceJobs.startPolling();
+      console.log('✅ Marketplace polling started');
+    }
+  } catch (err) {
+    console.warn('⚠️  Marketplace polling skipped:', err.message);
+  }
 });
 
 // Handle server errors
