@@ -244,6 +244,16 @@ const fraudService = new FraudDetectionService(pool);
 app.set('fraudService', fraudService);
 const discountAuthorityService = new DiscountAuthorityService(pool);
 
+// Expire stale pending discount escalations every 5 minutes
+setInterval(async () => {
+  try {
+    const expired = await discountAuthorityService.expireStalePendingEscalations();
+    if (expired.length > 0) console.log(`[EscalationExpiry] Expired ${expired.length} pending escalations`);
+  } catch (err) {
+    console.error('[EscalationExpiry] Error:', err.message);
+  }
+}, 5 * 60 * 1000);
+
 console.log('✅ Enterprise services initialized');
 
 // ============================================
@@ -700,7 +710,7 @@ console.log('✅ Quotation routes loaded (modular)');
 // POS TRANSACTIONS (TeleTime POS)
 // ============================================
 const { init: initTransactionsRoutes } = require('./routes/transactions');
-app.use('/api/transactions', initTransactionsRoutes({ pool, cache }));
+app.use('/api/transactions', initTransactionsRoutes({ pool, cache, discountAuthorityService }));
 console.log('✅ POS transactions routes loaded');
 
 // POS RETURNS

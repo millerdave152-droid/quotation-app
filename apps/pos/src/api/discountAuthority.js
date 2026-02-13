@@ -48,6 +48,13 @@ export async function submitEscalation(data) {
 }
 
 /**
+ * Get the current user's own escalations (pending + resolved within 24h)
+ */
+export async function getMyEscalations() {
+  return api.get('/discount-escalations/mine');
+}
+
+/**
  * Get all pending escalation requests (manager+ only)
  */
 export async function getPendingEscalations() {

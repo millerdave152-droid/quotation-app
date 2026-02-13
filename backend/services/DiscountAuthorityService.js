@@ -469,8 +469,8 @@ class DiscountAuthorityService {
     const result = await this.pool.query(
       `INSERT INTO discount_escalations
         (requesting_employee_id, product_id, requested_discount_pct, reason,
-         margin_after_discount, commission_impact)
-       VALUES ($1, $2, $3, $4, $5, $6)
+         margin_after_discount, commission_impact, expires_at)
+       VALUES ($1, $2, $3, $4, $5, $6, NOW() + INTERVAL '2 hours')
        RETURNING *`,
       [employeeId, productId, discountPct, reason || null, marginAfter, commissionImpact]
     );
@@ -539,6 +539,32 @@ class DiscountAuthorityService {
   }
 
   /**
+   * Get escalations for a specific employee (their own requests).
+   * Returns all pending + any approved/denied within the last 24 hours.
+   */
+  async getMyEscalations(employeeId) {
+    const result = await this.pool.query(
+      `SELECT de.*, de.used_in_transaction_id, de.expires_at,
+              p.name AS product_name, p.sku AS product_sku,
+              r.first_name || ' ' || r.last_name AS reviewer_name
+       FROM discount_escalations de
+       LEFT JOIN products p ON p.id = de.product_id
+       LEFT JOIN users r ON r.id = de.reviewed_by
+       WHERE de.requesting_employee_id = $1
+         AND (
+           de.status = 'pending'
+           OR (
+             de.status IN ('approved', 'denied', 'expired')
+             AND COALESCE(de.reviewed_at, de.created_at) >= NOW() - INTERVAL '24 hours'
+           )
+         )
+       ORDER BY de.created_at DESC`,
+      [employeeId]
+    );
+    return result.rows;
+  }
+
+  /**
    * Get escalation by ID with employee + product info
    */
   async getEscalationById(id) {
@@ -587,6 +613,155 @@ class DiscountAuthorityService {
       [managerId, reason, escalationId]
     );
     return result.rows[0] || null;
+  }
+
+  // ============================================================================
+  // TRANSACTION ENFORCEMENT METHODS
+  // ============================================================================
+
+  /**
+   * Validate all discounts in a transaction before checkout.
+   * For each item with a discount, checks tier authority or approved escalation.
+   * For cart-level discount, requires unrestricted tier (manager/admin).
+   *
+   * @returns {{ valid: boolean, errors: Array<{itemIndex: number, message: string}>, itemEscalations: Array<{itemIndex: number, escalationId: number, approvedBy: number}> }}
+   */
+  async validateTransactionDiscounts({ items, cartDiscountAmount, employeeId, role }) {
+    const errors = [];
+    const itemEscalations = [];
+
+    const tier = await this.getEmployeeTier(employeeId, role);
+
+    for (let i = 0; i < items.length; i++) {
+      const item = items[i];
+      const discountPct = parseFloat(item.discountPercent) || 0;
+      if (discountPct <= 0) continue;
+
+      // Look up product price/cost from DB
+      const prodResult = await this.pool.query(
+        'SELECT id, price, cost FROM products WHERE id = $1',
+        [item.productId]
+      );
+      if (!prodResult.rows[0]) {
+        errors.push({ itemIndex: i, message: `Product ${item.productId} not found` });
+        continue;
+      }
+      const product = prodResult.rows[0];
+      const originalPrice = parseFloat(product.price) || parseFloat(item.unitPrice) || 0;
+      const cost = parseFloat(product.cost) || 0;
+
+      // Validate against tier
+      const validation = await this.validateDiscount({
+        productId: item.productId,
+        originalPrice,
+        cost,
+        discountPct,
+        employeeId,
+        role,
+      });
+
+      if (validation.approved) {
+        // Within tier authority — allowed
+        continue;
+      }
+
+      // Over tier limit — check for an approved, unused escalation
+      // If the client sent an escalationId, check that specific one first
+      let escalation = null;
+      if (item.escalationId) {
+        const escResult = await this.pool.query(
+          `SELECT id, reviewed_by FROM discount_escalations
+           WHERE id = $1
+             AND requesting_employee_id = $2
+             AND product_id = $3
+             AND status = 'approved'
+             AND used_in_transaction_id IS NULL
+             AND (expires_at IS NULL OR expires_at > NOW())
+             AND requested_discount_pct >= $4`,
+          [item.escalationId, employeeId, item.productId, discountPct]
+        );
+        escalation = escResult.rows[0] || null;
+      }
+
+      // Fallback: search for any matching approved escalation
+      if (!escalation) {
+        const escResult = await this.pool.query(
+          `SELECT id, reviewed_by FROM discount_escalations
+           WHERE requesting_employee_id = $1
+             AND product_id = $2
+             AND status = 'approved'
+             AND used_in_transaction_id IS NULL
+             AND (expires_at IS NULL OR expires_at > NOW())
+             AND requested_discount_pct >= $3
+           ORDER BY created_at DESC
+           LIMIT 1`,
+          [employeeId, item.productId, discountPct]
+        );
+        escalation = escResult.rows[0] || null;
+      }
+
+      if (escalation) {
+        // Has approved escalation — allow and mark for post-commit usage
+        itemEscalations.push({
+          itemIndex: i,
+          escalationId: escalation.id,
+          approvedBy: escalation.reviewed_by,
+        });
+      } else {
+        // No authority — reject
+        errors.push({
+          itemIndex: i,
+          message: `Item "${item.productId}": ${validation.reason || `${discountPct}% discount exceeds your authority`}`,
+        });
+      }
+    }
+
+    // Cart-level discount: requires unrestricted tier (manager/admin)
+    if (cartDiscountAmount > 0) {
+      if (!tier || !tier.is_unrestricted) {
+        errors.push({
+          itemIndex: -1,
+          message: 'Cart-level discount requires manager or admin authority',
+        });
+      }
+    }
+
+    return {
+      valid: errors.length === 0,
+      errors,
+      itemEscalations,
+    };
+  }
+
+  /**
+   * Mark an approved escalation as used by a transaction.
+   * Call after successful transaction commit.
+   * @param {number} escalationId
+   * @param {number} transactionId
+   * @param {object} [client] - DB client (if within a transaction), defaults to pool
+   */
+  async markEscalationUsed(escalationId, transactionId, client) {
+    const db = client || this.pool;
+    await db.query(
+      `UPDATE discount_escalations
+       SET used_in_transaction_id = $1
+       WHERE id = $2`,
+      [transactionId, escalationId]
+    );
+  }
+
+  /**
+   * Expire stale pending escalations that have passed their expires_at.
+   * Returns the expired rows for logging.
+   */
+  async expireStalePendingEscalations() {
+    const result = await this.pool.query(
+      `UPDATE discount_escalations
+       SET status = 'expired', reviewed_at = NOW()
+       WHERE status = 'pending' AND expires_at < NOW()
+       RETURNING id, requesting_employee_id, product_id`
+    );
+    return result.rows;
   }
 
   /**

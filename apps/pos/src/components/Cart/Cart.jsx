@@ -17,6 +17,7 @@ import DiscountInput from '../Checkout/DiscountInput';
 import { TradeInCartSection } from '../TradeIn/TradeInCartSection';
 import { TradeInModal } from '../TradeIn/TradeInModal';
 import { usePermissions, POS_PERMISSIONS } from '../../hooks/usePermissions';
+import { EscalationStatusBadge } from '../Discount/EscalationStatusBadge';
 
 /**
  * Empty cart state component
@@ -83,6 +84,9 @@ export function Cart({
   discountBudget,
   onRequestEscalation,
   onBudgetUpdate,
+  myEscalations,
+  escalationPendingCount,
+  onApplyApprovedEscalation,
   className = '',
 }) {
   const cart = useCart();
@@ -128,13 +132,27 @@ export function Cart({
       return;
     }
 
+    // Block checkout if any cart items have pending escalations (regardless of current discount %)
+    if (myEscalations && myEscalations.length > 0) {
+      const pendingEscalations = myEscalations.filter((e) => e.status === 'pending');
+      const blockedItems = cart.items.filter((item) =>
+        pendingEscalations.some((e) => e.product_id === item.productId)
+      );
+      if (blockedItems.length > 0) {
+        alert(
+          `Cannot checkout: ${blockedItems.length} item(s) have pending discount escalations awaiting manager approval.`
+        );
+        return;
+      }
+    }
+
     setIsProcessing(true);
     try {
       await onCheckout?.();
     } finally {
       setIsProcessing(false);
     }
-  }, [cart, onCheckout]);
+  }, [cart, onCheckout, myEscalations]);
 
   // Handle hold transaction
   const handleHold = useCallback(() => {
@@ -246,10 +264,17 @@ export function Cart({
           )}
         </div>
 
-        <HeldCartsButton
-          count={cart.heldCarts?.length || 0}
-          onClick={() => setShowHeldTransactions(true)}
-        />
+        <div className="flex items-center gap-2">
+          <EscalationStatusBadge
+            escalations={myEscalations}
+            pendingCount={escalationPendingCount}
+            onApplyApprovedEscalation={onApplyApprovedEscalation}
+          />
+          <HeldCartsButton
+            count={cart.heldCarts?.length || 0}
+            onClick={() => setShowHeldTransactions(true)}
+          />
+        </div>
       </div>
 
       {/* Customer Badge */}
@@ -286,11 +311,12 @@ export function Cart({
               onRemove={handleRemoveItem}
               onSetSerialNumber={handleSetSerialNumber}
               onPriceOverride={onPriceOverride}
-              onApplyDiscount={(itemId, percent) => cart.applyItemDiscount(itemId, percent)}
+              onApplyDiscount={(itemId, percent, escalationId) => cart.applyItemDiscount(itemId, percent, escalationId)}
               discountTier={discountTier}
               discountBudget={discountBudget}
               onRequestEscalation={onRequestEscalation}
               onBudgetUpdate={onBudgetUpdate}
+              myEscalations={myEscalations}
               disabled={isProcessing}
             />
           ))}

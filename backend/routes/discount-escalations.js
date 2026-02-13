@@ -64,6 +64,23 @@ module.exports = function (discountAuthorityService, fraudService) {
   }));
 
   // ============================================================================
+  // STAFF: View own escalations
+  // ============================================================================
+
+  /**
+   * GET /api/discount-escalations/mine
+   * List the current user's escalations (pending + resolved within 24h)
+   */
+  router.get('/mine', asyncHandler(async (req, res) => {
+    const escalations = await discountAuthorityService.getMyEscalations(req.user.id);
+
+    res.json({
+      success: true,
+      data: escalations,
+    });
+  }));
+
+  // ============================================================================
   // MANAGER+: View & resolve escalations
   // ============================================================================
 

@@ -12,12 +12,9 @@ import {
   ExclamationTriangleIcon,
   ChevronDownIcon,
   ChevronUpIcon,
-  TagIcon,
 } from '@heroicons/react/24/outline';
 import { formatCurrency } from '../../utils/formatters';
 import { DiscountSlider } from '../Discount/DiscountSlider';
-
-const QUICK_DISCOUNTS = [5, 10, 15, 20];
 
 /**
  * Cart item component
@@ -41,6 +38,7 @@ export const CartItem = memo(function CartItem({
   discountBudget,
   onRequestEscalation,
   onBudgetUpdate,
+  myEscalations,
   disabled = false,
 }) {
   const [swipeOffset, setSwipeOffset] = useState(0);
@@ -49,6 +47,16 @@ export const CartItem = memo(function CartItem({
   const [isExpanded, setIsExpanded] = useState(false);
   const touchStartRef = useRef({ x: 0, y: 0 });
   const containerRef = useRef(null);
+
+  // Per-item escalation status
+  const pendingEsc = myEscalations?.find(
+    (e) => Number(e.product_id) === Number(item.productId) && (e.status || '').toLowerCase() === 'pending'
+  );
+  const approvedEsc = myEscalations?.find(
+    (e) => Number(e.product_id) === Number(item.productId)
+      && (e.status || '').toLowerCase() === 'approved'
+      && !e.used_in_transaction_id
+  );
 
   // Calculate line total
   const baseAmount = item.unitPrice * item.quantity;
@@ -109,16 +117,6 @@ export const CartItem = memo(function CartItem({
   // Serial number handler
   const handleSerialChange = (e) => {
     onSetSerialNumber?.(item.id, e.target.value);
-  };
-
-  // Quick discount handler
-  const handleQuickDiscount = (percent) => {
-    if (item.discountPercent === percent) {
-      // Toggle off if same discount clicked
-      onApplyDiscount?.(item.id, 0);
-    } else {
-      onApplyDiscount?.(item.id, percent);
-    }
   };
 
   // Toggle expanded view
@@ -305,58 +303,15 @@ export const CartItem = memo(function CartItem({
                     onApplyDiscount={onApplyDiscount}
                     onRequestEscalation={onRequestEscalation}
                     onBudgetUpdate={onBudgetUpdate}
+                    pendingEscalation={pendingEsc}
+                    approvedEscalation={approvedEsc}
                   />
                 ) : (
-                  /* Fallback: Quick Discount Buttons (when tier not loaded) */
-                  <>
-                    <div className="flex items-center gap-1.5 mb-1.5">
-                      <TagIcon className="w-3.5 h-3.5 text-gray-500" />
-                      <span className="text-xs font-medium text-gray-600">Quick Discount</span>
-                    </div>
-                    <div className="flex gap-1.5">
-                      {QUICK_DISCOUNTS.map((pct) => (
-                        <button
-                          key={pct}
-                          type="button"
-                          onClick={() => handleQuickDiscount(pct)}
-                          disabled={disabled}
-                          className={`
-                            flex-1 h-9
-                            flex items-center justify-center
-                            text-xs font-bold
-                            rounded-lg
-                            transition-all duration-150
-                            disabled:opacity-50
-                            ${
-                              item.discountPercent === pct
-                                ? 'bg-green-600 text-white shadow-sm'
-                                : 'bg-white border border-gray-200 text-gray-700 hover:border-green-300 hover:bg-green-50'
-                            }
-                          `}
-                        >
-                          {pct}%
-                        </button>
-                      ))}
-                      {item.discountPercent > 0 && (
-                        <button
-                          type="button"
-                          onClick={() => onApplyDiscount(item.id, 0)}
-                          disabled={disabled}
-                          className="
-                            h-9 px-2
-                            flex items-center justify-center
-                            text-xs font-medium
-                            bg-white border border-red-200 text-red-600
-                            hover:bg-red-50
-                            rounded-lg
-                            transition-colors duration-150
-                          "
-                        >
-                          Clear
-                        </button>
-                      )}
-                    </div>
-                  </>
+                  /* Loading state while tier data loads */
+                  <div className="flex items-center gap-2 p-3 bg-gray-50 rounded-lg">
+                    <div className="w-4 h-4 border-2 border-gray-300 border-t-blue-500 rounded-full animate-spin" />
+                    <span className="text-xs text-gray-500">Loading discount authority...</span>
+                  </div>
                 )}
               </div>
             )}

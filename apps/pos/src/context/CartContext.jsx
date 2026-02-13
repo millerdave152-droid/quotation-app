@@ -505,12 +505,12 @@ export function CartProvider({ children }) {
   /**
    * Apply discount to item
    */
-  const applyItemDiscount = useCallback((itemId, percent) => {
+  const applyItemDiscount = useCallback((itemId, percent, escalationId = null) => {
     const discountPercent = Math.max(0, Math.min(100, percent));
 
     setItems((currentItems) =>
       currentItems.map((item) =>
-        item.id === itemId ? { ...item, discountPercent } : item
+        item.id === itemId ? { ...item, discountPercent, ...(escalationId != null && { escalationId }) } : item
       )
     );
   }, []);
@@ -948,6 +948,7 @@ export function CartProvider({ children }) {
         unitCost: item.unitCost,
         discountPercent: item.discountPercent,
         discountAmount: 0, // Using percent discount
+        escalationId: item.escalationId || null,
         serialNumber: item.serialNumber,
         taxable: item.taxable,
       })),

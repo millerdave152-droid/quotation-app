@@ -13,11 +13,12 @@ import {
   TagIcon,
   ChartBarIcon,
   ArrowPathIcon,
+  PencilIcon,
 } from '@heroicons/react/24/outline';
 import { formatCurrency } from '../../utils/formatters';
 import { getPendingEscalations, approveEscalation, denyEscalation } from '../../api/discountAuthority';
 
-const POLL_INTERVAL = 30000; // 30 seconds
+const POLL_INTERVAL = 10000; // 10 seconds
 
 /**
  * Manager approval queue for discount escalation requests
@@ -246,18 +247,32 @@ export function ManagerApprovalQueue({ isOpen, onClose }) {
                 {approveNotesId !== esc.id && denyReasonId !== esc.id && (
                   <div className="flex gap-2">
                     <button
-                      onClick={() => { setApproveNotesId(esc.id); setDenyReasonId(null); }}
+                      onClick={() => handleApprove(esc.id)}
                       disabled={actionLoading === esc.id}
                       className="
                         flex-1 h-9 flex items-center justify-center gap-1.5
                         text-xs font-semibold rounded-lg
+                        bg-green-600 text-white
+                        hover:bg-green-700 active:bg-green-800
+                        transition-all disabled:opacity-50
+                      "
+                    >
+                      <CheckIcon className="w-4 h-4" />
+                      {actionLoading === esc.id ? 'Approving...' : 'Approve'}
+                    </button>
+                    <button
+                      onClick={() => { setApproveNotesId(esc.id); setDenyReasonId(null); }}
+                      disabled={actionLoading === esc.id}
+                      title="Approve with notes"
+                      className="
+                        h-9 w-9 flex items-center justify-center
+                        text-xs rounded-lg
                         bg-green-50 text-green-700 border border-green-200
                         hover:bg-green-100 active:bg-green-200
                         transition-all disabled:opacity-50
                       "
                     >
-                      <CheckIcon className="w-4 h-4" />
-                      Approve
+                      <PencilIcon className="w-4 h-4" />
                     </button>
                     <button
                       onClick={() => { setDenyReasonId(esc.id); setApproveNotesId(null); }}

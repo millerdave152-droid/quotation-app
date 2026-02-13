@@ -49,6 +49,10 @@ import { ShiftSummaryCompact, ShiftSummaryPanel } from '../components/Register/S
 import ShiftCommissionSummary from '../components/Commission/ShiftCommissionSummary';
 import { ManagerApprovalQueue } from '../components/Discount/ManagerApprovalQueue';
 import { DiscountEscalationModal } from '../components/Discount/DiscountEscalationModal';
+import { EscalationToastContainer } from '../components/Discount/EscalationToast';
+
+// Hooks
+import { useEscalationPolling } from '../hooks/useEscalationPolling';
 
 // API
 import { getMyTier, initializeBudget } from '../api/discountAuthority';
@@ -172,6 +176,7 @@ function Header({
   onShiftSummaryClick,
   onUserMenuClick,
   onCloseShift,
+  onDiscountApprovals,
 }) {
   const navigate = useNavigate();
   const { user, logout, isAdminOrManager } = useAuth();
@@ -358,6 +363,15 @@ function Header({
                     >
                       <BanknotesIcon className="w-5 h-5 text-gray-500" />
                       <span>Financing Admin</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => { setShowUserMenu(false); onDiscountApprovals?.(); }}
+                      className="w-full flex items-center gap-3 px-4 py-3 text-left text-gray-700 hover:bg-gray-50 transition-colors"
+                    >
+                      <TagIcon className="w-5 h-5 text-gray-500" />
+                      <span>Discount Approvals</span>
                     </button>
                   </>
                 )}
@@ -552,6 +566,15 @@ export function POSMain() {
   const [escalationItem, setEscalationItem] = useState(null);
   const [escalationDesiredPct, setEscalationDesiredPct] = useState(0);
 
+  // Escalation polling
+  const {
+    escalations: myEscalations,
+    pendingCount: escalationPendingCount,
+    newlyResolved,
+    clearResolved,
+    refresh: refreshEscalations,
+  } = useEscalationPolling(hasActiveShift);
+
   // Refs
   const searchInputRef = useRef(null);
 
@@ -620,6 +643,30 @@ export function POSMain() {
     setEscalationItem(item);
     setEscalationDesiredPct(desiredPct);
   }, []);
+
+  // Apply an approved escalation discount to the matching cart item
+  const handleApplyApprovedEscalation = useCallback((escalation) => {
+    const matchingItem = cart.items.find((item) => item.productId === escalation.product_id);
+    if (matchingItem) {
+      cart.applyItemDiscount(matchingItem.id, parseFloat(escalation.requested_discount_pct), escalation.id);
+      handleBudgetUpdate();
+    } else {
+      console.warn('[POSMain] No cart item matches escalation product_id:', escalation.product_id);
+    }
+  }, [cart, handleBudgetUpdate]);
+
+  // Auto-clear discount on denied or expired escalations
+  useEffect(() => {
+    if (!newlyResolved || newlyResolved.length === 0) return;
+    for (const esc of newlyResolved) {
+      if (esc.status === 'denied' || esc.status === 'expired') {
+        const matchingItem = cart.items.find((item) => item.productId === esc.product_id);
+        if (matchingItem && matchingItem.discountPercent > 0) {
+          cart.applyItemDiscount(matchingItem.id, 0);
+        }
+      }
+    }
+  }, [newlyResolved, cart]);
 
   // Handle hold transaction (declared before keyboard shortcuts useEffect that references it)
   const handleHoldTransaction = useCallback(() => {
@@ -786,11 +833,19 @@ export function POSMain() {
         playSound={true}
       />
 
+      {/* Escalation Toast Notifications */}
+      <EscalationToastContainer
+        newlyResolved={newlyResolved}
+        clearResolved={clearResolved}
+        onApplyDiscount={handleApplyApprovedEscalation}
+      />
+
       {/* Header */}
       <Header
         onMenuClick={() => setShowMobileMenu(true)}
         onShiftSummaryClick={() => setShowShiftSummary(true)}
         onCloseShift={handleCloseShift}
+        onDiscountApprovals={() => setShowDiscountApprovals(true)}
       />
 
       {/* Quote Conversion Banner */}
@@ -867,6 +922,9 @@ export function POSMain() {
             discountBudget={discountBudget}
             onRequestEscalation={handleRequestEscalation}
             onBudgetUpdate={handleBudgetUpdate}
+            myEscalations={myEscalations}
+            escalationPendingCount={escalationPendingCount}
+            onApplyApprovedEscalation={handleApplyApprovedEscalation}
             className="flex-1 w-full max-w-none"
           />
         </div>
@@ -933,7 +991,7 @@ export function POSMain() {
       {/* Discount Escalation Modal */}
       <DiscountEscalationModal
         isOpen={!!escalationItem}
-        onClose={() => { setEscalationItem(null); setEscalationDesiredPct(0); }}
+        onClose={() => { setEscalationItem(null); setEscalationDesiredPct(0); refreshEscalations(); }}
         item={escalationItem}
         desiredPct={escalationDesiredPct}
         tier={discountTier}

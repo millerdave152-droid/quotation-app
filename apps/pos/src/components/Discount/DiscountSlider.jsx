@@ -1,6 +1,7 @@
 /**
  * TeleTime POS - Discount Slider Component
- * Real-time per-item discount control with margin/commission/budget calculations
+ * Real-time per-item discount control with margin/commission/budget calculations.
+ * Supports three visual states: normal, pending-escalation (locked), and approved-escalation (ready).
  */
 
 import { useState, useMemo, useCallback, memo } from 'react';
@@ -12,6 +13,7 @@ import {
   ExclamationTriangleIcon,
   CheckCircleIcon,
   ArrowUpCircleIcon,
+  ClockIcon,
 } from '@heroicons/react/24/outline';
 import { formatCurrency } from '../../utils/formatters';
 import { applyDiscount as applyDiscountApi, validateDiscount } from '../../api/discountAuthority';
@@ -28,6 +30,8 @@ export const DiscountSlider = memo(function DiscountSlider({
   onApplyDiscount,
   onRequestEscalation,
   onBudgetUpdate,
+  pendingEscalation,
+  approvedEscalation,
 }) {
   const [discountPct, setDiscountPct] = useState(item.discountPercent || 0);
   const [applying, setApplying] = useState(false);
@@ -166,6 +170,13 @@ export const DiscountSlider = memo(function DiscountSlider({
     }
   }, [discountPct, item, price, cost, onApplyDiscount, onBudgetUpdate]);
 
+  const handleApplyApproved = useCallback(() => {
+    if (!approvedEscalation) return;
+    const approvedPct = parseFloat(approvedEscalation.requested_discount_pct);
+    onApplyDiscount?.(item.id, approvedPct, approvedEscalation.id);
+    onBudgetUpdate?.();
+  }, [approvedEscalation, item, onApplyDiscount, onBudgetUpdate]);
+
   const handleRequestEscalation = useCallback(() => {
     onRequestEscalation?.(item, discountPct > maxPct ? discountPct : maxPct + 1);
   }, [item, discountPct, maxPct, onRequestEscalation]);
@@ -186,6 +197,120 @@ export const DiscountSlider = memo(function DiscountSlider({
     );
   }
 
+  // =========================================================================
+  // STATE: Pending Escalation — slider locked, awaiting manager approval
+  // =========================================================================
+  if (pendingEscalation) {
+    return (
+      <div className="rounded-xl border border-amber-300 bg-amber-50 p-4 space-y-3">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <ClockIcon className="w-4 h-4 text-amber-600" />
+            <span className="text-sm font-semibold text-amber-800">Pending Approval</span>
+            <span className="text-xs px-1.5 py-0.5 rounded-full font-medium bg-amber-100 text-amber-700">
+              {parseFloat(pendingEscalation.requested_discount_pct).toFixed(1)}%
+            </span>
+          </div>
+        </div>
+        <p className="text-xs text-amber-700">
+          Discount of {parseFloat(pendingEscalation.requested_discount_pct).toFixed(1)}% awaiting manager approval.
+        </p>
+        {/* Disabled slider */}
+        <div className="flex items-center gap-3 opacity-50 pointer-events-none">
+          <div className="flex-1">
+            <input
+              type="range"
+              min={0}
+              max={sliderMax}
+              step={0.5}
+              value={parseFloat(pendingEscalation.requested_discount_pct)}
+              readOnly
+              disabled
+              className="w-full h-2 rounded-full appearance-none cursor-not-allowed bg-gray-300"
+            />
+          </div>
+          <div className="flex items-center gap-1">
+            <input
+              type="number"
+              value={parseFloat(pendingEscalation.requested_discount_pct).toFixed(1)}
+              readOnly
+              disabled
+              className="w-16 h-8 text-center text-sm font-bold border border-gray-300 rounded-lg bg-gray-100"
+            />
+            <span className="text-sm font-medium text-gray-400">%</span>
+          </div>
+        </div>
+        {/* Disabled buttons */}
+        <div className="flex gap-2">
+          <button
+            disabled
+            className="flex-1 h-9 flex items-center justify-center gap-1.5 text-xs font-semibold rounded-lg bg-gray-200 text-gray-400 cursor-not-allowed"
+          >
+            <ClockIcon className="w-4 h-4" />
+            Awaiting Approval...
+          </button>
+          <button
+            disabled
+            className="flex-1 h-9 flex items-center justify-center gap-1.5 text-xs font-semibold rounded-lg bg-gray-100 text-gray-400 border border-gray-200 cursor-not-allowed"
+          >
+            <ArrowUpCircleIcon className="w-4 h-4" />
+            Requested
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // =========================================================================
+  // STATE: Approved Escalation — show green "Apply Approved Discount" button
+  // =========================================================================
+  if (approvedEscalation) {
+    const approvedPct = parseFloat(approvedEscalation.requested_discount_pct);
+    const approvedAmount = +(price * approvedPct / 100).toFixed(2);
+    const priceAfter = +(price - approvedAmount).toFixed(2);
+
+    return (
+      <div className="rounded-xl border border-green-300 bg-green-50 p-4 space-y-3">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <CheckCircleIcon className="w-4 h-4 text-green-600" />
+            <span className="text-sm font-semibold text-green-800">Approved</span>
+            <span className="text-xs px-1.5 py-0.5 rounded-full font-medium bg-green-100 text-green-700">
+              {approvedPct.toFixed(1)}%
+            </span>
+          </div>
+          <span className="text-sm font-bold text-green-900">
+            -{formatCurrency(approvedAmount)}
+          </span>
+        </div>
+        <div className="flex items-center justify-between px-2 py-1.5 bg-white/70 rounded-lg">
+          <span className="text-xs text-gray-500">Price After Discount</span>
+          <span className="text-sm font-bold text-gray-900">{formatCurrency(priceAfter)}</span>
+        </div>
+        {approvedEscalation.reviewer_name && (
+          <p className="text-xs text-green-600">
+            Approved by {approvedEscalation.reviewer_name}
+          </p>
+        )}
+        <button
+          onClick={handleApplyApproved}
+          className="
+            w-full h-10 flex items-center justify-center gap-2
+            text-sm font-bold rounded-lg
+            bg-green-600 text-white hover:bg-green-700 active:bg-green-800
+            transition-all duration-150
+          "
+        >
+          <CheckCircleIcon className="w-5 h-5" />
+          Apply Approved Discount
+        </button>
+      </div>
+    );
+  }
+
+  // =========================================================================
+  // STATE: Normal — full slider controls within tier limits
+  // =========================================================================
   return (
     <div className={`rounded-xl border ${zc.border} ${zc.bg} p-4 space-y-3`}>
       {/* Header */}

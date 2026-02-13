@@ -25,6 +25,7 @@ const { fraudCheck } = require('../middleware/fraudCheck');
 // ============================================================================
 let pool = null;
 let cache = null;
+let discountAuthorityService = null;
 
 // ============================================================================
 // TAX RATES BY PROVINCE
@@ -56,6 +57,7 @@ const transactionItemSchema = Joi.object({
   unitCost: Joi.number().precision(2).optional().allow(null),
   discountPercent: Joi.number().min(0).max(100).default(0),
   discountAmount: Joi.number().min(0).default(0),
+  escalationId: Joi.number().integer().optional().allow(null),
   serialNumber: Joi.string().max(100).optional().allow('', null),
   taxable: Joi.boolean().default(true)
 });
@@ -281,6 +283,22 @@ router.post('/', authenticate, fraudCheck('transaction.create'), asyncHandler(as
     marketingSource,
     marketingSourceDetail,
   } = value;
+
+  // --- Discount Authority Enforcement ---
+  if (discountAuthorityService) {
+    const userResult = await pool.query('SELECT role FROM users WHERE id = $1', [req.user.id]);
+    const userRole = userResult.rows[0]?.role || 'user';
+    const enforcement = await discountAuthorityService.validateTransactionDiscounts({
+      items: value.items,
+      cartDiscountAmount: value.discountAmount || 0,
+      employeeId: req.user.id,
+      role: userRole,
+    });
+    if (!enforcement.valid) {
+      throw ApiError.badRequest('Discount validation failed: ' + enforcement.errors.map(e => e.message).join('; '));
+    }
+    req._discountEnforcementResult = enforcement;
+  }
 
   // Validate dwelling type and entry point are provided for delivery fulfillment types
   if (fulfillment && ['local_delivery', 'shipping'].includes(fulfillment.type)) {
@@ -720,6 +738,19 @@ router.post('/', authenticate, fraudCheck('transaction.create'), asyncHandler(as
     }
 
     await client.query('COMMIT');
+
+    // Mark approved escalations as used (after commit so transaction ID is final)
+    if (req._discountEnforcementResult?.itemEscalations) {
+      for (const mapping of req._discountEnforcementResult.itemEscalations) {
+        if (mapping.escalationId) {
+          try {
+            await discountAuthorityService.markEscalationUsed(mapping.escalationId, transaction.transaction_id);
+          } catch (escErr) {
+            console.error('[Transaction] Failed to mark escalation used:', escErr.message);
+          }
+        }
+      }
+    }
 
     // Invalidate relevant caches
     if (cache) {
@@ -1659,6 +1690,7 @@ router.post('/:id/refund', authenticate, requirePermission('pos.returns.process_
 const init = (deps) => {
   pool = deps.pool;
   cache = deps.cache;
+  discountAuthorityService = deps.discountAuthorityService || null;
   return router;
 };
 

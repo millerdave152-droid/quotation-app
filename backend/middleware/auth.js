@@ -6,7 +6,7 @@
 
 const { verifyAccessToken } = require('../utils/jwt');
 const db = require('../config/database');
-const { resolvePermissions, hasPermission: checkPermission } = require('../utils/permissions');
+const { resolvePermissions, hasPermission: checkPermission, POS_PERMISSIONS } = require('../utils/permissions');
 const { ApiError } = require('./errorHandler');
 
 /**
@@ -200,12 +200,25 @@ const requireRole = (...allowedRoles) => {
       throw ApiError.unauthorized('Authentication required');
     }
 
-    const userRole = req.user.role?.toLowerCase();
-    const hasRole = allowedRoles.some(role => role.toLowerCase() === userRole);
+    const allowed = allowedRoles.map(r => r.toLowerCase());
+    const roleCandidates = [
+      req.user.role,
+      req.user.posRoleName,
+      req.user.roleName,
+    ]
+      .filter(Boolean)
+      .map(r => r.toLowerCase());
+    const hasRole = roleCandidates.some(r => allowed.includes(r));
+    const perms = resolvePermissions(req.user);
+    const hasManagerPerms = perms.includes(POS_PERMISSIONS.CHECKOUT_PRICE_OVERRIDE)
+      && perms.includes(POS_PERMISSIONS.CHECKOUT_VOID);
+    const hasAdminOrManagerPerms = allowed.includes('admin') || allowed.includes('manager')
+      ? hasManagerPerms
+      : false;
 
-    if (!hasRole) {
+    if (!hasRole && !hasAdminOrManagerPerms) {
       console.warn(
-        `Access denied for user ${req.user.email} (role: ${req.user.role}). Required roles: ${allowedRoles.join(', ')}`
+        `Access denied for user ${req.user.email} (role: ${req.user.role}, posRole: ${req.user.posRoleName}, roleName: ${req.user.roleName}). Required roles: ${allowedRoles.join(', ')}`
       );
       throw ApiError.forbidden('Access denied. Insufficient permissions.');
     }
