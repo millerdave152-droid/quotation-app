@@ -2,9 +2,13 @@
  * TeleTime POS - Escalation Toast Notifications
  * Shows green toast for approved escalations, red for denied.
  * Approved toasts include an "Apply Discount" button.
+ *
+ * Uses useRef for the dismiss callback to prevent the auto-dismiss
+ * timer from resetting on every parent re-render (which happens
+ * every 10s during polling).
  */
 
-import { useState, useEffect, useCallback } from 'react';
+import { useEffect, useRef, useCallback, memo } from 'react';
 import { createPortal } from 'react-dom';
 import {
   CheckCircleIcon,
@@ -14,19 +18,24 @@ import {
 } from '@heroicons/react/24/outline';
 
 /**
- * Single escalation toast
+ * Single escalation toast — memoized to prevent re-renders from polling
  */
-function EscalationToastItem({ escalation, onDismiss, onApplyDiscount }) {
+const EscalationToastItem = memo(function EscalationToastItem({ escalationId, escalation, onDismiss, onApplyDiscount }) {
   const status = (escalation.status || '').toLowerCase();
   const isApproved = status === 'approved';
   const isExpired = status === 'expired';
   const isDenied = status === 'denied';
-  const autoDismissMs = isApproved ? 15000 : 10000;
+  const autoDismissMs = isApproved ? 30000 : 10000;
 
+  // Use ref for dismiss to keep timer stable across re-renders
+  const dismissRef = useRef(onDismiss);
+  dismissRef.current = onDismiss;
+
+  // Single stable timer — only runs once on mount
   useEffect(() => {
-    const timer = setTimeout(onDismiss, autoDismissMs);
+    const timer = setTimeout(() => dismissRef.current(), autoDismissMs);
     return () => clearTimeout(timer);
-  }, [onDismiss, autoDismissMs]);
+  }, [autoDismissMs]);
 
   const bgClass = isApproved
     ? 'bg-green-50 border-green-200'
@@ -56,7 +65,7 @@ function EscalationToastItem({ escalation, onDismiss, onApplyDiscount }) {
     <div
       className={`
         flex items-start gap-3 p-4 rounded-xl border shadow-lg
-        animate-slide-in-right
+        animate-slide-in
         ${bgClass}
       `}
       role="alert"
@@ -117,25 +126,22 @@ function EscalationToastItem({ escalation, onDismiss, onApplyDiscount }) {
       </button>
     </div>
   );
-}
+});
 
 /**
- * Escalation toast container — renders as a portal to document.body
+ * Escalation toast container — renders as a portal to document.body.
+ * Memoized so polling-driven re-renders of POSMain don't cause
+ * unnecessary toast re-mounts.
  */
-export function EscalationToastContainer({ newlyResolved, clearResolved, onApplyDiscount }) {
-  const [mounted, setMounted] = useState(false);
-
-  useEffect(() => {
-    setMounted(true);
-  }, []);
-
-  if (!mounted || !newlyResolved || newlyResolved.length === 0) return null;
+export const EscalationToastContainer = memo(function EscalationToastContainer({ newlyResolved, clearResolved, onApplyDiscount }) {
+  if (!newlyResolved || newlyResolved.length === 0) return null;
 
   return createPortal(
-    <div className="fixed top-4 right-4 z-[100] w-96 max-w-[calc(100vw-2rem)] space-y-3">
+    <div className="fixed top-4 right-4 z-[9999] w-96 max-w-[calc(100vw-2rem)] space-y-3 pointer-events-auto">
       {newlyResolved.map((esc) => (
         <EscalationToastItem
           key={esc.id}
+          escalationId={esc.id}
           escalation={esc}
           onDismiss={() => clearResolved(esc.id)}
           onApplyDiscount={onApplyDiscount}
@@ -144,6 +150,6 @@ export function EscalationToastContainer({ newlyResolved, clearResolved, onApply
     </div>,
     document.body
   );
-}
+});
 
 export default EscalationToastContainer;

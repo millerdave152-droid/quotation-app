@@ -646,7 +646,7 @@ export function POSMain() {
 
   // Apply an approved escalation discount to the matching cart item
   const handleApplyApprovedEscalation = useCallback((escalation) => {
-    const matchingItem = cart.items.find((item) => item.productId === escalation.product_id);
+    const matchingItem = cart.items.find((item) => Number(item.productId) === Number(escalation.product_id));
     if (matchingItem) {
       cart.applyItemDiscount(matchingItem.id, parseFloat(escalation.requested_discount_pct), escalation.id);
       handleBudgetUpdate();
@@ -660,7 +660,7 @@ export function POSMain() {
     if (!newlyResolved || newlyResolved.length === 0) return;
     for (const esc of newlyResolved) {
       if (esc.status === 'denied' || esc.status === 'expired') {
-        const matchingItem = cart.items.find((item) => item.productId === esc.product_id);
+        const matchingItem = cart.items.find((item) => Number(item.productId) === Number(esc.product_id));
         if (matchingItem && matchingItem.discountPercent > 0) {
           cart.applyItemDiscount(matchingItem.id, 0);
         }
@@ -992,6 +992,7 @@ export function POSMain() {
       <DiscountEscalationModal
         isOpen={!!escalationItem}
         onClose={() => { setEscalationItem(null); setEscalationDesiredPct(0); refreshEscalations(); }}
+        onSubmitted={refreshEscalations}
         item={escalationItem}
         desiredPct={escalationDesiredPct}
         tier={discountTier}

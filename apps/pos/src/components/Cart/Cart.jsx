@@ -136,7 +136,7 @@ export function Cart({
     if (myEscalations && myEscalations.length > 0) {
       const pendingEscalations = myEscalations.filter((e) => e.status === 'pending');
       const blockedItems = cart.items.filter((item) =>
-        pendingEscalations.some((e) => e.product_id === item.productId)
+        pendingEscalations.some((e) => Number(e.product_id) === Number(item.productId))
       );
       if (blockedItems.length > 0) {
         alert(

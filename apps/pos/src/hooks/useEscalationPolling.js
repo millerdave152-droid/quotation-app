@@ -1,11 +1,12 @@
 /**
  * TeleTime POS - Escalation Polling Hook
  * Polls the user's own escalation requests and detects status changes
- * (pending → approved/denied/expired) for toast notifications.
+ * for toast notifications.
  *
- * On the first fetch after mount, any approved+unused escalation is treated
- * as newly resolved so the toast fires even if the user navigated away and
- * came back (or refreshed the page) while the manager approved.
+ * Approved+unused escalations are surfaced on EVERY poll (not just first),
+ * so the toast appears regardless of when the user opens the POS relative
+ * to the manager's approval. Dismissed escalation IDs are tracked in a
+ * ref to prevent the toast from re-appearing.
  */
 
 import { useState, useEffect, useCallback, useRef } from 'react';
@@ -17,7 +18,7 @@ export function useEscalationPolling(enabled = false) {
   const [escalations, setEscalations] = useState([]);
   const [newlyResolved, setNewlyResolved] = useState([]);
   const previousStatusRef = useRef(new Map());
-  const isFirstFetchRef = useRef(true);
+  const dismissedRef = useRef(new Set());
   const pollRef = useRef(null);
   const pollCountRef = useRef(0);
 
@@ -39,43 +40,40 @@ export function useEscalationPolling(enabled = false) {
       setEscalations(data);
 
       const prev = previousStatusRef.current;
-      const isFirstFetch = isFirstFetchRef.current;
       const resolved = [];
 
       for (const esc of data) {
         const status = (esc.status || '').toLowerCase();
         const prevStatus = prev.get(esc.id);
 
-        if (isFirstFetch) {
-          // First fetch after mount: surface any approved+unused or
-          // recently denied/expired escalations so the user sees the toast
-          // even if they navigated away and came back
-          if (status === 'approved' && !esc.used_in_transaction_id) {
+        // Approved + unused: surface on EVERY poll so the toast shows
+        // regardless of when the user opened POS relative to approval.
+        if (status === 'approved' && !esc.used_in_transaction_id) {
+          resolved.push(esc);
+        }
+        // Denied/expired: only surface on status transition (pending→denied/expired)
+        // OR if reviewed in the last 5 minutes (for page-refresh scenario)
+        else if (status === 'denied' || status === 'expired') {
+          if (prevStatus === 'pending') {
             resolved.push(esc);
-          } else if (status === 'denied' || status === 'expired') {
-            // Only show denied/expired toasts if resolved within the last 5 minutes
-            // (otherwise they'd see stale denials every time they open POS)
-            if (esc.reviewed_at) {
-              const reviewedAt = new Date(esc.reviewed_at);
-              const fiveMinAgo = new Date(Date.now() - 5 * 60 * 1000);
-              if (reviewedAt > fiveMinAgo) {
-                resolved.push(esc);
-              }
+          } else if (!prevStatus && esc.reviewed_at) {
+            // First time seeing this escalation (no previous status tracked) —
+            // show toast if recently reviewed
+            const reviewedAt = new Date(esc.reviewed_at);
+            const fiveMinAgo = new Date(Date.now() - 5 * 60 * 1000);
+            if (reviewedAt > fiveMinAgo) {
+              resolved.push(esc);
             }
-          }
-        } else {
-          // Subsequent polls: detect status transitions from pending
-          if (prevStatus === 'pending' && (status === 'approved' || status === 'denied' || status === 'expired')) {
-            resolved.push(esc);
           }
         }
       }
 
       if (resolved.length > 0) {
         setNewlyResolved((existing) => {
-          // Avoid duplicates
           const existingIds = new Set(existing.map(e => e.id));
-          const fresh = resolved.filter(r => !existingIds.has(r.id));
+          const fresh = resolved.filter(r =>
+            !existingIds.has(r.id) && !dismissedRef.current.has(r.id)
+          );
           return fresh.length > 0 ? [...existing, ...fresh] : existing;
         });
       }
@@ -86,28 +84,6 @@ export function useEscalationPolling(enabled = false) {
         nextMap.set(esc.id, (esc.status || '').toLowerCase());
       }
       previousStatusRef.current = nextMap;
-      isFirstFetchRef.current = false;
-
-      if (typeof window !== 'undefined' && localStorage.getItem('pos_debug_escalations') === '1') {
-        const approved = data.filter(d => (d.status || '').toLowerCase() === 'approved');
-        const pending = data.filter(d => (d.status || '').toLowerCase() === 'pending');
-        const denied = data.filter(d => (d.status || '').toLowerCase() === 'denied');
-        const expired = data.filter(d => (d.status || '').toLowerCase() === 'expired');
-        const debugPayload = {
-          pollCount: pollCountRef.current,
-          enabled,
-          isFirstFetch,
-          total: data.length,
-          pending: pending.length,
-          approved: approved.length,
-          denied: denied.length,
-          expired: expired.length,
-          newlyResolvedCount: resolved.length,
-          lastIds: data.slice(0, 3).map(d => ({ id: d.id, status: d.status, product_id: d.product_id, reviewed_at: d.reviewed_at })),
-        };
-        window.__posEscalationDebug = debugPayload;
-        console.log('[EscalationDebug]', debugPayload);
-      }
     } catch (err) {
       console.warn('[useEscalationPolling] Fetch failed:', err.message);
     }
@@ -120,8 +96,9 @@ export function useEscalationPolling(enabled = false) {
       return;
     }
 
-    // Reset first-fetch flag when polling restarts (e.g. shift opened)
-    isFirstFetchRef.current = true;
+    // Reset dismissed set and previous status when polling restarts
+    dismissedRef.current = new Set();
+    previousStatusRef.current = new Map();
 
     // Initial fetch
     fetchAndDetectChanges();
@@ -131,6 +108,7 @@ export function useEscalationPolling(enabled = false) {
   }, [enabled, fetchAndDetectChanges]);
 
   const clearResolved = useCallback((id) => {
+    dismissedRef.current.add(id);
     setNewlyResolved((prev) => prev.filter((e) => e.id !== id));
   }, []);
 

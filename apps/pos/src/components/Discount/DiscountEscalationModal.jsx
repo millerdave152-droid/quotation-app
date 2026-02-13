@@ -22,6 +22,7 @@ const COMMISSION_RATE = 0.05;
 export function DiscountEscalationModal({
   isOpen,
   onClose,
+  onSubmitted,
   item,
   desiredPct,
   tier,
@@ -66,12 +67,15 @@ export function DiscountEscalationModal({
       });
 
       setSubmitted(true);
+      // Notify parent immediately so polling refreshes and
+      // the DiscountSlider switches to "Pending Approval" state
+      onSubmitted?.();
     } catch (err) {
       setError(err?.message || 'Failed to submit escalation request');
     } finally {
       setSubmitting(false);
     }
-  }, [item, desiredPct, reason, calc]);
+  }, [item, desiredPct, reason, calc, onSubmitted]);
 
   const handleClose = useCallback(() => {
     setReason('');

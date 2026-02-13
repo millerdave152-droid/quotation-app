@@ -123,6 +123,9 @@ api.interceptors.response.use(
               onTokenRefreshed(newToken);
               isRefreshing = false;
 
+              // Notify AuthContext to refresh permissions with the new token
+              window.dispatchEvent(new CustomEvent('pos:token-refreshed'));
+
               // Retry the original request with new token
               originalRequest.headers.Authorization = `Bearer ${newToken}`;
               return axios(originalRequest).then(r => r.data);
@@ -152,8 +155,35 @@ api.interceptors.response.use(
         });
       }
 
-      // 403 Forbidden - Insufficient permissions
-      if (status === 403) {
+      // 403 Forbidden - Attempt permission refresh before failing.
+      // This handles stale tokens where the user's role/permissions changed
+      // since the token was issued.
+      if (status === 403 && !originalRequest._retried403) {
+        const refreshToken = localStorage.getItem(REFRESH_TOKEN_KEY);
+        if (refreshToken && !isRefreshing) {
+          originalRequest._retried403 = true;
+          try {
+            const refreshResponse = await axios.post(
+              `${api.defaults.baseURL}/auth/refresh`,
+              { refreshToken },
+              { headers: { 'Content-Type': 'application/json' } }
+            );
+            const result = refreshResponse.data;
+            if (result?.success && result.data?.accessToken) {
+              const newToken = result.data.accessToken;
+              localStorage.setItem(TOKEN_KEY, newToken);
+              if (result.data.refreshToken) {
+                localStorage.setItem(REFRESH_TOKEN_KEY, result.data.refreshToken);
+              }
+              window.dispatchEvent(new CustomEvent('pos:token-refreshed'));
+              originalRequest.headers.Authorization = `Bearer ${newToken}`;
+              return axios(originalRequest).then(r => r.data);
+            }
+          } catch (refreshErr) {
+            // Refresh failed — fall through to 403 rejection
+          }
+        }
+
         return Promise.reject({
           status: 403,
           message: data?.message || 'You do not have permission to perform this action.',
@@ -278,6 +308,7 @@ export const getUserData = () => {
 export const clearAuth = () => {
   localStorage.removeItem(TOKEN_KEY);
   localStorage.removeItem(USER_KEY);
+  localStorage.removeItem(REFRESH_TOKEN_KEY);
 };
 
 /**

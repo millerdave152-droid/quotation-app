@@ -50,8 +50,32 @@ export function AuthProvider({ children }) {
       }
     };
 
+    // After token refresh, re-fetch permissions from /auth/me so cached
+    // permissions stay in sync with the backend.
+    const handleTokenRefreshed = async () => {
+      try {
+        const response = await api.get('/auth/me');
+        if (response?.success && response.data?.user) {
+          const freshPerms = response.data.permissions
+            || FALLBACK_PERMISSIONS[response.data.user.role]
+            || FALLBACK_PERMISSIONS.user;
+          setUser(response.data.user);
+          setPermissions(freshPerms);
+          localStorage.setItem('pos_user', JSON.stringify(response.data.user));
+          localStorage.setItem('pos_permissions', JSON.stringify(freshPerms));
+          console.log('[Auth] Permissions refreshed after token refresh');
+        }
+      } catch (err) {
+        console.warn('[Auth] Permission refresh failed:', err.message);
+      }
+    };
+
     window.addEventListener('pos:auth-expired', handleAuthExpired);
-    return () => window.removeEventListener('pos:auth-expired', handleAuthExpired);
+    window.addEventListener('pos:token-refreshed', handleTokenRefreshed);
+    return () => {
+      window.removeEventListener('pos:auth-expired', handleAuthExpired);
+      window.removeEventListener('pos:token-refreshed', handleTokenRefreshed);
+    };
   }, []);
 
   // Check for existing session on mount
