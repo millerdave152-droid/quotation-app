@@ -644,8 +644,7 @@ class MiraklService {
         const params = {
           order_state_codes: states,
           max: pageSize,
-          offset,
-          sort: 'date_created:desc'
+          offset
         };
         if (options.since) params.start_date = options.since;
 
