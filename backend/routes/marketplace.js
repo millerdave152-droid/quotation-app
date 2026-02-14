@@ -33,6 +33,13 @@ function pickFirstColumn(columns, candidates) {
 const generateReturnNumber = () => `RET-${Date.now()}-${Math.random().toString(36).substr(2, 6).toUpperCase()}`;
 const generateRefundNumber = () => `REF-${Date.now()}-${Math.random().toString(36).substr(2, 6).toUpperCase()}`;
 
+// Guard: check Mirakl API credentials before calling external API
+function requireMiraklConfig() {
+  if (!process.env.MIRAKL_API_KEY) {
+    throw ApiError.badRequest('Mirakl API key not configured. Set MIRAKL_API_KEY in your .env file.');
+  }
+}
+
 // ============================================
 // MARKETPLACE ORDERS
 // ============================================
@@ -77,6 +84,7 @@ router.get('/orders/dashboard-stats', authenticate, asyncHandler(async (req, res
 
 // Poll orders from Mirakl (trigger immediate sync)
 router.get('/orders/poll', authenticate, asyncHandler(async (req, res) => {
+  requireMiraklConfig();
   const result = await miraklService.pollOrders({
     states: req.query.states || undefined,
     since: req.query.since || undefined
@@ -94,6 +102,7 @@ router.get('/orders/poll', authenticate, asyncHandler(async (req, res) => {
 
 // Legacy pull-orders endpoint — redirects to pollOrders
 router.get('/pull-orders', authenticate, asyncHandler(async (req, res) => {
+  requireMiraklConfig();
   const result = await miraklService.pollOrders();
   res.json({
     success: true,
@@ -106,6 +115,7 @@ router.get('/pull-orders', authenticate, asyncHandler(async (req, res) => {
 
 // Sync orders (POST variant with body params)
 router.post('/orders/sync', authenticate, asyncHandler(async (req, res) => {
+  requireMiraklConfig();
   const { start_date, order_state_codes } = req.body || {};
   const result = await miraklService.pollOrders({
     states: order_state_codes || undefined,
@@ -250,6 +260,7 @@ router.get('/orders/:id', authenticate, asyncHandler(async (req, res) => {
 
 // Accept or refuse order lines
 router.post('/orders/:id/accept', authenticate, asyncHandler(async (req, res) => {
+  requireMiraklConfig();
   const { id } = req.params;
   const { lines } = req.body;
 
@@ -361,6 +372,7 @@ router.post('/orders/:id/refuse', authenticate, asyncHandler(async (req, res) =>
 
 // Ship an order — add tracking + confirm shipment
 router.post('/orders/:id/ship', authenticate, asyncHandler(async (req, res) => {
+  requireMiraklConfig();
   const { id } = req.params;
   const { trackingNumber, carrierCode, carrierName, carrierUrl } = req.body;
 
@@ -397,6 +409,7 @@ router.post('/orders/:id/ship', authenticate, asyncHandler(async (req, res) => {
 
 // Legacy shipments endpoint — kept for backward compatibility
 router.post('/orders/:id/shipments', authenticate, asyncHandler(async (req, res) => {
+  requireMiraklConfig();
   const { id } = req.params;
   const { tracking_number, carrier_code, carrier_name } = req.body;
 
@@ -420,6 +433,7 @@ router.post('/orders/:id/shipments', authenticate, asyncHandler(async (req, res)
 
 // Process refund on order lines
 router.post('/orders/:id/refund', authenticate, asyncHandler(async (req, res) => {
+  requireMiraklConfig();
   const { id } = req.params;
   const { lines } = req.body;
 
@@ -468,6 +482,7 @@ router.post('/orders/:id/refund', authenticate, asyncHandler(async (req, res) =>
 
 // Bulk push marketplace-enabled offers to Mirakl (OF01)
 router.post('/offers/bulk-push', authenticate, asyncHandler(async (req, res) => {
+  requireMiraklConfig();
   const columns = await getProductsColumns();
   const upcCol = pickFirstColumn(columns, ['upc', 'barcode', 'ean', 'gtin']);
   if (!upcCol) {
@@ -528,6 +543,7 @@ router.post('/offers/bulk-push', authenticate, asyncHandler(async (req, res) => 
 
 // Push or update a single offer (OF24)
 router.post('/offers/push-single/:productId', authenticate, asyncHandler(async (req, res) => {
+  requireMiraklConfig();
   const { productId } = req.params;
   const columns = await getProductsColumns();
   const upcCol = pickFirstColumn(columns, ['upc', 'barcode', 'ean', 'gtin']);
@@ -587,6 +603,7 @@ router.post('/offers/push-single/:productId', authenticate, asyncHandler(async (
 
 // Check status of an offer import
 router.get('/offers/import-status/:importId', authenticate, asyncHandler(async (req, res) => {
+  requireMiraklConfig();
   const { importId } = req.params;
   const importQuery = await pool.query(
     'SELECT * FROM marketplace_offer_imports WHERE import_id = $1',
@@ -615,6 +632,7 @@ router.get('/offers/import-status/:importId', authenticate, asyncHandler(async (
 
 // Reconcile our offers against Mirakl
 router.get('/offers/reconcile', authenticate, asyncHandler(async (req, res) => {
+  requireMiraklConfig();
   const columns = await getProductsColumns();
   const stockCol = pickFirstColumn(columns, ['stock_quantity', 'qty_on_hand', 'quantity_in_stock', 'stock', 'quantity', 'qty_available']);
 
@@ -706,6 +724,7 @@ router.post('/offers/enable', authenticate, asyncHandler(async (req, res) => {
 
 // Sync all active products to Mirakl (inventory sync)
 router.post('/sync-offers', authenticate, asyncHandler(async (req, res) => {
+  requireMiraklConfig();
   // Get all active products that need syncing
   // INCREASED LIMIT: Process up to 500 products, prioritizing unsynced ones
   const productsQuery = await pool.query(`
@@ -753,6 +772,7 @@ router.post('/sync-offers', authenticate, asyncHandler(async (req, res) => {
 
 // Sync single product to Mirakl
 router.post('/products/:id/sync', authenticate, asyncHandler(async (req, res) => {
+  requireMiraklConfig();
   const { id } = req.params;
 
   const result = await miraklService.syncProductToMirakl(id);
@@ -765,6 +785,7 @@ router.post('/products/:id/sync', authenticate, asyncHandler(async (req, res) =>
 
 // Bulk sync products to Mirakl
 router.post('/products/sync-bulk', authenticate, asyncHandler(async (req, res) => {
+  requireMiraklConfig();
   const { product_ids } = req.body;
 
   if (!product_ids || !Array.isArray(product_ids)) {
@@ -796,6 +817,7 @@ router.post('/products/sync-bulk', authenticate, asyncHandler(async (req, res) =
 
 // Batch sync products using bulk API (more efficient, avoids rate limits)
 router.post('/products/batch-sync', authenticate, asyncHandler(async (req, res) => {
+  requireMiraklConfig();
   const batchSize = req.body.batch_size || 100; // Mirakl supports up to 100 offers per request
   const delayBetweenBatches = req.body.delay_ms || 5000; // 5 second delay between batches
 
@@ -905,6 +927,7 @@ router.post('/products/set-default-stock', authenticate, asyncHandler(async (req
 
 // Sync ALL unsynced products to Mirakl (no limit - for catch-up)
 router.post('/products/sync-all-unsynced', authenticate, asyncHandler(async (req, res) => {
+  requireMiraklConfig();
   // Rate limiting settings - Mirakl typically allows ~60-120 requests/minute
   const requestDelayMs = req.body.delay_ms || 500; // 500ms = 120 requests/min
   const retryDelayMs = 5000; // Wait 5 seconds on rate limit before retry
@@ -2854,6 +2877,7 @@ router.post('/run-inventory-sync', authenticate, asyncHandler(async (req, res) =
 
 // Pull offers FROM Best Buy INTO local system (INBOUND)
 router.post('/pull-offers-from-bestbuy', authenticate, asyncHandler(async (req, res) => {
+  requireMiraklConfig();
   // Fetch all offers from Best Buy
   const offers = await miraklService.getOffers({ max: 1000 });
 
@@ -3262,6 +3286,7 @@ router.get('/inventory-products', authenticate, asyncHandler(async (req, res) =>
 
 // Trigger immediate batch inventory sync to Best Buy
 router.post('/inventory/sync-now', authenticate, asyncHandler(async (req, res) => {
+  requireMiraklConfig();
   const result = await miraklService.processInventoryBatch();
   res.json({
     success: true,
@@ -3299,12 +3324,14 @@ router.get('/inventory/queue-status', authenticate, asyncHandler(async (req, res
 
 // Compare our stock vs Best Buy's stock levels
 router.get('/inventory/drift-check', authenticate, asyncHandler(async (req, res) => {
+  requireMiraklConfig();
   const drift = await miraklService.getInventoryDrift();
   res.json(drift);
 }));
 
 // Push ALL inventory to Best Buy (emergency/initial sync)
 router.post('/inventory/force-full-sync', authenticate, asyncHandler(async (req, res) => {
+  requireMiraklConfig();
   if (!req.body.confirm) {
     throw ApiError.badRequest('Must include { confirm: true } to force a full inventory sync');
   }
@@ -3328,6 +3355,7 @@ router.get('/polling-status', authenticate, asyncHandler(async (req, res) => {
 
 // Manually trigger a polling job
 router.post('/polling/run/:jobName', authenticate, asyncHandler(async (req, res) => {
+  requireMiraklConfig();
   const marketplaceJobs = require('../jobs/marketplaceJobs');
   const result = await marketplaceJobs.runJobNow(req.params.jobName);
   res.json({ success: true, result });
