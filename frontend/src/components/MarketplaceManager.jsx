@@ -795,11 +795,25 @@ const MarketplaceManager = () => {
     setTestingConnection(true);
     setConnectionResult(null);
     try {
-      const response = await axios.get(`${API_BASE_URL}/api/marketplace/credentials`);
-      if (response.data?.api_key) {
-        setConnectionResult({ success: true, message: 'Connection successful' });
+      // Check env-var credentials + sync status via diagnostics endpoint
+      const diagRes = await axios.get(`${API_BASE_URL}/api/marketplace/sync-diagnostics`);
+      const env = diagRes.data?.environment;
+
+      if (!env?.mirakl_api_key_set) {
+        setConnectionResult({ success: false, message: 'MIRAKL_API_KEY not set in server environment' });
+        return;
+      }
+      if (!env?.mirakl_shop_id_set) {
+        setConnectionResult({ success: false, message: 'MIRAKL_SHOP_ID not set in server environment' });
+        return;
+      }
+
+      // Credentials are configured — try a live sync-status check
+      const statusRes = await axios.get(`${API_BASE_URL}/api/marketplace/sync-status`);
+      if (statusRes.data?.status === 'operational') {
+        setConnectionResult({ success: true, message: `Connected — ${statusRes.data.products?.synced_products || 0} products synced` });
       } else {
-        setConnectionResult({ success: false, message: 'No API credentials configured' });
+        setConnectionResult({ success: true, message: 'Credentials configured (API not yet tested live)' });
       }
     } catch (err) {
       setConnectionResult({ success: false, message: err.response?.data?.error || err.message });
@@ -1343,12 +1357,13 @@ const MarketplaceManager = () => {
             <span
               style={{
                 ...styles.syncDot,
-                backgroundColor: getSyncStatusColor(analytics?.sync_status)
+                backgroundColor: !analytics ? '#6c757d' : getSyncStatusColor(analytics.sync_status)
               }}
             />
             <span style={styles.syncText}>
-              {analytics?.sync_status === 'green' ? 'Synced' :
-               analytics?.sync_status === 'yellow' ? 'Pending' : 'Error'}
+              {!analytics ? 'Loading' :
+               analytics.sync_status === 'green' ? 'Synced' :
+               analytics.sync_status === 'yellow' ? 'Stale' : 'Sync Failed'}
             </span>
           </div>
         </div>
@@ -1853,7 +1868,7 @@ const MarketplaceManager = () => {
                       {p.upc ? p.upc : <span style={{ color: '#dc3545', fontWeight: '500', fontSize: '12px' }}>Missing</span>}
                     </td>
                     <td style={styles.td}>{p.category || '-'}</td>
-                    <td style={styles.td}>${(p.price || 0).toFixed(2)}</td>
+                    <td style={styles.td}>${parseFloat(p.price || 0).toFixed(2)}</td>
                     <td style={{ ...styles.td, fontWeight: '600', color: p.stock_quantity > 0 ? '#28a745' : '#dc3545' }}>{p.stock_quantity}</td>
                     <td style={styles.td}>
                       <label style={styles.toggleSwitch} className="toggle-switch">
@@ -2125,16 +2140,18 @@ const MarketplaceManager = () => {
               <div>
                 <div style={styles.label}>API URL</div>
                 <div style={{ fontSize: '14px', color: '#212529', fontFamily: 'monospace', wordBreak: 'break-all' }}>
-                  {process.env.REACT_APP_MIRAKL_BASE_URL ? '***' + process.env.REACT_APP_MIRAKL_BASE_URL.replace(/https?:\/\//, '').split('/')[0] : 'marketplace-bestbuy.mirakl.net'}
+                  bestbuy-us.mirakl.net
                 </div>
               </div>
               <div>
                 <div style={styles.label}>API Key</div>
-                <div style={{ fontSize: '14px', color: '#212529', fontFamily: 'monospace' }}>****-****-****</div>
+                <div style={{ fontSize: '14px', fontFamily: 'monospace', color: connectionResult?.success ? '#28a745' : '#6c757d' }}>
+                  {connectionResult?.success ? '●●●●-●●●●-●●●● (set)' : 'Click Test to verify'}
+                </div>
               </div>
               <div>
                 <div style={styles.label}>Shop ID</div>
-                <div style={{ fontSize: '14px', color: '#212529', fontFamily: 'monospace' }}>{process.env.REACT_APP_MIRAKL_SHOP_ID || 'Configured on server'}</div>
+                <div style={{ fontSize: '14px', fontFamily: 'monospace', color: '#212529' }}>Server-side env var</div>
               </div>
             </div>
             <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>

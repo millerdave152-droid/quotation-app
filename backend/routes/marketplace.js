@@ -1670,13 +1670,13 @@ router.get('/dashboard-analytics', authenticate, asyncHandler(async (req, res) =
     const hoursSinceSync = (Date.now() - lastSyncTime.getTime()) / (1000 * 60 * 60);
 
     if (lastSyncStatus === 'FAILED') {
-      syncIndicator = 'red';
-    } else if (hoursSinceSync > 2) {
+      // Only show red if the failure is recent (< 24h); old failures shouldn't alarm
+      syncIndicator = hoursSinceSync < 24 ? 'red' : 'yellow';
+    } else if (hoursSinceSync > 24) {
       syncIndicator = 'yellow';
     }
-  } else {
-    syncIndicator = 'yellow';
   }
+  // No sync log rows = fresh system, nothing has failed → green
 
   res.json({
     revenue: {
