@@ -1093,70 +1093,175 @@ const MarketplaceManager = () => {
   // Order Detail Modal
   const OrderDetailModal = () => {
     if (!orderDetail) return null;
+    const o = orderDetail.order || {};
+    const shippingAddr = (() => {
+      try { return typeof o.shipping_address === 'string' ? JSON.parse(o.shipping_address) : o.shipping_address; }
+      catch { return null; }
+    })();
+    const deadlineDate = o.acceptance_deadline ? new Date(o.acceptance_deadline) : null;
+    const deadlinePast = deadlineDate && deadlineDate < new Date();
+    const deadlineSoon = deadlineDate && !deadlinePast && (deadlineDate - new Date()) < 4 * 60 * 60 * 1000;
+
+    const fmtPrice = (v) => {
+      const n = parseFloat(v);
+      return isNaN(n) ? '$0.00' : '$' + n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    };
 
     return (
       <div style={styles.modalOverlay} onClick={() => setOrderDetailId(null)}>
-        <div style={{ ...styles.modal, maxWidth: '800px' }} onClick={e => e.stopPropagation()}>
+        <div style={{ ...styles.modal, maxWidth: '880px', maxHeight: '90vh', overflow: 'auto' }} onClick={e => e.stopPropagation()}>
           <div style={styles.modalHeader}>
             <h3 style={styles.modalTitle}>
-              Order #{orderDetail.order?.mirakl_order_id?.substring(0, 8) || orderDetail.order?.id}
+              Order #{o.mirakl_order_id || o.id}
             </h3>
             <button style={styles.closeModalBtn} onClick={() => setOrderDetailId(null)}>×</button>
           </div>
 
+          {/* Status banner for WAITING_ACCEPTANCE */}
+          {(o.order_state === 'WAITING_ACCEPTANCE' || o.mirakl_order_state === 'WAITING_ACCEPTANCE') && (
+            <div style={{ background: deadlinePast ? '#f8d7da' : deadlineSoon ? '#fff3cd' : '#d4edda', padding: '10px 16px', borderRadius: '6px', marginBottom: '16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <span style={{ fontWeight: '600', color: deadlinePast ? '#721c24' : deadlineSoon ? '#856404' : '#155724' }}>
+                {deadlinePast ? 'Acceptance deadline PASSED' : deadlineSoon ? 'Acceptance deadline approaching' : 'Awaiting acceptance'}
+              </span>
+              {deadlineDate && (
+                <span style={{ fontSize: '13px', color: '#555' }}>
+                  Deadline: {deadlineDate.toLocaleString()}
+                </span>
+              )}
+            </div>
+          )}
+
           <div style={styles.orderDetailGrid}>
+            {/* Order Info */}
             <div style={styles.orderDetailSection}>
-              <h4>Order Info</h4>
-              <p><strong>Status:</strong> <span style={{ color: getOrderStateColor(orderDetail.order?.order_state) }}>{orderDetail.order?.order_state}</span></p>
-              <p><strong>Total:</strong> {formatCurrency(orderDetail.order?.total_price)}</p>
-              <p><strong>Date:</strong> {orderDetail.order?.order_date ? new Date(orderDetail.order.order_date).toLocaleString() : 'N/A'}</p>
+              <h4 style={{ margin: '0 0 10px', fontSize: '14px', color: '#6c757d', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Order Info</h4>
+              <p><strong>Mirakl ID:</strong> <span style={{ fontFamily: 'monospace', fontSize: '13px' }}>{o.mirakl_order_id || 'N/A'}</span></p>
+              <p><strong>Status:</strong> <span style={{ ...styles.statusBadge, backgroundColor: getOrderStateColor(o.order_state || o.mirakl_order_state), color: '#fff', padding: '2px 8px', borderRadius: '4px', fontSize: '12px' }}>{o.order_state || o.mirakl_order_state}</span></p>
+              <p><strong>Order Date:</strong> {o.order_date ? new Date(o.order_date).toLocaleString() : 'N/A'}</p>
+              <p><strong>Currency:</strong> {o.currency_code || o.currency || 'CAD'}</p>
+              {o.shipped_date && <p><strong>Shipped:</strong> {new Date(o.shipped_date).toLocaleString()}</p>}
+              {o.delivered_date && <p><strong>Delivered:</strong> {new Date(o.delivered_date).toLocaleString()}</p>}
             </div>
 
+            {/* Customer Info */}
             <div style={styles.orderDetailSection}>
-              <h4>Customer</h4>
-              <p><strong>Name:</strong> {orderDetail.order?.customer_name || 'N/A'}</p>
-              <p><strong>Email:</strong> {orderDetail.order?.customer_email || 'N/A'}</p>
+              <h4 style={{ margin: '0 0 10px', fontSize: '14px', color: '#6c757d', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Customer</h4>
+              <p><strong>Name:</strong> {o.customer_name || 'N/A'}</p>
+              <p><strong>Email:</strong> {o.customer_email || 'N/A'}</p>
+              <p><strong>Phone:</strong> {o.customer_phone || 'N/A'}</p>
+              {o.customer_id && <p><strong>Matched to:</strong> Customer #{o.customer_id}</p>}
             </div>
           </div>
 
-          <div style={styles.orderDetailSection}>
-            <h4>Items ({orderDetail.items?.length || 0})</h4>
+          {/* Shipping Address */}
+          {shippingAddr && (
+            <div style={{ ...styles.orderDetailSection, marginTop: '8px' }}>
+              <h4 style={{ margin: '0 0 10px', fontSize: '14px', color: '#6c757d', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Shipping Address</h4>
+              <p style={{ margin: '0', lineHeight: '1.6' }}>
+                {[
+                  shippingAddr.firstname && shippingAddr.lastname ? `${shippingAddr.firstname} ${shippingAddr.lastname}` : null,
+                  shippingAddr.street_1 || shippingAddr.street,
+                  shippingAddr.street_2,
+                  [shippingAddr.city, shippingAddr.state || shippingAddr.province, shippingAddr.zip_code || shippingAddr.postal_code].filter(Boolean).join(', '),
+                  shippingAddr.country || shippingAddr.country_iso_code
+                ].filter(Boolean).map((line, i) => <span key={i}>{line}<br /></span>)}
+              </p>
+            </div>
+          )}
+
+          {/* Items Table */}
+          <div style={{ ...styles.orderDetailSection, marginTop: '8px' }}>
+            <h4 style={{ margin: '0 0 10px', fontSize: '14px', color: '#6c757d', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Items ({orderDetail.items?.length || 0})</h4>
             <table style={styles.table}>
               <thead>
                 <tr>
-                  <th>Product</th>
-                  <th>SKU</th>
-                  <th>Qty</th>
-                  <th>Price</th>
-                  <th>Total</th>
+                  <th style={styles.th}>Product</th>
+                  <th style={styles.th}>SKU</th>
+                  <th style={{ ...styles.th, textAlign: 'center' }}>Qty</th>
+                  <th style={{ ...styles.th, textAlign: 'right' }}>Unit Price</th>
+                  <th style={{ ...styles.th, textAlign: 'right' }}>Tax</th>
+                  <th style={{ ...styles.th, textAlign: 'right' }}>Total</th>
                 </tr>
               </thead>
               <tbody>
                 {(orderDetail.items || []).map((item, idx) => (
                   <tr key={idx}>
-                    <td>{item.product_name || item.product_sku}</td>
-                    <td>{item.product_sku}</td>
-                    <td>{item.quantity}</td>
-                    <td>{formatCurrency(item.unit_price)}</td>
-                    <td>{formatCurrency(item.total_price)}</td>
+                    <td style={styles.td}>
+                      <div>
+                        <strong>{item.product_name || item.model || item.offer_sku || item.product_sku}</strong>
+                        {item.manufacturer && <div style={{ fontSize: '12px', color: '#666' }}>{item.manufacturer}</div>}
+                        {item.offer_id && <div style={{ fontSize: '11px', color: '#999' }}>Offer: {item.offer_id}</div>}
+                      </div>
+                    </td>
+                    <td style={{ ...styles.td, fontFamily: 'monospace', fontSize: '13px' }}>{item.product_sku || item.offer_sku || '-'}</td>
+                    <td style={{ ...styles.td, textAlign: 'center' }}>{item.quantity}</td>
+                    <td style={{ ...styles.td, textAlign: 'right' }}>{fmtPrice(item.unit_price)}</td>
+                    <td style={{ ...styles.td, textAlign: 'right' }}>{fmtPrice(item.tax)}</td>
+                    <td style={{ ...styles.td, textAlign: 'right', fontWeight: '600' }}>{fmtPrice(item.total_price)}</td>
                   </tr>
                 ))}
               </tbody>
             </table>
           </div>
 
+          {/* Financial Summary */}
+          <div style={{ ...styles.orderDetailSection, marginTop: '8px', background: '#f8f9fa', borderRadius: '8px', padding: '16px' }}>
+            <h4 style={{ margin: '0 0 10px', fontSize: '14px', color: '#6c757d', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Financial Summary</h4>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px 24px' }}>
+              <p style={{ margin: '2px 0' }}><strong>Subtotal:</strong></p>
+              <p style={{ margin: '2px 0', textAlign: 'right' }}>{fmtPrice(parseFloat(o.total_price || 0) - parseFloat(o.shipping_price || 0) - parseFloat(o.taxes_total || 0))}</p>
+              <p style={{ margin: '2px 0' }}><strong>Shipping:</strong></p>
+              <p style={{ margin: '2px 0', textAlign: 'right' }}>{fmtPrice(o.shipping_price)}</p>
+              <p style={{ margin: '2px 0' }}><strong>Tax:</strong></p>
+              <p style={{ margin: '2px 0', textAlign: 'right' }}>{fmtPrice(o.taxes_total || o.tax)}</p>
+              <div style={{ gridColumn: '1 / -1', borderTop: '1px solid #dee2e6', margin: '4px 0' }} />
+              <p style={{ margin: '2px 0', fontSize: '16px' }}><strong>Order Total:</strong></p>
+              <p style={{ margin: '2px 0', textAlign: 'right', fontSize: '16px', fontWeight: '700' }}>{fmtPrice(o.total_price)}</p>
+              <div style={{ gridColumn: '1 / -1', borderTop: '1px solid #dee2e6', margin: '4px 0' }} />
+              <p style={{ margin: '2px 0', color: '#dc3545' }}><strong>Commission ({o.commission_rate ? parseFloat(o.commission_rate).toFixed(1) + '%' : 'N/A'}):</strong></p>
+              <p style={{ margin: '2px 0', textAlign: 'right', color: '#dc3545' }}>-{fmtPrice(o.commission_amount || o.commission_fee)}</p>
+              <p style={{ margin: '2px 0', color: '#28a745', fontSize: '15px' }}><strong>Net Revenue:</strong></p>
+              <p style={{ margin: '2px 0', textAlign: 'right', color: '#28a745', fontSize: '15px', fontWeight: '700' }}>{fmtPrice(parseFloat(o.total_price || 0) - parseFloat(o.commission_amount || o.commission_fee || 0))}</p>
+            </div>
+          </div>
+
+          {/* Shipments */}
           {orderDetail.shipments?.length > 0 && (
-            <div style={styles.orderDetailSection}>
-              <h4>Shipments</h4>
+            <div style={{ ...styles.orderDetailSection, marginTop: '8px' }}>
+              <h4 style={{ margin: '0 0 10px', fontSize: '14px', color: '#6c757d', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Shipments</h4>
               {orderDetail.shipments.map((ship, idx) => (
-                <div key={idx} style={styles.shipmentItem}>
-                  <p><strong>Carrier:</strong> {ship.carrier_name || 'N/A'}</p>
-                  <p><strong>Tracking:</strong> {ship.tracking_number || 'N/A'}</p>
-                  <p><strong>Status:</strong> {ship.shipment_status || 'N/A'}</p>
+                <div key={idx} style={{ ...styles.shipmentItem, background: '#f8f9fa', borderRadius: '6px', padding: '12px', marginBottom: '8px' }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '8px' }}>
+                    <p style={{ margin: 0 }}><strong>Carrier:</strong> {ship.carrier_name || ship.carrier_code || 'N/A'}</p>
+                    <p style={{ margin: 0 }}><strong>Tracking:</strong> {ship.tracking_number || 'N/A'}</p>
+                    <p style={{ margin: 0 }}><strong>Status:</strong> {ship.shipment_status || 'N/A'}</p>
+                  </div>
+                  {ship.shipped_at && <p style={{ margin: '4px 0 0', fontSize: '12px', color: '#666' }}>Shipped: {new Date(ship.shipped_at).toLocaleString()}</p>}
                 </div>
               ))}
             </div>
           )}
+
+          {/* Action Buttons */}
+          <div style={{ display: 'flex', gap: '12px', marginTop: '16px', justifyContent: 'flex-end' }}>
+            {(o.order_state === 'WAITING_ACCEPTANCE' || o.mirakl_order_state === 'WAITING_ACCEPTANCE') && (
+              <button
+                style={{ ...styles.button, ...styles.primaryButton }}
+                onClick={() => { setOrderDetailId(null); handleAcceptOrder(o.id); }}
+              >
+                Accept Order
+              </button>
+            )}
+            {(o.order_state === 'SHIPPING' || o.mirakl_order_state === 'SHIPPING') && (
+              <button
+                style={{ ...styles.button, ...styles.primaryButton }}
+                onClick={() => { setOrderDetailId(null); setShipOrderId(o.id); setShowShipModal(true); }}
+              >
+                Ship Order
+              </button>
+            )}
+            <button style={styles.button} onClick={() => setOrderDetailId(null)}>Close</button>
+          </div>
         </div>
       </div>
     );
