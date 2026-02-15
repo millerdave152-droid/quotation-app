@@ -29,6 +29,7 @@ export const DiscountSlider = memo(function DiscountSlider({
   budget,
   onApplyDiscount,
   onRequestEscalation,
+  onRequestApproval,
   onBudgetUpdate,
   pendingEscalation,
   approvedEscalation,
@@ -178,8 +179,24 @@ export const DiscountSlider = memo(function DiscountSlider({
   }, [approvedEscalation, item, onApplyDiscount, onBudgetUpdate]);
 
   const handleRequestEscalation = useCallback(() => {
+    // Use the new tier-based approval flow when available
+    if (onRequestApproval) {
+      const desiredPct = discountPct > maxPct ? discountPct : maxPct + 1;
+      const requestedPrice = +(price * (1 - desiredPct / 100)).toFixed(2);
+      onRequestApproval({
+        productId: item.productId,
+        productName: item.productName || item.name,
+        retailPrice: price,
+        requestedPrice,
+        cost: cost || null,
+        itemId: item.id,
+        entryPoint: 'discountSlider',
+      });
+      return;
+    }
+    // Fallback to old escalation flow
     onRequestEscalation?.(item, discountPct > maxPct ? discountPct : maxPct + 1);
-  }, [item, discountPct, maxPct, onRequestEscalation]);
+  }, [item, discountPct, maxPct, price, cost, onRequestApproval, onRequestEscalation]);
 
   // Slider gradient for color zones
   const sliderMax = isUnrestricted ? 50 : maxPct;

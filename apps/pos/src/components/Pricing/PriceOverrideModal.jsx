@@ -2,9 +2,9 @@
  * TeleTime POS - Price Override Modal
  *
  * Allows cashiers/managers to override prices with:
- * - Approval workflow for discounts over threshold
+ * - Tier-based approval: Tier 1 (<=10%) auto-approves, Tier 2+ requires manager
  * - Reason selection
- * - Audit logging
+ * - Audit logging via approval_requests table
  */
 
 import { useState, useCallback, useEffect, useMemo } from 'react';
@@ -14,13 +14,12 @@ import {
   CheckCircleIcon,
   ClockIcon,
   LockClosedIcon,
-  CalculatorIcon,
   TagIcon,
   ShieldCheckIcon,
 } from '@heroicons/react/24/outline';
 import { formatCurrency } from '../../utils/formatters';
 import { useCustomerPricing } from '../../hooks/useCustomerPricing';
-import { useManagerApprovalContext } from '../Checkout/ManagerApprovalProvider';
+import { createApprovalRequest, consumeApprovalToken } from '../../api/approvals';
 
 // ============================================================================
 // OVERRIDE REASONS
@@ -39,49 +38,61 @@ const OVERRIDE_REASONS = [
   { id: 'custom', label: 'Other (specify)' },
 ];
 
+// Tier boundaries (mirrors backend approval_tier_settings)
+function calculateTier(retailPrice, overridePrice) {
+  if (retailPrice <= 0) return 2;
+  const pct = ((retailPrice - overridePrice) / retailPrice) * 100;
+  if (pct <= 10)  return 1;
+  if (pct <= 25)  return 2;
+  if (pct <= 50)  return 3;
+  return 4;
+}
+
+const TIER_LABELS = {
+  1: 'Tier 1 – Auto-approved',
+  2: 'Tier 2 – Manager Required',
+  3: 'Tier 3 – Senior Manager Required',
+  4: 'Tier 4 – Admin Required',
+};
+
 // ============================================================================
 // PRICE OVERRIDE MODAL
 // ============================================================================
 
 /**
- * Price override modal
  * @param {object} props
- * @param {boolean} props.isOpen - Whether modal is open
- * @param {function} props.onClose - Close callback
- * @param {function} props.onApply - Apply override callback (overridePrice, reason)
- * @param {object} props.product - Product being overridden
+ * @param {boolean} props.isOpen
+ * @param {function} props.onClose
+ * @param {function} props.onApply - (overridePrice, reason, approvalInfo)
+ * @param {function} props.onRequestApproval - (itemData) → opens ManagerSelectionModal for Tier 2+
+ * @param {object} props.product
  * @param {number} props.originalPrice - Original base price
  * @param {number} props.customerPrice - Customer tier price
- * @param {number} props.customerId - Current customer ID
- * @param {number} props.quantity - Quantity being purchased
+ * @param {number} props.customerId
+ * @param {number} props.quantity
  */
 export function PriceOverrideModal({
   isOpen,
   onClose,
   onApply,
+  onRequestApproval,
   product,
   originalPrice,
   customerPrice,
   customerId,
   quantity = 1,
 }) {
-  const { checkOverrideApproval, requestOverride, canApproveOverrides } =
-    useCustomerPricing({ customerId });
-
-  // Manager approval context for PIN verification
-  const managerApproval = useManagerApprovalContext();
+  const { canApproveOverrides } = useCustomerPricing({ customerId });
 
   // State
   const [mode, setMode] = useState('dollar'); // 'dollar' or 'percent'
   const [inputValue, setInputValue] = useState('');
   const [selectedReason, setSelectedReason] = useState('');
   const [customReason, setCustomReason] = useState('');
-  const [approvalCheck, setApprovalCheck] = useState(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState(null);
-  const [overrideResult, setOverrideResult] = useState(null);
 
-  // Safe prices (guard against undefined/null props)
+  // Safe prices
   const safeCustomerPrice = customerPrice || 0;
   const safeOriginalPrice = originalPrice || 0;
 
@@ -89,13 +100,12 @@ export function PriceOverrideModal({
   const overridePrice = useMemo(() => {
     const value = parseFloat(inputValue) || 0;
     if (mode === 'percent') {
-      // Percentage off customer price
       return safeCustomerPrice * (1 - value / 100);
     }
     return value;
   }, [inputValue, mode, safeCustomerPrice]);
 
-  // Calculate discount metrics
+  // Discount metrics
   const metrics = useMemo(() => {
     const discountFromBase = safeOriginalPrice - overridePrice;
     const discountFromCustomer = safeCustomerPrice - overridePrice;
@@ -115,7 +125,17 @@ export function PriceOverrideModal({
     };
   }, [overridePrice, safeOriginalPrice, safeCustomerPrice, quantity]);
 
-  // Get reason text
+  // Tier calculation
+  const tier = useMemo(
+    () => metrics.isValid && overridePrice < safeOriginalPrice
+      ? calculateTier(safeOriginalPrice, overridePrice)
+      : null,
+    [safeOriginalPrice, overridePrice, metrics.isValid],
+  );
+
+  const needsManagerApproval = tier !== null && tier >= 2 && !canApproveOverrides;
+
+  // Reason text
   const reasonText = useMemo(() => {
     if (selectedReason === 'custom') {
       return customReason.trim() || 'Custom override';
@@ -123,37 +143,17 @@ export function PriceOverrideModal({
     return OVERRIDE_REASONS.find((r) => r.id === selectedReason)?.label || '';
   }, [selectedReason, customReason]);
 
-  // Reset state when modal opens
+  // Reset on open
   useEffect(() => {
     if (isOpen) {
       setMode('dollar');
       setInputValue(safeCustomerPrice.toFixed(2));
       setSelectedReason('');
       setCustomReason('');
-      setApprovalCheck(null);
       setError(null);
-      setOverrideResult(null);
+      setIsSubmitting(false);
     }
   }, [isOpen, safeCustomerPrice]);
-
-  // Check approval when price changes
-  useEffect(() => {
-    const checkApproval = async () => {
-      if (!metrics.isValid || overridePrice === safeCustomerPrice) {
-        setApprovalCheck(null);
-        return;
-      }
-
-      const check = await checkOverrideApproval(
-        Math.round(safeOriginalPrice * 100),
-        Math.round(overridePrice * 100)
-      );
-      setApprovalCheck(check);
-    };
-
-    const debounce = setTimeout(checkApproval, 300);
-    return () => clearTimeout(debounce);
-  }, [overridePrice, safeOriginalPrice, safeCustomerPrice, metrics.isValid, checkOverrideApproval]);
 
   // Handle submit
   const handleSubmit = useCallback(async () => {
@@ -166,7 +166,7 @@ export function PriceOverrideModal({
     setError(null);
 
     try {
-      // If manager/admin, apply directly — no API call or PIN needed
+      // Managers can always apply directly
       if (canApproveOverrides) {
         onApply?.(overridePrice, reasonText, {
           managerApproved: true,
@@ -176,45 +176,48 @@ export function PriceOverrideModal({
         return;
       }
 
-      // Non-manager: check if approval is required
-      if (approvalCheck?.requiresApproval) {
-        // Use manager approval modal for PIN verification
-        const approvalResult = await managerApproval.applyPriceOverrideWithApproval({
-          originalPrice: safeCustomerPrice,
-          newPrice: overridePrice,
-          reason: reasonText,
-          product: {
-            productId: product.productId || product.id,
-            productName: product.productName || product.name,
-          },
-          quantity,
-          cost: product.unitCost || product.cost || null,
+      const discountPct = safeOriginalPrice > 0
+        ? ((safeOriginalPrice - overridePrice) / safeOriginalPrice) * 100
+        : 0;
+
+      if (discountPct <= 10) {
+        // Tier 1: Auto-approve via API, consume token, apply to cart
+        const res = await createApprovalRequest({
+          productId: product.productId || product.id,
+          requestedPrice: overridePrice,
         });
+        const data = res?.data || res;
 
-        if (approvalResult?.cancelled) {
-          setIsSubmitting(false);
-          return;
+        if (data.autoApproved && data.approval_token) {
+          const consumeRes = await consumeApprovalToken(data.approval_token);
+          const consumed = consumeRes?.data || consumeRes;
+
+          onApply?.(consumed.approvedPrice, reasonText, {
+            approvalRequestId: consumed.requestId,
+            approvedByName: 'Auto-approved',
+          });
+          onClose?.();
+        } else {
+          // Unexpected: Tier 1 didn't auto-approve — apply with logged request ID
+          onApply?.(overridePrice, reasonText, {
+            approvalRequestId: data.id,
+          });
+          onClose?.();
         }
-
-        if (!approvalResult?.approved) {
-          setError(approvalResult?.error || 'Manager approval denied');
-          setIsSubmitting(false);
-          return;
-        }
-
-        onApply?.(overridePrice, reasonText, {
-          managerApproved: true,
-          managerId: approvalResult.managerId,
-          managerName: approvalResult.managerName,
-          logId: approvalResult.logId,
+      } else {
+        // Tier 2+: Delegate to approval flow (ManagerSelectionModal → ApprovalStatusOverlay)
+        onRequestApproval?.({
+          productId: product.productId || product.id,
+          productName: product.productName || product.name,
+          retailPrice: safeOriginalPrice,
+          requestedPrice: overridePrice,
+          cost: product.unitCost || product.cost || null,
+          reason: reasonText,
+          itemId: product.id, // cart item ID
+          entryPoint: 'priceOverride',
         });
         onClose?.();
-        return;
       }
-
-      // No approval required — apply directly (within auto-approve threshold)
-      onApply?.(overridePrice, reasonText, { status: 'auto_approved' });
-      onClose?.();
     } catch (err) {
       const msg = typeof err === 'string' ? err
         : err?.message && typeof err.message === 'string' ? err.message
@@ -228,14 +231,12 @@ export function PriceOverrideModal({
     selectedReason,
     product,
     safeOriginalPrice,
-    safeCustomerPrice,
     overridePrice,
     reasonText,
     canApproveOverrides,
-    approvalCheck,
-    managerApproval,
     quantity,
     onApply,
+    onRequestApproval,
     onClose,
   ]);
 
@@ -296,13 +297,10 @@ export function PriceOverrideModal({
               onClick={() => { setMode('dollar'); setInputValue(''); }}
               className={`
                 flex-1 h-10 flex items-center justify-center gap-2
-                text-sm font-medium rounded-lg
-                transition-colors
-                ${
-                  mode === 'dollar'
-                    ? 'bg-blue-600 text-white'
-                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                }
+                text-sm font-medium rounded-lg transition-colors
+                ${mode === 'dollar'
+                  ? 'bg-blue-600 text-white'
+                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}
               `}
             >
               $ Amount
@@ -311,13 +309,10 @@ export function PriceOverrideModal({
               onClick={() => { setMode('percent'); setInputValue(''); }}
               className={`
                 flex-1 h-10 flex items-center justify-center gap-2
-                text-sm font-medium rounded-lg
-                transition-colors
-                ${
-                  mode === 'percent'
-                    ? 'bg-blue-600 text-white'
-                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                }
+                text-sm font-medium rounded-lg transition-colors
+                ${mode === 'percent'
+                  ? 'bg-blue-600 text-white'
+                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}
               `}
             >
               % Discount
@@ -333,11 +328,9 @@ export function PriceOverrideModal({
                   onClick={() => handleQuickDiscount(pct)}
                   className={`
                     flex-1 h-9 text-sm font-medium rounded-lg
-                    ${
-                      inputValue === pct.toString()
-                        ? 'bg-blue-100 text-blue-700 border-2 border-blue-500'
-                        : 'bg-gray-50 text-gray-700 border border-gray-200 hover:bg-gray-100'
-                    }
+                    ${inputValue === pct.toString()
+                      ? 'bg-blue-100 text-blue-700 border-2 border-blue-500'
+                      : 'bg-gray-50 text-gray-700 border border-gray-200 hover:bg-gray-100'}
                   `}
                 >
                   {pct}%
@@ -390,11 +383,7 @@ export function PriceOverrideModal({
 
           {/* Override Preview */}
           {metrics.isValid && overridePrice !== safeCustomerPrice && (
-            <div
-              className={`p-3 rounded-lg ${
-                metrics.isIncrease ? 'bg-yellow-50' : 'bg-green-50'
-              }`}
-            >
+            <div className={`p-3 rounded-lg ${metrics.isIncrease ? 'bg-yellow-50' : 'bg-green-50'}`}>
               <div className="flex items-center justify-between">
                 <span className="text-sm font-medium text-gray-700">New Price:</span>
                 <span className="text-xl font-bold text-gray-900 tabular-nums">
@@ -405,11 +394,7 @@ export function PriceOverrideModal({
                 <span className="text-xs text-gray-500">
                   {metrics.isIncrease ? 'Price Increase' : 'Additional Discount'}:
                 </span>
-                <span
-                  className={`text-sm font-medium tabular-nums ${
-                    metrics.isIncrease ? 'text-yellow-700' : 'text-green-700'
-                  }`}
-                >
+                <span className={`text-sm font-medium tabular-nums ${metrics.isIncrease ? 'text-yellow-700' : 'text-green-700'}`}>
                   {metrics.isIncrease ? '+' : '-'}
                   {formatCurrency(Math.abs(metrics.discountFromCustomer))} (
                   {metrics.percentFromCustomer.toFixed(1)}%)
@@ -417,9 +402,7 @@ export function PriceOverrideModal({
               </div>
               {quantity > 1 && (
                 <div className="flex items-center justify-between mt-1">
-                  <span className="text-xs text-gray-500">
-                    Total ({quantity} items):
-                  </span>
+                  <span className="text-xs text-gray-500">Total ({quantity} items):</span>
                   <span className="text-sm font-bold text-gray-900 tabular-nums">
                     {formatCurrency(overridePrice * quantity)}
                   </span>
@@ -428,70 +411,46 @@ export function PriceOverrideModal({
             </div>
           )}
 
-          {/* Approval Warning */}
-          {approvalCheck && (
-            <div
-              className={`p-3 rounded-lg flex items-start gap-3 ${
-                approvalCheck.requiresApproval
-                  ? 'bg-amber-50 border border-amber-200'
-                  : 'bg-green-50 border border-green-200'
-              }`}
-            >
-              {approvalCheck.requiresApproval ? (
+          {/* Tier Indicator */}
+          {tier !== null && !metrics.isIncrease && (
+            <div className={`p-3 rounded-lg flex items-start gap-3 ${
+              tier === 1
+                ? 'bg-green-50 border border-green-200'
+                : 'bg-amber-50 border border-amber-200'
+            }`}>
+              {tier === 1 ? (
                 <>
-                  <ExclamationTriangleIcon className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" />
+                  <CheckCircleIcon className="w-5 h-5 text-green-600 flex-shrink-0 mt-0.5" />
                   <div>
-                    <p className="text-sm font-medium text-amber-800">
-                      Manager Approval Required
+                    <p className="text-sm font-medium text-green-800">{TIER_LABELS[1]}</p>
+                    <p className="text-xs text-green-600 mt-0.5">
+                      {metrics.percentFromBase.toFixed(1)}% discount — will be applied immediately.
                     </p>
-                    {approvalCheck.error ? (
-                      <p className="text-xs text-amber-600 mt-0.5">
-                        Approval check unavailable. Manager approval may be required.
-                      </p>
-                    ) : (
-                      <p className="text-xs text-amber-600 mt-0.5">
-                        Discount of {Number.isFinite(approvalCheck.discountPercent)
-                          ? approvalCheck.discountPercent.toFixed(1)
-                          : metrics.percentFromBase.toFixed(1)}% exceeds the{' '}
-                        {approvalCheck.threshold ?? 20}% threshold for this customer tier.
-                      </p>
-                    )}
-                    {canApproveOverrides && (
-                      <p className="text-xs text-green-700 mt-1 font-medium">
-                        You can approve this override as a manager.
-                      </p>
-                    )}
+                  </div>
+                </>
+              ) : canApproveOverrides ? (
+                <>
+                  <ShieldCheckIcon className="w-5 h-5 text-green-600 flex-shrink-0 mt-0.5" />
+                  <div>
+                    <p className="text-sm font-medium text-green-800">Manager Override</p>
+                    <p className="text-xs text-green-600 mt-0.5">
+                      {metrics.percentFromBase.toFixed(1)}% discount ({TIER_LABELS[tier]}).
+                      You can approve this as a manager.
+                    </p>
                   </div>
                 </>
               ) : (
                 <>
-                  <CheckCircleIcon className="w-5 h-5 text-green-600 flex-shrink-0 mt-0.5" />
+                  <ExclamationTriangleIcon className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" />
                   <div>
-                    <p className="text-sm font-medium text-green-800">
-                      Auto-Approved
-                    </p>
-                    <p className="text-xs text-green-600 mt-0.5">
-                      This discount is within your authorized limit.
+                    <p className="text-sm font-medium text-amber-800">{TIER_LABELS[tier]}</p>
+                    <p className="text-xs text-amber-600 mt-0.5">
+                      {metrics.percentFromBase.toFixed(1)}% discount exceeds Tier 1 threshold.
+                      You will select a manager to approve this override.
                     </p>
                   </div>
                 </>
               )}
-            </div>
-          )}
-
-          {/* Exceeds Max Warning */}
-          {approvalCheck?.exceedsMax && (
-            <div className="p-3 bg-red-50 border border-red-200 rounded-lg flex items-start gap-3">
-              <LockClosedIcon className="w-5 h-5 text-red-600 flex-shrink-0 mt-0.5" />
-              <div>
-                <p className="text-sm font-medium text-red-800">
-                  Exceeds Maximum Discount
-                </p>
-                <p className="text-xs text-red-600 mt-0.5">
-                  This discount exceeds the maximum allowed for this customer tier.
-                  Higher approval may be required.
-                </p>
-              </div>
             </div>
           )}
 
@@ -506,15 +465,10 @@ export function PriceOverrideModal({
                   key={reason.id}
                   onClick={() => setSelectedReason(reason.id)}
                   className={`
-                    h-10 px-3
-                    text-sm font-medium text-left
-                    rounded-lg
-                    transition-colors
-                    ${
-                      selectedReason === reason.id
-                        ? 'bg-blue-100 text-blue-700 border-2 border-blue-500'
-                        : 'bg-gray-50 text-gray-700 border border-gray-200 hover:bg-gray-100'
-                    }
+                    h-10 px-3 text-sm font-medium text-left rounded-lg transition-colors
+                    ${selectedReason === reason.id
+                      ? 'bg-blue-100 text-blue-700 border-2 border-blue-500'
+                      : 'bg-gray-50 text-gray-700 border border-gray-200 hover:bg-gray-100'}
                   `}
                 >
                   {reason.label}
@@ -535,33 +489,15 @@ export function PriceOverrideModal({
                 onChange={(e) => setCustomReason(e.target.value)}
                 placeholder="Enter reason for override..."
                 maxLength={200}
-                className="
-                  w-full h-10 px-3
-                  text-sm
-                  border-2 border-gray-200 rounded-lg
-                  focus:border-blue-500 focus:ring-2 focus:ring-blue-100
-                "
+                className="w-full h-10 px-3 text-sm border-2 border-gray-200 rounded-lg focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
               />
             </div>
           )}
 
-          {/* Error Message */}
+          {/* Error */}
           {error && (
             <div className="p-3 bg-red-50 border border-red-200 rounded-lg">
               <p className="text-sm text-red-700">{error}</p>
-            </div>
-          )}
-
-          {/* Pending Approval Result */}
-          {overrideResult?.status === 'pending' && !canApproveOverrides && (
-            <div className="p-4 bg-amber-50 border border-amber-200 rounded-lg text-center">
-              <ClockIcon className="w-8 h-8 text-amber-600 mx-auto mb-2" />
-              <p className="text-sm font-medium text-amber-800">
-                Awaiting Manager Approval
-              </p>
-              <p className="text-xs text-amber-600 mt-1">
-                Override ID: #{overrideResult.overrideId}
-              </p>
             </div>
           )}
         </div>
@@ -570,13 +506,7 @@ export function PriceOverrideModal({
         <div className="p-4 border-t border-gray-200 flex gap-3">
           <button
             onClick={onClose}
-            className="
-              flex-1 h-12
-              text-gray-700 font-medium
-              bg-gray-100 hover:bg-gray-200
-              rounded-xl
-              transition-colors
-            "
+            className="flex-1 h-12 text-gray-700 font-medium bg-gray-100 hover:bg-gray-200 rounded-xl transition-colors"
           >
             Cancel
           </button>
@@ -588,22 +518,14 @@ export function PriceOverrideModal({
               isSubmitting ||
               overridePrice === safeCustomerPrice
             }
-            className="
-              flex-1 h-12
-              flex items-center justify-center gap-2
-              text-white font-bold
-              bg-blue-600 hover:bg-blue-700
-              disabled:bg-gray-300 disabled:cursor-not-allowed
-              rounded-xl
-              transition-colors
-            "
+            className="flex-1 h-12 flex items-center justify-center gap-2 text-white font-bold bg-blue-600 hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed rounded-xl transition-colors"
           >
             {isSubmitting ? (
               <>
                 <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
                 Processing...
               </>
-            ) : approvalCheck?.requiresApproval && !canApproveOverrides ? (
+            ) : needsManagerApproval ? (
               <>
                 <ClockIcon className="w-5 h-5" />
                 Request Approval

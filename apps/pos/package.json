@@ -16,6 +16,7 @@
     "@mui/icons-material": "^7.3.7",
     "@mui/material": "^7.3.7",
     "axios": "^1.6.7",
+    "bcryptjs": "^3.0.3",
     "idb-keyval": "^6.2.1",
     "immer": "^10.0.3",
     "lucide-react": "^0.563.0",

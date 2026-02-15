@@ -7,6 +7,14 @@ import { useState, useCallback, useRef } from 'react';
 
 const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:3001';
 
+function getAuthHeaders() {
+  const token = localStorage.getItem('pos_token');
+  return {
+    'Content-Type': 'application/json',
+    ...(token ? { Authorization: `Bearer ${token}` } : {}),
+  };
+}
+
 // Override types that can require manager approval
 export const OVERRIDE_TYPES = {
   DISCOUNT_PERCENT: 'discount_percent',
@@ -49,7 +57,7 @@ export function useManagerApproval() {
     try {
       const response = await fetch(`${API_BASE}/api/manager-overrides/check`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: getAuthHeaders(),
         body: JSON.stringify({
           overrideType,
           value,
@@ -60,7 +68,8 @@ export function useManagerApproval() {
       const data = await response.json();
 
       if (!response.ok || !data.success) {
-        throw new Error(data.error || 'Failed to check approval requirement');
+        const msg = typeof data.error === 'object' ? data.error?.message : data.error;
+        throw new Error(msg || 'Failed to check approval requirement');
       }
 
       return data.data;
@@ -89,7 +98,7 @@ export function useManagerApproval() {
     try {
       const response = await fetch(`${API_BASE}/api/manager-overrides/check-discount`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: getAuthHeaders(),
         body: JSON.stringify({
           originalPrice,
           discountedPrice,
@@ -102,7 +111,8 @@ export function useManagerApproval() {
       const data = await response.json();
 
       if (!response.ok || !data.success) {
-        throw new Error(data.error || 'Failed to check discount approval');
+        const msg = typeof data.error === 'object' ? data.error?.message : data.error;
+        throw new Error(msg || 'Failed to check discount approval');
       }
 
       return data.data;
@@ -150,7 +160,7 @@ export function useManagerApproval() {
     try {
       const response = await fetch(`${API_BASE}/api/manager-overrides/approve`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: getAuthHeaders(),
         body: JSON.stringify({
           pin,
           overrideType: pendingOverride.overrideType,
@@ -168,10 +178,15 @@ export function useManagerApproval() {
 
       const data = await response.json();
 
+      // Extract error message string (API returns { error: { code, message } })
+      const errMsg = typeof data.error === 'object' && data.error !== null
+        ? data.error.message || 'Unknown error'
+        : data.error || '';
+
       if (!response.ok) {
         // Handle lockout or invalid PIN
         if (response.status === 401) {
-          setError(data.error || 'Invalid PIN');
+          setError(errMsg || 'Invalid PIN');
 
           if (data.lockedUntil) {
             setError(`Account locked until ${new Date(data.lockedUntil).toLocaleTimeString()}`);
@@ -179,16 +194,16 @@ export function useManagerApproval() {
             setError(`Invalid PIN. ${data.attemptsRemaining} attempts remaining.`);
           }
 
-          return { approved: false, error: data.error };
+          return { approved: false, error: errMsg };
         }
 
-        throw new Error(data.error || 'Approval failed');
+        throw new Error(errMsg || 'Approval failed');
       }
 
       if (!data.success || !data.approved) {
-        const errorMsg = data.error || 'Approval denied';
-        setError(errorMsg);
-        return { approved: false, error: errorMsg };
+        const errorStr = errMsg || 'Approval denied';
+        setError(errorStr);
+        return { approved: false, error: errorStr };
       }
 
       // Approval successful

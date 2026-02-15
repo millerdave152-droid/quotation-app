@@ -12,6 +12,7 @@ import {
   ExclamationTriangleIcon,
   ChevronDownIcon,
   ChevronUpIcon,
+  ShieldCheckIcon,
 } from '@heroicons/react/24/outline';
 import { formatCurrency } from '../../utils/formatters';
 import { DiscountSlider } from '../Discount/DiscountSlider';
@@ -37,6 +38,7 @@ export const CartItem = memo(function CartItem({
   discountTier,
   discountBudget,
   onRequestEscalation,
+  onRequestApproval,
   onBudgetUpdate,
   myEscalations,
   disabled = false,
@@ -188,6 +190,18 @@ export const CartItem = memo(function CartItem({
                 </p>
               )}
 
+              {/* Approval badge */}
+              {item.approvedByName && (
+                <div className={`mt-0.5 flex items-center gap-1 text-xs font-medium ${
+                  item.offlineApproval ? 'text-orange-600' : 'text-green-600'
+                }`}>
+                  <ShieldCheckIcon className="w-3 h-3" />
+                  {item.offlineApproval
+                    ? `PIN Override (offline) - ${item.approvedByName}`
+                    : `Approved by ${item.approvedByName}`}
+                </div>
+              )}
+
               {/* Low stock / Out of stock warning */}
               {isOutOfStock && (
                 <div className="mt-1 flex items-center gap-1 text-xs text-red-600 font-medium">
@@ -302,6 +316,7 @@ export const CartItem = memo(function CartItem({
                     budget={discountBudget}
                     onApplyDiscount={onApplyDiscount}
                     onRequestEscalation={onRequestEscalation}
+                    onRequestApproval={onRequestApproval}
                     onBudgetUpdate={onBudgetUpdate}
                     pendingEscalation={pendingEsc}
                     approvedEscalation={approvedEsc}

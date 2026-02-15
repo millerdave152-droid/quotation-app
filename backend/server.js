@@ -60,6 +60,7 @@ const VolumeDiscountService = require('./services/VolumeDiscountService');
 const POSPromotionService = require('./services/POSPromotionService');
 const PromotionEngine = require('./services/PromotionEngine');
 const ManagerOverrideService = require('./services/ManagerOverrideService');
+const ApprovalService = require('./services/ApprovalService');
 const DeliveryFulfillmentService = require('./services/DeliveryFulfillmentService');
 const WarrantyService = require('./services/WarrantyService');
 const FinancingService = require('./services/FinancingService');
@@ -73,6 +74,7 @@ const NotificationService = require('./services/NotificationService');
 const TaxService = require('./services/TaxService');
 const FraudDetectionService = require('./services/FraudDetectionService');
 const DiscountAuthorityService = require('./services/DiscountAuthorityService');
+const wsService = require('./services/WebSocketService');
 
 // New Enterprise Routes (Phase 2)
 const ordersRoutes = require('./routes/orders');
@@ -83,9 +85,11 @@ const pricingRoutes = require('./routes/pricing');
 const volumePricingRoutes = require('./routes/volume-pricing');
 const posPromotionsRoutes = require('./routes/pos-promotions');
 const managerOverrideRoutes = require('./routes/manager-overrides');
+const customerPricingRoutes = require('./routes/customer-pricing');
 const discountAuthorityRoutes = require('./routes/discount-authority');
 const discountEscalationRoutes = require('./routes/discount-escalations');
 const discountAnalyticsRoutes = require('./routes/discount-analytics');
+const approvalRoutes = require('./routes/approvalRoutes');
 const deliveryFulfillmentRoutes = require('./routes/delivery-fulfillment');
 const warrantyRoutes = require('./routes/warranty');
 const stripeRoutes = require('./routes/stripe');
@@ -229,6 +233,7 @@ const volumeDiscountService = new VolumeDiscountService(pool, cache);
 const posPromotionService = new POSPromotionService(pool);
 const promotionEngine = new PromotionEngine(pool, posPromotionService);
 const managerOverrideService = new ManagerOverrideService(pool, cache);
+const approvalService = new ApprovalService(pool);
 const deliveryFulfillmentService = new DeliveryFulfillmentService(pool, cache);
 const warrantyService = new WarrantyService(pool, cache);
 const financingService = new FinancingService(pool);
@@ -2805,6 +2810,12 @@ console.log('✅ POS promotions routes loaded');
 app.use('/api/manager-overrides', managerOverrideRoutes(managerOverrideService));
 console.log('✅ Manager override routes loaded');
 
+app.use('/api/customer-pricing', customerPricingRoutes.init({ pool, cache }));
+console.log('✅ Customer pricing routes loaded');
+
+app.use('/api/pos-approvals', approvalRoutes(approvalService));
+console.log('✅ POS price-override approval routes loaded');
+
 app.use('/api/discount-authority', discountAuthorityRoutes(discountAuthorityService, fraudService));
 console.log('✅ Discount authority routes loaded (with fraud detection)');
 
@@ -2994,6 +3005,9 @@ const server = app.listen(PORT, () => {
   console.log('========================================');
   console.log('');
 
+  // Initialize WebSocket service (shares the same port via HTTP upgrade)
+  wsService.init(server);
+
   // Start notification scheduler for automated email reminders
   if (process.env.ENABLE_EMAIL_NOTIFICATIONS !== 'false') {
     notificationScheduler.start();
@@ -3055,6 +3069,18 @@ const server = app.listen(PORT, () => {
     console.log('✅ CLV calculation job started (Daily 2:30 AM)');
   }
 
+  // Initialize ChannelManager (loads active marketplace channels from DB)
+  try {
+    const { getInstance: getChannelManager } = require('./services/ChannelManager');
+    getChannelManager().then(cm => {
+      console.log(`✅ ChannelManager ready (${cm.getAllAdapters().length} channel(s))`);
+    }).catch(err => {
+      console.warn('⚠️  ChannelManager init failed:', err.message);
+    });
+  } catch (err) {
+    console.warn('⚠️  ChannelManager not available:', err.message);
+  }
+
   // Start marketplace polling jobs (order sync, inventory push, import checks, deadline monitor)
   try {
     const marketplaceJobs = require('./jobs/marketplaceJobs');
@@ -3085,6 +3111,7 @@ server.on('error', (error) => {
 // Graceful shutdown
 process.on('SIGTERM', () => {
   console.log('⚠️  SIGTERM signal received: closing HTTP server');
+  wsService.shutdown();
   server.close(() => {
     console.log('✅ HTTP server closed');
     pool.end(() => {
@@ -3096,6 +3123,7 @@ process.on('SIGTERM', () => {
 
 process.on('SIGINT', () => {
   console.log('\n⚠️  SIGINT signal received: closing HTTP server');
+  wsService.shutdown();
   server.close(() => {
     console.log('✅ HTTP server closed');
     pool.end(() => {

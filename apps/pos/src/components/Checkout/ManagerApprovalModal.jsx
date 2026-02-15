@@ -122,12 +122,10 @@ function OverrideReasonBadge({ overrideType, value, threshold }) {
 // SUCCESS STATE
 // ============================================================================
 
-function ApprovalSuccess({ managerName, onClose }) {
-  useEffect(() => {
-    // Auto-close after showing success
-    const timer = setTimeout(onClose, 1500);
-    return () => clearTimeout(timer);
-  }, [onClose]);
+function ApprovalSuccess({ managerName }) {
+  // No auto-close timer here — verifyPin in useManagerApproval already
+  // schedules closing the modal + resolving the promise after 1500ms.
+  // Having a second timer caused a race condition and DOM crash.
 
   return (
     <div className="flex flex-col items-center justify-center py-8">
@@ -335,7 +333,6 @@ export function ManagerApprovalModal({
         <div className="bg-white rounded-2xl shadow-xl max-w-md w-full mx-4">
           <ApprovalSuccess
             managerName={approvalResult.managerName}
-            onClose={handleCancel}
           />
         </div>
       </div>

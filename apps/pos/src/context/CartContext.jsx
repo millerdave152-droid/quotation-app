@@ -505,12 +505,22 @@ export function CartProvider({ children }) {
   /**
    * Apply discount to item
    */
-  const applyItemDiscount = useCallback((itemId, percent, escalationId = null) => {
+  const applyItemDiscount = useCallback((itemId, percent, escalationId = null, approvalInfo = {}) => {
     const discountPercent = Math.max(0, Math.min(100, percent));
 
     setItems((currentItems) =>
       currentItems.map((item) =>
-        item.id === itemId ? { ...item, discountPercent, ...(escalationId != null && { escalationId }) } : item
+        item.id === itemId
+          ? {
+              ...item,
+              discountPercent,
+              ...(escalationId != null && { escalationId }),
+              ...(approvalInfo.approvalRequestId && { approvalRequestId: approvalInfo.approvalRequestId }),
+              ...(approvalInfo.approvedByName && { approvedByName: approvalInfo.approvedByName }),
+              ...(approvalInfo.offlineApproval && { offlineApproval: true }),
+              ...(approvalInfo.clientRequestId && { clientRequestId: approvalInfo.clientRequestId }),
+            }
+          : item
       )
     );
   }, []);
@@ -531,7 +541,7 @@ export function CartProvider({ children }) {
   /**
    * Override item price (from price override modal)
    */
-  const updateItemPrice = useCallback((itemId, newPrice, reason) => {
+  const updateItemPrice = useCallback((itemId, newPrice, reason, approvalInfo = {}) => {
     setItems((currentItems) =>
       currentItems.map((item) =>
         item.id === itemId
@@ -541,6 +551,10 @@ export function CartProvider({ children }) {
               priceOverride: true,
               priceOverrideReason: reason,
               discountPercent: 0,
+              ...(approvalInfo.approvalRequestId && { approvalRequestId: approvalInfo.approvalRequestId }),
+              ...(approvalInfo.approvedByName && { approvedByName: approvalInfo.approvedByName }),
+              ...(approvalInfo.offlineApproval && { offlineApproval: true }),
+              ...(approvalInfo.clientRequestId && { clientRequestId: approvalInfo.clientRequestId }),
             }
           : item
       )

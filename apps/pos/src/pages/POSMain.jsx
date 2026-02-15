@@ -26,6 +26,8 @@ import {
   ShieldCheckIcon,
   Cog6ToothIcon,
   BanknotesIcon,
+  LockClosedIcon,
+  BellAlertIcon,
 } from '@heroicons/react/24/outline';
 
 // Context hooks
@@ -50,9 +52,26 @@ import ShiftCommissionSummary from '../components/Commission/ShiftCommissionSumm
 import { ManagerApprovalQueue } from '../components/Discount/ManagerApprovalQueue';
 import { DiscountEscalationModal } from '../components/Discount/DiscountEscalationModal';
 import { EscalationToastContainer } from '../components/Discount/EscalationToast';
+import { ChangePasswordModal } from '../components/Account/ChangePasswordModal';
+import { NotificationPreferences } from '../components/Account/NotificationPreferences';
+import ManagerSelectionModal from '../components/approvals/ManagerSelectionModal';
+import ApprovalStatusOverlay from '../components/approvals/ApprovalStatusOverlay';
+import BatchManagerSelectionModal from '../components/approvals/BatchManagerSelectionModal';
+import BatchApprovalStatusOverlay from '../components/approvals/BatchApprovalStatusOverlay';
+import DelegationModal from '../components/approvals/DelegationModal';
 
 // Hooks
 import { useEscalationPolling } from '../hooks/useEscalationPolling';
+import { useApprovalFlow } from '../hooks/useApprovalFlow';
+import { useBatchApprovalFlow } from '../hooks/useBatchApprovalFlow';
+import { useConnectionStatus } from '../hooks/useConnectionStatus';
+import { useManagerPinCache } from '../hooks/useManagerPinCache';
+
+// Components
+import { ConnectionBanner } from '../components/ConnectionBanner';
+
+// Offline queue
+import { addOfflineApproval, syncToServer } from '../store/offlineApprovalQueue';
 
 // API
 import { getMyTier, initializeBudget } from '../api/discountAuthority';
@@ -177,6 +196,11 @@ function Header({
   onUserMenuClick,
   onCloseShift,
   onDiscountApprovals,
+  onDelegateAuthority,
+  onChangePassword,
+  onNotificationSettings,
+  badgeCount,
+  badgeIsManager,
 }) {
   const navigate = useNavigate();
   const { user, logout, isAdminOrManager } = useAuth();
@@ -258,8 +282,28 @@ function Header({
           </div>
         )}
 
-        {/* Right - User Menu */}
-        <div className="relative">
+        {/* Right - Badge + User Menu */}
+        <div className="flex items-center gap-2">
+          {/* Pending Approvals Badge */}
+          {badgeCount > 0 && (
+            <button
+              type="button"
+              onClick={() => {
+                if (badgeIsManager) {
+                  onDiscountApprovals?.();
+                }
+              }}
+              className="relative w-10 h-10 flex items-center justify-center hover:bg-slate-700 rounded-lg transition-colors"
+              title={badgeIsManager ? 'Pending discount approvals' : 'Your pending escalations'}
+            >
+              <BellAlertIcon className="w-5 h-5 text-amber-400" />
+              <span className="absolute -top-0.5 -right-0.5 min-w-[18px] h-[18px] bg-amber-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center px-1">
+                {badgeCount > 99 ? '99+' : badgeCount}
+              </span>
+            </button>
+          )}
+
+          <div className="relative">
           <button
             type="button"
             onClick={() => setShowUserMenu(!showUserMenu)}
@@ -373,6 +417,15 @@ function Header({
                       <TagIcon className="w-5 h-5 text-gray-500" />
                       <span>Discount Approvals</span>
                     </button>
+
+                    <button
+                      type="button"
+                      onClick={() => { setShowUserMenu(false); onDelegateAuthority?.(); }}
+                      className="w-full flex items-center gap-3 px-4 py-3 text-left text-gray-700 hover:bg-gray-50 transition-colors"
+                    >
+                      <UserGroupIcon className="w-5 h-5 text-gray-500" />
+                      <span>Delegate Authority</span>
+                    </button>
                   </>
                 )}
 
@@ -386,6 +439,30 @@ function Header({
                 >
                   <CurrencyDollarIcon className="w-5 h-5 text-gray-500" />
                   <span>My Commissions</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowUserMenu(false);
+                    onNotificationSettings?.();
+                  }}
+                  className="w-full flex items-center gap-3 px-4 py-3 text-left text-gray-700 hover:bg-gray-50 transition-colors"
+                >
+                  <BellAlertIcon className="w-5 h-5 text-gray-500" />
+                  <span>Notification Settings</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowUserMenu(false);
+                    onChangePassword?.();
+                  }}
+                  className="w-full flex items-center gap-3 px-4 py-3 text-left text-gray-700 hover:bg-gray-50 transition-colors"
+                >
+                  <LockClosedIcon className="w-5 h-5 text-gray-500" />
+                  <span>Change Password</span>
                 </button>
 
                 <div className="border-t border-gray-100 my-1" />
@@ -404,6 +481,7 @@ function Header({
               </div>
             </>
           )}
+        </div>
         </div>
       </div>
 
@@ -536,6 +614,125 @@ function PriceCheckModal({ isOpen, onClose }) {
 }
 
 // ============================================================================
+// OFFLINE PIN MODAL
+// ============================================================================
+
+function OfflinePinModal({ onClose, onSubmitPin, error, productName, requestedPrice }) {
+  const [pin, setPin] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+
+  const handleSubmit = async () => {
+    if (!pin || pin.length < 4) return;
+    setSubmitting(true);
+    await onSubmitPin(pin);
+    setSubmitting(false);
+    // If successful, the flow moves to 'approved' and this modal unmounts
+    // If error, it stays open with the error message
+  };
+
+  const handleKeyPress = (digit) => {
+    if (pin.length < 8) setPin((p) => p + digit);
+  };
+
+  const handleBackspace = () => {
+    setPin((p) => p.slice(0, -1));
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+      <div className="absolute inset-0 bg-black/50" onClick={onClose} />
+      <div className="relative bg-white rounded-2xl shadow-2xl max-w-sm w-full p-6">
+        {/* Header */}
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-lg font-bold text-gray-900">Offline PIN Override</h2>
+          <button
+            type="button"
+            onClick={onClose}
+            className="w-8 h-8 flex items-center justify-center text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
+          >
+            <XMarkIcon className="w-5 h-5" />
+          </button>
+        </div>
+
+        {/* Offline indicator */}
+        <div className="mb-4 p-2 bg-red-50 border border-red-200 rounded-lg text-center">
+          <p className="text-xs text-red-700 font-medium">Server unreachable — using offline PIN verification</p>
+        </div>
+
+        {/* Product info */}
+        {productName && (
+          <div className="mb-4 text-center">
+            <p className="text-sm text-gray-600">{productName}</p>
+            {requestedPrice != null && (
+              <p className="text-lg font-bold text-blue-600">{formatCurrency(requestedPrice)}</p>
+            )}
+          </div>
+        )}
+
+        {/* PIN display */}
+        <div className="mb-4 text-center">
+          <p className="text-sm text-gray-500 mb-2">Enter Manager PIN</p>
+          <div className="flex justify-center gap-2">
+            {[...Array(Math.max(pin.length, 4))].map((_, i) => (
+              <div
+                key={i}
+                className={`w-3 h-3 rounded-full ${
+                  i < pin.length ? 'bg-blue-600' : 'bg-gray-300'
+                }`}
+              />
+            ))}
+          </div>
+        </div>
+
+        {/* Error */}
+        {error && (
+          <p className="mb-3 text-center text-sm text-red-600 font-medium">{error}</p>
+        )}
+
+        {/* Keypad */}
+        <div className="grid grid-cols-3 gap-2 mb-4">
+          {[1, 2, 3, 4, 5, 6, 7, 8, 9].map((d) => (
+            <button
+              key={d}
+              type="button"
+              onClick={() => handleKeyPress(String(d))}
+              disabled={submitting}
+              className="h-12 bg-gray-100 hover:bg-gray-200 rounded-lg text-lg font-semibold text-gray-900 transition-colors disabled:opacity-50"
+            >
+              {d}
+            </button>
+          ))}
+          <button
+            type="button"
+            onClick={handleBackspace}
+            disabled={submitting}
+            className="h-12 bg-gray-100 hover:bg-gray-200 rounded-lg text-sm font-medium text-gray-600 transition-colors disabled:opacity-50"
+          >
+            Del
+          </button>
+          <button
+            type="button"
+            onClick={() => handleKeyPress('0')}
+            disabled={submitting}
+            className="h-12 bg-gray-100 hover:bg-gray-200 rounded-lg text-lg font-semibold text-gray-900 transition-colors disabled:opacity-50"
+          >
+            0
+          </button>
+          <button
+            type="button"
+            onClick={handleSubmit}
+            disabled={submitting || pin.length < 4}
+            className="h-12 bg-blue-600 hover:bg-blue-700 rounded-lg text-sm font-bold text-white transition-colors disabled:opacity-50"
+          >
+            {submitting ? '...' : 'OK'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ============================================================================
 // MAIN POS LAYOUT
 // ============================================================================
 
@@ -559,6 +756,13 @@ export function POSMain() {
   const [showPriceCheck, setShowPriceCheck] = useState(false);
   const [priceOverrideItem, setPriceOverrideItem] = useState(null);
   const [showDiscountApprovals, setShowDiscountApprovals] = useState(false);
+  const [showChangePassword, setShowChangePassword] = useState(false);
+  const [showNotificationSettings, setShowNotificationSettings] = useState(false);
+  const [showDelegationModal, setShowDelegationModal] = useState(false);
+
+  // Connection status + offline support
+  const { status: connectionStatus, isOffline } = useConnectionStatus();
+  const { verifyPinOffline, clearCache: clearPinCache } = useManagerPinCache();
 
   // Discount Authority State
   const [discountTier, setDiscountTier] = useState(null);
@@ -566,14 +770,27 @@ export function POSMain() {
   const [escalationItem, setEscalationItem] = useState(null);
   const [escalationDesiredPct, setEscalationDesiredPct] = useState(0);
 
-  // Escalation polling
+  // Approval flow (new tier-based system) — pass offline helpers
+  const approvalFlow = useApprovalFlow({
+    isOffline,
+    verifyPinOffline,
+    addOfflineApproval,
+  });
+  const [approvalFlowItem, setApprovalFlowItem] = useState(null);
+
+  // Batch approval flow
+  const batchApprovalFlow = useBatchApprovalFlow();
+
+  // Escalation polling (pass isManager so it also fetches manager pending count)
+  const isManager = isAdminOrManager();
   const {
     escalations: myEscalations,
     pendingCount: escalationPendingCount,
+    managerPendingCount,
     newlyResolved,
     clearResolved,
     refresh: refreshEscalations,
-  } = useEscalationPolling(hasActiveShift);
+  } = useEscalationPolling(hasActiveShift, isManager);
 
   // Refs
   const searchInputRef = useRef(null);
@@ -638,11 +855,40 @@ export function POSMain() {
     }
   }, []);
 
-  // Callback when escalation is requested from DiscountSlider
+  // Callback when escalation is requested from DiscountSlider (old flow fallback)
   const handleRequestEscalation = useCallback((item, desiredPct) => {
     setEscalationItem(item);
     setEscalationDesiredPct(desiredPct);
   }, []);
+
+  // New approval flow: request approval for Tier 2+ overrides
+  const handleRequestApproval = useCallback((itemData) => {
+    setApprovalFlowItem(itemData);
+    approvalFlow.startFlow(itemData);
+  }, [approvalFlow]);
+
+  // New approval flow: manager selected from ManagerSelectionModal
+  const handleManagerSelected = useCallback((managerId) => {
+    approvalFlow.submitRequest(managerId);
+  }, [approvalFlow]);
+
+  // Batch approval flow: request approval for entire cart
+  const handleRequestBatchApproval = useCallback((cartItems) => {
+    const items = cartItems.map((item) => ({
+      cartItemId: item.id,
+      productId: item.productId,
+      productName: item.productName || item.name,
+      retailPrice: parseFloat(item.basePrice || item.unitPrice || 0),
+      requestedPrice: parseFloat(item.overridePrice || item.unitPrice || item.basePrice || 0),
+      cost: item.cost != null ? parseFloat(item.cost) : null,
+    }));
+    batchApprovalFlow.startFlow(items);
+  }, [batchApprovalFlow]);
+
+  // Batch approval flow: manager selected
+  const handleBatchManagerSelected = useCallback((managerId) => {
+    batchApprovalFlow.submitRequest(managerId);
+  }, [batchApprovalFlow]);
 
   // Apply an approved escalation discount to the matching cart item
   const handleApplyApprovedEscalation = useCallback((escalation) => {
@@ -667,6 +913,80 @@ export function POSMain() {
       }
     }
   }, [newlyResolved, cart]);
+
+  // Sync offline approvals when connection is restored
+  useEffect(() => {
+    if (connectionStatus === 'connected') {
+      syncToServer().catch((err) => console.warn('[POSMain] Offline sync failed:', err));
+    }
+  }, [connectionStatus]);
+
+  // Approval flow: apply price when flow completes ('done')
+  useEffect(() => {
+    if (approvalFlow.flowState !== 'done' || !approvalFlowItem) return;
+
+    const { approvedPrice, approvedByName, approvalRequest, isOfflineApproval, offlineClientRequestId } = approvalFlow;
+    const approvalInfo = {
+      approvalRequestId: approvalRequest?.id,
+      approvedByName: approvedByName || 'Manager',
+      ...(isOfflineApproval && { offlineApproval: true }),
+      ...(offlineClientRequestId && { clientRequestId: offlineClientRequestId }),
+    };
+
+    if (approvalFlowItem.entryPoint === 'discountSlider') {
+      // Calculate approved discount % from approved price
+      const retailPrice = approvalFlowItem.retailPrice;
+      const approvedPct = retailPrice > 0
+        ? +((1 - approvedPrice / retailPrice) * 100).toFixed(2)
+        : 0;
+      cart.applyItemDiscount(approvalFlowItem.itemId, approvedPct, null, approvalInfo);
+    } else {
+      // Price override entry point
+      cart.updateItemPrice(
+        approvalFlowItem.itemId,
+        approvedPrice,
+        approvalFlowItem.reason || 'Manager approved override',
+        approvalInfo
+      );
+    }
+
+    handleBudgetUpdate();
+    setApprovalFlowItem(null);
+    // approvalFlow.reset() is called after the overlay auto-closes
+  }, [approvalFlow.flowState, approvalFlowItem, approvalFlow, cart, handleBudgetUpdate]);
+
+  // Approval flow: reset on terminal states
+  useEffect(() => {
+    if (['denied', 'cancelled', 'timed_out', 'error'].includes(approvalFlow.flowState)) {
+      // Clear the item reference but let the overlay display the result.
+      // The overlay's onClose will call approvalFlow.reset().
+    }
+  }, [approvalFlow.flowState]);
+
+  // Batch approval flow: apply prices when batch completes
+  useEffect(() => {
+    if (batchApprovalFlow.flowState !== 'done') return;
+
+    const approved = batchApprovalFlow.approvedChildren;
+    if (!approved || approved.length === 0) return;
+
+    for (const child of approved) {
+      const cartItemId = child.cartItemId || child.cart_item_id;
+      if (cartItemId && child.approvedPrice != null) {
+        cart.updateItemPrice(
+          cartItemId,
+          child.approvedPrice,
+          'Batch approval override',
+          {
+            approvalRequestId: child.childId || child.id,
+            approvedByName: batchApprovalFlow.approvedByName || 'Manager',
+          }
+        );
+      }
+    }
+
+    handleBudgetUpdate();
+  }, [batchApprovalFlow.flowState, batchApprovalFlow.approvedChildren, batchApprovalFlow.approvedByName, cart, handleBudgetUpdate]);
 
   // Handle hold transaction (declared before keyboard shortcuts useEffect that references it)
   const handleHoldTransaction = useCallback(() => {
@@ -840,12 +1160,20 @@ export function POSMain() {
         onApplyDiscount={handleApplyApprovedEscalation}
       />
 
+      {/* Connection Status Banner */}
+      <ConnectionBanner status={connectionStatus} />
+
       {/* Header */}
       <Header
         onMenuClick={() => setShowMobileMenu(true)}
         onShiftSummaryClick={() => setShowShiftSummary(true)}
         onCloseShift={handleCloseShift}
         onDiscountApprovals={() => setShowDiscountApprovals(true)}
+        onDelegateAuthority={() => setShowDelegationModal(true)}
+        onChangePassword={() => setShowChangePassword(true)}
+        onNotificationSettings={() => setShowNotificationSettings(true)}
+        badgeCount={isManager ? managerPendingCount : escalationPendingCount}
+        badgeIsManager={isManager}
       />
 
       {/* Quote Conversion Banner */}
@@ -921,6 +1249,8 @@ export function POSMain() {
             discountTier={discountTier}
             discountBudget={discountBudget}
             onRequestEscalation={handleRequestEscalation}
+            onRequestApproval={handleRequestApproval}
+            onRequestBatchApproval={handleRequestBatchApproval}
             onBudgetUpdate={handleBudgetUpdate}
             myEscalations={myEscalations}
             escalationPendingCount={escalationPendingCount}
@@ -940,7 +1270,7 @@ export function POSMain() {
           onPriceCheck={() => setShowPriceCheck(true)}
           onDiscountApprovals={() => setShowDiscountApprovals(true)}
           isEmpty={cart.isEmpty}
-          isManager={isAdminOrManager()}
+          isManager={isManager}
         />
       </div>
 
@@ -998,15 +1328,113 @@ export function POSMain() {
         tier={discountTier}
       />
 
+      {/* Manager Selection Modal (new approval flow) */}
+      <ManagerSelectionModal
+        isOpen={approvalFlow.flowState === 'select_manager'}
+        onClose={() => {
+          approvalFlow.reset();
+          setApprovalFlowItem(null);
+        }}
+        cartItem={approvalFlowItem ? {
+          id: approvalFlowItem.itemId,
+          productId: approvalFlowItem.productId,
+          productName: approvalFlowItem.productName,
+          retailPrice: approvalFlowItem.retailPrice,
+          requestedPrice: approvalFlowItem.requestedPrice,
+          cost: approvalFlowItem.cost,
+        } : null}
+        onManagerSelected={handleManagerSelected}
+      />
+
+      {/* Offline PIN Override Modal */}
+      {approvalFlow.flowState === 'pin_offline' && (
+        <OfflinePinModal
+          onClose={() => {
+            approvalFlow.reset();
+            setApprovalFlowItem(null);
+          }}
+          onSubmitPin={approvalFlow.submitOfflinePin}
+          error={approvalFlow.error}
+          productName={approvalFlowItem?.productName}
+          requestedPrice={approvalFlowItem?.requestedPrice}
+        />
+      )}
+
+      {/* Approval Status Overlay (pending/approved/denied/countered - not pin_offline, that has its own modal) */}
+      <ApprovalStatusOverlay
+        isOpen={['pending', 'approved', 'denied', 'countered', 'consuming', 'done', 'timed_out', 'error'].includes(approvalFlow.flowState) && approvalFlow.flowState !== 'pin_offline'}
+        flowState={approvalFlow.flowState}
+        approvalRequest={approvalFlow.approvalRequest}
+        approvedPrice={approvalFlow.approvedPrice}
+        approvedByName={approvalFlow.approvedByName}
+        counterOffer={approvalFlow.counterOffer}
+        denyReason={approvalFlow.denyReason}
+        error={approvalFlow.error}
+        onAcceptCounter={approvalFlow.acceptCounter}
+        onDeclineCounter={approvalFlow.declineCounter}
+        onCancel={approvalFlow.cancel}
+        onClose={() => {
+          approvalFlow.reset();
+          setApprovalFlowItem(null);
+        }}
+      />
+
+      {/* Batch Manager Selection Modal */}
+      <BatchManagerSelectionModal
+        isOpen={batchApprovalFlow.flowState === 'select_manager'}
+        onClose={() => batchApprovalFlow.reset()}
+        batchItems={batchApprovalFlow.batchItems}
+        onManagerSelected={handleBatchManagerSelected}
+      />
+
+      {/* Batch Approval Status Overlay */}
+      <BatchApprovalStatusOverlay
+        isOpen={['pending', 'approved', 'denied', 'consuming', 'done', 'timed_out', 'error'].includes(batchApprovalFlow.flowState)}
+        flowState={batchApprovalFlow.flowState}
+        batchResult={batchApprovalFlow.batchResult}
+        approvedChildren={batchApprovalFlow.approvedChildren}
+        approvedByName={batchApprovalFlow.approvedByName}
+        denyReason={batchApprovalFlow.denyReason}
+        error={batchApprovalFlow.error}
+        onCancel={batchApprovalFlow.cancel}
+        onClose={() => batchApprovalFlow.reset()}
+      />
+
+      {/* Delegation Modal */}
+      <DelegationModal
+        isOpen={showDelegationModal}
+        onClose={() => setShowDelegationModal(false)}
+      />
+
+      {/* Change Password Modal */}
+      <ChangePasswordModal
+        isOpen={showChangePassword}
+        onClose={() => setShowChangePassword(false)}
+      />
+
+      {/* Notification Preferences Modal */}
+      <NotificationPreferences
+        isOpen={showNotificationSettings}
+        onClose={() => setShowNotificationSettings(false)}
+      />
+
       {/* Price Override Modal */}
       <PriceOverrideModal
         isOpen={!!priceOverrideItem}
         onClose={() => setPriceOverrideItem(null)}
-        onApply={(overridePrice, reason) => {
+        onApply={(overridePrice, reason, approvalInfo) => {
           if (priceOverrideItem) {
-            cart.updateItemPrice(priceOverrideItem.id, overridePrice, reason);
+            cart.updateItemPrice(priceOverrideItem.id, overridePrice, reason, approvalInfo || {});
           }
           setPriceOverrideItem(null);
+        }}
+        onRequestApproval={(itemData) => {
+          setPriceOverrideItem(null); // close modal
+          handleRequestApproval({
+            ...itemData,
+            itemId: priceOverrideItem?.id,
+            entryPoint: 'priceOverride',
+          });
         }}
         product={priceOverrideItem || {}}
         originalPrice={priceOverrideItem?.basePrice || priceOverrideItem?.unitPrice || 0}

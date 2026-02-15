@@ -16,7 +16,7 @@ router.get('/vapid-public-key', (req, res) => {
 
 /**
  * POST /api/push/subscribe
- * Subscribe to push notifications
+ * Subscribe to push notifications (linked to authenticated user)
  */
 router.post('/subscribe', authenticate, asyncHandler(async (req, res) => {
   const subscription = req.body;
@@ -26,7 +26,7 @@ router.post('/subscribe', authenticate, asyncHandler(async (req, res) => {
     throw ApiError.badRequest('Invalid subscription object');
   }
 
-  const result = await pushService.subscribe(subscription, userAgent);
+  const result = await pushService.subscribe(subscription, userAgent, req.user.id);
 
   res.status(201).json({
     message: 'Successfully subscribed to push notifications',
@@ -122,6 +122,27 @@ router.post('/test', authenticate, asyncHandler(async (req, res) => {
     message: 'Test notification sent',
     results
   });
+}));
+
+/**
+ * GET /api/push/preferences
+ * Get notification preferences for the authenticated user
+ */
+router.get('/preferences', authenticate, asyncHandler(async (req, res) => {
+  const prefs = await pushService.getPreferences(req.user.id);
+  res.json({ success: true, data: prefs });
+}));
+
+/**
+ * PUT /api/push/preferences
+ * Save notification preferences for the authenticated user
+ */
+router.put('/preferences', authenticate, asyncHandler(async (req, res) => {
+  const { pushEnabled, soundEnabled, quietStart, quietEnd } = req.body;
+  const prefs = await pushService.savePreferences(req.user.id, {
+    pushEnabled, soundEnabled, quietStart, quietEnd,
+  });
+  res.json({ success: true, data: prefs });
 }));
 
 module.exports = router;

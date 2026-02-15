@@ -171,17 +171,40 @@ export function ManagerApprovalProvider({ children }) {
       ? ((originalPrice - newPrice) / originalPrice) * 100
       : 0;
 
-    return applyDiscountWithApproval({
-      type: 'amount',
-      value: originalPrice - newPrice,
-      originalPrice,
-      discountedPrice: newPrice,
-      reason,
-      product,
-      quantity,
-      cost,
-    });
-  }, [applyDiscountWithApproval]);
+    // Price overrides ALWAYS require manager PIN — no auto-approve threshold
+    try {
+      const result = await requestApproval({
+        overrideType: OVERRIDE_TYPES.DISCOUNT_PERCENT,
+        originalValue: originalPrice,
+        overrideValue: newPrice,
+        displayValue: discountPercent,
+        threshold: 0,
+        reason,
+        productId: product?.productId || product?.id,
+        productName: product?.name || product?.productName,
+        quantity,
+        requiredLevel: 'manager',
+      });
+
+      return {
+        approved: result.approved,
+        autoApproved: false,
+        managerName: result.managerName,
+        managerId: result.managerId,
+        logId: result.logId,
+        discountType: 'amount',
+        discountValue: originalPrice - newPrice,
+        discountPercent,
+        discountedPrice: newPrice,
+        originalPrice,
+      };
+    } catch (err) {
+      if (err.cancelled) {
+        return { approved: false, cancelled: true };
+      }
+      throw err;
+    }
+  }, [requestApproval]);
 
   /**
    * Apply a cart-level discount with approval workflow

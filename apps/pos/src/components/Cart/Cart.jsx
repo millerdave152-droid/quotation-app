@@ -18,6 +18,7 @@ import { TradeInCartSection } from '../TradeIn/TradeInCartSection';
 import { TradeInModal } from '../TradeIn/TradeInModal';
 import { usePermissions, POS_PERMISSIONS } from '../../hooks/usePermissions';
 import { EscalationStatusBadge } from '../Discount/EscalationStatusBadge';
+import BatchApprovalButton from '../approvals/BatchApprovalButton';
 
 /**
  * Empty cart state component
@@ -83,6 +84,8 @@ export function Cart({
   discountTier,
   discountBudget,
   onRequestEscalation,
+  onRequestApproval,
+  onRequestBatchApproval,
   onBudgetUpdate,
   myEscalations,
   escalationPendingCount,
@@ -315,6 +318,7 @@ export function Cart({
               discountTier={discountTier}
               discountBudget={discountBudget}
               onRequestEscalation={onRequestEscalation}
+              onRequestApproval={onRequestApproval}
               onBudgetUpdate={onBudgetUpdate}
               myEscalations={myEscalations}
               disabled={isProcessing}
@@ -414,6 +418,14 @@ export function Cart({
             </button>
           )}
         </div>
+      )}
+
+      {/* Batch Approval */}
+      {!cart.isEmpty && (
+        <BatchApprovalButton
+          items={cart.items}
+          onRequestBatchApproval={onRequestBatchApproval}
+        />
       )}
 
       {/* Totals */}

@@ -3,6 +3,9 @@
  * Polls the user's own escalation requests and detects status changes
  * for toast notifications.
  *
+ * When isManager=true, also polls GET /discount-escalations/pending to
+ * provide a managerPendingCount of escalations awaiting their approval.
+ *
  * Approved+unused escalations are surfaced on EVERY poll (not just first),
  * so the toast appears regardless of when the user opens the POS relative
  * to the manager's approval. Dismissed escalation IDs are tracked in a
@@ -10,13 +13,14 @@
  */
 
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { getMyEscalations } from '../api/discountAuthority';
+import { getMyEscalations, getPendingEscalations } from '../api/discountAuthority';
 
 const POLL_INTERVAL = 10000; // 10 seconds
 
-export function useEscalationPolling(enabled = false) {
+export function useEscalationPolling(enabled = false, isManager = false) {
   const [escalations, setEscalations] = useState([]);
   const [newlyResolved, setNewlyResolved] = useState([]);
+  const [managerPendingCount, setManagerPendingCount] = useState(0);
   const previousStatusRef = useRef(new Map());
   const dismissedRef = useRef(new Set());
   const pollRef = useRef(null);
@@ -87,7 +91,24 @@ export function useEscalationPolling(enabled = false) {
     } catch (err) {
       console.warn('[useEscalationPolling] Fetch failed:', err.message);
     }
-  }, []);
+
+    // Manager: also fetch pending escalations awaiting their review
+    if (isManager) {
+      try {
+        const pendingRes = await getPendingEscalations();
+        const pendingData = Array.isArray(pendingRes?.data)
+          ? pendingRes.data
+          : Array.isArray(pendingRes)
+            ? pendingRes
+            : Array.isArray(pendingRes?.data?.data)
+              ? pendingRes.data.data
+              : [];
+        setManagerPendingCount(pendingData.length);
+      } catch (err) {
+        console.warn('[useEscalationPolling] Manager pending fetch failed:', err.message);
+      }
+    }
+  }, [isManager]);
 
   // Start/stop polling based on enabled flag
   useEffect(() => {
@@ -121,6 +142,7 @@ export function useEscalationPolling(enabled = false) {
   return {
     escalations,
     pendingCount,
+    managerPendingCount,
     newlyResolved,
     clearResolved,
     refresh,

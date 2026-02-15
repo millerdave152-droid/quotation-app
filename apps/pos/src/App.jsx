@@ -32,6 +32,12 @@ const ShiftReportPage = lazy(() =>
 const ApprovalRulesPage = lazy(() =>
   import('./components/Admin').then(mod => ({ default: mod.ApprovalRulesPage }))
 );
+const ApprovalAnalyticsPage = lazy(() =>
+  import('./components/approvals/ApprovalAnalytics').then(mod => ({ default: mod.ApprovalAnalytics }))
+);
+const TierSettingsAdminPage = lazy(() =>
+  import('./components/approvals/TierSettingsAdmin').then(mod => ({ default: mod.TierSettingsAdmin }))
+);
 
 // Register Management Components (needed for shift flow, loaded eagerly)
 import {
@@ -400,6 +406,24 @@ function App() {
           element={
             <ManagerRoute>
               <AdminFinancingPage />
+            </ManagerRoute>
+          }
+        />
+
+        <Route
+          path="/admin/approval-analytics"
+          element={
+            <ManagerRoute>
+              <ApprovalAnalyticsPage />
+            </ManagerRoute>
+          }
+        />
+
+        <Route
+          path="/admin/tier-settings"
+          element={
+            <ManagerRoute>
+              <TierSettingsAdminPage />
             </ManagerRoute>
           }
         />

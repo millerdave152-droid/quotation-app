@@ -355,7 +355,7 @@ class ManagerOverrideService {
 
       // Build query
       let query = `
-        SELECT mp.*, u.name as manager_name, u.email as manager_email
+        SELECT mp.*, CONCAT(u.first_name, ' ', u.last_name) as manager_name, u.email as manager_email
         FROM manager_pins mp
         JOIN users u ON mp.user_id = u.id
         WHERE mp.is_active = TRUE
@@ -687,7 +687,7 @@ class ManagerOverrideService {
       let query = `
         SELECT
           r.*,
-          u.name as requested_by_name,
+          CONCAT(u.first_name, ' ', u.last_name) as requested_by_name,
           ot.name as threshold_name,
           ot.approval_level as required_level
         FROM override_requests r
@@ -1181,7 +1181,7 @@ class ManagerOverrideService {
   async getThresholdApprovalLevels(thresholdId) {
     try {
       const result = await this.pool.query(
-        `SELECT tal.*, u.name as created_by_name
+        `SELECT tal.*, CONCAT(u.first_name, ' ', u.last_name) as created_by_name
          FROM threshold_approval_levels tal
          LEFT JOIN users u ON u.id = tal.created_by
          WHERE tal.threshold_id = $1
@@ -1407,8 +1407,8 @@ class ManagerOverrideService {
       let query = `
         SELECT
           ol.*,
-          m.name as manager_name,
-          c.name as cashier_name,
+          CONCAT(m.first_name, ' ', m.last_name) as manager_name,
+          CONCAT(c.first_name, ' ', c.last_name) as cashier_name,
           ot.name as threshold_name
         FROM override_log ol
         LEFT JOIN users m ON ol.approved_by = m.id

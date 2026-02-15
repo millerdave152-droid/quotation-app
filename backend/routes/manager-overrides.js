@@ -75,6 +75,40 @@ module.exports = function (overrideService) {
   }));
 
   // ============================================================================
+  // PIN CACHE (for offline fallback)
+  // ============================================================================
+
+  /**
+   * GET /api/manager-overrides/pin-cache
+   * Returns active, non-locked, non-expired PIN hashes for offline verification.
+   */
+  router.get('/pin-cache', asyncHandler(async (req, res) => {
+    const pool = overrideService.pool;
+
+    const { rows } = await pool.query(`
+      SELECT mp.user_id, mp.pin_hash, mp.approval_level, mp.max_daily_overrides,
+             CONCAT(u.first_name, ' ', u.last_name) AS manager_name
+      FROM manager_pins mp
+      JOIN users u ON mp.user_id = u.id
+      WHERE mp.is_active = TRUE
+        AND (mp.valid_until IS NULL OR mp.valid_until > NOW())
+        AND (mp.locked_until IS NULL OR mp.locked_until < NOW())
+    `);
+
+    res.json({
+      success: true,
+      data: rows.map(r => ({
+        userId: r.user_id,
+        pinHash: r.pin_hash,
+        approvalLevel: r.approval_level,
+        managerName: r.manager_name,
+        maxDailyOverrides: r.max_daily_overrides,
+      })),
+      cachedAt: new Date().toISOString(),
+    });
+  }));
+
+  // ============================================================================
   // PIN VERIFICATION
   // ============================================================================
 

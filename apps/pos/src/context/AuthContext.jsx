@@ -1,4 +1,5 @@
 import { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import { del } from 'idb-keyval';
 import api, { setAuthToken, clearAuth } from '../api/axios';
 
 const AuthContext = createContext(null);
@@ -161,6 +162,9 @@ export function AuthProvider({ children }) {
       clearAuth();
       localStorage.removeItem('pos_refresh_token');
       localStorage.removeItem('pos_permissions');
+      // Clear cached PIN hashes and offline approval queue
+      del('manager-pin-cache').catch(() => {});
+      del('offline-approval-queue').catch(() => {});
       setUser(null);
       setPermissions([]);
     }
@@ -185,14 +189,15 @@ export function AuthProvider({ children }) {
   }, [user]);
 
   // Change password
-  const changePassword = useCallback(async (currentPassword, newPassword) => {
+  const changePassword = useCallback(async (currentPassword, newPassword, confirmPassword) => {
     try {
-      const response = await api.post('/auth/change-password', {
+      const response = await api.put('/auth/change-password', {
         currentPassword,
         newPassword,
+        confirmPassword,
       });
 
-      return { success: response.data?.success };
+      return { success: response?.success || response?.data?.success };
     } catch (err) {
       return { success: false, error: err.message };
     }
