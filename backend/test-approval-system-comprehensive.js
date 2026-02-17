@@ -1042,6 +1042,13 @@ async function testIntelligence() {
 async function testDelegationSystem() {
   section('16. DELEGATION SYSTEM');
 
+  // Clean up any stale delegations from previous test runs
+  await pool.query(
+    `UPDATE manager_delegations SET active = FALSE, revoked_at = NOW()
+     WHERE active = TRUE AND (delegator_id = $1 OR delegate_id = $2)`,
+    [MANAGER_USER.id, SALESPERSON_USER.id]
+  );
+
   // Test: Create delegation from manager to salesperson
   const expiresAt = new Date(Date.now() + 2 * 60 * 60 * 1000).toISOString(); // 2 hours from now
   const createDel = await request('POST', '/pos-approvals/delegations', {
