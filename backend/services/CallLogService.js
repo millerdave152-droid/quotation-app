@@ -109,8 +109,8 @@ async function getFollowUps({ assigned_to, date, overdue, limit = 50, offset = 0
   params.push(limit, offset);
 
   const { rows } = await pool.query(
-    `SELECT cc.*, c.first_name, c.last_name, c.phone AS customer_phone, c.email AS customer_email,
-            u.name AS logged_by_name, fu.name AS assigned_to_name
+    `SELECT cc.*, c.name AS customer_name, c.phone AS customer_phone, c.email AS customer_email,
+            CONCAT(u.first_name, ' ', u.last_name) AS logged_by_name, CONCAT(fu.first_name, ' ', fu.last_name) AS assigned_to_name
      FROM customer_calls cc
      JOIN customers c ON c.id = cc.customer_id
      LEFT JOIN users u ON u.id = cc.logged_by
@@ -138,8 +138,8 @@ async function getRecentCalls({ limit = 20, user_id } = {}) {
   const where = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
 
   const { rows } = await pool.query(
-    `SELECT cc.*, c.first_name, c.last_name, c.phone AS customer_phone,
-            u.name AS logged_by_name
+    `SELECT cc.*, c.name AS customer_name, c.phone AS customer_phone,
+            CONCAT(u.first_name, ' ', u.last_name) AS logged_by_name
      FROM customer_calls cc
      JOIN customers c ON c.id = cc.customer_id
      LEFT JOIN users u ON u.id = cc.logged_by

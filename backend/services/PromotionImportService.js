@@ -481,7 +481,7 @@ class PromotionImportService {
     params.push(limit, offset);
 
     const result = await this.pool.query(`
-      SELECT pil.*, u.name as imported_by_name
+      SELECT pil.*, CONCAT(u.first_name, ' ', u.last_name) as imported_by_name
       FROM promotion_import_logs pil
       LEFT JOIN users u ON pil.imported_by = u.id
       ${whereClause}
@@ -497,7 +497,7 @@ class PromotionImportService {
    */
   async getImportLogById(logId) {
     const result = await this.pool.query(`
-      SELECT pil.*, u.name as imported_by_name
+      SELECT pil.*, CONCAT(u.first_name, ' ', u.last_name) as imported_by_name
       FROM promotion_import_logs pil
       LEFT JOIN users u ON pil.imported_by = u.id
       WHERE pil.id = $1

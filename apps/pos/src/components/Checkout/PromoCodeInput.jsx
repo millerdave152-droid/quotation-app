@@ -109,8 +109,11 @@ export function PromoCodeInput({
         };
 
         const rawError = result.error;
-        const errorStr = typeof rawError === 'string' ? rawError : rawError?.message || 'Failed to apply promo code';
-        const userMessage = errorMessages[result.errorCode] || errorStr;
+        const errorCode = result.errorCode || (typeof rawError === 'object' ? rawError?.code : null);
+        const errorStr = (typeof rawError === 'string' && rawError !== '[object Object]')
+          ? rawError
+          : rawError?.message || 'Failed to apply promo code';
+        const userMessage = errorMessages[errorCode] || errorStr;
         setError(userMessage);
         return;
       }

@@ -413,9 +413,9 @@ class RevenueForecastService {
           THEN ROUND(sm.won_quotes::numeric / (sm.won_quotes + sm.lost_quotes) * 100, 1)
           ELSE 0
         END as win_rate,
-        u.name as salesperson_name
+        CONCAT(u.first_name, ' ', u.last_name) as salesperson_name
       FROM salesperson_metrics sm
-      LEFT JOIN users u ON sm.salesperson = u.name OR sm.salesperson = u.email
+      LEFT JOIN users u ON sm.salesperson = CONCAT(u.first_name, ' ', u.last_name) OR sm.salesperson = u.email
       ORDER BY won_revenue DESC NULLS LAST
     `);
 

@@ -78,9 +78,19 @@ class ProductService {
       } else if (categoryId) {
         // Filter by category (optionally including subcategories)
         if (includeSubcategories === 'true') {
-          // Include products in this category OR any subcategory of it
-          whereConditions.push(`(p.category_id = $${paramIndex} OR p.subcategory_id IN (
-            SELECT id FROM categories WHERE parent_id = $${paramIndex}
+          // Recursively include products in this category OR any descendant of it
+          whereConditions.push(`(p.category_id IN (
+            WITH RECURSIVE cat_tree AS (
+              SELECT id FROM categories WHERE id = $${paramIndex}
+              UNION ALL
+              SELECT c.id FROM categories c JOIN cat_tree ct ON c.parent_id = ct.id
+            ) SELECT id FROM cat_tree
+          ) OR p.subcategory_id IN (
+            WITH RECURSIVE cat_tree AS (
+              SELECT id FROM categories WHERE id = $${paramIndex}
+              UNION ALL
+              SELECT c.id FROM categories c JOIN cat_tree ct ON c.parent_id = ct.id
+            ) SELECT id FROM cat_tree
           ))`);
         } else {
           whereConditions.push(`p.category_id = $${paramIndex}`);

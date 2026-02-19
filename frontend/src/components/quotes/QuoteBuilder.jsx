@@ -22,6 +22,7 @@ import SignaturePad from '../common/SignaturePad';
 import { PromoCodeInput, AppliedDiscountsDisplay } from '../pricing';
 import { SmartSuggestions, UpsellRecommendations } from '../ai';
 import { ProductConfigurator3D } from '../ProductConfigurator';
+import CompetitorPricingPanel from './CompetitorPricingPanel';
 
 const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:3001';
 
@@ -1179,6 +1180,17 @@ const QuoteBuilder = ({
                               Low margin: {margin.toFixed(1)}%
                             </span>
                           )}
+                        </td>
+                      </tr>
+                    )}
+                    {item.skulytics_snapshot?.competitor_pricing && (
+                      <tr style={{ borderBottom: '1px solid #e5e7eb' }}>
+                        <td colSpan="8" style={{ padding: '4px 12px 8px' }}>
+                          <CompetitorPricingPanel
+                            competitorPricing={item.skulytics_snapshot.competitor_pricing}
+                            teleTimePrice={item.sell}
+                            currency="CAD"
+                          />
                         </td>
                       </tr>
                     )}

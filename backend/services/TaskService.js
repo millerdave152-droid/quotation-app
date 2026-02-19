@@ -52,8 +52,8 @@ class TaskService {
   async getTaskById(id) {
     const result = await this.pool.query(`
       SELECT t.*,
-        u1.name as assigned_to_name,
-        u2.name as created_by_name
+        CONCAT(u1.first_name, ' ', u1.last_name) as assigned_to_name,
+        CONCAT(u2.first_name, ' ', u2.last_name) as created_by_name
       FROM tasks t
       LEFT JOIN users u1 ON t.assigned_to = u1.id
       LEFT JOIN users u2 ON t.created_by = u2.id
@@ -156,8 +156,8 @@ class TaskService {
 
     const result = await this.pool.query(`
       SELECT t.*,
-        u1.name as assigned_to_name,
-        u2.name as created_by_name
+        CONCAT(u1.first_name, ' ', u1.last_name) as assigned_to_name,
+        CONCAT(u2.first_name, ' ', u2.last_name) as created_by_name
       FROM tasks t
       LEFT JOIN users u1 ON t.assigned_to = u1.id
       LEFT JOIN users u2 ON t.created_by = u2.id
@@ -256,7 +256,7 @@ class TaskService {
   async getTasksDueToday(assignedTo = null) {
     let query = `
       SELECT t.*,
-        u1.name as assigned_to_name,
+        CONCAT(u1.first_name, ' ', u1.last_name) as assigned_to_name,
         l.contact_name as related_lead_name,
         l.lead_number as related_lead_number,
         q.quotation_number as related_quote_number,
@@ -289,7 +289,7 @@ class TaskService {
   async getOverdueTasks(assignedTo = null) {
     let query = `
       SELECT t.*,
-        u1.name as assigned_to_name,
+        CONCAT(u1.first_name, ' ', u1.last_name) as assigned_to_name,
         l.contact_name as related_lead_name,
         l.lead_number as related_lead_number
       FROM tasks t
@@ -318,7 +318,7 @@ class TaskService {
   async getUpcomingTasks(assignedTo = null, days = 7) {
     let query = `
       SELECT t.*,
-        u1.name as assigned_to_name,
+        CONCAT(u1.first_name, ' ', u1.last_name) as assigned_to_name,
         l.contact_name as related_lead_name,
         l.lead_number as related_lead_number,
         q.quotation_number as related_quote_number,
@@ -387,7 +387,7 @@ class TaskService {
     const result = await this.pool.query(`
       SELECT t.*,
         u.email as assigned_to_email,
-        u.name as assigned_to_name
+        CONCAT(u.first_name, ' ', u.last_name) as assigned_to_name
       FROM tasks t
       LEFT JOIN users u ON t.assigned_to = u.id
       WHERE t.reminder_at <= CURRENT_TIMESTAMP

@@ -1841,7 +1841,8 @@ const QuotationManager = () => {
         cost: (item.cost_cents || 0) / 100,
         msrp: (item.msrp_cents || 0) / 100,
         sell: (item.sell_cents || 0) / 100,
-        notes: item.item_notes || ''
+        notes: item.item_notes || '',
+        skulytics_snapshot: item.skulytics_snapshot || null,
       }));
 
       setQuoteItems(items);
@@ -1917,7 +1918,8 @@ const QuotationManager = () => {
         cost: (item.cost_cents || 0) / 100,
         msrp: (item.msrp_cents || 0) / 100,
         sell: (item.sell_cents || 0) / 100,
-        notes: item.item_notes || ''
+        notes: item.item_notes || '',
+        skulytics_snapshot: item.skulytics_snapshot || null,
       }));
 
       setQuoteItems(items);

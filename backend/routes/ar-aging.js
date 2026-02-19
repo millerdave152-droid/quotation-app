@@ -9,11 +9,22 @@ function init({ pool, emailService }) {
 
   // GET /api/reports/ar-aging
   router.get('/ar-aging', asyncHandler(async (req, res) => {
-    const report = await ARAgingService.getAgingReport({
-      as_of_date: req.query.as_of_date || undefined,
-      location_id: req.query.location_id ? parseInt(req.query.location_id) : undefined,
-    });
-    res.json(report);
+    try {
+      const report = await ARAgingService.getAgingReport({
+        as_of_date: req.query.as_of_date || undefined,
+        location_id: req.query.location_id ? parseInt(req.query.location_id) : undefined,
+      });
+      res.json(report);
+    } catch (err) {
+      // Temporary: return detailed error for debugging
+      return res.status(500).json({
+        _debug: true,
+        error: err.message,
+        code: err.code,
+        position: err.position,
+        detail: err.detail
+      });
+    }
   }));
 
   // GET /api/reports/ar-aging/export

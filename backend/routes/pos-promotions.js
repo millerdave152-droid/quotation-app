@@ -599,7 +599,10 @@ module.exports = function (promotionService, promotionEngine = null) {
     const result = await promotionEngine.applyPromoCode(cart, code);
 
     if (!result.success) {
-      throw ApiError.badRequest(result.error);
+      const errMsg = typeof result.error === 'string'
+        ? result.error
+        : result.error?.message || 'Failed to apply promo code';
+      throw ApiError.badRequest(errMsg);
     }
 
     res.json({

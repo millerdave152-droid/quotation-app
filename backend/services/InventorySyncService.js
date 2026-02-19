@@ -979,7 +979,7 @@ class InventorySyncService {
     let query = `
       SELECT
         t.*,
-        u.name as created_by_name
+        CONCAT(u.first_name, ' ', u.last_name) as created_by_name
       FROM inventory_transactions t
       LEFT JOIN users u ON t.created_by = u.id
       WHERE t.product_id = $1
@@ -1022,7 +1022,7 @@ class InventorySyncService {
         p.model,
         p.manufacturer,
         p.name as product_name,
-        u.name as created_by_name
+        CONCAT(u.first_name, ' ', u.last_name) as created_by_name
       FROM inventory_transactions t
       JOIN products p ON t.product_id = p.id
       LEFT JOIN users u ON t.created_by = u.id

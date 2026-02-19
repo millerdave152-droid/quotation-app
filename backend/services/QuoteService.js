@@ -5,6 +5,7 @@
 
 const ActivityService = require('./ActivityService');
 const emailService = require('./EmailService');
+const { buildQuoteSnapshot, SnapshotBuildError } = require('./skulytics/SkulyticsSnapshotService');
 
 class QuoteService {
   constructor(pool) {
@@ -983,7 +984,9 @@ class QuoteService {
         deposit_required = false,
         deposit_amount_cents = 0,
         // Created by
-        created_by = 'User'
+        created_by = 'User',
+        // Tenant context (for Skulytics override lookups)
+        tenant_id = null
       } = quoteData;
 
       // ============================================
@@ -1067,9 +1070,26 @@ class QuoteService {
 
       const quotation_id = quoteResult.rows[0].id;
 
-      // Insert items using batch INSERT
+      // ── Skulytics enrichment (snapshot at quote time) ──────────
+      let skulyticsWarnings = [];
+      let skulyticsData = null;
       if (items.length > 0) {
-        await this.insertQuoteItems(client, quotation_id, items);
+        const productIds = items.filter(i => i.product_id).map(i => i.product_id);
+        if (productIds.length > 0) {
+          try {
+            const enrichment = await this._fetchSkulyticsData(client, productIds, tenant_id);
+            skulyticsData = enrichment.snapshots;
+            skulyticsWarnings = enrichment.warnings;
+          } catch (skulyticsErr) {
+            // Log but do not block quote creation
+            console.error('[Skulytics] Enrichment failed, continuing without snapshots:', skulyticsErr.message);
+          }
+        }
+      }
+
+      // Insert items using batch INSERT (with Skulytics snapshots when available)
+      if (items.length > 0) {
+        await this.insertQuoteItems(client, quotation_id, items, skulyticsData);
       }
 
       // Log creation event with comprehensive metadata
@@ -1091,6 +1111,11 @@ class QuoteService {
       await client.query('COMMIT');
 
       const createdQuote = quoteResult.rows[0];
+
+      // Attach Skulytics warnings (discontinued products, etc.)
+      if (skulyticsWarnings.length > 0) {
+        createdQuote.warnings = skulyticsWarnings;
+      }
 
       // Check margin and auto-trigger approval if needed (post-commit)
       if (created_by && status === 'DRAFT') {
@@ -1241,7 +1266,9 @@ class QuoteService {
         deposit_required,
         deposit_amount_cents,
         // Modified by
-        modified_by = 'User'
+        modified_by = 'User',
+        // Tenant context (for Skulytics override lookups)
+        tenant_id = null
       } = quoteData;
 
       // ============================================
@@ -1348,11 +1375,47 @@ class QuoteService {
         return null;
       }
 
+      // ── Preserve existing Skulytics snapshots before delete ──
+      const { rows: existingItemRows } = await client.query(
+        `SELECT product_id, skulytics_id, skulytics_snapshot,
+                discontinued_acknowledged_by, discontinued_acknowledged_at
+         FROM quotation_items
+         WHERE quotation_id = $1 AND skulytics_snapshot IS NOT NULL`,
+        [id]
+      );
+      const preservedSnapshots = new Map();
+      for (const row of existingItemRows) {
+        preservedSnapshots.set(row.product_id, {
+          skulytics_id: row.skulytics_id,
+          snapshot: row.skulytics_snapshot,
+          discontinued_acknowledged_by: row.discontinued_acknowledged_by,
+          discontinued_acknowledged_at: row.discontinued_acknowledged_at,
+        });
+      }
+
       // Delete old items and insert new ones
       await client.query('DELETE FROM quotation_items WHERE quotation_id = $1', [id]);
 
       if (items.length > 0) {
-        await this.insertQuoteItems(client, id, items);
+        // For items that already had snapshots, re-use them (write-once rule).
+        // For new items whose product has a skulytics_id, build fresh snapshots.
+        const newProductIds = items
+          .filter(i => i.product_id && !preservedSnapshots.has(i.product_id))
+          .map(i => i.product_id);
+
+        let newSkulyticsData = new Map();
+        if (newProductIds.length > 0) {
+          try {
+            const enrichment = await this._fetchSkulyticsData(client, newProductIds, tenant_id);
+            newSkulyticsData = enrichment.snapshots;
+          } catch (skulyticsErr) {
+            console.error('[Skulytics] Enrichment on update failed:', skulyticsErr.message);
+          }
+        }
+
+        // Merge: preserved snapshots take priority over freshly-built ones
+        const mergedData = new Map([...newSkulyticsData, ...preservedSnapshots]);
+        await this.insertQuoteItems(client, id, items, mergedData);
       }
 
       // Log update event with metadata
@@ -1414,39 +1477,123 @@ class QuoteService {
   }
 
   /**
-   * Insert quote items in batch
-   * @param {object} client - Database client
-   * @param {number} quotationId - Quote ID
-   * @param {Array} items - Items to insert
+   * Fetch Skulytics global product + tenant override data for a set of product IDs.
+   * Returns a Map of product_id -> { skulytics_id, snapshot } plus warnings for discontinued items.
+   *
+   * @param {object} client   - Transaction-scoped DB client
+   * @param {number[]} productIds - Product IDs to look up
+   * @param {number|null} tenantId - Tenant ID for override lookups (nullable)
+   * @returns {Promise<{snapshots: Map, warnings: Array}>}
    */
-  async insertQuoteItems(client, quotationId, items) {
-    const valuesPerRow = 14;
+  async _fetchSkulyticsData(client, productIds, tenantId) {
+    const result = { snapshots: new Map(), warnings: [] };
+    if (!productIds || productIds.length === 0) return result;
+
+    // 1. Which products have a skulytics_id?
+    const { rows: productRows } = await client.query(
+      `SELECT id, skulytics_id FROM products WHERE id = ANY($1) AND skulytics_id IS NOT NULL`,
+      [productIds]
+    );
+    if (productRows.length === 0) return result;
+
+    const skulyticsIds = productRows.map(p => p.skulytics_id);
+    const productToSkulytics = new Map(productRows.map(p => [p.id, p.skulytics_id]));
+
+    // 2. Fetch global catalogue rows
+    const { rows: globalProducts } = await client.query(
+      `SELECT * FROM global_skulytics_products WHERE skulytics_id = ANY($1)`,
+      [skulyticsIds]
+    );
+    const globalMap = new Map(globalProducts.map(g => [g.skulytics_id, g]));
+
+    // 3. Fetch tenant overrides (if tenant context exists)
+    let overrideMap = new Map();
+    if (tenantId) {
+      const { rows: overrides } = await client.query(
+        `SELECT * FROM tenant_product_overrides WHERE tenant_id = $1 AND skulytics_id = ANY($2)`,
+        [tenantId, skulyticsIds]
+      );
+      overrideMap = new Map(overrides.map(o => [o.skulytics_id, o]));
+    }
+
+    // 4. Build snapshots & collect warnings
+    for (const [productId, skulyticsId] of productToSkulytics) {
+      const globalProduct = globalMap.get(skulyticsId);
+      if (!globalProduct) continue;
+
+      try {
+        const override = overrideMap.get(skulyticsId) || null;
+        const snapshot = buildQuoteSnapshot(globalProduct, override);
+        result.snapshots.set(productId, { skulytics_id: skulyticsId, snapshot });
+
+        if (globalProduct.is_discontinued) {
+          result.warnings.push({
+            product_id: productId,
+            skulytics_id: skulyticsId,
+            type: 'DISCONTINUED_PRODUCT',
+            message: 'This product has been discontinued by the manufacturer. Manager acknowledgement required.',
+            requires_acknowledgement: true,
+          });
+        }
+      } catch (err) {
+        if (err instanceof SnapshotBuildError) {
+          console.error(`[Skulytics] Snapshot build failed for ${skulyticsId}:`, err.message);
+        } else {
+          throw err;
+        }
+      }
+    }
+
+    return result;
+  }
+
+  /**
+   * Insert quote items in batch (with optional Skulytics snapshot data).
+   *
+   * @param {object} client       - Database client
+   * @param {number} quotationId  - Quote ID
+   * @param {Array}  items        - Items to insert
+   * @param {Map|null} [skulyticsData=null] - Map of product_id -> { skulytics_id, snapshot, ... }
+   */
+  async insertQuoteItems(client, quotationId, items, skulyticsData = null) {
+    const valuesPerRow = 18;
     const placeholders = items.map((_, i) =>
       `(${Array.from({length: valuesPerRow}, (_, j) => `$${i * valuesPerRow + j + 1}`).join(', ')})`
     ).join(', ');
 
-    const values = items.flatMap(item => [
-      quotationId,
-      item.product_id,
-      item.manufacturer || '',
-      item.model || item.description,
-      item.description,
-      item.category || '',
-      item.quantity || 1,
-      item.cost_cents || Math.round((item.cost || 0) * 100),
-      item.msrp_cents || Math.round((item.msrp || 0) * 100),
-      item.sell_cents || Math.round((item.sell || 0) * 100),
-      item.line_total_cents || Math.round((item.sell || 0) * (item.quantity || 1) * 100),
-      item.line_profit_cents || Math.round(((item.sell || 0) - (item.cost || 0)) * (item.quantity || 1) * 100),
-      item.margin_bp || 0,
-      item.item_notes || item.notes || ''
-    ]);
+    const values = items.flatMap(item => {
+      const skuData = skulyticsData?.get(item.product_id) || null;
+      return [
+        quotationId,
+        item.product_id,
+        item.manufacturer || '',
+        item.model || item.description,
+        item.description,
+        item.category || '',
+        item.quantity || 1,
+        item.cost_cents || Math.round((item.cost || 0) * 100),
+        item.msrp_cents || Math.round((item.msrp || 0) * 100),
+        item.sell_cents || Math.round((item.sell || 0) * 100),
+        item.line_total_cents || Math.round((item.sell || 0) * (item.quantity || 1) * 100),
+        item.line_profit_cents || Math.round(((item.sell || 0) - (item.cost || 0)) * (item.quantity || 1) * 100),
+        item.margin_bp || 0,
+        item.item_notes || item.notes || '',
+        // Skulytics columns
+        skuData?.skulytics_id || null,
+        skuData?.snapshot ? JSON.stringify(skuData.snapshot) : null,
+        // Discontinued acknowledgement (preserved from prior version)
+        skuData?.discontinued_acknowledged_by || null,
+        skuData?.discontinued_acknowledged_at || null,
+      ];
+    });
 
     await client.query(
       `INSERT INTO quotation_items (
         quotation_id, product_id, manufacturer, model, description, category,
         quantity, cost_cents, msrp_cents, sell_cents, line_total_cents,
-        line_profit_cents, margin_bp, item_notes
+        line_profit_cents, margin_bp, item_notes,
+        skulytics_id, skulytics_snapshot,
+        discontinued_acknowledged_by, discontinued_acknowledged_at
       ) VALUES ${placeholders}`,
       values
     );

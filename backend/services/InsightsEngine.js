@@ -92,14 +92,14 @@ class InsightsEngine {
         c.name as customer_name,
         c.email as customer_email,
         c.id as customer_id,
-        u.name as salesperson_name,
+        CONCAT(u.first_name, ' ', u.last_name) as salesperson_name,
         EXTRACT(DAY FROM (CURRENT_TIMESTAMP - COALESCE(q.sent_at, q.created_at))) as days_since_sent
       FROM quotations q
       JOIN customers c ON q.customer_id = c.id
       LEFT JOIN users u ON q.created_by = u.id::text
       WHERE q.status IN ('sent', 'pending')
         AND COALESCE(q.sent_at, q.created_at) < CURRENT_TIMESTAMP - INTERVAL '5 days'
-        AND (q.expiry_date IS NULL OR q.expiry_date > CURRENT_DATE)
+        AND (q.quote_expiry_date IS NULL OR q.quote_expiry_date > CURRENT_DATE)
       ORDER BY q.total_amount DESC
       LIMIT 10
     `);
@@ -138,16 +138,16 @@ class InsightsEngine {
         q.id,
         q.quote_number,
         q.total_amount,
-        q.expiry_date,
+        q.quote_expiry_date,
         c.name as customer_name,
         c.id as customer_id,
-        EXTRACT(DAY FROM (q.expiry_date - CURRENT_DATE)) as days_until_expiry
+        (q.quote_expiry_date - CURRENT_DATE) as days_until_expiry
       FROM quotations q
       JOIN customers c ON q.customer_id = c.id
       WHERE q.status IN ('sent', 'pending')
-        AND q.expiry_date IS NOT NULL
-        AND q.expiry_date BETWEEN CURRENT_DATE AND CURRENT_DATE + INTERVAL '7 days'
-      ORDER BY q.expiry_date ASC
+        AND q.quote_expiry_date IS NOT NULL
+        AND q.quote_expiry_date BETWEEN CURRENT_DATE AND CURRENT_DATE + INTERVAL '7 days'
+      ORDER BY q.quote_expiry_date ASC
       LIMIT 10
     `);
 
@@ -170,7 +170,7 @@ class InsightsEngine {
           customerId: row.customer_id,
           customerName: row.customer_name,
           amount: parseFloat(row.total_amount),
-          expiryDate: row.expiry_date,
+          expiryDate: row.quote_expiry_date,
           daysUntilExpiry: daysLeft
         },
         actions: [
@@ -266,10 +266,10 @@ class InsightsEngine {
         p.id,
         p.name,
         p.sku,
-        p.quantity_available,
+        p.stock_quantity,
         p.reorder_point,
         COALESCE(
-          (SELECT SUM(quantity) / NULLIF(COUNT(DISTINCT DATE(created_at)), 0)
+          (SELECT SUM(quantity) / NULLIF(COUNT(DISTINCT DATE(o.created_at)), 0)
            FROM order_items oi
            JOIN orders o ON oi.order_id = o.id
            WHERE oi.product_id = p.id
@@ -278,16 +278,16 @@ class InsightsEngine {
           0
         ) as avg_daily_sales,
         CASE
-          WHEN p.quantity_available <= 0 THEN 0
+          WHEN p.stock_quantity <= 0 THEN 0
           WHEN COALESCE(
-            (SELECT SUM(quantity) / NULLIF(COUNT(DISTINCT DATE(created_at)), 0)
+            (SELECT SUM(quantity) / NULLIF(COUNT(DISTINCT DATE(o.created_at)), 0)
              FROM order_items oi
              JOIN orders o ON oi.order_id = o.id
              WHERE oi.product_id = p.id
                AND o.created_at >= CURRENT_DATE - INTERVAL '30 days'
                AND o.status != 'cancelled'),
             0
-          ) > 0 THEN p.quantity_available / (SELECT SUM(quantity) / NULLIF(COUNT(DISTINCT DATE(created_at)), 0)
+          ) > 0 THEN p.stock_quantity / (SELECT SUM(quantity) / NULLIF(COUNT(DISTINCT DATE(o.created_at)), 0)
              FROM order_items oi
              JOIN orders o ON oi.order_id = o.id
              WHERE oi.product_id = p.id
@@ -297,9 +297,9 @@ class InsightsEngine {
         END as days_of_stock
       FROM products p
       WHERE p.is_active = true
-        AND (p.quantity_available <= p.reorder_point OR p.quantity_available <= 5)
+        AND (p.stock_quantity <= COALESCE(p.reorder_point, 5) OR p.stock_quantity <= 5)
       ORDER BY
-        CASE WHEN p.quantity_available <= 0 THEN 0 ELSE 1 END,
+        CASE WHEN p.stock_quantity <= 0 THEN 0 ELSE 1 END,
         days_of_stock ASC
       LIMIT 10
     `);
@@ -309,7 +309,7 @@ class InsightsEngine {
       let priority = this.PRIORITY.LOW;
       let title = `${row.name} running low`;
 
-      if (row.quantity_available <= 0) {
+      if (row.stock_quantity <= 0) {
         priority = this.PRIORITY.CRITICAL;
         title = `${row.name} is OUT OF STOCK`;
       } else if (daysOfStock <= 3) {
@@ -324,13 +324,13 @@ class InsightsEngine {
         type: this.TYPES.INVENTORY_LOW,
         priority,
         title,
-        message: `${row.quantity_available} units remaining${row.avg_daily_sales > 0 ? ` (selling ${row.avg_daily_sales.toFixed(1)}/day)` : ''}. Reorder point: ${row.reorder_point}`,
+        message: `${row.stock_quantity} units remaining${row.avg_daily_sales > 0 ? ` (selling ${row.avg_daily_sales.toFixed(1)}/day)` : ''}. Reorder point: ${row.reorder_point}`,
         timestamp: new Date().toISOString(),
         data: {
           productId: row.id,
           productName: row.name,
           sku: row.sku,
-          quantityAvailable: row.quantity_available,
+          quantityAvailable: row.stock_quantity,
           reorderPoint: row.reorder_point,
           avgDailySales: parseFloat(row.avg_daily_sales) || 0,
           daysOfStock
@@ -352,18 +352,18 @@ class InsightsEngine {
       SELECT
         i.id,
         i.invoice_number,
-        i.total_amount,
+        i.total_cents / 100.0 AS total_amount,
         i.due_date,
         i.status,
         c.name as customer_name,
         c.id as customer_id,
         c.email as customer_email,
-        EXTRACT(DAY FROM (CURRENT_DATE - i.due_date)) as days_overdue
+        (CURRENT_DATE - i.due_date) as days_overdue
       FROM invoices i
       JOIN customers c ON i.customer_id = c.id
       WHERE i.status IN ('sent', 'pending', 'overdue')
         AND i.due_date < CURRENT_DATE
-      ORDER BY i.total_amount DESC
+      ORDER BY i.total_cents DESC
       LIMIT 10
     `);
 
@@ -591,7 +591,7 @@ class InsightsEngine {
           i.id as entity_id,
           i.invoice_number as entity_number,
           i.status,
-          i.total_amount as amount,
+          i.total_cents / 100.0 as amount,
           i.created_at,
           i.customer_id,
           c.name as customer_name,
@@ -625,11 +625,11 @@ class InsightsEngine {
   async getQuickActionCounts() {
     const result = await pool.query(`
       SELECT
-        (SELECT COUNT(*) FROM quotations WHERE status IN ('sent', 'pending') AND expiry_date BETWEEN CURRENT_DATE AND CURRENT_DATE + INTERVAL '3 days') as quotes_expiring_soon,
+        (SELECT COUNT(*) FROM quotations WHERE status IN ('sent', 'pending') AND quote_expiry_date BETWEEN CURRENT_DATE AND CURRENT_DATE + INTERVAL '3 days') as quotes_expiring_soon,
         (SELECT COUNT(*) FROM quotations WHERE status IN ('sent', 'pending') AND COALESCE(sent_at, created_at) < CURRENT_TIMESTAMP - INTERVAL '7 days') as stale_quotes,
         (SELECT COUNT(*) FROM invoices WHERE status IN ('sent', 'pending', 'overdue') AND due_date < CURRENT_DATE) as overdue_invoices,
-        (SELECT COUNT(*) FROM products WHERE is_active = true AND quantity_available <= reorder_point) as low_stock_items,
-        (SELECT COUNT(*) FROM products WHERE is_active = true AND quantity_available <= 0) as out_of_stock_items,
+        (SELECT COUNT(*) FROM products WHERE is_active = true AND stock_quantity <= COALESCE(reorder_point, 5)) as low_stock_items,
+        (SELECT COUNT(*) FROM products WHERE is_active = true AND stock_quantity <= 0) as out_of_stock_items,
         (SELECT COUNT(*) FROM orders WHERE status = 'pending') as pending_orders
     `);
 

@@ -482,7 +482,10 @@ router.get('/:id', authenticate, asyncHandler(async (req, res) => {
  * Create new quotation
  */
 router.post('/', authenticate, asyncHandler(async (req, res) => {
-  const quote = await quoteService.createQuote(req.body);
+  const quote = await quoteService.createQuote({
+    ...req.body,
+    tenant_id: req.user?.tenant_id || null,
+  });
 
   // Check if approval is required based on margin
   const approvalCheck = await checkAndUpdateApprovalRequired(quote.id, req.user?.id);
@@ -498,7 +501,10 @@ router.post('/', authenticate, asyncHandler(async (req, res) => {
  */
 router.put('/:id', authenticate, asyncHandler(async (req, res) => {
   const { id } = req.params;
-  const quote = await quoteService.updateQuote(id, req.body);
+  const quote = await quoteService.updateQuote(id, {
+    ...req.body,
+    tenant_id: req.user?.tenant_id || null,
+  });
 
   if (!quote) {
     throw ApiError.notFound('Quotation');
@@ -510,6 +516,47 @@ router.put('/:id', authenticate, asyncHandler(async (req, res) => {
   quote.margin_percent = approvalCheck.margin;
 
   res.success(quote, { message: 'Quotation updated successfully' });
+}));
+
+/**
+ * POST /api/quotations/:quoteId/items/:itemId/acknowledge-discontinued
+ * Manager acknowledges a discontinued product on a quote line item
+ */
+router.post('/:quoteId/items/:itemId/acknowledge-discontinued', authenticate, asyncHandler(async (req, res) => {
+  // Only admin or manager may acknowledge
+  const role = req.user?.role;
+  if (!role || !['admin', 'manager'].includes(role)) {
+    throw ApiError.forbidden('Only admins or managers can acknowledge discontinued products');
+  }
+
+  const { quoteId, itemId } = req.params;
+  const userId = req.user.id;
+
+  // Verify the quote item exists and belongs to this quote
+  const { rows } = await pool.query(
+    `UPDATE quotation_items
+        SET discontinued_acknowledged_by = $1,
+            discontinued_acknowledged_at = NOW()
+      WHERE id = $2 AND quotation_id = $3 AND skulytics_id IS NOT NULL
+      RETURNING id, discontinued_acknowledged_by, discontinued_acknowledged_at`,
+    [userId, itemId, quoteId]
+  );
+
+  if (rows.length === 0) {
+    throw ApiError.notFound('Quote item not found or not a Skulytics product');
+  }
+
+  // Audit log (fire-and-forget)
+  pool.query(
+    `INSERT INTO audit_log (user_id, action, entity_type, entity_id, details, created_at)
+     VALUES ($1, 'discontinued_acknowledged', 'quotation_item', $2, $3, NOW())`,
+    [userId, itemId, JSON.stringify({ quote_id: quoteId, item_id: itemId })]
+  ).catch(err => console.error('[Audit] acknowledge-discontinued log failed:', err.message));
+
+  res.success({
+    acknowledged_by: rows[0].discontinued_acknowledged_by,
+    acknowledged_at: rows[0].discontinued_acknowledged_at,
+  });
 }));
 
 /**
@@ -1190,7 +1237,7 @@ router.post('/:quoteId/sales-rep', authenticate, asyncHandler(async (req, res) =
 router.get('/:quoteId/sales-rep', authenticate, asyncHandler(async (req, res) => {
   const { quoteId } = req.params;
   const result = await pool.query(`
-    SELECT qsr.*, u.name as sales_rep_name, u.email as sales_rep_email
+    SELECT qsr.*, CONCAT(u.first_name, ' ', u.last_name) as sales_rep_name, u.email as sales_rep_email
     FROM quote_sales_rep qsr
     LEFT JOIN users u ON qsr.sales_rep_id = u.id
     WHERE qsr.quote_id = $1

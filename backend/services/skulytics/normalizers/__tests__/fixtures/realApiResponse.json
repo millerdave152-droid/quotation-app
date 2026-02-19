@@ -1,0 +1,109 @@
+{
+  "product_id": 18855,
+  "sku": "MMCFDR23MBL",
+  "alternate_sku": null,
+  "is_multi_brand": 0,
+  "link": "https://agarangeusa.com/appliance-suite/product/aga-refrigeration/color/black-matte/model/aga-mercury-36-french-door-refrigerator",
+  "upc": "768388077440",
+  "color": "Black (Matte)",
+  "name": "REFRIGERATION -Mercury 36\" French Door Refrigerator",
+  "built_in": "No",
+  "basic_description": "REFRIGERATION -Mercury 36\" French Door Refrigerator",
+  "long_description": null,
+  "product_type": "Appliance Product",
+  "image": "https://assets.appliance-data.com/assets/images/MMCFDR23MBL-63317629.webp",
+  "brand": {
+    "brand_id": 1,
+    "brand_name": "AGA",
+    "brand_slug": "aga",
+    "brand_image": "https://assets.appliance-data.com/assets/brands/650909-aga.webp",
+    "brand_banner": "https://assets.appliance-data.com/assets/brands/921584-aga-background.webp"
+  },
+  "status": "Discontinued",
+  "price": {
+    "map": 0,
+    "pmap": 0,
+    "map_last_updated": null,
+    "msrp": 7969,
+    "msrp_last_updated": "2025-01-10 09:34:04",
+    "umrp": 7249,
+    "umrp_last_updated": "2025-01-10 09:31:10",
+    "in_stock_status": 0,
+    "lcp_desc": null,
+    "lap": {
+      "lowest_price": 0,
+      "lowes_price": 0,
+      "lowes_last_updated": "2025-03-07 00:09:14",
+      "homedepot_price": 0,
+      "homedepot_last_updated": "2025-03-07 00:09:14",
+      "bestbuy_price": 0,
+      "bestbuy_last_updated": "2025-03-07 00:09:14",
+      "ajmadison_price": 0,
+      "ajmadison_last_updated": "2025-03-07 00:09:14"
+    },
+    "lcp": {
+      "lowest_price": 0,
+      "lowes_price": 0,
+      "lowes_last_updated": "2025-03-07 00:09:14",
+      "homedepot_price": 0,
+      "homedepot_last_updated": "2025-03-07 00:09:14",
+      "bestbuy_price": 0,
+      "bestbuy_last_updated": "2025-03-07 00:09:14",
+      "ajmadison_price": 0,
+      "ajmadison_last_updated": "2025-03-07 00:09:14"
+    }
+  },
+  "category": {
+    "category_id": 6,
+    "category_name": "Refrigeration",
+    "category_slug": "refrigeration",
+    "category_image": "https://assets.appliance-data.com/assets/category/436674-refrigeration.webp"
+  },
+  "subcategory": {
+    "subcategory_id": 15,
+    "subcategory_name": "Refrigerators",
+    "subcategory_slug": "refrigerators",
+    "subcategory_image": "https://assets.appliance-data.com/assets/subcategory/523753-refrigerators.webp"
+  },
+  "detail_category": {
+    "detail_category_id": 89,
+    "detail_category_name": "French Door Refrigerators",
+    "detail_category_slug": "french-door-refrigerators",
+    "detail_category_image": "https://assets.appliance-data.com/assets/detail-category/805676-french-door-refrigerators.webp"
+  },
+  "product_images": [
+    {
+      "id": 63317629,
+      "url": "https://assets.appliance-data.com/assets/images/MMCFDR23MBL-63317629.webp",
+      "priority": 0,
+      "content_length": "0 kb"
+    }
+  ],
+  "product_documents": [],
+  "product_video_youtube": [],
+  "product_asset_360": [],
+  "product_feature": [
+    { "value": "Customized Temperature Controls", "description": null, "image": null },
+    { "value": "Fully Cantilevered, Adjustable Glass Shelves", "description": null, "image": null },
+    { "value": "Integrated Alarm System", "description": null, "image": null },
+    { "value": "Dual Level Organization System", "description": null, "image": null },
+    { "value": "Storage Drawer with 12 Temperature Settings", "description": null, "image": null },
+    { "value": "Humidity-Controlled Crisper Drawers", "description": null, "image": null },
+    { "value": "Filtration System", "description": null, "image": null },
+    { "value": "Theatre-Style Interior Lighting", "description": null, "image": null }
+  ],
+  "product_spec": [
+    { "section": "Warranty", "category": "Parts", "feature": "1 Year" },
+    { "section": "Warranty", "category": "Labor", "feature": "1 Year" }
+  ],
+  "color_relation": [],
+  "type_relation": [],
+  "filter": [
+    { "field": "Color", "value": "Black" },
+    { "field": "Refrigerator Type", "value": "French Door" },
+    { "field": "Installation", "value": "Freestanding" },
+    { "field": "Refrigerator Width (In)", "value": "33.1 - 36 Inch" },
+    { "field": "Refrigerator Type", "value": "French Door" }
+  ],
+  "rebates": []
+}

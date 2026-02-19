@@ -44,6 +44,8 @@ const {
   updateLineItemSchema
 } = require('../../shared/validation/schemas');
 
+const { buildQuoteSnapshot, SnapshotBuildError } = require('../../services/skulytics/SkulyticsSnapshotService');
+
 // Module state - initialized via init()
 let pool = null;
 let quoteService = null;
@@ -284,6 +286,57 @@ router.post('/',
 
       const quote = quoteResult.rows[0];
 
+      // ── Pre-fetch Skulytics data for all items ────────────────
+      let skulyticsMap = new Map();
+      let skulyticsWarnings = [];
+      try {
+        const productIds = data.items.filter(i => i.productId).map(i => i.productId);
+        if (productIds.length > 0) {
+          const { rows: skuProducts } = await client.query(
+            `SELECT id, skulytics_id FROM products WHERE id = ANY($1) AND skulytics_id IS NOT NULL`,
+            [productIds]
+          );
+          if (skuProducts.length > 0) {
+            const skuIds = skuProducts.map(p => p.skulytics_id);
+            const pid2sku = new Map(skuProducts.map(p => [p.id, p.skulytics_id]));
+            const { rows: globalRows } = await client.query(
+              `SELECT * FROM global_skulytics_products WHERE skulytics_id = ANY($1)`, [skuIds]
+            );
+            const globalMap = new Map(globalRows.map(g => [g.skulytics_id, g]));
+            const tenantId = req.user?.tenant_id || null;
+            let overrideMap = new Map();
+            if (tenantId) {
+              const { rows: ov } = await client.query(
+                `SELECT * FROM tenant_product_overrides WHERE tenant_id = $1 AND skulytics_id = ANY($2)`,
+                [tenantId, skuIds]
+              );
+              overrideMap = new Map(ov.map(o => [o.skulytics_id, o]));
+            }
+            for (const [pid, skuId] of pid2sku) {
+              const gp = globalMap.get(skuId);
+              if (!gp) continue;
+              try {
+                const snap = buildQuoteSnapshot(gp, overrideMap.get(skuId) || null);
+                skulyticsMap.set(pid, { skulytics_id: skuId, snapshot: snap, is_discontinued: gp.is_discontinued });
+                if (gp.is_discontinued) {
+                  skulyticsWarnings.push({
+                    product_id: pid, skulytics_id: skuId,
+                    type: 'DISCONTINUED_PRODUCT',
+                    message: 'This product has been discontinued by the manufacturer. Manager acknowledgement required.',
+                    requires_acknowledgement: true,
+                  });
+                }
+              } catch (snapErr) {
+                if (!(snapErr instanceof SnapshotBuildError)) throw snapErr;
+                console.error(`[Skulytics] v1 snapshot failed for ${skuId}:`, snapErr.message);
+              }
+            }
+          }
+        }
+      } catch (skuErr) {
+        console.error('[Skulytics] v1 enrichment failed, continuing:', skuErr.message);
+      }
+
       // Insert items
       for (const item of data.items) {
         const productResult = await client.query(
@@ -301,14 +354,17 @@ router.post('/',
         const discountAmount = item.discountAmountCents || Math.round(lineTotalCents * (item.discountPercent || 0) / 100);
         const finalTotal = lineTotalCents - discountAmount;
 
+        const skuData = skulyticsMap.get(item.productId) || null;
+
         await client.query(`
           INSERT INTO quotation_items (
             quotation_id, product_id, quantity,
             unit_price, total_price, discount_percent,
             manufacturer, model, description, category,
             cost_cents, msrp_cents, sell_cents, line_total_cents,
-            serial_number, item_notes
-          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
+            serial_number, item_notes,
+            skulytics_id, skulytics_snapshot
+          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18)
         `, [
           quote.id,
           item.productId,
@@ -325,7 +381,9 @@ router.post('/',
           unitPriceCents,
           finalTotal,
           item.serialNumber || null,
-          item.notes || null
+          item.notes || null,
+          skuData?.skulytics_id || null,
+          skuData?.snapshot ? JSON.stringify(skuData.snapshot) : null,
         ]);
       }
 
@@ -339,6 +397,10 @@ router.post('/',
 
       // Fetch complete quote with items
       const fullQuote = await getQuoteById(quote.id);
+
+      if (skulyticsWarnings.length > 0) {
+        fullQuote.warnings = skulyticsWarnings;
+      }
 
       res.created(fullQuote);
     } catch (error) {
@@ -460,8 +522,74 @@ router.put('/:id',
 
       // Update items if provided
       if (data.items) {
+        // ── Preserve existing Skulytics snapshots before delete ──
+        const { rows: existingSnapRows } = await client.query(
+          `SELECT product_id, skulytics_id, skulytics_snapshot,
+                  discontinued_acknowledged_by, discontinued_acknowledged_at
+           FROM quotation_items
+           WHERE quotation_id = $1 AND skulytics_snapshot IS NOT NULL`,
+          [quoteId]
+        );
+        const preservedSnaps = new Map();
+        for (const r of existingSnapRows) {
+          preservedSnaps.set(r.product_id, r);
+        }
+
         // Remove existing items
         await client.query('DELETE FROM quotation_items WHERE quotation_id = $1', [quoteId]);
+
+        // ── Pre-fetch Skulytics for new items (not already preserved) ──
+        let newSkuMap = new Map();
+        try {
+          const newPids = data.items
+            .filter(i => i.productId && !preservedSnaps.has(i.productId))
+            .map(i => i.productId);
+          if (newPids.length > 0) {
+            const { rows: skuProds } = await client.query(
+              `SELECT id, skulytics_id FROM products WHERE id = ANY($1) AND skulytics_id IS NOT NULL`,
+              [newPids]
+            );
+            if (skuProds.length > 0) {
+              const skuIds = skuProds.map(p => p.skulytics_id);
+              const pid2sku = new Map(skuProds.map(p => [p.id, p.skulytics_id]));
+              const { rows: gRows } = await client.query(
+                `SELECT * FROM global_skulytics_products WHERE skulytics_id = ANY($1)`, [skuIds]
+              );
+              const gMap = new Map(gRows.map(g => [g.skulytics_id, g]));
+              const tid = req.user?.tenant_id || null;
+              let ovMap = new Map();
+              if (tid) {
+                const { rows: ov } = await client.query(
+                  `SELECT * FROM tenant_product_overrides WHERE tenant_id = $1 AND skulytics_id = ANY($2)`,
+                  [tid, skuIds]
+                );
+                ovMap = new Map(ov.map(o => [o.skulytics_id, o]));
+              }
+              for (const [pid, skuId] of pid2sku) {
+                const gp = gMap.get(skuId);
+                if (!gp) continue;
+                try {
+                  const snap = buildQuoteSnapshot(gp, ovMap.get(skuId) || null);
+                  newSkuMap.set(pid, { skulytics_id: skuId, skulytics_snapshot: JSON.stringify(snap) });
+                } catch (e) {
+                  if (!(e instanceof SnapshotBuildError)) throw e;
+                }
+              }
+            }
+          }
+        } catch (err) {
+          console.error('[Skulytics] v1 update enrichment failed:', err.message);
+        }
+
+        // Merge: preserved snapshots take priority
+        const mergedSku = new Map([...newSkuMap, ...preservedSnaps.entries()].map(([k, v]) => [k, {
+          skulytics_id: v.skulytics_id || null,
+          skulytics_snapshot: v.skulytics_snapshot
+            ? (typeof v.skulytics_snapshot === 'string' ? v.skulytics_snapshot : JSON.stringify(v.skulytics_snapshot))
+            : null,
+          discontinued_acknowledged_by: v.discontinued_acknowledged_by || null,
+          discontinued_acknowledged_at: v.discontinued_acknowledged_at || null,
+        }]));
 
         // Insert new items
         let subtotalCents = 0;
@@ -482,13 +610,17 @@ router.put('/:id',
           const finalTotal = lineTotalCents - discountAmount;
           subtotalCents += finalTotal;
 
+          const skuD = mergedSku.get(item.productId) || null;
+
           await client.query(`
             INSERT INTO quotation_items (
               quotation_id, product_id, quantity,
               unit_price, total_price, discount_percent,
               manufacturer, model, description, category,
-              sell_cents, line_total_cents
-            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+              sell_cents, line_total_cents,
+              skulytics_id, skulytics_snapshot,
+              discontinued_acknowledged_by, discontinued_acknowledged_at
+            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
           `, [
             quoteId,
             item.productId,
@@ -501,7 +633,11 @@ router.put('/:id',
             product.name,
             product.category,
             unitPriceCents,
-            finalTotal
+            finalTotal,
+            skuD?.skulytics_id || null,
+            skuD?.skulytics_snapshot || null,
+            skuD?.discontinued_acknowledged_by || null,
+            skuD?.discontinued_acknowledged_at || null,
           ]);
         }
 

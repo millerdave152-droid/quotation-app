@@ -2,9 +2,46 @@ const express = require('express');
 const router = express.Router();
 const pool = require('../db');
 const miraklService = require('../services/miraklService');
+const { getInstance: getChannelManager } = require('../services/ChannelManager');
 const { validateJoi, marketplaceSchemas } = require('../middleware/validation');
 const { authenticate } = require('../middleware/auth');
 const { ApiError, asyncHandler } = require('../middleware/errorHandler');
+const marketplaceAnalytics = require('../services/MarketplaceAnalytics');
+const inventoryForecaster = require('../services/InventoryForecaster');
+const bundleManager = require('../services/BundleManager');
+const taxEngine = require('../services/TaxEngine');
+const tenantManager = require('../services/TenantManager');
+const shippingService = require('../services/ShippingService');
+const reportGenerator = require('../services/ReportGenerator');
+const marketplaceAI = require('../services/MarketplaceAI');
+
+/**
+ * Resolve a channel adapter from the request.
+ * Accepts ?channelId=N or ?channel=BESTBUY_CA.
+ * Falls back to the first active adapter (Best Buy default).
+ * Returns { manager, adapter, channelId }.
+ */
+async function resolveChannel(req) {
+  const manager = await getChannelManager();
+  const rawId = req.query.channelId || req.body?.channelId;
+  const rawCode = req.query.channel || req.body?.channel;
+
+  if (rawId) {
+    const id = parseInt(rawId, 10);
+    return { manager, adapter: manager.getAdapter(id), channelId: id };
+  }
+  if (rawCode) {
+    const adapter = manager.getAdapterByCode(rawCode);
+    return { manager, adapter, channelId: adapter.channelId };
+  }
+  // Default: first active adapter (backward compatible)
+  const all = manager.getAllAdapters();
+  if (all.length === 0) {
+    // No adapters loaded — fall back to legacy miraklService path
+    return { manager, adapter: null, channelId: null };
+  }
+  return { manager, adapter: all[0], channelId: all[0].channelId };
+}
 
 // Cached column lookup for products table
 let productsColumnCache = { columns: null, loadedAt: 0 };
@@ -46,30 +83,432 @@ function requireMiraklConfig() {
 
 // -- Static routes BEFORE parameterized routes --
 
-// Dashboard stats for orders
+// ============================================
+// UNIFIED ORDER HUB — cross-channel + POS view
+// ============================================
+
+/**
+ * GET /orders/unified
+ * Single view of ALL orders across marketplace channels AND POS transactions.
+ * Query params:
+ *   source  - 'all' (default), 'marketplace', 'pos', or specific channel code (e.g. 'bestbuy_mirakl')
+ *   state   - order state filter (e.g. 'SHIPPING', 'completed')
+ *   dateFrom, dateTo - ISO date range
+ *   search  - free-text (customer name, order number)
+ *   limit, offset - pagination
+ */
+router.get('/orders/unified', authenticate, asyncHandler(async (req, res) => {
+  const {
+    source = 'all',
+    state,
+    dateFrom,
+    dateTo,
+    search,
+    limit: rawLimit,
+    offset: rawOffset
+  } = req.query;
+
+  const limit = Math.min(parseInt(rawLimit, 10) || 50, 200);
+  const offset = parseInt(rawOffset, 10) || 0;
+
+  const includeMarketplace = source === 'all' || source === 'marketplace' || (source !== 'pos' && source !== 'all' && source !== 'marketplace');
+  const includePOS = source === 'all' || source === 'pos';
+  const specificChannel = (source !== 'all' && source !== 'marketplace' && source !== 'pos') ? source : null;
+
+  const unionParts = [];
+  const countParts = [];
+  const allParams = [];
+  let paramIdx = 1;
+
+  // --- Marketplace orders ---
+  if (includeMarketplace) {
+    const mktWhere = [];
+
+    if (specificChannel) {
+      mktWhere.push(`mc.channel_code = $${paramIdx}`);
+      allParams.push(specificChannel);
+      paramIdx++;
+    }
+    if (state) {
+      mktWhere.push(`mo.mirakl_order_state = $${paramIdx}`);
+      allParams.push(state);
+      paramIdx++;
+    }
+    if (dateFrom) {
+      mktWhere.push(`mo.created_at >= $${paramIdx}::timestamp`);
+      allParams.push(dateFrom);
+      paramIdx++;
+    }
+    if (dateTo) {
+      mktWhere.push(`mo.created_at <= $${paramIdx}::timestamp + INTERVAL '1 day'`);
+      allParams.push(dateTo);
+      paramIdx++;
+    }
+    if (search) {
+      mktWhere.push(`(
+        mo.customer_name ILIKE $${paramIdx}
+        OR mo.mirakl_order_id ILIKE $${paramIdx}
+        OR mo.customer_email ILIKE $${paramIdx}
+      )`);
+      allParams.push(`%${search}%`);
+      paramIdx++;
+    }
+
+    const mktWhereClause = mktWhere.length > 0 ? 'AND ' + mktWhere.join(' AND ') : '';
+
+    unionParts.push(`
+      SELECT
+        mo.id,
+        mo.mirakl_order_id AS order_number,
+        mc.channel_code AS source_code,
+        mc.channel_name AS source_name,
+        'marketplace' AS source_type,
+        mo.customer_name,
+        mo.customer_email,
+        mo.total_price_cents / 100.0 AS total_price,
+        mo.mirakl_order_state AS status,
+        mo.created_at,
+        mo.shipped_date,
+        mo.acceptance_deadline,
+        CASE WHEN mo.mirakl_order_state = 'WAITING_ACCEPTANCE'
+          THEN EXTRACT(EPOCH FROM (mo.acceptance_deadline - NOW()))
+          ELSE NULL END AS seconds_until_deadline,
+        mo.commission_amount,
+        mo.channel_id
+      FROM marketplace_orders mo
+      JOIN marketplace_channels mc ON mc.id = mo.channel_id
+      WHERE 1=1 ${mktWhereClause}
+    `);
+
+    countParts.push(`
+      SELECT mc.channel_code AS source_code, COUNT(*) AS cnt
+      FROM marketplace_orders mo
+      JOIN marketplace_channels mc ON mc.id = mo.channel_id
+      WHERE 1=1 ${mktWhereClause}
+      GROUP BY mc.channel_code
+    `);
+  }
+
+  // --- POS transactions ---
+  if (includePOS) {
+    const posWhere = [];
+
+    if (state) {
+      posWhere.push(`t.status = $${paramIdx}`);
+      allParams.push(state);
+      paramIdx++;
+    }
+    if (dateFrom) {
+      posWhere.push(`t.created_at >= $${paramIdx}::timestamp`);
+      allParams.push(dateFrom);
+      paramIdx++;
+    }
+    if (dateTo) {
+      posWhere.push(`t.created_at <= $${paramIdx}::timestamp + INTERVAL '1 day'`);
+      allParams.push(dateTo);
+      paramIdx++;
+    }
+    if (search) {
+      posWhere.push(`(
+        c.name ILIKE $${paramIdx}
+        OR t.transaction_number ILIKE $${paramIdx}
+      )`);
+      allParams.push(`%${search}%`);
+      paramIdx++;
+    }
+
+    const posWhereClause = posWhere.length > 0 ? 'AND ' + posWhere.join(' AND ') : '';
+
+    unionParts.push(`
+      SELECT
+        t.transaction_id AS id,
+        t.transaction_number AS order_number,
+        'POS' AS source_code,
+        'In-Store' AS source_name,
+        'pos' AS source_type,
+        c.name AS customer_name,
+        c.email AS customer_email,
+        t.total_amount AS total_price,
+        t.status,
+        t.created_at,
+        t.completed_at AS shipped_date,
+        NULL::timestamp AS acceptance_deadline,
+        NULL::double precision AS seconds_until_deadline,
+        0::numeric AS commission_amount,
+        NULL::integer AS channel_id
+      FROM transactions t
+      LEFT JOIN customers c ON c.id = t.customer_id
+      WHERE 1=1 ${posWhereClause}
+    `);
+
+    countParts.push(`
+      SELECT 'POS' AS source_code, COUNT(*) AS cnt
+      FROM transactions t
+      LEFT JOIN customers c ON c.id = t.customer_id
+      WHERE 1=1 ${posWhereClause}
+    `);
+  }
+
+  if (unionParts.length === 0) {
+    return res.json({ orders: [], total: 0, sources: {} });
+  }
+
+  // Build the UNION query with sorting and pagination
+  const unionQuery = unionParts.join(' UNION ALL ');
+
+  // We need separate param sets for the data query (with LIMIT/OFFSET) and count query
+  const dataParams = [...allParams, limit, offset];
+  const dataQuery = `
+    SELECT * FROM (${unionQuery}) AS unified
+    ORDER BY created_at DESC
+    LIMIT $${paramIdx} OFFSET $${paramIdx + 1}
+  `;
+
+  // Count query: UNION ALL the count parts
+  const countQuery = countParts.join(' UNION ALL ');
+
+  const [dataResult, countResult] = await Promise.all([
+    pool.query(dataQuery, dataParams),
+    pool.query(countQuery, allParams)
+  ]);
+
+  // Build source breakdown
+  const sources = {};
+  let total = 0;
+  for (const row of countResult.rows) {
+    const code = row.source_code || 'unknown';
+    const cnt = parseInt(row.cnt, 10) || 0;
+    sources[code] = cnt;
+    total += cnt;
+  }
+
+  res.json({
+    orders: dataResult.rows,
+    total,
+    limit,
+    offset,
+    sources
+  });
+}));
+
+/**
+ * GET /orders/unified/stats
+ * Revenue comparison across all channels (marketplace + POS) for the last 30 days.
+ */
+router.get('/orders/unified/stats', authenticate, asyncHandler(async (req, res) => {
+  const days = parseInt(req.query.days, 10) || 30;
+
+  const [mktResult, posResult] = await Promise.all([
+    // Marketplace channels — grouped by channel_code
+    pool.query(`
+      SELECT
+        mc.channel_code AS code,
+        mc.channel_name AS name,
+        COUNT(mo.id) AS orders,
+        COALESCE(SUM(mo.total_price_cents / 100.0), 0) AS revenue,
+        COALESCE(SUM(mo.commission_amount), 0) AS commission,
+        COALESCE(SUM(mo.total_price_cents / 100.0) - SUM(mo.commission_amount), 0) AS net_revenue,
+        CASE WHEN COUNT(mo.id) > 0
+          THEN ROUND(SUM(mo.total_price_cents / 100.0) / COUNT(mo.id), 2)
+          ELSE 0 END AS avg_order_value
+      FROM marketplace_channels mc
+      LEFT JOIN marketplace_orders mo
+        ON mo.channel_id = mc.id
+        AND mo.created_at >= NOW() - ($1 || ' days')::interval
+      GROUP BY mc.channel_code, mc.channel_name
+      ORDER BY revenue DESC
+    `, [days]),
+
+    // POS transactions
+    pool.query(`
+      SELECT
+        COUNT(*) AS orders,
+        COALESCE(SUM(total_amount), 0) AS revenue,
+        CASE WHEN COUNT(*) > 0
+          THEN ROUND(SUM(total_amount) / COUNT(*), 2)
+          ELSE 0 END AS avg_order_value
+      FROM transactions
+      WHERE status NOT IN ('voided', 'void')
+        AND created_at >= NOW() - ($1 || ' days')::interval
+    `, [days])
+  ]);
+
+  const channels = [];
+
+  // Add marketplace channels
+  for (const row of mktResult.rows) {
+    channels.push({
+      code: row.code,
+      name: row.name,
+      sourceType: 'marketplace',
+      orders: parseInt(row.orders, 10) || 0,
+      revenue: parseFloat(row.revenue) || 0,
+      commission: parseFloat(row.commission) || 0,
+      netRevenue: parseFloat(row.net_revenue) || 0,
+      avgOrderValue: parseFloat(row.avg_order_value) || 0
+    });
+  }
+
+  // Add POS
+  const pos = posResult.rows[0];
+  channels.push({
+    code: 'POS',
+    name: 'In-Store',
+    sourceType: 'pos',
+    orders: parseInt(pos.orders, 10) || 0,
+    revenue: parseFloat(pos.revenue) || 0,
+    commission: 0,
+    netRevenue: parseFloat(pos.revenue) || 0,
+    avgOrderValue: parseFloat(pos.avg_order_value) || 0
+  });
+
+  // Totals
+  const totalRevenue = channels.reduce((s, c) => s + c.revenue, 0);
+  const totalOrders = channels.reduce((s, c) => s + c.orders, 0);
+  const totalCommission = channels.reduce((s, c) => s + c.commission, 0);
+
+  res.json({
+    days,
+    channels,
+    totals: {
+      orders: totalOrders,
+      revenue: Math.round(totalRevenue * 100) / 100,
+      commission: Math.round(totalCommission * 100) / 100,
+      netRevenue: Math.round((totalRevenue - totalCommission) * 100) / 100,
+      avgOrderValue: totalOrders > 0 ? Math.round((totalRevenue / totalOrders) * 100) / 100 : 0
+    }
+  });
+}));
+
+/**
+ * GET /orders/unified/:orderId
+ * Get any order by ID — tries marketplace_orders first, then transactions.
+ * Accepts numeric IDs or order number strings.
+ */
+router.get('/orders/unified/:orderId', authenticate, asyncHandler(async (req, res) => {
+  const { orderId } = req.params;
+  const isNumeric = /^\d+$/.test(orderId);
+
+  // 1. Try marketplace_orders
+  const mktQuery = isNumeric
+    ? `SELECT mo.*, mc.channel_code, mc.channel_name,
+         CASE WHEN mo.mirakl_order_state = 'WAITING_ACCEPTANCE'
+           THEN EXTRACT(EPOCH FROM (mo.acceptance_deadline - NOW()))
+           ELSE NULL END AS seconds_until_deadline
+       FROM marketplace_orders mo
+       LEFT JOIN marketplace_channels mc ON mc.id = mo.channel_id
+       WHERE mo.id = $1`
+    : `SELECT mo.*, mc.channel_code, mc.channel_name,
+         CASE WHEN mo.mirakl_order_state = 'WAITING_ACCEPTANCE'
+           THEN EXTRACT(EPOCH FROM (mo.acceptance_deadline - NOW()))
+           ELSE NULL END AS seconds_until_deadline
+       FROM marketplace_orders mo
+       LEFT JOIN marketplace_channels mc ON mc.id = mo.channel_id
+       WHERE mo.mirakl_order_id = $1`;
+
+  const mktResult = await pool.query(mktQuery, [isNumeric ? parseInt(orderId, 10) : orderId]);
+
+  if (mktResult.rows.length > 0) {
+    const order = mktResult.rows[0];
+
+    // Fetch line items
+    const items = await pool.query(
+      'SELECT * FROM marketplace_order_items WHERE order_id = $1 ORDER BY id',
+      [order.id]
+    );
+
+    return res.json({
+      source: 'marketplace',
+      channelCode: order.channel_code,
+      channelName: order.channel_name,
+      order: {
+        ...order,
+        totalPrice: order.total_price_cents ? order.total_price_cents / 100 : null,
+        items: items.rows
+      }
+    });
+  }
+
+  // 2. Try transactions (POS)
+  const posQuery = isNumeric
+    ? `SELECT t.*, c.name AS customer_name, c.email AS customer_email, c.phone AS customer_phone
+       FROM transactions t
+       LEFT JOIN customers c ON c.id = t.customer_id
+       WHERE t.transaction_id = $1`
+    : `SELECT t.*, c.name AS customer_name, c.email AS customer_email, c.phone AS customer_phone
+       FROM transactions t
+       LEFT JOIN customers c ON c.id = t.customer_id
+       WHERE t.transaction_number = $1`;
+
+  const posResult = await pool.query(posQuery, [isNumeric ? parseInt(orderId, 10) : orderId]);
+
+  if (posResult.rows.length > 0) {
+    const tx = posResult.rows[0];
+
+    // Fetch line items from transaction_items
+    const items = await pool.query(
+      `SELECT ti.*, p.name AS product_name, p.sku
+       FROM transaction_items ti
+       LEFT JOIN products p ON p.id = ti.product_id
+       WHERE ti.transaction_id = $1
+       ORDER BY ti.id`,
+      [tx.transaction_id]
+    );
+
+    return res.json({
+      source: 'pos',
+      channelCode: 'POS',
+      channelName: 'In-Store',
+      order: {
+        ...tx,
+        items: items.rows
+      }
+    });
+  }
+
+  throw ApiError.notFound(`Order ${orderId} not found in any channel`);
+}));
+
+// ============================================
+// MARKETPLACE ORDERS (channel-specific)
+// ============================================
+
+// Dashboard stats for orders — supports ?channelId filter or cross-channel
 router.get('/orders/dashboard-stats', authenticate, asyncHandler(async (req, res) => {
+  const channelFilter = req.query.channelId ? parseInt(req.query.channelId, 10) : null;
+  const channelWhere = channelFilter ? ` AND channel_id = ${channelFilter}` : '';
+
   const [pending, urgent, shipping, shippedToday, revenue, byState] = await Promise.all([
-    pool.query(`SELECT COUNT(*) as cnt FROM marketplace_orders WHERE mirakl_order_state = 'WAITING_ACCEPTANCE'`),
-    pool.query(`SELECT COUNT(*) as cnt FROM marketplace_orders WHERE mirakl_order_state = 'WAITING_ACCEPTANCE' AND acceptance_deadline < NOW() + INTERVAL '4 hours'`),
-    pool.query(`SELECT COUNT(*) as cnt FROM marketplace_orders WHERE mirakl_order_state = 'SHIPPING'`),
-    pool.query(`SELECT COUNT(*) as cnt FROM marketplace_orders WHERE mirakl_order_state = 'SHIPPED' AND shipped_date >= CURRENT_DATE`),
+    pool.query(`SELECT COUNT(*) as cnt FROM marketplace_orders WHERE mirakl_order_state = 'WAITING_ACCEPTANCE'${channelWhere}`),
+    pool.query(`SELECT COUNT(*) as cnt FROM marketplace_orders WHERE mirakl_order_state = 'WAITING_ACCEPTANCE' AND acceptance_deadline < NOW() + INTERVAL '4 hours'${channelWhere}`),
+    pool.query(`SELECT COUNT(*) as cnt FROM marketplace_orders WHERE mirakl_order_state = 'SHIPPING'${channelWhere}`),
+    pool.query(`SELECT COUNT(*) as cnt FROM marketplace_orders WHERE mirakl_order_state = 'SHIPPED' AND shipped_date >= CURRENT_DATE${channelWhere}`),
     pool.query(`
       SELECT
         COALESCE(SUM(total_price_cents / 100.0), 0) as total_revenue,
         COALESCE(SUM(commission_amount), 0) as total_commission
       FROM marketplace_orders
-      WHERE created_at >= NOW() - INTERVAL '30 days'
+      WHERE created_at >= NOW() - INTERVAL '30 days'${channelWhere}
     `),
     pool.query(`
       SELECT mirakl_order_state as state, COUNT(*) as cnt
       FROM marketplace_orders
-      WHERE mirakl_order_state IS NOT NULL
+      WHERE mirakl_order_state IS NOT NULL${channelWhere}
       GROUP BY mirakl_order_state
     `),
   ]);
 
   const ordersByState = {};
   byState.rows.forEach(r => { ordersByState[r.state] = parseInt(r.cnt); });
+
+  // If cross-channel requested, include per-channel breakdown
+  let channelBreakdown = undefined;
+  if (req.query.crossChannel === 'true' && !channelFilter) {
+    try {
+      const manager = await getChannelManager();
+      channelBreakdown = await manager.getDashboardStats();
+    } catch (_) { /* non-fatal */ }
+  }
 
   res.json({
     pendingAcceptance: parseInt(pending.rows[0].cnt),
@@ -78,18 +517,35 @@ router.get('/orders/dashboard-stats', authenticate, asyncHandler(async (req, res
     shippedToday: parseInt(shippedToday.rows[0].cnt),
     totalRevenue30Days: parseFloat(revenue.rows[0].total_revenue) || 0,
     totalCommission30Days: parseFloat(revenue.rows[0].total_commission) || 0,
-    ordersByState
+    ordersByState,
+    ...(channelBreakdown && { channelBreakdown })
   });
 }));
 
-// Poll orders from Mirakl (trigger immediate sync)
+// Poll orders from Mirakl (trigger immediate sync) — supports ?channelId or polls all
 router.get('/orders/poll', authenticate, asyncHandler(async (req, res) => {
-  requireMiraklConfig();
-  const result = await miraklService.pollOrders({
+  const { adapter } = await resolveChannel(req);
+  const options = {
     states: req.query.states || undefined,
     since: req.query.since || undefined
-  });
+  };
 
+  // If a specific adapter resolved, poll that channel
+  if (adapter) {
+    const result = await adapter.pollOrders(options);
+    return res.json({
+      success: true,
+      newOrders: result.newOrders,
+      updatedOrders: result.updatedOrders,
+      totalPolled: result.totalPolled,
+      errors: result.errors,
+      lastPollTime: new Date()
+    });
+  }
+
+  // Fallback: legacy miraklService (no channels configured)
+  requireMiraklConfig();
+  const result = await miraklService.pollOrders(options);
   res.json({
     success: true,
     newOrders: result.newOrders,
@@ -133,20 +589,25 @@ router.post('/orders/sync', authenticate, asyncHandler(async (req, res) => {
 
 // -- Parameterized order routes --
 
-// List marketplace orders with filters
+// List marketplace orders with filters — supports ?channelId filter
 router.get('/orders', authenticate, asyncHandler(async (req, res) => {
   const {
-    state, status, dateFrom, dateTo, search,
+    state, status, dateFrom, dateTo, search, channelId: rawChannelId,
     limit: rawLimit = 50, offset: rawOffset = 0
   } = req.query;
   const limit = Math.min(parseInt(rawLimit) || 50, 200);
   const offset = parseInt(rawOffset) || 0;
   const filterState = state || status; // support both param names
+  const filterChannelId = rawChannelId ? parseInt(rawChannelId, 10) : null;
 
   const conditions = [];
   const params = [];
   let pi = 1;
 
+  if (filterChannelId) {
+    conditions.push(`mo.channel_id = $${pi++}`);
+    params.push(filterChannelId);
+  }
   if (filterState) {
     conditions.push(`mo.mirakl_order_state = $${pi++}`);
     params.push(filterState);
@@ -299,7 +760,20 @@ router.post('/orders/:id/accept', authenticate, asyncHandler(async (req, res) =>
     accepted: l.accepted,
     reason_code: l.reason || undefined
   }));
-  const data = await miraklService.acceptOrderLines(order.mirakl_order_id, miraklLines);
+
+  let data;
+  try {
+    data = await miraklService.acceptOrderLines(order.mirakl_order_id, miraklLines);
+  } catch (miraklErr) {
+    const miraklMsg = miraklErr.response?.data?.message || miraklErr.message;
+    // If Mirakl says it's not in WAITING_ACCEPTANCE, re-poll to sync local state
+    if (miraklMsg.includes('not in state WAITING_ACCEPTANCE') || miraklErr.response?.status === 400) {
+      try {
+        await miraklService.pollOrders({ states: 'WAITING_ACCEPTANCE,SHIPPING,SHIPPED,RECEIVED' });
+      } catch (_) { /* ignore poll errors */ }
+    }
+    throw ApiError.badRequest('Mirakl rejected the request: ' + miraklMsg);
+  }
 
   // For accepted lines on marketplace_enabled products, decrement inventory
   const acceptedLineIds = lines.filter(l => l.accepted).map(l => l.lineId);
@@ -389,13 +863,25 @@ router.post('/orders/:id/ship', authenticate, asyncHandler(async (req, res) => {
     throw ApiError.badRequest(`Order is in state ${currentState}, expected SHIPPING`);
   }
 
+  let miraklError = null;
+
   // 1. Update tracking on Mirakl
-  await miraklService.updateTracking(order.mirakl_order_id, trackingNumber, carrierCode, carrierName, carrierUrl);
+  try {
+    await miraklService.updateTracking(order.mirakl_order_id, trackingNumber, carrierCode, carrierName, carrierUrl);
+  } catch (err) {
+    console.error(`[Ship] Mirakl updateTracking failed for order ${id}:`, err.response?.data || err.message);
+    miraklError = err.response?.data?.message || err.message;
+  }
 
   // 2. Confirm shipment on Mirakl
-  await miraklService.confirmShipment(order.mirakl_order_id);
+  try {
+    await miraklService.confirmShipment(order.mirakl_order_id);
+  } catch (err) {
+    console.error(`[Ship] Mirakl confirmShipment failed for order ${id}:`, err.response?.data || err.message);
+    if (!miraklError) miraklError = err.response?.data?.message || err.message;
+  }
 
-  // 3. Save shipment record locally
+  // 3. Save shipment record locally (always persist locally even if Mirakl fails)
   const shipment = await pool.query(
     `INSERT INTO marketplace_shipments
      (order_id, tracking_number, carrier_code, carrier_name, shipment_date, shipment_status)
@@ -404,7 +890,28 @@ router.post('/orders/:id/ship', authenticate, asyncHandler(async (req, res) => {
     [id, trackingNumber, carrierCode || null, carrierName || carrierCode || 'Other']
   );
 
-  res.status(201).json({ success: true, shipment: shipment.rows[0] });
+  // 4. Update local order state
+  await pool.query(
+    `UPDATE marketplace_orders
+     SET mirakl_order_state = 'SHIPPED', order_state = 'SHIPPED',
+         shipped_date = NOW(), updated_at = CURRENT_TIMESTAMP
+     WHERE id = $1`,
+    [id]
+  );
+  await pool.query(
+    `UPDATE marketplace_order_items
+     SET status = 'SHIPPED', order_line_state = 'SHIPPED',
+         shipping_tracking = $1, shipping_carrier = $2,
+         updated_at = CURRENT_TIMESTAMP
+     WHERE order_id = $3 AND order_line_state IN ('SHIPPING', 'ACCEPTED')`,
+    [trackingNumber, carrierCode || carrierName || 'Other', id]
+  );
+
+  res.status(201).json({
+    success: true,
+    shipment: shipment.rows[0],
+    miraklWarning: miraklError ? `Mirakl sync issue: ${miraklError}` : undefined
+  });
 }));
 
 // Legacy shipments endpoint — kept for backward compatibility
@@ -480,8 +987,27 @@ router.post('/orders/:id/refund', authenticate, asyncHandler(async (req, res) =>
 // PRODUCT SYNC
 // ============================================
 
-// Bulk push marketplace-enabled offers to Mirakl (OF01)
+// Bulk push marketplace-enabled offers to Mirakl (OF01) — supports ?channelId
 router.post('/offers/bulk-push', authenticate, asyncHandler(async (req, res) => {
+  const { manager, adapter, channelId } = await resolveChannel(req);
+
+  // If adapter available and channel has product_channel_listings, use ChannelManager path
+  if (adapter && channelId) {
+    try {
+      const result = await manager.pushOffers(channelId, req.body.productIds || null);
+      return res.json({
+        success: true,
+        importId: result.importId || null,
+        productsSubmitted: result.submitted || 0,
+        channelId
+      });
+    } catch (err) {
+      // If product_channel_listings has no rows, fall through to legacy path
+      if (!err.message.includes('No adapter')) throw err;
+    }
+  }
+
+  // Legacy path: direct miraklService (backward compatible)
   requireMiraklConfig();
   const columns = await getProductsColumns();
   const upcCol = pickFirstColumn(columns, ['upc', 'barcode', 'ean', 'gtin']);
@@ -541,9 +1067,9 @@ router.post('/offers/bulk-push', authenticate, asyncHandler(async (req, res) => 
   });
 }));
 
-// Push or update a single offer (OF24)
+// Push or update a single offer (OF24) — supports ?channelId
 router.post('/offers/push-single/:productId', authenticate, asyncHandler(async (req, res) => {
-  requireMiraklConfig();
+  const { adapter } = await resolveChannel(req);
   const { productId } = req.params;
   const columns = await getProductsColumns();
   const upcCol = pickFirstColumn(columns, ['upc', 'barcode', 'ean', 'gtin']);
@@ -592,7 +1118,13 @@ router.post('/offers/push-single/:productId', authenticate, asyncHandler(async (
     throw ApiError.badRequest('Product is missing UPC/barcode');
   }
 
-  await miraklService.updateSingleOffer(product);
+  // Use adapter if available, otherwise legacy
+  if (adapter) {
+    await adapter.pushSingleOffer(product);
+  } else {
+    requireMiraklConfig();
+    await miraklService.updateSingleOffer(product);
+  }
 
   res.json({
     success: true,
@@ -601,9 +1133,8 @@ router.post('/offers/push-single/:productId', authenticate, asyncHandler(async (
   });
 }));
 
-// Check status of an offer import
+// Check status of an offer import — uses adapter if channel_id on import record
 router.get('/offers/import-status/:importId', authenticate, asyncHandler(async (req, res) => {
-  requireMiraklConfig();
   const { importId } = req.params;
   const importQuery = await pool.query(
     'SELECT * FROM marketplace_offer_imports WHERE import_id = $1',
@@ -616,7 +1147,21 @@ router.get('/offers/import-status/:importId', authenticate, asyncHandler(async (
 
   const record = importQuery.rows[0];
   if (!['COMPLETE', 'COMPLETED', 'FAILED'].includes((record.status || '').toUpperCase())) {
-    await miraklService.checkImportStatus(record.mirakl_import_id);
+    // Use adapter if import has a channel_id, otherwise legacy
+    if (record.channel_id) {
+      try {
+        const manager = await getChannelManager();
+        const adapter = manager.getAdapter(record.channel_id);
+        await adapter.checkImportStatus(record.mirakl_import_id);
+      } catch (_) {
+        // Adapter not available — fall through to legacy
+        requireMiraklConfig();
+        await miraklService.checkImportStatus(record.mirakl_import_id);
+      }
+    } else {
+      requireMiraklConfig();
+      await miraklService.checkImportStatus(record.mirakl_import_id);
+    }
   }
 
   const refreshed = await pool.query(
@@ -630,9 +1175,9 @@ router.get('/offers/import-status/:importId', authenticate, asyncHandler(async (
   });
 }));
 
-// Reconcile our offers against Mirakl
+// Reconcile our offers against Mirakl — supports ?channelId
 router.get('/offers/reconcile', authenticate, asyncHandler(async (req, res) => {
-  requireMiraklConfig();
+  const { adapter } = await resolveChannel(req);
   const columns = await getProductsColumns();
   const stockCol = pickFirstColumn(columns, ['stock_quantity', 'qty_on_hand', 'quantity_in_stock', 'stock', 'quantity', 'qty_available']);
 
@@ -644,10 +1189,18 @@ router.get('/offers/reconcile', authenticate, asyncHandler(async (req, res) => {
   );
   const products = productsQuery.rows;
 
-  const offers = await miraklService.getOfferList({
+  const offerOptions = {
     offset: req.query.offset ? parseInt(req.query.offset, 10) : 0,
     max: req.query.max ? parseInt(req.query.max, 10) : 100
-  });
+  };
+
+  let offers;
+  if (adapter) {
+    offers = await adapter.getRemoteOffers(offerOptions);
+  } else {
+    requireMiraklConfig();
+    offers = await miraklService.getOfferList(offerOptions);
+  }
 
   const offerBySku = new Map();
   for (const offer of offers) {
@@ -2098,6 +2651,31 @@ router.put('/order-settings/:key', authenticate, asyncHandler(async (req, res) =
   res.json({ success: true, setting: result.rows[0] });
 }));
 
+// Get all settings (general-purpose)
+router.get('/settings', authenticate, asyncHandler(async (req, res) => {
+  const result = await pool.query(`SELECT * FROM marketplace_order_settings ORDER BY setting_key`);
+  const settings = {};
+  result.rows.forEach(row => {
+    settings[row.setting_key] = row.setting_value;
+  });
+  res.json(settings);
+}));
+
+// Update a setting (general-purpose — upserts into marketplace_order_settings)
+router.put('/settings/:key', authenticate, asyncHandler(async (req, res) => {
+  const { key } = req.params;
+  const { value } = req.body;
+
+  const result = await pool.query(`
+    INSERT INTO marketplace_order_settings (setting_key, setting_value, description, created_at, updated_at)
+    VALUES ($1, $2, $3, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+    ON CONFLICT (setting_key) DO UPDATE SET setting_value = $2, updated_at = CURRENT_TIMESTAMP
+    RETURNING *
+  `, [key, JSON.stringify(value), `Setting: ${key}`]);
+
+  res.json({ success: true, setting: result.rows[0] });
+}));
+
 // ============================================
 // BATCH ORDER PROCESSING
 // ============================================
@@ -2803,7 +3381,7 @@ router.get('/orders/:id/detail', authenticate, asyncHandler(async (req, res) => 
 
   const order = orderResult.rows[0];
 
-  // Get order items
+  // Get order items with expected commission rate lookup
   const itemsResult = await pool.query(`
     SELECT
       oi.*,
@@ -2814,9 +3392,13 @@ router.get('/orders/:id/detail', authenticate, asyncHandler(async (req, res) => 
       p.name as product_name,
       p.model,
       p.manufacturer,
-      p.bestbuy_category_code
+      p.bestbuy_category_code,
+      p.image_url as internal_image_url,
+      COALESCE(oi.expected_commission_rate, cr.commission_pct) as expected_commission_rate
     FROM marketplace_order_items oi
     LEFT JOIN products p ON oi.product_id = p.id
+    LEFT JOIN marketplace_commission_rates cr
+      ON LOWER(oi.category_label) = LOWER(cr.category_leaf)
     WHERE oi.order_id = $1
   `, [id]);
 
@@ -3284,8 +3866,22 @@ router.get('/inventory-products', authenticate, asyncHandler(async (req, res) =>
 // INVENTORY SYNC MANAGEMENT
 // ============================================
 
-// Trigger immediate batch inventory sync to Best Buy
+// Trigger immediate batch inventory sync — supports ?channelId
 router.post('/inventory/sync-now', authenticate, asyncHandler(async (req, res) => {
+  const { manager, adapter, channelId } = await resolveChannel(req);
+
+  if (adapter && channelId) {
+    const result = await adapter.processInventoryBatch();
+    return res.json({
+      success: true,
+      processed: result.submitted || result.processed || 0,
+      importId: result.importId || null,
+      channelId,
+      syncTime: new Date()
+    });
+  }
+
+  // Legacy fallback
   requireMiraklConfig();
   const result = await miraklService.processInventoryBatch();
   res.json({
@@ -3322,20 +3918,34 @@ router.get('/inventory/queue-status', authenticate, asyncHandler(async (req, res
   });
 }));
 
-// Compare our stock vs Best Buy's stock levels
+// Compare our stock vs channel's stock levels — supports ?channelId
 router.get('/inventory/drift-check', authenticate, asyncHandler(async (req, res) => {
+  const { adapter } = await resolveChannel(req);
+
+  if (adapter) {
+    const drift = await adapter.getInventoryDrift();
+    return res.json(drift);
+  }
+
   requireMiraklConfig();
   const drift = await miraklService.getInventoryDrift();
   res.json(drift);
 }));
 
-// Push ALL inventory to Best Buy (emergency/initial sync)
+// Push ALL inventory to channel (emergency/initial sync) — supports ?channelId
 router.post('/inventory/force-full-sync', authenticate, asyncHandler(async (req, res) => {
-  requireMiraklConfig();
   if (!req.body.confirm) {
     throw ApiError.badRequest('Must include { confirm: true } to force a full inventory sync');
   }
 
+  const { adapter } = await resolveChannel(req);
+
+  if (adapter) {
+    const result = await adapter.forceFullInventorySync();
+    return res.json({ success: true, ...result });
+  }
+
+  requireMiraklConfig();
   const result = await miraklService.forceFullInventorySync();
   res.json({
     success: true,
@@ -3409,7 +4019,7 @@ router.get('/offers/products', authenticate, asyncHandler(async (req, res) => {
 // Get recent offer imports for Offers tab
 router.get('/offers/recent-imports', authenticate, asyncHandler(async (req, res) => {
   const result = await pool.query(`
-    SELECT id, mirakl_import_id, import_type, status, records_processed,
+    SELECT import_id as id, mirakl_import_id, import_type, status, records_processed,
       records_with_errors, submitted_at, completed_at
     FROM marketplace_offer_imports
     ORDER BY submitted_at DESC
@@ -5425,8 +6035,13 @@ router.get('/returns', authenticate, asyncHandler(async (req, res) => {
     paramIndex++;
   }
 
-  // Get count before pagination
-  const countQuery = query.replace(/SELECT r\.\*, mo\.mirakl_order_id.*FROM/, 'SELECT COUNT(*) as total FROM');
+  // Get count before pagination — build count query from same WHERE conditions
+  let countQuery = `SELECT COUNT(*) as total FROM marketplace_returns r LEFT JOIN marketplace_orders mo ON r.order_id = mo.id WHERE 1=1`;
+  if (status) countQuery += ` AND r.status = $${params.indexOf(status) + 1}`;
+  if (return_type) countQuery += ` AND r.return_type = $${params.indexOf(return_type) + 1}`;
+  if (start_date) countQuery += ` AND r.created_at >= $${params.indexOf(start_date) + 1}`;
+  if (end_date) countQuery += ` AND r.created_at <= $${params.indexOf(end_date) + 1}`;
+  if (customer_email) countQuery += ` AND r.customer_email ILIKE $${params.indexOf(`%${customer_email}%`) + 1}`;
   const countResult = await pool.query(countQuery, params);
 
   query += ` ORDER BY r.created_at DESC LIMIT $${paramIndex} OFFSET $${paramIndex + 1}`;
@@ -5450,8 +6065,11 @@ router.get('/returns', authenticate, asyncHandler(async (req, res) => {
   });
 }));
 
-// Get single return with items
-router.get('/returns/:id', authenticate, asyncHandler(async (req, res) => {
+// Get single return with items (numeric IDs only — let /returns/stats, /returns/analytics, /returns/rules pass through)
+router.get('/returns/:id', authenticate, (req, res, next) => {
+  if (!/^\d+$/.test(req.params.id)) return next('route');
+  next();
+}, asyncHandler(async (req, res) => {
   const { id } = req.params;
 
   const returnQuery = await pool.query(`
@@ -6288,6 +6906,1784 @@ router.post('/bulk/stock-update', authenticate, validateJoi(marketplaceSchemas.b
   } finally {
     client.release();
   }
+}));
+
+// ============================================
+// COMMISSION RATES
+// ============================================
+
+// List all commission rates
+router.get('/commission-rates', authenticate, asyncHandler(async (req, res) => {
+  const result = await pool.query(`
+    SELECT id, category_path, category_leaf, commission_pct, item_condition, created_at
+    FROM marketplace_commission_rates
+    ORDER BY category_path
+  `);
+  res.json({ rates: result.rows, total: result.rows.length });
+}));
+
+// Apply expected commission rates to all existing order items
+router.post('/commission-rates/apply-to-orders', authenticate, asyncHandler(async (req, res) => {
+  // Update items that have a category_label matching a commission rate leaf
+  const exactResult = await pool.query(`
+    UPDATE marketplace_order_items oi
+    SET expected_commission_rate = cr.commission_pct,
+        updated_at = CURRENT_TIMESTAMP
+    FROM marketplace_commission_rates cr
+    WHERE LOWER(oi.category_label) = LOWER(cr.category_leaf)
+      AND oi.category_label IS NOT NULL
+  `);
+
+  // For items without an exact leaf match, try partial path match
+  const partialResult = await pool.query(`
+    UPDATE marketplace_order_items oi
+    SET expected_commission_rate = sub.commission_pct,
+        updated_at = CURRENT_TIMESTAMP
+    FROM (
+      SELECT DISTINCT ON (oi2.id) oi2.id, cr2.commission_pct
+      FROM marketplace_order_items oi2
+      JOIN marketplace_commission_rates cr2
+        ON LOWER(cr2.category_path) LIKE '%' || LOWER(oi2.category_label) || '%'
+      WHERE oi2.category_label IS NOT NULL
+        AND oi2.expected_commission_rate IS NULL
+      ORDER BY oi2.id, LENGTH(cr2.category_path) DESC
+    ) sub
+    WHERE oi.id = sub.id
+  `);
+
+  const totalUpdated = (exactResult.rowCount || 0) + (partialResult.rowCount || 0);
+
+  // Get summary of what was matched vs unmatched
+  const stats = await pool.query(`
+    SELECT
+      COUNT(*) as total_items,
+      COUNT(expected_commission_rate) as matched,
+      COUNT(*) - COUNT(expected_commission_rate) as unmatched
+    FROM marketplace_order_items
+    WHERE category_label IS NOT NULL
+  `);
+
+  res.json({
+    success: true,
+    updated: totalUpdated,
+    exactMatches: exactResult.rowCount || 0,
+    partialMatches: partialResult.rowCount || 0,
+    stats: stats.rows[0]
+  });
+}));
+
+// ============================================
+// CHANNEL MANAGEMENT
+// ============================================
+
+// List all channels (active and inactive)
+router.get('/channels', authenticate, asyncHandler(async (req, res) => {
+  const manager = await getChannelManager();
+  const channels = await manager.listChannels();
+
+  // Augment each channel with adapter status
+  const result = channels.map(ch => ({
+    ...ch,
+    adapterLoaded: manager.hasAdapter(ch.id),
+    features: manager.hasAdapter(ch.id) ? manager.getAdapter(ch.id).getFeatures() : null
+  }));
+
+  res.json({ channels: result, total: result.length });
+}));
+
+// Cross-channel dashboard stats (BEFORE :channelId param route)
+router.get('/channels/dashboard', authenticate, asyncHandler(async (req, res) => {
+  const manager = await getChannelManager();
+  const stats = await manager.getDashboardStats();
+  const recentSyncs = await manager.getRecentSyncActivity(10);
+
+  res.json({ channels: stats, recentSyncs });
+}));
+
+// Get single channel details
+router.get('/channels/:channelId', authenticate, asyncHandler(async (req, res) => {
+  const channelId = parseInt(req.params.channelId, 10);
+  const channelResult = await pool.query('SELECT * FROM marketplace_channels WHERE id = $1', [channelId]);
+
+  if (channelResult.rows.length === 0) {
+    throw ApiError.notFound('Channel');
+  }
+
+  const channel = channelResult.rows[0];
+  const manager = await getChannelManager();
+  const adapterLoaded = manager.hasAdapter(channelId);
+
+  // Get recent sync stats for this channel
+  const syncStats = await pool.query(`
+    SELECT sync_type, status, COUNT(*) as cnt,
+           MAX(sync_end_time) as last_run
+    FROM marketplace_sync_log
+    WHERE channel_id = $1 AND sync_start_time >= NOW() - INTERVAL '7 days'
+    GROUP BY sync_type, status
+    ORDER BY last_run DESC
+  `, [channelId]);
+
+  // Get order counts
+  const orderCounts = await pool.query(`
+    SELECT mirakl_order_state as state, COUNT(*) as cnt
+    FROM marketplace_orders
+    WHERE channel_id = $1
+    GROUP BY mirakl_order_state
+  `, [channelId]);
+
+  const ordersByState = {};
+  orderCounts.rows.forEach(r => { ordersByState[r.state] = parseInt(r.cnt); });
+
+  // Mask credentials for security
+  const safeChannel = { ...channel };
+  if (safeChannel.credentials) {
+    const creds = typeof safeChannel.credentials === 'string' ? JSON.parse(safeChannel.credentials) : safeChannel.credentials;
+    safeChannel.credentials = {
+      api_key: creds.api_key ? `${creds.api_key.slice(0, 8)}...` : null,
+      shop_id: creds.shop_id || null
+    };
+  }
+
+  res.json({
+    channel: safeChannel,
+    adapterLoaded,
+    features: adapterLoaded ? manager.getAdapter(channelId).getFeatures() : null,
+    recentSyncs: syncStats.rows,
+    ordersByState
+  });
+}));
+
+// Add a new channel
+router.post('/channels', authenticate, asyncHandler(async (req, res) => {
+  const { code, name, type, apiUrl, credentials, config } = req.body;
+
+  if (!code || !name || !type) {
+    throw ApiError.badRequest('code, name, and type are required');
+  }
+
+  const manager = await getChannelManager();
+  const channel = await manager.addChannel({ code, name, type, apiUrl, credentials, config });
+
+  res.status(201).json({ success: true, channel });
+}));
+
+// ============================================
+// CHANNEL ONBOARDING
+// ============================================
+
+/**
+ * POST /channels/onboard
+ * Step-by-step channel onboarding with connection test.
+ */
+router.post('/channels/onboard', authenticate, asyncHandler(async (req, res) => {
+  const { channelType, channelCode, channelName, apiUrl, credentials, config } = req.body;
+
+  if (!channelType || !channelCode || !channelName) {
+    throw ApiError.badRequest('channelType, channelCode, and channelName are required');
+  }
+  if (!apiUrl) {
+    throw ApiError.badRequest('apiUrl is required');
+  }
+  if (!credentials || !credentials.api_key) {
+    throw ApiError.badRequest('credentials.api_key is required');
+  }
+
+  // 1. Insert into marketplace_channels with status = 'PENDING'
+  const insertResult = await pool.query(
+    `INSERT INTO marketplace_channels
+       (channel_code, channel_name, channel_type, api_url, credentials, config, status)
+     VALUES ($1, $2, $3, $4, $5, $6, 'PENDING')
+     RETURNING *`,
+    [
+      channelCode,
+      channelName,
+      channelType.toUpperCase(),
+      apiUrl,
+      JSON.stringify(credentials),
+      JSON.stringify(config || {})
+    ]
+  );
+  const channel = insertResult.rows[0];
+
+  // 2. Attempt testConnection via a temporary adapter
+  let connectionTest = { connected: false, message: 'No adapter for this channel type' };
+  try {
+    const manager = await getChannelManager();
+    const adapter = manager._createAdapter(channel);
+    connectionTest = await adapter.testConnection();
+  } catch (err) {
+    connectionTest = { connected: false, message: err.message };
+  }
+
+  // 3. If connection succeeds, update status to 'INACTIVE' (ready to activate)
+  if (connectionTest.connected) {
+    await pool.query(
+      "UPDATE marketplace_channels SET status = 'INACTIVE', updated_at = NOW() WHERE id = $1",
+      [channel.id]
+    );
+    channel.status = 'INACTIVE';
+  }
+
+  // Mask credentials in response
+  const safeChannel = { ...channel };
+  if (safeChannel.credentials) {
+    const creds = typeof safeChannel.credentials === 'string'
+      ? JSON.parse(safeChannel.credentials)
+      : safeChannel.credentials;
+    safeChannel.credentials = {
+      api_key: creds.api_key ? `${creds.api_key.slice(0, 8)}...` : null,
+      shop_id: creds.shop_id || null
+    };
+  }
+
+  res.status(201).json({
+    success: true,
+    channel: safeChannel,
+    connectionTest
+  });
+}));
+
+/**
+ * POST /channels/:channelId/map-categories
+ * Import category tree from a Mirakl marketplace via H11 API.
+ */
+router.post('/channels/:channelId/map-categories', authenticate, asyncHandler(async (req, res) => {
+  const channelId = parseInt(req.params.channelId, 10);
+
+  // 1. Get channel from DB
+  const chResult = await pool.query('SELECT * FROM marketplace_channels WHERE id = $1', [channelId]);
+  if (chResult.rows.length === 0) throw ApiError.notFound('Channel');
+
+  const channel = chResult.rows[0];
+
+  if (channel.channel_type !== 'MIRAKL') {
+    throw ApiError.badRequest(`Category import not yet supported for channel type: ${channel.channel_type}`);
+  }
+
+  // 2. Create a temporary adapter and call Mirakl H11
+  const manager = await getChannelManager();
+  let adapter;
+  try {
+    adapter = manager.hasAdapter(channelId)
+      ? manager.getAdapter(channelId)
+      : manager._createAdapter(channel);
+  } catch (err) {
+    throw ApiError.badRequest(`Cannot create adapter: ${err.message}`);
+  }
+
+  // H11 endpoint: GET /api/hierarchies
+  const data = await adapter._retryableRequest(
+    () => adapter.client.get('/hierarchies'),
+    'mapCategories(H11)'
+  );
+
+  const hierarchies = data?.hierarchies || data || [];
+
+  // 3. Flatten the category tree and store in channel_categories
+  // Clear existing categories for this channel first
+  await pool.query('DELETE FROM channel_categories WHERE channel_id = $1', [channelId]);
+
+  const categories = [];
+  function flattenCategories(items, parentCode, level, pathParts) {
+    for (const item of items) {
+      const code = item.code || item.hierarchy_code || '';
+      const label = item.label || item.hierarchy_label || '';
+      const currentPath = [...pathParts, label];
+      const children = item.children_hierarchies || item.children || [];
+
+      categories.push({
+        code,
+        label,
+        parentCode: parentCode || null,
+        level,
+        fullPath: currentPath.join(' > '),
+        isLeaf: children.length === 0,
+        rawData: item
+      });
+
+      if (children.length > 0) {
+        flattenCategories(children, code, level + 1, currentPath);
+      }
+    }
+  }
+  flattenCategories(Array.isArray(hierarchies) ? hierarchies : [hierarchies], null, 0, []);
+
+  // Batch insert
+  if (categories.length > 0) {
+    const values = [];
+    const params = [];
+    let idx = 1;
+    for (const cat of categories) {
+      values.push(`($${idx}, $${idx+1}, $${idx+2}, $${idx+3}, $${idx+4}, $${idx+5}, $${idx+6}, $${idx+7})`);
+      params.push(channelId, cat.code, cat.label, cat.parentCode, cat.level, cat.fullPath, cat.isLeaf, JSON.stringify(cat.rawData));
+      idx += 8;
+    }
+
+    await pool.query(
+      `INSERT INTO channel_categories
+         (channel_id, category_code, category_label, parent_code, level, full_path, is_leaf, raw_data)
+       VALUES ${values.join(', ')}`,
+      params
+    );
+  }
+
+  // 4. Return category tree for the UI
+  const storedCategories = await pool.query(
+    `SELECT id, category_code, category_label, parent_code, level, full_path, is_leaf
+     FROM channel_categories
+     WHERE channel_id = $1
+     ORDER BY full_path`,
+    [channelId]
+  );
+
+  res.json({
+    success: true,
+    channelId,
+    categoriesImported: categories.length,
+    categories: storedCategories.rows
+  });
+}));
+
+/**
+ * POST /channels/:channelId/map-products
+ * Create product_channel_listings for products on this channel.
+ * Body: { productIds: [1,2,3], categoryId: 'CAT_XXX', categoryName: 'Refrigerators' }
+ */
+router.post('/channels/:channelId/map-products', authenticate, asyncHandler(async (req, res) => {
+  const channelId = parseInt(req.params.channelId, 10);
+  const { productIds, categoryId, categoryName } = req.body;
+
+  if (!productIds || !Array.isArray(productIds) || productIds.length === 0) {
+    throw ApiError.badRequest('productIds array is required');
+  }
+
+  // Verify channel exists
+  const chResult = await pool.query('SELECT id FROM marketplace_channels WHERE id = $1', [channelId]);
+  if (chResult.rows.length === 0) throw ApiError.notFound('Channel');
+
+  // Get product details (sku, price)
+  const products = await pool.query(
+    'SELECT id, sku, price FROM products WHERE id = ANY($1)',
+    [productIds]
+  );
+
+  if (products.rows.length === 0) {
+    throw ApiError.badRequest('No valid products found for the given IDs');
+  }
+
+  let mapped = 0;
+  let skipped = 0;
+  const errors = [];
+
+  for (const product of products.rows) {
+    try {
+      await pool.query(
+        `INSERT INTO product_channel_listings
+           (product_id, channel_id, channel_sku, channel_category_id, channel_category_name,
+            channel_price, listing_status)
+         VALUES ($1, $2, $3, $4, $5, $6, 'DRAFT')
+         ON CONFLICT (product_id, channel_id) DO UPDATE
+         SET channel_category_id = EXCLUDED.channel_category_id,
+             channel_category_name = EXCLUDED.channel_category_name,
+             updated_at = NOW()`,
+        [
+          product.id,
+          channelId,
+          product.sku,
+          categoryId || null,
+          categoryName || null,
+          product.price
+        ]
+      );
+      mapped++;
+    } catch (err) {
+      skipped++;
+      errors.push({ productId: product.id, error: err.message });
+    }
+  }
+
+  res.json({
+    success: true,
+    mapped,
+    skipped,
+    errors: errors.length > 0 ? errors : undefined
+  });
+}));
+
+/**
+ * POST /channels/:channelId/auto-map
+ * Auto-map products based on existing Best Buy category mappings.
+ * Matches products with bestbuy_category_id to this channel's categories by name similarity.
+ */
+router.post('/channels/:channelId/auto-map', authenticate, asyncHandler(async (req, res) => {
+  const channelId = parseInt(req.params.channelId, 10);
+
+  // Verify channel exists
+  const chResult = await pool.query('SELECT * FROM marketplace_channels WHERE id = $1', [channelId]);
+  if (chResult.rows.length === 0) throw ApiError.notFound('Channel');
+
+  // 1. Get this channel's leaf categories
+  const channelCats = await pool.query(
+    `SELECT category_code, category_label, full_path
+     FROM channel_categories
+     WHERE channel_id = $1 AND is_leaf = true
+     ORDER BY category_label`,
+    [channelId]
+  );
+
+  if (channelCats.rows.length === 0) {
+    throw ApiError.badRequest(
+      'No categories imported for this channel. Run POST /channels/:channelId/map-categories first.'
+    );
+  }
+
+  // Build a lookup: normalised label -> category
+  const catMap = new Map();
+  for (const cat of channelCats.rows) {
+    const normalised = cat.category_label.trim().toLowerCase();
+    catMap.set(normalised, cat);
+    // Also index each segment of the full_path for partial matching
+    if (cat.full_path) {
+      const segments = cat.full_path.split(' > ');
+      for (const seg of segments) {
+        const normSeg = seg.trim().toLowerCase();
+        if (!catMap.has(normSeg)) catMap.set(normSeg, cat);
+      }
+    }
+  }
+
+  // 2. Get products that have bestbuy_category_id set but NOT yet listed on this channel
+  const products = await pool.query(`
+    SELECT p.id, p.sku, p.price, p.bestbuy_category_id, p.bestbuy_category_code, p.category
+    FROM products p
+    WHERE p.marketplace_enabled = true
+      AND p.sku IS NOT NULL
+      AND p.bestbuy_category_id IS NOT NULL
+      AND NOT EXISTS (
+        SELECT 1 FROM product_channel_listings pcl
+        WHERE pcl.product_id = p.id AND pcl.channel_id = $1
+      )
+  `, [channelId]);
+
+  // 3. Try to match by category name similarity
+  // First, build a map of bestbuy category labels from marketplace_commission_rates
+  const commRates = await pool.query(
+    `SELECT DISTINCT category_label FROM marketplace_commission_rates WHERE category_label IS NOT NULL`
+  );
+  const bbCatLabels = new Map();
+  for (const row of commRates.rows) {
+    bbCatLabels.set(row.category_label.trim().toLowerCase(), row.category_label);
+  }
+
+  let autoMapped = 0;
+  let unmapped = 0;
+  const mappings = [];
+
+  for (const product of products.rows) {
+    // Try matching using product.category, bestbuy_category_code, or commission rate labels
+    const candidates = [
+      product.category,
+      product.bestbuy_category_code
+    ].filter(Boolean);
+
+    let matchedCat = null;
+
+    // Direct name match
+    for (const candidate of candidates) {
+      const normalised = candidate.trim().toLowerCase();
+      if (catMap.has(normalised)) {
+        matchedCat = catMap.get(normalised);
+        break;
+      }
+    }
+
+    // Partial match: check if any channel category label contains our category or vice versa
+    if (!matchedCat) {
+      for (const candidate of candidates) {
+        const normCandidate = candidate.trim().toLowerCase();
+        for (const [normLabel, cat] of catMap) {
+          if (normLabel.includes(normCandidate) || normCandidate.includes(normLabel)) {
+            matchedCat = cat;
+            break;
+          }
+        }
+        if (matchedCat) break;
+      }
+    }
+
+    if (matchedCat) {
+      try {
+        await pool.query(
+          `INSERT INTO product_channel_listings
+             (product_id, channel_id, channel_sku, channel_category_id, channel_category_name,
+              channel_price, listing_status)
+           VALUES ($1, $2, $3, $4, $5, $6, 'DRAFT')
+           ON CONFLICT (product_id, channel_id) DO NOTHING`,
+          [
+            product.id,
+            channelId,
+            product.sku,
+            matchedCat.category_code,
+            matchedCat.category_label,
+            product.price
+          ]
+        );
+        autoMapped++;
+        mappings.push({
+          productId: product.id,
+          sku: product.sku,
+          sourceCategory: product.category || product.bestbuy_category_code,
+          mappedTo: matchedCat.category_label,
+          mappedCode: matchedCat.category_code
+        });
+      } catch (err) {
+        unmapped++;
+      }
+    } else {
+      unmapped++;
+    }
+  }
+
+  res.json({
+    success: true,
+    autoMapped,
+    unmapped,
+    totalCandidates: products.rows.length,
+    channelCategories: channelCats.rows.length,
+    mappings: mappings.slice(0, 50) // first 50 for preview
+  });
+}));
+
+/**
+ * POST /channels/:channelId/go-live
+ * Activate channel: validate, push offers + inventory, set ACTIVE.
+ */
+router.post('/channels/:channelId/go-live', authenticate, asyncHandler(async (req, res) => {
+  const channelId = parseInt(req.params.channelId, 10);
+
+  // 1. Load channel
+  const chResult = await pool.query('SELECT * FROM marketplace_channels WHERE id = $1', [channelId]);
+  if (chResult.rows.length === 0) throw ApiError.notFound('Channel');
+  const channel = chResult.rows[0];
+
+  // Validate: must have credentials
+  const creds = typeof channel.credentials === 'string'
+    ? JSON.parse(channel.credentials)
+    : (channel.credentials || {});
+  if (!creds.api_key) {
+    throw ApiError.badRequest('Channel has no API key configured. Update credentials first.');
+  }
+
+  // 2. Check mapped products
+  const listingCount = await pool.query(
+    `SELECT COUNT(*) as cnt FROM product_channel_listings WHERE channel_id = $1`,
+    [channelId]
+  );
+  const totalListings = parseInt(listingCount.rows[0].cnt, 10);
+  if (totalListings === 0) {
+    throw ApiError.badRequest('No products mapped to this channel. Map products before going live.');
+  }
+
+  // 3. Get or create adapter
+  const manager = await getChannelManager();
+  let adapter;
+  try {
+    adapter = manager.hasAdapter(channelId)
+      ? manager.getAdapter(channelId)
+      : manager._createAdapter(channel);
+  } catch (err) {
+    throw ApiError.badRequest(`Cannot create adapter: ${err.message}`);
+  }
+
+  // 4. Set all DRAFT listings to PENDING
+  const draftUpdate = await pool.query(
+    `UPDATE product_channel_listings
+     SET listing_status = 'PENDING', updated_at = NOW()
+     WHERE channel_id = $1 AND listing_status = 'DRAFT'
+     RETURNING id`,
+    [channelId]
+  );
+  const pendingCount = draftUpdate.rowCount;
+
+  // 5. Push offers
+  let offerResult = { submitted: 0 };
+  try {
+    offerResult = await manager.pushOffers(channelId);
+  } catch (err) {
+    console.error(`[go-live] pushOffers error for channel ${channelId}:`, err.message);
+    offerResult = { submitted: 0, error: err.message };
+  }
+
+  // 6. Push inventory with allocation
+  let inventoryResult = { submitted: 0 };
+  try {
+    inventoryResult = await manager.pushInventory(channelId);
+  } catch (err) {
+    console.error(`[go-live] pushInventory error for channel ${channelId}:`, err.message);
+    inventoryResult = { submitted: 0, error: err.message };
+  }
+
+  // 7. Activate channel
+  await manager.activateChannel(channelId);
+
+  // Update listings that were PENDING to ACTIVE (optimistic)
+  await pool.query(
+    `UPDATE product_channel_listings
+     SET listing_status = 'ACTIVE', updated_at = NOW()
+     WHERE channel_id = $1 AND listing_status = 'PENDING'`,
+    [channelId]
+  );
+
+  res.json({
+    success: true,
+    activated: true,
+    channelId,
+    channelCode: channel.channel_code,
+    channelName: channel.channel_name,
+    listingsActivated: pendingCount,
+    totalListings,
+    offersPushed: offerResult.submitted || offerResult.processed || 0,
+    inventoryPushed: inventoryResult.submitted || inventoryResult.processed || 0,
+    offersError: offerResult.error || undefined,
+    inventoryError: inventoryResult.error || undefined
+  });
+}));
+
+// ============================================
+// CHANNEL ACTIVATION / MANAGEMENT
+// ============================================
+
+// Activate a channel
+router.put('/channels/:channelId/activate', authenticate, asyncHandler(async (req, res) => {
+  const channelId = parseInt(req.params.channelId, 10);
+  const manager = await getChannelManager();
+  const channel = await manager.activateChannel(channelId);
+
+  if (!channel) {
+    throw ApiError.notFound('Channel');
+  }
+
+  res.json({ success: true, channel, adapterLoaded: manager.hasAdapter(channelId) });
+}));
+
+// Deactivate a channel
+router.put('/channels/:channelId/deactivate', authenticate, asyncHandler(async (req, res) => {
+  const channelId = parseInt(req.params.channelId, 10);
+  const manager = await getChannelManager();
+  await manager.deactivateChannel(channelId);
+
+  res.json({ success: true, message: `Channel ${channelId} deactivated` });
+}));
+
+// Test channel connection
+router.post('/channels/:channelId/test', authenticate, asyncHandler(async (req, res) => {
+  const channelId = parseInt(req.params.channelId, 10);
+  const manager = await getChannelManager();
+  const result = await manager.testConnection(channelId);
+
+  res.json({ success: true, ...result });
+}));
+
+// Update channel settings
+router.put('/channels/:channelId', authenticate, asyncHandler(async (req, res) => {
+  const channelId = parseInt(req.params.channelId, 10);
+  const { apiUrl, credentials, config, name } = req.body;
+  const manager = await getChannelManager();
+  const channel = await manager.updateChannel(channelId, { apiUrl, credentials, config, name });
+
+  if (!channel) {
+    throw ApiError.notFound('Channel');
+  }
+
+  res.json({ success: true, channel });
+}));
+
+// Poll orders across all channels
+router.post('/channels/poll-all-orders', authenticate, asyncHandler(async (req, res) => {
+  const manager = await getChannelManager();
+  const results = await manager.pollAllOrders();
+
+  res.json({
+    success: true,
+    results,
+    pollTime: new Date()
+  });
+}));
+
+// ============================================
+// PRICING ENGINE
+// ============================================
+
+const pricingEngine = require('../services/PricingEngine');
+
+// List pricing rules (optionally filtered by channel)
+router.get('/pricing/rules', authenticate, asyncHandler(async (req, res) => {
+  const channelId = req.query.channelId ? parseInt(req.query.channelId, 10) : null;
+  const rules = await pricingEngine.getRules(channelId);
+  res.json({ rules, total: rules.length });
+}));
+
+// Create a pricing rule
+router.post('/pricing/rules', authenticate, asyncHandler(async (req, res) => {
+  const { channelId, ruleName, ruleType, conditions, formula, priority, active, startsAt, endsAt } = req.body;
+
+  if (!ruleName || !ruleType) {
+    throw ApiError.badRequest('ruleName and ruleType are required');
+  }
+
+  const validTypes = ['MIN_MARGIN', 'CHANNEL_MARKUP', 'SCHEDULED', 'VOLUME', 'COMPETITIVE'];
+  if (!validTypes.includes(ruleType)) {
+    throw ApiError.badRequest(`ruleType must be one of: ${validTypes.join(', ')}`);
+  }
+
+  const rule = await pricingEngine.createRule({
+    channelId, ruleName, ruleType, conditions, formula, priority, active, startsAt, endsAt
+  });
+
+  res.status(201).json({ success: true, rule });
+}));
+
+// Update a pricing rule
+router.put('/pricing/rules/:id', authenticate, asyncHandler(async (req, res) => {
+  const ruleId = parseInt(req.params.id, 10);
+  const rule = await pricingEngine.updateRule(ruleId, req.body);
+
+  if (!rule) {
+    throw ApiError.notFound('Pricing rule');
+  }
+
+  res.json({ success: true, rule });
+}));
+
+// Delete a pricing rule
+router.delete('/pricing/rules/:id', authenticate, asyncHandler(async (req, res) => {
+  const ruleId = parseInt(req.params.id, 10);
+  const deleted = await pricingEngine.deleteRule(ruleId);
+
+  if (!deleted) {
+    throw ApiError.notFound('Pricing rule');
+  }
+
+  res.json({ success: true, message: `Rule ${ruleId} deleted` });
+}));
+
+// Calculate price for a single product on a channel
+router.get('/pricing/calculate/:productId', authenticate, asyncHandler(async (req, res) => {
+  const productId = parseInt(req.params.productId, 10);
+  const channelId = parseInt(req.query.channelId, 10);
+
+  if (!channelId) {
+    throw ApiError.badRequest('channelId query parameter is required');
+  }
+
+  const result = await pricingEngine.calculatePrice(productId, channelId);
+  res.json({ success: true, ...result });
+}));
+
+// Trigger recalculation for all products on a channel
+router.post('/pricing/recalculate/:channelId', authenticate, asyncHandler(async (req, res) => {
+  const channelId = parseInt(req.params.channelId, 10);
+  const dryRun = req.body.dryRun === true || req.query.dryRun === 'true';
+  const approvalThreshold = req.body.approvalThreshold
+    ? parseFloat(req.body.approvalThreshold)
+    : undefined;
+
+  const result = await pricingEngine.recalculateChannel(channelId, { dryRun, approvalThreshold });
+  res.json({ success: true, ...result });
+}));
+
+// Push price changes to channel
+router.post('/pricing/push/:channelId', authenticate, asyncHandler(async (req, res) => {
+  const channelId = parseInt(req.params.channelId, 10);
+  const result = await pricingEngine.pushPriceChanges(channelId);
+  res.json({ success: true, ...result });
+}));
+
+// List pending price change approvals
+router.get('/pricing/pending', authenticate, asyncHandler(async (req, res) => {
+  const channelId = req.query.channelId ? parseInt(req.query.channelId, 10) : null;
+  const pending = await pricingEngine.getPendingApprovals(channelId);
+  res.json({ pending, total: pending.length });
+}));
+
+// Approve or reject a price change
+router.post('/pricing/approve/:changeId', authenticate, asyncHandler(async (req, res) => {
+  const changeId = parseInt(req.params.changeId, 10);
+  const approved = req.body.approved !== false; // default to approve
+
+  const change = await pricingEngine.approveChange(changeId, req.user.id, approved);
+  res.json({
+    success: true,
+    status: approved ? 'approved' : 'rejected',
+    change
+  });
+}));
+
+// Bulk approve all pending changes for a channel
+router.post('/pricing/bulk-approve/:channelId', authenticate, asyncHandler(async (req, res) => {
+  const channelId = parseInt(req.params.channelId, 10);
+  const result = await pricingEngine.bulkApprove(channelId, req.user.id);
+  res.json({ success: true, ...result });
+}));
+
+// Get price change history
+router.get('/pricing/log', authenticate, asyncHandler(async (req, res) => {
+  const filters = {
+    productId: req.query.productId ? parseInt(req.query.productId, 10) : undefined,
+    channelId: req.query.channelId ? parseInt(req.query.channelId, 10) : undefined,
+    status: req.query.status,
+    limit: req.query.limit,
+    offset: req.query.offset
+  };
+  const log = await pricingEngine.getChangeLog(filters);
+  res.json({ log, total: log.length });
+}));
+
+// =============================================
+// LISTING HEALTH MONITOR ROUTES
+// =============================================
+
+const listingHealthMonitor = require('../services/ListingHealthMonitor');
+
+// Get listing health score + issue summary for a channel
+router.get('/listings/health/:channelId', authenticate, asyncHandler(async (req, res) => {
+  const channelId = parseInt(req.params.channelId, 10);
+  const [score, summary] = await Promise.all([
+    listingHealthMonitor.getHealthScore(channelId),
+    listingHealthMonitor.getIssueSummary(channelId)
+  ]);
+  res.json({ channelId, score, summary });
+}));
+
+// Trigger a manual listing health scan for a channel
+router.post('/listings/health/:channelId/scan', authenticate, asyncHandler(async (req, res) => {
+  const channelId = parseInt(req.params.channelId, 10);
+  const result = await listingHealthMonitor.scanChannel(channelId);
+  res.json({ success: true, channelId, ...result });
+}));
+
+// Trigger auto-fix for a channel's listing issues
+router.post('/listings/health/:channelId/auto-fix', authenticate, asyncHandler(async (req, res) => {
+  const channelId = parseInt(req.params.channelId, 10);
+  const result = await listingHealthMonitor.autoFix(channelId);
+  res.json({ success: true, channelId, ...result });
+}));
+
+// List all open listing issues (filterable)
+router.get('/listings/issues', authenticate, asyncHandler(async (req, res) => {
+  const filters = {
+    channelId: req.query.channelId ? parseInt(req.query.channelId, 10) : undefined,
+    severity: req.query.severity,
+    issueType: req.query.type,
+    autoFixable: req.query.autoFixable === 'true' ? true : req.query.autoFixable === 'false' ? false : undefined,
+    limit: parseInt(req.query.limit) || 100,
+    offset: parseInt(req.query.offset) || 0
+  };
+  const issues = await listingHealthMonitor.getIssues(filters);
+  res.json({ issues, total: issues.length, ...filters });
+}));
+
+// =============================================
+// RETURNS AUTOMATION ROUTES (ReturnsManager)
+// =============================================
+
+const returnsManager = require('../services/ReturnsManager');
+
+// Return analytics / stats (channel-aware, by period)
+router.get('/returns/stats', authenticate, asyncHandler(async (req, res) => {
+  const channelId = req.query.channelId ? parseInt(req.query.channelId, 10) : null;
+  const days = parseInt(req.query.days) || 30;
+  const stats = await returnsManager.getReturnStats(channelId, days);
+  res.json(stats);
+}));
+
+// List return automation rules
+router.get('/returns/rules', authenticate, asyncHandler(async (req, res) => {
+  const rules = await returnsManager.getRules();
+  res.json({ rules, total: rules.length });
+}));
+
+// Create return automation rule
+router.post('/returns/rules', authenticate, asyncHandler(async (req, res) => {
+  const rule = await returnsManager.createRule(req.body);
+  res.status(201).json({ success: true, rule });
+}));
+
+// Accept a return (via ReturnsManager auto-decision engine)
+router.post('/returns/:id/accept', authenticate, asyncHandler(async (req, res) => {
+  const returnId = parseInt(req.params.id, 10);
+  const result = await returnsManager.acceptReturn(returnId);
+  res.json({ success: true, return: result });
+}));
+
+// =============================================
+// MESSAGING HUB ROUTES
+// =============================================
+
+const messagingHub = require('../services/MessagingHub');
+
+// Get inbox (unread messages across channels)
+router.get('/messages/inbox', authenticate, asyncHandler(async (req, res) => {
+  const channelId = req.query.channelId ? parseInt(req.query.channelId, 10) : null;
+  const options = {
+    unreadOnly: req.query.unreadOnly === 'true',
+    limit: parseInt(req.query.limit) || 50,
+    offset: parseInt(req.query.offset) || 0
+  };
+  const result = await messagingHub.getInbox(channelId, options);
+  res.json(result);
+}));
+
+// Response time analytics
+router.get('/messages/stats', authenticate, asyncHandler(async (req, res) => {
+  const channelId = req.query.channelId ? parseInt(req.query.channelId, 10) : null;
+  const days = parseInt(req.query.days) || 30;
+  const stats = await messagingHub.getResponseStats(channelId, days);
+  res.json(stats);
+}));
+
+// List message templates
+router.get('/messages/templates', authenticate, asyncHandler(async (req, res) => {
+  const templates = await messagingHub.getTemplates();
+  res.json({ templates, total: templates.length });
+}));
+
+// Create message template
+router.post('/messages/templates', authenticate, asyncHandler(async (req, res) => {
+  const template = await messagingHub.createTemplate(req.body);
+  res.status(201).json({ success: true, template });
+}));
+
+// Update message template
+router.put('/messages/templates/:id', authenticate, asyncHandler(async (req, res) => {
+  const id = parseInt(req.params.id, 10);
+  const template = await messagingHub.updateTemplate(id, req.body);
+  res.json({ success: true, template });
+}));
+
+// Get full conversation thread
+router.get('/messages/thread/:threadId', authenticate, asyncHandler(async (req, res) => {
+  const channelId = parseInt(req.query.channelId, 10);
+  if (!channelId) return res.status(400).json({ error: 'channelId query parameter required' });
+  const thread = await messagingHub.getThread(channelId, req.params.threadId);
+  res.json(thread);
+}));
+
+// Send reply to a message
+router.post('/messages/reply/:messageId', authenticate, asyncHandler(async (req, res) => {
+  const messageId = parseInt(req.params.messageId, 10);
+  const { body } = req.body;
+  if (!body) return res.status(400).json({ error: 'body is required' });
+  const result = await messagingHub.sendReply(messageId, body);
+  res.json({ success: true, ...result });
+}));
+
+// Mark message as read
+router.post('/messages/:messageId/read', authenticate, asyncHandler(async (req, res) => {
+  const messageId = parseInt(req.params.messageId, 10);
+  const result = await messagingHub.markRead(messageId);
+  res.json({ success: true, ...result });
+}));
+
+// ═══════════════════════════════════════════════════════════════════
+// ONBOARDING WIZARD  (4 routes)
+// ═══════════════════════════════════════════════════════════════════
+
+const WIZARD_STEPS = [
+  { step: 1, name: 'Channel Setup', description: 'Choose channel type and name' },
+  { step: 2, name: 'API Credentials', description: 'Enter API credentials and test connection' },
+  { step: 3, name: 'Category Import', description: 'Fetch and review marketplace categories' },
+  { step: 4, name: 'Category Mapping', description: 'Map your product categories to marketplace categories' },
+  { step: 5, name: 'Product Selection', description: 'Choose which products to list' },
+  { step: 6, name: 'Pricing & Inventory', description: 'Set pricing rules and inventory allocation' },
+  { step: 7, name: 'Review & Activate', description: 'Confirm and push listings live' }
+];
+
+// POST /onboarding/start — begin the wizard
+router.post('/onboarding/start', authenticate, asyncHandler(async (req, res) => {
+  const { channelType, channelName } = req.body;
+  if (!channelType || !channelName) {
+    return res.status(400).json({ error: 'channelType and channelName are required' });
+  }
+
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+
+    // Create channel record (INACTIVE, placeholder code)
+    const channelCode = channelName.toUpperCase().replace(/[^A-Z0-9]/g, '_').slice(0, 30) + '_' + Date.now().toString(36).toUpperCase();
+    const { rows: [channel] } = await client.query(`
+      INSERT INTO marketplace_channels (channel_code, channel_name, channel_type, status)
+      VALUES ($1, $2, $3, 'INACTIVE')
+      RETURNING id, channel_code, channel_name, channel_type, status
+    `, [channelCode, channelName, channelType.toUpperCase()]);
+
+    // Create onboarding record
+    const { rows: [onboarding] } = await client.query(`
+      INSERT INTO channel_onboarding (channel_id, current_step, step_data)
+      VALUES ($1, 1, $2)
+      RETURNING *
+    `, [channel.id, JSON.stringify({ step1: { channelType: channelType.toUpperCase(), channelName } })]);
+
+    await client.query('COMMIT');
+
+    res.status(201).json({
+      onboardingId: onboarding.id,
+      channelId: channel.id,
+      currentStep: 1,
+      totalSteps: 7,
+      status: 'IN_PROGRESS',
+      channel,
+      steps: WIZARD_STEPS
+    });
+  } catch (err) {
+    await client.query('ROLLBACK');
+    throw err;
+  } finally {
+    client.release();
+  }
+}));
+
+// GET /onboarding/:id — current wizard state
+router.get('/onboarding/:id', authenticate, asyncHandler(async (req, res) => {
+  const onboardingId = parseInt(req.params.id, 10);
+
+  const { rows: [ob] } = await pool.query(
+    'SELECT * FROM channel_onboarding WHERE id = $1', [onboardingId]
+  );
+  if (!ob) return res.status(404).json({ error: 'Onboarding session not found' });
+
+  const { rows: [channel] } = await pool.query(`
+    SELECT id, channel_code, channel_name, channel_type, api_url, status, config,
+           commission_rates, features, onboarded_at
+    FROM marketplace_channels WHERE id = $1
+  `, [ob.channel_id]);
+
+  // Count mapped products
+  const { rows: [listingStats] } = await pool.query(`
+    SELECT COUNT(*)::int AS total,
+           COUNT(*) FILTER (WHERE listing_status = 'ACTIVE')::int AS active
+    FROM product_channel_listings WHERE channel_id = $1
+  `, [ob.channel_id]);
+
+  // Count imported categories
+  const { rows: [catStats] } = await pool.query(`
+    SELECT COUNT(*)::int AS total,
+           COUNT(*) FILTER (WHERE is_leaf = true)::int AS leaf_count
+    FROM channel_categories WHERE channel_id = $1
+  `, [ob.channel_id]);
+
+  res.json({
+    onboardingId: ob.id,
+    channelId: ob.channel_id,
+    currentStep: ob.current_step,
+    totalSteps: ob.total_steps,
+    status: ob.status,
+    stepData: typeof ob.step_data === 'string' ? JSON.parse(ob.step_data) : ob.step_data,
+    startedAt: ob.started_at,
+    completedAt: ob.completed_at,
+    channel,
+    listings: listingStats,
+    categories: catStats,
+    steps: WIZARD_STEPS.map(function(s) {
+      return { ...s, completed: s.step < ob.current_step, current: s.step === ob.current_step };
+    })
+  });
+}));
+
+// PUT /onboarding/:id/step/:stepNumber — submit a step
+router.put('/onboarding/:id/step/:stepNumber', authenticate, asyncHandler(async (req, res) => {
+  const onboardingId = parseInt(req.params.id, 10);
+  const stepNumber = parseInt(req.params.stepNumber, 10);
+
+  // Load onboarding
+  const { rows: [ob] } = await pool.query(
+    'SELECT * FROM channel_onboarding WHERE id = $1', [onboardingId]
+  );
+  if (!ob) return res.status(404).json({ error: 'Onboarding session not found' });
+  if (ob.status !== 'IN_PROGRESS') return res.status(400).json({ error: 'Onboarding is ' + ob.status });
+  if (stepNumber < 1 || stepNumber > 7) return res.status(400).json({ error: 'Step must be 1-7' });
+
+  const channelId = ob.channel_id;
+  const stepData = typeof ob.step_data === 'string' ? JSON.parse(ob.step_data) : (ob.step_data || {});
+  var result = {};
+
+  // ─── STEP 1: Channel Setup ─────────────────────────────────────
+  if (stepNumber === 1) {
+    const { channelType, channelCode, channelName } = req.body;
+    if (!channelName) return res.status(400).json({ error: 'channelName is required' });
+
+    const sets = ['channel_name = $1', 'updated_at = NOW()'];
+    const params = [channelName];
+    if (channelType) { sets.push('channel_type = $' + (params.length + 1)); params.push(channelType.toUpperCase()); }
+    if (channelCode) { sets.push('channel_code = $' + (params.length + 1)); params.push(channelCode.toUpperCase()); }
+    params.push(channelId);
+
+    await pool.query(
+      'UPDATE marketplace_channels SET ' + sets.join(', ') + ' WHERE id = $' + params.length,
+      params
+    );
+    stepData.step1 = { channelType, channelCode, channelName };
+    result = { saved: true };
+  }
+
+  // ─── STEP 2: API Credentials + Test Connection ─────────────────
+  else if (stepNumber === 2) {
+    const { apiUrl, apiKey, shopId } = req.body;
+    if (!apiUrl || !apiKey) return res.status(400).json({ error: 'apiUrl and apiKey are required' });
+
+    const credentials = { api_key: apiKey };
+    if (shopId) credentials.shop_id = shopId;
+
+    await pool.query(
+      `UPDATE marketplace_channels SET api_url = $1, credentials = $2, updated_at = NOW() WHERE id = $3`,
+      [apiUrl, JSON.stringify(credentials), channelId]
+    );
+
+    // Test connection
+    var connectionTest = { connected: false, message: 'Connection test not available' };
+    try {
+      const manager = await getChannelManager();
+      const chRow = (await pool.query('SELECT * FROM marketplace_channels WHERE id = $1', [channelId])).rows[0];
+      const adapter = manager.hasAdapter && manager.hasAdapter(channelId)
+        ? manager.getAdapter(channelId)
+        : manager._createAdapter(chRow);
+      connectionTest = await adapter.testConnection();
+    } catch (err) {
+      connectionTest = { connected: false, message: err.message };
+    }
+
+    if (connectionTest.connected) {
+      await pool.query("UPDATE marketplace_channels SET status = 'PENDING', updated_at = NOW() WHERE id = $1", [channelId]);
+    }
+
+    stepData.step2 = { apiUrl, shopId: shopId || null, connectionTest };
+    result = { connectionTest };
+  }
+
+  // ─── STEP 3: Fetch Categories ──────────────────────────────────
+  else if (stepNumber === 3) {
+    var categories = [];
+    try {
+      const manager = await getChannelManager();
+      const chRow = (await pool.query('SELECT * FROM marketplace_channels WHERE id = $1', [channelId])).rows[0];
+      const adapter = manager.hasAdapter && manager.hasAdapter(channelId)
+        ? manager.getAdapter(channelId)
+        : manager._createAdapter(chRow);
+
+      const data = await adapter._retryableRequest(
+        () => adapter.client.get('/hierarchies'),
+        'onboardingFetchCategories'
+      );
+      const hierarchies = data?.hierarchies || data || [];
+
+      // Flatten and store
+      await pool.query('DELETE FROM channel_categories WHERE channel_id = $1', [channelId]);
+      function flattenCats(items, parentCode, level, pathParts) {
+        for (var i = 0; i < items.length; i++) {
+          var item = items[i];
+          var code = item.code || item.hierarchy_code || '';
+          var label = item.label || item.hierarchy_label || '';
+          var currentPath = pathParts.concat([label]);
+          var children = item.children_hierarchies || item.children || [];
+          categories.push({ code, label, parentCode: parentCode || null, level, fullPath: currentPath.join(' > '), isLeaf: children.length === 0 });
+          if (children.length > 0) flattenCats(children, code, level + 1, currentPath);
+        }
+      }
+      flattenCats(Array.isArray(hierarchies) ? hierarchies : [hierarchies], null, 0, []);
+
+      if (categories.length > 0) {
+        var values = [], params = [], idx = 1;
+        for (var ci = 0; ci < categories.length; ci++) {
+          var cat = categories[ci];
+          values.push('($' + idx + ', $' + (idx+1) + ', $' + (idx+2) + ', $' + (idx+3) + ', $' + (idx+4) + ', $' + (idx+5) + ', $' + (idx+6) + ')');
+          params.push(channelId, cat.code, cat.label, cat.parentCode, cat.level, cat.fullPath, cat.isLeaf);
+          idx += 7;
+        }
+        await pool.query(
+          'INSERT INTO channel_categories (channel_id, category_code, category_label, parent_code, level, full_path, is_leaf) VALUES ' + values.join(', '),
+          params
+        );
+      }
+    } catch (err) {
+      stepData.step3 = { error: err.message, categoriesImported: 0 };
+      result = { error: 'Failed to fetch categories: ' + err.message, categoriesImported: 0 };
+      // Still advance — user can retry
+    }
+
+    if (!result.error) {
+      stepData.step3 = { categoriesImported: categories.length };
+      result = { categoriesImported: categories.length };
+    }
+  }
+
+  // ─── STEP 4: Category Mappings ─────────────────────────────────
+  else if (stepNumber === 4) {
+    const { categoryMappings } = req.body;
+    if (!categoryMappings || !Array.isArray(categoryMappings)) {
+      return res.status(400).json({ error: 'categoryMappings array is required' });
+    }
+
+    // Store mappings in step_data and also use them to update listings
+    var mapped = 0;
+    for (var mi = 0; mi < categoryMappings.length; mi++) {
+      var m = categoryMappings[mi];
+      if (m.productCategory && m.channelCategory) {
+        // Update all product_channel_listings with this product category
+        var upd = await pool.query(`
+          UPDATE product_channel_listings pcl
+          SET channel_category_id = $1, channel_category_name = $2, updated_at = NOW()
+          FROM products p
+          WHERE pcl.product_id = p.id AND pcl.channel_id = $3 AND p.category = $4
+        `, [m.channelCategory, m.channelCategoryName || m.channelCategory, channelId, m.productCategory]);
+        mapped += upd.rowCount;
+      }
+    }
+
+    stepData.step4 = { categoryMappings, productsMapped: mapped };
+    result = { mappingsApplied: categoryMappings.length, productsMapped: mapped };
+  }
+
+  // ─── STEP 5: Product Selection ─────────────────────────────────
+  else if (stepNumber === 5) {
+    const { productIds } = req.body;
+    if (!productIds || !Array.isArray(productIds) || productIds.length === 0) {
+      return res.status(400).json({ error: 'productIds array is required' });
+    }
+
+    // Get products
+    const { rows: products } = await pool.query(
+      'SELECT id, sku, price FROM products WHERE id = ANY($1)', [productIds]
+    );
+
+    var listed = 0, skipped = 0;
+    for (var pi = 0; pi < products.length; pi++) {
+      var p = products[pi];
+      try {
+        await pool.query(`
+          INSERT INTO product_channel_listings (product_id, channel_id, channel_sku, channel_price, listing_status)
+          VALUES ($1, $2, $3, $4, 'DRAFT')
+          ON CONFLICT (product_id, channel_id) DO UPDATE SET updated_at = NOW()
+        `, [p.id, channelId, p.sku, p.price]);
+        listed++;
+      } catch (e) { skipped++; }
+    }
+
+    stepData.step5 = { productCount: listed };
+    result = { productsListed: listed, skipped };
+  }
+
+  // ─── STEP 6: Pricing & Inventory Rules ─────────────────────────
+  else if (stepNumber === 6) {
+    const { pricingRuleId, inventoryAllocation, stockBuffer } = req.body;
+
+    // Apply pricing rule to channel listings
+    if (pricingRuleId) {
+      const { rows: [rule] } = await pool.query(
+        'SELECT * FROM marketplace_price_rules WHERE id = $1 AND enabled = true', [pricingRuleId]
+      );
+      if (rule) {
+        var priceUpdate;
+        if (rule.rule_type === 'MARKUP_PERCENT') {
+          priceUpdate = await pool.query(`
+            UPDATE product_channel_listings SET channel_price = (
+              SELECT p.price * (1 + $1::numeric / 100) FROM products p WHERE p.id = product_id
+            ), updated_at = NOW() WHERE channel_id = $2
+          `, [parseFloat(rule.value), channelId]);
+        } else if (rule.rule_type === 'FIXED_MARKUP') {
+          priceUpdate = await pool.query(`
+            UPDATE product_channel_listings SET channel_price = (
+              SELECT p.price + $1::numeric FROM products p WHERE p.id = product_id
+            ), updated_at = NOW() WHERE channel_id = $2
+          `, [parseFloat(rule.value), channelId]);
+        }
+        stepData.step6 = stepData.step6 || {};
+        stepData.step6.pricingRuleId = pricingRuleId;
+        stepData.step6.pricingRuleName = rule.name;
+        stepData.step6.listingsUpdated = priceUpdate ? priceUpdate.rowCount : 0;
+      }
+    }
+
+    // Apply inventory allocation
+    if (inventoryAllocation !== undefined) {
+      var allocPct = Math.min(100, Math.max(0, parseFloat(inventoryAllocation)));
+      await pool.query(
+        'UPDATE product_channel_listings SET allocation_percent = $1, updated_at = NOW() WHERE channel_id = $2',
+        [allocPct, channelId]
+      );
+      stepData.step6 = stepData.step6 || {};
+      stepData.step6.inventoryAllocation = allocPct;
+    }
+
+    // Apply stock buffer
+    if (stockBuffer !== undefined) {
+      var buffer = Math.max(0, parseInt(stockBuffer, 10));
+      await pool.query(
+        'UPDATE product_channel_listings SET safety_buffer = $1, updated_at = NOW() WHERE channel_id = $2',
+        [buffer, channelId]
+      );
+      stepData.step6 = stepData.step6 || {};
+      stepData.step6.stockBuffer = buffer;
+    }
+
+    result = { applied: stepData.step6 || {} };
+  }
+
+  // ─── STEP 7: Review & Activate ─────────────────────────────────
+  else if (stepNumber === 7) {
+    const { confirm } = req.body;
+    if (!confirm) return res.status(400).json({ error: 'Set confirm: true to activate' });
+
+    // Activate channel
+    await pool.query(
+      "UPDATE marketplace_channels SET status = 'ACTIVE', onboarded_at = NOW(), updated_at = NOW() WHERE id = $1",
+      [channelId]
+    );
+
+    // Push initial offers + inventory via ChannelManager
+    var pushResult = { offers: null, inventory: null };
+    try {
+      const manager = await getChannelManager();
+      await manager.initialize();
+      if (manager.hasAdapter && manager.hasAdapter(channelId)) {
+        pushResult.offers = await manager.pushOffers(channelId);
+        pushResult.inventory = await manager.pushInventory(channelId);
+      } else {
+        pushResult.note = 'Adapter not loaded — push offers manually after restart';
+      }
+    } catch (err) {
+      pushResult.error = err.message;
+    }
+
+    // Mark onboarding complete
+    await pool.query(`
+      UPDATE channel_onboarding SET status = 'COMPLETED', completed_at = NOW(), current_step = 7, updated_at = NOW()
+      WHERE id = $1
+    `, [onboardingId]);
+
+    stepData.step7 = { activatedAt: new Date().toISOString(), pushResult };
+    result = { activated: true, pushResult };
+  }
+
+  // Save step progress
+  var nextStep = Math.min(stepNumber + 1, 7);
+  if (stepNumber < 7) {
+    await pool.query(`
+      UPDATE channel_onboarding SET current_step = $1, step_data = $2, updated_at = NOW()
+      WHERE id = $3
+    `, [nextStep, JSON.stringify(stepData), onboardingId]);
+  } else {
+    await pool.query(
+      'UPDATE channel_onboarding SET step_data = $1, updated_at = NOW() WHERE id = $2',
+      [JSON.stringify(stepData), onboardingId]
+    );
+  }
+
+  res.json({
+    onboardingId,
+    stepCompleted: stepNumber,
+    nextStep: stepNumber < 7 ? nextStep : null,
+    status: stepNumber === 7 ? 'COMPLETED' : 'IN_PROGRESS',
+    ...result
+  });
+}));
+
+// DELETE /onboarding/:id — abandon onboarding
+router.delete('/onboarding/:id', authenticate, asyncHandler(async (req, res) => {
+  const onboardingId = parseInt(req.params.id, 10);
+
+  const { rows: [ob] } = await pool.query(
+    'SELECT * FROM channel_onboarding WHERE id = $1', [onboardingId]
+  );
+  if (!ob) return res.status(404).json({ error: 'Onboarding session not found' });
+
+  // Mark abandoned
+  await pool.query(
+    "UPDATE channel_onboarding SET status = 'ABANDONED', updated_at = NOW() WHERE id = $1",
+    [onboardingId]
+  );
+
+  // Deactivate channel
+  await pool.query(
+    "UPDATE marketplace_channels SET status = 'INACTIVE', updated_at = NOW() WHERE id = $1",
+    [ob.channel_id]
+  );
+
+  res.json({
+    success: true,
+    onboardingId,
+    channelId: ob.channel_id,
+    status: 'ABANDONED'
+  });
+}));
+
+// ═══════════════════════════════════════════════════════════════════
+// MARKETPLACE ANALYTICS  (6 routes)
+// ═══════════════════════════════════════════════════════════════════
+
+// Revenue by channel over time
+router.get('/analytics/revenue', authenticate, asyncHandler(async (req, res) => {
+  const days = parseInt(req.query.days, 10) || 30;
+  const granularity = req.query.granularity || 'day';
+  const rows = await marketplaceAnalytics.getRevenueByChannel(days, granularity);
+  res.json({ period_days: days, granularity, data: rows });
+}));
+
+// Product performance
+router.get('/analytics/products', authenticate, asyncHandler(async (req, res) => {
+  const channelId = req.query.channelId ? parseInt(req.query.channelId, 10) : null;
+  const days = parseInt(req.query.days, 10) || 30;
+  const limit = parseInt(req.query.limit, 10) || 50;
+  const rows = await marketplaceAnalytics.getProductPerformance(channelId, days, limit);
+  res.json({ period_days: days, channel_id: channelId, data: rows });
+}));
+
+// Cross-channel comparison for a single product
+router.get('/analytics/products/:productId/compare', authenticate, asyncHandler(async (req, res) => {
+  const productId = parseInt(req.params.productId, 10);
+  const rows = await marketplaceAnalytics.getChannelComparison(productId);
+  res.json({ product_id: productId, channels: rows });
+}));
+
+// Profitability P&L for a channel
+router.get('/analytics/profitability/:channelId', authenticate, asyncHandler(async (req, res) => {
+  const channelId = parseInt(req.params.channelId, 10);
+  const days = parseInt(req.query.days, 10) || 30;
+  const result = await marketplaceAnalytics.getProfitability(channelId, days);
+  res.json({ channel_id: channelId, period_days: days, ...result });
+}));
+
+// Sell-through rates for a channel
+router.get('/analytics/sell-through/:channelId', authenticate, asyncHandler(async (req, res) => {
+  const channelId = parseInt(req.params.channelId, 10);
+  const days = parseInt(req.query.days, 10) || 30;
+  const rows = await marketplaceAnalytics.getSellThroughRate(channelId, days);
+  res.json({ channel_id: channelId, period_days: days, data: rows });
+}));
+
+// Executive KPI summary (cross-channel)
+router.get('/analytics/kpi', authenticate, asyncHandler(async (req, res) => {
+  const days = parseInt(req.query.days, 10) || 30;
+  const result = await marketplaceAnalytics.getKPISummary(days);
+  res.json(result);
+}));
+
+// ═══════════════════════════════════════════════════════════════════
+// INVENTORY FORECASTING  (5 routes)
+// ═══════════════════════════════════════════════════════════════════
+
+// Products at risk of stockout
+router.get('/forecasting/stockout-alerts', authenticate, asyncHandler(async (req, res) => {
+  const daysThreshold = parseInt(req.query.daysThreshold, 10) || 14;
+  const rows = await inventoryForecaster.getStockoutAlerts(daysThreshold);
+  res.json({ days_threshold: daysThreshold, count: rows.length, data: rows });
+}));
+
+// Reorder suggestions
+router.get('/forecasting/reorder-suggestions', authenticate, asyncHandler(async (req, res) => {
+  const leadTime = parseInt(req.query.leadTime, 10) || 7;
+  const targetDays = parseInt(req.query.targetDays, 10) || 30;
+  const safetyDays = parseInt(req.query.safetyDays, 10) || 7;
+  const rows = await inventoryForecaster.getReorderSuggestions(leadTime, targetDays, safetyDays);
+  res.json({ lead_time_days: leadTime, target_days_supply: targetDays, safety_stock_days: safetyDays, count: rows.length, data: rows });
+}));
+
+// Overstock detection
+router.get('/forecasting/overstock', authenticate, asyncHandler(async (req, res) => {
+  const daysThreshold = parseInt(req.query.daysThreshold, 10) || 90;
+  const rows = await inventoryForecaster.getOverstockAlerts(daysThreshold);
+  res.json({ days_threshold: daysThreshold, count: rows.length, data: rows });
+}));
+
+// Velocity anomalies
+router.get('/forecasting/anomalies', authenticate, asyncHandler(async (req, res) => {
+  const threshold = parseInt(req.query.threshold, 10) || 50;
+  const rows = await inventoryForecaster.getVelocityAnomalies(threshold);
+  res.json({ change_threshold_pct: threshold, count: rows.length, data: rows });
+}));
+
+// Full forecast for a single product
+router.get('/forecasting/product/:productId', authenticate, asyncHandler(async (req, res) => {
+  const productId = parseInt(req.params.productId, 10);
+  const result = await inventoryForecaster.getProductForecast(productId);
+  res.json(result);
+}));
+
+// ═══════════════════════════════════════════════════════════════════
+// MARKETPLACE BUNDLES  (5 routes)
+// ═══════════════════════════════════════════════════════════════════
+
+// List bundles with components and availability
+router.get('/bundles', authenticate, asyncHandler(async (req, res) => {
+  const activeOnly = req.query.active === 'true';
+  const rows = await bundleManager.getBundles(activeOnly);
+  res.json({ count: rows.length, data: rows });
+}));
+
+// Sync bundle listings to channels
+router.post('/bundles/sync', authenticate, asyncHandler(async (req, res) => {
+  const result = await bundleManager.syncBundleListings();
+  res.json({ success: true, ...result });
+}));
+
+// Create bundle
+router.post('/bundles', authenticate, asyncHandler(async (req, res) => {
+  const { bundleSku, bundleName, bundleDescription, bundlePrice, components, category, imageUrl } = req.body;
+  if (!bundleSku || !bundleName || !bundlePrice || !components || !components.length) {
+    return res.status(400).json({ error: 'bundleSku, bundleName, bundlePrice, and components are required' });
+  }
+  const result = await bundleManager.createBundle({
+    bundleSku, bundleName, bundleDescription, bundlePrice, components, category, imageUrl
+  });
+  res.status(201).json(result);
+}));
+
+// Update bundle
+router.put('/bundles/:id', authenticate, asyncHandler(async (req, res) => {
+  const bundleId = parseInt(req.params.id, 10);
+  const result = await bundleManager.updateBundle(bundleId, req.body);
+  res.json(result);
+}));
+
+// Deactivate bundle (soft delete)
+router.delete('/bundles/:id', authenticate, asyncHandler(async (req, res) => {
+  const bundleId = parseInt(req.params.id, 10);
+  const result = await bundleManager.deleteBundle(bundleId);
+  res.json({ success: true, ...result });
+}));
+
+// ═══════════════════════════════════════════════════════════════════
+// TAX ENGINE  (4 routes)
+// ═══════════════════════════════════════════════════════════════════
+
+// Calculate tax for amount + province
+router.get('/tax/calculate', authenticate, asyncHandler(async (req, res) => {
+  const subtotal = parseFloat(req.query.subtotal);
+  const province = (req.query.province || 'ON').toUpperCase();
+  if (isNaN(subtotal) || subtotal < 0) return res.status(400).json({ error: 'subtotal query parameter required (positive number)' });
+  const result = taxEngine.calculateTax(subtotal, province);
+  res.json(result);
+}));
+
+// Get EHF for product category + province
+router.get('/tax/ehf/:category/:province', authenticate, asyncHandler(async (req, res) => {
+  const category = req.params.category;
+  const province = req.params.province.toUpperCase();
+  const result = taxEngine.getEHF(category, province);
+  res.json(result);
+}));
+
+// Tax reconciliation report (CRA-ready)
+router.get('/tax/reconciliation', authenticate, asyncHandler(async (req, res) => {
+  const dateFrom = req.query.dateFrom;
+  const dateTo = req.query.dateTo;
+  if (!dateFrom || !dateTo) return res.status(400).json({ error: 'dateFrom and dateTo query parameters required (YYYY-MM-DD)' });
+  const result = await taxEngine.getTaxReconciliation(dateFrom, dateTo);
+  res.json(result);
+}));
+
+// Commission tax report (ITC for CRA)
+router.get('/tax/commission-report', authenticate, asyncHandler(async (req, res) => {
+  const dateFrom = req.query.dateFrom;
+  const dateTo = req.query.dateTo;
+  if (!dateFrom || !dateTo) return res.status(400).json({ error: 'dateFrom and dateTo query parameters required (YYYY-MM-DD)' });
+  const result = await taxEngine.getCommissionTaxReport(dateFrom, dateTo);
+  res.json(result);
+}));
+
+// ═══════════════════════════════════════════════════════════════════
+// TENANT MANAGEMENT  (6 routes)
+// ═══════════════════════════════════════════════════════════════════
+
+// List tenants
+router.get('/tenants', authenticate, asyncHandler(async (req, res) => {
+  const includeInactive = req.query.includeInactive === 'true';
+  const rows = await tenantManager.getTenants(includeInactive);
+  res.json({ count: rows.length, data: rows });
+}));
+
+// Resolve current tenant (from middleware) — MUST be before /:id routes
+router.get('/tenants/current', authenticate, tenantManager.tenantMiddleware(), asyncHandler(async (req, res) => {
+  if (!req.tenantId) return res.status(404).json({ error: 'No tenant resolved' });
+  const tenant = await tenantManager.getTenant(req.tenantId);
+  res.json(tenant);
+}));
+
+// Create tenant
+router.post('/tenants', authenticate, asyncHandler(async (req, res) => {
+  const { tenantCode, companyName, contactEmail, plan, config } = req.body;
+  if (!tenantCode || !companyName) {
+    return res.status(400).json({ error: 'tenantCode and companyName are required' });
+  }
+  const tenant = await tenantManager.createTenant({ tenantCode, companyName, contactEmail, plan, config });
+  res.status(201).json(tenant);
+}));
+
+// Update tenant
+router.put('/tenants/:id', authenticate, asyncHandler(async (req, res) => {
+  const tenantId = parseInt(req.params.id, 10);
+  const tenant = await tenantManager.updateTenant(tenantId, req.body);
+  res.json(tenant);
+}));
+
+// Get tenant channels
+router.get('/tenants/:id/channels', authenticate, asyncHandler(async (req, res) => {
+  const tenantId = parseInt(req.params.id, 10);
+  const rows = await tenantManager.getTenantChannels(tenantId);
+  res.json({ tenant_id: tenantId, count: rows.length, data: rows });
+}));
+
+// Get tenant stats
+router.get('/tenants/:id/stats', authenticate, asyncHandler(async (req, res) => {
+  const tenantId = parseInt(req.params.id, 10);
+  const stats = await tenantManager.getTenantStats(tenantId);
+  res.json({ tenant_id: tenantId, ...stats });
+}));
+
+// ============================================
+// SHIPPING SERVICE
+// ============================================
+
+// Get rate quotes for an order or ad-hoc shipment
+router.post('/shipping/rates', authenticate, asyncHandler(async (req, res) => {
+  const { orderId, weightKg, destinationPostal, destinationProvince, destinationCountry } = req.body;
+  const rates = await shippingService.getRates({
+    orderId, weightKg, destinationPostal, destinationProvince, destinationCountry,
+  });
+  res.json(rates);
+}));
+
+// Batch generate labels for multiple orders (must come before :orderId)
+router.post('/shipping/labels/batch', authenticate, asyncHandler(async (req, res) => {
+  const { orderIds, carrierId, serviceCode } = req.body;
+  const result = await shippingService.generateBatchLabels({ orderIds, carrierId, serviceCode });
+  res.json(result);
+}));
+
+// Generate shipping label for a single order
+router.post('/shipping/labels/:orderId', authenticate, asyncHandler(async (req, res) => {
+  const orderId = parseInt(req.params.orderId, 10);
+  const { carrierId, serviceCode, packages, notes } = req.body;
+  const label = await shippingService.generateLabel({
+    orderId, carrierId, serviceCode, packages, notes,
+  });
+  res.status(201).json(label);
+}));
+
+// Track a shipment by tracking number
+router.get('/shipping/track/:trackingNumber', authenticate, asyncHandler(async (req, res) => {
+  const tracking = await shippingService.trackShipment(req.params.trackingNumber);
+  res.json(tracking);
+}));
+
+// Shipping cost/P&L report
+router.get('/shipping/cost-report', authenticate, asyncHandler(async (req, res) => {
+  const { startDate, endDate, channelId, carrierId, groupBy } = req.query;
+  const report = await shippingService.getShippingCostReport({
+    startDate, endDate,
+    channelId: channelId ? parseInt(channelId, 10) : null,
+    carrierId: carrierId ? parseInt(carrierId, 10) : null,
+    groupBy,
+  });
+  res.json(report);
+}));
+
+// ============================================
+// REPORT GENERATOR
+// ============================================
+
+// Daily sales summary
+router.get('/reports/daily-summary', authenticate, asyncHandler(async (req, res) => {
+  const { date } = req.query; // optional YYYY-MM-DD, defaults to today
+  const report = await reportGenerator.generateDailySummary(date || undefined);
+  res.json(report);
+}));
+
+// Weekly P&L by channel
+router.get('/reports/weekly-pnl', authenticate, asyncHandler(async (req, res) => {
+  const { weekStartDate } = req.query; // optional YYYY-MM-DD (Monday), defaults to current week
+  const report = await reportGenerator.generateWeeklyPnL(weekStartDate || undefined);
+  res.json(report);
+}));
+
+// Monthly tax reconciliation
+router.get('/reports/monthly-tax', authenticate, asyncHandler(async (req, res) => {
+  const { year, month } = req.query;
+  if (!year || !month) {
+    return res.status(400).json({ error: 'year and month query parameters are required' });
+  }
+  const report = await reportGenerator.generateMonthlyTaxReport(year, month);
+  res.json(report);
+}));
+
+// Export report as CSV or JSON
+router.get('/reports/export', authenticate, asyncHandler(async (req, res) => {
+  const { reportType, format, date, weekStartDate, year, month } = req.query;
+  if (!reportType) {
+    return res.status(400).json({ error: 'reportType query parameter is required (DailySummary, WeeklyPnL, MonthlyTaxReport)' });
+  }
+  const params = { date, weekStartDate, year, month };
+  const result = await reportGenerator.exportReport(reportType, params, format || 'csv');
+
+  if ((format || 'csv') === 'csv' && result.content) {
+    res.setHeader('Content-Type', 'text/csv');
+    res.setHeader('Content-Disposition', `attachment; filename="${result.filename}"`);
+    return res.send(result.content);
+  }
+
+  res.json(result.data || result);
+}));
+
+// ============================================
+// MARKETPLACE AI
+// ============================================
+
+// Generate optimized listing title
+router.post('/ai/generate-title/:productId/:channelId', authenticate, asyncHandler(async (req, res) => {
+  const productId = parseInt(req.params.productId, 10);
+  const channelId = parseInt(req.params.channelId, 10);
+  const result = await marketplaceAI.generateTitle(productId, channelId);
+  res.json(result);
+}));
+
+// Generate optimized listing description
+router.post('/ai/generate-description/:productId/:channelId', authenticate, asyncHandler(async (req, res) => {
+  const productId = parseInt(req.params.productId, 10);
+  const channelId = parseInt(req.params.channelId, 10);
+  const result = await marketplaceAI.generateDescription(productId, channelId);
+  res.json(result);
+}));
+
+// Suggest best category for a product on a channel
+router.post('/ai/suggest-category/:productId/:channelId', authenticate, asyncHandler(async (req, res) => {
+  const productId = parseInt(req.params.productId, 10);
+  const channelId = parseInt(req.params.channelId, 10);
+  const result = await marketplaceAI.suggestCategory(productId, channelId);
+  res.json(result);
+}));
+
+// AI price recommendation
+router.post('/ai/suggest-price/:productId/:channelId', authenticate, asyncHandler(async (req, res) => {
+  const productId = parseInt(req.params.productId, 10);
+  const channelId = parseInt(req.params.channelId, 10);
+  const result = await marketplaceAI.suggestPrice(productId, channelId);
+  res.json(result);
+}));
+
+// Anomaly detection across all listings
+router.get('/ai/anomalies', authenticate, asyncHandler(async (req, res) => {
+  const result = await marketplaceAI.detectAnomalies();
+  res.json(result);
+}));
+
+// Natural language marketplace query
+router.post('/ai/query', authenticate, asyncHandler(async (req, res) => {
+  const { question } = req.body;
+  if (!question) {
+    return res.status(400).json({ error: 'question is required in request body' });
+  }
+  const result = await marketplaceAI.query(question);
+  res.json(result);
 }));
 
 module.exports = router;

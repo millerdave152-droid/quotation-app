@@ -114,9 +114,9 @@ async function createLayaway({ customer_id, location_id, items, deposit_amount, 
 
 async function getLayaway(id) {
   const { rows: [layaway] } = await pool.query(
-    `SELECT l.*, c.first_name || ' ' || COALESCE(c.last_name, '') AS customer_name,
+    `SELECT l.*, c.name AS customer_name,
             c.email AS customer_email, c.phone AS customer_phone,
-            loc.name AS location_name, u.name AS created_by_name
+            loc.name AS location_name, CONCAT(u.first_name, ' ', u.last_name) AS created_by_name
      FROM layaways l
      JOIN customers c ON c.id = l.customer_id
      LEFT JOIN locations loc ON loc.id = l.location_id
@@ -130,7 +130,7 @@ async function getLayaway(id) {
     'SELECT * FROM layaway_items WHERE layaway_id = $1 ORDER BY id', [id]
   );
   const { rows: payments } = await pool.query(
-    `SELECT lp.*, u.name AS received_by_name
+    `SELECT lp.*, CONCAT(u.first_name, ' ', u.last_name) AS received_by_name
      FROM layaway_payments lp LEFT JOIN users u ON u.id = lp.received_by
      WHERE lp.layaway_id = $1 ORDER BY lp.created_at`, [id]
   );
@@ -162,7 +162,7 @@ async function listLayaways({ status, customer_id, location_id, limit = 50, offs
   params.push(limit, offset);
 
   const { rows } = await pool.query(
-    `SELECT l.*, c.first_name || ' ' || COALESCE(c.last_name, '') AS customer_name,
+    `SELECT l.*, c.name AS customer_name,
             loc.name AS location_name,
             (SELECT COALESCE(SUM(amount), 0) FROM layaway_payments WHERE layaway_id = l.id) AS total_paid
      FROM layaways l

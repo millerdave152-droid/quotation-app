@@ -157,11 +157,14 @@ const errorHandler = (err, req, res, next) => {
 
     // SECURITY: Log database errors server-side for debugging, but never expose in responses
     if (process.env.NODE_ENV === 'development') {
-      console.error('Database error details:', { pgCode: err.code, pgDetail: err.detail });
+      console.log('DB_ERROR_DETAIL:', JSON.stringify({ pgCode: err.code, pgDetail: err.detail, pgMessage: err.message, pgHint: err.hint, pgWhere: err.where }));
     }
+    // TEMPORARY DEBUG: include pg error details in the message itself
+    const debugMsg = process.env.NODE_ENV === 'development'
+      ? `${pgError.message} [${err.message}] pos:${err.position}`
+      : pgError.message;
     return res.status(pgError.status).json(
-      error(pgError.code, pgError.message, {
-        // SECURITY: Never expose database error details to clients
+      error(pgError.code, debugMsg, {
         details: undefined
       })
     );

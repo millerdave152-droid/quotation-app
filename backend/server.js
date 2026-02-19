@@ -317,7 +317,7 @@ app.get('/health', async (req, res) => {
     timestamp: new Date().toISOString(),
     uptime: process.uptime(),
     environment: process.env.NODE_ENV || 'development',
-    version: '2.0.0',
+    version: '2.0.1',
     checks: {
       database: { status: 'unknown' },
       cache: { status: 'unknown' }
@@ -386,7 +386,7 @@ app.get('/api/health', (req, res) => {
     status: 'OK',
     environment: process.env.NODE_ENV || 'development',
     securityEnabled: true,
-    version: '2.0.0'
+    version: '2.0.1'
   }, { message: 'Backend is running' });
 });
 
@@ -2974,6 +2974,16 @@ app.use('/api/admin/approval-rules', authenticate, requireRole('admin', 'manager
 console.log('✅ Admin approval rules routes loaded');
 
 // ============================================
+// ADMIN SKULYTICS ROUTES (SKU Refresh & Health)
+// ============================================
+const adminSkulyticsRoutes = require('./routes/admin/skulytics');
+app.use('/api/admin/skulytics', adminSkulyticsRoutes);
+console.log('✅ Admin Skulytics routes loaded (SKU refresh, health)');
+
+// Skulytics job scheduler (started in app.listen callback below)
+const scheduler = require('./jobs/scheduler');
+
+// ============================================
 // AI ASSISTANT ROUTES
 // ============================================
 const aiAssistantRoutes = require('./routes/ai-assistant');
@@ -3081,6 +3091,9 @@ const server = app.listen(PORT, () => {
     console.warn('⚠️  ChannelManager not available:', err.message);
   }
 
+  // Start Skulytics nightly sync job (2 AM ET) via centralized scheduler
+  scheduler.startAll();
+
   // Start marketplace polling jobs (order sync, inventory push, import checks, deadline monitor)
   try {
     const marketplaceJobs = require('./jobs/marketplaceJobs');
@@ -3111,6 +3124,7 @@ server.on('error', (error) => {
 // Graceful shutdown
 process.on('SIGTERM', () => {
   console.log('⚠️  SIGTERM signal received: closing HTTP server');
+  scheduler.stopAll();
   wsService.shutdown();
   server.close(() => {
     console.log('✅ HTTP server closed');
@@ -3123,6 +3137,7 @@ process.on('SIGTERM', () => {
 
 process.on('SIGINT', () => {
   console.log('\n⚠️  SIGINT signal received: closing HTTP server');
+  scheduler.stopAll();
   wsService.shutdown();
   server.close(() => {
     console.log('✅ HTTP server closed');

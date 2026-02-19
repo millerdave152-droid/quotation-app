@@ -680,7 +680,7 @@ class CustomerService {
    */
   async getCustomerTags(customerId) {
     const result = await this.pool.query(`
-      SELECT t.*, cta.assigned_at, u.name as assigned_by_name
+      SELECT t.*, cta.assigned_at, CONCAT(u.first_name, ' ', u.last_name) as assigned_by_name
       FROM customer_tags t
       JOIN customer_tag_assignments cta ON t.id = cta.tag_id
       LEFT JOIN users u ON cta.assigned_by = u.id

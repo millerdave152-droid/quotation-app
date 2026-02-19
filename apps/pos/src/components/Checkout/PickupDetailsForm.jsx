@@ -3,7 +3,7 @@
  * Collects pickup location, date, and time preference for pickup orders
  */
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import {
   MapPinIcon,
   CalendarDaysIcon,
@@ -100,6 +100,10 @@ export function PickupDetailsForm({ pickupType, customer, onComplete, onBack }) 
   const [vehicleType, setVehicleType] = useState('');
   const [vehicleNotes, setVehicleNotes] = useState('');
   const [errors, setErrors] = useState({});
+  const locationRef = useRef(null);
+  const dateRef = useRef(null);
+  const personRef = useRef(null);
+  const timeRef = useRef(null);
 
   // Default pickup person to customer info
   useEffect(() => {
@@ -187,7 +191,32 @@ export function PickupDetailsForm({ pickupType, customer, onComplete, onBack }) 
   }, [selectedLocationId, pickupDate, timePreference, pickupPersonName, pickupPersonPhone, pickupType]);
 
   const handleContinue = useCallback(() => {
-    if (!validate()) return;
+    if (!validate()) {
+      // Scroll to the first field with an error
+      const errorFieldMap = {
+        location: locationRef,
+        date: dateRef,
+        personName: personRef,
+        personPhone: personRef,
+        time: timeRef,
+      };
+      const firstErrorKey = ['location', 'date', 'personName', 'personPhone', 'time'].find(
+        (key) => errors[key] || document.querySelector(`[data-field="${key}"]`)
+      );
+      // Re-validate to get fresh errors since state update is async
+      const newErrors = {};
+      if (!selectedLocationId) newErrors.location = true;
+      if (!pickupDate && pickupType !== 'pickup_now') newErrors.date = true;
+      if (!timePreference && pickupType === 'pickup_scheduled') newErrors.time = true;
+      if (!pickupPersonName.trim()) newErrors.personName = true;
+      if (!pickupPersonPhone.trim()) newErrors.personPhone = true;
+      const firstKey = ['location', 'date', 'personName', 'personPhone', 'time'].find((k) => newErrors[k]);
+      const ref = firstKey && errorFieldMap[firstKey];
+      if (ref?.current) {
+        ref.current.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }
+      return;
+    }
 
     const selectedLocation = locations.find((l) => l.id === selectedLocationId);
 
@@ -232,7 +261,7 @@ export function PickupDetailsForm({ pickupType, customer, onComplete, onBack }) 
 
       <div className="flex-1 overflow-y-auto space-y-6">
         {/* ── Pickup Location ── */}
-        <div>
+        <div ref={locationRef}>
           <label className="block text-sm font-semibold text-gray-700 mb-3">
             <MapPinIcon className="w-4 h-4 inline mr-1 -mt-0.5" />
             Pickup Location
@@ -309,7 +338,7 @@ export function PickupDetailsForm({ pickupType, customer, onComplete, onBack }) 
         </div>
 
         {/* ── Pickup Date ── */}
-        <div>
+        <div ref={dateRef}>
           <label className="block text-sm font-semibold text-gray-700 mb-2">
             <CalendarDaysIcon className="w-4 h-4 inline mr-1 -mt-0.5" />
             {pickupType === 'pickup_now' ? 'Pickup Date' : 'Preferred Pickup Date'}
@@ -346,7 +375,7 @@ export function PickupDetailsForm({ pickupType, customer, onComplete, onBack }) 
         </div>
 
         {/* ── Pickup Person ── */}
-        <div className="bg-violet-50 rounded-xl p-4 border border-violet-200">
+        <div ref={personRef} className="bg-violet-50 rounded-xl p-4 border border-violet-200">
           <label className="block text-sm font-semibold text-violet-800 mb-3">
             <UserIcon className="w-4 h-4 inline mr-1 -mt-0.5" />
             Pickup Person
@@ -440,7 +469,7 @@ export function PickupDetailsForm({ pickupType, customer, onComplete, onBack }) 
         </div>
 
         {/* ── Time Preference ── */}
-        <div>
+        <div ref={timeRef}>
           <label className="block text-sm font-semibold text-gray-700 mb-3">
             <ClockIcon className="w-4 h-4 inline mr-1 -mt-0.5" />
             Preferred Pickup Time

@@ -204,6 +204,14 @@ export function FulfillmentSelector({
           },
         ];
 
+        // Apply free delivery threshold based on cart subtotal
+        const applyThresholds = (opts) =>
+          opts.map((opt) =>
+            opt.freeThreshold && cart.subtotal >= opt.freeThreshold
+              ? { ...opt, fee: 0 }
+              : opt
+          );
+
         if (result.success) {
           const normalizedOptions = (result.options || []).map((opt) => ({
             ...opt,
@@ -212,13 +220,13 @@ export function FulfillmentSelector({
 
           if (normalizedOptions.length === 0) {
             // API returned empty options - use defaults
-            setOptions(defaultOptions);
+            setOptions(applyThresholds(defaultOptions));
           } else {
-            setOptions(normalizedOptions);
+            setOptions(applyThresholds(normalizedOptions));
           }
 
           // Pre-select if fulfillment already set
-          const optionsToUse = normalizedOptions.length > 0 ? normalizedOptions : defaultOptions;
+          const optionsToUse = applyThresholds(normalizedOptions.length > 0 ? normalizedOptions : defaultOptions);
           if (selectedFulfillment) {
             const existing = optionsToUse.find((o) => o.type === selectedFulfillment.type);
             if (existing) {
@@ -227,7 +235,7 @@ export function FulfillmentSelector({
           }
         } else {
           // If API fails, provide default options
-          setOptions(defaultOptions);
+          setOptions(applyThresholds(defaultOptions));
         }
       } catch (err) {
         // Don't update state if the request was aborted
@@ -236,7 +244,7 @@ export function FulfillmentSelector({
         console.error('[Fulfillment] Fetch options error:', err);
         setError('Failed to load fulfillment options');
         // Provide fallback options - all 3 fulfillment types
-        setOptions([
+        const fallbackOptions = [
           {
             type: 'pickup_now',
             name: 'Pickup Now',
@@ -259,7 +267,12 @@ export function FulfillmentSelector({
             freeThreshold: 999,
             available: true,
           },
-        ]);
+        ].map((opt) =>
+          opt.freeThreshold && cart.subtotal >= opt.freeThreshold
+            ? { ...opt, fee: 0 }
+            : opt
+        );
+        setOptions(fallbackOptions);
       } finally {
         // Only update loading state if not aborted
         if (!abortController.signal.aborted) {
@@ -305,10 +318,12 @@ export function FulfillmentSelector({
       if (selectedOption.requiresScheduling) {
         setStep('schedule');
       } else {
-        // Complete with address
+        // Complete with address — apply free threshold if met
+        const baseFee = validationResult?.fee ?? selectedOption.fee ?? 0;
+        const effectiveFee = (selectedOption.freeThreshold && cart.subtotal >= selectedOption.freeThreshold) ? 0 : baseFee;
         onComplete({
           type: selectedOption.type,
-          fee: validationResult?.fee ?? selectedOption.fee ?? 0,
+          fee: effectiveFee,
           scheduledDate: null,
           scheduledTimeStart: null,
           scheduledTimeEnd: null,

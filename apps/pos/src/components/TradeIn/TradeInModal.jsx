@@ -102,7 +102,11 @@ export function TradeInModal({
 
   const fetchCategories = async () => {
     try {
-      const response = await fetch(`${API_BASE}/categories`);
+      const response = await fetch(`${API_BASE}/categories`, {
+        headers: {
+          Authorization: `Bearer ${localStorage.getItem('pos_token')}`,
+        },
+      });
       if (!response.ok) throw new Error('Failed to load categories');
       const data = await response.json();
       setCategories(data.categories || []);
@@ -111,14 +115,27 @@ export function TradeInModal({
     }
   };
 
+  const FALLBACK_CONDITIONS = [
+    { id: 1, condition_code: 'LN', condition_name: 'Like New', value_multiplier: 0.85, condition_criteria: 'Item is in near-perfect condition with minimal signs of use' },
+    { id: 2, condition_code: 'GD', condition_name: 'Good', value_multiplier: 0.65, condition_criteria: 'Item works perfectly with minor cosmetic wear' },
+    { id: 3, condition_code: 'FR', condition_name: 'Fair', value_multiplier: 0.40, condition_criteria: 'Item is functional but shows noticeable wear or minor issues' },
+    { id: 4, condition_code: 'PR', condition_name: 'Poor', value_multiplier: 0.15, condition_criteria: 'Item has significant wear or functional issues' },
+  ];
+
   const fetchConditions = async () => {
     try {
-      const response = await fetch(`${API_BASE}/conditions`);
+      const response = await fetch(`${API_BASE}/conditions`, {
+        headers: {
+          Authorization: `Bearer ${localStorage.getItem('pos_token')}`,
+        },
+      });
       if (!response.ok) throw new Error('Failed to load conditions');
       const data = await response.json();
-      setConditions(data.conditions || []);
+      const loaded = data.conditions || [];
+      setConditions(loaded.length > 0 ? loaded : FALLBACK_CONDITIONS);
     } catch (err) {
       console.error('Error loading conditions:', err);
+      setConditions(FALLBACK_CONDITIONS);
     }
   };
 

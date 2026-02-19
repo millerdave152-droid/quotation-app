@@ -714,18 +714,22 @@ class MiraklService {
       const customerEmail = order.customer?.email || '';
       const customerPhone = order.customer?.shipping_address?.phone || order.customer?.phone || '';
       const shippingAddress = order.customer?.shipping_address || order.shipping_address || null;
+      const customerLocale = order.customer?.locale || null;
       const totalPrice = parseFloat(order.total_price || 0);
       const totalCommission = parseFloat(order.total_commission || 0);
       const commissionRate = order.order_lines?.[0]?.commission_rate_vat
         ? parseFloat(order.order_lines[0].commission_rate_vat)
         : null;
       const shippingPrice = order.order_lines
-        ? order.order_lines.reduce((sum, l) => sum + parseFloat(l.shipping_amount || 0), 0)
+        ? order.order_lines.reduce((sum, l) => sum + parseFloat(l.shipping_price || l.shipping_amount || 0), 0)
         : 0;
+      // Mirakl's l.taxes = product taxes, l.shipping_taxes = shipping taxes (separate)
+      // Sum both for the order-level total
       const taxesTotal = order.order_lines
         ? order.order_lines.reduce((sum, l) => {
-            const taxes = l.shipping_taxes || l.taxes || [];
-            return sum + taxes.reduce((s, t) => s + parseFloat(t.amount || 0), 0);
+            const productTax = (l.taxes || []).reduce((s, t) => s + parseFloat(t.amount || 0), 0);
+            const shippingTax = (l.shipping_taxes || []).reduce((s, t) => s + parseFloat(t.amount || 0), 0);
+            return sum + productTax + shippingTax;
           }, 0)
         : 0;
 
@@ -733,6 +737,15 @@ class MiraklService {
       const shippingPriceCents = Math.round(shippingPrice * 100);
       const taxCents = Math.round(taxesTotal * 100);
       const commissionCents = Math.round(totalCommission * 100);
+
+      // Order-level shipping & delivery fields from Mirakl
+      const shippingZoneCode = order.shipping_zone_code || null;
+      const shippingZoneLabel = order.shipping_zone_label || null;
+      const shippingTypeCode = order.shipping_type_code || null;
+      const shippingTypeLabel = order.shipping_type_label || null;
+      const leadtimeToShip = order.leadtime_to_ship != null ? parseInt(order.leadtime_to_ship) : null;
+      const deliveryDateStart = order.delivery_date?.earliest || order.delivery_date_start || null;
+      const deliveryDateEnd = order.delivery_date?.latest || order.delivery_date_end || null;
 
       // UPSERT order
       const upsertResult = await client.query(`
@@ -743,7 +756,11 @@ class MiraklService {
           total_price_cents, shipping_price_cents, tax_cents, commission_fee_cents,
           shipping_price, commission_amount, commission_rate, taxes_total,
           currency, currency_code,
-          order_date, acceptance_deadline, last_updated, last_polled_at
+          order_date, acceptance_deadline, last_updated, last_polled_at,
+          shipping_zone_code, shipping_zone_label,
+          shipping_type_code, shipping_type_label,
+          customer_locale, leadtime_to_ship,
+          delivery_date_start, delivery_date_end
         ) VALUES (
           $1, $2, $2,
           $3, $4, $5,
@@ -751,7 +768,11 @@ class MiraklService {
           $8, $9, $10, $11,
           $12, $13, $14, $15,
           $16, $16,
-          $17, $18, $19, NOW()
+          $17, $18, $19, NOW(),
+          $20, $21,
+          $22, $23,
+          $24, $25,
+          $26, $27
         )
         ON CONFLICT (mirakl_order_id) DO UPDATE SET
           order_state = EXCLUDED.order_state,
@@ -772,6 +793,14 @@ class MiraklService {
           acceptance_deadline = COALESCE(EXCLUDED.acceptance_deadline, marketplace_orders.acceptance_deadline),
           last_updated = EXCLUDED.last_updated,
           last_polled_at = NOW(),
+          shipping_zone_code = COALESCE(EXCLUDED.shipping_zone_code, marketplace_orders.shipping_zone_code),
+          shipping_zone_label = COALESCE(EXCLUDED.shipping_zone_label, marketplace_orders.shipping_zone_label),
+          shipping_type_code = COALESCE(EXCLUDED.shipping_type_code, marketplace_orders.shipping_type_code),
+          shipping_type_label = COALESCE(EXCLUDED.shipping_type_label, marketplace_orders.shipping_type_label),
+          customer_locale = COALESCE(EXCLUDED.customer_locale, marketplace_orders.customer_locale),
+          leadtime_to_ship = COALESCE(EXCLUDED.leadtime_to_ship, marketplace_orders.leadtime_to_ship),
+          delivery_date_start = COALESCE(EXCLUDED.delivery_date_start, marketplace_orders.delivery_date_start),
+          delivery_date_end = COALESCE(EXCLUDED.delivery_date_end, marketplace_orders.delivery_date_end),
           updated_at = CURRENT_TIMESTAMP
         RETURNING id, (xmax = 0) AS inserted
       `, [
@@ -792,8 +821,16 @@ class MiraklService {
         taxesTotal,
         order.currency_iso_code || 'CAD',
         order.created_date || null,
-        order.acceptance_decision_date || null,
-        order.last_updated_date || null
+        order.shipping_deadline || order.acceptance_decision_date || null,
+        order.last_updated_date || null,
+        shippingZoneCode,
+        shippingZoneLabel,
+        shippingTypeCode,
+        shippingTypeLabel,
+        customerLocale,
+        leadtimeToShip,
+        deliveryDateStart,
+        deliveryDateEnd
       ]);
 
       const localOrderId = upsertResult.rows[0].id;
@@ -805,7 +842,20 @@ class MiraklService {
         const unitPrice = parseFloat(line.price || 0);
         const lineTotal = unitPrice * (parseInt(line.quantity) || 1);
         const lineCommission = parseFloat(line.commission_amount || 0);
+        // Mirakl's taxes array already includes shipping taxes — don't combine
         const lineTaxes = (line.taxes || []);
+        const lineShippingTaxes = (line.shipping_taxes || []);
+        const lineShippingAmount = parseFloat(line.shipping_price || line.shipping_amount || 0);
+        const lineCommissionRate = line.commission_rate_vat != null ? parseFloat(line.commission_rate_vat) : null;
+        const productTitle = line.product_title || null;
+        const categoryCode = line.category_code || null;
+        const categoryLabel = line.category_label || null;
+        const orderLineState = line.order_line_state || null;
+        // Get the first product image URL — Mirakl returns relative paths, prepend base
+        const rawMediaUrl = line.product_medias?.[0]?.media_url || line.product_medias?.[0]?.url || null;
+        const productMediaUrl = rawMediaUrl
+          ? (rawMediaUrl.startsWith('http') ? rawMediaUrl : this.baseURL.replace('/api', '') + rawMediaUrl)
+          : null;
 
         // Match to internal product
         let productId = null;
@@ -817,6 +867,14 @@ class MiraklService {
           if (match.rows.length > 0) productId = match.rows[0].id;
         }
 
+        // Look up expected commission rate from reference table
+        let expectedCommRate = null;
+        try {
+          expectedCommRate = await this.lookupCommissionRate(categoryLabel);
+        } catch (lookupErr) {
+          // Non-critical — don't fail the upsert
+        }
+
         await client.query(`
           INSERT INTO marketplace_order_items (
             order_id, mirakl_order_line_id, order_line_id,
@@ -824,14 +882,22 @@ class MiraklService {
             quantity, unit_price, unit_price_cents, line_total, total_price_cents,
             commission_amount, commission_fee_cents,
             taxes, tax_cents,
-            status
+            status,
+            product_title, category_code, category_label,
+            shipping_amount, shipping_taxes, commission_rate,
+            product_media_url, order_line_state,
+            expected_commission_rate
           ) VALUES (
             $1, $2, $2,
             $3, $4, $4, $5,
             $6, $7, $8, $9, $10,
             $11, $12,
             $13, $14,
-            'PENDING'
+            'PENDING',
+            $15, $16, $17,
+            $18, $19, $20,
+            $21, $22,
+            $23
           )
           ON CONFLICT (order_id, mirakl_order_line_id)
             WHERE mirakl_order_line_id IS NOT NULL
@@ -846,6 +912,15 @@ class MiraklService {
             taxes = EXCLUDED.taxes,
             tax_cents = EXCLUDED.tax_cents,
             product_id = COALESCE(EXCLUDED.product_id, marketplace_order_items.product_id),
+            product_title = COALESCE(EXCLUDED.product_title, marketplace_order_items.product_title),
+            category_code = COALESCE(EXCLUDED.category_code, marketplace_order_items.category_code),
+            category_label = COALESCE(EXCLUDED.category_label, marketplace_order_items.category_label),
+            shipping_amount = EXCLUDED.shipping_amount,
+            shipping_taxes = EXCLUDED.shipping_taxes,
+            commission_rate = COALESCE(EXCLUDED.commission_rate, marketplace_order_items.commission_rate),
+            product_media_url = COALESCE(EXCLUDED.product_media_url, marketplace_order_items.product_media_url),
+            order_line_state = COALESCE(EXCLUDED.order_line_state, marketplace_order_items.order_line_state),
+            expected_commission_rate = COALESCE(EXCLUDED.expected_commission_rate, marketplace_order_items.expected_commission_rate),
             updated_at = CURRENT_TIMESTAMP
         `, [
           localOrderId,
@@ -861,7 +936,16 @@ class MiraklService {
           lineCommission,
           Math.round(lineCommission * 100),
           lineTaxes.length > 0 ? JSON.stringify(lineTaxes) : null,
-          Math.round(lineTaxes.reduce((s, t) => s + parseFloat(t.amount || 0), 0) * 100)
+          Math.round(lineTaxes.reduce((s, t) => s + parseFloat(t.amount || 0), 0) * 100),
+          productTitle,
+          categoryCode,
+          categoryLabel,
+          lineShippingAmount,
+          lineShippingTaxes.length > 0 ? JSON.stringify(lineShippingTaxes) : null,
+          lineCommissionRate,
+          productMediaUrl,
+          orderLineState,
+          expectedCommRate
         ]);
       }
 
@@ -961,35 +1045,54 @@ class MiraklService {
   async updateTracking(miraklOrderId, trackingNumber, carrierCode, carrierName, carrierUrl) {
     const startTime = Date.now();
 
-    let payload;
+    // Fetch order line IDs from local DB for this Mirakl order
+    const orderResult = await pool.query(
+      `SELECT mo.id, moi.order_line_id
+       FROM marketplace_orders mo
+       JOIN marketplace_order_items moi ON moi.order_id = mo.id
+       WHERE mo.mirakl_order_id = $1 AND moi.order_line_state IN ('SHIPPING', 'ACCEPTED')`,
+      [miraklOrderId]
+    );
+
+    const lineIds = orderResult.rows.map(r => r.order_line_id).filter(Boolean);
+    const localOrderId = orderResult.rows.length > 0 ? orderResult.rows[0].id : null;
+
+    // Build Mirakl OR23 payload — tracking per order line
+    let trackingObj;
     if (carrierCode) {
-      payload = { carrier_code: carrierCode, tracking_number: trackingNumber };
+      trackingObj = { carrier_code: carrierCode, tracking_number: trackingNumber };
     } else {
-      payload = {
+      trackingObj = {
         carrier_name: carrierName || 'Other',
         carrier_url: carrierUrl || '',
         tracking_number: trackingNumber
       };
     }
 
+    const payload = {
+      order_lines: lineIds.map(lineId => ({
+        order_line_id: lineId,
+        tracking: trackingObj
+      }))
+    };
+
+    // If no line IDs found, fall back to flat payload for simpler API versions
+    const finalPayload = lineIds.length > 0 ? payload : trackingObj;
+
     const data = await this._retryableRequest(
-      () => this.client.put(`/orders/${miraklOrderId}/tracking`, payload),
+      () => this.client.put(`/orders/${miraklOrderId}/tracking`, finalPayload),
       `updateTracking(${miraklOrderId})`
     );
 
     // Update local order items with tracking info
-    const orderResult = await pool.query(
-      'SELECT id FROM marketplace_orders WHERE mirakl_order_id = $1',
-      [miraklOrderId]
-    );
-    if (orderResult.rows.length > 0) {
+    if (localOrderId) {
       await pool.query(
         `UPDATE marketplace_order_items
          SET shipping_tracking = $1,
              shipping_carrier = $2,
              updated_at = CURRENT_TIMESTAMP
-         WHERE order_id = $3 AND status = 'ACCEPTED'`,
-        [trackingNumber, carrierCode || carrierName || 'Other', orderResult.rows[0].id]
+         WHERE order_id = $3 AND order_line_state IN ('SHIPPING', 'ACCEPTED')`,
+        [trackingNumber, carrierCode || carrierName || 'Other', localOrderId]
       );
     }
 
@@ -1012,18 +1115,23 @@ class MiraklService {
   async confirmShipment(miraklOrderId) {
     const startTime = Date.now();
 
+    // Fetch order line IDs for the Mirakl OR24 ship confirmation
+    const linesResult = await pool.query(
+      `SELECT mo.id, moi.order_line_id
+       FROM marketplace_orders mo
+       JOIN marketplace_order_items moi ON moi.order_id = mo.id
+       WHERE mo.mirakl_order_id = $1 AND moi.order_line_state IN ('SHIPPING', 'ACCEPTED')`,
+      [miraklOrderId]
+    );
+    const localId = linesResult.rows.length > 0 ? linesResult.rows[0].id : null;
+
     const data = await this._retryableRequest(
       () => this.client.put(`/orders/${miraklOrderId}/ship`),
       `confirmShipment(${miraklOrderId})`
     );
 
     // Update local DB
-    const orderResult = await pool.query(
-      'SELECT id FROM marketplace_orders WHERE mirakl_order_id = $1',
-      [miraklOrderId]
-    );
-    if (orderResult.rows.length > 0) {
-      const localId = orderResult.rows[0].id;
+    if (localId) {
       await pool.query(
         `UPDATE marketplace_orders
          SET mirakl_order_state = 'SHIPPED', order_state = 'SHIPPED',
@@ -1033,8 +1141,8 @@ class MiraklService {
       );
       await pool.query(
         `UPDATE marketplace_order_items
-         SET status = 'SHIPPED', updated_at = CURRENT_TIMESTAMP
-         WHERE order_id = $1 AND status = 'ACCEPTED'`,
+         SET status = 'SHIPPED', order_line_state = 'SHIPPED', updated_at = CURRENT_TIMESTAMP
+         WHERE order_id = $1 AND order_line_state IN ('SHIPPING', 'ACCEPTED')`,
         [localId]
       );
     }
@@ -1334,95 +1442,236 @@ class MiraklService {
   // ============================================
 
   /**
-   * Queue an inventory change for batch sync to Mirakl.
+   * Queue an inventory change for batch sync to marketplace channels.
    * Fast insert only — must not slow down POS checkout.
+   *
+   * Multi-channel fan-out: if channelId is null, inserts one queue entry
+   * PER active channel that has a listing for this product.
+   * If no channel listings exist, inserts one entry with channel_id = NULL
+   * (legacy behaviour — picked up by the default Best Buy flow).
+   *
    * @param {number} productId
    * @param {string} sku
    * @param {number} oldQty
    * @param {number} newQty
    * @param {string} changeSource - POS_SALE|MANUAL_ADJUST|RECEIVING|RETURN|QUOTE_CONVERT|CYCLE_COUNT|ORDER_ACCEPT
-   * @returns {number} queue_id
+   * @param {number|null} channelId - specific channel, or null for auto-fan-out
+   * @returns {number[]} array of queue_ids
    */
-  async queueInventoryChange(productId, sku, oldQty, newQty, changeSource) {
-    const result = await pool.query(
-      `INSERT INTO marketplace_inventory_queue (product_id, sku, old_quantity, new_quantity, change_source)
-       VALUES ($1, $2, $3, $4, $5)
-       RETURNING queue_id`,
-      [productId, sku, oldQty, newQty, changeSource]
+  async queueInventoryChange(productId, sku, oldQty, newQty, changeSource, channelId = null) {
+    // If a specific channel was requested, insert just that one entry
+    if (channelId) {
+      const result = await pool.query(
+        `INSERT INTO marketplace_inventory_queue (product_id, sku, old_quantity, new_quantity, change_source, channel_id)
+         VALUES ($1, $2, $3, $4, $5, $6)
+         RETURNING queue_id`,
+        [productId, sku, oldQty, newQty, changeSource, channelId]
+      );
+      return [result.rows[0].queue_id];
+    }
+
+    // Auto-fan-out: find all active channel listings for this product
+    const channels = await pool.query(
+      `SELECT channel_id FROM product_channel_listings
+       WHERE product_id = $1 AND listing_status = 'ACTIVE'`,
+      [productId]
     );
-    return result.rows[0].queue_id;
+
+    // If no channel listings, insert one entry with NULL channel_id (legacy)
+    if (channels.rows.length === 0) {
+      const result = await pool.query(
+        `INSERT INTO marketplace_inventory_queue (product_id, sku, old_quantity, new_quantity, change_source)
+         VALUES ($1, $2, $3, $4, $5)
+         RETURNING queue_id`,
+        [productId, sku, oldQty, newQty, changeSource]
+      );
+      return [result.rows[0].queue_id];
+    }
+
+    // Insert one queue entry per channel
+    const queueIds = [];
+    for (const ch of channels.rows) {
+      const result = await pool.query(
+        `INSERT INTO marketplace_inventory_queue (product_id, sku, old_quantity, new_quantity, change_source, channel_id)
+         VALUES ($1, $2, $3, $4, $5, $6)
+         RETURNING queue_id`,
+        [productId, sku, oldQty, newQty, changeSource, ch.channel_id]
+      );
+      queueIds.push(result.rows[0].queue_id);
+    }
+    return queueIds;
   }
 
   /**
    * Process pending inventory changes as a batch stock-only upload (STO01).
    * Collapses multiple queued changes per product into a single current-stock row.
-   * @returns {{ processed: number, importId?: string, dbImportId?: number, message?: string }}
+   *
+   * Multi-channel aware:
+   *  - If channelId provided: process only that channel's queue
+   *  - If null: group pending entries by channel_id and process each channel separately
+   *  - Applies per-channel allocation formula from product_channel_listings:
+   *    channel_qty = MAX(0, FLOOR((stock_quantity - safety_buffer) * (allocation_percent / 100)))
+   *  - Falls back to raw stock for legacy entries (channel_id IS NULL)
+   *
+   * @param {number|null} channelId - specific channel, or null for all channels
+   * @returns {{ processed: number, channels: Array, message?: string }}
    */
-  async processInventoryBatch() {
+  async processInventoryBatch(channelId = null) {
     const startTime = Date.now();
 
-    // 1. Get distinct pending products with their current live stock
-    const pending = await pool.query(`
-      SELECT DISTINCT ON (q.product_id)
-        q.product_id, q.sku, p.stock_quantity
-      FROM marketplace_inventory_queue q
-      JOIN products p ON p.id = q.product_id
-      WHERE q.synced_at IS NULL
-      ORDER BY q.product_id, q.queued_at DESC
+    // If specific channel requested, process just that one
+    if (channelId) {
+      const result = await this._processChannelInventoryBatch(channelId, startTime);
+      return { processed: result.processed, channels: [result] };
+    }
+
+    // Find all distinct channel_ids with pending queue entries
+    const channelQuery = await pool.query(`
+      SELECT DISTINCT COALESCE(channel_id, 0) AS cid
+      FROM marketplace_inventory_queue
+      WHERE synced_at IS NULL
+      ORDER BY cid
     `);
 
+    if (channelQuery.rows.length === 0) {
+      return { processed: 0, channels: [], message: 'No pending inventory changes' };
+    }
+
+    // Process each channel separately
+    const channelResults = [];
+    let totalProcessed = 0;
+    for (const row of channelQuery.rows) {
+      const cid = row.cid === 0 ? null : row.cid;
+      try {
+        const result = await this._processChannelInventoryBatch(cid, startTime);
+        channelResults.push(result);
+        totalProcessed += result.processed;
+      } catch (err) {
+        channelResults.push({ channelId: cid, processed: 0, error: err.message });
+      }
+    }
+
+    return { processed: totalProcessed, channels: channelResults };
+  }
+
+  /**
+   * Process inventory batch for a single channel (or legacy NULL channel).
+   * @private
+   */
+  async _processChannelInventoryBatch(channelId, startTime) {
+    const channelFilter = channelId
+      ? 'q.channel_id = $1'
+      : 'q.channel_id IS NULL';
+    const params = channelId ? [channelId] : [];
+
+    // 1. Get distinct pending products with current live stock + channel allocation
+    const pending = await pool.query(`
+      SELECT DISTINCT ON (q.product_id)
+        q.product_id, q.sku, p.stock_quantity,
+        COALESCE(pcl.safety_buffer, 0) AS safety_buffer,
+        COALESCE(pcl.allocation_percent, 100) AS allocation_percent,
+        pcl.channel_sku
+      FROM marketplace_inventory_queue q
+      JOIN products p ON p.id = q.product_id
+      LEFT JOIN product_channel_listings pcl
+        ON pcl.product_id = q.product_id
+        AND pcl.channel_id = ${channelId ? '$1' : 'q.channel_id'}
+        AND pcl.listing_status = 'ACTIVE'
+      WHERE q.synced_at IS NULL AND ${channelFilter}
+      ORDER BY q.product_id, q.queued_at DESC
+    `, params);
+
     if (pending.rows.length === 0) {
-      return { processed: 0, message: 'No pending inventory changes' };
+      return { channelId, processed: 0, message: 'No pending changes' };
     }
 
     const rows = pending.rows;
     const productIds = rows.map(r => r.product_id);
 
-    // 2. Generate stock CSV (semicolon-delimited for STO01)
-    const csvLines = ['sku;quantity'];
-    for (const row of rows) {
-      const qty = parseInt(row.stock_quantity, 10) || 0;
-      csvLines.push(`${this._escapeCsvValue(row.sku)};${Math.max(0, qty)}`);
+    // 2. Try multi-channel path: use ChannelManager adapter if available
+    let useAdapter = false;
+    let adapter = null;
+    if (channelId) {
+      try {
+        const { getInstance } = require('./ChannelManager');
+        const manager = await getInstance();
+        adapter = manager.getAdapter(channelId);
+        useAdapter = true;
+      } catch (_) { /* fall through to legacy */ }
     }
-    const csvString = csvLines.join('\n');
 
-    // 3. Upload via POST /offers/stock/imports (STO01)
-    const timestamp = Date.now();
-    const fileName = `stock_import_${timestamp}.csv`;
-    const form = new FormData();
-    form.append('file', Buffer.from(csvString, 'utf8'), {
-      filename: fileName,
-      contentType: 'text/csv'
+    // 3. Build stock updates with allocation formula
+    const stockUpdates = rows.map(r => {
+      const rawQty = parseInt(r.stock_quantity, 10) || 0;
+      const allocatedQty = Math.max(0, Math.floor(
+        (rawQty - r.safety_buffer) * (r.allocation_percent / 100)
+      ));
+      return {
+        sku: r.channel_sku || r.sku,
+        quantity: allocatedQty
+      };
     });
 
-    const data = await this._retryableRequest(
-      () => this.client.post('/offers/stock/imports', form, {
-        headers: { ...form.getHeaders(), Authorization: this.apiKey }
-      }),
-      'processInventoryBatch(STO01)'
-    );
+    let miraklImportId = null;
+    let dbImportId = null;
 
-    const miraklImportId = data?.import_id || data?.import?.import_id || null;
+    if (useAdapter) {
+      // Use the channel's adapter to push inventory
+      const pushResult = await adapter.pushInventory(stockUpdates);
+      miraklImportId = pushResult?.importId || null;
+      dbImportId = pushResult?.dbImportId || null;
+    } else {
+      // Legacy path: direct Mirakl upload (Best Buy default)
+      const csvLines = ['sku;quantity'];
+      for (const update of stockUpdates) {
+        csvLines.push(`${this._escapeCsvValue(update.sku)};${update.quantity}`);
+      }
+      const csvString = csvLines.join('\n');
 
-    // 4. Record the import locally
-    const importResult = await pool.query(
-      `INSERT INTO marketplace_offer_imports
-       (mirakl_import_id, import_type, file_name, status, records_submitted, submitted_at)
-       VALUES ($1, $2, $3, $4, $5, NOW())
-       RETURNING import_id`,
-      [miraklImportId, 'STOCK', fileName, data?.status || 'QUEUED', rows.length]
-    );
-    const dbImportId = importResult.rows[0].import_id;
+      const timestamp = Date.now();
+      const fileName = `stock_import_${timestamp}.csv`;
+      const form = new FormData();
+      form.append('file', Buffer.from(csvString, 'utf8'), {
+        filename: fileName,
+        contentType: 'text/csv'
+      });
 
-    // 5. Mark queued entries as synced
+      const data = await this._retryableRequest(
+        () => this.client.post('/offers/stock/imports', form, {
+          headers: { ...form.getHeaders(), Authorization: this.apiKey }
+        }),
+        'processInventoryBatch(STO01)'
+      );
+
+      miraklImportId = data?.import_id || data?.import?.import_id || null;
+
+      // Record the import locally
+      const importResult = await pool.query(
+        `INSERT INTO marketplace_offer_imports
+         (mirakl_import_id, import_type, file_name, status, records_submitted, submitted_at, channel_id)
+         VALUES ($1, $2, $3, $4, $5, NOW(), $6)
+         RETURNING import_id`,
+        [miraklImportId, 'STOCK', fileName, data?.status || 'QUEUED', rows.length, channelId]
+      );
+      dbImportId = importResult.rows[0].import_id;
+    }
+
+    // 4. Mark queued entries as synced
+    const markParams = channelId
+      ? [dbImportId, productIds, channelId]
+      : [dbImportId, productIds];
+    const markFilter = channelId
+      ? 'synced_at IS NULL AND product_id = ANY($2) AND channel_id = $3'
+      : 'synced_at IS NULL AND product_id = ANY($2) AND channel_id IS NULL';
+
     await pool.query(
       `UPDATE marketplace_inventory_queue
        SET synced_at = NOW(), batch_import_id = $1
-       WHERE synced_at IS NULL AND product_id = ANY($2)`,
-      [dbImportId, productIds]
+       WHERE ${markFilter}`,
+      markParams
     );
 
-    // 6. Update last-stock-sync timestamp on products
+    // 5. Update last-stock-sync timestamp on products
     await pool.query(
       'UPDATE products SET mirakl_last_stock_sync = NOW() WHERE id = ANY($1)',
       [productIds]
@@ -1438,7 +1687,7 @@ class MiraklService {
       duration: Date.now() - startTime
     });
 
-    return { processed: rows.length, importId: miraklImportId, dbImportId };
+    return { channelId, processed: rows.length, importId: miraklImportId, dbImportId };
   }
 
   /**
@@ -1504,14 +1753,264 @@ class MiraklService {
   }
 
   /**
-   * Push ALL marketplace-enabled products' current stock to Mirakl (STO01).
-   * Full reconciliation — ignores the queue and pushes everything.
-   * @returns {{ processed: number, importId?: string, dbImportId?: number, message?: string }}
+   * Check oversell risk for a product across ALL marketplace channels.
+   * Sums all pending (unshipped) order quantities and compares against current stock.
+   *
+   * @param {number} productId
+   * @returns {{ currentStock, committedQty, availableQty, atRisk, channels }}
    */
-  async forceFullInventorySync() {
+  async checkOversellRisk(productId) {
+    // Get current stock
+    const productResult = await pool.query(
+      'SELECT stock_quantity FROM products WHERE id = $1',
+      [productId]
+    );
+    if (productResult.rows.length === 0) {
+      throw new Error(`Product ${productId} not found`);
+    }
+    const currentStock = parseInt(productResult.rows[0].stock_quantity, 10) || 0;
+
+    // Sum all unshipped order quantities across ALL channels
+    // Orders in states: WAITING_ACCEPTANCE, SHIPPING (accepted, not yet shipped)
+    const commitResult = await pool.query(`
+      SELECT
+        COALESCE(mo.channel_id, 0) AS channel_id,
+        mc.channel_code,
+        mc.channel_name,
+        SUM(moi.quantity) AS committed_qty,
+        COUNT(DISTINCT mo.id) AS order_count
+      FROM marketplace_order_items moi
+      JOIN marketplace_orders mo ON mo.id = moi.order_id
+      LEFT JOIN marketplace_channels mc ON mc.id = mo.channel_id
+      WHERE moi.product_id = $1
+        AND mo.mirakl_order_state IN ('WAITING_ACCEPTANCE', 'SHIPPING')
+      GROUP BY mo.channel_id, mc.channel_code, mc.channel_name
+    `, [productId]);
+
+    const committedQty = commitResult.rows.reduce(
+      (sum, r) => sum + (parseInt(r.committed_qty, 10) || 0), 0
+    );
+
+    // Also sum pending (unsynced) inventory queue decreases
+    const pendingResult = await pool.query(`
+      SELECT COALESCE(SUM(GREATEST(0, old_quantity - new_quantity)), 0) AS pending_decreases
+      FROM marketplace_inventory_queue
+      WHERE product_id = $1 AND synced_at IS NULL AND new_quantity < old_quantity
+    `, [productId]);
+    const pendingDecreases = parseInt(pendingResult.rows[0].pending_decreases, 10) || 0;
+
+    // Total allocation across channels
+    const allocResult = await pool.query(`
+      SELECT
+        pcl.channel_id,
+        mc.channel_code,
+        COALESCE(pcl.safety_buffer, 0) AS safety_buffer,
+        COALESCE(pcl.allocation_percent, 100) AS allocation_percent,
+        FLOOR(GREATEST(0, ($2::int - COALESCE(pcl.safety_buffer, 0)) * (COALESCE(pcl.allocation_percent, 100) / 100.0))) AS allocated_qty
+      FROM product_channel_listings pcl
+      LEFT JOIN marketplace_channels mc ON mc.id = pcl.channel_id
+      WHERE pcl.product_id = $1 AND pcl.listing_status = 'ACTIVE'
+    `, [productId, currentStock]);
+
+    const totalAllocated = allocResult.rows.reduce(
+      (sum, r) => sum + (parseInt(r.allocated_qty, 10) || 0), 0
+    );
+
+    const availableQty = currentStock - committedQty;
+    const atRisk = committedQty > currentStock || totalAllocated > currentStock;
+
+    return {
+      currentStock,
+      committedQty,
+      pendingDecreases,
+      totalAllocated,
+      availableQty,
+      atRisk,
+      channels: commitResult.rows.map(r => ({
+        channelId: r.channel_id === 0 ? null : parseInt(r.channel_id),
+        channelCode: r.channel_code || 'legacy',
+        channelName: r.channel_name || 'Best Buy (Legacy)',
+        committedQty: parseInt(r.committed_qty, 10) || 0,
+        orderCount: parseInt(r.order_count, 10) || 0
+      })),
+      allocations: allocResult.rows.map(r => ({
+        channelId: r.channel_id,
+        channelCode: r.channel_code,
+        safetyBuffer: r.safety_buffer,
+        allocationPercent: parseFloat(r.allocation_percent),
+        allocatedQty: parseInt(r.allocated_qty, 10) || 0
+      }))
+    };
+  }
+
+  /**
+   * Push ALL marketplace-enabled products' current stock to channels (STO01).
+   * Full reconciliation — ignores the queue and pushes everything.
+   *
+   * Multi-channel aware:
+   *  - If channelId provided: sync only that channel (with allocation formula)
+   *  - If null: sync all active channels sequentially, then legacy
+   *
+   * @param {number|null} channelId - specific channel, or null for all
+   * @returns {{ processed: number, channels: Array, message?: string }}
+   */
+  async forceFullInventorySync(channelId = null) {
     const startTime = Date.now();
 
-    // 1. Get all marketplace-enabled products with a SKU
+    // If specific channel, sync just that one
+    if (channelId) {
+      const result = await this._forceFullSyncChannel(channelId, startTime);
+      return { processed: result.processed, channels: [result] };
+    }
+
+    // Get all active channels
+    const channelRows = await pool.query(
+      "SELECT id FROM marketplace_channels WHERE status = 'ACTIVE'"
+    );
+
+    const channelResults = [];
+    let totalProcessed = 0;
+
+    if (channelRows.rows.length > 0) {
+      // Sync each active channel with allocation
+      for (const ch of channelRows.rows) {
+        try {
+          const result = await this._forceFullSyncChannel(ch.id, startTime);
+          channelResults.push(result);
+          totalProcessed += result.processed;
+        } catch (err) {
+          channelResults.push({ channelId: ch.id, processed: 0, error: err.message });
+        }
+      }
+    } else {
+      // No channels configured — legacy path (raw stock, no allocation)
+      const result = await this._forceFullSyncLegacy(startTime);
+      channelResults.push(result);
+      totalProcessed = result.processed;
+    }
+
+    return { processed: totalProcessed, channels: channelResults };
+  }
+
+  /**
+   * Force full sync for a single channel with allocation formula.
+   * @private
+   */
+  async _forceFullSyncChannel(channelId, startTime) {
+    // Get products with active listings on this channel, applying allocation
+    const result = await pool.query(`
+      SELECT p.id, p.sku, p.stock_quantity,
+             pcl.channel_sku,
+             COALESCE(pcl.safety_buffer, 0) AS safety_buffer,
+             COALESCE(pcl.allocation_percent, 100) AS allocation_percent
+      FROM product_channel_listings pcl
+      JOIN products p ON p.id = pcl.product_id
+      WHERE pcl.channel_id = $1 AND pcl.listing_status = 'ACTIVE'
+        AND p.sku IS NOT NULL
+    `, [channelId]);
+
+    if (result.rows.length === 0) {
+      return { channelId, processed: 0, message: 'No active listings for this channel' };
+    }
+
+    const rows = result.rows;
+    const productIds = rows.map(r => r.id);
+
+    // Build stock updates with allocation formula
+    const stockUpdates = rows.map(r => {
+      const rawQty = parseInt(r.stock_quantity, 10) || 0;
+      const allocatedQty = Math.max(0, Math.floor(
+        (rawQty - r.safety_buffer) * (r.allocation_percent / 100)
+      ));
+      return {
+        sku: r.channel_sku || r.sku,
+        quantity: allocatedQty
+      };
+    });
+
+    // Try to use channel adapter, fall back to legacy
+    let miraklImportId = null;
+    let dbImportId = null;
+    let useAdapter = false;
+
+    try {
+      const { getInstance } = require('./ChannelManager');
+      const manager = await getInstance();
+      const adapter = manager.getAdapter(channelId);
+      const pushResult = await adapter.pushInventory(stockUpdates);
+      miraklImportId = pushResult?.importId || null;
+      dbImportId = pushResult?.dbImportId || null;
+      useAdapter = true;
+    } catch (_) { /* fall through to legacy */ }
+
+    if (!useAdapter) {
+      // Legacy Mirakl upload
+      const csvLines = ['sku;quantity'];
+      for (const update of stockUpdates) {
+        csvLines.push(`${this._escapeCsvValue(update.sku)};${update.quantity}`);
+      }
+      const csvString = csvLines.join('\n');
+
+      const timestamp = Date.now();
+      const fileName = `stock_full_sync_ch${channelId}_${timestamp}.csv`;
+      const form = new FormData();
+      form.append('file', Buffer.from(csvString, 'utf8'), {
+        filename: fileName,
+        contentType: 'text/csv'
+      });
+
+      const data = await this._retryableRequest(
+        () => this.client.post('/offers/stock/imports', form, {
+          headers: { ...form.getHeaders(), Authorization: this.apiKey }
+        }),
+        'forceFullInventorySync(STO01)'
+      );
+
+      miraklImportId = data?.import_id || data?.import?.import_id || null;
+
+      const importResult = await pool.query(
+        `INSERT INTO marketplace_offer_imports
+         (mirakl_import_id, import_type, file_name, status, records_submitted, submitted_at, channel_id)
+         VALUES ($1, $2, $3, $4, $5, NOW(), $6)
+         RETURNING import_id`,
+        [miraklImportId, 'STOCK', fileName, data?.status || 'QUEUED', rows.length, channelId]
+      );
+      dbImportId = importResult.rows[0].import_id;
+    }
+
+    // Mark any unsynced queue entries for this channel as synced
+    await pool.query(
+      `UPDATE marketplace_inventory_queue
+       SET synced_at = NOW(), batch_import_id = $1
+       WHERE synced_at IS NULL AND channel_id = $2`,
+      [dbImportId, channelId]
+    );
+
+    // Update mirakl_last_stock_sync on all pushed products
+    await pool.query(
+      'UPDATE products SET mirakl_last_stock_sync = NOW() WHERE id = ANY($1)',
+      [productIds]
+    );
+
+    await this.logSync('stock_full_sync', 'inventory', 'SUCCESS', {
+      direction: 'outbound',
+      recordsProcessed: rows.length,
+      recordsSucceeded: rows.length,
+      recordsFailed: 0,
+      startTime: new Date(startTime),
+      endTime: new Date(),
+      duration: Date.now() - startTime
+    });
+
+    return { channelId, processed: rows.length, importId: miraklImportId, dbImportId };
+  }
+
+  /**
+   * Legacy full sync: raw stock, no allocation, no channel_id.
+   * Used when no channels are configured in marketplace_channels.
+   * @private
+   */
+  async _forceFullSyncLegacy(startTime) {
     const result = await pool.query(`
       SELECT id, sku, stock_quantity
       FROM products
@@ -1519,13 +2018,12 @@ class MiraklService {
     `);
 
     if (result.rows.length === 0) {
-      return { processed: 0, message: 'No marketplace-enabled products with SKU' };
+      return { channelId: null, processed: 0, message: 'No marketplace-enabled products with SKU' };
     }
 
     const rows = result.rows;
     const productIds = rows.map(r => r.id);
 
-    // 2. Generate stock CSV (semicolon-delimited for STO01)
     const csvLines = ['sku;quantity'];
     for (const row of rows) {
       const qty = parseInt(row.stock_quantity, 10) || 0;
@@ -1533,7 +2031,6 @@ class MiraklService {
     }
     const csvString = csvLines.join('\n');
 
-    // 3. Upload via POST /offers/stock/imports (STO01)
     const timestamp = Date.now();
     const fileName = `stock_full_sync_${timestamp}.csv`;
     const form = new FormData();
@@ -1551,7 +2048,6 @@ class MiraklService {
 
     const miraklImportId = data?.import_id || data?.import?.import_id || null;
 
-    // 4. Record the import
     const importResult = await pool.query(
       `INSERT INTO marketplace_offer_imports
        (mirakl_import_id, import_type, file_name, status, records_submitted, submitted_at)
@@ -1561,13 +2057,11 @@ class MiraklService {
     );
     const dbImportId = importResult.rows[0].import_id;
 
-    // 5. Mark any unsynced queue entries as synced (full sync covers everything)
     await pool.query(
-      'UPDATE marketplace_inventory_queue SET synced_at = NOW(), batch_import_id = $1 WHERE synced_at IS NULL',
+      'UPDATE marketplace_inventory_queue SET synced_at = NOW(), batch_import_id = $1 WHERE synced_at IS NULL AND channel_id IS NULL',
       [dbImportId]
     );
 
-    // 6. Update mirakl_last_stock_sync on all pushed products
     await pool.query(
       'UPDATE products SET mirakl_last_stock_sync = NOW() WHERE id = ANY($1)',
       [productIds]
@@ -1583,7 +2077,46 @@ class MiraklService {
       duration: Date.now() - startTime
     });
 
-    return { processed: rows.length, importId: miraklImportId, dbImportId };
+    return { channelId: null, processed: rows.length, importId: miraklImportId, dbImportId };
+  }
+
+  // ============================================
+  // COMMISSION RATE LOOKUP
+  // ============================================
+
+  /**
+   * Look up the expected Best Buy commission rate for a category label.
+   * Tries exact leaf match first, then partial path match.
+   * @param {string} categoryLabel - e.g. "Remote Controls" or "Wall Mounts"
+   * @returns {number|null} commission_pct or null if no match
+   */
+  async lookupCommissionRate(categoryLabel) {
+    if (!categoryLabel) return null;
+
+    // 1. Exact leaf match
+    const exactResult = await pool.query(
+      `SELECT commission_pct FROM marketplace_commission_rates
+       WHERE LOWER(category_leaf) = LOWER($1)
+       LIMIT 1`,
+      [categoryLabel.trim()]
+    );
+    if (exactResult.rows.length > 0) {
+      return parseFloat(exactResult.rows[0].commission_pct);
+    }
+
+    // 2. Partial path match (category_path contains the label)
+    const partialResult = await pool.query(
+      `SELECT commission_pct FROM marketplace_commission_rates
+       WHERE LOWER(category_path) LIKE LOWER($1)
+       ORDER BY LENGTH(category_path) DESC
+       LIMIT 1`,
+      [`%${categoryLabel.trim()}%`]
+    );
+    if (partialResult.rows.length > 0) {
+      return parseFloat(partialResult.rows[0].commission_pct);
+    }
+
+    return null;
   }
 }
 

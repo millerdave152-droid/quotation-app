@@ -90,6 +90,14 @@ const LeadCapture = React.lazy(() => import('./components/leads/LeadCapture'));
 // Delivery Management Dashboard
 const DeliveryDashboard = React.lazy(() => import('./pages/DeliveryDashboard'));
 
+// Skulytics Product Import
+const SkulyticsImport = React.lazy(() => import('./components/admin/SkulyticsImport'));
+
+// Dev-only: Competitor Pricing Preview
+const CompetitorPricingDev = process.env.NODE_ENV === 'development'
+  ? React.lazy(() => import('./components/quotes/CompetitorPricingDev'))
+  : null;
+
 // Dashboard component with real data and anti-flickering
 const Dashboard = () => {
   const [stats, setStats] = React.useState(null);
@@ -588,6 +596,15 @@ function App() {
               <DiscountAnalyticsDashboard />
             </ProtectedRoute>
           } />
+          <Route path="/admin/skulytics/import" element={
+            <ProtectedRoute requiredRoles={['admin']}>
+              <SkulyticsImport />
+            </ProtectedRoute>
+          } />
+          {/* Dev-only routes */}
+          {process.env.NODE_ENV === 'development' && CompetitorPricingDev && (
+            <Route path="/dev/competitor-pricing" element={<CompetitorPricingDev />} />
+          )}
           {/* 404 fallback */}
           <Route path="*" element={
             <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '400px', flexDirection: 'column' }}>
