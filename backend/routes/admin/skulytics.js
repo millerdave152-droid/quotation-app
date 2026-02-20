@@ -369,7 +369,7 @@ router.post(
   authenticate,
   requireRole('admin', 'catalog_manager'),
   asyncHandler(async (req, res) => {
-    const { skulyticsIds } = req.body;
+    const { skulyticsIds, force } = req.body;
     if (!Array.isArray(skulyticsIds) || skulyticsIds.length === 0) {
       throw ApiError.badRequest('skulyticsIds must be a non-empty array');
     }
@@ -384,7 +384,7 @@ router.post(
     }
     const tenantId = tenantRows[0].id;
 
-    const result = await SkulyticsImportService.bulkImport(skulyticsIds, req.user.id, tenantId);
+    const result = await SkulyticsImportService.bulkImport(skulyticsIds, req.user.id, tenantId, { force: !!force });
 
     logAudit(
       req.user.id,

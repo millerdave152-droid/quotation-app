@@ -561,7 +561,7 @@ export const RebatesDisplay = ({ products, onRebateApplied }) => {
     try {
       const response = await authFetch(`${API_BASE}/rebates`);
       const data = await response.json();
-      setRebates(data);
+      setRebates(Array.isArray(data) ? data : Array.isArray(data?.data) ? data.data : []);
       setLoading(false);
     } catch (error) {
       console.error('Error fetching rebates:', error);

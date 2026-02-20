@@ -199,7 +199,7 @@ class SkulyticsImportService {
   /**
    * Bulk-import products from the global catalogue into the local products table.
    */
-  async bulkImport(skulyticsIds, userId, tenantId) {
+  async bulkImport(skulyticsIds, userId, tenantId, { force = false } = {}) {
     const client = await pool.connect();
     let imported = 0;
     let skipped = 0;
@@ -216,7 +216,8 @@ class SkulyticsImportService {
                     category_slug, category_path, msrp, map_price, umrp,
                     primary_image, is_discontinued, is_in_stock,
                     weight_kg, width_cm, height_cm, depth_cm,
-                    specs, competitor_pricing, warranty, product_link
+                    specs, competitor_pricing, warranty, product_link,
+                    images
              FROM global_skulytics_products WHERE skulytics_id = $1`,
             [skulyticsId]
           );
@@ -235,8 +236,13 @@ class SkulyticsImportService {
           );
 
           if (existingRows.length > 0) {
-            skipped++;
-            continue;
+            if (force) {
+              // Delete existing product so we can re-import with enriched data
+              await client.query('DELETE FROM products WHERE skulytics_id = $1', [skulyticsId]);
+            } else {
+              skipped++;
+              continue;
+            }
           }
 
           // Convert dollar amounts to cents
@@ -252,25 +258,45 @@ class SkulyticsImportService {
           if (gsp.model_number) descParts.push(`(Model: ${gsp.model_number})`);
           const description = descParts.join(' ') || null;
 
-          // Use category_slug as category, fall back to 'Imported'
-          const categoryName = gsp.category_slug
-            ? gsp.category_slug.replace(/-/g, ' ').replace(/\b\w/g, c => c.toUpperCase())
-            : 'Imported';
-
-          // Build decoded_attributes from specs + dimensions
-          let decodedAttrs = null;
-          if (gsp.specs || gsp.weight_kg || gsp.width_cm) {
-            decodedAttrs = { ...(gsp.specs || {}) };
-            if (gsp.weight_kg) decodedAttrs.weight_kg = parseFloat(gsp.weight_kg);
-            if (gsp.width_cm) decodedAttrs.width_cm = parseFloat(gsp.width_cm);
-            if (gsp.height_cm) decodedAttrs.height_cm = parseFloat(gsp.height_cm);
-            if (gsp.depth_cm) decodedAttrs.depth_cm = parseFloat(gsp.depth_cm);
-            if (gsp.warranty) decodedAttrs.warranty = gsp.warranty;
+          // Use category_path leaf, then slug, then 'Imported'
+          let categoryName = 'Imported';
+          if (gsp.category_path && Array.isArray(gsp.category_path) && gsp.category_path.length > 0) {
+            categoryName = gsp.category_path[gsp.category_path.length - 1];
+          } else if (gsp.category_slug) {
+            categoryName = gsp.category_slug.replace(/-/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
           }
+
+          // Build decoded_attributes from ALL available rich data
+          let decodedAttrs = {};
+          // Specs (spread into top level)
+          if (gsp.specs && typeof gsp.specs === 'object') {
+            Object.assign(decodedAttrs, gsp.specs);
+          }
+          // Physical dimensions
+          if (gsp.weight_kg) decodedAttrs.weight_kg = parseFloat(gsp.weight_kg);
+          if (gsp.width_cm) decodedAttrs.width_cm = parseFloat(gsp.width_cm);
+          if (gsp.height_cm) decodedAttrs.height_cm = parseFloat(gsp.height_cm);
+          if (gsp.depth_cm) decodedAttrs.depth_cm = parseFloat(gsp.depth_cm);
+          // Warranty
+          if (gsp.warranty) decodedAttrs.warranty = gsp.warranty;
+          // Competitor pricing
+          if (gsp.competitor_pricing) decodedAttrs.competitor_pricing = gsp.competitor_pricing;
+          // Product link
+          if (gsp.product_link) decodedAttrs.product_link = gsp.product_link;
+          // Category path
+          if (gsp.category_path && Array.isArray(gsp.category_path)) {
+            decodedAttrs.category_path = gsp.category_path;
+          }
+          // Image gallery
+          if (Array.isArray(gsp.images) && gsp.images.length > 0) {
+            decodedAttrs.images = gsp.images;
+          }
+          // If nothing was added, set to null
+          if (Object.keys(decodedAttrs).length === 0) decodedAttrs = null;
 
           const { rows: insertedRows } = await client.query(
             `INSERT INTO products (
-               name, sku, upc, category, price, cost, brand, manufacturer,
+               name, sku, upc, category, price, cost, manufacturer,
                model, description, image_url,
                msrp_cents, map_price_cents, umrp_cents, sell_cents,
                discontinued, in_stock,
@@ -278,12 +304,12 @@ class SkulyticsImportService {
                skulytics_id, skulytics_imported_at, active
              )
              VALUES (
-               $1, $2, $3, $4, $5, 0, $6, $7,
-               $8, $9, $10,
-               $11, $12, $13, $14,
-               $15, $16,
-               $17, 'skulytics',
-               $18, NOW(), true
+               $1, $2, $3, $4, $5, 0, $6,
+               $7, $8, $9,
+               $10, $11, $12, $13,
+               $14, $15,
+               $16, 'skulytics',
+               $17, NOW(), true
              )
              RETURNING id`,
             [
@@ -292,19 +318,18 @@ class SkulyticsImportService {
               gsp.upc || null,      // $3
               categoryName,         // $4
               msrpCents,            // $5 (price in cents — legacy column)
-              gsp.brand,            // $6
-              gsp.brand,            // $7 (manufacturer = brand)
-              gsp.model_number || null, // $8
-              description,          // $9
-              gsp.primary_image || null, // $10
-              msrpCents || null,    // $11
-              mapCents,             // $12
-              umrpCents,            // $13
-              msrpCents || null,    // $14 (sell_cents defaults to msrp)
-              gsp.is_discontinued || false, // $15
-              gsp.is_in_stock !== false,    // $16
-              decodedAttrs ? JSON.stringify(decodedAttrs) : null, // $17
-              skulyticsId,          // $18
+              gsp.brand,            // $6 (manufacturer)
+              gsp.model_number || null, // $7
+              description,          // $8
+              gsp.primary_image || null, // $9
+              msrpCents || null,    // $10
+              mapCents,             // $11
+              umrpCents,            // $12
+              msrpCents || null,    // $13 (sell_cents defaults to msrp)
+              gsp.is_discontinued || false, // $14
+              gsp.is_in_stock !== false,    // $15
+              decodedAttrs ? JSON.stringify(decodedAttrs) : null, // $16
+              skulyticsId,          // $17
             ]
           );
 
