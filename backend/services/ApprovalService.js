@@ -1329,7 +1329,7 @@ class ApprovalService {
          ats.timeout_seconds,
          ats.requires_reason_code
        FROM approval_requests ar
-       JOIN products p ON ar.product_id = p.id
+       LEFT JOIN products p ON ar.product_id = p.id
        JOIN users s    ON ar.salesperson_id = s.id
        LEFT JOIN users m ON ar.manager_id = m.id
        LEFT JOIN approval_tier_settings ats ON ats.tier = ar.tier
