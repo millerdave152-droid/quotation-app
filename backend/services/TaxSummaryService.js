@@ -68,7 +68,7 @@ async function getTaxSummary({ period = 'month', year, month, quarter, location_
       SUM(t.gst_amount) AS gst,
       SUM(t.pst_amount) AS pst,
       SUM(t.hst_amount + t.gst_amount + t.pst_amount) AS total_tax,
-      COUNT(t.id) AS order_count
+      COUNT(t.transaction_id) AS order_count
     FROM transactions t
     WHERE t.created_at >= $1 AND t.created_at < $2
       AND t.status NOT IN ('cancelled', 'voided')
@@ -80,7 +80,7 @@ async function getTaxSummary({ period = 'month', year, month, quarter, location_
   // ── Returns/refunds in the same period ─────────────────────────────
   const { rows: [refundRow] } = await pool.query(`
     SELECT
-      COALESCE(SUM(t.total), 0) AS total_returns,
+      COALESCE(SUM(t.total_amount), 0) AS total_returns,
       COALESCE(SUM(t.hst_amount + t.gst_amount + t.pst_amount), 0) AS tax_refunded
     FROM transactions t
     WHERE t.created_at >= $1 AND t.created_at < $2

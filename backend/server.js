@@ -515,6 +515,12 @@ app.use('/api/products', productLookupRoutes.init({ pool }));
 console.log('✅ Product barcode lookup routes loaded');
 
 // ============================================
+// DISCONTINUED PRODUCTS (must be before /:id routes)
+// ============================================
+app.use('/api/products', discontinuedProductRoutes.init({ pool }));
+console.log('✅ Discontinued product routes loaded');
+
+// ============================================
 // PRODUCT MANAGEMENT (Modular)
 // ============================================
 app.use('/api/products', initProductRoutes({ pool, cache, upload }));
@@ -2897,11 +2903,6 @@ console.log('✅ 3D product configurator routes loaded');
 // ============================================
 app.use('/api/products', productImageRoutes.init({ pool }));
 console.log('✅ Product image gallery routes loaded');
-
-// DISCONTINUED PRODUCTS
-// ============================================
-app.use('/api/products', discontinuedProductRoutes.init({ pool }));
-console.log('✅ Discontinued product routes loaded');
 
 // CALL LOG TRACKING
 // ============================================

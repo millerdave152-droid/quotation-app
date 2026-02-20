@@ -201,9 +201,9 @@ class HubReturnService {
               c.name AS customer_name,
               c.email AS customer_email,
               c.phone AS customer_phone,
-              iu.name AS initiated_by_name,
-              au.name AS approved_by_name,
-              pu.name AS processed_by_name
+              CONCAT(iu.first_name, ' ', iu.last_name) AS initiated_by_name,
+              CONCAT(au.first_name, ' ', au.last_name) AS approved_by_name,
+              CONCAT(pu.first_name, ' ', pu.last_name) AS processed_by_name
        FROM hub_returns hr
        JOIN unified_orders uo ON uo.id = hr.original_order_id
        LEFT JOIN customers c ON c.id = hr.customer_id
@@ -317,7 +317,7 @@ class HubReturnService {
               uo.order_number AS original_order_number,
               c.name AS customer_name,
               c.email AS customer_email,
-              iu.name AS initiated_by_name,
+              CONCAT(iu.first_name, ' ', iu.last_name) AS initiated_by_name,
               (SELECT COUNT(*)::INTEGER FROM hub_return_items WHERE return_id = hr.id) AS item_count
        FROM hub_returns hr
        JOIN unified_orders uo ON uo.id = hr.original_order_id
