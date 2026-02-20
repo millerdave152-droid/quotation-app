@@ -63,6 +63,30 @@ const StockBadge = ({ inStock, discontinued }) => {
   );
 };
 
+const ProductThumb = ({ src, size = 40, iconSize = 16, rounded = 6 }) => {
+  const [failed, setFailed] = React.useState(false);
+
+  if (!src || failed) {
+    return (
+      <div style={{
+        width: `${size}px`, height: `${size}px`, background: '#f3f4f6', borderRadius: `${rounded}px`,
+        display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+      }}>
+        <Package size={iconSize} style={{ color: '#d1d5db' }} />
+      </div>
+    );
+  }
+
+  return (
+    <img
+      src={src}
+      alt=""
+      style={{ width: `${size}px`, height: `${size}px`, objectFit: 'contain', borderRadius: `${rounded}px`, background: '#f9fafb', flexShrink: 0 }}
+      onError={() => setFailed(true)}
+    />
+  );
+};
+
 // ── Main Component ──────────────────────────────────────────
 
 const SkulyticsImport = () => {
@@ -415,18 +439,7 @@ const SkulyticsImport = () => {
                         />
                       </td>
                       <td style={tdStyle}>
-                        {row.primary_image ? (
-                          <img
-                            src={row.primary_image}
-                            alt=""
-                            style={{ width: '40px', height: '40px', objectFit: 'contain', borderRadius: '6px', background: '#f9fafb' }}
-                            onError={e => { e.target.style.display = 'none'; }}
-                          />
-                        ) : (
-                          <div style={{ width: '40px', height: '40px', background: '#f3f4f6', borderRadius: '6px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                            <Package size={16} style={{ color: '#d1d5db' }} />
-                          </div>
-                        )}
+                        <ProductThumb src={row.primary_image} size={40} />
                       </td>
                       <td style={tdStyle}>
                         <span style={{ fontFamily: 'monospace', fontSize: '13px', color: '#374151' }}>{row.sku}</span>
@@ -665,13 +678,7 @@ const DrawerContent = ({ product, onClose, onConfirm, onReject }) => {
       {/* Drawer Header */}
       <div style={{ padding: '20px 24px', borderBottom: '1px solid #e5e7eb', display: 'flex', alignItems: 'flex-start', gap: '16px' }}>
         <div style={{ flex: 'none' }}>
-          {p.primary_image ? (
-            <img src={p.primary_image} alt="" style={{ width: '80px', height: '80px', objectFit: 'contain', borderRadius: '8px', background: '#f9fafb' }} onError={e => { e.target.style.display = 'none'; }} />
-          ) : (
-            <div style={{ width: '80px', height: '80px', background: '#f3f4f6', borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-              <Package size={32} style={{ color: '#d1d5db' }} />
-            </div>
-          )}
+          <ProductThumb src={p.primary_image} size={80} iconSize={32} />
         </div>
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ fontSize: '12px', color: '#667eea', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em' }}>{p.brand}</div>
@@ -710,6 +717,29 @@ const DrawerContent = ({ product, onClose, onConfirm, onReject }) => {
           <DrawerSection title="Category">
             <div style={{ fontSize: '13px', color: '#374151' }}>
               {categoryPath.join(' > ')}
+            </div>
+          </DrawerSection>
+        )}
+
+        {/* Image Gallery */}
+        {images && Array.isArray(images) && images.length > 0 && (
+          <DrawerSection title="Images">
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(100px, 1fr))', gap: '10px' }}>
+              {images.map((img, i) => (
+                <div key={i} style={{ position: 'relative' }}>
+                  <ProductThumb src={img.url || img} size={100} iconSize={28} rounded={8} />
+                  {img.type && (
+                    <span style={{
+                      position: 'absolute', bottom: '4px', left: '4px', right: '4px',
+                      fontSize: '10px', fontWeight: 600, textAlign: 'center',
+                      background: 'rgba(0,0,0,0.55)', color: 'white', borderRadius: '4px',
+                      padding: '2px 4px', textTransform: 'capitalize',
+                    }}>
+                      {img.type}
+                    </span>
+                  )}
+                </div>
+              ))}
             </div>
           </DrawerSection>
         )}
