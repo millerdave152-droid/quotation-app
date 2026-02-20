@@ -90,8 +90,9 @@ const LeadCapture = React.lazy(() => import('./components/leads/LeadCapture'));
 // Delivery Management Dashboard
 const DeliveryDashboard = React.lazy(() => import('./pages/DeliveryDashboard'));
 
-// Skulytics Product Import
+// Skulytics Product Import & Health Dashboard
 const SkulyticsImport = React.lazy(() => import('./components/admin/SkulyticsImport'));
+const SkulyticsHealth = React.lazy(() => import('./components/admin/SkulyticsHealth'));
 
 // Dev-only: Competitor Pricing Preview
 const CompetitorPricingDev = process.env.NODE_ENV === 'development'
@@ -599,6 +600,11 @@ function App() {
           <Route path="/admin/skulytics/import" element={
             <ProtectedRoute requiredRoles={['admin']}>
               <SkulyticsImport />
+            </ProtectedRoute>
+          } />
+          <Route path="/admin/skulytics/health" element={
+            <ProtectedRoute requiredRoles={['admin']}>
+              <SkulyticsHealth />
             </ProtectedRoute>
           } />
           {/* Dev-only routes */}

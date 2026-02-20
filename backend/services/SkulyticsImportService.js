@@ -197,6 +197,112 @@ class SkulyticsImportService {
   }
 
   /**
+   * Auto-match global catalogue products to local products using three SQL passes.
+   * Higher-priority passes win via ON CONFLICT DO NOTHING.
+   *
+   * Pass 1 (UPC, confidence 95): match on trimmed lowercase UPC
+   * Pass 2 (SKU, confidence 85): match on trimmed lowercase SKU
+   * Pass 3 (Composite, confidence 75): match on brand=manufacturer AND model_number=model
+   */
+  async autoMatch(tenantId) {
+    const client = await pool.connect();
+    let upcMatches = 0;
+    let skuMatches = 0;
+    let compositeMatches = 0;
+
+    try {
+      await client.query('BEGIN');
+
+      // Pass 1: UPC match (confidence 95)
+      const upcResult = await client.query(
+        `INSERT INTO skulytics_import_matches
+           (tenant_id, skulytics_id, internal_product_id, match_method, match_confidence, match_status)
+         SELECT DISTINCT ON (gsp.skulytics_id)
+           $1, gsp.skulytics_id, p.id, 'upc', 95, 'pending'
+         FROM global_skulytics_products gsp
+         JOIN products p ON LOWER(TRIM(p.upc)) = LOWER(TRIM(gsp.upc))
+         WHERE gsp.upc IS NOT NULL AND gsp.upc <> ''
+           AND p.upc IS NOT NULL AND p.upc <> ''
+           AND NOT EXISTS (
+             SELECT 1 FROM skulytics_import_matches sim
+             WHERE sim.tenant_id = $1 AND sim.skulytics_id = gsp.skulytics_id
+           )
+           AND NOT EXISTS (
+             SELECT 1 FROM products p2 WHERE p2.skulytics_id = gsp.skulytics_id
+           )
+         ORDER BY gsp.skulytics_id, p.id ASC
+         ON CONFLICT (tenant_id, skulytics_id) DO NOTHING`,
+        [tenantId]
+      );
+      upcMatches = upcResult.rowCount;
+
+      // Pass 2: SKU match (confidence 85)
+      const skuResult = await client.query(
+        `INSERT INTO skulytics_import_matches
+           (tenant_id, skulytics_id, internal_product_id, match_method, match_confidence, match_status)
+         SELECT DISTINCT ON (gsp.skulytics_id)
+           $1, gsp.skulytics_id, p.id, 'sku', 85, 'pending'
+         FROM global_skulytics_products gsp
+         JOIN products p ON LOWER(TRIM(p.sku)) = LOWER(TRIM(gsp.sku))
+         WHERE gsp.sku IS NOT NULL AND gsp.sku <> ''
+           AND p.sku IS NOT NULL AND p.sku <> ''
+           AND NOT EXISTS (
+             SELECT 1 FROM skulytics_import_matches sim
+             WHERE sim.tenant_id = $1 AND sim.skulytics_id = gsp.skulytics_id
+           )
+           AND NOT EXISTS (
+             SELECT 1 FROM products p2 WHERE p2.skulytics_id = gsp.skulytics_id
+           )
+         ORDER BY gsp.skulytics_id, p.id ASC
+         ON CONFLICT (tenant_id, skulytics_id) DO NOTHING`,
+        [tenantId]
+      );
+      skuMatches = skuResult.rowCount;
+
+      // Pass 3: Composite match — brand=manufacturer AND model_number=model (confidence 75)
+      const compositeResult = await client.query(
+        `INSERT INTO skulytics_import_matches
+           (tenant_id, skulytics_id, internal_product_id, match_method, match_confidence, match_status)
+         SELECT DISTINCT ON (gsp.skulytics_id)
+           $1, gsp.skulytics_id, p.id, 'composite', 75, 'pending'
+         FROM global_skulytics_products gsp
+         JOIN products p
+           ON LOWER(TRIM(p.manufacturer)) = LOWER(TRIM(gsp.brand))
+           AND LOWER(TRIM(p.model)) = LOWER(TRIM(gsp.model_number))
+         WHERE gsp.brand IS NOT NULL AND gsp.brand <> ''
+           AND gsp.model_number IS NOT NULL AND gsp.model_number <> ''
+           AND p.manufacturer IS NOT NULL AND p.manufacturer <> ''
+           AND p.model IS NOT NULL AND p.model <> ''
+           AND NOT EXISTS (
+             SELECT 1 FROM skulytics_import_matches sim
+             WHERE sim.tenant_id = $1 AND sim.skulytics_id = gsp.skulytics_id
+           )
+           AND NOT EXISTS (
+             SELECT 1 FROM products p2 WHERE p2.skulytics_id = gsp.skulytics_id
+           )
+         ORDER BY gsp.skulytics_id, p.id ASC
+         ON CONFLICT (tenant_id, skulytics_id) DO NOTHING`,
+        [tenantId]
+      );
+      compositeMatches = compositeResult.rowCount;
+
+      await client.query('COMMIT');
+    } catch (err) {
+      await client.query('ROLLBACK');
+      throw err;
+    } finally {
+      client.release();
+    }
+
+    return {
+      upcMatches,
+      skuMatches,
+      compositeMatches,
+      totalNew: upcMatches + skuMatches + compositeMatches,
+    };
+  }
+
+  /**
    * Bulk-import products from the global catalogue into the local products table.
    */
   async bulkImport(skulyticsIds, userId, tenantId, { force = false } = {}) {

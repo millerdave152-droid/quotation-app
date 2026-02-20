@@ -7,11 +7,15 @@
  *
  * POST /api/admin/skulytics/refresh/:sku — refresh a single SKU from Skulytics
  * GET  /api/admin/skulytics/health       — catalogue health dashboard data
+ * POST /api/admin/skulytics/sync/trigger — trigger incremental or full sync
+ * GET  /api/admin/skulytics/sync/status  — poll current/recent sync run status
+ * GET  /api/admin/skulytics/sync/history — paginated sync run history
  * GET  /api/admin/skulytics/catalogue       — paginated catalogue browse
  * GET  /api/admin/skulytics/catalogue/stats — dashboard import stats
  * GET  /api/admin/skulytics/catalogue/:id   — single product detail
  * POST /api/admin/skulytics/match/confirm   — confirm auto-match
  * POST /api/admin/skulytics/match/reject    — reject auto-match
+ * POST /api/admin/skulytics/match/auto      — run auto-matching engine
  * POST /api/admin/skulytics/import          — bulk import products
  */
 
@@ -24,6 +28,7 @@ const { SkulyticsApiClient, SkulyticsUnavailableError, SkulyticsRateLimitError }
 const { normalize } = require('../../services/skulytics/normalizers');
 const { skulyticsUpsert } = require('../../services/skulytics/skulyticsUpsert');
 const SkulyticsImportService = require('../../services/SkulyticsImportService');
+const { SkulyticsSyncService } = require('../../services/skulytics/SkulyticsSyncService');
 
 const router = express.Router();
 
@@ -272,6 +277,192 @@ router.get(
   })
 );
 
+// ── Rate limiter: 2 sync triggers per 5 minutes ─────────────
+
+const syncTriggerLimiter = rateLimit({
+  windowMs: 5 * 60 * 1000,
+  max: 2,
+  keyGenerator: (req) => `skulytics-sync:${req.user.id}`,
+  standardHeaders: true,
+  legacyHeaders: false,
+  validate: { xForwardedForHeader: false },
+  handler: (req, res) => {
+    res.status(429).json({
+      success: false,
+      data: null,
+      error: {
+        code: 'RATE_LIMIT_EXCEEDED',
+        message: 'Sync trigger rate limit exceeded. Maximum 2 triggers per 5 minutes.',
+      },
+      meta: { timestamp: new Date().toISOString() },
+    });
+  },
+});
+
+// ── POST /sync/trigger ───────────────────────────────────────
+
+router.post(
+  '/sync/trigger',
+  authenticate,
+  requireRole('admin'),
+  syncTriggerLimiter,
+  asyncHandler(async (req, res) => {
+    const { type = 'incremental' } = req.body || {};
+    if (!['incremental', 'full'].includes(type)) {
+      throw ApiError.badRequest('type must be "incremental" or "full"');
+    }
+
+    // Check if a sync is already running
+    const { rows: running } = await pool.query(
+      `SELECT 1 FROM skulytics_sync_runs WHERE status = 'running' LIMIT 1`
+    );
+    if (running.length > 0) {
+      return res.status(409).json({
+        success: false,
+        data: null,
+        error: { code: 'SYNC_ALREADY_RUNNING', message: 'A sync is already in progress.' },
+        meta: { timestamp: new Date().toISOString() },
+      });
+    }
+
+    // Fire-and-forget the sync
+    const service = new SkulyticsSyncService();
+    if (type === 'full') {
+      service.runFullSync().catch(err => console.error('[SkulyticsAdmin] Full sync error:', err.message));
+    } else {
+      service.runIncrementalSync().catch(err => console.error('[SkulyticsAdmin] Incremental sync error:', err.message));
+    }
+
+    // Brief delay to let the sync run row appear
+    await new Promise(resolve => setTimeout(resolve, 500));
+
+    // Fetch the latest running row
+    const { rows: latest } = await pool.query(
+      `SELECT id, run_type, status, started_at
+       FROM skulytics_sync_runs
+       ORDER BY started_at DESC
+       LIMIT 1`
+    );
+
+    logAudit(
+      req.user.id,
+      'skulytics.sync_triggered',
+      'skulytics_sync_run',
+      latest[0]?.id || null,
+      { type },
+      req
+    );
+
+    res.status(202).json({
+      success: true,
+      data: {
+        syncRunId: latest[0]?.id || null,
+        status: latest[0]?.status || 'running',
+        type,
+      },
+      meta: { timestamp: new Date().toISOString() },
+    });
+  })
+);
+
+// ── GET /sync/status ─────────────────────────────────────────
+
+router.get(
+  '/sync/status',
+  authenticate,
+  requireRole('admin'),
+  asyncHandler(async (req, res) => {
+    const { runId } = req.query;
+
+    let sql, params;
+    if (runId) {
+      sql = `
+        SELECT id, run_type, status, triggered_by, processed, created, updated, failed,
+               error_message,
+               CASE
+                 WHEN completed_at IS NOT NULL AND started_at IS NOT NULL
+                   THEN EXTRACT(EPOCH FROM (completed_at - started_at))::int
+                 ELSE NULL
+               END AS duration_seconds,
+               started_at, completed_at
+        FROM skulytics_sync_runs WHERE id = $1`;
+      params = [runId];
+    } else {
+      sql = `
+        SELECT id, run_type, status, triggered_by, processed, created, updated, failed,
+               error_message,
+               CASE
+                 WHEN completed_at IS NOT NULL AND started_at IS NOT NULL
+                   THEN EXTRACT(EPOCH FROM (completed_at - started_at))::int
+                 ELSE NULL
+               END AS duration_seconds,
+               started_at, completed_at
+        FROM skulytics_sync_runs ORDER BY started_at DESC LIMIT 1`;
+      params = [];
+    }
+
+    const { rows } = await pool.query(sql, params);
+    if (!rows.length) {
+      return res.success(null);
+    }
+    res.success(rows[0]);
+  })
+);
+
+// ── GET /sync/history ────────────────────────────────────────
+
+router.get(
+  '/sync/history',
+  authenticate,
+  requireRole('admin'),
+  asyncHandler(async (req, res) => {
+    const page = Math.max(1, parseInt(req.query.page) || 1);
+    const pageSize = Math.min(Math.max(1, parseInt(req.query.pageSize) || 25), 100);
+    const offset = (page - 1) * pageSize;
+
+    const conditions = [];
+    const params = [];
+    let paramIdx = 0;
+
+    if (req.query.status) {
+      paramIdx++;
+      conditions.push(`status = $${paramIdx}`);
+      params.push(req.query.status);
+    }
+    if (req.query.type) {
+      paramIdx++;
+      conditions.push(`run_type = $${paramIdx}`);
+      params.push(req.query.type);
+    }
+
+    const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
+
+    const countSql = `SELECT COUNT(*)::int AS total FROM skulytics_sync_runs ${whereClause}`;
+    const dataSql = `
+      SELECT id, run_type, status, triggered_by, processed, created, updated, failed,
+             error_message,
+             CASE
+               WHEN completed_at IS NOT NULL AND started_at IS NOT NULL
+                 THEN EXTRACT(EPOCH FROM (completed_at - started_at))::int
+               ELSE NULL
+             END AS duration_seconds,
+             started_at, completed_at
+      FROM skulytics_sync_runs
+      ${whereClause}
+      ORDER BY started_at DESC
+      LIMIT $${paramIdx + 1} OFFSET $${paramIdx + 2}
+    `;
+
+    const [countResult, dataResult] = await Promise.all([
+      pool.query(countSql, params),
+      pool.query(dataSql, [...params, pageSize, offset]),
+    ]);
+
+    const total = countResult.rows[0]?.total || 0;
+    res.paginated(dataResult.rows, { page, limit: pageSize, total });
+  })
+);
+
 // ── GET /catalogue ─────────────────────────────────────────
 // Paginated catalogue browse with filtering
 
@@ -357,6 +548,36 @@ router.post(
     }
 
     logAudit(req.user.id, 'skulytics.match_rejected', 'skulytics_import_match', matchId, {}, req);
+    res.success(result);
+  })
+);
+
+// ── POST /match/auto ─────────────────────────────────────
+// Run auto-matching engine
+
+router.post(
+  '/match/auto',
+  authenticate,
+  requireRole('admin'),
+  asyncHandler(async (req, res) => {
+    // Look up the tenant — single-tenant app
+    const { rows: tenantRows } = await pool.query('SELECT id FROM tenants LIMIT 1');
+    if (!tenantRows.length) {
+      throw ApiError.internal('No tenant configured in the system');
+    }
+    const tenantId = tenantRows[0].id;
+
+    const result = await SkulyticsImportService.autoMatch(tenantId);
+
+    logAudit(
+      req.user.id,
+      'skulytics.auto_match_triggered',
+      'skulytics_import_matches',
+      null,
+      { upcMatches: result.upcMatches, skuMatches: result.skuMatches, compositeMatches: result.compositeMatches, totalNew: result.totalNew },
+      req
+    );
+
     res.success(result);
   })
 );

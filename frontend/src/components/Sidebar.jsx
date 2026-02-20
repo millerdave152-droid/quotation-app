@@ -35,7 +35,8 @@ import {
   Truck,
   Shield,
   Trophy,
-  Database
+  Database,
+  Activity
 } from 'lucide-react';
 
 const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:3001';
@@ -71,6 +72,7 @@ const navItems = {
   'admin-fraud': { path: '/admin/fraud', icon: Shield, label: 'Fraud & Audit', isAdmin: true },
   'admin-discount-analytics': { path: '/admin/discount-analytics', icon: Tag, label: 'Discount Analytics', isAdmin: true },
   'admin-skulytics': { path: '/admin/skulytics/import', icon: Database, label: 'Skulytics Import', isAdmin: true },
+  'admin-skulytics-health': { path: '/admin/skulytics/health', icon: Activity, label: 'Sync Health', isAdmin: true },
 };
 
 // Section configuration
@@ -105,7 +107,7 @@ const adminSection = {
   id: 'admin',
   title: 'Admin',
   icon: UserCog,
-  items: ['admin-deliveries', 'admin-users', 'admin-nomenclature', 'admin-fraud', 'admin-discount-analytics', 'admin-skulytics']
+  items: ['admin-deliveries', 'admin-users', 'admin-nomenclature', 'admin-fraud', 'admin-discount-analytics', 'admin-skulytics', 'admin-skulytics-health']
 };
 
 /**

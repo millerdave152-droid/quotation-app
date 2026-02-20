@@ -5,7 +5,7 @@ import { SkeletonStats, SkeletonTable } from '../ui';
 import { useDebounce } from '../../utils/useDebounce';
 import {
   Database, Download, RefreshCw, Search, Filter, ChevronRight,
-  X, Check, AlertTriangle, Package, Eye, ChevronLeft
+  X, Check, AlertTriangle, Package, Eye, ChevronLeft, Zap, Loader
 } from 'lucide-react';
 
 const API = '/api/admin/skulytics';
@@ -105,12 +105,24 @@ const SkulyticsImport = () => {
   const [totalPages, setTotalPages] = useState(1);
   const [totalCount, setTotalCount] = useState(0);
 
+  // Sync trigger state
+  const [syncing, setSyncing] = useState(false);
+  const [syncStatus, setSyncStatus] = useState(null);
+  const syncPollRef = useRef(null);
+
+  // Auto-match state
+  const [autoMatching, setAutoMatching] = useState(false);
+  const [autoMatchResult, setAutoMatchResult] = useState(null);
+
   const debouncedSearch = useDebounce(filters.search, 300);
   const isMounted = useRef(true);
 
   useEffect(() => {
     isMounted.current = true;
-    return () => { isMounted.current = false; };
+    return () => {
+      isMounted.current = false;
+      if (syncPollRef.current) clearInterval(syncPollRef.current);
+    };
   }, []);
 
   // ── Fetch catalogue ─────────────────────────────────────
@@ -158,6 +170,86 @@ const SkulyticsImport = () => {
       if (isMounted.current) setStatsLoading(false);
     }
   }, []);
+
+  // ── Sync trigger ───────────────────────────────────────
+
+  const pollSyncStatus = useCallback(async () => {
+    try {
+      const res = await authFetch(`${API}/sync/status`);
+      const json = await res.json();
+      if (!isMounted.current) return;
+      if (json.success && json.data) {
+        setSyncStatus(json.data);
+        if (json.data.status !== 'running') {
+          // Sync finished — stop polling
+          if (syncPollRef.current) { clearInterval(syncPollRef.current); syncPollRef.current = null; }
+          setSyncing(false);
+          fetchCatalogue();
+          fetchStats();
+          if (json.data.status === 'completed') {
+            toast.success(`Sync completed: ${json.data.processed || 0} processed, ${json.data.created || 0} created, ${json.data.updated || 0} updated`);
+          } else {
+            toast.error(`Sync ended with status: ${json.data.status}`);
+          }
+        }
+      }
+    } catch { /* silent */ }
+  }, [fetchCatalogue, fetchStats, toast]);
+
+  const triggerSync = async (type = 'incremental') => {
+    setSyncing(true);
+    setSyncStatus(null);
+    try {
+      const res = await authFetch(`${API}/sync/trigger`, {
+        method: 'POST',
+        body: JSON.stringify({ type }),
+      });
+      const json = await res.json();
+      if (res.status === 409) {
+        toast.error('A sync is already running');
+        setSyncing(false);
+        return;
+      }
+      if (res.status === 429) {
+        toast.error('Rate limit exceeded. Wait a few minutes.');
+        setSyncing(false);
+        return;
+      }
+      if (json.success) {
+        toast.info(`${type === 'full' ? 'Full' : 'Incremental'} sync started...`);
+        // Start polling every 3 seconds
+        syncPollRef.current = setInterval(pollSyncStatus, 3000);
+      } else {
+        toast.error(json.error?.message || 'Failed to trigger sync');
+        setSyncing(false);
+      }
+    } catch {
+      toast.error('Failed to trigger sync');
+      setSyncing(false);
+    }
+  };
+
+  // ── Auto-match ────────────────────────────────────────
+
+  const handleAutoMatch = async () => {
+    setAutoMatching(true);
+    try {
+      const res = await authFetch(`${API}/match/auto`, { method: 'POST' });
+      const json = await res.json();
+      if (!isMounted.current) return;
+      if (json.success) {
+        setAutoMatchResult(json.data);
+        fetchCatalogue();
+        fetchStats();
+      } else {
+        toast.error(json.error?.message || 'Auto-match failed');
+      }
+    } catch {
+      if (isMounted.current) toast.error('Auto-match request failed');
+    } finally {
+      if (isMounted.current) setAutoMatching(false);
+    }
+  };
 
   useEffect(() => { fetchStats(); }, [fetchStats]);
   useEffect(() => { fetchCatalogue(); }, [fetchCatalogue]);
@@ -289,15 +381,38 @@ const SkulyticsImport = () => {
                 Last sync: {formatDate(stats.last_sync_at)}
               </span>
             )}
+            {syncing && syncStatus && (
+              <span style={{ fontSize: '12px', color: '#667eea', fontWeight: 500 }}>
+                Syncing... ({syncStatus.processed || 0} processed)
+              </span>
+            )}
             <button
-              onClick={() => toast.info('Run full sync from the CLI: node scripts/manual-sync.js --full')}
+              onClick={handleAutoMatch}
+              disabled={autoMatching}
+              style={{
+                display: 'flex', alignItems: 'center', gap: '8px', padding: '10px 20px',
+                background: '#f59e0b', color: 'white', border: 'none', borderRadius: '8px',
+                fontSize: '14px', fontWeight: 600, cursor: autoMatching ? 'not-allowed' : 'pointer',
+                opacity: autoMatching ? 0.7 : 1,
+              }}
+            >
+              {autoMatching ? <Loader size={16} style={{ animation: 'spin 1s linear infinite' }} /> : <Zap size={16} />}
+              {autoMatching ? 'Matching...' : 'Auto-Match'}
+            </button>
+            <button
+              onClick={() => triggerSync('incremental')}
+              disabled={syncing}
               style={{
                 display: 'flex', alignItems: 'center', gap: '8px', padding: '10px 20px',
                 background: '#667eea', color: 'white', border: 'none', borderRadius: '8px',
-                fontSize: '14px', fontWeight: 600, cursor: 'pointer',
+                fontSize: '14px', fontWeight: 600, cursor: syncing ? 'not-allowed' : 'pointer',
+                opacity: syncing ? 0.7 : 1,
               }}
             >
-              <RefreshCw size={16} /> Sync Now
+              {syncing
+                ? <Loader size={16} style={{ animation: 'spin 1s linear infinite' }} />
+                : <RefreshCw size={16} />}
+              {syncing ? 'Syncing...' : 'Sync Now'}
             </button>
           </div>
         </div>
@@ -634,6 +749,55 @@ const SkulyticsImport = () => {
             </div>
           </>
         )}
+        {/* Auto-Match Results Modal */}
+        {autoMatchResult && (
+          <>
+            <div
+              onClick={() => setAutoMatchResult(null)}
+              style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', zIndex: 300 }}
+            />
+            <div style={{
+              position: 'fixed', top: '50%', left: '50%', transform: 'translate(-50%, -50%)',
+              background: 'white', borderRadius: '16px', padding: '32px', width: '460px',
+              maxWidth: '90vw', boxShadow: '0 20px 60px rgba(0,0,0,0.2)', zIndex: 301,
+            }}>
+              <h3 style={{ margin: '0 0 8px 0', fontSize: '20px', fontWeight: 700, color: '#111827' }}>
+                Auto-Match Complete
+              </h3>
+              <p style={{ margin: '0 0 20px', fontSize: '13px', color: '#6b7280' }}>
+                Found {autoMatchResult.totalNew} new match{autoMatchResult.totalNew !== 1 ? 'es' : ''} for human review
+              </p>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '12px', marginBottom: '20px' }}>
+                <div style={{ textAlign: 'center', padding: '16px', background: '#dbeafe', borderRadius: '10px' }}>
+                  <div style={{ fontSize: '28px', fontWeight: 700, color: '#1e40af' }}>{autoMatchResult.upcMatches}</div>
+                  <div style={{ fontSize: '11px', color: '#1e40af', marginTop: '4px', fontWeight: 600 }}>UPC (95%)</div>
+                </div>
+                <div style={{ textAlign: 'center', padding: '16px', background: '#fef3c7', borderRadius: '10px' }}>
+                  <div style={{ fontSize: '28px', fontWeight: 700, color: '#92400e' }}>{autoMatchResult.skuMatches}</div>
+                  <div style={{ fontSize: '11px', color: '#92400e', marginTop: '4px', fontWeight: 600 }}>SKU (85%)</div>
+                </div>
+                <div style={{ textAlign: 'center', padding: '16px', background: '#fce7f3', borderRadius: '10px' }}>
+                  <div style={{ fontSize: '28px', fontWeight: 700, color: '#9d174d' }}>{autoMatchResult.compositeMatches}</div>
+                  <div style={{ fontSize: '11px', color: '#9d174d', marginTop: '4px', fontWeight: 600 }}>Brand+Model (75%)</div>
+                </div>
+              </div>
+              <p style={{ fontSize: '12px', color: '#9ca3af', marginBottom: '16px' }}>
+                All matches are set to "Pending Review". Use the status filter to review them.
+              </p>
+              <button
+                onClick={() => setAutoMatchResult(null)}
+                style={{
+                  width: '100%', padding: '12px', background: '#667eea', color: 'white',
+                  border: 'none', borderRadius: '8px', fontSize: '14px', fontWeight: 600,
+                  cursor: 'pointer',
+                }}
+              >
+                Done
+              </button>
+            </div>
+          </>
+        )}
+
       </div>
     </div>
   );
