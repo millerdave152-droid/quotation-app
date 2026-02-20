@@ -86,8 +86,8 @@ export function CardPayment({
           },
           body: JSON.stringify({
             amountCents,
-            customerId,
-            transactionId,
+            ...(customerId != null && { customerId }),
+            ...(transactionId != null && { transactionId }),
             description: `POS ${paymentType} payment`,
           }),
         });

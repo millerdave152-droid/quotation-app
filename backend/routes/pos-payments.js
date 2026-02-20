@@ -20,8 +20,8 @@ let posPaymentService = null;
 
 const createPaymentIntentSchema = Joi.object({
   amountCents: Joi.number().integer().positive().required(),
-  transactionId: Joi.number().integer().optional(),
-  customerId: Joi.number().integer().optional(),
+  transactionId: Joi.number().integer().allow(null).optional(),
+  customerId: Joi.number().integer().allow(null).optional(),
   description: Joi.string().max(255).optional()
 });
 
