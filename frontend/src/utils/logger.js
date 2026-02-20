@@ -2,15 +2,18 @@
  * Logger Utility
  *
  * Production-safe logging that automatically suppresses debug logs in production builds
- * while preserving errors for debugging
+ * while preserving errors for debugging. Errors are sent to the client error tracking
+ * service in all environments.
  *
  * Usage:
  *   import logger from './utils/logger';
  *   logger.log('Debug message');    // Only in development
- *   logger.error('Error occurred');  // Always shown
+ *   logger.error('Error occurred');  // Always shown + sent to error tracker
  *   logger.warn('Warning');          // Only in development
  *   logger.info('Info message');     // Only in development
  */
+
+import errorTracker from '../services/errorTracker';
 
 const isDevelopment = process.env.NODE_ENV !== 'production';
 
@@ -31,10 +34,16 @@ const logger = {
     // Always log errors, even in production
     console.error(...args);
 
-    // TODO: In production, send to error tracking service (Sentry, LogRocket, etc.)
-    // if (!isDevelopment) {
-    //   sendToErrorTracking(args);
-    // }
+    // Send to client error tracking service
+    const first = args[0];
+    const error = first instanceof Error
+      ? first
+      : { message: String(first), stack: null, name: 'LoggedError' };
+    errorTracker.captureError(error, {
+      errorType: 'manual',
+      severity: 'error',
+      context: { source: 'logger.error', argCount: args.length },
+    });
   },
 
   /**

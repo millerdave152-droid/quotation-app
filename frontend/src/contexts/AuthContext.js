@@ -1,6 +1,7 @@
 import React, { createContext, useState, useContext, useEffect, useMemo, useCallback } from 'react';
 
 import { authFetch } from '../services/authFetch';
+import errorTracker from '../services/errorTracker';
 const AuthContext = createContext(null);
 
 export const useAuth = () => {
@@ -99,6 +100,7 @@ export const AuthProvider = ({ children }) => {
 
       setToken(accessToken);
       setUser(userData);
+      errorTracker.setMeta({ userId: userData.id });
       if (typeof window !== 'undefined') {
         window.__authExpired = false;
       }
@@ -119,6 +121,7 @@ export const AuthProvider = ({ children }) => {
   const logout = () => {
     setUser(null);
     setToken(null);
+    errorTracker.setMeta({ userId: null });
     localStorage.removeItem('auth_token');
     localStorage.removeItem('auth_user');
     localStorage.removeItem('auth_refresh_token');

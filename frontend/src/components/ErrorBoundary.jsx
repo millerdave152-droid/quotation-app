@@ -1,4 +1,5 @@
 import React from 'react';
+import errorTracker from '../services/errorTracker';
 
 /**
  * ErrorBoundary Component
@@ -26,10 +27,13 @@ class ErrorBoundary extends React.Component {
 
     this.setState({ errorInfo });
 
-    // TODO: Send to error tracking service (Sentry, LogRocket, etc.)
-    // if (window.Sentry) {
-    //   window.Sentry.captureException(error, { extra: errorInfo });
-    // }
+    // Send to client error tracking service
+    errorTracker.captureError(error, {
+      errorType: 'render',
+      severity: 'fatal',
+      componentStack: errorInfo?.componentStack || null,
+    });
+    errorTracker.flush();
   }
 
   handleReload = () => {

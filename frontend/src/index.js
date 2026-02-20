@@ -5,6 +5,11 @@ import './components/ui/ResponsiveStyles.css';
 import App from './App';
 import { AuthProvider } from './contexts/AuthContext';
 import * as serviceWorkerRegistration from './serviceWorkerRegistration';
+import errorTracker from './services/errorTracker';
+
+// Install client error tracking before React renders
+errorTracker.install();
+window.addEventListener('beforeunload', () => errorTracker.flush());
 
 const root = ReactDOM.createRoot(document.getElementById('root'));
 root.render(
