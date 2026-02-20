@@ -5,6 +5,7 @@
 
 import { Component } from 'react';
 import { ExclamationTriangleIcon, ArrowPathIcon } from '@heroicons/react/24/outline';
+import errorTracker from '../services/ErrorTracker';
 
 /**
  * Error boundary to catch rendering errors
@@ -25,11 +26,13 @@ export class ErrorBoundary extends Component {
     // Log error to console in development
     console.error('[ErrorBoundary] Caught error:', error, errorInfo);
 
-    // In production, you could send this to an error tracking service
-    if (import.meta.env.PROD) {
-      // TODO: Send to error tracking service
-      // sendToErrorTracking({ error, errorInfo, url: window.location.href });
-    }
+    // Send to error tracking service
+    errorTracker.captureError(error, {
+      errorType: 'render',
+      severity: 'fatal',
+      componentStack: errorInfo?.componentStack || null,
+    });
+    errorTracker.flush(); // Flush immediately for fatal render errors
   }
 
   handleReload = () => {

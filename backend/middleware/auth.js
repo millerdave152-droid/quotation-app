@@ -335,6 +335,11 @@ const requirePermission = (...requiredPermissions) => {
       throw ApiError.unauthorized('Authentication required');
     }
 
+    // Admin role always has all permissions
+    if (req.user.role === 'admin' || req.user.roleName === 'admin') {
+      return next();
+    }
+
     const userPerms = resolvePermissions(req.user);
     const hasAny = requiredPermissions.some(p => userPerms.includes(p));
 

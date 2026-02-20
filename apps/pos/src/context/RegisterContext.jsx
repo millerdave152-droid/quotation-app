@@ -6,6 +6,7 @@
 import { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { useAuth } from './AuthContext';
 import * as registerApi from '../api/register';
+import errorTracker from '../services/ErrorTracker';
 
 const RegisterContext = createContext(null);
 
@@ -217,6 +218,7 @@ export function RegisterProvider({ children }) {
         // Update state
         setCurrentShift(newShift);
         saveToStorage(STORAGE_KEYS.CURRENT_SHIFT, newShift);
+        errorTracker.setMeta({ shiftId: newShift.shiftId || newShift.shift_id });
 
         // Refresh registers to update status
         await refreshRegisters();
@@ -263,6 +265,7 @@ export function RegisterProvider({ children }) {
         setCurrentShift(null);
         setShiftSummary(null);
         setSelectedRegister(null);
+        errorTracker.setMeta({ shiftId: null });
 
         // Clear localStorage
         saveToStorage(STORAGE_KEYS.CURRENT_SHIFT, null);

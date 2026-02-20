@@ -70,6 +70,7 @@ const navItems = {
   'admin-users': { path: '/admin/users', icon: UserCog, label: 'User Management', isAdmin: true },
   'admin-nomenclature': { path: '/admin/nomenclature', icon: Wrench, label: 'Nomenclature Admin', isAdmin: true },
   'admin-fraud': { path: '/admin/fraud', icon: Shield, label: 'Fraud & Audit', isAdmin: true },
+  'admin-client-errors': { path: '/admin/client-errors', icon: Activity, label: 'Client Errors', isAdmin: true },
   'admin-discount-analytics': { path: '/admin/discount-analytics', icon: Tag, label: 'Discount Analytics', isAdmin: true },
   'admin-skulytics': { path: '/admin/skulytics/import', icon: Database, label: 'Skulytics Import', isAdmin: true },
   'admin-skulytics-health': { path: '/admin/skulytics/health', icon: Activity, label: 'Sync Health', isAdmin: true },
@@ -107,7 +108,7 @@ const adminSection = {
   id: 'admin',
   title: 'Admin',
   icon: UserCog,
-  items: ['admin-deliveries', 'admin-users', 'admin-nomenclature', 'admin-fraud', 'admin-discount-analytics', 'admin-skulytics', 'admin-skulytics-health']
+  items: ['admin-deliveries', 'admin-users', 'admin-nomenclature', 'admin-fraud', 'admin-client-errors', 'admin-discount-analytics', 'admin-skulytics', 'admin-skulytics-health']
 };
 
 /**

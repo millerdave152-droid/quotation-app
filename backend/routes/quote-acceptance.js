@@ -43,8 +43,21 @@ module.exports = ({ pool }) => {
     const ipAddress = req.headers['x-forwarded-for'] || req.socket.remoteAddress;
     const userAgent = req.headers['user-agent'] || '';
 
-    const result = await acceptanceService.acceptQuote(token, ipAddress, userAgent);
-    res.json({ success: true, message: 'Quote accepted successfully', data: result });
+    try {
+      const result = await acceptanceService.acceptQuote(token, ipAddress, userAgent);
+      res.json({ success: true, message: 'Quote accepted successfully', data: result });
+    } catch (err) {
+      if (err.message === 'Invalid token') {
+        throw ApiError.notFound('Invalid or expired acceptance link');
+      }
+      if (err.message === 'Token has expired') {
+        throw ApiError.badRequest('This acceptance link has expired');
+      }
+      if (err.message === 'Quote has already been accepted') {
+        throw ApiError.badRequest('This quote has already been accepted');
+      }
+      throw err;
+    }
   }));
 
   return router;

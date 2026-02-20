@@ -825,6 +825,15 @@ app.use('/api/chargebacks', initChargebackRoutes({ fraudService }));
 console.log('✅ Chargeback routes loaded');
 
 // ============================================
+// CLIENT ERROR TRACKING
+// ============================================
+const ClientErrorTrackingService = require('./services/ClientErrorTrackingService');
+const clientErrorTrackingService = new ClientErrorTrackingService(pool);
+const { init: initClientErrorRoutes } = require('./routes/client-errors');
+app.use('/api/errors', initClientErrorRoutes({ errorTrackingService: clientErrorTrackingService }));
+console.log('✅ Client error tracking routes loaded');
+
+// ============================================
 // POS EMAIL (Receipt emails via AWS SES)
 // ============================================
 const emailRoutes = require('./routes/email');

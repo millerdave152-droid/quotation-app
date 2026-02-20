@@ -18,6 +18,9 @@ import { BatchEmailProvider } from './contexts/BatchEmailContext';
 import App from './App';
 import ErrorBoundary from './components/ErrorBoundary';
 
+// Error tracking
+import errorTracker from './services/ErrorTracker';
+
 // Styles
 import './index.css';
 
@@ -30,6 +33,14 @@ if (import.meta.env.DEV) {
   console.log('[TeleTime POS] API URL:', import.meta.env.VITE_API_URL || '/api');
   console.log('[TeleTime POS] Environment:', import.meta.env.MODE);
 }
+
+// ============================================================================
+// CLIENT ERROR TRACKING — install global listeners before React renders
+// ============================================================================
+errorTracker.install();
+
+// Flush any queued errors when the page is about to unload
+window.addEventListener('beforeunload', () => errorTracker.flush());
 
 // ============================================================================
 // SERVICE WORKER REGISTRATION (for future PWA support)

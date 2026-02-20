@@ -75,6 +75,9 @@ const FraudDashboard = React.lazy(() => import('./components/admin/FraudDashboar
 // Discount Analytics Dashboard
 const DiscountAnalyticsDashboard = React.lazy(() => import('./components/admin/DiscountAnalyticsDashboard'));
 
+// Client Error Tracking Dashboard
+const ClientErrorDashboard = React.lazy(() => import('./components/admin/ClientErrorDashboard'));
+
 // Sales Leaderboard
 const SalesLeaderboard = React.lazy(() => import('./components/commissions/SalesLeaderboard'));
 
@@ -590,6 +593,11 @@ function App() {
           <Route path="/admin/fraud" element={
             <ProtectedRoute requiredRoles={['admin', 'manager']}>
               <FraudDashboard />
+            </ProtectedRoute>
+          } />
+          <Route path="/admin/client-errors" element={
+            <ProtectedRoute requiredRoles={['admin']}>
+              <ClientErrorDashboard />
             </ProtectedRoute>
           } />
           <Route path="/admin/discount-analytics" element={

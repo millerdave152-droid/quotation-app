@@ -1,6 +1,7 @@
 import { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { del } from 'idb-keyval';
 import api, { setAuthToken, clearAuth } from '../api/axios';
+import errorTracker from '../services/ErrorTracker';
 
 const AuthContext = createContext(null);
 
@@ -140,6 +141,7 @@ export function AuthProvider({ children }) {
 
         setUser(userData);
         setPermissions(perms);
+        errorTracker.setMeta({ userId: userData.id });
         return { success: true };
       } else {
         throw new Error(response?.message || 'Login failed');
@@ -165,6 +167,7 @@ export function AuthProvider({ children }) {
       // Clear cached PIN hashes and offline approval queue
       del('manager-pin-cache').catch(() => {});
       del('offline-approval-queue').catch(() => {});
+      errorTracker.setMeta({ userId: null, shiftId: null });
       setUser(null);
       setPermissions([]);
     }

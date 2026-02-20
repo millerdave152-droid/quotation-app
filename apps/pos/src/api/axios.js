@@ -4,6 +4,7 @@
  */
 
 import axios from 'axios';
+import errorTracker from '../services/ErrorTracker';
 
 // Storage keys
 const TOKEN_KEY = 'pos_token';
@@ -213,6 +214,11 @@ api.interceptors.response.use(
       // 500+ Server Error
       if (status >= 500) {
         console.error('[Axios] Server error response:', JSON.stringify(data));
+        errorTracker.captureNetworkError(error, {
+          url: originalRequest?.url,
+          method: originalRequest?.method,
+          status,
+        });
         return Promise.reject({
           status,
           message: data?.error?.message || data?.message || 'Server error. Please try again later.',
@@ -234,6 +240,11 @@ api.interceptors.response.use(
     if (request) {
       // Network error or timeout
       if (error.code === 'ECONNABORTED' || message.includes('timeout')) {
+        errorTracker.captureNetworkError(error, {
+          url: originalRequest?.url,
+          method: originalRequest?.method,
+          status: 0,
+        });
         return Promise.reject({
           status: 0,
           message: 'Request timed out. Please check your connection and try again.',
@@ -241,6 +252,11 @@ api.interceptors.response.use(
         });
       }
 
+      errorTracker.captureNetworkError(error, {
+        url: originalRequest?.url,
+        method: originalRequest?.method,
+        status: 0,
+      });
       return Promise.reject({
         status: 0,
         message: 'Network error. Please check your internet connection.',

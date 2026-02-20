@@ -648,15 +648,28 @@ module.exports = function (approvalService) {
       throw ApiError.badRequest('items array is required');
     }
 
+    // Validate each item before passing to service
+    const mappedItems = items.map((i, idx) => {
+      const productId = parseInt(i.productId, 10);
+      const requestedPrice = parseFloat(i.requestedPrice);
+      if (isNaN(productId)) {
+        throw ApiError.badRequest(`items[${idx}].productId is required and must be a number`);
+      }
+      if (isNaN(requestedPrice)) {
+        throw ApiError.badRequest(`items[${idx}].requestedPrice is required and must be a number`);
+      }
+      return {
+        cartItemId: i.cartItemId || null,
+        productId,
+        requestedPrice,
+      };
+    });
+
     const result = await approvalService.createBatchRequest({
       salespersonId: req.user.id,
       cartId: cartId || null,
       managerId: managerId ? parseInt(managerId, 10) : null,
-      items: items.map(i => ({
-        cartItemId: i.cartItemId || null,
-        productId: parseInt(i.productId, 10),
-        requestedPrice: parseFloat(i.requestedPrice),
-      })),
+      items: mappedItems,
     });
 
     const statusCode = result.allAutoApproved ? 200 : 201;
