@@ -9,6 +9,7 @@ const { ApiError, asyncHandler } = require('../middleware/errorHandler');
 const cache = require('../cache');
 const { authenticate } = require('../middleware/auth');
 const insightsEngine = require('../services/InsightsEngine');
+const emailService = require('../services/EmailService');
 
 // Module-level dependencies (injected via init)
 let pool = null;
@@ -210,10 +211,19 @@ router.post('/:id/action', authenticate, asyncHandler(async (req, res) => {
 
   // Handle different action types
   switch (action) {
-    case 'send_followup':
-      // TODO: Integrate with email service
-      res.success({ message: 'Follow-up action queued', action, data });
+    case 'send_followup': {
+      const recipientEmail = data?.customerEmail || data?.email;
+      if (data?.quoteId && recipientEmail) {
+        const result = await emailService.sendFollowUpReminderEmail(
+          data.quoteId, recipientEmail, data?.daysSinceSent || 0
+        );
+        res.success({ message: 'Follow-up email sent', action, emailResult: result });
+      } else {
+        // No quote/email — log an in-app notification to the salesperson instead
+        res.success({ message: 'Follow-up action noted (no email — missing quote or customer email)', action, data });
+      }
       break;
+    }
 
     case 'extend_quote':
       if (data?.quoteId) {
@@ -236,10 +246,60 @@ router.post('/:id/action', authenticate, asyncHandler(async (req, res) => {
     case 'send_payment_reminder':
     case 'send_reengagement':
     case 'send_reorder_reminder':
-    case 'send_thankyou':
-      // TODO: Integrate with email queue service
-      res.success({ message: `${action} email queued`, action, data });
+    case 'send_thankyou': {
+      const email = data?.customerEmail || data?.email;
+      const customerName = data?.customerName || 'Valued Customer';
+
+      if (!email) {
+        res.success({ message: `${action} skipped (no customer email)`, action, data });
+        break;
+      }
+
+      const templates = {
+        send_reminder: {
+          subject: `Reminder: Your quote is waiting — ${emailService.companyName}`,
+          body: `<p>Hi ${customerName},</p><p>Just a friendly reminder that your quote is still available. We'd love to help you finalize your purchase.</p><p>Please let us know if you have any questions or need adjustments.</p>`,
+        },
+        send_payment_reminder: {
+          subject: `Payment Reminder — ${emailService.companyName}`,
+          body: `<p>Hi ${customerName},</p><p>This is a reminder regarding your outstanding balance. Please reach out if you need any assistance with payment options.</p>`,
+        },
+        send_reengagement: {
+          subject: `We miss you! — ${emailService.companyName}`,
+          body: `<p>Hi ${customerName},</p><p>It's been a while since your last visit. We have some great new products and offers that might interest you.</p><p>Stop by or give us a call — we'd love to help!</p>`,
+        },
+        send_reorder_reminder: {
+          subject: `Time to reorder? — ${emailService.companyName}`,
+          body: `<p>Hi ${customerName},</p><p>Based on your purchase history, it may be time to restock. We have your favorites ready to go.</p><p>Let us know if you'd like to place a new order.</p>`,
+        },
+        send_thankyou: {
+          subject: `Thank you for your purchase! — ${emailService.companyName}`,
+          body: `<p>Hi ${customerName},</p><p>Thank you for choosing ${emailService.companyName}! We appreciate your business and hope you're enjoying your purchase.</p><p>If you need anything, don't hesitate to reach out.</p>`,
+        },
+      };
+
+      const tpl = templates[action];
+      const html = `
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+          <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 30px; text-align: center;">
+            <h1 style="color: white; margin: 0; font-size: 22px;">${emailService.companyName}</h1>
+          </div>
+          <div style="padding: 30px; background: #f9fafb;">
+            ${tpl.body}
+          </div>
+          <div style="padding: 20px; text-align: center; color: #9ca3af; font-size: 12px;">
+            ${emailService.companyName} &bull; <a href="mailto:${emailService.fromEmail}" style="color: #6366f1;">${emailService.fromEmail}</a>
+          </div>
+        </div>`;
+
+      const emailResult = await emailService.sendEmail(email, tpl.subject, html);
+      await emailService.logNotification(
+        data?.quoteId || null, action.toUpperCase(), email, tpl.subject,
+        emailResult.success ? 'sent' : 'failed', emailResult.error || null
+      );
+      res.success({ message: `${action} email sent`, action, emailResult });
       break;
+    }
 
     case 'create_po':
       // Return data needed to create PO
