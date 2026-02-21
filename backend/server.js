@@ -646,6 +646,13 @@ app.use('/api/driver', initDriverAppRoutes({ pool }));
 console.log('✅ Driver app routes loaded');
 
 // ============================================
+// CE COMPETITOR PRICING (PricesAPI.io)
+// ============================================
+const cePricingRoutes = require('./routes/ce-pricing');
+app.use('/api/pricing/ce', cePricingRoutes.init({ pool }));
+console.log('✅ CE competitor pricing routes loaded (PricesAPI)');
+
+// ============================================
 // PRICING ENGINE (Promotional Price Calculation)
 // ============================================
 const { init: initPricingEngineRoutes } = require('./routes/pricing-engine');
@@ -2990,6 +2997,13 @@ const adminSkulyticsRoutes = require('./routes/admin/skulytics');
 app.use('/api/admin/skulytics', adminSkulyticsRoutes);
 console.log('✅ Admin Skulytics routes loaded (SKU refresh, health)');
 
+// ============================================
+// ADMIN CE IMPORT ROUTES (Icecat Bulk Import)
+// ============================================
+const ceImportRoutes = require('./routes/admin/ce-import');
+app.use('/api/admin/products', ceImportRoutes.init({ pool }));
+console.log('✅ Admin CE import routes loaded (Icecat bulk import)');
+
 // Skulytics job scheduler (started in app.listen callback below)
 const scheduler = require('./jobs/scheduler');
 
@@ -3023,6 +3037,15 @@ const server = app.listen(PORT, () => {
   console.log(`Server running on: http://localhost:${PORT}`);
   console.log(`Environment: ${process.env.NODE_ENV || 'development'}`);
   console.log('========================================');
+
+  // CE integration key checks (non-fatal)
+  if (!process.env.ICECAT_USERNAME) {
+    console.warn('⚠️  WARNING: ICECAT_USERNAME not set — CE product import will fail');
+  }
+  if (!process.env.PRICES_API_KEY) {
+    console.warn('⚠️  WARNING: PRICES_API_KEY not set — CE live pricing will fail');
+  }
+
   console.log('');
 
   // Initialize WebSocket service (shares the same port via HTTP upgrade)

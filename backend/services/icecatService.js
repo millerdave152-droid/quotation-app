@@ -1,0 +1,131 @@
+'use strict';
+
+/**
+ * icecatService.js
+ *
+ * Fetches product data from the Icecat Open (free-tier) REST API.
+ * Free tier requires only a username — no API key needed.
+ *
+ * Rate-limiting: the caller is responsible for pacing requests;
+ * this module provides a `delay()` helper for convenience.
+ */
+
+const https = require('https');
+
+const ICECAT_BASE = 'https://live.icecat.biz/api';
+const DEFAULT_LANG = 'EN';
+const RATE_LIMIT_DELAY_MS = 300;
+
+/**
+ * Sleep for a given number of milliseconds.
+ * @param {number} ms
+ * @returns {Promise<void>}
+ */
+function delay(ms = RATE_LIMIT_DELAY_MS) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+/**
+ * Perform an HTTPS GET and return the parsed JSON body.
+ * Rejects on network errors or non-2xx status codes.
+ *
+ * @param {string} url
+ * @returns {Promise<Object>}
+ */
+function httpsGet(url) {
+  return new Promise((resolve, reject) => {
+    const req = https.get(url, (res) => {
+      const chunks = [];
+      res.on('data', (chunk) => chunks.push(chunk));
+      res.on('end', () => {
+        const body = Buffer.concat(chunks).toString('utf8');
+
+        if (res.statusCode === 404) {
+          return resolve({ _notFound: true, statusCode: 404, body });
+        }
+        // Icecat v2 API returns 400 for "GTIN not found" — treat as not-found
+        if (res.statusCode === 400) {
+          try {
+            const parsed = JSON.parse(body);
+            // StatusCode 16 = "GTIN not found" in Icecat's error taxonomy
+            if (parsed.StatusCode === 16 || (parsed.Message && parsed.Message.toLowerCase().includes('not be found'))) {
+              return resolve({ _notFound: true, statusCode: 400, body });
+            }
+          } catch (_) { /* not JSON, fall through */ }
+          const err = new Error(`Icecat API returned 400: ${body.substring(0, 200)}`);
+          err.statusCode = 400;
+          err.body = body;
+          return reject(err);
+        }
+        if (res.statusCode < 200 || res.statusCode >= 300) {
+          const err = new Error(`Icecat API returned ${res.statusCode}`);
+          err.statusCode = res.statusCode;
+          err.body = body;
+          return reject(err);
+        }
+
+        try {
+          resolve(JSON.parse(body));
+        } catch (parseErr) {
+          parseErr.body = body;
+          reject(parseErr);
+        }
+      });
+    });
+
+    req.on('error', reject);
+    req.setTimeout(15000, () => {
+      req.destroy(new Error('Icecat API request timed out (15 s)'));
+    });
+  });
+}
+
+/**
+ * Fetch a single product from Icecat by UPC / EAN code.
+ *
+ * @param {string} upc - UPC or EAN barcode
+ * @param {Object} [options]
+ * @param {string} [options.username] - Icecat username (defaults to env)
+ * @param {string} [options.lang]     - Language code (defaults to "en")
+ * @returns {Promise<{ found: boolean, data: Object|null }>}
+ */
+async function fetchByUPC(upc, options = {}) {
+  const username = options.username || process.env.ICECAT_USERNAME;
+  if (!username) {
+    throw new Error('ICECAT_USERNAME is not configured');
+  }
+
+  const lang = options.lang || DEFAULT_LANG;
+  const url = `${ICECAT_BASE}?shopname=${encodeURIComponent(username)}&lang=${lang}&GTIN=${encodeURIComponent(upc)}&content=`;
+
+  const result = await httpsGet(url);
+
+  // 404 page or HTML error
+  if (result._notFound) {
+    return { found: false, data: null };
+  }
+
+  // Icecat v2 API returns { StatusCode, Code, Error, Message } on error
+  if (result.Code === 400 || result.Code === 404 || result.StatusCode === 16) {
+    return { found: false, data: null };
+  }
+
+  // Legacy Icecat error codes
+  if (result.Code === 'ProductNotFound' || result.ErrorMessage) {
+    return { found: false, data: null };
+  }
+
+  // Success: v2 API wraps data in { msg: "OK", data: { ... } }
+  if (result.msg === 'OK' && result.data) {
+    return { found: true, data: result.data };
+  }
+
+  // Fallback: return raw result
+  return { found: true, data: result };
+}
+
+module.exports = {
+  fetchByUPC,
+  delay,
+  RATE_LIMIT_DELAY_MS,
+};

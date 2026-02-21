@@ -157,6 +157,23 @@ const MarketplaceManager = () => {
   const [reorderSuggestions, setReorderSuggestions] = useState([]);
   const [overstockAlerts, setOverstockAlerts] = useState([]);
 
+  // Reports tab state
+  const [selectedReportType, setSelectedReportType] = useState('DailySummary');
+  const [reportDate, setReportDate] = useState(new Date().toISOString().split('T')[0]);
+  const [reportYear, setReportYear] = useState(new Date().getFullYear());
+  const [reportMonth, setReportMonth] = useState(new Date().getMonth() + 1);
+  const [reportLoading, setReportLoading] = useState(false);
+  const [reportData, setReportData] = useState(null);
+
+  // Anomaly detection state
+  const [anomalies, setAnomalies] = useState(null);
+  const [anomaliesLoading, setAnomaliesLoading] = useState(false);
+
+  // AI query state
+  const [aiQuery, setAiQuery] = useState('');
+  const [aiQuerying, setAiQuerying] = useState(false);
+  const [aiQueryResult, setAiQueryResult] = useState(null);
+
   // Anti-flickering refs
   const isMounted = useRef(true);
   const loadedOnce = useRef(false);
@@ -1977,6 +1994,84 @@ const MarketplaceManager = () => {
         </div>
       </div>
     );
+  };
+
+  // === REPORTS ===
+  const fetchReport = async (type, params = {}) => {
+    setReportLoading(true);
+    setReportData(null);
+    try {
+      let url;
+      if (type === 'DailySummary') {
+        url = `${API_BASE_URL}/api/marketplace/reports/daily-summary?date=${params.date || ''}`;
+      } else if (type === 'WeeklyPnL') {
+        url = `${API_BASE_URL}/api/marketplace/reports/weekly-pnl`;
+      } else if (type === 'MonthlyTaxReport') {
+        url = `${API_BASE_URL}/api/marketplace/reports/monthly-tax?year=${params.year}&month=${params.month}`;
+      }
+      const response = await axios.get(url);
+      setReportData({ ...response.data, reportType: type });
+    } catch (err) {
+      setError('Failed to generate report: ' + (err.response?.data?.error || err.message));
+    } finally {
+      setReportLoading(false);
+    }
+  };
+
+  const handleExportReport = async (type, format) => {
+    try {
+      const params = new URLSearchParams({ reportType: type, format });
+      if (type === 'DailySummary') params.set('date', reportDate);
+      if (type === 'MonthlyTaxReport') { params.set('year', reportYear); params.set('month', reportMonth); }
+      const response = await axios.get(`${API_BASE_URL}/api/marketplace/reports/export?${params.toString()}`, {
+        responseType: format === 'csv' ? 'blob' : 'json'
+      });
+      if (format === 'csv') {
+        const blob = new Blob([response.data], { type: 'text/csv' });
+        const link = document.createElement('a');
+        link.href = URL.createObjectURL(blob);
+        link.download = `${type}_report.csv`;
+        link.click();
+        URL.revokeObjectURL(link.href);
+      } else {
+        const blob = new Blob([JSON.stringify(response.data, null, 2)], { type: 'application/json' });
+        const link = document.createElement('a');
+        link.href = URL.createObjectURL(blob);
+        link.download = `${type}_report.json`;
+        link.click();
+        URL.revokeObjectURL(link.href);
+      }
+    } catch (err) {
+      setError('Export failed: ' + (err.response?.data?.error || err.message));
+    }
+  };
+
+  // === ANOMALY DETECTION ===
+  const fetchAnomalies = async () => {
+    setAnomaliesLoading(true);
+    try {
+      const response = await axios.get(`${API_BASE_URL}/api/marketplace/ai/anomalies`);
+      setAnomalies(response.data);
+    } catch (err) {
+      setError('Anomaly scan failed: ' + (err.response?.data?.error || err.message));
+    } finally {
+      setAnomaliesLoading(false);
+    }
+  };
+
+  // === AI QUERY ===
+  const handleAIQuery = async () => {
+    if (!aiQuery.trim()) return;
+    setAiQuerying(true);
+    setAiQueryResult(null);
+    try {
+      const response = await axios.post(`${API_BASE_URL}/api/marketplace/ai/query`, { question: aiQuery });
+      setAiQueryResult(response.data);
+    } catch (err) {
+      setError('AI query failed: ' + (err.response?.data?.error || err.message));
+    } finally {
+      setAiQuerying(false);
+    }
   };
 
   return (

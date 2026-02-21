@@ -317,6 +317,9 @@ const QuoteBuilder = ({
         msrp: (product.msrp_cents || 0) / 100,
         sell: (product.msrp_cents || 0) / 100,
         sku: product.sku || product.model,
+        upc: product.upc || null,
+        data_source: product.data_source || null,
+        ce_specs: product.ce_specs || null,
         notes: ''
       };
       setQuoteItems(prev => [...prev, newItem]);
@@ -1183,13 +1186,16 @@ const QuoteBuilder = ({
                         </td>
                       </tr>
                     )}
-                    {item.skulytics_snapshot?.competitor_pricing && (
+                    {(item.skulytics_snapshot?.competitor_pricing || item.data_source === 'icecat' || item.data_source === 'ce_api') && (
                       <tr style={{ borderBottom: '1px solid #e5e7eb' }}>
                         <td colSpan="8" style={{ padding: '4px 12px 8px' }}>
                           <CompetitorPricingPanel
-                            competitorPricing={item.skulytics_snapshot.competitor_pricing}
+                            competitorPricing={item.skulytics_snapshot?.competitor_pricing}
                             teleTimePrice={item.sell}
                             currency="CAD"
+                            dataSource={item.data_source}
+                            upc={item.upc}
+                            ceSpecs={item.ce_specs}
                           />
                         </td>
                       </tr>

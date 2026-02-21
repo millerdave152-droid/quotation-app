@@ -97,6 +97,9 @@ const DeliveryDashboard = React.lazy(() => import('./pages/DeliveryDashboard'));
 const SkulyticsImport = React.lazy(() => import('./components/admin/SkulyticsImport'));
 const SkulyticsHealth = React.lazy(() => import('./components/admin/SkulyticsHealth'));
 
+// CE Product Import (Icecat Bulk Import)
+const CEProductImport = React.lazy(() => import('./components/admin/CEProductImport'));
+
 // Dev-only: Competitor Pricing Preview
 const CompetitorPricingDev = process.env.NODE_ENV === 'development'
   ? React.lazy(() => import('./components/quotes/CompetitorPricingDev'))
@@ -613,6 +616,11 @@ function App() {
           <Route path="/admin/skulytics/health" element={
             <ProtectedRoute requiredRoles={['admin']}>
               <SkulyticsHealth />
+            </ProtectedRoute>
+          } />
+          <Route path="/admin/ce-import" element={
+            <ProtectedRoute requiredRoles={['admin']}>
+              <CEProductImport />
             </ProtectedRoute>
           } />
           {/* Dev-only routes */}
