@@ -507,7 +507,7 @@ router.get('/orders/dashboard-stats', authenticate, asyncHandler(async (req, res
     try {
       const manager = await getChannelManager();
       channelBreakdown = await manager.getDashboardStats();
-    } catch (_) { /* non-fatal */ }
+    } catch (e) { console.error('Channel breakdown fetch error:', e.message); }
   }
 
   res.json({
@@ -770,7 +770,7 @@ router.post('/orders/:id/accept', authenticate, asyncHandler(async (req, res) =>
     if (miraklMsg.includes('not in state WAITING_ACCEPTANCE') || miraklErr.response?.status === 400) {
       try {
         await miraklService.pollOrders({ states: 'WAITING_ACCEPTANCE,SHIPPING,SHIPPED,RECEIVED' });
-      } catch (_) { /* ignore poll errors */ }
+      } catch (e) { console.error('Order re-poll error:', e.message); }
     }
     throw ApiError.badRequest('Mirakl rejected the request: ' + miraklMsg);
   }
@@ -8166,7 +8166,7 @@ router.put('/onboarding/:id/step/:stepNumber', authenticate, asyncHandler(async 
           ON CONFLICT (product_id, channel_id) DO UPDATE SET updated_at = NOW()
         `, [p.id, channelId, p.sku, p.price]);
         listed++;
-      } catch (e) { skipped++; }
+      } catch (e) { console.error('Product listing error:', e.message); skipped++; }
     }
 
     stepData.step5 = { productCount: listed };

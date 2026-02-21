@@ -29,7 +29,7 @@ module.exports = (pool, cache, inventoryService) => {
       FROM products
       WHERE active = true
     `);
-    res.json(summary.rows[0]);
+    res.json(summary.rows[0] || { total_products: 0, in_stock: 0, low_stock: 0, out_of_stock: 0, total_reserved: 0 });
   }));
 
   /**
@@ -122,7 +122,7 @@ module.exports = (pool, cache, inventoryService) => {
     // Get total count
     const countQuery = `SELECT COUNT(*) FROM products WHERE ${whereClause}`;
     const countResult = await pool.query(countQuery, params);
-    const total = parseInt(countResult.rows[0].count);
+    const total = countResult.rows.length > 0 ? parseInt(countResult.rows[0].count) : 0;
 
     // Get products
     const sortExpression = sortField === 'qty_available'
