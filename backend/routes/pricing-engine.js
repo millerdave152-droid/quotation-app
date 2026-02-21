@@ -57,7 +57,7 @@ function init({ pool }) {
           'SELECT COUNT(*)::int AS count FROM promotion_usage WHERE promotion_id = $1 AND customer_id = $2',
           [promo.id, customerId]
         );
-        if (usageResult.rows[0].count >= promo.max_uses_per_customer) continue;
+        if (usageResult.rows.length > 0 && usageResult.rows[0].count >= promo.max_uses_per_customer) continue;
       }
 
       // Calculate discount (all in cents)

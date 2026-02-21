@@ -453,7 +453,7 @@ async function handleCsvImport(req, res) {
           costCents, msrpCents, 'automatic', filename
         ]);
 
-        if (result.rows[0].inserted) {
+        if (result.rows.length > 0 && result.rows[0].inserted) {
           inserted++;
         } else {
           updated++;
@@ -790,7 +790,7 @@ async function handleUniversalImport(req, res) {
           'automatic', filename
         ]);
 
-        if (result.rows[0].inserted) {
+        if (result.rows.length > 0 && result.rows[0].inserted) {
           inserted++;
         } else {
           updated++;

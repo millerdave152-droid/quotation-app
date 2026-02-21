@@ -261,7 +261,7 @@ class QuoteService {
       WHERE quote_number LIKE $1
     `, [`QT-${year}-%`]);
 
-    const nextNum = maxNumResult.rows[0].next_num;
+    const nextNum = maxNumResult.rows.length > 0 ? maxNumResult.rows[0].next_num : 1;
 
     return `QT-${year}-${nextNum.toString().padStart(4, '0')}`;
   }
@@ -623,7 +623,7 @@ class QuoteService {
       WHERE ${whereClause}
     `;
     const countResult = await this.pool.query(countQuery, queryParams);
-    const totalCount = parseInt(countResult.rows[0].count);
+    const totalCount = countResult.rows.length > 0 ? parseInt(countResult.rows[0].count) : 0;
 
     // Get paginated results
     const dataQuery = `
@@ -843,7 +843,7 @@ class QuoteService {
         this.pool.query(searchQuery, searchParams)
       ]);
 
-      const totalCount = parseInt(countResult.rows[0].total);
+      const totalCount = countResult.rows.length > 0 ? parseInt(countResult.rows[0].total) : 0;
 
       // Format results with match info
       const quotations = searchResult.rows.map(row => ({
@@ -1068,6 +1068,9 @@ class QuoteService {
         ]
       );
 
+      if (quoteResult.rows.length === 0) {
+        throw new Error('Failed to create quotation — INSERT returned no rows');
+      }
       const quotation_id = quoteResult.rows[0].id;
 
       // ── Skulytics enrichment (snapshot at quote time) ──────────

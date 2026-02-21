@@ -1544,7 +1544,7 @@ router.get('/:id/balance', authenticate, asyncHandler(async (req, res) => {
     [id]
   );
 
-  const totalPaid = parseFloat(paymentsResult.rows[0].total_paid);
+  const totalPaid = paymentsResult.rows.length > 0 ? parseFloat(paymentsResult.rows[0].total_paid) : 0;
 
   res.json({
     success: true,
