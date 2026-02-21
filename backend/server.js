@@ -3039,6 +3039,9 @@ const server = app.listen(PORT, () => {
   console.log('========================================');
 
   // CE integration key checks (non-fatal)
+  if (!process.env.BARCODE_LOOKUP_API_KEY) {
+    console.warn('⚠️  WARNING: BARCODE_LOOKUP_API_KEY not set — CE product import primary source will fail, falling back to Icecat');
+  }
   if (!process.env.ICECAT_USERNAME) {
     console.warn('⚠️  WARNING: ICECAT_USERNAME not set — CE product import will fail');
   }

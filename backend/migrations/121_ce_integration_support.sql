@@ -13,7 +13,7 @@ BEGIN;
 -- --------------------------------------------------------------------------
 ALTER TABLE products
   ADD COLUMN IF NOT EXISTS data_source VARCHAR(20) DEFAULT 'manual'
-    CHECK (data_source IN ('manual', 'icecat', 'ce_api', 'skulytics')),
+    CHECK (data_source IN ('manual', 'icecat', 'ce_api', 'skulytics', 'barcode_lookup')),
   ADD COLUMN IF NOT EXISTS icecat_product_id VARCHAR(100),
   ADD COLUMN IF NOT EXISTS ce_specs JSONB;
 

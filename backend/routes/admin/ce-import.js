@@ -4,14 +4,22 @@
  * Admin CE Import Routes
  *
  * POST /api/admin/products/import-ce
- *   Bulk-import Consumer Electronics products from Icecat Open API by UPC.
+ *   Bulk-import Consumer Electronics products using a primary/fallback chain:
+ *   1. Barcode Lookup API (primary)
+ *   2. Icecat Open API (fallback)
  */
 
 const express = require('express');
 const router = express.Router();
 const { authenticate } = require('../../middleware/auth');
 const { ApiError, asyncHandler } = require('../../middleware/errorHandler');
-const { fetchByUPC, delay } = require('../../services/icecatService');
+
+// Primary source
+const barcodeLookupService = require('../../services/barcodeLookupService');
+const { normalizeBarcodeProduct } = require('../../normalizers/barcodeLookupNormalizer');
+
+// Fallback source
+const icecatService = require('../../services/icecatService');
 const { normalizeIcecatProduct } = require('../../normalizers/icecatNormalizer');
 
 // Module-level dependencies (injected via init)
@@ -58,16 +66,17 @@ function toCents(val) {
 }
 
 /**
- * Upsert a single normalised Icecat product into the products table.
+ * Upsert a single normalised product into the products table.
  *
  * If a row with the same UPC already exists we only update the
- * CE-enrichment columns (description, image, specs, icecat_product_id,
- * data_source).  A brand-new UPC inserts a full row.
+ * CE-enrichment columns.  A brand-new UPC inserts a full row.
  *
- * @param {Object} product - Output of normalizeIcecatProduct()
+ * @param {Object} product - Output of normalizeBarcodeProduct() or normalizeIcecatProduct()
  * @returns {Promise<{ id: number, inserted: boolean }>}
  */
 async function upsertProduct(product) {
+  const dataSource = product.data_source || 'barcode_lookup';
+
   // Try to find an existing product by UPC first
   const existing = await pool.query(
     'SELECT id FROM products WHERE upc = $1 LIMIT 1',
@@ -84,14 +93,16 @@ async function upsertProduct(product) {
         ce_specs          = COALESCE($3, ce_specs),
         icecat_product_id = COALESCE($4, icecat_product_id),
         data_source       = $5,
+        msrp_cents        = COALESCE($6, msrp_cents),
         updated_at        = CURRENT_TIMESTAMP
-      WHERE id = $6
+      WHERE id = $7
     `, [
       product.description,
       product.image_url,
       product.ce_specs ? JSON.stringify(product.ce_specs) : null,
-      product.icecat_product_id,
-      'icecat',
+      product.icecat_product_id || null,
+      dataSource,
+      toCents(product.msrp),
       id,
     ]);
 
@@ -112,22 +123,64 @@ async function upsertProduct(product) {
       CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
     ) RETURNING id
   `, [
-    product.brand_name || 'Unknown',                           // manufacturer
-    product.sku || product.icecat_product_id || 'ICECAT-IMPORT', // model
-    product.sku,                                               // sku
-    product.upc,                                               // upc
+    product.brand_name || 'Unknown',                                              // manufacturer
+    product.sku || product.icecat_product_id || 'CE-IMPORT',                      // model
+    product.sku,                                                                  // sku
+    product.upc,                                                                  // upc
     product.product_name || product.description?.substring(0, 200) || product.sku, // name
-    product.description,                                       // description
-    'Consumer Electronics',                                    // category (NOT NULL)
-    toCents(product.msrp),                                     // msrp_cents
-    product.image_url,                                         // image_url
-    product.ce_specs ? JSON.stringify(product.ce_specs) : null, // ce_specs
-    product.icecat_product_id,                                 // icecat_product_id
-    'icecat',                                                  // data_source
-    'icecat-bulk-import',                                      // import_source
+    product.description,                                                          // description
+    product.category || 'Consumer Electronics',                                   // category (NOT NULL)
+    toCents(product.msrp),                                                        // msrp_cents
+    product.image_url,                                                            // image_url
+    product.ce_specs ? JSON.stringify(product.ce_specs) : null,                   // ce_specs
+    product.icecat_product_id || null,                                            // icecat_product_id
+    dataSource,                                                                   // data_source
+    `${dataSource}-bulk-import`,                                                  // import_source
   ]);
 
   return { id: result.rows[0].id, inserted: true };
+}
+
+/**
+ * Try Barcode Lookup first, then fall back to Icecat.
+ *
+ * @param {string} upc - Raw UPC from user input
+ * @returns {Promise<{ normalized: Object|null, source: string|null }>}
+ */
+async function fetchAndNormalize(upc) {
+  // ── 1. Primary: Barcode Lookup ──────────────────────────
+  if (process.env.BARCODE_LOOKUP_API_KEY) {
+    try {
+      const blResult = await barcodeLookupService.fetchByUPC(upc);
+      if (blResult.found && blResult.data) {
+        const normalized = normalizeBarcodeProduct(blResult.data);
+        // Preserve the original UPC if normalizer didn't extract one
+        if (!normalized.upc) normalized.upc = upc;
+        return { normalized, source: 'barcode_lookup' };
+      }
+    } catch (err) {
+      // Log but don't fail — fall through to Icecat
+      console.warn(`[CE Import] Barcode Lookup error for ${upc}: ${err.message}`);
+    }
+  }
+
+  // ── 2. Fallback: Icecat ─────────────────────────────────
+  if (process.env.ICECAT_USERNAME) {
+    try {
+      const icResult = await icecatService.fetchByUPC(upc);
+      if (icResult.found && icResult.data) {
+        const normalized = normalizeIcecatProduct(icResult.data);
+        // Store 12-digit UPC-A (Best Buy Canada / PricesAPI matching)
+        normalized.upc = icResult.upcA || upc;
+        return { normalized, source: 'icecat' };
+      }
+    } catch (err) {
+      console.warn(`[CE Import] Icecat error for ${upc}: ${err.message}`);
+    }
+  }
+
+  // ── 3. Both failed ──────────────────────────────────────
+  return { normalized: null, source: null };
 }
 
 // ── Route ───────────────────────────────────────────────────
@@ -137,10 +190,10 @@ async function upsertProduct(product) {
  *
  * Body: { upcs: string[] }   (max 500)
  *
- * Sequentially fetches each UPC from Icecat, normalises the response,
- * and upserts into the products table.
+ * For each UPC, tries Barcode Lookup (primary) then Icecat (fallback).
+ * Normalises the response and upserts into the products table.
  *
- * Returns: { success: [], notFound: [], errors: [], summary: {} }
+ * Returns: { success: [], notFound: [], errors: [], sources: {}, summary: {} }
  */
 router.post('/import-ce', asyncHandler(async (req, res) => {
   const { upcs } = req.body;
@@ -159,37 +212,33 @@ router.post('/import-ce', asyncHandler(async (req, res) => {
   const success = [];
   const notFound = [];
   const errors = [];
+  const sources = { barcode_lookup: 0, icecat: 0 };
 
   for (let i = 0; i < uniqueUpcs.length; i++) {
     const upc = uniqueUpcs[i];
 
     try {
-      // Fetch from Icecat (normalizes UPC→EAN-13 for API, returns 12-digit upcA)
-      const { found, data, upcA } = await fetchByUPC(upc);
+      const { normalized, source } = await fetchAndNormalize(upc);
 
-      if (!found) {
-        notFound.push({ upc, reason: 'Product not found in Icecat' });
-        if (i < uniqueUpcs.length - 1) await delay();
-        continue;
+      if (!normalized) {
+        notFound.push({ upc, reason: 'Product not found in Barcode Lookup or Icecat' });
+      } else {
+        // Ensure data_source matches the actual source used
+        normalized.data_source = source;
+        sources[source]++;
+
+        const { id, inserted } = await upsertProduct(normalized);
+
+        success.push({
+          upc,
+          productId: id,
+          action: inserted ? 'inserted' : 'updated',
+          source,
+          brand: normalized.brand_name,
+          sku: normalized.sku,
+          name: normalized.product_name,
+        });
       }
-
-      // Normalize
-      const normalized = normalizeIcecatProduct(data);
-
-      // Store the 12-digit UPC-A (used by Best Buy Canada, PricesAPI for matching)
-      normalized.upc = upcA || upc;
-
-      // Upsert
-      const { id, inserted } = await upsertProduct(normalized);
-
-      success.push({
-        upc,
-        productId: id,
-        action: inserted ? 'inserted' : 'updated',
-        brand: normalized.brand_name,
-        sku: normalized.sku,
-        name: normalized.product_name,
-      });
     } catch (err) {
       errors.push({
         upc,
@@ -200,7 +249,7 @@ router.post('/import-ce', asyncHandler(async (req, res) => {
 
     // Rate-limit delay between requests (skip after last item)
     if (i < uniqueUpcs.length - 1) {
-      await delay();
+      await barcodeLookupService.delay();
     }
   }
 
@@ -208,6 +257,7 @@ router.post('/import-ce', asyncHandler(async (req, res) => {
     success,
     notFound,
     errors,
+    sources,
     summary: {
       total: uniqueUpcs.length,
       imported: success.filter(s => s.action === 'inserted').length,
