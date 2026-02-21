@@ -631,7 +631,7 @@ class MiraklService {
    */
   async pollOrders(options = {}) {
     const startTime = Date.now();
-    const states = options.states || 'WAITING_ACCEPTANCE,SHIPPING,SHIPPED,RECEIVED';
+    const states = options.states || 'WAITING_ACCEPTANCE,WAITING_DEBIT,WAITING_DEBIT_PAYMENT,SHIPPING,SHIPPED,RECEIVED';
     const errors = [];
     let newOrders = 0;
     let updatedOrders = 0;

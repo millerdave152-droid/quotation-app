@@ -772,7 +772,7 @@ router.post('/orders/:id/accept', authenticate, asyncHandler(async (req, res) =>
     // If Mirakl says it's not in WAITING_ACCEPTANCE, re-poll to sync local state
     if (miraklMsg.includes('not in state WAITING_ACCEPTANCE') || miraklErr.response?.status === 400) {
       try {
-        await miraklService.pollOrders({ states: 'WAITING_ACCEPTANCE,SHIPPING,SHIPPED,RECEIVED' });
+        await miraklService.pollOrders({ states: 'WAITING_ACCEPTANCE,WAITING_DEBIT,WAITING_DEBIT_PAYMENT,SHIPPING,SHIPPED,RECEIVED' });
       } catch (e) { console.error('Order re-poll error:', e.message); }
     }
     throw ApiError.badRequest('Mirakl rejected the request: ' + miraklMsg);
