@@ -164,8 +164,8 @@ router.post('/import-ce', asyncHandler(async (req, res) => {
     const upc = uniqueUpcs[i];
 
     try {
-      // Fetch from Icecat
-      const { found, data } = await fetchByUPC(upc);
+      // Fetch from Icecat (normalizes UPC→EAN-13 for API, returns 12-digit upcA)
+      const { found, data, upcA } = await fetchByUPC(upc);
 
       if (!found) {
         notFound.push({ upc, reason: 'Product not found in Icecat' });
@@ -176,10 +176,8 @@ router.post('/import-ce', asyncHandler(async (req, res) => {
       // Normalize
       const normalized = normalizeIcecatProduct(data);
 
-      // Ensure UPC is set (fallback if Icecat didn't echo it back)
-      if (!normalized.upc) {
-        normalized.upc = upc;
-      }
+      // Store the 12-digit UPC-A (used by Best Buy Canada, PricesAPI for matching)
+      normalized.upc = upcA || upc;
 
       // Upsert
       const { id, inserted } = await upsertProduct(normalized);
