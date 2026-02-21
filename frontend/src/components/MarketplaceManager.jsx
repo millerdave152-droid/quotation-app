@@ -6,6 +6,16 @@ import { handleApiError } from '../utils/errorHandler';
 // Create axios instance with auth headers
 const axios = createAuthorizedClient();
 
+/** Extract a human-readable error message from an axios error */
+function extractErrorMsg(err) {
+  const d = err.response?.data;
+  if (!d) return err.message;
+  if (typeof d.error === 'string') return d.error;
+  if (typeof d.error === 'object' && d.error?.message) return d.error.message;
+  if (typeof d.message === 'string') return d.message;
+  return err.message;
+}
+
 /**
  * Enhanced Marketplace Manager Dashboard
  * Features: Notifications, Batch Processing, Auto-Rules, Order Management
@@ -224,7 +234,7 @@ const MarketplaceManager = () => {
       setError(null);
     } catch (err) {
       if (!isMounted.current) return;
-      setError('Failed to fetch dashboard data: ' + (err.response?.data?.error || err.message));
+      setError('Failed to fetch dashboard data: ' + extractErrorMsg(err));
     } finally {
       if (isMounted.current) {
         setLoading(false);
@@ -440,14 +450,14 @@ const MarketplaceManager = () => {
     try {
       const response = await axios.post(`${API_BASE_URL}/api/marketplace/channels/${channelId}/test`);
       setMessage(response.data?.connected ? 'Connection successful' : 'Connection failed: ' + (response.data?.message || 'Unknown error'));
-    } catch (err) { setError('Test failed: ' + (err.response?.data?.error || err.message)); }
+    } catch (err) { setError('Test failed: ' + extractErrorMsg(err)); }
   };
 
   const handleActivateChannel = async (channelId) => {
     try {
       await axios.put(`${API_BASE_URL}/api/marketplace/channels/${channelId}/activate`);
       setMessage('Channel activated'); fetchChannels(); fetchChannelDashboard();
-    } catch (err) { setError('Activation failed: ' + (err.response?.data?.error || err.message)); }
+    } catch (err) { setError('Activation failed: ' + extractErrorMsg(err)); }
   };
 
   const handleDeactivateChannel = async (channelId) => {
@@ -455,7 +465,7 @@ const MarketplaceManager = () => {
     try {
       await axios.put(`${API_BASE_URL}/api/marketplace/channels/${channelId}/deactivate`);
       setMessage('Channel deactivated'); fetchChannels(); fetchChannelDashboard();
-    } catch (err) { setError('Deactivation failed: ' + (err.response?.data?.error || err.message)); }
+    } catch (err) { setError('Deactivation failed: ' + extractErrorMsg(err)); }
   };
 
   const handleOnboardChannel = async () => {
@@ -463,7 +473,7 @@ const MarketplaceManager = () => {
       const response = await axios.post(`${API_BASE_URL}/api/marketplace/channels/onboard`, onboardingForm);
       setOnboardingResult(response.data);
       if (response.data?.channel) { fetchChannels(); fetchChannelDashboard(); }
-    } catch (err) { setError('Onboarding failed: ' + (err.response?.data?.error || err.message)); }
+    } catch (err) { setError('Onboarding failed: ' + extractErrorMsg(err)); }
   };
 
   // === PRICING ENGINE ===
@@ -499,7 +509,7 @@ const MarketplaceManager = () => {
         setMessage('Rule created');
       }
       setShowPricingRuleModal2(false); setEditingPricingRule(null); fetchPricingRules();
-    } catch (err) { setError('Save failed: ' + (err.response?.data?.error || err.message)); }
+    } catch (err) { setError('Save failed: ' + extractErrorMsg(err)); }
   };
 
   const handleDeletePricingRule = async (ruleId) => {
@@ -507,14 +517,14 @@ const MarketplaceManager = () => {
     try {
       await axios.delete(`${API_BASE_URL}/api/marketplace/pricing/rules/${ruleId}`);
       setMessage('Rule deleted'); fetchPricingRules();
-    } catch (err) { setError('Delete failed: ' + (err.response?.data?.error || err.message)); }
+    } catch (err) { setError('Delete failed: ' + extractErrorMsg(err)); }
   };
 
   const handleApproveChange = async (changeId, approved = true) => {
     try {
       await axios.post(`${API_BASE_URL}/api/marketplace/pricing/approve/${changeId}`, { approved });
       setMessage(approved ? 'Price change approved' : 'Price change rejected'); fetchPendingApprovals();
-    } catch (err) { setError('Action failed: ' + (err.response?.data?.error || err.message)); }
+    } catch (err) { setError('Action failed: ' + extractErrorMsg(err)); }
   };
 
   // === RETURNS ===
@@ -553,14 +563,14 @@ const MarketplaceManager = () => {
     try {
       await axios.post(`${API_BASE_URL}/api/marketplace/returns/${returnId}/approve`);
       setMessage('Return approved'); fetchReturns(returnStatusFilter, returnsPage);
-    } catch (err) { setError('Approve failed: ' + (err.response?.data?.error || err.message)); }
+    } catch (err) { setError('Approve failed: ' + extractErrorMsg(err)); }
   };
 
   const handleRejectReturn = async (returnId) => {
     try {
       await axios.post(`${API_BASE_URL}/api/marketplace/returns/${returnId}/reject`);
       setMessage('Return rejected'); fetchReturns(returnStatusFilter, returnsPage);
-    } catch (err) { setError('Reject failed: ' + (err.response?.data?.error || err.message)); }
+    } catch (err) { setError('Reject failed: ' + extractErrorMsg(err)); }
   };
 
   // === MESSAGES ===
@@ -599,7 +609,7 @@ const MarketplaceManager = () => {
       await axios.post(`${API_BASE_URL}/api/marketplace/messages/reply/${messageId}`, { body: replyText });
       setReplyText(''); setMessage('Reply sent'); fetchMessageInbox();
       if (selectedThread) handleOpenThread(selectedThread, '');
-    } catch (err) { setError('Reply failed: ' + (err.response?.data?.error || err.message)); }
+    } catch (err) { setError('Reply failed: ' + extractErrorMsg(err)); }
   };
 
   const handleMarkMessageRead = async (messageId) => {
@@ -761,7 +771,7 @@ const MarketplaceManager = () => {
         setError('Sync completed with issues');
       }
     } catch (err) {
-      setError('Failed to sync inventory: ' + (err.response?.data?.error || err.message));
+      setError('Failed to sync inventory: ' + extractErrorMsg(err));
     } finally {
       setSyncing(false);
     }
@@ -784,7 +794,7 @@ const MarketplaceManager = () => {
         setError('Order pull completed with issues');
       }
     } catch (err) {
-      setError('Failed to pull orders: ' + (err.response?.data?.error || err.message));
+      setError('Failed to pull orders: ' + extractErrorMsg(err));
     } finally {
       setPulling(false);
     }
@@ -827,7 +837,7 @@ const MarketplaceManager = () => {
         fetchNotifications();
       }
     } catch (err) {
-      setError('Failed to batch accept orders: ' + (err.response?.data?.error || err.message));
+      setError('Failed to batch accept orders: ' + extractErrorMsg(err));
     } finally {
       setBatchProcessing(false);
     }
@@ -854,7 +864,7 @@ const MarketplaceManager = () => {
         fetchNotifications();
       }
     } catch (err) {
-      setError('Failed to batch reject orders: ' + (err.response?.data?.error || err.message));
+      setError('Failed to batch reject orders: ' + extractErrorMsg(err));
     } finally {
       setBatchProcessing(false);
     }
@@ -880,7 +890,7 @@ const MarketplaceManager = () => {
         setMessage('Orders exported successfully');
       }
     } catch (err) {
-      setError('Failed to export orders: ' + (err.response?.data?.error || err.message));
+      setError('Failed to export orders: ' + extractErrorMsg(err));
     }
   };
 
@@ -900,7 +910,7 @@ const MarketplaceManager = () => {
       packingSlipWindow.document.write(generatePackingSlipHTML(response.data));
       packingSlipWindow.document.close();
     } catch (err) {
-      setError('Failed to generate packing slips: ' + (err.response?.data?.error || err.message));
+      setError('Failed to generate packing slips: ' + extractErrorMsg(err));
     }
   };
 
@@ -1013,7 +1023,7 @@ const MarketplaceManager = () => {
       await axios.put(`${API_BASE_URL}/api/marketplace/auto-rules/${ruleId}/toggle`);
       fetchAutoRules();
     } catch (err) {
-      setError('Failed to toggle rule: ' + (err.response?.data?.error || err.message));
+      setError('Failed to toggle rule: ' + extractErrorMsg(err));
     }
   };
 
@@ -1025,7 +1035,7 @@ const MarketplaceManager = () => {
       fetchAutoRules();
       setMessage('Rule deleted successfully');
     } catch (err) {
-      setError('Failed to delete rule: ' + (err.response?.data?.error || err.message));
+      setError('Failed to delete rule: ' + extractErrorMsg(err));
     }
   };
 
@@ -1042,7 +1052,7 @@ const MarketplaceManager = () => {
       setShowRuleModal(false);
       setEditingRule(null);
     } catch (err) {
-      setError('Failed to save rule: ' + (err.response?.data?.error || err.message));
+      setError('Failed to save rule: ' + extractErrorMsg(err));
     }
   };
 
@@ -1053,7 +1063,7 @@ const MarketplaceManager = () => {
       setOrderDetail(response.data);
       setOrderDetailId(orderId);
     } catch (err) {
-      setError('Failed to fetch order details: ' + (err.response?.data?.error || err.message));
+      setError('Failed to fetch order details: ' + extractErrorMsg(err));
     }
   };
 
@@ -1065,7 +1075,7 @@ const MarketplaceManager = () => {
       const response = await axios.get(`${API_BASE_URL}/api/marketplace/inventory/drift-check`);
       setDriftResults(response.data);
     } catch (err) {
-      setError('Drift check failed: ' + (err.response?.data?.error || err.message));
+      setError('Drift check failed: ' + extractErrorMsg(err));
     } finally {
       setDriftLoading(false);
     }
@@ -1081,7 +1091,7 @@ const MarketplaceManager = () => {
       fetchQueueStatus();
       fetchRecentStockImports();
     } catch (err) {
-      setError('Force sync failed: ' + (err.response?.data?.error || err.message));
+      setError('Force sync failed: ' + extractErrorMsg(err));
     } finally {
       setForceSyncing(false);
     }
@@ -1096,7 +1106,7 @@ const MarketplaceManager = () => {
       fetchQueueStatus();
       fetchRecentStockImports();
     } catch (err) {
-      setError('Sync failed: ' + (err.response?.data?.error || err.message));
+      setError('Sync failed: ' + extractErrorMsg(err));
     } finally {
       setInventorySyncing(false);
     }
@@ -1140,7 +1150,7 @@ const MarketplaceManager = () => {
       fetchOfferProducts(offerPage, offerSearch);
       fetchOfferImports();
     } catch (err) {
-      setError('Push failed: ' + (err.response?.data?.error || err.message));
+      setError('Push failed: ' + extractErrorMsg(err));
     } finally {
       setPushingOffers(false);
     }
@@ -1172,7 +1182,7 @@ const MarketplaceManager = () => {
         setConnectionResult({ success: true, message: 'Credentials configured (API not yet tested live)' });
       }
     } catch (err) {
-      setConnectionResult({ success: false, message: err.response?.data?.error || err.message });
+      setConnectionResult({ success: false, message: extractErrorMsg(err) });
     } finally {
       setTestingConnection(false);
     }
@@ -1198,7 +1208,7 @@ const MarketplaceManager = () => {
       setShipForm({ tracking_number: '', carrier_code: 'canada_post', carrier_name: '', carrier_url: '' });
       fetchFilteredOrders(orderStateFilter, orderSearch, orderPage);
     } catch (err) {
-      setError('Ship failed: ' + (err.response?.data?.error?.message || err.response?.data?.error || err.message));
+      setError('Ship failed: ' + extractErrorMsg(err));
     }
   };
 
@@ -1221,7 +1231,7 @@ const MarketplaceManager = () => {
       fetchFilteredOrders(orderStateFilter, orderSearch, orderPage);
       fetchDashboardData();
     } catch (err) {
-      setError('Accept failed: ' + (err.response?.data?.error || err.response?.data?.message || err.message));
+      setError('Accept failed: ' + extractErrorMsg(err));
     }
   };
 
@@ -2012,7 +2022,7 @@ const MarketplaceManager = () => {
       const response = await axios.get(url);
       setReportData({ ...response.data, reportType: type });
     } catch (err) {
-      setError('Failed to generate report: ' + (err.response?.data?.error || err.message));
+      setError('Failed to generate report: ' + extractErrorMsg(err));
     } finally {
       setReportLoading(false);
     }
@@ -2042,7 +2052,7 @@ const MarketplaceManager = () => {
         URL.revokeObjectURL(link.href);
       }
     } catch (err) {
-      setError('Export failed: ' + (err.response?.data?.error || err.message));
+      setError('Export failed: ' + extractErrorMsg(err));
     }
   };
 
@@ -2053,7 +2063,7 @@ const MarketplaceManager = () => {
       const response = await axios.get(`${API_BASE_URL}/api/marketplace/ai/anomalies`);
       setAnomalies(response.data);
     } catch (err) {
-      setError('Anomaly scan failed: ' + (err.response?.data?.error || err.message));
+      setError('Anomaly scan failed: ' + extractErrorMsg(err));
     } finally {
       setAnomaliesLoading(false);
     }
@@ -2068,7 +2078,7 @@ const MarketplaceManager = () => {
       const response = await axios.post(`${API_BASE_URL}/api/marketplace/ai/query`, { question: aiQuery });
       setAiQueryResult(response.data);
     } catch (err) {
-      setError('AI query failed: ' + (err.response?.data?.error || err.message));
+      setError('AI query failed: ' + extractErrorMsg(err));
     } finally {
       setAiQuerying(false);
     }
