@@ -1,0 +1,1 @@
+const fs=require("fs");const p=require("path").join(process.cwd(),"backend","test-pos-checkout.js");const c=fs.readFileSync(require("path").join(process.cwd(),"backend","test-template.b64"),"utf8");fs.writeFileSync(p,Buffer.from(c,"base64").toString("utf8"));console.log("done");
