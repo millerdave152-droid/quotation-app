@@ -118,14 +118,17 @@ const applyAuthInterceptors = (client) => {
     if (error.response?.status !== 401 || originalRequest._retry) {
       // Enhance error with response details
       if (error.response) {
-        const enhancedError = new Error(
-          error.response.data?.error ||
-          error.response.data?.message ||
-          error.message ||
-          `Request failed with status ${error.response.status}`
-        );
+        const d = error.response.data;
+        const errField = d?.error;
+        const msg = (typeof errField === 'string' ? errField : null)
+          || (typeof errField === 'object' && errField?.message ? errField.message : null)
+          || (typeof d?.message === 'string' ? d.message : null)
+          || error.message
+          || `Request failed with status ${error.response.status}`;
+        const enhancedError = new Error(msg);
         enhancedError.status = error.response.status;
         enhancedError.statusText = error.response.statusText;
+        enhancedError.response = error.response;
         enhancedError.data = error.response.data;
         enhancedError.originalError = error;
         return Promise.reject(enhancedError);

@@ -765,7 +765,10 @@ router.post('/orders/:id/accept', authenticate, asyncHandler(async (req, res) =>
   try {
     data = await miraklService.acceptOrderLines(order.mirakl_order_id, miraklLines);
   } catch (miraklErr) {
-    const miraklMsg = miraklErr.response?.data?.message || miraklErr.message;
+    const miraklData = miraklErr.response?.data;
+    const miraklMsg = (typeof miraklData?.message === 'string' ? miraklData.message : null)
+      || (typeof miraklData?.error === 'string' ? miraklData.error : null)
+      || miraklErr.message;
     // If Mirakl says it's not in WAITING_ACCEPTANCE, re-poll to sync local state
     if (miraklMsg.includes('not in state WAITING_ACCEPTANCE') || miraklErr.response?.status === 400) {
       try {
