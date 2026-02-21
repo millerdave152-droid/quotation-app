@@ -1,5 +1,6 @@
 import React, { useState, useRef, useCallback } from 'react';
 import { authFetch } from '../../services/authFetch';
+import { invalidateCache } from '../../services/apiCache';
 import { useToast } from '../ui';
 import { Upload, FileText, Loader2, CheckCircle, AlertTriangle, XCircle, ChevronDown, ChevronRight, Trash2 } from 'lucide-react';
 
@@ -106,10 +107,15 @@ const CEProductImport = () => {
       setResult(r);
       setProgress({ processed: r.summary.total, total: r.summary.total });
 
+      // Invalidate the products cache so new imports appear in Products view
+      if (r.summary.imported > 0 || r.summary.updated > 0) {
+        invalidateCache('/api/products');
+      }
+
       if (r.summary.failed > 0) {
         toast.error(`Import completed with ${r.summary.failed} error(s)`);
       } else if (r.summary.notFound > 0) {
-        toast.warning(`Import done — ${r.summary.notFound} UPC(s) not found in Icecat`);
+        toast.warning(`Import done — ${r.summary.notFound} UPC(s) not found`);
       } else {
         toast.success(`Successfully imported ${r.summary.imported + r.summary.updated} product(s)`);
       }

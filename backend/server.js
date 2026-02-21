@@ -3001,8 +3001,8 @@ console.log('✅ Admin Skulytics routes loaded (SKU refresh, health)');
 // ADMIN CE IMPORT ROUTES (Icecat Bulk Import)
 // ============================================
 const ceImportRoutes = require('./routes/admin/ce-import');
-app.use('/api/admin/products', ceImportRoutes.init({ pool }));
-console.log('✅ Admin CE import routes loaded (Icecat bulk import)');
+app.use('/api/admin/products', ceImportRoutes.init({ pool, cache }));
+console.log('✅ Admin CE import routes loaded (Barcode Lookup + Icecat)');
 
 // Skulytics job scheduler (started in app.listen callback below)
 const scheduler = require('./jobs/scheduler');

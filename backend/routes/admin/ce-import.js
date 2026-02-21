@@ -24,15 +24,18 @@ const { normalizeIcecatProduct } = require('../../normalizers/icecatNormalizer')
 
 // Module-level dependencies (injected via init)
 let pool = null;
+let cache = null;
 
 /**
  * Initialize the router with dependencies.
  * @param {object} deps
  * @param {Pool}   deps.pool - PostgreSQL connection pool
+ * @param {Object} [deps.cache] - Cache instance (optional)
  * @returns {Router}
  */
 const init = (deps) => {
   pool = deps.pool;
+  cache = deps.cache || null;
   return router;
 };
 
@@ -251,6 +254,11 @@ router.post('/import-ce', asyncHandler(async (req, res) => {
     if (i < uniqueUpcs.length - 1) {
       await barcodeLookupService.delay();
     }
+  }
+
+  // Invalidate product cache so new imports show up immediately
+  if (success.length > 0 && cache && cache.invalidatePattern) {
+    cache.invalidatePattern('products:');
   }
 
   res.success({
