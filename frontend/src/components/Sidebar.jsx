@@ -12,7 +12,6 @@ import {
   Warehouse,
   DollarSign,
   BarChart3,
-  Gem,
   Brain,
   GraduationCap,
   ShoppingCart,
@@ -30,14 +29,11 @@ import {
   FileBarChart,
   PieChart,
   Tag,
-  Search,
   ClipboardCheck,
   Truck,
   Shield,
-  Trophy,
   Database,
-  Activity,
-  Download
+  Activity
 } from 'lucide-react';
 
 const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:3001';
@@ -48,17 +44,14 @@ const navItems = {
   customers: { path: '/customers', icon: Users, label: 'Customers' },
   leads: { path: '/leads', icon: ClipboardCheck, label: 'Leads' },
   products: { path: '/products', icon: Package, label: 'Products' },
-  'quick-search': { path: '/quick-search', icon: Search, label: 'Quick Search' },
   'product-visualization': { path: '/product-visualization', icon: Image, label: 'Product Gallery' },
   quotes: { path: '/quotes', icon: FileText, label: 'Quotations', hasBadge: true },
-  'pipeline-analytics': { path: '/pipeline-analytics', icon: TrendingUp, label: 'Pipeline Analytics' },
-  leaderboard: { path: '/leaderboard', icon: Trophy, label: 'Leaderboard' },
+  'sales-performance': { path: '/sales-performance', icon: TrendingUp, label: 'Sales Performance' },
   invoices: { path: '/invoices', icon: Receipt, label: 'Invoices' },
   inventory: { path: '/inventory', icon: Warehouse, label: 'Inventory' },
   pricing: { path: '/pricing', icon: DollarSign, label: 'Pricing Rules' },
   'manufacturer-promotions': { path: '/manufacturer-promotions', icon: Tag, label: 'Mfr Promotions' },
-  analytics: { path: '/analytics', icon: BarChart3, label: 'Analytics' },
-  'clv-dashboard': { path: '/clv-dashboard', icon: Gem, label: 'Customer CLV' },
+  insights: { path: '/insights', icon: BarChart3, label: 'Insights' },
   'purchasing-intelligence': { path: '/purchasing-intelligence', icon: Brain, label: 'Purchasing AI' },
   'report-builder': { path: '/report-builder', icon: FileBarChart, label: 'Report Builder' },
   'executive-dashboard': { path: '/executive-dashboard', icon: PieChart, label: 'Executive Dashboard' },
@@ -71,11 +64,8 @@ const navItems = {
   'admin-users': { path: '/admin/users', icon: UserCog, label: 'User Management', isAdmin: true },
   'admin-nomenclature': { path: '/admin/nomenclature', icon: Wrench, label: 'Nomenclature Admin', isAdmin: true },
   'admin-fraud': { path: '/admin/fraud', icon: Shield, label: 'Fraud & Audit', isAdmin: true },
-  'admin-client-errors': { path: '/admin/client-errors', icon: Activity, label: 'Client Errors', isAdmin: true },
-  'admin-discount-analytics': { path: '/admin/discount-analytics', icon: Tag, label: 'Discount Analytics', isAdmin: true },
-  'admin-skulytics': { path: '/admin/skulytics/import', icon: Database, label: 'Skulytics Import', isAdmin: true },
-  'admin-skulytics-health': { path: '/admin/skulytics/health', icon: Activity, label: 'Sync Health', isAdmin: true },
-  'admin-ce-import': { path: '/admin/ce-import', icon: Download, label: 'CE Import', isAdmin: true },
+  'admin-monitoring': { path: '/admin/monitoring', icon: Activity, label: 'Monitoring', isAdmin: true },
+  'admin-data-import': { path: '/admin/data-import', icon: Database, label: 'Data Import', isAdmin: true },
 };
 
 // Section configuration
@@ -84,19 +74,19 @@ const navSections = [
     id: 'analytics',
     title: 'Analytics',
     icon: BarChart3,
-    items: ['dashboard', 'analytics', 'clv-dashboard', 'purchasing-intelligence', 'report-builder', 'executive-dashboard']
+    items: ['dashboard', 'insights', 'purchasing-intelligence', 'report-builder', 'executive-dashboard']
   },
   {
     id: 'sales',
     title: 'Sales',
     icon: Users,
-    items: ['customers', 'leads', 'quotes', 'pipeline-analytics', 'leaderboard', 'invoices']
+    items: ['customers', 'leads', 'quotes', 'sales-performance', 'invoices']
   },
   {
     id: 'inventory',
     title: 'Inventory',
     icon: Package,
-    items: ['products', 'quick-search', 'product-visualization', 'inventory', 'pricing', 'manufacturer-promotions']
+    items: ['products', 'product-visualization', 'inventory', 'pricing', 'manufacturer-promotions']
   },
   {
     id: 'operations',
@@ -110,7 +100,7 @@ const adminSection = {
   id: 'admin',
   title: 'Admin',
   icon: UserCog,
-  items: ['admin-deliveries', 'admin-users', 'admin-nomenclature', 'admin-fraud', 'admin-client-errors', 'admin-discount-analytics', 'admin-skulytics', 'admin-skulytics-health', 'admin-ce-import']
+  items: ['admin-deliveries', 'admin-users', 'admin-nomenclature', 'admin-fraud', 'admin-monitoring', 'admin-data-import']
 };
 
 /**

@@ -26,7 +26,7 @@ const LoginPage = React.lazy(() => import('./pages/LoginPage'));
 const QuotationManager = React.lazy(() => import('./components/QuotationManager'));
 const CustomerManagement = React.lazy(() => import('./components/CustomerManagement'));
 const ProductManagement = React.lazy(() => import('./components/ProductManagement'));
-const RevenueAnalytics = React.lazy(() => import('./components/RevenueAnalytics'));
+// Revenue Analytics loaded via InsightsHub
 const MarketplaceManager = React.lazy(() => import('./components/MarketplaceManager'));
 const MarketplaceReports = React.lazy(() => import('./components/MarketplaceReports'));
 const BulkOperationsCenter = React.lazy(() => import('./components/BulkOperationsCenter'));
@@ -49,14 +49,14 @@ const ManufacturerPromotionsAdmin = React.lazy(() => import('./components/pricin
 // Product Visualization (Vendor Product Gallery)
 const ProductVisualization = React.lazy(() => import('./components/ProductVisualization/ProductVisualization'));
 
-// CLV Analytics Dashboard
-const CLVDashboard = React.lazy(() => import('./components/analytics/CLVDashboard'));
+// Insights Hub (Revenue Analytics + Customer CLV)
+const InsightsHub = React.lazy(() => import('./components/analytics/InsightsHub'));
 
 // Purchasing Intelligence Dashboard
 const PurchasingIntelligence = React.lazy(() => import('./components/analytics/PurchasingIntelligence'));
 
-// Pipeline Analytics Dashboard
-const PipelineAnalytics = React.lazy(() => import('./components/quotations/PipelineAnalytics'));
+// Sales Performance Hub (Pipeline + Leaderboard)
+const SalesPerformanceHub = React.lazy(() => import('./components/SalesPerformanceHub'));
 
 // Report Builder & Executive Dashboard
 const ReportBuilder = React.lazy(() => import('./components/reports/ReportBuilder'));
@@ -72,20 +72,15 @@ const RecommendationRulesPage = React.lazy(() => import('./components/admin/reco
 // Fraud & Audit Dashboard
 const FraudDashboard = React.lazy(() => import('./components/admin/FraudDashboard'));
 
-// Discount Analytics Dashboard
-const DiscountAnalyticsDashboard = React.lazy(() => import('./components/admin/DiscountAnalyticsDashboard'));
+// Monitoring Hub (Client Errors + Discount Analytics)
+const MonitoringHub = React.lazy(() => import('./components/admin/MonitoringHub'));
 
-// Client Error Tracking Dashboard
-const ClientErrorDashboard = React.lazy(() => import('./components/admin/ClientErrorDashboard'));
-
-// Sales Leaderboard
-const SalesLeaderboard = React.lazy(() => import('./components/commissions/SalesLeaderboard'));
+// Sales Leaderboard loaded via SalesPerformanceHub
 
 // Customer Quote Acceptance (public)
 const CustomerQuoteAcceptance = React.lazy(() => import('./pages/CustomerQuoteAcceptance'));
 
-// Quick Search (Universal Product Finder)
-const QuickSearch = React.lazy(() => import('./components/QuickSearch'));
+// Quick Search removed — use Ctrl+K command palette
 
 // Leads / Inquiry Capture
 const LeadCapture = React.lazy(() => import('./components/leads/LeadCapture'));
@@ -93,12 +88,8 @@ const LeadCapture = React.lazy(() => import('./components/leads/LeadCapture'));
 // Delivery Management Dashboard
 const DeliveryDashboard = React.lazy(() => import('./pages/DeliveryDashboard'));
 
-// Skulytics Product Import & Health Dashboard
-const SkulyticsImport = React.lazy(() => import('./components/admin/SkulyticsImport'));
-const SkulyticsHealth = React.lazy(() => import('./components/admin/SkulyticsHealth'));
-
-// CE Product Import (Icecat Bulk Import)
-const CEProductImport = React.lazy(() => import('./components/admin/CEProductImport'));
+// Data Import Hub (Skulytics Import + CE Import + Sync Health)
+const DataImportHub = React.lazy(() => import('./components/admin/DataImportHub'));
 
 // Dev-only: Competitor Pricing Preview
 const CompetitorPricingDev = process.env.NODE_ENV === 'development'
@@ -544,11 +535,9 @@ function App() {
           <Route path="/quotes" element={<QuotationManager />} />
           <Route path="/quotes/new" element={<QuotationManager />} />
           <Route path="/quotes/:id" element={<QuotationManager />} />
-          <Route path="/analytics" element={<RevenueAnalytics />} />
-          <Route path="/clv-dashboard" element={<CLVDashboard />} />
+          <Route path="/insights" element={<InsightsHub />} />
           <Route path="/purchasing-intelligence" element={<PurchasingIntelligence />} />
-          <Route path="/pipeline-analytics" element={<PipelineAnalytics />} />
-          <Route path="/leaderboard" element={<SalesLeaderboard />} />
+          <Route path="/sales-performance" element={<SalesPerformanceHub />} />
           <Route path="/report-builder" element={<ReportBuilder />} />
           <Route path="/executive-dashboard" element={<ExecutiveDashboard />} />
           <Route path="/training-center" element={<TrainingCenter />} />
@@ -567,8 +556,7 @@ function App() {
           {/* Product Visualization */}
           <Route path="/product-visualization" element={<ProductVisualization />} />
           <Route path="/product-visualization/:id" element={<ProductVisualization />} />
-          {/* Quick Search (Universal Product Finder) */}
-          <Route path="/quick-search" element={<QuickSearch />} />
+          {/* Quick Search removed — use Ctrl+K command palette */}
           {/* Leads / Inquiry Capture */}
           <Route path="/leads" element={<LeadCapture />} />
           <Route path="/leads/:id" element={<LeadCapture />} />
@@ -598,29 +586,14 @@ function App() {
               <FraudDashboard />
             </ProtectedRoute>
           } />
-          <Route path="/admin/client-errors" element={
-            <ProtectedRoute requiredRoles={['admin']}>
-              <ClientErrorDashboard />
-            </ProtectedRoute>
-          } />
-          <Route path="/admin/discount-analytics" element={
+          <Route path="/admin/monitoring" element={
             <ProtectedRoute requiredRoles={['admin', 'manager']}>
-              <DiscountAnalyticsDashboard />
+              <MonitoringHub />
             </ProtectedRoute>
           } />
-          <Route path="/admin/skulytics/import" element={
+          <Route path="/admin/data-import" element={
             <ProtectedRoute requiredRoles={['admin']}>
-              <SkulyticsImport />
-            </ProtectedRoute>
-          } />
-          <Route path="/admin/skulytics/health" element={
-            <ProtectedRoute requiredRoles={['admin']}>
-              <SkulyticsHealth />
-            </ProtectedRoute>
-          } />
-          <Route path="/admin/ce-import" element={
-            <ProtectedRoute requiredRoles={['admin']}>
-              <CEProductImport />
+              <DataImportHub />
             </ProtectedRoute>
           } />
           {/* Dev-only routes */}
