@@ -169,6 +169,7 @@ const createTransactionSchema = Joi.object({
   isDeposit: Joi.boolean().default(false),
   marketingSource: Joi.string().max(100).optional().allow('', null),
   marketingSourceDetail: Joi.string().max(255).optional().allow('', null),
+  clientTransactionId: Joi.string().uuid().optional().allow(null),
 });
 
 const voidTransactionSchema = Joi.object({
@@ -293,6 +294,7 @@ router.post('/', authenticate, fraudCheck('transaction.create'), asyncHandler(as
     isDeposit,
     marketingSource,
     marketingSourceDetail,
+    clientTransactionId,
   } = value;
 
   // --- Discount Authority Enforcement ---
@@ -339,6 +341,25 @@ router.post('/', authenticate, fraudCheck('transaction.create'), asyncHandler(as
     }
     if (missingFields.length > 0) {
       throw ApiError.badRequest('Validation failed');
+    }
+  }
+
+  // --- Idempotency check for offline replay ---
+  if (clientTransactionId) {
+    const existing = await pool.query(
+      'SELECT transaction_id, transaction_number, created_at, total_amount, status FROM transactions WHERE client_transaction_id = $1',
+      [clientTransactionId]
+    );
+    if (existing.rows.length > 0) {
+      const row = existing.rows[0];
+      return res.success({
+        transactionId: row.transaction_id,
+        transactionNumber: row.transaction_number,
+        totalAmount: parseFloat(row.total_amount),
+        status: row.status,
+        createdAt: row.created_at,
+        idempotentReplay: true,
+      });
     }
   }
 
@@ -448,8 +469,9 @@ router.post('/', authenticate, fraudCheck('transaction.create'), asyncHandler(as
         total_amount, status, completed_at,
         etransfer_reference, etransfer_status,
         is_deposit, deposit_amount, balance_due,
-        marketing_source, marketing_source_detail
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23)
+        marketing_source, marketing_source_detail,
+        client_transaction_id
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24)
       RETURNING transaction_id, transaction_number, created_at`;
     const txParams = [
         transactionNumber,
@@ -474,7 +496,8 @@ router.post('/', authenticate, fraudCheck('transaction.create'), asyncHandler(as
         depositAmount,
         balanceDue,
         marketingSource || null,
-        marketingSourceDetail || null
+        marketingSourceDetail || null,
+        clientTransactionId || null
       ];
     logToFile('========== TRANSACTION INSERT ==========');
     logToFile('QUERY: ' + txQuery);

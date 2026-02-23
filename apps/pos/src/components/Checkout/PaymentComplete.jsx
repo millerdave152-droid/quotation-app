@@ -10,6 +10,7 @@ import {
   EnvelopeIcon,
   XMarkIcon,
   ArrowPathIcon,
+  CloudArrowUpIcon,
 } from '@heroicons/react/24/outline';
 import { formatCurrency, formatDateTime } from '../../utils/formatters';
 
@@ -155,6 +156,62 @@ export function PaymentComplete({
       setIsSending(false);
     }
   };
+
+  // Offline transaction variant
+  const isOffline = transaction?.offline === true;
+
+  if (isOffline) {
+    return (
+      <div className="flex flex-col h-full items-center overflow-y-auto p-8">
+        <div className="flex-shrink-0 mt-auto" />
+        {/* Offline Icon */}
+        <div className="w-32 h-32 rounded-full bg-amber-100 flex items-center justify-center">
+          <CloudArrowUpIcon className="w-20 h-20 text-amber-600" />
+        </div>
+
+        <h2 className="text-2xl font-bold text-gray-900 mt-8 mb-2">
+          Saved Offline
+        </h2>
+
+        <div className="w-full max-w-md mb-6 p-4 bg-amber-50 border-2 border-amber-200 rounded-xl text-center">
+          <p className="text-sm text-amber-800 mb-2">
+            Transaction saved offline — will sync automatically when connection is restored.
+          </p>
+          <p className="text-xs font-medium text-amber-600 uppercase tracking-wider mb-1">Reference</p>
+          <p className="text-sm font-mono font-bold text-amber-900 break-all">
+            {transaction.clientTransactionId}
+          </p>
+        </div>
+
+        <div className="text-center mb-8">
+          <p className="text-3xl font-bold text-amber-600 tabular-nums">
+            {formatCurrency(transaction.totalAmount || 0)}
+          </p>
+          <p className="text-xs text-gray-400 mt-1">
+            {formatDateTime(new Date(transaction.createdAt))}
+          </p>
+        </div>
+
+        {/* New Transaction Button */}
+        <button
+          type="button"
+          onClick={onNewTransaction}
+          className="
+            w-full max-w-md h-14
+            flex items-center justify-center gap-2
+            bg-green-600 hover:bg-green-700
+            text-white text-lg font-bold
+            rounded-xl
+            transition-colors duration-150
+          "
+        >
+          <ArrowPathIcon className="w-6 h-6" />
+          New Transaction
+        </button>
+        <div className="flex-shrink-0 mb-auto" />
+      </div>
+    );
+  }
 
   return (
     <div className="flex flex-col h-full items-center overflow-y-auto p-8">

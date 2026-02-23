@@ -9,6 +9,8 @@ import { useCartContext } from '../context/CartContext';
 import { useRegister } from './useRegister';
 import { createTransaction } from '../api/transactions';
 import { formatCurrency } from '../utils/formatters';
+import { getSyncManager } from '../store/offlineSync';
+import { saveOfflineTransaction } from '../services/transactionSyncService';
 
 /**
  * Enhanced cart hook with transaction processing
@@ -92,6 +94,25 @@ export function useCart() {
           register.currentShift.shiftId,
           payments
         );
+
+        // Offline path: save locally if network is down
+        if (!getSyncManager().isOnline) {
+          const offlineResult = await saveOfflineTransaction(transactionData);
+          currentCart.clearCart();
+          return {
+            success: true,
+            offline: true,
+            clientTransactionId: offlineResult.clientTransactionId,
+            transaction: {
+              offline: true,
+              clientTransactionId: offlineResult.clientTransactionId,
+              createdAt: offlineResult.createdAt,
+              totalAmount: currentCart.total,
+              status: 'offline_pending',
+            },
+            message: 'Saved offline — will sync when reconnected',
+          };
+        }
 
         // Create transaction
         const result = await createTransaction(transactionData);

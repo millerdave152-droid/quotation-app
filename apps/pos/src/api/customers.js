@@ -4,6 +4,7 @@
  */
 
 import api from './axios';
+import { searchCustomersOffline } from '../services/offlineCacheService';
 
 /**
  * Search customers by name, email, or phone
@@ -30,6 +31,12 @@ export const searchCustomers = async (query, options = {}) => {
       data: response.customers || response.data || [],
     };
   } catch (error) {
+    // Offline fallback: search Dexie cache
+    if (error.code === 'ERR_NETWORK' || !navigator.onLine) {
+      console.log('[Customers] searchCustomers offline fallback');
+      const offlineResults = await searchCustomersOffline(query);
+      return { success: true, data: offlineResults, offline: true };
+    }
     console.error('[Customers] searchCustomers error:', error);
     return {
       success: false,

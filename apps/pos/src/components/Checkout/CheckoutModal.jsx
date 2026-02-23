@@ -489,6 +489,14 @@ export function CheckoutModal({
       });
 
       if (result.success) {
+        // Offline transaction: skip signature/fraud, go straight to complete
+        if (result.offline) {
+          setTransaction(result.transaction);
+          setStep('complete');
+          onComplete?.(result.transaction);
+          return;
+        }
+
         // Capture fraud assessment from successful transaction
         const txnFraud = result.transaction?.fraudAssessment;
         if (txnFraud && txnFraud.riskScore >= 30) {

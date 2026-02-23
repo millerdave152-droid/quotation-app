@@ -4,6 +4,7 @@
  */
 
 import api from './axios';
+import { searchProductsOffline, getProductByBarcodeOffline } from '../services/offlineCacheService';
 
 /**
  * Get products with search, pagination, and filtering
@@ -40,6 +41,12 @@ export const getProducts = async (params = {}) => {
       pagination,
     };
   } catch (error) {
+    // Offline fallback: search local Dexie cache
+    if (params.search && (error.code === 'ERR_NETWORK' || !navigator.onLine)) {
+      console.log('[Products] getProducts offline fallback');
+      const offlineResults = await searchProductsOffline(params.search);
+      return { success: true, data: offlineResults, pagination: null, offline: true };
+    }
     console.error('[Products] getProducts error:', error);
     return {
       success: false,
@@ -98,6 +105,14 @@ export const searchByBarcode = async (barcode) => {
       match_type: response.data?.match_type,
     };
   } catch (error) {
+    // Offline fallback: look up in Dexie by barcode
+    if (error.code === 'ERR_NETWORK' || !navigator.onLine) {
+      console.log('[Products] searchByBarcode offline fallback');
+      const offlineProduct = await getProductByBarcodeOffline(barcode);
+      if (offlineProduct) {
+        return { success: true, data: offlineProduct, match_type: 'offline', offline: true };
+      }
+    }
     console.error('[Products] searchByBarcode error:', error);
     return {
       success: false,
@@ -193,6 +208,13 @@ export const getProductsByCategory = async (categoryId, params = {}) => {
       pagination,
     };
   } catch (error) {
+    // Offline fallback: filter Dexie by categoryId
+    if (error.code === 'ERR_NETWORK' || !navigator.onLine) {
+      console.log('[Products] getProductsByCategory offline fallback');
+      const { default: db } = await import('../db/offlineDb');
+      const offlineProducts = await db.products.where('categoryId').equals(Number(categoryId)).toArray();
+      return { success: true, data: offlineProducts, pagination: null, offline: true };
+    }
     console.error('[Products] getProductsByCategory error:', error);
     return {
       success: false,
@@ -240,6 +262,24 @@ export const quickSearch = async (query, limit = 10) => {
       data: mappedProducts,
     };
   } catch (error) {
+    // Offline fallback: search Dexie cache
+    if (error.code === 'ERR_NETWORK' || !navigator.onLine) {
+      console.log('[Products] quickSearch offline fallback');
+      const offlineResults = await searchProductsOffline(query);
+      const mapped = offlineResults.slice(0, limit).map(p => ({
+        id: p.id,
+        productId: p.id,
+        name: p.name,
+        sku: p.sku,
+        model: p.sku,
+        manufacturer: p.manufacturer,
+        description: p.description,
+        price: p.price || 0,
+        cost: p.cost || 0,
+        stockQty: p.stockQty || 0,
+      }));
+      return { success: true, data: mapped, offline: true };
+    }
     console.error('[Products] quickSearch error:', error);
     return {
       success: false,

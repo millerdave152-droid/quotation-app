@@ -69,6 +69,11 @@ import { useManagerPinCache } from '../hooks/useManagerPinCache';
 
 // Components
 import { ConnectionBanner } from '../components/ConnectionBanner';
+import { ConnectionStatusDot } from '../components/ConnectionStatusDot';
+import { PendingSyncBadge } from '../components/PendingSyncBadge';
+
+// Hooks
+import { useOfflineTransaction } from '../hooks/useOfflineTransaction';
 
 // Offline queue
 import { addOfflineApproval, syncToServer } from '../store/offlineApprovalQueue';
@@ -201,6 +206,9 @@ function Header({
   onNotificationSettings,
   badgeCount,
   badgeIsManager,
+  connectionStatus,
+  offlinePendingCount,
+  offlineSyncing,
 }) {
   const navigate = useNavigate();
   const { user, logout, isAdminOrManager } = useAuth();
@@ -282,8 +290,14 @@ function Header({
           </div>
         )}
 
-        {/* Right - Badge + User Menu */}
+        {/* Right - Connection + Sync + Badge + User Menu */}
         <div className="flex items-center gap-2">
+          {/* Connection Status Dot */}
+          <ConnectionStatusDot status={connectionStatus} showLabel={false} />
+
+          {/* Pending Offline Sync Badge */}
+          <PendingSyncBadge count={offlinePendingCount} isSyncing={offlineSyncing} />
+
           {/* Pending Approvals Badge */}
           {badgeCount > 0 && (
             <button
@@ -763,6 +777,7 @@ export function POSMain() {
   // Connection status + offline support
   const { status: connectionStatus, isOffline } = useConnectionStatus();
   const { verifyPinOffline, clearCache: clearPinCache } = useManagerPinCache();
+  const { pendingCount: offlinePendingCount, isSyncing: offlineSyncing } = useOfflineTransaction();
 
   // Discount Authority State
   const [discountTier, setDiscountTier] = useState(null);
@@ -1161,7 +1176,7 @@ export function POSMain() {
       />
 
       {/* Connection Status Banner */}
-      <ConnectionBanner status={connectionStatus} />
+      <ConnectionBanner status={connectionStatus} pendingCount={offlinePendingCount} />
 
       {/* Header */}
       <Header
@@ -1174,6 +1189,9 @@ export function POSMain() {
         onNotificationSettings={() => setShowNotificationSettings(true)}
         badgeCount={isManager ? managerPendingCount : escalationPendingCount}
         badgeIsManager={isManager}
+        connectionStatus={connectionStatus}
+        offlinePendingCount={offlinePendingCount}
+        offlineSyncing={offlineSyncing}
       />
 
       {/* Quote Conversion Banner */}

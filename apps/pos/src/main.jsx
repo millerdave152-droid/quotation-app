@@ -21,6 +21,10 @@ import ErrorBoundary from './components/ErrorBoundary';
 // Error tracking
 import errorTracker from './services/ErrorTracker';
 
+// Offline cache
+import { prefillProductCache, prefillCustomerCache, refreshCache } from './services/offlineCacheService';
+import { getSyncManager } from './store/offlineSync';
+
 // Styles
 import './index.css';
 
@@ -46,18 +50,27 @@ window.addEventListener('beforeunload', () => errorTracker.flush());
 // SERVICE WORKER REGISTRATION (for future PWA support)
 // ============================================================================
 
-// Uncomment to enable service worker registration
-// if ('serviceWorker' in navigator && import.meta.env.PROD) {
-//   window.addEventListener('load', () => {
-//     navigator.serviceWorker.register('/sw.js')
-//       .then(registration => {
-//         console.log('[TeleTime POS] SW registered:', registration.scope);
-//       })
-//       .catch(error => {
-//         console.error('[TeleTime POS] SW registration failed:', error);
-//       });
-//   });
-// }
+if ('serviceWorker' in navigator && import.meta.env.PROD) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('/sw.js')
+      .then(registration => {
+        console.log('[TeleTime POS] SW registered:', registration.scope);
+        registration.addEventListener('updatefound', () => {
+          const newWorker = registration.installing;
+          if (newWorker) {
+            newWorker.addEventListener('statechange', () => {
+              if (newWorker.state === 'activated') {
+                console.log('[TeleTime POS] New SW activated');
+              }
+            });
+          }
+        });
+      })
+      .catch(error => {
+        console.error('[TeleTime POS] SW registration failed:', error);
+      });
+  });
+}
 
 // ============================================================================
 // RENDER APPLICATION
@@ -99,6 +112,26 @@ if (!rootElement) {
 
 const root = ReactDOM.createRoot(rootElement);
 root.render(<AppWithProviders />);
+
+// ============================================================================
+// OFFLINE CACHE PREFILL — populate Dexie with products/customers on boot
+// ============================================================================
+
+if (navigator.onLine) {
+  // Delay prefill to avoid competing with initial page loads
+  setTimeout(() => {
+    prefillProductCache();
+    prefillCustomerCache();
+  }, 5000);
+}
+
+// Refresh cache when connection is restored
+const syncManager = getSyncManager();
+syncManager.addListener((event) => {
+  if (event === 'online') {
+    refreshCache();
+  }
+});
 
 // ============================================================================
 // HOT MODULE REPLACEMENT (Development)
