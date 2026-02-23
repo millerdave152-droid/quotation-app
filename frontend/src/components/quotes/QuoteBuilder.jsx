@@ -1,4 +1,5 @@
 import { authFetch } from '../../services/authFetch';
+import { getRelativeTime } from '../../utils/relativeTime';
 /**
  * QuoteBuilder Component
  * Handles quote creation and editing with customer selection,
@@ -141,6 +142,10 @@ const QuoteBuilder = ({
 
   // Quote info for editing
   editingQuoteNumber,
+
+  // Draft persistence
+  lastSavedAt,
+  isSaving,
 
   // Helpers
   formatCurrency
@@ -1957,6 +1962,13 @@ const QuoteBuilder = ({
               >
                 Cancel
               </button>
+            )}
+
+            {/* Draft saved indicator */}
+            {(isSaving || lastSavedAt) && (
+              <span style={{ fontSize: '12px', color: '#9ca3af', alignSelf: 'center' }}>
+                {isSaving ? 'Saving draft...' : `Draft saved ${getRelativeTime(lastSavedAt)}`}
+              </span>
             )}
 
             <button

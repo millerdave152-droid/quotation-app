@@ -18,6 +18,8 @@ import { QuoteList, QuoteBuilder, QuoteViewer, CloneQuoteDialog, QuoteKanban } f
 import Dashboard from './Dashboard';
 import { toast } from './ui/Toast';
 import companyConfig from '../config/companyConfig';
+import useDraftPersistence from '../hooks/useDraftPersistence';
+import db from '../db/localDb';
 
 const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:3001';
 
@@ -198,6 +200,82 @@ const QuotationManager = () => {
   const [interactionNotes, setInteractionNotes] = useState('');
   const [nextAction, setNextAction] = useState('');
   const [nextActionDate, setNextActionDate] = useState('');
+
+  // ============================================
+  // DRAFT PERSISTENCE STATE
+  // ============================================
+  const [activeDraftId, setActiveDraftId] = useState(null);
+  const [activeDraftTab, setActiveDraftTab] = useState(false);
+
+  // Builder state snapshot for draft persistence (memoized to avoid re-renders)
+  const builderState = useMemo(() => ({
+    selectedCustomer,
+    quoteItems,
+    discountPercent,
+    notes,
+    internalNotes,
+    terms,
+    editingQuoteId,
+    editingQuoteNumber,
+    hideModelNumbers,
+    watermarkText,
+    watermarkEnabled,
+    quoteExpiryDate,
+    deliveryAddress,
+    deliveryCity,
+    deliveryPostalCode,
+    deliveryDate,
+    deliveryTimeSlot,
+    deliveryInstructions,
+    installationRequired,
+    installationType,
+    haulAwayRequired,
+    haulAwayItems,
+    salesRepName,
+    commissionPercent,
+    referralSource,
+    referralName,
+    priorityLevel,
+    specialInstructions,
+    paymentMethod,
+    depositRequired,
+    depositAmount,
+    quoteFinancing,
+    quoteWarranties,
+    quoteDelivery,
+    quoteRebates,
+    quoteTradeIns,
+  }), [
+    selectedCustomer, quoteItems, discountPercent, notes, internalNotes, terms,
+    editingQuoteId, editingQuoteNumber, hideModelNumbers, watermarkText, watermarkEnabled,
+    quoteExpiryDate, deliveryAddress, deliveryCity, deliveryPostalCode, deliveryDate,
+    deliveryTimeSlot, deliveryInstructions, installationRequired, installationType,
+    haulAwayRequired, haulAwayItems, salesRepName, commissionPercent, referralSource,
+    referralName, priorityLevel, specialInstructions, paymentMethod, depositRequired,
+    depositAmount, quoteFinancing, quoteWarranties, quoteDelivery, quoteRebates, quoteTradeIns,
+  ]);
+
+  const builderSetters = useMemo(() => ({
+    setSelectedCustomer, setQuoteItems, setDiscountPercent, setNotes, setInternalNotes, setTerms,
+    setEditingQuoteId, setEditingQuoteNumber, setHideModelNumbers, setWatermarkText,
+    setWatermarkEnabled, setQuoteExpiryDate, setDeliveryAddress, setDeliveryCity,
+    setDeliveryPostalCode, setDeliveryDate, setDeliveryTimeSlot, setDeliveryInstructions,
+    setInstallationRequired, setInstallationType, setHaulAwayRequired, setHaulAwayItems,
+    setSalesRepName, setCommissionPercent, setReferralSource, setReferralName,
+    setPriorityLevel, setSpecialInstructions, setPaymentMethod, setDepositRequired,
+    setDepositAmount, setQuoteFinancing, setQuoteWarranties, setQuoteDelivery,
+    setQuoteRebates, setQuoteTradeIns,
+  }), []);
+
+  const draftPersistence = useDraftPersistence({
+    builderState,
+    builderSetters,
+    activeDraftId,
+    setActiveDraftId,
+    isBuilderActive: view === 'builder',
+    userId: user?.id,
+    tenantId: user?.tenant_id,
+  });
 
   // ============================================
   // SERVICE ITEMS (Quick Add)
@@ -1028,6 +1106,8 @@ const QuotationManager = () => {
         terms,
         discount_percent: discountPercent,
         created_by: salesRepName || 'User',
+        // Idempotency: attach the client draft UUID
+        client_draft_id: activeDraftId || undefined,
         // Quote protection settings
         hide_model_numbers: hideModelNumbers,
         watermark_text: watermarkText,
@@ -1065,27 +1145,61 @@ const QuotationManager = () => {
         }
       };
 
+      // Offline path: queue for later sync if no connection
+      if (!navigator.onLine && !editingQuoteId) {
+        if (activeDraftId) {
+          await db.quote_drafts.update(activeDraftId, {
+            status: 'pending_sync',
+            updated_at: new Date().toISOString(),
+            snapshot: { ...builderState, quoteData },
+          });
+        }
+        toast.info('Quote saved offline. It will sync when you reconnect.', 'Saved Offline');
+        draftPersistence.clearActiveDraft();
+        resetBuilder();
+        setView('list');
+        return;
+      }
+
       const token = localStorage.getItem('auth_token');
       const headers = {
         'Content-Type': 'application/json',
-        ...(token && { 'Authorization': `Bearer ${token}` })
+        ...(token && { 'Authorization': `Bearer ${token}` }),
+        ...(activeDraftId && { 'X-Idempotency-Key': activeDraftId }),
       };
 
       let res;
-      if (editingQuoteId) {
-        // Update existing quote
-        res = await authFetch(`${API_URL}/api/quotations/${editingQuoteId}`, {
-          method: 'PUT',
-          headers,
-          body: JSON.stringify(quoteData)
-        });
-      } else {
-        // Create new quote
-        res = await authFetch(`${API_URL}/api/quotes`, {
-          method: 'POST',
-          headers,
-          body: JSON.stringify(quoteData)
-        });
+      try {
+        if (editingQuoteId) {
+          // Update existing quote
+          res = await authFetch(`${API_URL}/api/quotations/${editingQuoteId}`, {
+            method: 'PUT',
+            headers,
+            body: JSON.stringify(quoteData)
+          });
+        } else {
+          // Create new quote
+          res = await authFetch(`${API_URL}/api/quotes`, {
+            method: 'POST',
+            headers,
+            body: JSON.stringify(quoteData)
+          });
+        }
+      } catch (networkErr) {
+        // Network TypeError — fall back to offline save
+        if (!editingQuoteId && activeDraftId) {
+          await db.quote_drafts.update(activeDraftId, {
+            status: 'pending_sync',
+            updated_at: new Date().toISOString(),
+            snapshot: { ...builderState, quoteData },
+          });
+          toast.info('Network error — quote saved offline. It will sync when you reconnect.', 'Saved Offline');
+          draftPersistence.clearActiveDraft();
+          resetBuilder();
+          setView('list');
+          return;
+        }
+        throw networkErr;
       }
 
       if (!res.ok) throw new Error(editingQuoteId ? 'Failed to update quote' : 'Failed to create quote');
@@ -1096,6 +1210,9 @@ const QuotationManager = () => {
       const savedQuote = result.data || result.quote || result;
       const quoteNumber = savedQuote.quote_number || savedQuote.quotation_number;
       const quoteId = savedQuote.id;
+
+      // Clear local draft on successful submit
+      await draftPersistence.clearActiveDraft();
 
       toast.success(
         editingQuoteId
@@ -1947,6 +2064,8 @@ const QuotationManager = () => {
   };
 
   const createNewQuote = () => {
+    // Generate a new draft UUID for this builder session
+    setActiveDraftId(crypto.randomUUID());
     setView('builder');
     setSelectedCustomer(null);
 
@@ -3065,6 +3184,43 @@ const QuotationManager = () => {
   
   return (
     <div>
+      {/* Pending Sync Banner */}
+      {view === 'list' && draftPersistence.hasPendingSyncDrafts && (
+        <div style={{
+          background: 'linear-gradient(135deg, #fef3c7, #fde68a)',
+          border: '1px solid #fbbf24',
+          borderRadius: '10px',
+          padding: '12px 16px',
+          marginBottom: '12px',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <span style={{ fontSize: '18px' }}>&#9888;</span>
+            <span style={{ fontSize: '13px', fontWeight: '500', color: '#92400e' }}>
+              {draftPersistence.pendingSyncCount} quote{draftPersistence.pendingSyncCount !== 1 ? 's' : ''} pending sync
+            </span>
+          </div>
+          {navigator.onLine && (
+            <button
+              onClick={draftPersistence.forceSyncAll}
+              style={{
+                padding: '6px 14px',
+                background: '#d97706',
+                color: 'white',
+                border: 'none',
+                borderRadius: '6px',
+                fontSize: '12px',
+                fontWeight: '600',
+                cursor: 'pointer',
+              }}
+            >
+              Sync Now
+            </button>
+          )}
+        </div>
+      )}
       {view === 'list' && (
         <QuoteList
           quotations={sortedQuotes}
@@ -3135,6 +3291,17 @@ const QuotationManager = () => {
             setView(mode === 'kanban' ? 'kanban' : 'list');
             localStorage.setItem('quoteListViewMode', mode);
           }}
+          localDrafts={draftPersistence.localDrafts}
+          onResumeDraft={async (draftId) => {
+            const ok = await draftPersistence.loadDraft(draftId);
+            if (ok) {
+              setActiveDraftId(draftId);
+              setView('builder');
+            }
+          }}
+          onDeleteDraft={draftPersistence.deleteDraft}
+          activeDraftTab={activeDraftTab}
+          setActiveDraftTab={setActiveDraftTab}
         />
       )}
       {view === 'kanban' && (
@@ -3238,6 +3405,8 @@ const QuotationManager = () => {
           depositAmount={depositAmount}
           setDepositAmount={setDepositAmount}
           editingQuoteNumber={editingQuoteNumber}
+          lastSavedAt={draftPersistence.lastSavedAt}
+          isSaving={draftPersistence.isSaving}
           onSave={saveQuote}
           onSaveAndSend={saveAndSend}
           onSaveTemplate={saveAsTemplate}

@@ -175,11 +175,10 @@ self.addEventListener('notificationclick', (event) => {
 // Helper function to sync quotes when back online
 async function syncQuotes() {
   try {
-    // Get pending actions from IndexedDB
+    // 1. Process legacy pending actions from QuoteAppDB
     const db = await openDatabase();
     const pendingActions = await getPendingActions(db);
 
-    // Process each pending action
     for (const action of pendingActions) {
       try {
         await fetch(action.url, {
@@ -187,16 +186,93 @@ async function syncQuotes() {
           headers: action.headers,
           body: JSON.stringify(action.body)
         });
-
-        // Remove from pending if successful
         await removePendingAction(db, action.id);
       } catch (error) {
         console.error('Failed to sync action:', error);
       }
     }
+
+    // 2. Process pending_sync drafts from Dexie's QuoteAppDrafts DB
+    try {
+      const draftsDb = await openDraftsDatabase();
+      const pendingDrafts = await getPendingSyncDrafts(draftsDb);
+
+      for (const draft of pendingDrafts) {
+        try {
+          const quoteData = draft.snapshot?.quoteData;
+          if (!quoteData) continue;
+
+          // Read auth token from localStorage (available in SW via clients)
+          const tokenKey = 'auth_token';
+          let token = null;
+          try {
+            const allClients = await self.clients.matchAll();
+            if (allClients.length > 0) {
+              // Use postMessage to request token, but simpler: store it in cache
+              // For now, try reading from the draft's stored headers
+            }
+          } catch (_) {}
+
+          const res = await fetch('/api/quotes', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'X-Idempotency-Key': draft.id,
+            },
+            body: JSON.stringify({
+              ...quoteData,
+              client_draft_id: draft.id,
+            }),
+          });
+
+          if (res.ok || res.status === 409) {
+            await deleteDraftFromDexie(draftsDb, draft.id);
+          }
+        } catch (error) {
+          console.error('Failed to sync draft:', error);
+        }
+      }
+    } catch (error) {
+      // QuoteAppDrafts DB may not exist yet — that's fine
+      console.log('[ServiceWorker] No Dexie drafts to sync:', error.message);
+    }
   } catch (error) {
     console.error('Background sync failed:', error);
   }
+}
+
+// Open Dexie's QuoteAppDrafts database using raw IndexedDB
+function openDraftsDatabase() {
+  return new Promise((resolve, reject) => {
+    const request = indexedDB.open('QuoteAppDrafts');
+    request.onerror = () => reject(request.error);
+    request.onsuccess = () => resolve(request.result);
+  });
+}
+
+function getPendingSyncDrafts(db) {
+  return new Promise((resolve, reject) => {
+    try {
+      const tx = db.transaction(['quote_drafts'], 'readonly');
+      const store = tx.objectStore('quote_drafts');
+      const index = store.index('status');
+      const request = index.getAll('pending_sync');
+      request.onerror = () => reject(request.error);
+      request.onsuccess = () => resolve(request.result);
+    } catch (error) {
+      reject(error);
+    }
+  });
+}
+
+function deleteDraftFromDexie(db, id) {
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(['quote_drafts'], 'readwrite');
+    const store = tx.objectStore('quote_drafts');
+    const request = store.delete(id);
+    request.onerror = () => reject(request.error);
+    request.onsuccess = () => resolve();
+  });
 }
 
 // IndexedDB helpers

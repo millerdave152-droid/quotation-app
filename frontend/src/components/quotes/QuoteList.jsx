@@ -6,6 +6,7 @@
 import React, { useMemo, useState } from 'react';
 import BulkActionToolbar from './BulkActionToolbar';
 import FilterChips from './FilterChips';
+import DraftList from './DraftList';
 
 /**
  * Tooltip wrapper component
@@ -303,7 +304,14 @@ const QuoteList = ({
 
   // View mode
   listViewMode = 'list',
-  onViewModeChange
+  onViewModeChange,
+
+  // Draft persistence
+  localDrafts = [],
+  onResumeDraft,
+  onDeleteDraft,
+  activeDraftTab = false,
+  setActiveDraftTab
 }) => {
   // Filter and sort quotations
   const filteredQuotes = useMemo(() => {
@@ -724,23 +732,60 @@ const QuoteList = ({
         </div>
       </div>
 
-      {/* Quick Filter Chips */}
-      <FilterChips
-        activeFilter={activeQuickFilter}
-        onFilterChange={onQuickFilterChange}
-        onRefreshTrigger={filterRefreshTrigger}
-        statusFilter={statusFilter}
-        setStatusFilter={setStatusFilter}
-        expiringFilter={expiringFilter}
-        setExpiringFilter={setExpiringFilter}
-        valueFilter={valueFilter}
-        setValueFilter={setValueFilter}
-        dateFilter={dateFilter}
-        setDateFilter={setDateFilter}
-        customerFilter={customerFilter}
-        setCustomerFilter={setCustomerFilter}
-        onClearFilters={onClearFilters}
-      />
+      {/* Quick Filter Chips + Drafts Tab */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+        {/* Drafts tab chip */}
+        <button
+          onClick={() => setActiveDraftTab && setActiveDraftTab(!activeDraftTab)}
+          style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: '6px',
+            padding: '6px 14px',
+            borderRadius: '9999px',
+            border: activeDraftTab ? '2px solid #2563eb' : '1px solid #d1d5db',
+            background: activeDraftTab ? '#eff6ff' : 'white',
+            color: activeDraftTab ? '#2563eb' : '#374151',
+            fontSize: '13px',
+            fontWeight: '600',
+            cursor: 'pointer',
+            whiteSpace: 'nowrap',
+          }}
+        >
+          Drafts
+          {localDrafts.length > 0 && (
+            <span style={{
+              background: activeDraftTab ? '#2563eb' : '#6b7280',
+              color: 'white',
+              borderRadius: '9999px',
+              padding: '0 6px',
+              fontSize: '11px',
+              fontWeight: '700',
+              lineHeight: '18px',
+              minWidth: '18px',
+              textAlign: 'center',
+            }}>
+              {localDrafts.length}
+            </span>
+          )}
+        </button>
+        <FilterChips
+          activeFilter={activeQuickFilter}
+          onFilterChange={(f) => { setActiveDraftTab && setActiveDraftTab(false); onQuickFilterChange(f); }}
+          onRefreshTrigger={filterRefreshTrigger}
+          statusFilter={statusFilter}
+          setStatusFilter={setStatusFilter}
+          expiringFilter={expiringFilter}
+          setExpiringFilter={setExpiringFilter}
+          valueFilter={valueFilter}
+          setValueFilter={setValueFilter}
+          dateFilter={dateFilter}
+          setDateFilter={setDateFilter}
+          customerFilter={customerFilter}
+          setCustomerFilter={setCustomerFilter}
+          onClearFilters={onClearFilters}
+        />
+      </div>
 
       {/* Filters */}
       <div style={{
@@ -957,7 +1002,22 @@ const QuoteList = ({
         </div>
       )}
 
-      {/* Quote Table */}
+      {/* Drafts view or Quote Table */}
+      {activeDraftTab ? (
+        <div style={{
+          background: 'white',
+          borderRadius: '12px',
+          boxShadow: '0 1px 3px rgba(0,0,0,0.1)',
+          padding: '16px',
+        }}>
+          <DraftList
+            drafts={localDrafts}
+            onResume={onResumeDraft}
+            onDelete={onDeleteDraft}
+            formatCurrency={formatCurrency}
+          />
+        </div>
+      ) : (
       <div style={{
         background: 'white',
         borderRadius: '12px',
@@ -1163,6 +1223,7 @@ const QuoteList = ({
           </table>
         )}
       </div>
+      )}
 
       {/* Bulk Action Toolbar */}
       <BulkActionToolbar

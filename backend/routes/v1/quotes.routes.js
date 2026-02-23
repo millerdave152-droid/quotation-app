@@ -51,6 +51,70 @@ let pool = null;
 let quoteService = null;
 
 // ============================================================================
+// DRAFT PERSISTENCE (must be before /:id routes)
+// ============================================================================
+
+/**
+ * GET /api/v1/quotes/drafts
+ * Returns server-side drafts for the authenticated user, newest first
+ */
+router.get('/drafts',
+  authenticate,
+  asyncHandler(async (req, res) => {
+    const userId = req.user.id;
+    const tenantId = req.user?.tenant_id || null;
+
+    const conditions = ['user_id = $1'];
+    const params = [userId];
+    let idx = 2;
+
+    if (tenantId) {
+      conditions.push(`tenant_id = $${idx++}`);
+      params.push(tenantId);
+    }
+
+    const result = await pool.query(`
+      SELECT id, client_draft_id, user_id, tenant_id, snapshot, server_quote_id,
+             created_at, updated_at
+      FROM quotation_drafts
+      WHERE ${conditions.join(' AND ')}
+      ORDER BY updated_at DESC
+      LIMIT 20
+    `, params);
+
+    res.success(result.rows);
+  })
+);
+
+/**
+ * PATCH /api/v1/quotes/:id/draft
+ * Upsert a draft snapshot for a quotation (server-side draft storage for cross-device sync)
+ */
+router.patch('/:id/draft',
+  authenticate,
+  asyncHandler(async (req, res) => {
+    const serverQuoteId = req.params.id === 'new' ? null : parseInt(req.params.id, 10);
+    const { client_draft_id, snapshot } = req.body;
+    const userId = req.user.id;
+    const tenantId = req.user?.tenant_id || null;
+
+    if (!client_draft_id || !snapshot) {
+      return res.apiError('BAD_REQUEST', 'client_draft_id and snapshot are required');
+    }
+
+    const result = await pool.query(`
+      INSERT INTO quotation_drafts (client_draft_id, user_id, tenant_id, snapshot, server_quote_id, updated_at)
+      VALUES ($1, $2, $3, $4, $5, NOW())
+      ON CONFLICT (client_draft_id)
+      DO UPDATE SET snapshot = $4, server_quote_id = $5, updated_at = NOW()
+      RETURNING *
+    `, [client_draft_id, userId, tenantId, JSON.stringify(snapshot), serverQuoteId || null]);
+
+    res.success(result.rows[0]);
+  })
+);
+
+// ============================================================================
 // LIST QUOTES
 // ============================================================================
 
@@ -210,6 +274,18 @@ router.post('/',
     const userId = req.user.id;
     const userName = `${req.user.firstName} ${req.user.lastName}`;
 
+    // Idempotency check: if client_draft_id provided, check for existing quotation
+    if (data.client_draft_id) {
+      const existing = await pool.query(
+        'SELECT id FROM quotations WHERE client_draft_id = $1',
+        [data.client_draft_id]
+      );
+      if (existing.rows.length > 0) {
+        const existingQuote = await getQuoteById(existing.rows[0].id);
+        return res.success(existingQuote);
+      }
+    }
+
     const client = await pool.connect();
 
     try {
@@ -227,12 +303,27 @@ router.post('/',
 
       const customer = customerResult.rows[0];
 
-      // Generate quotation number
-      const numberResult = await client.query(`
-        SELECT COALESCE(MAX(CAST(SUBSTRING(quotation_number FROM 'Q(\\d+)') AS INTEGER)), 0) + 1 as next_num
-        FROM quotations
-      `);
-      const quotationNumber = `Q${String(numberResult.rows[0].next_num).padStart(6, '0')}`;
+      // Generate quotation number (tenant-scoped)
+      const tenantId = req.user?.tenant_id || null;
+      let quotationNumber;
+      if (tenantId) {
+        const seqResult = await client.query(`
+          INSERT INTO tenant_quote_sequences (tenant_id, last_number, prefix)
+          VALUES ($1, 1, 'QT')
+          ON CONFLICT (tenant_id)
+          DO UPDATE SET last_number = tenant_quote_sequences.last_number + 1, updated_at = NOW()
+          RETURNING last_number, prefix
+        `, [tenantId]);
+        const { last_number, prefix } = seqResult.rows[0];
+        const year = new Date().getFullYear();
+        quotationNumber = `${prefix}-${year}-${last_number.toString().padStart(4, '0')}`;
+      } else {
+        const numberResult = await client.query(`
+          SELECT COALESCE(MAX(CAST(SUBSTRING(quotation_number FROM 'Q(\\d+)') AS INTEGER)), 0) + 1 as next_num
+          FROM quotations
+        `);
+        quotationNumber = `Q${String(numberResult.rows[0].next_num).padStart(6, '0')}`;
+      }
 
       // Calculate totals from items
       let subtotalCents = 0;
@@ -256,14 +347,14 @@ router.post('/',
       // Check if approval required (margin threshold)
       const requiresApproval = await checkApprovalRequired(client, data.items);
 
-      // Insert quotation
+      // Insert quotation (with tenant_id for multi-tenancy)
       const quoteResult = await client.query(`
         INSERT INTO quotations (
           quotation_number, customer_id, sales_rep_id, sales_rep_name,
           status, subtotal_cents, discount_cents, tax_cents, total_cents,
           tax_province, notes, internal_notes, valid_until,
-          requires_approval, approval_status, created_by
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
+          requires_approval, approval_status, created_by, tenant_id, client_draft_id
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18)
         RETURNING *
       `, [
         quotationNumber,
@@ -281,7 +372,9 @@ router.post('/',
         data.validUntil || null,
         requiresApproval,
         requiresApproval ? 'pending' : 'not_required',
-        userId
+        userId,
+        tenantId,
+        data.client_draft_id || null
       ]);
 
       const quote = quoteResult.rows[0];
@@ -394,6 +487,11 @@ router.post('/',
       `, [quote.id, JSON.stringify({ status: 'DRAFT' }), userId]);
 
       await client.query('COMMIT');
+
+      // Clean up server-side draft if this was created from a local draft
+      if (data.client_draft_id) {
+        pool.query('DELETE FROM quotation_drafts WHERE client_draft_id = $1', [data.client_draft_id]).catch(() => {});
+      }
 
       // Fetch complete quote with items
       const fullQuote = await getQuoteById(quote.id);
