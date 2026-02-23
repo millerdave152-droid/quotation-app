@@ -2127,4 +2127,38 @@ router.get('/:id/next-actions', authenticate, asyncHandler(async (req, res) => {
   res.json({ success: true, data: actions });
 }));
 
+// ============================================================================
+// QUOTE SMS & SHARE HISTORY (Feature 2D)
+// ============================================================================
+
+/**
+ * POST /api/quotations/:id/send-sms
+ * Send a quote via SMS
+ */
+router.post('/:id/send-sms', authenticate, asyncHandler(async (req, res) => {
+  const { phoneNumber } = req.body;
+  if (!phoneNumber) throw ApiError.badRequest('phoneNumber is required');
+  const result = await quoteService.sendQuoteSMS(parseInt(req.params.id), phoneNumber, req.user.userId);
+  res.json({ success: true, data: result });
+}));
+
+/**
+ * GET /api/quotations/:id/share-history
+ * Get share/send history for a quote
+ */
+router.get('/:id/share-history', authenticate, asyncHandler(async (req, res) => {
+  const history = await quoteService.getShareHistory(parseInt(req.params.id));
+  res.json({ success: true, data: history });
+}));
+
+/**
+ * POST /api/quotations/:id/log-share
+ * Log a share event (email, pdf download, print, link)
+ */
+router.post('/:id/log-share', authenticate, asyncHandler(async (req, res) => {
+  const { method, recipient, metadata } = req.body;
+  const log = await quoteService.logShare(parseInt(req.params.id), method, recipient, req.user.userId, metadata);
+  res.json({ success: true, data: log });
+}));
+
 module.exports = { router, init };

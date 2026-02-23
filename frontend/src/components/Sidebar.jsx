@@ -66,6 +66,18 @@ const navItems = {
   'admin-fraud': { path: '/admin/fraud', icon: Shield, label: 'Fraud & Audit', isAdmin: true },
   'admin-monitoring': { path: '/admin/monitoring', icon: Activity, label: 'Monitoring', isAdmin: true },
   'admin-data-import': { path: '/admin/data-import', icon: Database, label: 'Data Import', isAdmin: true },
+  'admin-serial-numbers': { path: '/admin/serial-numbers', icon: Tag, label: 'Serial Numbers', isAdmin: true },
+  'admin-purchase-orders': { path: '/admin/purchase-orders', icon: ClipboardList, label: 'Purchase Orders', isAdmin: true },
+  'admin-product-variants': { path: '/admin/product-variants', icon: Package, label: 'Product Variants', isAdmin: true },
+  // Lightspeed Feature Gap
+  'inventory-counts': { path: '/inventory-counts', icon: ClipboardCheck, label: 'Inventory Counts' },
+  'work-orders': { path: '/work-orders', icon: Wrench, label: 'Work Orders' },
+  'special-orders': { path: '/special-orders', icon: ShoppingCart, label: 'Special Orders' },
+  'customer-accounts': { path: '/customer-accounts', icon: DollarSign, label: 'Customer Accounts' },
+  'pre-orders': { path: '/pre-orders', icon: ClipboardList, label: 'Pre-Orders' },
+  'surveys': { path: '/surveys', icon: ClipboardCheck, label: 'Surveys & Reviews' },
+  'catalog-exports': { path: '/catalog-exports', icon: Database, label: 'Catalog Exports' },
+  'audience-sync': { path: '/audience-sync', icon: Users, label: 'Audience Sync' },
 };
 
 // Section configuration
@@ -80,19 +92,19 @@ const navSections = [
     id: 'sales',
     title: 'Sales',
     icon: Users,
-    items: ['customers', 'leads', 'quotes', 'sales-performance', 'invoices']
+    items: ['customers', 'leads', 'quotes', 'sales-performance', 'invoices', 'special-orders', 'customer-accounts', 'pre-orders']
   },
   {
     id: 'inventory',
     title: 'Inventory',
     icon: Package,
-    items: ['products', 'product-visualization', 'inventory', 'pricing', 'manufacturer-promotions']
+    items: ['products', 'admin-product-variants', 'product-visualization', 'inventory', 'inventory-counts', 'admin-serial-numbers', 'admin-purchase-orders', 'pricing', 'manufacturer-promotions']
   },
   {
     id: 'marketplace',
     title: 'Marketplace',
     icon: ShoppingCart,
-    items: ['marketplace', 'bulk-ops', 'reports'],
+    items: ['marketplace', 'bulk-ops', 'reports', 'catalog-exports', 'audience-sync', 'surveys'],
     requiresPermission: 'marketplace'
   },
   {
@@ -107,7 +119,7 @@ const adminSection = {
   id: 'admin',
   title: 'Admin',
   icon: UserCog,
-  items: ['admin-deliveries', 'admin-users', 'admin-nomenclature', 'admin-fraud', 'admin-monitoring', 'admin-data-import']
+  items: ['admin-deliveries', 'admin-users', 'admin-nomenclature', 'admin-fraud', 'admin-monitoring', 'admin-data-import', 'work-orders']
 };
 
 /**

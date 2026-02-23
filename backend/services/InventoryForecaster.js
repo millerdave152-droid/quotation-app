@@ -344,6 +344,87 @@ class InventoryForecaster {
       channels
     };
   }
+
+  // ─── Sell-Through Rate Report ──────────────────────────────────────
+  async getSellThroughRate({ locationId, categoryId, brand, periodDays = 30, limit = 50, offset = 0 } = {}) {
+    const conditions = [];
+    const params = [];
+    let pi = 1;
+
+    params.push(periodDays);
+    const periodParam = pi++;
+
+    if (locationId) { conditions.push(`li.location_id = $${pi++}`); params.push(locationId); }
+    if (categoryId) { conditions.push(`p.category_id = $${pi++}`); params.push(categoryId); }
+    if (brand) { conditions.push(`p.manufacturer ILIKE $${pi++}`); params.push(`%${brand}%`); }
+
+    const where = conditions.length ? 'AND ' + conditions.join(' AND ') : '';
+
+    const { rows } = await this.pool.query(`
+      SELECT
+        p.id as product_id, p.name, p.sku, p.manufacturer,
+        COALESCE(li.quantity_on_hand, 0)::int AS ending_inventory,
+        COALESCE(sold.units_sold, 0)::int AS units_sold,
+        CASE
+          WHEN COALESCE(sold.units_sold, 0) + COALESCE(li.quantity_on_hand, 0) = 0 THEN 0
+          ELSE ROUND(COALESCE(sold.units_sold, 0)::numeric / (COALESCE(sold.units_sold, 0) + COALESCE(li.quantity_on_hand, 0)) * 100, 2)
+        END AS sell_through_rate,
+        COALESCE(sold.revenue_cents, 0)::bigint AS revenue_cents,
+        COALESCE(li.quantity_on_hand * p.cost, 0)::numeric(12,2) AS inventory_value
+      FROM products p
+      LEFT JOIN (
+        SELECT li2.product_id, SUM(li2.quantity_on_hand)::int as quantity_on_hand
+        FROM location_inventory li2
+        ${locationId ? `WHERE li2.location_id = $2` : ''}
+        GROUP BY li2.product_id
+      ) li ON li.product_id = p.id
+      LEFT JOIN (
+        SELECT ti.product_id,
+          SUM(ti.quantity)::int as units_sold,
+          SUM(ti.quantity * ti.unit_price * 100)::bigint as revenue_cents
+        FROM transaction_items ti
+        JOIN transactions t ON t.transaction_id = ti.transaction_id
+        WHERE t.created_at >= NOW() - make_interval(days => $${periodParam}::int)
+          AND t.status != 'voided'
+        GROUP BY ti.product_id
+      ) sold ON sold.product_id = p.id
+      WHERE (COALESCE(sold.units_sold, 0) > 0 OR COALESCE(li.quantity_on_hand, 0) > 0)
+      ${where}
+      ORDER BY sell_through_rate DESC
+      LIMIT $${pi++} OFFSET $${pi++}
+    `, [...params, limit, offset]);
+
+    // Summary stats
+    const summaryParams = [periodDays];
+    const summaryConditions = [];
+    let si = 2;
+    if (locationId) { summaryConditions.push(`li.location_id = $${si++}`); summaryParams.push(locationId); }
+
+    const { rows: [summary] } = await this.pool.query(`
+      SELECT
+        COUNT(DISTINCT p.id)::int AS total_products,
+        ROUND(AVG(CASE
+          WHEN COALESCE(sold.units_sold, 0) + COALESCE(inv.qty, 0) = 0 THEN 0
+          ELSE COALESCE(sold.units_sold, 0)::numeric / (COALESCE(sold.units_sold, 0) + COALESCE(inv.qty, 0)) * 100
+        END), 2) AS avg_sell_through,
+        COALESCE(SUM(sold.units_sold), 0)::int AS total_units_sold
+      FROM products p
+      LEFT JOIN (
+        SELECT li.product_id, SUM(li.quantity_on_hand)::int as qty FROM location_inventory li
+        ${locationId ? `WHERE li.location_id = $2` : ''}
+        GROUP BY li.product_id
+      ) inv ON inv.product_id = p.id
+      LEFT JOIN (
+        SELECT ti.product_id, SUM(ti.quantity)::int as units_sold
+        FROM transaction_items ti JOIN transactions t ON t.transaction_id = ti.transaction_id
+        WHERE t.created_at >= NOW() - make_interval(days => $1::int) AND t.status != 'voided'
+        GROUP BY ti.product_id
+      ) sold ON sold.product_id = p.id
+      WHERE COALESCE(sold.units_sold, 0) > 0 OR COALESCE(inv.qty, 0) > 0
+    `, summaryParams);
+
+    return { products: rows, summary };
+  }
 }
 
 module.exports = new InventoryForecaster(pool);

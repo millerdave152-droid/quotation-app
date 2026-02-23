@@ -247,23 +247,34 @@ class QuoteService {
    * @param {object} client - Optional database client for transaction
    * @returns {Promise<string>}
    */
-  async generateQuoteNumber(client = null) {
+  async generateQuoteNumber(client = null, tenantId = null) {
     const db = client || this.pool;
     const year = new Date().getFullYear();
 
-    // FIX: Use COALESCE and MAX to get highest number, avoiding race conditions
-    const maxNumResult = await db.query(`
-      SELECT COALESCE(
-        MAX(CAST(SUBSTRING(quote_number FROM 'QT-${year}-(\\d+)') AS INTEGER)),
-        0
-      ) + 1 as next_num
-      FROM quotations
-      WHERE quote_number LIKE $1
-    `, [`QT-${year}-%`]);
+    if (!tenantId) {
+      // Fallback: global sequence (legacy behavior)
+      const maxNumResult = await db.query(`
+        SELECT COALESCE(
+          MAX(CAST(SUBSTRING(quote_number FROM 'QT-${year}-(\\d+)') AS INTEGER)),
+          0
+        ) + 1 as next_num
+        FROM quotations
+        WHERE quote_number LIKE $1
+      `, [`QT-${year}-%`]);
+      return `QT-${year}-${(maxNumResult.rows[0]?.next_num || 1).toString().padStart(4, '0')}`;
+    }
 
-    const nextNum = maxNumResult.rows.length > 0 ? maxNumResult.rows[0].next_num : 1;
+    // Tenant-scoped: atomic UPSERT to prevent race conditions
+    const seqResult = await db.query(`
+      INSERT INTO tenant_quote_sequences (tenant_id, last_number, prefix)
+      VALUES ($1, 1, 'QT')
+      ON CONFLICT (tenant_id)
+      DO UPDATE SET last_number = tenant_quote_sequences.last_number + 1, updated_at = NOW()
+      RETURNING last_number, prefix
+    `, [tenantId]);
 
-    return `QT-${year}-${nextNum.toString().padStart(4, '0')}`;
+    const { last_number, prefix } = seqResult.rows[0];
+    return `${prefix}-${year}-${last_number.toString().padStart(4, '0')}`;
   }
 
   /**
@@ -1017,8 +1028,8 @@ class QuoteService {
         gross_profit_cents
       } = calculatedTotals;
 
-      // Generate quote number (pass client for transaction safety)
-      const quote_number = await this.generateQuoteNumber(client);
+      // Generate quote number (pass client for transaction safety, tenant for scoping)
+      const quote_number = await this.generateQuoteNumber(client, tenant_id);
 
       // Set expiration date - use quote_expiry_date, expires_at, or default to 30 days
       let expires_at;
@@ -1049,10 +1060,11 @@ class QuoteService {
           installation_type, haul_away_required, haul_away_items,
           sales_rep_name, commission_percent, commission_amount_cents,
           referral_source, referral_name, priority_level, special_instructions,
-          payment_method, deposit_required, deposit_amount_cents, created_by
+          payment_method, deposit_required, deposit_amount_cents, created_by,
+          tenant_id
         ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14,
                   $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27,
-                  $28, $29, $30, $31, $32, $33, $34, $35, $36, $37, $38)
+                  $28, $29, $30, $31, $32, $33, $34, $35, $36, $37, $38, $39)
         RETURNING *`,
         [
           quote_number, customer_id, status, subtotal_cents, discount_percent,
@@ -1064,7 +1076,8 @@ class QuoteService {
           installation_type || null, haul_away_required, haul_away_items || null,
           sales_rep_name || null, commission_percent, commission_amount_cents,
           referral_source || null, referral_name || null, priority_level, special_instructions || null,
-          payment_method || null, deposit_required, deposit_amount_cents, created_by
+          payment_method || null, deposit_required, deposit_amount_cents, created_by,
+          tenant_id
         ]
       );
 
@@ -2546,6 +2559,52 @@ class QuoteService {
     } finally {
       client.release();
     }
+  }
+
+  // ---------------------------------------------------------------------------
+  // QUOTE SMS SHARING (Feature 2D)
+  // ---------------------------------------------------------------------------
+
+  async sendQuoteSMS(quoteId, phoneNumber, userId) {
+    const quote = await this.getQuoteById(quoteId);
+    if (!quote) throw new Error('Quote not found');
+
+    // Log the share attempt
+    await this.pool.query(
+      `INSERT INTO quote_share_log (quotation_id, share_method, recipient, status, shared_by)
+       VALUES ($1, 'sms', $2, 'sent', $3)`,
+      [quoteId, phoneNumber, userId]
+    );
+
+    // Return the data needed for SMS sending (actual SMS provider integration is external)
+    return {
+      quoteId,
+      quoteNumber: quote.quote_number,
+      phoneNumber,
+      message: `Your quotation #${quote.quote_number} for $${(quote.total / 100).toFixed(2)} is ready. View it here: ${process.env.FRONTEND_URL || 'https://app.example.com'}/quote/view/${quote.share_token || quoteId}`,
+      logged: true
+    };
+  }
+
+  async getShareHistory(quoteId) {
+    const { rows } = await this.pool.query(
+      `SELECT qsl.*, u.name as shared_by_name
+       FROM quote_share_log qsl
+       LEFT JOIN users u ON u.id = qsl.shared_by
+       WHERE qsl.quotation_id = $1
+       ORDER BY qsl.created_at DESC`,
+      [quoteId]
+    );
+    return rows;
+  }
+
+  async logShare(quoteId, method, recipient, userId, metadata = {}) {
+    const { rows: [log] } = await this.pool.query(
+      `INSERT INTO quote_share_log (quotation_id, share_method, recipient, status, metadata, shared_by)
+       VALUES ($1, $2, $3, 'sent', $4, $5) RETURNING *`,
+      [quoteId, method, recipient, JSON.stringify(metadata), userId]
+    );
+    return log;
   }
 }
 

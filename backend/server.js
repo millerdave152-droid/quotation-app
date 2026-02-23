@@ -74,7 +74,20 @@ const NotificationService = require('./services/NotificationService');
 const TaxService = require('./services/TaxService');
 const FraudDetectionService = require('./services/FraudDetectionService');
 const DiscountAuthorityService = require('./services/DiscountAuthorityService');
+const SerialNumberService = require('./services/SerialNumberService');
+const PurchaseOrderService = require('./services/PurchaseOrderService');
+const ProductVariantService = require('./services/ProductVariantService');
 const wsService = require('./services/WebSocketService');
+
+// Lightspeed Feature Gap Services
+const PhysicalCountService = require('./services/PhysicalCountService');
+const WorkOrderService = require('./services/WorkOrderService');
+const SpecialOrderService = require('./services/SpecialOrderService');
+const CustomerAccountService = require('./services/CustomerAccountService');
+const PreOrderService = require('./services/PreOrderService');
+const SurveyService = require('./services/SurveyService');
+const CatalogExportService = require('./services/CatalogExportService');
+const AudienceSyncService = require('./services/AudienceSyncService');
 
 // New Enterprise Routes (Phase 2)
 const ordersRoutes = require('./routes/orders');
@@ -150,6 +163,19 @@ const { init: initCommissionsRoutes } = require('./routes/commissions');
 const { init: initSignaturesRoutes } = require('./routes/signatures');
 const { init: initBatchEmailRoutes } = require('./routes/batch-email');
 const batchEmailSettingsRoutes = require('./routes/batch-email-settings');
+const { init: initSerialNumberRoutes } = require('./routes/serial-numbers');
+const { init: initPurchaseOrderRoutes } = require('./routes/purchase-orders');
+const { init: initProductVariantRoutes } = require('./routes/product-variants');
+
+// Lightspeed Feature Gap Routes
+const { init: initPhysicalCountRoutes } = require('./routes/physical-counts');
+const { init: initWorkOrderRoutes } = require('./routes/work-orders');
+const { init: initSpecialOrderRoutes } = require('./routes/special-orders');
+const { init: initCustomerAccountRoutes } = require('./routes/customer-accounts');
+const { init: initPreOrderRoutes } = require('./routes/pre-orders');
+const { init: initSurveyRoutes } = require('./routes/surveys');
+const { init: initCatalogExportRoutes } = require('./routes/catalog-exports');
+const { init: initAudienceSyncRoutes } = require('./routes/audience-sync');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -248,9 +274,22 @@ const batchEmailService = new BatchEmailService(pool, {
   maxRetries: parseInt(process.env.BATCH_EMAIL_MAX_RETRIES, 10) || 3,
 });
 
+const serialNumberService = new SerialNumberService(pool, cache);
+const purchaseOrderService = new PurchaseOrderService(pool, cache, serialNumberService);
+const productVariantService = new ProductVariantService(pool, cache);
 const fraudService = new FraudDetectionService(pool);
 app.set('fraudService', fraudService);
 const discountAuthorityService = new DiscountAuthorityService(pool);
+
+// Lightspeed Feature Gap Service Instances
+const physicalCountService = new PhysicalCountService(pool, cache);
+const workOrderService = new WorkOrderService(pool, cache);
+const specialOrderService = new SpecialOrderService(pool, cache);
+const customerAccountService = new CustomerAccountService(pool, cache);
+const preOrderService = new PreOrderService(pool, cache);
+const surveyService = new SurveyService(pool, cache);
+const catalogExportService = new CatalogExportService(pool, cache);
+const audienceSyncService = new AudienceSyncService(pool, cache);
 
 // Expire stale pending discount escalations every 5 minutes
 setInterval(async () => {
@@ -839,6 +878,25 @@ console.log('✅ Audit log routes loaded');
 const { init: initChargebackRoutes } = require('./routes/chargebacks');
 app.use('/api/chargebacks', initChargebackRoutes({ fraudService }));
 console.log('✅ Chargeback routes loaded');
+
+app.use('/api/serials', initSerialNumberRoutes({ serialService: serialNumberService }));
+console.log('✅ Serial number routes loaded');
+
+app.use('/api/purchase-orders', initPurchaseOrderRoutes({ poService: purchaseOrderService }));
+console.log('✅ Purchase order routes loaded');
+
+app.use('/api/product-variants', initProductVariantRoutes({ variantService: productVariantService }));
+
+// Lightspeed Feature Gap Routes
+app.use('/api/inventory/counts', initPhysicalCountRoutes({ countService: physicalCountService }));
+app.use('/api/work-orders', initWorkOrderRoutes({ woService: workOrderService }));
+app.use('/api/special-orders', initSpecialOrderRoutes({ soService: specialOrderService }));
+app.use('/api/customer-accounts', initCustomerAccountRoutes({ accountService: customerAccountService }));
+app.use('/api/pre-orders', initPreOrderRoutes({ preOrderService }));
+app.use('/api/surveys', initSurveyRoutes({ surveyService }));
+app.use('/api/catalog-exports', initCatalogExportRoutes({ catalogService: catalogExportService }));
+app.use('/api/audience-sync', initAudienceSyncRoutes({ syncService: audienceSyncService }));
+console.log('✅ Product variant routes loaded');
 
 // ============================================
 // CLIENT ERROR TRACKING

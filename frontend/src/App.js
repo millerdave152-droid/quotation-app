@@ -71,9 +71,22 @@ const RecommendationRulesPage = React.lazy(() => import('./components/admin/reco
 
 // Fraud & Audit Dashboard
 const FraudDashboard = React.lazy(() => import('./components/admin/FraudDashboard'));
+const SerialRegistry = React.lazy(() => import('./components/inventory/SerialRegistry'));
+const PurchaseOrderDashboard = React.lazy(() => import('./components/purchasing/PurchaseOrderDashboard'));
+const VariantManager = React.lazy(() => import('./components/products/VariantManager'));
 
 // Monitoring Hub (Client Errors + Discount Analytics)
 const MonitoringHub = React.lazy(() => import('./components/admin/MonitoringHub'));
+
+// Lightspeed Feature Gap Components
+const InventoryCount = React.lazy(() => import('./components/inventory/InventoryCount'));
+const WorkOrderDashboard = React.lazy(() => import('./components/operations/WorkOrderDashboard'));
+const SpecialOrderTracker = React.lazy(() => import('./components/sales/SpecialOrderTracker'));
+const CustomerAccountManager = React.lazy(() => import('./components/customers/CustomerAccountManager'));
+const PreOrderManager = React.lazy(() => import('./components/sales/PreOrderManager'));
+const SurveyDashboard = React.lazy(() => import('./components/marketing/SurveyDashboard'));
+const CatalogExportManager = React.lazy(() => import('./components/marketing/CatalogExportManager'));
+const AudienceSyncManager = React.lazy(() => import('./components/marketing/AudienceSyncManager'));
 
 // Sales Leaderboard loaded via SalesPerformanceHub
 
@@ -608,6 +621,32 @@ function App() {
               <DataImportHub />
             </ProtectedRoute>
           } />
+          <Route path="/admin/serial-numbers" element={
+            <ProtectedRoute requiredRoles={['admin', 'manager']}>
+              <SerialRegistry />
+            </ProtectedRoute>
+          } />
+          <Route path="/admin/purchase-orders" element={
+            <ProtectedRoute requiredRoles={['admin', 'manager']}>
+              <PurchaseOrderDashboard />
+            </ProtectedRoute>
+          } />
+          <Route path="/admin/product-variants" element={
+            <ProtectedRoute requiredRoles={['admin', 'manager']}>
+              <VariantManager />
+            </ProtectedRoute>
+          } />
+
+          {/* Lightspeed Feature Gap Routes */}
+          <Route path="/inventory-counts" element={<InventoryCount />} />
+          <Route path="/work-orders" element={<WorkOrderDashboard />} />
+          <Route path="/special-orders" element={<SpecialOrderTracker />} />
+          <Route path="/customer-accounts" element={<CustomerAccountManager />} />
+          <Route path="/pre-orders" element={<PreOrderManager />} />
+          <Route path="/surveys" element={<SurveyDashboard />} />
+          <Route path="/catalog-exports" element={<CatalogExportManager />} />
+          <Route path="/audience-sync" element={<AudienceSyncManager />} />
+
           {/* Dev-only routes */}
           {process.env.NODE_ENV === 'development' && CompetitorPricingDev && (
             <Route path="/dev/competitor-pricing" element={<CompetitorPricingDev />} />

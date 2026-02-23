@@ -712,6 +712,91 @@ function init({ pool }) {
     }
   );
 
+  // ========================================================================
+  // SELL-THROUGH RATE REPORT (Feature 1D)
+  // ========================================================================
+  router.get('/sell-through', authenticate, checkPermission('view_inventory'),
+    async (req, res, next) => {
+      try {
+        const inventoryForecaster = require('../services/InventoryForecaster');
+        const { locationId, categoryId, brand, periodDays, limit, offset } = req.query;
+        const result = await inventoryForecaster.getSellThroughRate({
+          locationId: locationId ? parseInt(locationId) : undefined,
+          categoryId: categoryId ? parseInt(categoryId) : undefined,
+          brand: brand || undefined,
+          periodDays: parseInt(periodDays) || 30,
+          limit: parseInt(limit) || 50,
+          offset: parseInt(offset) || 0
+        });
+        res.json({ success: true, data: result });
+      } catch (err) {
+        next(err);
+      }
+    }
+  );
+
+  // ========================================================================
+  // BRAND PERFORMANCE REPORT (Feature 2C)
+  // ========================================================================
+  router.get('/brand-performance', authenticate, checkPermission('view_inventory'),
+    async (req, res, next) => {
+      try {
+        const { periodDays, locationId, limit, offset } = req.query;
+        const period = parseInt(periodDays) || 30;
+        const params = [period];
+        let pi = 2;
+        let locFilter = '';
+        if (locationId) {
+          locFilter = `AND li.location_id = $${pi++}`;
+          params.push(parseInt(locationId));
+        }
+
+        const { rows } = await pool.query(`
+          SELECT
+            p.manufacturer AS brand,
+            COUNT(DISTINCT p.id)::int AS product_count,
+            COALESCE(SUM(sold.units_sold), 0)::int AS total_units_sold,
+            COALESCE(SUM(sold.revenue), 0)::numeric(12,2) AS total_revenue,
+            COALESCE(SUM(sold.revenue - sold.cost_total), 0)::numeric(12,2) AS total_margin,
+            CASE WHEN COALESCE(SUM(sold.revenue), 0) = 0 THEN 0
+              ELSE ROUND((SUM(sold.revenue - sold.cost_total) / SUM(sold.revenue)) * 100, 2)
+            END AS margin_pct,
+            COALESCE(SUM(inv.qty), 0)::int AS current_inventory,
+            CASE WHEN COALESCE(SUM(sold.units_sold), 0) + COALESCE(SUM(inv.qty), 0) = 0 THEN 0
+              ELSE ROUND(COALESCE(SUM(sold.units_sold), 0)::numeric / (COALESCE(SUM(sold.units_sold), 0) + COALESCE(SUM(inv.qty), 0)) * 100, 2)
+            END AS sell_through_rate
+          FROM products p
+          LEFT JOIN (
+            SELECT ti.product_id,
+              SUM(ti.quantity)::int AS units_sold,
+              SUM(ti.quantity * ti.unit_price)::numeric AS revenue,
+              SUM(ti.quantity * p2.cost)::numeric AS cost_total
+            FROM transaction_items ti
+            JOIN transactions t ON t.transaction_id = ti.transaction_id
+            JOIN products p2 ON p2.id = ti.product_id
+            WHERE t.created_at >= NOW() - make_interval(days => $1::int)
+              AND t.status != 'voided'
+            GROUP BY ti.product_id
+          ) sold ON sold.product_id = p.id
+          LEFT JOIN (
+            SELECT li.product_id, SUM(li.quantity_on_hand)::int AS qty
+            FROM location_inventory li
+            WHERE 1=1 ${locFilter}
+            GROUP BY li.product_id
+          ) inv ON inv.product_id = p.id
+          WHERE p.manufacturer IS NOT NULL AND p.manufacturer != ''
+          GROUP BY p.manufacturer
+          ORDER BY total_revenue DESC
+          LIMIT $${pi++} OFFSET $${pi++}
+        `, [...params, parseInt(limit) || 50, parseInt(offset) || 0]);
+
+        res.json({ success: true, data: rows });
+      } catch (err) {
+        next(err);
+      }
+    }
+  );
+
   return router;
 }
 
