@@ -89,10 +89,17 @@ const navSections = [
     items: ['products', 'product-visualization', 'inventory', 'pricing', 'manufacturer-promotions']
   },
   {
-    id: 'operations',
-    title: 'Operations',
+    id: 'marketplace',
+    title: 'Marketplace',
+    icon: ShoppingCart,
+    items: ['marketplace', 'bulk-ops', 'reports'],
+    requiresPermission: 'marketplace'
+  },
+  {
+    id: 'tools',
+    title: 'Tools',
     icon: Settings,
-    items: ['marketplace', 'bulk-ops', 'reports', 'training-center', 'features']
+    items: ['training-center', 'features']
   }
 ];
 
@@ -114,10 +121,10 @@ const Sidebar = ({ children, isLayoutMode = false }) => {
   const [expandedSections, setExpandedSections] = useState(() => {
     // Load from localStorage or default all expanded
     const saved = localStorage.getItem('sidebar_sections');
-    return saved ? JSON.parse(saved) : { analytics: true, sales: true, inventory: true, operations: true, admin: true };
+    return saved ? JSON.parse(saved) : { analytics: true, sales: true, inventory: true, marketplace: true, tools: true, admin: true };
   });
   const location = useLocation();
-  const { isAdmin, canApproveQuotes } = useAuth();
+  const { isAdmin, canApproveQuotes, canAccessMarketplace } = useAuth();
 
   // Save expanded sections to localStorage
   useEffect(() => {
@@ -174,12 +181,14 @@ const Sidebar = ({ children, isLayoutMode = false }) => {
     setExpandedSections(prev => ({ ...prev, [sectionId]: !prev[sectionId] }));
   };
 
-  // Build sections list based on role
+  // Build sections list based on role and permissions
   const sections = useMemo(() => {
-    const result = [...navSections];
+    const result = navSections.filter(s =>
+      s.requiresPermission !== 'marketplace' || canAccessMarketplace
+    );
     if (isAdmin) result.push(adminSection);
     return result;
-  }, [isAdmin]);
+  }, [isAdmin, canAccessMarketplace]);
 
   // Styles
   const styles = {

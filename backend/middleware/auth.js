@@ -5,9 +5,20 @@
  */
 
 const { verifyAccessToken } = require('../utils/jwt');
-const db = require('../config/database');
+const { rawPool: db, tenantContext } = require('../db'); // Use rawPool — RLS not active during auth
 const { resolvePermissions, hasPermission: checkPermission, POS_PERMISSIONS } = require('../utils/permissions');
 const { ApiError } = require('./errorHandler');
+
+/**
+ * Wraps next() in tenant context so all downstream DB queries are tenant-scoped.
+ */
+function nextWithTenantContext(tenantId, next) {
+  if (tenantId) {
+    tenantContext.run({ tenantId }, () => next());
+  } else {
+    next();
+  }
+}
 
 /**
  * Authenticate Middleware
@@ -41,7 +52,7 @@ const authenticate = async (req, res, next) => {
 
     const result = await db.query(
       `SELECT u.id, u.email, u.first_name, u.last_name, u.role, u.is_active,
-              u.pos_role_id, u.role_id,
+              u.pos_role_id, u.role_id, u.tenant_id,
               pr.permissions as pos_permissions, pr.name as pos_role_name,
               r.name as role_name, r.display_name as role_display_name
        FROM users u
@@ -93,10 +104,11 @@ const authenticate = async (req, res, next) => {
       roleName: user.role_name,
       roleDisplayName: user.role_display_name,
       permissions: normalizedPermissions,
+      tenantId: user.tenant_id,
     };
 
     req.token = decoded;
-    next();
+    nextWithTenantContext(user.tenant_id, next);
   } catch (error) {
     next(error);
   }
@@ -127,7 +139,7 @@ const optionalAuth = async (req, res, next) => {
 
       const result = await db.query(
         `SELECT u.id, u.email, u.first_name, u.last_name, u.role, u.is_active,
-                u.pos_role_id, u.role_id,
+                u.pos_role_id, u.role_id, u.tenant_id,
                 pr.permissions as pos_permissions, pr.name as pos_role_name,
                 r.name as role_name, r.display_name as role_display_name
          FROM users u
@@ -170,8 +182,10 @@ const optionalAuth = async (req, res, next) => {
           roleName: user.role_name,
           roleDisplayName: user.role_display_name,
           permissions: normalizedPermissions,
+          tenantId: user.tenant_id,
         };
         req.token = decoded;
+        return nextWithTenantContext(user.tenant_id, next);
       } else {
         req.user = null;
       }
@@ -285,7 +299,7 @@ const authenticateApiKey = async (req, res, next) => {
     }
 
     const result = await db.query(
-      `SELECT ak.*, u.id as user_id, u.email, u.first_name, u.last_name, u.role, u.is_active
+      `SELECT ak.*, u.id as user_id, u.email, u.first_name, u.last_name, u.role, u.is_active, u.tenant_id
        FROM api_keys ak
        JOIN users u ON ak.user_id = u.id
        WHERE ak.key_value = $1 AND ak.is_active = true AND u.is_active = true`,
@@ -314,10 +328,11 @@ const authenticateApiKey = async (req, res, next) => {
       lastName: keyData.last_name,
       role: keyData.role,
       isActive: keyData.is_active,
-      authMethod: 'api_key'
+      authMethod: 'api_key',
+      tenantId: keyData.tenant_id,
     };
 
-    next();
+    nextWithTenantContext(keyData.tenant_id, next);
   } catch (error) {
     next(error);
   }

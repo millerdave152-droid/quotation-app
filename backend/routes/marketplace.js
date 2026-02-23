@@ -5,6 +5,7 @@ const miraklService = require('../services/miraklService');
 const { getInstance: getChannelManager } = require('../services/ChannelManager');
 const { validateJoi, marketplaceSchemas } = require('../middleware/validation');
 const { authenticate } = require('../middleware/auth');
+const { checkPermission } = require('../middleware/checkPermission');
 const { ApiError, asyncHandler } = require('../middleware/errorHandler');
 const marketplaceAnalytics = require('../services/MarketplaceAnalytics');
 const inventoryForecaster = require('../services/InventoryForecaster');
@@ -76,6 +77,9 @@ function requireMiraklConfig() {
     throw ApiError.badRequest('Mirakl API key not configured. Set MIRAKL_API_KEY in your .env file.');
   }
 }
+
+// Gate all marketplace routes behind authentication + marketplace permission
+router.use(authenticate, checkPermission('hub.marketplace.access'));
 
 // ============================================
 // MARKETPLACE ORDERS

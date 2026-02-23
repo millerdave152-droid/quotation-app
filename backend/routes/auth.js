@@ -6,7 +6,7 @@
 
 const express = require('express');
 const router = express.Router();
-const db = require('../config/database');
+const { rawPool: db } = require('../db'); // Use rawPool — login/register bypass RLS
 const { hashPassword, comparePassword, validatePasswordStrength } = require('../utils/password');
 const { generateAccessToken, generateRefreshToken, verifyRefreshToken } = require('../utils/jwt');
 const { authenticate, requireRole } = require('../middleware/auth');
@@ -80,11 +80,16 @@ router.post('/register', authLimiter, validateRegister, asyncHandler(async (req,
 
     await client.query('COMMIT');
 
+    // Fetch the tenant_id assigned by the DEFAULT on the users table
+    const newUser = await client.query('SELECT tenant_id FROM users WHERE id = $1', [userId]);
+    const tenantId = newUser.rows[0].tenant_id;
+
     // Generate tokens
     const user = {
       id: userId,
       email,
-      role: userRole
+      role: userRole,
+      tenantId,
     };
 
     const accessToken = generateAccessToken(user);
@@ -107,7 +112,8 @@ router.post('/register', authLimiter, validateRegister, asyncHandler(async (req,
           email,
           firstName,
           lastName,
-          role: userRole
+          role: userRole,
+          tenantId,
         },
         accessToken,
         refreshToken
@@ -132,7 +138,7 @@ router.post('/login', authLimiter, validateLogin, asyncHandler(async (req, res) 
   // Fetch user from database
   const users = await db.query(
     `SELECT id, email, password_hash, first_name, last_name, role, is_active,
-            failed_login_attempts, locked_until
+            failed_login_attempts, locked_until, tenant_id
      FROM users WHERE email = $1`,
     [email]
   );
@@ -201,7 +207,8 @@ router.post('/login', authLimiter, validateLogin, asyncHandler(async (req, res) 
   const tokenPayload = {
     id: user.id,
     email: user.email,
-    role: user.role
+    role: user.role,
+    tenantId: user.tenant_id,
   };
 
   const accessToken = generateAccessToken(tokenPayload);
@@ -231,7 +238,8 @@ router.post('/login', authLimiter, validateLogin, asyncHandler(async (req, res) 
         email: user.email,
         firstName: user.first_name,
         lastName: user.last_name,
-        role: user.role
+        role: user.role,
+        tenantId: user.tenant_id,
       },
       accessToken,
       refreshToken
@@ -257,7 +265,7 @@ router.post('/refresh', validateRefreshToken, asyncHandler(async (req, res) => {
 
   // Check if refresh token exists in database and is not revoked
   const tokens = await db.query(
-    `SELECT rt.*, u.email, u.role, u.is_active
+    `SELECT rt.*, u.email, u.role, u.is_active, u.tenant_id
      FROM refresh_tokens rt
      JOIN users u ON rt.user_id = u.id
      WHERE rt.token = $1 AND rt.revoked = false`,
@@ -284,7 +292,8 @@ router.post('/refresh', validateRefreshToken, asyncHandler(async (req, res) => {
   const user = {
     id: tokenData.user_id,
     email: tokenData.email,
-    role: tokenData.role
+    role: tokenData.role,
+    tenantId: tokenData.tenant_id,
   };
 
   const newAccessToken = generateAccessToken(user);
@@ -351,7 +360,7 @@ router.get('/me', authenticate, asyncHandler(async (req, res) => {
   // Fetch full user details from database
   const users = await db.query(
     `SELECT u.id, u.email, u.first_name, u.last_name, u.role, u.is_active, u.created_at, u.last_login,
-            u.pos_role_id, pr.name as pos_role_name, pr.display_name as pos_role_display, pr.permissions as pos_permissions
+            u.pos_role_id, u.tenant_id, pr.name as pos_role_name, pr.display_name as pos_role_display, pr.permissions as pos_permissions
      FROM users u
      LEFT JOIN pos_roles pr ON u.pos_role_id = pr.id
      WHERE u.id = $1`,
@@ -376,6 +385,7 @@ router.get('/me', authenticate, asyncHandler(async (req, res) => {
     posRoleName: user.pos_role_name,
     posRoleDisplay: user.pos_role_display,
     posPermissions: Array.isArray(user.pos_permissions) ? user.pos_permissions : null,
+    tenantId: user.tenant_id,
   };
 
   res.json({

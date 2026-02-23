@@ -71,7 +71,7 @@ class TenantManager {
         (SELECT COUNT(*)::int FROM marketplace_orders o WHERE o.channel_id = c.id AND o.order_state NOT IN ('CANCELED', 'REFUSED')) AS order_count,
         (SELECT COUNT(*)::int FROM product_channel_listings l WHERE l.channel_id = c.id AND l.listing_status = 'ACTIVE') AS active_listings
       FROM marketplace_channels c
-      WHERE c.tenant_id = $1
+      WHERE c.marketplace_tenant_id = $1
       ORDER BY c.created_at ASC
     `, [tenantId]);
     return rows;
@@ -88,7 +88,7 @@ class TenantManager {
          / NULLIF(COUNT(DISTINCT o.id), 0))::numeric(14,2) AS avg_order_value
       FROM marketplace_orders o
       JOIN marketplace_order_items oi ON oi.order_id = o.id
-      WHERE o.tenant_id = $1
+      WHERE o.marketplace_tenant_id = $1
         AND o.order_state NOT IN ('CANCELED', 'REFUSED')
     `, [tenantId]);
 
@@ -98,7 +98,7 @@ class TenantManager {
         COUNT(*) FILTER (WHERE listing_status = 'ACTIVE')::int AS active_listings,
         COUNT(*) FILTER (WHERE listing_status = 'ERROR')::int AS error_listings
       FROM product_channel_listings
-      WHERE tenant_id = $1
+      WHERE marketplace_tenant_id = $1
     `, [tenantId]);
 
     var { rows: [channelStats] } = await this.pool.query(`
@@ -106,7 +106,7 @@ class TenantManager {
         COUNT(*)::int AS total_channels,
         COUNT(*) FILTER (WHERE status = 'ACTIVE')::int AS active_channels
       FROM marketplace_channels
-      WHERE tenant_id = $1
+      WHERE marketplace_tenant_id = $1
     `, [tenantId]);
 
     var { rows: [returnStats] } = await this.pool.query(`
@@ -115,7 +115,7 @@ class TenantManager {
         COALESCE(SUM(total_refund_cents / 100.0), 0)::numeric(14,2) AS total_refund_value
       FROM marketplace_returns r
       JOIN marketplace_orders o ON o.id = r.order_id
-      WHERE o.tenant_id = $1
+      WHERE o.marketplace_tenant_id = $1
         AND r.status NOT IN ('rejected', 'REJECTED')
     `, [tenantId]);
 
@@ -126,7 +126,7 @@ class TenantManager {
         COALESCE(SUM(COALESCE(oi.line_total, oi.total_price_cents / 100.0)), 0)::numeric(14,2) AS revenue_30d
       FROM marketplace_orders o
       JOIN marketplace_order_items oi ON oi.order_id = o.id
-      WHERE o.tenant_id = $1
+      WHERE o.marketplace_tenant_id = $1
         AND o.order_date >= NOW() - INTERVAL '30 days'
         AND o.order_state NOT IN ('CANCELED', 'REFUSED')
     `, [tenantId]);
@@ -183,14 +183,14 @@ class TenantManager {
         if (req.user && req.user.userId) {
           // Check if user has a tenant assignment via marketplace_channels they manage
           var { rows: userTenants } = await self.pool.query(`
-            SELECT DISTINCT c.tenant_id
+            SELECT DISTINCT c.marketplace_tenant_id
             FROM marketplace_channels c
-            WHERE c.tenant_id IS NOT NULL
-            ORDER BY c.tenant_id ASC
+            WHERE c.marketplace_tenant_id IS NOT NULL
+            ORDER BY c.marketplace_tenant_id ASC
             LIMIT 1
           `);
-          if (userTenants.length > 0 && userTenants[0].tenant_id) {
-            req.tenantId = userTenants[0].tenant_id;
+          if (userTenants.length > 0 && userTenants[0].marketplace_tenant_id) {
+            req.tenantId = userTenants[0].marketplace_tenant_id;
             return next();
           }
         }

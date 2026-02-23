@@ -27,6 +27,7 @@ const miraklService = require('../services/miraklService');
 let pool = null;
 let cache = null;
 let discountAuthorityService = null;
+let commissionService = null;
 
 // ============================================================================
 // TAX RATES BY PROVINCE
@@ -771,6 +772,17 @@ router.post('/', authenticate, fraudCheck('transaction.create'), asyncHandler(as
         await miraklService.queueInventoryChange(qi.productId, qi.sku, qi.oldQty, qi.newQty, qi.source);
       } catch (queueErr) {
         console.error('[MarketplaceQueue] POS_SALE queue error:', queueErr.message);
+      }
+    }
+
+    // Auto-record commission for completed transactions
+    if (transactionStatus === 'completed' && commissionService) {
+      try {
+        await commissionService.recordCommission(transaction.transaction_id, salespersonId);
+        console.log(`[Transaction] Commission recorded for txn ${transaction.transaction_id}, rep ${salespersonId}`);
+      } catch (commErr) {
+        // Commission failure should not break the sale
+        console.error('[Transaction] Commission recording failed (non-fatal):', commErr.message);
       }
     }
 
@@ -1739,6 +1751,15 @@ const init = (deps) => {
   pool = deps.pool;
   cache = deps.cache;
   discountAuthorityService = deps.discountAuthorityService || null;
+
+  // Initialize CommissionService if not provided directly
+  if (deps.commissionService) {
+    commissionService = deps.commissionService;
+  } else {
+    const CommissionService = require('../services/CommissionService');
+    commissionService = new CommissionService(pool, cache);
+  }
+
   return router;
 };
 

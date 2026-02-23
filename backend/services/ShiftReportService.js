@@ -575,9 +575,9 @@ class ShiftReportService {
     const overridesQuery = `
       SELECT
         COUNT(*) as override_count,
-        COUNT(DISTINCT mo.approver_id) as unique_approvers,
-        array_agg(DISTINCT mo.override_type) as override_types
-      FROM manager_overrides mo
+        COUNT(DISTINCT mo.approved_by) as unique_approvers,
+        array_agg(DISTINCT mo.override_type::text) as override_types
+      FROM override_log mo
       JOIN transactions t ON mo.transaction_id = t.transaction_id
       LEFT JOIN register_shifts rs ON t.shift_id = rs.shift_id
       LEFT JOIN registers r ON rs.register_id = r.register_id

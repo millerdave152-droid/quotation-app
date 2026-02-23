@@ -173,6 +173,14 @@ export const AuthProvider = ({ children }) => {
     return managerRoles.includes(user.role.toLowerCase());
   }, [user]);
 
+  // Check if user can access marketplace features
+  const canAccessMarketplace = useMemo(() => {
+    if (!user) return false;
+    if (user.role === 'admin') return true;
+    const perms = user.permissions || [];
+    return perms.includes('hub.marketplace.access') || perms.includes('*');
+  }, [user]);
+
   const value = useMemo(() => ({
     user,
     token,
@@ -188,9 +196,10 @@ export const AuthProvider = ({ children }) => {
     approvalThreshold,
     isAdmin,
     isManagerOrAbove,
+    canAccessMarketplace,
     // Utility
     refreshUser: () => token && fetchCurrentUser(token)
-  }), [user, token, loading, hasRole, hasAnyRole, canApproveQuotes, approvalThreshold, isAdmin, isManagerOrAbove, fetchCurrentUser]);
+  }), [user, token, loading, hasRole, hasAnyRole, canApproveQuotes, approvalThreshold, isAdmin, isManagerOrAbove, canAccessMarketplace, fetchCurrentUser]);
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 };

@@ -29,6 +29,7 @@ const generateAccessToken = (user) => {
       userId: user.id,
       email: user.email,
       role: user.role,
+      tenantId: user.tenantId || null,
       type: 'access'
     };
 
@@ -62,6 +63,7 @@ const generateRefreshToken = (user) => {
     const payload = {
       userId: user.id,
       email: user.email,
+      tenantId: user.tenantId || null,
       type: 'refresh'
     };
 

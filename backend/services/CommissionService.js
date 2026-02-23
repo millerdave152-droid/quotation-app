@@ -35,9 +35,9 @@ class CommissionService {
     const { rows } = await this.pool.query(`
       SELECT
         cr.*,
-        pc.name AS category_name
+        c.name AS category_name
       FROM commission_rules cr
-      LEFT JOIN product_categories pc ON pc.id = cr.category_id
+      LEFT JOIN categories c ON c.id = cr.category_id
       WHERE cr.is_active = true
       ORDER BY cr.priority ASC, cr.id ASC
     `);
@@ -108,74 +108,149 @@ class CommissionService {
    * @returns {object} Commission breakdown
    */
   async calculateOrderCommission(orderId, salesRepId) {
-    // Get order with items
-    const orderResult = await this.pool.query(`
-      SELECT
-        uo.id,
-        uo.order_number,
-        uo.subtotal_cents,
-        uo.discount_cents,
-        uo.total_cents,
-        uo.source,
-        uo.created_at
-      FROM unified_orders uo
-      WHERE uo.id = $1
-    `, [orderId]);
+    // Try unified_orders first, then fall back to transactions table
+    let order = null;
+    let items = [];
+    let isTransaction = false;
 
-    if (orderResult.rows.length === 0) {
-      throw new Error('Order not found');
+    try {
+      const orderResult = await this.pool.query(`
+        SELECT
+          uo.id,
+          uo.order_number,
+          uo.subtotal_cents,
+          uo.discount_cents,
+          uo.total_cents,
+          uo.source,
+          uo.created_at
+        FROM unified_orders uo
+        WHERE uo.id = $1
+      `, [orderId]);
+
+      if (orderResult.rows.length > 0) {
+        order = orderResult.rows[0];
+
+        const itemsResult = await this.pool.query(`
+          SELECT
+            uoi.id AS item_id,
+            uoi.product_id,
+            uoi.product_name,
+            uoi.sku,
+            uoi.quantity,
+            uoi.unit_price_cents,
+            uoi.line_total_cents,
+            uoi.discount_cents AS item_discount_cents,
+            uoi.discount_percent,
+            uoi.item_type,
+            p.category_id,
+            pc.name AS category_name
+          FROM unified_order_items uoi
+          LEFT JOIN products p ON p.id = uoi.product_id
+          LEFT JOIN categories pc ON pc.id = p.category_id
+          WHERE uoi.order_id = $1
+        `, [orderId]);
+
+        items = itemsResult.rows;
+      }
+    } catch (err) {
+      // unified_orders table may not exist or query failed
     }
 
-    const order = orderResult.rows[0];
+    // Fallback: try transactions table
+    if (!order) {
+      const txnResult = await this.pool.query(`
+        SELECT
+          t.transaction_id AS id,
+          t.transaction_number AS order_number,
+          t.subtotal,
+          t.discount_amount,
+          t.total_amount,
+          'pos' AS source,
+          t.created_at
+        FROM transactions t
+        WHERE t.transaction_id = $1
+      `, [orderId]);
 
-    // Get order items with product details
-    const itemsResult = await this.pool.query(`
-      SELECT
-        uoi.id AS item_id,
-        uoi.product_id,
-        uoi.product_name,
-        uoi.sku,
-        uoi.quantity,
-        uoi.unit_price_cents,
-        uoi.line_total_cents,
-        uoi.discount_cents AS item_discount_cents,
-        uoi.discount_percent,
-        uoi.item_type,
-        p.category_id,
-        pc.name AS category_name,
-        p.product_type
-      FROM unified_order_items uoi
-      LEFT JOIN products p ON p.id = uoi.product_id
-      LEFT JOIN product_categories pc ON pc.id = p.category_id
-      WHERE uoi.order_id = $1
-    `, [orderId]);
+      if (txnResult.rows.length === 0) {
+        throw new Error('Order not found');
+      }
 
-    const items = itemsResult.rows;
+      order = txnResult.rows[0];
+      isTransaction = true;
+
+      const txnItemsResult = await this.pool.query(`
+        SELECT
+          ti.item_id AS item_id,
+          ti.product_id,
+          ti.product_name,
+          ti.product_sku AS sku,
+          ti.quantity,
+          ti.unit_price,
+          ti.line_total,
+          ti.discount_amount AS item_discount_amount,
+          ti.discount_percent,
+          p.category_id,
+          pc.name AS category_name
+        FROM transaction_items ti
+        LEFT JOIN products p ON p.id = ti.product_id
+        LEFT JOIN categories pc ON pc.id = p.category_id
+        WHERE ti.transaction_id = $1
+      `, [orderId]);
+
+      items = txnItemsResult.rows;
+    }
 
     // Build cart structure for calculation
-    // FIX: Use fallback values to prevent NaN from null/undefined cents values
-    const cart = {
-      orderId,
-      orderNumber: order.order_number,
-      subtotal: (order.subtotal_cents || 0) / 100,
-      discount: (order.discount_cents || 0) / 100,
-      total: (order.total_cents || 0) / 100,
-      items: items.map(item => ({
-        itemId: item.item_id,
-        productId: item.product_id,
-        name: item.product_name,
-        sku: item.sku,
-        quantity: item.quantity || 1,
-        unitPrice: (item.unit_price_cents || 0) / 100,
-        lineTotal: (item.line_total_cents || 0) / 100,
-        discountCents: item.item_discount_cents || 0,
-        discountPercent: item.discount_percent ? parseFloat(item.discount_percent) : 0,
-        itemType: item.item_type || 'product',
-        categoryId: item.category_id,
-        categoryName: item.category_name,
-        productType: item.product_type || this.inferProductType(item),
-      })),
-    };
+    let cart;
+    if (isTransaction) {
+      // Transaction amounts are in dollars, convert to match expected format
+      cart = {
+        orderId,
+        orderNumber: order.order_number,
+        subtotal: parseFloat(order.subtotal) || 0,
+        discount: parseFloat(order.discount_amount) || 0,
+        total: parseFloat(order.total_amount) || 0,
+        items: items.map(item => ({
+          itemId: item.item_id,
+          productId: item.product_id,
+          name: item.product_name,
+          sku: item.sku,
+          quantity: item.quantity || 1,
+          unitPrice: parseFloat(item.unit_price) || 0,
+          lineTotal: parseFloat(item.line_total) || 0,
+          discountCents: item.item_discount_amount ? Math.round(parseFloat(item.item_discount_amount) * 100) : 0,
+          discountPercent: item.discount_percent ? parseFloat(item.discount_percent) : 0,
+          itemType: 'product',
+          categoryId: item.category_id,
+          categoryName: item.category_name,
+          productType: item.product_type || this.inferProductType(item),
+        })),
+      };
+    } else {
+      // Unified orders use cents
+      cart = {
+        orderId,
+        orderNumber: order.order_number,
+        subtotal: (order.subtotal_cents || 0) / 100,
+        discount: (order.discount_cents || 0) / 100,
+        total: (order.total_cents || 0) / 100,
+        items: items.map(item => ({
+          itemId: item.item_id,
+          productId: item.product_id,
+          name: item.product_name,
+          sku: item.sku,
+          quantity: item.quantity || 1,
+          unitPrice: (item.unit_price_cents || 0) / 100,
+          lineTotal: (item.line_total_cents || 0) / 100,
+          discountCents: item.item_discount_cents || 0,
+          discountPercent: item.discount_percent ? parseFloat(item.discount_percent) : 0,
+          itemType: item.item_type || 'product',
+          categoryId: item.category_id,
+          categoryName: item.category_name,
+          productType: item.product_type || this.inferProductType(item),
+        })),
+      };
+    }
 
     return this.calculateCartCommission(cart, salesRepId);
   }
@@ -417,12 +492,34 @@ class CommissionService {
     // Calculate commission
     const commission = await this.calculateOrderCommission(orderId, salesRepId);
 
-    // Get order date
-    const orderResult = await this.pool.query(
-      'SELECT created_at FROM unified_orders WHERE id = $1',
-      [orderId]
-    );
-    const orderDate = orderResult.rows[0]?.created_at || new Date();
+    // Get order date — try unified_orders first, then transactions
+    let orderDate = new Date();
+    try {
+      const uoResult = await this.pool.query(
+        'SELECT created_at FROM unified_orders WHERE id = $1',
+        [orderId]
+      );
+      if (uoResult.rows.length > 0) {
+        orderDate = uoResult.rows[0].created_at;
+      } else {
+        const txnResult = await this.pool.query(
+          'SELECT created_at FROM transactions WHERE transaction_id = $1',
+          [orderId]
+        );
+        if (txnResult.rows.length > 0) {
+          orderDate = txnResult.rows[0].created_at;
+        }
+      }
+    } catch (err) {
+      // Fall back to current date if tables don't exist
+      const txnResult = await this.pool.query(
+        'SELECT created_at FROM transactions WHERE transaction_id = $1',
+        [orderId]
+      );
+      if (txnResult.rows.length > 0) {
+        orderDate = txnResult.rows[0].created_at;
+      }
+    }
 
     // Record each line item commission
     const earnings = [];
@@ -511,9 +608,10 @@ class CommissionService {
     const earningsResult = await this.pool.query(`
       SELECT
         ce.*,
-        uo.order_number
+        COALESCE(uo.order_number, t.transaction_number) AS order_number
       FROM commission_earnings ce
       LEFT JOIN unified_orders uo ON uo.id = ce.order_id
+      LEFT JOIN transactions t ON t.transaction_id = ce.order_id
       WHERE ce.sales_rep_id = $1
         AND ce.order_date >= $2
         AND ce.order_date <= $3
@@ -607,17 +705,18 @@ class CommissionService {
       : new Date(new Date().getFullYear(), new Date().getMonth(), 16).toISOString().split('T')[0];
 
     // Get default commission rate from commission_rules (catch-all rule)
-    let defaultRate = 5.0; // fallback 5%
+    let defaultRate = 3.0; // fallback 3%
     try {
       const ruleResult = await this.pool.query(`
-        SELECT commission_percent FROM commission_rules
+        SELECT rate FROM commission_rules
         WHERE is_active = true
-        ORDER BY CASE WHEN product_category IS NULL THEN 1 ELSE 0 END DESC,
-                 commission_percent DESC
+        ORDER BY CASE WHEN rule_type = 'flat' THEN 0 ELSE 1 END,
+                 priority ASC
         LIMIT 1
       `);
       if (ruleResult.rows.length > 0) {
-        defaultRate = parseFloat(ruleResult.rows[0].commission_percent) || 5.0;
+        // rate is stored as decimal (0.03 = 3%), convert to percentage
+        defaultRate = (parseFloat(ruleResult.rows[0].rate) || 0.03) * 100;
       }
     } catch (err) {
       // commission_rules table may not exist
@@ -736,7 +835,7 @@ class CommissionService {
     const { rows } = await this.pool.query(`
       SELECT
         ce.sales_rep_id,
-        u.name AS rep_name,
+        COALESCE(u.first_name || ' ' || u.last_name, u.email) AS rep_name,
         COUNT(DISTINCT ce.order_id) AS orders,
         SUM(ce.base_amount_cents) AS sales_cents,
         SUM(ce.commission_amount_cents) AS commission_cents,
@@ -746,7 +845,7 @@ class CommissionService {
       FROM commission_earnings ce
       JOIN users u ON u.id = ce.sales_rep_id
       WHERE ${dateFilter}
-      GROUP BY ce.sales_rep_id, u.name
+      GROUP BY ce.sales_rep_id, u.first_name, u.last_name, u.email
       ORDER BY commission_cents DESC
       LIMIT 20
     `);
@@ -979,7 +1078,7 @@ class CommissionService {
     const repsResult = await this.pool.query(`
       SELECT
         u.id AS rep_id,
-        u.name AS rep_name,
+        COALESCE(u.first_name || ' ' || u.last_name, u.email) AS rep_name,
         u.email,
         u.role,
         COUNT(DISTINCT ce.order_id) AS order_count,
@@ -993,7 +1092,7 @@ class CommissionService {
         AND ce.order_date >= $1
         AND ce.order_date <= $2
       WHERE u.role IN ('sales', 'cashier', 'manager', 'admin')
-      GROUP BY u.id, u.name, u.email, u.role
+      GROUP BY u.id, u.first_name, u.last_name, u.email, u.role
       HAVING COUNT(ce.id) > 0 OR u.role IN ('sales', 'cashier')
       ORDER BY SUM(ce.commission_amount_cents) DESC NULLS LAST
     `, [startDate, endDate]);
@@ -1061,7 +1160,7 @@ class CommissionService {
 
     // Get rep info
     const repResult = await this.pool.query(
-      'SELECT id, name, email, role FROM users WHERE id = $1',
+      `SELECT id, COALESCE(first_name || ' ' || last_name, email) AS name, email, role FROM users WHERE id = $1`,
       [repId]
     );
 
@@ -1115,7 +1214,7 @@ class CommissionService {
     const { rows } = await this.pool.query(`
       SELECT
         ce.sales_rep_id,
-        u.name AS rep_name,
+        COALESCE(u.first_name || ' ' || u.last_name, u.email) AS rep_name,
         u.email,
         SUM(ce.commission_amount_cents) AS gross_commission_cents,
         COUNT(DISTINCT ce.order_id) AS order_count,
@@ -1123,7 +1222,7 @@ class CommissionService {
       FROM commission_earnings ce
       JOIN users u ON u.id = ce.sales_rep_id
       WHERE ce.order_date >= $1 AND ce.order_date <= $2
-      GROUP BY ce.sales_rep_id, u.name, u.email
+      GROUP BY ce.sales_rep_id, u.first_name, u.last_name, u.email
       ORDER BY SUM(ce.commission_amount_cents) DESC
     `, [periodStart, periodEnd]);
 
@@ -1219,7 +1318,7 @@ class CommissionService {
    */
   async getPendingPayouts() {
     const { rows } = await this.pool.query(`
-      SELECT cp.*, u.name AS rep_name, u.email
+      SELECT cp.*, COALESCE(u.first_name || ' ' || u.last_name, u.email) AS rep_name, u.email
       FROM commission_payouts cp
       JOIN users u ON u.id = cp.sales_rep_id
       WHERE cp.status IN ('pending', 'approved')
@@ -1265,8 +1364,8 @@ class CommissionService {
     let query = `
       SELECT
         ce.order_date,
-        uo.order_number,
-        u.name AS rep_name,
+        COALESCE(uo.order_number, t.transaction_number) AS order_number,
+        COALESCE(u.first_name || ' ' || u.last_name, u.email) AS rep_name,
         ce.item_name,
         ce.item_sku,
         ce.category_name,
@@ -1280,6 +1379,7 @@ class CommissionService {
       FROM commission_earnings ce
       JOIN users u ON u.id = ce.sales_rep_id
       LEFT JOIN unified_orders uo ON uo.id = ce.order_id
+      LEFT JOIN transactions t ON t.transaction_id = ce.order_id
       WHERE ce.order_date >= $1 AND ce.order_date <= $2
     `;
 

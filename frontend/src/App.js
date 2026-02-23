@@ -541,9 +541,21 @@ function App() {
           <Route path="/report-builder" element={<ReportBuilder />} />
           <Route path="/executive-dashboard" element={<ExecutiveDashboard />} />
           <Route path="/training-center" element={<TrainingCenter />} />
-          <Route path="/marketplace/*" element={<MarketplaceManager />} />
-          <Route path="/reports" element={<MarketplaceReports />} />
-          <Route path="/bulk-ops" element={<BulkOperationsCenter />} />
+          <Route path="/marketplace/*" element={
+            <ProtectedRoute requiredRoles={['admin', 'manager']}>
+              <MarketplaceManager />
+            </ProtectedRoute>
+          } />
+          <Route path="/reports" element={
+            <ProtectedRoute requiredRoles={['admin', 'manager']}>
+              <MarketplaceReports />
+            </ProtectedRoute>
+          } />
+          <Route path="/bulk-ops" element={
+            <ProtectedRoute requiredRoles={['admin', 'manager']}>
+              <BulkOperationsCenter />
+            </ProtectedRoute>
+          } />
           <Route path="/features/*" element={<PowerFeatures2026 />} />
           <Route path="/search" element={<SearchResults />} />
           {/* Enterprise Phase 2 Routes */}
