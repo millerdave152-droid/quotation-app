@@ -635,7 +635,7 @@ const PowerFeatures2026 = () => {
                     <h3 style={{ margin: '0 0 12px 0', color: '#1e40af' }}>Coming Soon: Online Payments</h3>
                     <p style={{ margin: 0, color: '#1e3a8a' }}>
                       Accept deposits and full payments directly through quotes.
-                      Integration with Stripe and Square for secure credit card processing.
+                      Integration with Moneris for secure credit card processing.
                     </p>
                   </div>
                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '16px' }}>

@@ -411,7 +411,7 @@ class OrderService {
     const {
       depositPaidCents = null,
       amountPaidCents = null,
-      stripePaymentIntentId = null
+      monerisOrderId = null
     } = paymentDetails;
 
     const result = await this.pool.query(`
@@ -420,12 +420,12 @@ class OrderService {
         payment_status = $2,
         deposit_paid_cents = COALESCE($3, deposit_paid_cents),
         amount_paid_cents = COALESCE($4, amount_paid_cents),
-        stripe_payment_intent_id = COALESCE($5, stripe_payment_intent_id),
+        moneris_order_id = COALESCE($5, moneris_order_id),
         paid_at = ${paymentStatus === 'paid' ? 'CURRENT_TIMESTAMP' : 'paid_at'},
         updated_at = CURRENT_TIMESTAMP
       WHERE id = $1
       RETURNING *
-    `, [orderId, paymentStatus, depositPaidCents, amountPaidCents, stripePaymentIntentId]);
+    `, [orderId, paymentStatus, depositPaidCents, amountPaidCents, monerisOrderId]);
 
     if (result.rows.length === 0) {
       throw new Error(`Order ${orderId} not found`);

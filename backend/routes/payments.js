@@ -299,20 +299,20 @@ router.get('/stats', authenticate, asyncHandler(async (req, res) => {
 // CUSTOMER PORTAL PAYMENT ENDPOINTS
 // ============================================
 
-const StripeService = require('../services/StripeService');
+const MonerisService = require('../services/MonerisService');
 const cache = require('../cache');
-let stripeService = null;
+let monerisService = null;
 
-function getStripeService() {
-  if (!stripeService) {
-    stripeService = new StripeService(pool, cache);
+function getMonerisService() {
+  if (!monerisService) {
+    monerisService = new MonerisService(pool, cache);
   }
-  return stripeService;
+  return monerisService;
 }
 
 /**
  * POST /api/payments/portal/create-session/:token
- * Create a Stripe checkout session for a quote deposit/payment
+ * Create a Moneris Checkout session for a quote deposit/payment
  */
 router.post('/portal/create-session/:token', asyncHandler(async (req, res) => {
   const { token } = req.params;
@@ -324,7 +324,7 @@ router.post('/portal/create-session/:token', asyncHandler(async (req, res) => {
       q.*,
       c.name as customer_name,
       c.email as customer_email,
-      c.stripe_customer_id
+      c.moneris_customer_id
     FROM quotations q
     JOIN customers c ON q.customer_id = c.id
     WHERE q.portal_token = $1
@@ -340,8 +340,8 @@ router.post('/portal/create-session/:token', asyncHandler(async (req, res) => {
     throw ApiError.badRequest('Quote is not in a payable state');
   }
 
-  const stripe = getStripeService();
-  if (!stripe.isConfigured()) {
+  const moneris = getMonerisService();
+  if (!moneris.isConfigured()) {
     throw ApiError.serviceUnavailable('Payment processing');
   }
 
@@ -364,32 +364,23 @@ router.post('/portal/create-session/:token', asyncHandler(async (req, res) => {
     throw ApiError.badRequest('No payment required');
   }
 
-  // Create Stripe checkout session
-  const session = await stripe.stripe.checkout.sessions.create({
-    payment_method_types: ['card'],
-    mode: 'payment',
-    customer_email: quote.customer_email,
-    client_reference_id: quote.id.toString(),
-    line_items: [{
-      price_data: {
-        currency: 'cad',
-        product_data: {
-          name: `Quote #${quote.quote_number} - ${paymentType === 'deposit' ? 'Deposit' : 'Payment'}`,
-          description: `Payment for Quote #${quote.quote_number}`
-        },
-        unit_amount: amountCents
-      },
-      quantity: 1
-    }],
-    success_url: `${process.env.FRONTEND_URL || 'http://localhost:3000'}/customer-portal/${token}?payment=success`,
-    cancel_url: `${process.env.FRONTEND_URL || 'http://localhost:3000'}/customer-portal/${token}?payment=cancelled`,
-    metadata: {
-      quote_id: quote.id.toString(),
-      customer_id: quote.customer_id.toString(),
-      payment_type: paymentType,
-      portal_token: token
+  // Create Moneris Checkout session
+  const session = await moneris.createCheckoutSession(
+    quote.id,
+    {
+      successUrl: `${process.env.FRONTEND_URL || 'http://localhost:3000'}/customer-portal/${token}?payment=success`,
+      cancelUrl: `${process.env.FRONTEND_URL || 'http://localhost:3000'}/customer-portal/${token}?payment=cancelled`,
+      amountCents,
+      description: `Quote #${quote.quote_number} - ${paymentType === 'deposit' ? 'Deposit' : 'Payment'}`,
+      customerEmail: quote.customer_email,
+      metadata: {
+        quote_id: quote.id.toString(),
+        customer_id: quote.customer_id.toString(),
+        payment_type: paymentType,
+        portal_token: token
+      }
     }
-  });
+  );
 
   res.json({
     success: true,
@@ -400,50 +391,27 @@ router.post('/portal/create-session/:token', asyncHandler(async (req, res) => {
 
 /**
  * POST /api/payments/webhook
- * Handle Stripe webhooks
+ * Handle Moneris webhooks/callbacks
  */
-router.post('/webhook', express.raw({ type: 'application/json' }), asyncHandler(async (req, res) => {
-  const stripe = getStripeService();
-  if (!stripe.isConfigured()) {
+router.post('/webhook', express.json(), asyncHandler(async (req, res) => {
+  const moneris = getMonerisService();
+  if (!moneris.isConfigured()) {
     return res.status(503).send('Payment processing not configured');
   }
 
-  const sig = req.headers['stripe-signature'];
-  let event;
+  const result = await moneris.handleWebhook(req.body);
 
-  try {
-    event = stripe.stripe.webhooks.constructEvent(
-      req.body,
-      sig,
-      stripe.webhookSecret
-    );
-  } catch (err) {
-    throw ApiError.badRequest(`Webhook Error: ${err.message}`);
-  }
-
-  // Handle the event
-  switch (event.type) {
-    case 'checkout.session.completed':
-      await handleCheckoutComplete(event.data.object);
-      break;
-
-    case 'payment_intent.succeeded':
-      await handlePaymentSuccess(event.data.object);
-      break;
-
-    case 'payment_intent.payment_failed':
-      await handlePaymentFailed(event.data.object);
-      break;
-
-    default:
-      console.log(`Unhandled event type: ${event.type}`);
+  // Process the webhook result
+  if (result.type === 'payment_complete' && result.metadata) {
+    await handleCheckoutComplete(result);
   }
 
   res.json({ received: true });
 }));
 
-async function handleCheckoutComplete(session) {
-  const { quote_id, customer_id, payment_type, portal_token } = session.metadata;
+async function handleCheckoutComplete(webhookResult) {
+  const { metadata, orderId, transId, amountCents } = webhookResult;
+  const { quote_id, customer_id, payment_type } = metadata || {};
 
   if (!quote_id) return;
 
@@ -452,13 +420,13 @@ async function handleCheckoutComplete(session) {
     INSERT INTO customer_payments (
       customer_id, quotation_id, amount, payment_method, payment_type,
       reference_number, notes, payment_date
-    ) VALUES ($1, $2, $3, 'stripe', 'payment', $4, $5, NOW())
+    ) VALUES ($1, $2, $3, 'moneris', 'payment', $4, $5, NOW())
   `, [
     customer_id,
     quote_id,
-    session.amount_total,
-    session.payment_intent,
-    `Online ${payment_type} payment via Stripe`
+    amountCents,
+    `${orderId}:${transId}`,
+    `Online ${payment_type} payment via Moneris`
   ]);
 
   // Update quote if deposit paid
@@ -469,7 +437,7 @@ async function handleCheckoutComplete(session) {
         deposit_paid_at = NOW(),
         deposit_amount_cents = $1
       WHERE id = $2
-    `, [session.amount_total, quote_id]);
+    `, [amountCents, quote_id]);
   }
 
   // Check if fully paid
@@ -496,15 +464,7 @@ async function handleCheckoutComplete(session) {
     `, [quote_id]);
   }
 
-  console.log(`Payment recorded for quote ${quote_id}: $${(session.amount_total / 100).toFixed(2)}`);
-}
-
-async function handlePaymentSuccess(paymentIntent) {
-  console.log(`Payment succeeded: ${paymentIntent.id}`);
-}
-
-async function handlePaymentFailed(paymentIntent) {
-  console.log(`Payment failed: ${paymentIntent.id}`);
+  console.log(`Payment recorded for quote ${quote_id}: $${(amountCents / 100).toFixed(2)}`);
 }
 
 /**

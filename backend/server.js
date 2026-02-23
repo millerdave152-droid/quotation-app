@@ -44,7 +44,7 @@ const notificationScheduler = require('./services/NotificationScheduler');
 const InventoryService = require('./services/InventoryService');
 const OrderService = require('./services/OrderService');
 const InvoiceService = require('./services/InvoiceService');
-const StripeService = require('./services/StripeService');
+const MonerisService = require('./services/MonerisService');
 const DeliveryService = require('./services/DeliveryService');
 const PricingService = require('./services/PricingService');
 const ProductMetricsService = require('./services/ProductMetricsService');
@@ -92,7 +92,7 @@ const discountAnalyticsRoutes = require('./routes/discount-analytics');
 const approvalRoutes = require('./routes/approvalRoutes');
 const deliveryFulfillmentRoutes = require('./routes/delivery-fulfillment');
 const warrantyRoutes = require('./routes/warranty');
-const stripeRoutes = require('./routes/stripe');
+const monerisRoutes = require('./routes/moneris');
 const productMetricsRoutes = require('./routes/product-metrics');
 
 // Advanced Pricing (Volume Discounts, Promotions, Stacking)
@@ -194,11 +194,14 @@ app.use((req, res, next) => {
 });
 
 // ============================================
-// DATABASE CONNECTION (singleton from db.js)
+// DATABASE CONNECTION (tenant-aware pool from db.js)
+// Tenant context is set per-request by authenticate middleware
+// via AsyncLocalStorage — all downstream queries auto-scoped.
 // ============================================
 const pool = require('./db');
+const { rawPool } = pool;
 
-pool.query('SELECT NOW()', (err, res) => {
+rawPool.query('SELECT NOW()', (err, res) => {
   if (err) {
     console.error('❌ Database connection error:', err);
   } else {
@@ -216,7 +219,7 @@ const inventoryService = new InventoryService(pool, cache);
 const notificationService = new NotificationService(pool);
 const orderService = new OrderService(pool, cache, inventoryService);
 const invoiceService = new InvoiceService(pool, cache, emailService);
-const stripeService = new StripeService(pool, cache);
+const monerisService = new MonerisService(pool, cache);
 const deliveryService = new DeliveryService(pool, cache);
 const pricingService = new PricingService(pool, cache);
 const productMetricsService = new ProductMetricsService(pool, cache);
@@ -224,7 +227,7 @@ const quoteExpiryService = new QuoteExpiryService(pool, cache, inventoryService,
 const taxService = new TaxService(pool, cache);
 
 // POS Payment Services (Phase 3)
-const posPaymentService = new POSPaymentService(pool, cache, stripeService);
+const posPaymentService = new POSPaymentService(pool, cache, monerisService);
 const receiptService = new ReceiptService(pool, cache);
 const cashDrawerService = new CashDrawerService(pool, cache);
 const posInvoiceService = new POSInvoiceService(pool, cache);
@@ -733,7 +736,7 @@ console.log('✅ POS transactions routes loaded');
 
 // POS RETURNS
 const { init: initReturnsRoutes } = require('./routes/returns');
-app.use('/api/returns', initReturnsRoutes({ pool, cache, stripeService }));
+app.use('/api/returns', initReturnsRoutes({ pool, cache, monerisService }));
 console.log('✅ POS returns routes loaded');
 
 // POS STORE CREDITS
@@ -756,7 +759,7 @@ console.log('✅ Gift card routes loaded');
 
 // POS EXCHANGES
 const { init: initExchangesRoutes } = require('./routes/exchanges');
-app.use('/api/exchanges', initExchangesRoutes({ pool, cache, stripeService }));
+app.use('/api/exchanges', initExchangesRoutes({ pool, cache, monerisService }));
 console.log('✅ POS exchanges routes loaded');
 
 // ============================================
@@ -767,7 +770,7 @@ app.use('/api/registers', initRegisterRoutes({ pool, cache, scheduledBatchEmailS
 console.log('✅ POS register routes loaded');
 
 // ============================================
-// POS PAYMENTS (Stripe, Account, Gift Cards)
+// POS PAYMENTS (Moneris, Account, Gift Cards)
 // ============================================
 app.use('/api/pos-payments', initPosPaymentsRoutes({ posPaymentService, pool, emailService }));
 console.log('✅ POS payments routes loaded');
@@ -2806,7 +2809,7 @@ console.log('✅ AI recommendation endpoints loaded');
 
 // ============================================
 // ENTERPRISE ROUTES (Phase 2)
-// Orders, Invoices, Inventory, Delivery, Pricing, Stripe
+// Orders, Invoices, Inventory, Delivery, Pricing, Moneris
 // ============================================
 app.use('/api/orders', ordersRoutes(pool, cache, orderService, inventoryService));
 console.log('✅ Orders routes loaded');
@@ -2855,7 +2858,7 @@ const locationRoutes = require('./routes/locations');
 app.use('/api/locations', locationRoutes.init({ pool }));
 console.log('✅ Location routes loaded');
 const hubReturnRoutes = require('./routes/hub-returns');
-app.use('/api/hub-returns', hubReturnRoutes.init({ pool, stripeService }));
+app.use('/api/hub-returns', hubReturnRoutes.init({ pool, monerisService }));
 console.log('✅ Hub returns routes loaded');
 const hubCommissionRoutes = require('./routes/hub-commissions');
 app.use('/api/hub-commissions', hubCommissionRoutes.init({ pool }));
@@ -2878,10 +2881,9 @@ console.log('✅ Delivery fulfillment routes loaded');
 app.use('/api/product-metrics', productMetricsRoutes(pool, cache, productMetricsService));
 console.log('✅ Product metrics routes loaded');
 
-// Stripe webhook needs raw body, so mount before JSON parsing for that specific route
-// For regular Stripe routes, use standard JSON
-app.use('/api/stripe', stripeRoutes(pool, cache, stripeService));
-console.log('✅ Stripe payment routes loaded');
+// Moneris payment routes
+app.use('/api/moneris', monerisRoutes(pool, cache, monerisService));
+console.log('✅ Moneris payment routes loaded');
 
 // ============================================
 // ADVANCED PRICING (Volume Discounts, Promotions, Stacking)

@@ -10,7 +10,7 @@ const { ApiError } = require('../middleware/errorHandler');
 class HubReturnService {
   constructor(pool, opts = {}) {
     this.pool = pool;
-    this.stripeService = opts.stripeService || null;
+    this.monerisService = opts.monerisService || null;
   }
 
   // ==========================================================================
@@ -422,7 +422,7 @@ class HubReturnService {
 
   /**
    * Process the actual refund for a return.
-   * Handles original_payment (Stripe), store_credit, and cash refund methods.
+   * Handles original_payment (Moneris), store_credit, and cash refund methods.
    * @param {number} returnId
    * @param {string} refundMethod - 'original_payment' | 'store_credit' | 'cash'
    * @param {number} userId - Staff processing the refund
@@ -459,14 +459,14 @@ class HubReturnService {
         throw ApiError.badRequest('Refund amount must be greater than zero after restocking fee');
       }
 
-      let stripeRefundId = null;
+      let monerisRefundId = null;
       let storeCreditId = null;
       let storeCreditCode = null;
       const refundDetails = { method: refundMethod, amountCents: refundAmountCents };
 
       // ----- ORIGINAL PAYMENT REFUND -----
       if (refundMethod === 'original_payment') {
-        // Find original order payments with Stripe references
+        // Find original order payments with Moneris references
         const paymentsResult = await client.query(
           `SELECT id, payment_method, amount_cents, processor_reference, status
            FROM unified_order_payments
@@ -487,31 +487,34 @@ class HubReturnService {
 
           const allocationCents = Math.min(remainingRefund, payment.amount_cents);
 
-          // Attempt Stripe refund for card payments
+          // Attempt Moneris refund for card payments
           if (['credit_card', 'debit_card'].includes(payment.payment_method) && payment.processor_reference) {
-            if (!this.stripeService?.isConfigured()) {
+            if (!this.monerisService?.isConfigured()) {
               throw ApiError.badRequest(
-                'Stripe is not configured. Cannot refund card payments. Use store_credit or cash instead.'
+                'Moneris is not configured. Cannot refund card payments. Use store_credit or cash instead.'
               );
             }
 
             try {
-              const refund = await this.stripeService.refundPayment(
-                payment.processor_reference,
+              // processor_reference stores "orderId:transId"
+              const [origOrderId, origTransId] = payment.processor_reference.split(':');
+              const refund = await this.monerisService.refundPayment(
+                origOrderId,
+                origTransId,
                 allocationCents,
                 'requested_by_customer'
               );
-              stripeRefundId = stripeRefundId || refund.id;
+              monerisRefundId = monerisRefundId || refund.refundId;
 
               refundAllocations.push({
                 paymentId: payment.id,
                 amount: allocationCents,
                 method: payment.payment_method,
-                stripeRefundId: refund.id,
+                monerisRefundId: refund.refundId,
               });
-            } catch (stripeErr) {
+            } catch (monerisErr) {
               await client.query('ROLLBACK');
-              throw ApiError.create(502, `Stripe refund failed: ${stripeErr.message}`);
+              throw ApiError.create(502, `Moneris refund failed: ${monerisErr.message}`);
             }
           } else {
             // Non-card payment — record allocation without external call
@@ -519,7 +522,7 @@ class HubReturnService {
               paymentId: payment.id,
               amount: allocationCents,
               method: payment.payment_method,
-              stripeRefundId: null,
+              monerisRefundId: null,
             });
           }
 
@@ -550,7 +553,7 @@ class HubReturnService {
               -alloc.amount,
               `Return ${ret.return_number}`,
               alloc.paymentId,
-              alloc.stripeRefundId,
+              alloc.monerisRefundId,
               userId,
               `Refund for return ${ret.return_number}`,
             ]
@@ -651,13 +654,13 @@ class HubReturnService {
         `UPDATE hub_returns SET
           status = 'completed',
           refund_method = $1,
-          stripe_refund_id = $2,
+          moneris_refund_id = $2,
           store_credit_id = $3,
           processed_by = $4,
           completed_at = NOW(),
           updated_at = NOW()
         WHERE id = $5`,
-        [refundMethod, stripeRefundId, storeCreditId, userId, returnId]
+        [refundMethod, monerisRefundId, storeCreditId, userId, returnId]
       );
 
       // Recalculate order payment totals
@@ -690,7 +693,7 @@ class HubReturnService {
           method: refundMethod,
           refundAmountCents,
           refundAmount: refundAmountCents / 100,
-          stripeRefundId,
+          monerisRefundId,
           storeCreditId,
           storeCreditCode,
           inventoryAdjustments: inventoryResults,
@@ -883,7 +886,7 @@ class HubReturnService {
       restockingFeeCents: row.restocking_fee,
       restockingFee: row.restocking_fee / 100,
       refundMethod: row.refund_method,
-      stripeRefundId: row.stripe_refund_id,
+      monerisRefundId: row.moneris_refund_id,
       storeCreditId: row.store_credit_id,
       exchangeOrderId: row.exchange_order_id,
       initiatedBy: row.initiated_by,

@@ -381,7 +381,7 @@ const AutoInvoicePanel = () => {
                   <Box>
                     <Typography variant="body2">Include Payment Link</Typography>
                     <Typography variant="caption" color="text.secondary">
-                      Add Stripe payment link to invoice emails
+                      Add Moneris payment link to invoice emails
                     </Typography>
                   </Box>
                 }

@@ -1,6 +1,6 @@
 /**
  * TeleTime POS - Card Payment Component
- * Card payment entry with Stripe integration and manual mode
+ * Card payment entry with Moneris integration and manual mode
  */
 
 import { useState, useCallback, useEffect, useRef } from 'react';
@@ -43,23 +43,23 @@ export function CardPayment({
   customerId = null,
   transactionId = null,
 }) {
-  const [mode, setMode] = useState('waiting'); // 'waiting', 'manual', 'success', 'error', 'stripe'
+  const [mode, setMode] = useState('waiting'); // 'waiting', 'manual', 'success', 'error'
   const [lastFour, setLastFour] = useState('');
   const [authCode, setAuthCode] = useState('');
   const [selectedBrand, setSelectedBrand] = useState('visa');
   const [customAmount, setCustomAmount] = useState(amountDue.toFixed(2));
   const [errorMessage, setErrorMessage] = useState('');
 
-  // Stripe PaymentIntent state
+  // Moneris payment state
   const [paymentIntent, setPaymentIntent] = useState(null);
-  const [stripeLoading, setStripeLoading] = useState(false);
-  const [stripeError, setStripeError] = useState(null);
+  const [monerisLoading, setMonerisLoading] = useState(false);
+  const [monerisError, setMonerisError] = useState(null);
 
   // Parse custom amount
   const paymentAmount = parseFloat(customAmount) || 0;
   const isValidAmount = paymentAmount > 0 && paymentAmount <= amountDue;
 
-  // Create Stripe PaymentIntent on mount (for card payments)
+  // Create Moneris payment intent on mount (for card payments)
   const intentIdRef = useRef(null);
 
   useEffect(() => {
@@ -69,13 +69,13 @@ export function CardPayment({
       // Only create for credit/debit payments, not gift cards
       if (paymentType === 'giftcard') return;
       if (!Number.isFinite(amountDue) || amountDue <= 0) {
-        setStripeError('Invalid payment amount');
+        setMonerisError('Invalid payment amount');
         return;
       }
 
       try {
-        setStripeLoading(true);
-        setStripeError(null);
+        setMonerisLoading(true);
+        setMonerisError(null);
 
         const amountCents = Math.round(amountDue * 100);
         const response = await fetch(`${API_BASE}/pos-payments/card/create-intent`, {
@@ -110,20 +110,20 @@ export function CardPayment({
         }
 
         if (!response.ok || !result.success) {
-          // Don't fail - Stripe might not be configured
-          console.warn('[CardPayment] Stripe not available:', result.error);
-          setStripeError(result.error || 'Stripe not configured');
+          // Don't fail - Moneris might not be configured
+          console.warn('[CardPayment] Moneris not available:', result.error);
+          setMonerisError(result.error || 'Moneris not configured');
         } else {
           intentIdRef.current = result.data.paymentIntentId;
           setPaymentIntent(result.data);
         }
       } catch (err) {
         if (!isCancelled) {
-          console.warn('[CardPayment] PaymentIntent creation failed:', err);
-          setStripeError(err.message);
+          console.warn('[CardPayment] Payment intent creation failed:', err);
+          setMonerisError(err.message);
         }
       } finally {
-        if (!isCancelled) setStripeLoading(false);
+        if (!isCancelled) setMonerisLoading(false);
       }
     };
 
@@ -147,8 +147,8 @@ export function CardPayment({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [amountDue, paymentType, customerId, transactionId]);
 
-  // Confirm Stripe payment (after terminal/card input)
-  const confirmStripePayment = useCallback(async () => {
+  // Confirm Moneris payment (after terminal/card input)
+  const confirmMonerisPayment = useCallback(async () => {
     if (!paymentIntent?.paymentIntentId) {
       setErrorMessage('No payment intent available');
       return null;
@@ -208,8 +208,8 @@ export function CardPayment({
       cardLastFour: lastFour || null,
       cardBrand: selectedBrand || null,
       authorizationCode: authCode.trim() || null,
-      // Include Stripe info if available
-      stripePaymentIntentId: paymentIntent?.paymentIntentId || null,
+      // Include Moneris info if available
+      monerisOrderId: paymentIntent?.monerisOrderId || paymentIntent?.paymentIntentId || null,
     });
   }, [mode, lastFour, authCode, selectedBrand, paymentType, isPartial, paymentAmount, amountDue, onComplete, paymentIntent]);
 
@@ -223,10 +223,10 @@ export function CardPayment({
     if (scenario === 'approved') {
       setMode('success');
 
-      // If Stripe is configured, try to confirm the payment
-      let stripeData = null;
+      // If Moneris is configured, try to confirm the payment
+      let monerisData = null;
       if (paymentIntent?.paymentIntentId) {
-        stripeData = await confirmStripePayment();
+        monerisData = await confirmMonerisPayment();
       }
 
       // Auto-complete after showing success
@@ -234,11 +234,11 @@ export function CardPayment({
         onComplete?.({
           paymentMethod: paymentType,
           amount: amountDue,
-          cardLastFour: stripeData?.cardLastFour || '4242',
-          cardBrand: stripeData?.cardBrand || 'visa',
-          authorizationCode: stripeData?.authorizationCode || `AUTH${Date.now().toString().slice(-6)}`,
-          stripePaymentIntentId: stripeData?.paymentIntentId || paymentIntent?.paymentIntentId || null,
-          stripeChargeId: stripeData?.chargeId || null,
+          cardLastFour: monerisData?.cardLastFour || '4242',
+          cardBrand: monerisData?.cardBrand || 'visa',
+          authorizationCode: monerisData?.authorizationCode || `AUTH${Date.now().toString().slice(-6)}`,
+          monerisOrderId: monerisData?.paymentIntentId || paymentIntent?.paymentIntentId || null,
+          monerisTransId: monerisData?.chargeId || null,
         });
       }, 1500);
     } else {
@@ -251,7 +251,7 @@ export function CardPayment({
       setErrorMessage(messages[scenario] || 'Card declined.');
       setMode('error');
     }
-  }, [paymentType, amountDue, onComplete, paymentIntent, confirmStripePayment]);
+  }, [paymentType, amountDue, onComplete, paymentIntent, confirmMonerisPayment]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Render waiting state
   if (mode === 'waiting') {
@@ -304,8 +304,8 @@ export function CardPayment({
           </p>
         </div>
 
-        {/* Stripe Status */}
-        {stripeLoading && (
+        {/* Moneris Status */}
+        {monerisLoading && (
           <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
             <p className="text-sm text-blue-700 flex items-center gap-2">
               <div className="w-4 h-4 border-2 border-blue-600 border-t-transparent rounded-full animate-spin" />
@@ -314,7 +314,7 @@ export function CardPayment({
           </div>
         )}
 
-        {paymentIntent && !stripeLoading && (
+        {paymentIntent && !monerisLoading && (
           <div className="mb-4 p-3 bg-green-50 border border-green-200 rounded-lg">
             <p className="text-sm text-green-700">
               Secure payment ready
@@ -322,10 +322,10 @@ export function CardPayment({
           </div>
         )}
 
-        {stripeError && !paymentIntent && !stripeLoading && (
+        {monerisError && !paymentIntent && !monerisLoading && (
           <div className="mb-4 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
             <p className="text-sm text-yellow-700">
-              Manual entry mode (Stripe not configured)
+              Manual entry mode (Moneris not configured)
             </p>
           </div>
         )}
@@ -338,7 +338,7 @@ export function CardPayment({
               <button
                 type="button"
                 onClick={() => setShowSimOptions((v) => !v)}
-                disabled={stripeLoading}
+                disabled={monerisLoading}
                 className="
                   w-full h-12
                   bg-gray-100 hover:bg-gray-200

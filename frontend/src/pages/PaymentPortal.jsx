@@ -33,7 +33,7 @@ const PaymentPortal = () => {
   const fetchPaymentDetails = async () => {
     try {
       setLoading(true);
-      const response = await authFetch(`${API_URL}/api/stripe/payment-link/${token}`);
+      const response = await authFetch(`${API_URL}/api/moneris/payment-link/${token}`);
       const data = await response.json();
 
       if (!data.success) {
@@ -110,7 +110,7 @@ const PaymentPortal = () => {
 
     setProcessing(true);
     try {
-      const response = await authFetch(`${API_URL}/api/stripe/process-payment`, {
+      const response = await authFetch(`${API_URL}/api/moneris/process-payment`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

@@ -52,8 +52,8 @@ export default function RefundProcessor({ returnRecord, transaction, onClose, on
     fetchPaymentInfo();
   }, [fetchPaymentInfo]);
 
-  const hasStripePayments = paymentInfo?.originalPayments?.some(
-    p => (p.payment_method === 'credit' || p.payment_method === 'debit') && p.stripe_charge_id
+  const hasCardPayments = paymentInfo?.originalPayments?.some(
+    p => (p.payment_method === 'credit' || p.payment_method === 'debit') && p.moneris_trans_id
   );
 
   const refundSubtotalCents = paymentInfo?.refundBreakdown?.subtotalCents || 0;
@@ -148,9 +148,9 @@ export default function RefundProcessor({ returnRecord, transaction, onClose, on
             {formatCents(refundResult.refundTotalCents)} refunded via {REFUND_METHODS.find(m => m.value === refundResult.refundMethod)?.label || refundResult.refundMethod}
           </p>
 
-          {refundResult.stripeRefundId && (
+          {refundResult.monerisRefundId && (
             <p className="text-xs text-slate-500 mb-4">
-              Stripe Refund: {refundResult.stripeRefundId}
+              Moneris Refund: {refundResult.monerisRefundId}
             </p>
           )}
 
@@ -302,7 +302,7 @@ export default function RefundProcessor({ returnRecord, transaction, onClose, on
                       {p.card_last_four && (
                         <p className="text-xs text-slate-500">
                           {p.card_brand || 'Card'} ending {p.card_last_four}
-                          {p.stripe_charge_id && <span className="ml-1 text-blue-500">(Stripe)</span>}
+                          {p.moneris_trans_id && <span className="ml-1 text-blue-500">(Moneris)</span>}
                         </p>
                       )}
                     </div>
@@ -414,10 +414,10 @@ export default function RefundProcessor({ returnRecord, transaction, onClose, on
                     <div>
                       <p className="text-white text-sm font-medium">{method.label}</p>
                       <p className="text-xs text-slate-500">{method.description}</p>
-                      {/* Show warning for Stripe refunds */}
-                      {method.value === 'original_payment' && hasStripePayments && (
+                      {/* Show warning for Moneris refunds */}
+                      {method.value === 'original_payment' && hasCardPayments && (
                         <p className="text-xs text-blue-400 mt-1">
-                          Card payments will be refunded via Stripe (5-10 business days)
+                          Card payments will be refunded via Moneris (5-10 business days)
                         </p>
                       )}
                     </div>

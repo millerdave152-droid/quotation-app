@@ -311,8 +311,8 @@ module.exports = (pool, cache, invoiceService) => {
       {
         amountCents: req.body.amountCents,
         paymentMethod: req.body.paymentMethod,
-        stripePaymentIntentId: req.body.stripePaymentIntentId,
-        stripeChargeId: req.body.stripeChargeId,
+        monerisOrderId: req.body.monerisOrderId,
+        monerisTransId: req.body.monerisTransId,
         referenceNumber: req.body.referenceNumber,
         notes: req.body.notes
       }

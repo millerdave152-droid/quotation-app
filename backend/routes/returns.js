@@ -10,7 +10,7 @@ const { authenticate } = require('../middleware/auth');
 const { ApiError, asyncHandler } = require('../middleware/errorHandler');
 
 let pool = null;
-let stripeService = null;
+let monerisService = null;
 
 // ============================================================================
 // MIDDLEWARE
@@ -336,7 +336,7 @@ router.get('/:id/payment-info', asyncHandler(async (req, res) => {
   // Get original payments
   const paymentsResult = await pool.query(
     `SELECT payment_id, payment_method, amount, card_last_four, card_brand,
-            stripe_payment_intent_id, stripe_charge_id, status
+            moneris_order_id, moneris_trans_id, status
      FROM payments
      WHERE transaction_id = $1 AND status = 'completed'`,
     [returnData.original_transaction_id]
@@ -470,7 +470,7 @@ router.post('/:id/process-refund', asyncHandler(async (req, res) => {
 
   // Get original payments
   const paymentsResult = await pool.query(
-    `SELECT payment_id, payment_method, amount, stripe_charge_id, stripe_payment_intent_id
+    `SELECT payment_id, payment_method, amount, moneris_trans_id, moneris_order_id
      FROM payments
      WHERE transaction_id = $1 AND status = 'completed'
      ORDER BY amount DESC`,
@@ -481,7 +481,7 @@ router.post('/:id/process-refund', asyncHandler(async (req, res) => {
   try {
     await client.query('BEGIN');
 
-    let stripeRefundId = null;
+    let monerisRefundId = null;
     const allocations = [];
 
     if (refundMethod === 'original_payment') {
@@ -505,39 +505,40 @@ router.post('/:id/process-refund', asyncHandler(async (req, res) => {
           allocationCents = remainingRefund;
         }
 
-        let paymentStripeRefundId = null;
+        let paymentMonerisRefundId = null;
 
-        // Process Stripe refund for card payments
-        if ((payment.payment_method === 'credit' || payment.payment_method === 'debit') && payment.stripe_charge_id && stripeService?.isConfigured()) {
+        // Process Moneris refund for card payments
+        if ((payment.payment_method === 'credit' || payment.payment_method === 'debit') && payment.moneris_trans_id && monerisService?.isConfigured()) {
           try {
-            const refund = await stripeService.refundPayment(
-              payment.stripe_charge_id,
+            const refund = await monerisService.refundPayment(
+              payment.moneris_order_id,
+              payment.moneris_trans_id,
               allocationCents,
               'requested_by_customer'
             );
-            paymentStripeRefundId = refund.id;
-            if (!stripeRefundId) stripeRefundId = refund.id;
-          } catch (stripeErr) {
+            paymentMonerisRefundId = refund.refundId;
+            if (!monerisRefundId) monerisRefundId = refund.refundId;
+          } catch (monerisErr) {
             await client.query('ROLLBACK');
             return res.status(502).json({
               success: false,
-              error: `Stripe refund failed: ${stripeErr.message}`
+              error: `Moneris refund failed: ${monerisErr.message}`
             });
           }
         }
 
         // Record allocation
         await client.query(
-          `INSERT INTO return_payment_allocations (return_id, original_payment_id, refund_amount_cents, refund_method, stripe_refund_id, status)
+          `INSERT INTO return_payment_allocations (return_id, original_payment_id, refund_amount_cents, refund_method, moneris_refund_id, status)
            VALUES ($1, $2, $3, $4, $5, 'completed')`,
-          [id, payment.payment_id, allocationCents, payment.payment_method, paymentStripeRefundId]
+          [id, payment.payment_id, allocationCents, payment.payment_method, paymentMonerisRefundId]
         );
 
         allocations.push({
           paymentId: payment.payment_id,
           method: payment.payment_method,
           amountCents: allocationCents,
-          stripeRefundId: paymentStripeRefundId,
+          monerisRefundId: paymentMonerisRefundId,
         });
 
         remainingRefund -= allocationCents;
@@ -602,7 +603,7 @@ router.post('/:id/process-refund', asyncHandler(async (req, res) => {
            refund_total = $3,
            restocking_fee = $4,
            refund_method = $5,
-           stripe_refund_id = $6,
+           moneris_refund_id = $6,
            total_refund_amount = $7,
            updated_at = NOW()
        WHERE id = $8`,
@@ -612,7 +613,7 @@ router.post('/:id/process-refund', asyncHandler(async (req, res) => {
         refundTotalCents,
         restockingFee,
         refundMethod,
-        stripeRefundId,
+        monerisRefundId,
         refundTotalCents / 100, // total_refund_amount is NUMERIC(10,2) in dollars
         id
       ]
@@ -649,7 +650,7 @@ router.post('/:id/process-refund', asyncHandler(async (req, res) => {
         refundTotalCents,
         restockingFeeCents: restockingFee,
         refundMethod,
-        stripeRefundId,
+        monerisRefundId,
         allocations,
         storeCredit: storeCreditInfo,
       }
@@ -668,7 +669,7 @@ router.post('/:id/process-refund', asyncHandler(async (req, res) => {
 
 const init = (deps) => {
   pool = deps.pool;
-  stripeService = deps.stripeService || null;
+  monerisService = deps.monerisService || null;
   return router;
 };
 

@@ -331,8 +331,8 @@ class InvoiceService {
     const {
       amountCents,
       paymentMethod = 'other',
-      stripePaymentIntentId = null,
-      stripeChargeId = null,
+      monerisOrderId = null,
+      monerisTransId = null,
       referenceNumber = null,
       notes = ''
     } = paymentData;
@@ -365,11 +365,11 @@ class InvoiceService {
       await client.query(`
         INSERT INTO invoice_payments (
           invoice_id, amount_cents, payment_method,
-          stripe_payment_intent_id, stripe_charge_id,
+          moneris_order_id, moneris_trans_id,
           reference_number, notes
         )
         VALUES ($1, $2, $3, $4, $5, $6, $7)
-      `, [invoiceId, amountCents, paymentMethod, stripePaymentIntentId, stripeChargeId, referenceNumber, notes]);
+      `, [invoiceId, amountCents, paymentMethod, monerisOrderId, monerisTransId, referenceNumber, notes]);
 
       // Calculate new totals
       const newAmountPaid = invoice.amount_paid_cents + amountCents;

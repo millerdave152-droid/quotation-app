@@ -231,7 +231,7 @@ router.post('/:id/process-refund', authenticate, asyncHandler(async (req, res) =
 
 const init = (deps) => {
   returnService = new HubReturnService(deps.pool, {
-    stripeService: deps.stripeService || null,
+    monerisService: deps.monerisService || null,
   });
   return router;
 };

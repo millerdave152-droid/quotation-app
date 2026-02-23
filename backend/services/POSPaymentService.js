@@ -3,7 +3,7 @@ const bcrypt = require('bcrypt');
 /**
  * POS Payment Service
  * Handles payment processing for POS transactions including:
- * - Card payments via Stripe
+ * - Card payments via Moneris
  * - Customer account/tab payments
  * - Gift card validation and redemption
  */
@@ -12,102 +12,119 @@ class POSPaymentService {
   /**
    * @param {Pool} pool - PostgreSQL connection pool
    * @param {object} cache - Cache module
-   * @param {StripeService} stripeService - Stripe service instance
+   * @param {MonerisService} monerisService - Moneris service instance
    */
-  constructor(pool, cache, stripeService) {
+  constructor(pool, cache, monerisService) {
     this.pool = pool;
     this.cache = cache;
-    this.stripeService = stripeService;
+    this.monerisService = monerisService;
   }
 
   // ============================================================================
-  // CARD PAYMENT METHODS (Stripe Integration)
+  // CARD PAYMENT METHODS (Moneris Integration)
   // ============================================================================
 
   /**
-   * Create a Stripe PaymentIntent for POS card payment
+   * Create a Moneris pre-authorization for POS card payment
    * @param {number} amountCents - Amount in cents
    * @param {object} metadata - Additional metadata for the payment
-   * @returns {Promise<object>} PaymentIntent details
+   * @returns {Promise<object>} Pre-auth details
    */
   async createCardPaymentIntent(amountCents, metadata = {}) {
-    if (!this.stripeService?.isConfigured()) {
-      throw new Error('Stripe is not configured. Card payments are unavailable.');
+    if (!this.monerisService?.isConfigured()) {
+      throw new Error('Moneris is not configured. Card payments are unavailable.');
     }
 
     if (!amountCents || amountCents <= 0) {
       throw new Error('Invalid payment amount');
     }
 
-    const paymentIntent = await this.stripeService.createPaymentIntent(amountCents, {
+    const preAuth = await this.monerisService.createPaymentIntent(amountCents, {
       source: 'pos',
       ...metadata
     });
 
     return {
-      paymentIntentId: paymentIntent.id,
-      clientSecret: paymentIntent.client_secret,
-      amount: paymentIntent.amount,
-      currency: paymentIntent.currency,
-      status: paymentIntent.status
+      paymentIntentId: preAuth.monerisOrderId,
+      monerisOrderId: preAuth.monerisOrderId,
+      monerisTransId: preAuth.monerisTransId,
+      amount: preAuth.amount,
+      currency: preAuth.currency,
+      status: preAuth.status,
+      authCode: preAuth.authCode
     };
   }
 
   /**
-   * Cancel a PaymentIntent (e.g. on component unmount)
-   * @param {string} paymentIntentId - Stripe PaymentIntent ID
+   * Cancel/void a pre-authorization (e.g. on component unmount)
+   * @param {string} paymentIntentId - Moneris order ID
    */
   async cancelPaymentIntent(paymentIntentId) {
-    if (!this.stripeService?.isConfigured()) {
-      throw new Error('Stripe is not configured');
+    if (!this.monerisService?.isConfigured()) {
+      throw new Error('Moneris is not configured');
     }
-    // Delegate to Stripe — may throw if already captured/cancelled
-    await this.stripeService.stripe.paymentIntents.cancel(paymentIntentId);
+
+    // Look up the transaction ID for this order
+    const result = await this.pool.query(
+      `SELECT moneris_trans_id FROM payment_transactions WHERE moneris_order_id = $1 LIMIT 1`,
+      [paymentIntentId]
+    );
+
+    if (result.rows.length > 0 && result.rows[0].moneris_trans_id) {
+      await this.monerisService.voidPayment(paymentIntentId, result.rows[0].moneris_trans_id);
+    }
   }
 
   /**
-   * Confirm and retrieve card payment details after successful charge
-   * @param {string} paymentIntentId - Stripe PaymentIntent ID
+   * Confirm and capture card payment after terminal approval
+   * @param {string} paymentIntentId - Moneris order ID
    * @returns {Promise<object>} Payment confirmation details
    */
   async confirmCardPayment(paymentIntentId) {
-    if (!this.stripeService?.isConfigured()) {
-      throw new Error('Stripe is not configured');
+    if (!this.monerisService?.isConfigured()) {
+      throw new Error('Moneris is not configured');
     }
 
     if (!paymentIntentId) {
-      throw new Error('Payment intent ID is required');
+      throw new Error('Payment order ID is required');
     }
 
-    const status = await this.stripeService.getPaymentStatus(paymentIntentId);
+    const status = await this.monerisService.getPaymentStatus(paymentIntentId);
 
-    if (status.status !== 'succeeded') {
+    if (status.status === 'not_found') {
       return {
         success: false,
-        status: status.status,
-        error: `Payment not completed. Status: ${status.status}`
+        status: 'not_found',
+        error: 'Payment not found'
       };
     }
 
-    // Retrieve full payment intent for card details
-    const paymentIntent = await this.stripeService.stripe.paymentIntents.retrieve(
-      paymentIntentId,
-      { expand: ['latest_charge.payment_method_details'] }
-    );
+    // If it's a pre-auth that needs capture, capture it
+    if (status.status === 'requires_capture' && status.transId) {
+      const capture = await this.monerisService.capturePayment(
+        paymentIntentId, status.transId, status.amount
+      );
 
-    const charge = paymentIntent.latest_charge;
-    const cardDetails = charge?.payment_method_details?.card || {};
+      if (!capture.success) {
+        return {
+          success: false,
+          status: 'capture_failed',
+          error: `Payment capture failed: ${capture.message}`
+        };
+      }
+    }
 
     return {
       success: true,
       paymentIntentId,
-      chargeId: charge?.id || null,
-      amount: paymentIntent.amount,
-      currency: paymentIntent.currency,
-      cardBrand: cardDetails.brand || null,
-      cardLastFour: cardDetails.last4 || null,
-      authorizationCode: charge?.authorization_code || null,
-      receiptUrl: charge?.receipt_url || null
+      monerisOrderId: paymentIntentId,
+      monerisTransId: status.transId,
+      amount: status.amount,
+      currency: status.currency,
+      cardBrand: status.cardType || null,
+      cardLastFour: null, // Moneris doesn't return last4 in gateway response
+      authorizationCode: null,
+      receiptUrl: null
     };
   }
 
@@ -525,17 +542,17 @@ class POSPaymentService {
   // ============================================================================
 
   /**
-   * Record a payment with Stripe details
+   * Record a payment with Moneris details
    * @param {object} paymentData - Payment data
    * @returns {Promise<object>} Payment record
    */
-  async recordStripePayment(paymentData) {
+  async recordCardPayment(paymentData) {
     const {
       transactionId,
       paymentMethod,
       amount,
-      paymentIntentId,
-      chargeId,
+      monerisOrderId,
+      monerisTransId,
       cardBrand,
       cardLastFour,
       authorizationCode
@@ -546,8 +563,8 @@ class POSPaymentService {
         transaction_id,
         payment_method,
         amount,
-        stripe_payment_intent_id,
-        stripe_charge_id,
+        moneris_order_id,
+        moneris_trans_id,
         card_brand,
         card_last_four,
         authorization_code,
@@ -559,8 +576,8 @@ class POSPaymentService {
       transactionId,
       paymentMethod,
       amount,
-      paymentIntentId,
-      chargeId,
+      monerisOrderId,
+      monerisTransId,
       cardBrand,
       cardLastFour,
       authorizationCode
@@ -570,7 +587,7 @@ class POSPaymentService {
       paymentId: result.rows[0].payment_id,
       transactionId,
       amount,
-      paymentIntentId
+      monerisOrderId
     };
   }
 

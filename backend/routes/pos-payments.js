@@ -65,7 +65,7 @@ const issueGiftCardSchema = Joi.object({
 
 /**
  * POST /api/pos-payments/card/create-intent
- * Create a Stripe PaymentIntent for card payment
+ * Create a Moneris payment intent for card payment
  */
 router.post('/card/create-intent', authenticate, asyncHandler(async (req, res) => {
   const { error, value } = createPaymentIntentSchema.validate(req.body);

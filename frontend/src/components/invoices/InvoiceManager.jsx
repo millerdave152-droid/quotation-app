@@ -190,7 +190,7 @@ const PaymentDialog = ({ open, onClose, invoice, onPaymentRecorded }) => {
             <MenuItem value="debit">Debit</MenuItem>
             <MenuItem value="cheque">Cheque</MenuItem>
             <MenuItem value="bank_transfer">Bank Transfer</MenuItem>
-            <MenuItem value="stripe">Stripe Online</MenuItem>
+            <MenuItem value="moneris">Moneris Online</MenuItem>
           </Select>
         </FormControl>
 

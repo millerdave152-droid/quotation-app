@@ -142,7 +142,7 @@ module.exports = (pool, cache, orderService, inventoryService) => {
       {
         depositPaidCents: req.body.depositPaidCents,
         amountPaidCents: req.body.amountPaidCents,
-        stripePaymentIntentId: req.body.stripePaymentIntentId
+        monerisOrderId: req.body.monerisOrderId
       }
     );
 

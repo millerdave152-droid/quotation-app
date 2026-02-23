@@ -761,7 +761,7 @@ const orderPaymentSchema = Joi.object({
     .required(),
   depositPaidCents: Joi.number().integer().min(0).optional(),
   amountPaidCents: Joi.number().integer().min(0).optional(),
-  stripePaymentIntentId: Joi.string().max(255).optional().allow('', null)
+  monerisOrderId: Joi.string().max(255).optional().allow('', null)
 });
 
 // ============================================
