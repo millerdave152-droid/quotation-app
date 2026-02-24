@@ -165,7 +165,7 @@ class POSInvoiceService {
         c.name as customer_name,
         c.email as customer_email,
         c.phone as customer_phone,
-        c.company_name,
+        c.company AS company_name,
         c.address as customer_address,
         c.city as customer_city,
         c.province as customer_province,
@@ -732,7 +732,7 @@ class POSInvoiceService {
       SELECT
         c.id,
         c.name,
-        c.company_name,
+        c.company,
         c.email,
         c.credit_limit,
         c.current_balance,
@@ -748,7 +748,7 @@ class POSInvoiceService {
       ) p ON t.transaction_id = p.transaction_id
       WHERE c.credit_limit > 0
         AND t.total_amount > COALESCE(p.paid, 0)
-      GROUP BY c.id, c.name, c.company_name, c.email, c.credit_limit, c.current_balance, c.payment_terms
+      GROUP BY c.id, c.name, c.company, c.email, c.credit_limit, c.current_balance, c.payment_terms
       HAVING COUNT(t.transaction_id) > 0
       ORDER BY total_outstanding DESC
     `);
