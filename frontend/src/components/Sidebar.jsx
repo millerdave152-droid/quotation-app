@@ -33,7 +33,8 @@ import {
   Truck,
   Shield,
   Database,
-  Activity
+  Activity,
+  ListChecks
 } from 'lucide-react';
 
 const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:3001';
@@ -70,11 +71,15 @@ const navItems = {
   'admin-purchase-orders': { path: '/admin/purchase-orders', icon: ClipboardList, label: 'Purchase Orders', isAdmin: true },
   'admin-product-variants': { path: '/admin/product-variants', icon: Package, label: 'Product Variants', isAdmin: true },
   // Lightspeed Feature Gap
+  'inventory-transfers': { path: '/inventory/transfers', icon: Truck, label: 'Transfers' },
+  'inventory-receiving': { path: '/inventory/receiving', icon: Package, label: 'Receiving' },
   'inventory-counts': { path: '/inventory-counts', icon: ClipboardCheck, label: 'Inventory Counts' },
+  'count-review': { path: '/inventory/count-review', icon: ListChecks, label: 'Count Review' },
   'work-orders': { path: '/work-orders', icon: Wrench, label: 'Work Orders' },
   'special-orders': { path: '/special-orders', icon: ShoppingCart, label: 'Special Orders' },
   'customer-accounts': { path: '/customer-accounts', icon: DollarSign, label: 'Customer Accounts' },
   'pre-orders': { path: '/pre-orders', icon: ClipboardList, label: 'Pre-Orders' },
+  'team-commissions': { path: '/team-commissions', icon: DollarSign, label: 'Team Commissions' },
   'surveys': { path: '/surveys', icon: ClipboardCheck, label: 'Surveys & Reviews' },
   'catalog-exports': { path: '/catalog-exports', icon: Database, label: 'Catalog Exports' },
   'audience-sync': { path: '/audience-sync', icon: Users, label: 'Audience Sync' },
@@ -92,13 +97,13 @@ const navSections = [
     id: 'sales',
     title: 'Sales',
     icon: Users,
-    items: ['customers', 'leads', 'quotes', 'sales-performance', 'invoices', 'special-orders', 'customer-accounts', 'pre-orders']
+    items: ['customers', 'leads', 'quotes', 'sales-performance', 'team-commissions', 'invoices', 'special-orders', 'customer-accounts', 'pre-orders']
   },
   {
     id: 'inventory',
     title: 'Inventory',
     icon: Package,
-    items: ['products', 'admin-product-variants', 'product-visualization', 'inventory', 'inventory-counts', 'admin-serial-numbers', 'admin-purchase-orders', 'pricing', 'manufacturer-promotions']
+    items: ['products', 'admin-product-variants', 'product-visualization', 'inventory', 'inventory-transfers', 'inventory-receiving', 'inventory-counts', 'count-review', 'admin-serial-numbers', 'admin-purchase-orders', 'pricing', 'manufacturer-promotions']
   },
   {
     id: 'marketplace',

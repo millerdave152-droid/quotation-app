@@ -80,6 +80,9 @@ const MonitoringHub = React.lazy(() => import('./components/admin/MonitoringHub'
 
 // Lightspeed Feature Gap Components
 const InventoryCount = React.lazy(() => import('./components/inventory/InventoryCount'));
+const TransferManagement = React.lazy(() => import('./components/inventory/TransferManagement'));
+const ReceivingWorkflow = React.lazy(() => import('./components/inventory/ReceivingWorkflow'));
+const CycleCountReview = React.lazy(() => import('./components/inventory/CycleCountReview'));
 const WorkOrderDashboard = React.lazy(() => import('./components/operations/WorkOrderDashboard'));
 const SpecialOrderTracker = React.lazy(() => import('./components/sales/SpecialOrderTracker'));
 const CustomerAccountManager = React.lazy(() => import('./components/customers/CustomerAccountManager'));
@@ -87,6 +90,9 @@ const PreOrderManager = React.lazy(() => import('./components/sales/PreOrderMana
 const SurveyDashboard = React.lazy(() => import('./components/marketing/SurveyDashboard'));
 const CatalogExportManager = React.lazy(() => import('./components/marketing/CatalogExportManager'));
 const AudienceSyncManager = React.lazy(() => import('./components/marketing/AudienceSyncManager'));
+
+// Team Commissions (Rules, Payroll, Export)
+const TeamCommissions = React.lazy(() => import('./components/commissions/TeamCommissions'));
 
 // Sales Leaderboard loaded via SalesPerformanceHub
 
@@ -639,10 +645,14 @@ function App() {
 
           {/* Lightspeed Feature Gap Routes */}
           <Route path="/inventory-counts" element={<InventoryCount />} />
+          <Route path="/inventory/transfers" element={<TransferManagement />} />
+          <Route path="/inventory/receiving" element={<ReceivingWorkflow />} />
+          <Route path="/inventory/count-review" element={<CycleCountReview />} />
           <Route path="/work-orders" element={<WorkOrderDashboard />} />
           <Route path="/special-orders" element={<SpecialOrderTracker />} />
           <Route path="/customer-accounts" element={<CustomerAccountManager />} />
           <Route path="/pre-orders" element={<PreOrderManager />} />
+          <Route path="/team-commissions" element={<TeamCommissions />} />
           <Route path="/surveys" element={<SurveyDashboard />} />
           <Route path="/catalog-exports" element={<CatalogExportManager />} />
           <Route path="/audience-sync" element={<AudienceSyncManager />} />

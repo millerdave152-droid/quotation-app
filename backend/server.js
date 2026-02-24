@@ -279,6 +279,8 @@ const purchaseOrderService = new PurchaseOrderService(pool, cache, serialNumberS
 const productVariantService = new ProductVariantService(pool, cache);
 const fraudService = new FraudDetectionService(pool);
 app.set('fraudService', fraudService);
+app.set('pool', pool);
+app.set('cache', cache);
 const discountAuthorityService = new DiscountAuthorityService(pool);
 
 // Lightspeed Feature Gap Service Instances
@@ -621,6 +623,36 @@ console.log('✅ Bundle routes loaded');
 // ============================================
 // MULTI-LOCATION INVENTORY
 // ============================================
+
+// Dedicated dashboard summary — must be registered before location-inventory
+// router, which has its own /summary that returns a product list instead of stats.
+app.get('/api/inventory/summary', authenticate, async (req, res, next) => {
+  try {
+    const result = await pool.query(`
+      SELECT
+        COUNT(*)::int AS "totalProducts",
+        COUNT(CASE WHEN total_on_hand > reorder_level THEN 1 END)::int AS "inStock",
+        COUNT(CASE WHEN total_on_hand > 0 AND total_on_hand <= reorder_level THEN 1 END)::int AS "lowStock",
+        COUNT(CASE WHEN total_on_hand <= 0 THEN 1 END)::int AS "outOfStock",
+        COALESCE(SUM(total_reserved), 0)::int AS "totalReserved"
+      FROM (
+        SELECT
+          li.product_id,
+          SUM(li.quantity_on_hand) AS total_on_hand,
+          SUM(li.quantity_reserved) AS total_reserved,
+          COALESCE(MAX(p.reorder_level), 10) AS reorder_level
+        FROM location_inventory li
+        JOIN products p ON p.id = li.product_id
+        WHERE p.is_active = true
+        GROUP BY li.product_id
+      ) product_totals
+    `);
+    res.json(result.rows[0]);
+  } catch (err) {
+    next(err);
+  }
+});
+
 const { init: initLocationInventoryRoutes } = require('./routes/location-inventory');
 app.use('/api/inventory', initLocationInventoryRoutes({ pool }));
 console.log('✅ Multi-location inventory routes loaded');
@@ -880,7 +912,12 @@ app.use('/api/chargebacks', initChargebackRoutes({ fraudService }));
 console.log('✅ Chargeback routes loaded');
 
 app.use('/api/serials', initSerialNumberRoutes({ serialService: serialNumberService }));
+app.use('/api/serial-numbers', initSerialNumberRoutes({ serialService: serialNumberService }));
 console.log('✅ Serial number routes loaded');
+
+const inventorySyncRouter = require('./routes/inventory-sync');
+app.use('/api/inventory-sync', inventorySyncRouter);
+console.log('✅ Inventory sync routes loaded');
 
 app.use('/api/purchase-orders', initPurchaseOrderRoutes({ poService: purchaseOrderService }));
 console.log('✅ Purchase order routes loaded');

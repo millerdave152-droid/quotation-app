@@ -439,7 +439,7 @@ const InventoryDashboard = () => {
                     <TableRow key={product.id} hover>
                       <TableCell>
                         <Typography variant="body2" sx={{ fontWeight: 'bold' }}>
-                          {product.model_number}
+                          {product.model}
                         </Typography>
                         <Typography variant="caption" color="text.secondary">
                           {product.name}
@@ -566,7 +566,7 @@ const InventoryDashboard = () => {
                       <TableRow key={reservation.id} hover>
                         <TableCell>
                           <Typography variant="body2" sx={{ fontWeight: 'bold' }}>
-                            {reservation.model_number || reservation.product_id}
+                            {reservation.model || reservation.product_id}
                           </Typography>
                         </TableCell>
                         <TableCell>
