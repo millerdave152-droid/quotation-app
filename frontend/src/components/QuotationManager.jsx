@@ -1145,21 +1145,10 @@ const QuotationManager = () => {
         }
       };
 
-      // Offline path: queue for later sync if no connection
-      if (!navigator.onLine && !editingQuoteId) {
-        if (activeDraftId) {
-          await db.quote_drafts.update(activeDraftId, {
-            status: 'pending_sync',
-            updated_at: new Date().toISOString(),
-            snapshot: { ...builderState, quoteData },
-          });
-        }
-        toast.info('Quote saved offline. It will sync when you reconnect.', 'Saved Offline');
-        draftPersistence.clearActiveDraft();
-        resetBuilder();
-        setView('list');
-        return;
-      }
+      // Note: We no longer pre-check navigator.onLine here because it is
+      // unreliable on Windows (can return false while the network is fine).
+      // Instead we attempt the fetch and only fall back to offline save if
+      // the request actually throws a network TypeError (see catch below).
 
       const token = localStorage.getItem('auth_token');
       const headers = {

@@ -18,6 +18,7 @@
     "aws-amplify": "^6.15.7",
     "axios": "^1.13.2",
     "dexie": "^4.3.0",
+    "jsbarcode": "^3.12.3",
     "jspdf": "^2.5.2",
     "jspdf-autotable": "^3.8.3",
     "lucide-react": "^0.545.0",

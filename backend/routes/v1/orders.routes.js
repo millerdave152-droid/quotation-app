@@ -732,7 +732,7 @@ function getOrderStatusTransitions(current) {
 // ============================================================================
 
 const init = (deps) => {
-  pool = deps.pool;
+  pool = deps.pool || deps.db?.pool;
   return router;
 };
 

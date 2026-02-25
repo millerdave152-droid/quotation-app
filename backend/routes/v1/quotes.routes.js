@@ -62,7 +62,7 @@ router.get('/drafts',
   authenticate,
   asyncHandler(async (req, res) => {
     const userId = req.user.id;
-    const tenantId = req.user?.tenant_id || null;
+    const tenantId = req.user?.tenantId || null;
 
     const conditions = ['user_id = $1'];
     const params = [userId];
@@ -96,7 +96,7 @@ router.patch('/:id/draft',
     const serverQuoteId = req.params.id === 'new' ? null : parseInt(req.params.id, 10);
     const { client_draft_id, snapshot } = req.body;
     const userId = req.user.id;
-    const tenantId = req.user?.tenant_id || null;
+    const tenantId = req.user?.tenantId || null;
 
     if (!client_draft_id || !snapshot) {
       return res.apiError('BAD_REQUEST', 'client_draft_id and snapshot are required');
@@ -304,7 +304,7 @@ router.post('/',
       const customer = customerResult.rows[0];
 
       // Generate quotation number (tenant-scoped)
-      const tenantId = req.user?.tenant_id || null;
+      const tenantId = req.user?.tenantId || null;
       let quotationNumber;
       if (tenantId) {
         const seqResult = await client.query(`
@@ -396,7 +396,7 @@ router.post('/',
               'SELECT * FROM global_skulytics_products WHERE skulytics_id = ANY($1)', [skuIds]
             );
             const globalMap = new Map(globalRows.map(g => [g.skulytics_id, g]));
-            const tenantId = req.user?.tenant_id || null;
+            const tenantId = req.user?.tenantId || null;
             let overrideMap = new Map();
             if (tenantId) {
               const { rows: ov } = await client.query(
@@ -654,7 +654,7 @@ router.put('/:id',
                 'SELECT * FROM global_skulytics_products WHERE skulytics_id = ANY($1)', [skuIds]
               );
               const gMap = new Map(gRows.map(g => [g.skulytics_id, g]));
-              const tid = req.user?.tenant_id || null;
+              const tid = req.user?.tenantId || null;
               let ovMap = new Map();
               if (tid) {
                 const { rows: ov } = await client.query(
@@ -1297,7 +1297,7 @@ async function checkApprovalRequired(client, items) {
 // ============================================================================
 
 const init = (deps) => {
-  pool = deps.pool;
+  pool = deps.pool || deps.db?.pool;
   quoteService = deps.quoteService;
   return router;
 };

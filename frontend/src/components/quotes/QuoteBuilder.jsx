@@ -1191,7 +1191,7 @@ const QuoteBuilder = ({
                         </td>
                       </tr>
                     )}
-                    {(item.skulytics_snapshot?.competitor_pricing || item.data_source === 'icecat' || item.data_source === 'ce_api') && (
+                    {(item.skulytics_snapshot?.competitor_pricing || item.data_source === 'icecat' || item.data_source === 'ce_api' || item.data_source === 'barcode_lookup') && (
                       <tr style={{ borderBottom: '1px solid #e5e7eb' }}>
                         <td colSpan="8" style={{ padding: '4px 12px 8px' }}>
                           <CompetitorPricingPanel

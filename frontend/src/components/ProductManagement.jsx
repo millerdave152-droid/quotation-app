@@ -9,6 +9,8 @@ import CategoryPicker from './CategoryPicker';
 import { ModelTooltip } from './nomenclature';
 
 import { authFetch } from '../services/authFetch';
+import BarcodeDisplay from './product/BarcodeDisplay';
+import OnlineStoresPanel from './product/OnlineStoresPanel';
 const API_BASE = `${process.env.REACT_APP_API_URL || 'http://localhost:3001'}/api`;
 
 const ProductManagement = () => {
@@ -2140,6 +2142,12 @@ Whirlpool,WRS325SDHZ,Side-by-Side Refrigerator 25 cu ft,Refrigerators,749.99,129
                         >
                           View
                         </button>
+                        <a
+                          href={`/products/detail/${product.id}`}
+                          style={{ padding: '6px 12px', marginRight: '5px', background: '#8b5cf6', color: 'white', border: 'none', borderRadius: '6px', fontSize: '13px', textDecoration: 'none', display: 'inline-block' }}
+                        >
+                          Details
+                        </a>
                         <button
                           onClick={() => {
                             setEditingProduct(product);
@@ -2454,6 +2462,24 @@ Whirlpool,WRS325SDHZ,Side-by-Side Refrigerator 25 cu ft,Refrigerators,749.99,129
               </table>
             </div>
           </div>
+
+          {/* Barcode + Online Stores */}
+          {selectedProduct.upc && (
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: '20px', marginTop: '20px' }}>
+              <BarcodeDisplay
+                upc={selectedProduct.upc}
+                barcodeFormats={selectedProduct.barcode_formats}
+                productId={selectedProduct.id}
+                compact={false}
+              />
+              <OnlineStoresPanel productId={selectedProduct.id} />
+            </div>
+          )}
+          {!selectedProduct.upc && (
+            <div style={{ marginTop: '20px' }}>
+              <OnlineStoresPanel productId={selectedProduct.id} />
+            </div>
+          )}
 
           <div style={{ marginTop: '24px', display: 'flex', gap: '10px' }}>
             <button

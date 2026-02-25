@@ -202,7 +202,7 @@ router.post(
         run_type: 'manual_sku',
         skulytics_id: normalized.skulytics_id,
         outcome,
-        tenant_id: req.user.tenant_id || null,
+        tenant_id: req.user.tenantId || null,
       },
       req
     );

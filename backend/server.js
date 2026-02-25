@@ -3005,6 +3005,12 @@ console.log('✅ 3D product configurator routes loaded');
 app.use('/api/products', productImageRoutes.init({ pool }));
 console.log('✅ Product image gallery routes loaded');
 
+// BARCODE IMAGE GENERATION
+// ============================================
+const barcodeImageRoutes = require('./routes/barcode-image');
+app.use('/api/products', barcodeImageRoutes.init({ pool }));
+console.log('✅ Barcode image routes loaded');
+
 // CALL LOG TRACKING
 // ============================================
 const callLogRouter = callLogRoutes.init({ pool });

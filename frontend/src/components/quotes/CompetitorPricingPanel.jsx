@@ -136,8 +136,8 @@ function CeSpecSummary({ ceSpecs }) {
 // ── Source badge ─────────────────────────────────────────────
 
 function SourceBadge({ dataSource }) {
-  const isCe = dataSource === 'icecat' || dataSource === 'ce_api' || dataSource === 'pricesapi';
-  const label = isCe ? 'Live Pricing' : 'Appliance Data';
+  const isCe = dataSource === 'icecat' || dataSource === 'ce_api' || dataSource === 'pricesapi' || dataSource === 'barcode_lookup';
+  const label = dataSource === 'barcode_lookup' ? 'Online Pricing' : isCe ? 'Live Pricing' : 'Appliance Data';
 
   return (
     <span style={{
@@ -282,7 +282,7 @@ const CompetitorPricingPanel = ({
   const [ceError, setCeError] = useState(null);
   const fetchedRef = useRef(false);
 
-  const isCeSource = dataSource === 'icecat' || dataSource === 'ce_api';
+  const isCeSource = dataSource === 'icecat' || dataSource === 'ce_api' || dataSource === 'barcode_lookup';
 
   // Fetch CE pricing when panel is expanded (once per mount)
   useEffect(() => {

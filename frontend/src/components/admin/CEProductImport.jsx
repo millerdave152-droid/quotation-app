@@ -349,17 +349,27 @@ const CEProductImport = () => {
                 </div>
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
                   {result.success.slice(0, 12).map((s, i) => (
-                    <span key={i} style={{
-                      display: 'inline-block',
-                      padding: '3px 10px',
+                    <div key={i} style={{
+                      display: 'inline-flex',
+                      flexDirection: 'column',
+                      padding: '6px 12px',
                       background: K.greenLt,
                       color: K.green,
-                      borderRadius: '6px',
+                      borderRadius: '8px',
                       fontSize: '12px',
                       fontWeight: 500,
+                      gap: '2px',
+                      minWidth: '180px',
                     }}>
-                      {s.upc} — {s.action === 'inserted' ? 'new' : 'updated'}
-                    </span>
+                      <span style={{ fontWeight: 600 }}>
+                        {s.brand ? `${s.brand} ` : ''}{s.model || s.sku || s.upc}
+                      </span>
+                      <span style={{ fontSize: '11px', color: K.textMuted }}>
+                        UPC: {s.upc} — {s.action === 'inserted' ? 'new' : 'updated'}
+                        {s.mpn && s.mpn !== s.model ? ` · MPN: ${s.mpn}` : ''}
+                        {s.onlinePriceCount > 0 ? ` · ${s.onlinePriceCount} store prices` : ''}
+                      </span>
+                    </div>
                   ))}
                   {result.success.length > 12 && (
                     <span style={{ fontSize: '12px', color: K.textMuted, alignSelf: 'center' }}>

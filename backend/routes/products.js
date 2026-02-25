@@ -258,6 +258,25 @@ router.get('/:id', authenticate, asyncHandler(async (req, res) => {
 }));
 
 /**
+ * GET /api/products/:id/competitor-prices
+ * Returns all competitor prices for a product with store links.
+ */
+router.get('/:id/competitor-prices', authenticate, asyncHandler(async (req, res) => {
+  const { id } = req.params;
+
+  const result = await pool.query(`
+    SELECT competitor_name, competitor_price, currency,
+           competitor_url, pricing_source, last_fetched_at,
+           created_at
+    FROM competitor_prices
+    WHERE product_id = $1
+    ORDER BY competitor_price ASC
+  `, [id]);
+
+  res.success(result.rows);
+}));
+
+/**
  * POST /api/products
  * Create a new product
  */

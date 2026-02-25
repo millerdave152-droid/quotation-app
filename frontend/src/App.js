@@ -75,6 +75,9 @@ const SerialRegistry = React.lazy(() => import('./components/inventory/SerialReg
 const PurchaseOrderDashboard = React.lazy(() => import('./components/purchasing/PurchaseOrderDashboard'));
 const VariantManager = React.lazy(() => import('./components/products/VariantManager'));
 
+// Product Detail Page (barcode, attributes, online stores)
+const ProductDetailPage = React.lazy(() => import('./components/product/ProductDetailPage'));
+
 // Monitoring Hub (Client Errors + Discount Analytics)
 const MonitoringHub = React.lazy(() => import('./components/admin/MonitoringHub'));
 
@@ -550,6 +553,7 @@ function App() {
           <Route path="/customers" element={<CustomerManagement />} />
           <Route path="/customers/:id" element={<CustomerManagement />} />
           <Route path="/products" element={<ProductManagement />} />
+          <Route path="/products/detail/:id" element={<ProductDetailPage />} />
           <Route path="/products/:id" element={<ProductManagement />} />
           <Route path="/quotes" element={<QuotationManager />} />
           <Route path="/quotes/new" element={<QuotationManager />} />

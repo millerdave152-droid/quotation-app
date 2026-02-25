@@ -484,7 +484,7 @@ router.get('/:id', authenticate, asyncHandler(async (req, res) => {
 router.post('/', authenticate, asyncHandler(async (req, res) => {
   const quote = await quoteService.createQuote({
     ...req.body,
-    tenant_id: req.user?.tenant_id || null,
+    tenant_id: req.user?.tenantId || null,
   });
 
   // Check if approval is required based on margin
@@ -503,7 +503,7 @@ router.put('/:id', authenticate, asyncHandler(async (req, res) => {
   const { id } = req.params;
   const quote = await quoteService.updateQuote(id, {
     ...req.body,
-    tenant_id: req.user?.tenant_id || null,
+    tenant_id: req.user?.tenantId || null,
   });
 
   if (!quote) {

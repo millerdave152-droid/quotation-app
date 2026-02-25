@@ -1,37 +1,65 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
+
+const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:3001';
 
 const OfflineIndicator = () => {
-  const [isOnline, setIsOnline] = useState(navigator.onLine);
+  const [isOnline, setIsOnline] = useState(true);
   const [showNotification, setShowNotification] = useState(false);
-  const [notificationType, setNotificationType] = useState('offline'); // 'offline' or 'online'
+  const [notificationType, setNotificationType] = useState('offline');
+
+  // Actual connectivity check — ping the backend health endpoint
+  const checkConnectivity = useCallback(async () => {
+    try {
+      const res = await fetch(`${API_URL}/health`, {
+        method: 'GET',
+        cache: 'no-store',
+        signal: AbortSignal.timeout(5000),
+      });
+      return res.ok;
+    } catch {
+      return false;
+    }
+  }, []);
 
   useEffect(() => {
-    const handleOnline = () => {
-      setIsOnline(true);
-      setNotificationType('online');
-      setShowNotification(true);
+    let intervalId;
 
-      // Auto-hide the "back online" notification after 3 seconds
-      setTimeout(() => {
-        setShowNotification(false);
-      }, 3000);
+    const updateStatus = async (source) => {
+      const online = await checkConnectivity();
+
+      if (online && !isOnline) {
+        // Was offline, now online
+        setIsOnline(true);
+        setNotificationType('online');
+        setShowNotification(true);
+        setTimeout(() => setShowNotification(false), 3000);
+      } else if (!online && isOnline) {
+        // Was online, now offline
+        setIsOnline(false);
+        setNotificationType('offline');
+        setShowNotification(true);
+      }
     };
 
-    const handleOffline = () => {
-      setIsOnline(false);
-      setNotificationType('offline');
-      setShowNotification(true);
-      // Keep offline notification visible until back online
-    };
+    // Listen for browser online/offline events as hints, then verify
+    const handleOnline = () => updateStatus('event');
+    const handleOffline = () => updateStatus('event');
 
     window.addEventListener('online', handleOnline);
     window.addEventListener('offline', handleOffline);
 
+    // Periodic check every 30 seconds
+    intervalId = setInterval(() => updateStatus('poll'), 30000);
+
+    // Initial check
+    updateStatus('init');
+
     return () => {
       window.removeEventListener('online', handleOnline);
       window.removeEventListener('offline', handleOffline);
+      clearInterval(intervalId);
     };
-  }, []);
+  }, [checkConnectivity, isOnline]);
 
   // Don't show anything if online and notification is hidden
   if (isOnline && !showNotification) {
@@ -58,7 +86,7 @@ const OfflineIndicator = () => {
           }}
         >
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '12px' }}>
-            <span style={{ fontSize: '20px' }}>📡</span>
+            <span style={{ fontSize: '20px' }}>&#128225;</span>
             <div>
               <div style={{ fontWeight: 'bold', fontSize: '14px' }}>
                 You're Offline
@@ -91,7 +119,7 @@ const OfflineIndicator = () => {
             minWidth: '300px'
           }}
         >
-          <span style={{ fontSize: '24px' }}>✅</span>
+          <span style={{ fontSize: '24px' }}>&#9989;</span>
           <div>
             <div style={{ fontWeight: 'bold', fontSize: '14px' }}>
               You're Back Online!
