@@ -157,10 +157,10 @@ async function cleanupTestData() {
   await testPool.query(
     `DELETE FROM quotations WHERE notes LIKE '%${TEST_PREFIX}%' OR created_by LIKE '%${TEST_PREFIX}%'`
   );
-  await testPool.query(`DELETE FROM products WHERE sku IN ('QE-TEST-SKU', 'QE-PLAIN-001', 'QE-DISC-SKU')`);
-  await testPool.query(`DELETE FROM global_skulytics_products WHERE skulytics_id IN ($1, $2)`, [SKULYTICS_ID, SKULYTICS_ID_DISC]);
-  await testPool.query(`DELETE FROM customers WHERE email = $1`, [`${TEST_PREFIX}_customer@test.local`]);
-  await testPool.query(`DELETE FROM users WHERE email IN ($1, $2)`, [TEST_EMAIL_ADMIN, TEST_EMAIL_SALES]);
+  await testPool.query('DELETE FROM products WHERE sku IN (\'QE-TEST-SKU\', \'QE-PLAIN-001\', \'QE-DISC-SKU\')');
+  await testPool.query('DELETE FROM global_skulytics_products WHERE skulytics_id IN ($1, $2)', [SKULYTICS_ID, SKULYTICS_ID_DISC]);
+  await testPool.query('DELETE FROM customers WHERE email = $1', [`${TEST_PREFIX}_customer@test.local`]);
+  await testPool.query('DELETE FROM users WHERE email IN ($1, $2)', [TEST_EMAIL_ADMIN, TEST_EMAIL_SALES]);
 }
 
 // ── Helpers ─────────────────────────────────────────────────
@@ -230,7 +230,7 @@ describe('Quotation Engine — Skulytics Snapshot Integration', () => {
 
     // Fetch original snapshot
     const { rows: beforeRows } = await testPool.query(
-      `SELECT skulytics_snapshot FROM quotation_items WHERE quotation_id = $1`,
+      'SELECT skulytics_snapshot FROM quotation_items WHERE quotation_id = $1',
       [quote.id]
     );
     const originalSnapshot = beforeRows[0].skulytics_snapshot;
@@ -249,7 +249,7 @@ describe('Quotation Engine — Skulytics Snapshot Integration', () => {
 
     // Fetch updated line item
     const { rows: afterRows } = await testPool.query(
-      `SELECT skulytics_snapshot FROM quotation_items WHERE quotation_id = $1`,
+      'SELECT skulytics_snapshot FROM quotation_items WHERE quotation_id = $1',
       [quote.id]
     );
 
@@ -370,7 +370,7 @@ describe('Quotation Engine — Skulytics Snapshot Integration', () => {
 
     // Get the item ID
     const { rows: itemRows } = await testPool.query(
-      `SELECT id FROM quotation_items WHERE quotation_id = $1`, [quote.id]
+      'SELECT id FROM quotation_items WHERE quotation_id = $1', [quote.id]
     );
     const itemId = itemRows[0].id;
 
@@ -418,7 +418,7 @@ describe('Quotation Engine — Skulytics Snapshot Integration', () => {
 
     const quote = await quoteService.createQuote(quoteData);
     const { rows: itemRows } = await testPool.query(
-      `SELECT id FROM quotation_items WHERE quotation_id = $1`, [quote.id]
+      'SELECT id FROM quotation_items WHERE quotation_id = $1', [quote.id]
     );
     const itemId = itemRows[0].id;
 

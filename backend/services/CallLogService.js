@@ -103,7 +103,7 @@ async function getFollowUps({ assigned_to, date, overdue, limit = 50, offset = 0
     params.push(date);
   }
   if (overdue === true || overdue === 'true') {
-    conditions.push(`cc.follow_up_date < CURRENT_DATE`);
+    conditions.push('cc.follow_up_date < CURRENT_DATE');
   }
 
   params.push(limit, offset);

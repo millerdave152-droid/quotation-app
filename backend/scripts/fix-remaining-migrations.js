@@ -40,7 +40,7 @@ async function run() {
     }
   }
 
-  console.log(`\n=== Summary ===`);
+  console.log('\n=== Summary ===');
   console.log(`Applied: ${results.applied.length}`);
   console.log(`Skipped: ${results.skipped.length}`);
   console.log(`Failed:  ${results.failed.length}`);

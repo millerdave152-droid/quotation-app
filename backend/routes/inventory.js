@@ -96,11 +96,11 @@ module.exports = (pool, cache, inventoryService) => {
 
     // Stock status filter
     if (stockStatus === 'in_stock') {
-      conditions.push(`COALESCE(qty_on_hand, 0) > 0`);
+      conditions.push('COALESCE(qty_on_hand, 0) > 0');
     } else if (stockStatus === 'low_stock') {
-      conditions.push(`COALESCE(qty_on_hand, 0) > 0 AND COALESCE(qty_on_hand, 0) <= 5`);
+      conditions.push('COALESCE(qty_on_hand, 0) > 0 AND COALESCE(qty_on_hand, 0) <= 5');
     } else if (stockStatus === 'out_of_stock') {
-      conditions.push(`COALESCE(qty_on_hand, 0) = 0`);
+      conditions.push('COALESCE(qty_on_hand, 0) = 0');
     }
 
     // Manufacturer filter
@@ -126,7 +126,7 @@ module.exports = (pool, cache, inventoryService) => {
 
     // Get products
     const sortExpression = sortField === 'qty_available'
-      ? `(COALESCE(qty_on_hand, 0) - COALESCE(qty_reserved, 0))`
+      ? '(COALESCE(qty_on_hand, 0) - COALESCE(qty_reserved, 0))'
       : sortField;
 
     const productsQuery = `

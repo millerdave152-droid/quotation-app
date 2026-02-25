@@ -203,9 +203,9 @@ function req(method, path, body) {
     await pool.query('DELETE FROM approval_requests WHERE cart_id BETWEEN 901 AND 905');
     await pool.query('DELETE FROM manager_availability WHERE user_id = 1');
 
-    console.log(`\n========================================`);
+    console.log('\n========================================');
     console.log(`  ${passed} passed, ${failed} failed`);
-    console.log(`========================================`);
+    console.log('========================================');
 
     pool.end();
     process.exit(failed > 0 ? 1 : 0);

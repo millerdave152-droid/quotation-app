@@ -105,7 +105,7 @@ router.get('/quotes/:token', asyncHandler(async (req, res) => {
 
   // Get total count
   const countResult = await pool.query(
-    `SELECT COUNT(*) FROM quotations WHERE customer_id = $1${status ? ` AND status = $2` : ''}`,
+    `SELECT COUNT(*) FROM quotations WHERE customer_id = $1${status ? ' AND status = $2' : ''}`,
     status ? [customer.id, status] : [customer.id]
   );
 

@@ -37,7 +37,7 @@ class ETransferService {
 
       // Check uniqueness
       const exists = await this.pool.query(
-        `SELECT 1 FROM unified_order_payments WHERE etransfer_reference = $1`,
+        'SELECT 1 FROM unified_order_payments WHERE etransfer_reference = $1',
         [reference]
       );
 
@@ -127,7 +127,7 @@ class ETransferService {
       if (transitionableStatuses.includes(order.status)) {
         try {
           await client.query(
-            `UPDATE unified_orders SET status = 'awaiting_etransfer', updated_at = NOW() WHERE id = $1`,
+            'UPDATE unified_orders SET status = \'awaiting_etransfer\', updated_at = NOW() WHERE id = $1',
             [orderId]
           );
 
@@ -374,13 +374,13 @@ class ETransferService {
         // Transition to paid
         try {
           await client.query(
-            `SELECT transition_order_status($1, 'paid'::order_status, $2, $3)`,
+            'SELECT transition_order_status($1, \'paid\'::order_status, $2, $3)',
             [payment.order_id, userId, 'E-transfer payment confirmed']
           );
         } catch {
           // If transition fails (e.g., invalid from-state), just update directly
           await client.query(
-            `UPDATE unified_orders SET status = 'paid', updated_at = NOW() WHERE id = $1`,
+            'UPDATE unified_orders SET status = \'paid\', updated_at = NOW() WHERE id = $1',
             [payment.order_id]
           );
 
@@ -394,7 +394,7 @@ class ETransferService {
       } else if (status === 'awaiting_etransfer') {
         // Move back to order_pending if partially paid
         await client.query(
-          `UPDATE unified_orders SET status = 'order_pending', updated_at = NOW() WHERE id = $1`,
+          'UPDATE unified_orders SET status = \'order_pending\', updated_at = NOW() WHERE id = $1',
           [payment.order_id]
         );
 
@@ -466,13 +466,13 @@ class ETransferService {
 
       // If order was awaiting_etransfer, move it back
       const orderResult = await client.query(
-        `SELECT status FROM unified_orders WHERE id = $1`,
+        'SELECT status FROM unified_orders WHERE id = $1',
         [payment.order_id]
       );
 
       if (orderResult.rows[0]?.status === 'awaiting_etransfer') {
         await client.query(
-          `UPDATE unified_orders SET status = 'order_pending', updated_at = NOW() WHERE id = $1`,
+          'UPDATE unified_orders SET status = \'order_pending\', updated_at = NOW() WHERE id = $1',
           [payment.order_id]
         );
 

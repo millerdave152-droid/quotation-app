@@ -81,7 +81,7 @@ export const AuthProvider = ({ children }) => {
     initAuth();
   }, [fetchCurrentUser]);
 
-  const login = async (email, password) => {
+  const login = useCallback(async (email, password) => {
     try {
       const response = await authFetch(`${API_URL}/api/auth/login`, {
         method: 'POST',
@@ -116,9 +116,23 @@ export const AuthProvider = ({ children }) => {
       console.error('Login error:', error);
       return { success: false, error: error.message };
     }
-  };
+  }, [API_URL]);
 
-  const logout = () => {
+  const logout = useCallback(() => {
+    // Best-effort server-side revocation (fire-and-forget)
+    const refreshToken = localStorage.getItem('auth_refresh_token');
+    const accessToken = localStorage.getItem('auth_token');
+    if (accessToken) {
+      fetch(`${API_URL}/api/auth/logout`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${accessToken}`,
+        },
+        body: JSON.stringify({ refreshToken: refreshToken || undefined }),
+      }).catch(() => { /* ignore — client-side cleanup below is the fallback */ });
+    }
+
     setUser(null);
     setToken(null);
     errorTracker.setMeta({ userId: null });
@@ -128,7 +142,7 @@ export const AuthProvider = ({ children }) => {
     if (typeof window !== 'undefined') {
       window.__authExpired = false;
     }
-  };
+  }, [API_URL]);
 
   const updateUser = (updatedUser) => {
     setUser(updatedUser);
@@ -199,7 +213,7 @@ export const AuthProvider = ({ children }) => {
     canAccessMarketplace,
     // Utility
     refreshUser: () => token && fetchCurrentUser(token)
-  }), [user, token, loading, hasRole, hasAnyRole, canApproveQuotes, approvalThreshold, isAdmin, isManagerOrAbove, canAccessMarketplace, fetchCurrentUser]);
+  }), [user, token, loading, login, logout, hasRole, hasAnyRole, canApproveQuotes, approvalThreshold, isAdmin, isManagerOrAbove, canAccessMarketplace, fetchCurrentUser]);
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 };

@@ -266,7 +266,7 @@ reportRouter.get('/marketing-attribution/legacy', requireRole('manager', 'admin'
   let idx = 1;
   if (dateFrom) { query += ` AND created_at >= $${idx}`; params.push(dateFrom); idx++; }
   if (dateTo) { query += ` AND created_at <= $${idx}`; params.push(dateTo); idx++; }
-  query += ` GROUP BY marketing_source ORDER BY customer_count DESC`;
+  query += ' GROUP BY marketing_source ORDER BY customer_count DESC';
 
   const result = await pool.query(query, params);
   res.json({

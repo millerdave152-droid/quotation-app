@@ -4,18 +4,46 @@
  */
 
 const express = require('express');
+const rateLimit = require('express-rate-limit');
 const router = express.Router();
 const { authenticate, requireRole } = require('../middleware/auth');
 const { ApiError, asyncHandler } = require('../middleware/errorHandler');
+const { error: errorResponse, ErrorCodes } = require('../utils/apiResponse');
 const aiService = require('../services/ai');
 const featureFlags = require('../services/ai/featureFlags');
+const aiLogger = require('../services/ai/logger');
+
+// ── AI Chat Rate Limiter (per-user) ──────────────────────────────────
+const aiChatLimiter = rateLimit({
+  windowMs: parseInt(process.env.AI_RATE_LIMIT_WINDOW_MS, 10) || 60_000, // 1 minute
+  max: parseInt(process.env.AI_RATE_LIMIT_MAX, 10) || 20,                // 20 requests per window
+  standardHeaders: true,   // RateLimit-* headers (draft-6)
+  legacyHeaders: false,
+  // Key by authenticated user ID so limits are per-user, not per-IP
+  keyGenerator: (req) => `ai-chat:${req.user?.id || req.ip}`,
+  handler: (req, res) => {
+    const retryAfterSec = Math.ceil((req.rateLimit.resetTime - Date.now()) / 1000);
+    // Log via the existing AI structured logger
+    aiLogger.logRateLimit({
+      userId: req.user?.id,
+      retryAfter: retryAfterSec,
+    });
+    res.status(429).json(
+      errorResponse(ErrorCodes.RATE_LIMITED, 'Too many AI requests. Please wait before sending another message.', {
+        details: { retryAfterSeconds: retryAfterSec },
+      })
+    );
+  },
+  // Only apply after authenticate has run — skip if no user (will 401 anyway)
+  skip: (req) => !req.user,
+});
 
 /**
  * @route   POST /api/ai/chat
  * @desc    Send a message and get AI response
- * @access  Private
+ * @access  Private (rate-limited: 20 req/min per user)
  */
-router.post('/chat', authenticate, featureFlags.checkEnabled(), asyncHandler(async (req, res) => {
+router.post('/chat', authenticate, aiChatLimiter, featureFlags.checkEnabled(), asyncHandler(async (req, res) => {
   const { message, conversationId } = req.body;
 
   if (!message || typeof message !== 'string' || message.trim().length === 0) {

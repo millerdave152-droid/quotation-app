@@ -434,7 +434,7 @@ function init({ pool }) {
   cron.schedule('0 * * * *', async () => {
     try {
       const dueReports = await pool.query(
-        "SELECT * FROM scheduled_reports WHERE is_active = true AND next_send_at <= NOW()"
+        'SELECT * FROM scheduled_reports WHERE is_active = true AND next_send_at <= NOW()'
       );
 
       for (const report of dueReports.rows) {
@@ -452,7 +452,7 @@ function init({ pool }) {
         } catch (err) {
           console.error(`❌ Scheduled report #${report.id} failed:`, err.message);
           await pool.query(
-            "UPDATE scheduled_reports SET last_error = $1, updated_at = NOW() WHERE id = $2",
+            'UPDATE scheduled_reports SET last_error = $1, updated_at = NOW() WHERE id = $2',
             [err.message, report.id]
           );
         }

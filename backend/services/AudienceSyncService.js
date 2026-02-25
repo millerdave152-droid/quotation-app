@@ -51,12 +51,12 @@ class AudienceSyncService {
 
   async runSync(syncId) {
     const { rows: [config] } = await this.pool.query(
-      `SELECT * FROM audience_syncs WHERE id = $1`, [syncId]
+      'SELECT * FROM audience_syncs WHERE id = $1', [syncId]
     );
     if (!config) throw new ApiError(404, 'Sync config not found');
 
     const { rows: [log] } = await this.pool.query(
-      `INSERT INTO audience_sync_log (sync_id) VALUES ($1) RETURNING *`, [syncId]
+      'INSERT INTO audience_sync_log (sync_id) VALUES ($1) RETURNING *', [syncId]
     );
 
     try {
@@ -74,13 +74,13 @@ class AudienceSyncService {
       );
 
       await this.pool.query(
-        `UPDATE audience_syncs SET last_sync_at = NOW() WHERE id = $1`, [syncId]
+        'UPDATE audience_syncs SET last_sync_at = NOW() WHERE id = $1', [syncId]
       );
 
       return { logId: log.id, membersMatched: hashed.length, hashedMembers: hashed };
     } catch (err) {
       await this.pool.query(
-        `UPDATE audience_sync_log SET status = 'failed', error_message = $2, completed_at = NOW() WHERE id = $1`,
+        'UPDATE audience_sync_log SET status = \'failed\', error_message = $2, completed_at = NOW() WHERE id = $1',
         [log.id, err.message]
       );
       throw err;
@@ -124,7 +124,7 @@ class AudienceSyncService {
 
   async getSyncLogs(syncId, limit = 20) {
     const { rows } = await this.pool.query(
-      `SELECT * FROM audience_sync_log WHERE sync_id = $1 ORDER BY started_at DESC LIMIT $2`,
+      'SELECT * FROM audience_sync_log WHERE sync_id = $1 ORDER BY started_at DESC LIMIT $2',
       [syncId, limit]
     );
     return rows;

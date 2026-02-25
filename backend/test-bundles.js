@@ -13,7 +13,7 @@ function assert(cond, label, detail) {
 
   // Find 2 products with stock for testing
   var prods = (await pool.query(
-    "SELECT id, name, sku, price, COALESCE(quantity_in_stock, 0) as stock FROM products WHERE price > 50 AND quantity_in_stock > 0 LIMIT 2"
+    'SELECT id, name, sku, price, COALESCE(quantity_in_stock, 0) as stock FROM products WHERE price > 50 AND quantity_in_stock > 0 LIMIT 2'
   )).rows;
   if (prods.length < 2) {
     console.log('Need 2 products with stock, found:', prods.length);

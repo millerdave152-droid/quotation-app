@@ -70,7 +70,7 @@ async function test(name, fn) {
   await test('Price fallback: retail_price_cents when price is null', async () => {
     // Find a product with null price but has retail_price_cents
     const r = await pool.query(
-      "SELECT id, name, price, retail_price_cents, category_id FROM products WHERE price IS NULL AND retail_price_cents IS NOT NULL AND retail_price_cents::int > 0 AND category_id IS NOT NULL LIMIT 1"
+      'SELECT id, name, price, retail_price_cents, category_id FROM products WHERE price IS NULL AND retail_price_cents IS NOT NULL AND retail_price_cents::int > 0 AND category_id IS NOT NULL LIMIT 1'
     );
     if (r.rows.length === 0) {
       console.log('  SKIP: No products with null price + retail_price_cents');
@@ -93,7 +93,7 @@ async function test(name, fn) {
 
   // Test 8: TV with proper category_id still works
   await test('Samsung TV (cat=27) still works', async () => {
-    const tv = await pool.query("SELECT id, price FROM products WHERE category_id = 27 AND price IS NOT NULL AND price > 0 LIMIT 1");
+    const tv = await pool.query('SELECT id, price FROM products WHERE category_id = 27 AND price IS NOT NULL AND price > 0 LIMIT 1');
     if (tv.rows.length === 0) { console.log('  SKIP'); return true; }
     const p = tv.rows[0];
     const result = await svc.getEligibleWarranties(p.id, parseFloat(p.price), 'at_sale');

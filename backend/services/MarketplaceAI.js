@@ -591,7 +591,7 @@ Return JSON:
     `);
 
     const { rows: channels } = await this.pool.query(
-      `SELECT id, channel_code, channel_name FROM marketplace_channels WHERE status = 'ACTIVE' ORDER BY id`
+      'SELECT id, channel_code, channel_name FROM marketplace_channels WHERE status = \'ACTIVE\' ORDER BY id'
     );
 
     const prompt = `You are a marketplace data analyst for TeleTime Solutions (Canadian electronics retailer).

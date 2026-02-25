@@ -103,7 +103,7 @@ async function generate() {
       addTables.push(table);
     }
 
-    console.log(`\nCategories:`);
+    console.log('\nCategories:');
     console.log(`  Skip (already done): ${skipTables.length} - ${skipTables.join(', ')}`);
     console.log(`  Existing UUID tenant_id (add RLS only): ${existingUuidTables.length}`);
     console.log(`  Rename integer tenant_id: ${renameTables.length} - ${renameTables.join(', ')}`);
@@ -128,11 +128,11 @@ async function generate() {
     pushLine('-- Section 1: Update TeleTime tenant UUID');
     pushLine('-- ============================================');
     pushLine();
-    pushLine(`-- Insert new tenant row with target UUID, migrate children, delete old row`);
-    pushLine(`INSERT INTO tenants (id, name, slug, is_active, created_at, updated_at)`);
+    pushLine('-- Insert new tenant row with target UUID, migrate children, delete old row');
+    pushLine('INSERT INTO tenants (id, name, slug, is_active, created_at, updated_at)');
     pushLine(`  SELECT '${NEW_TENANT_UUID}', name, slug, is_active, created_at, updated_at`);
     pushLine(`  FROM tenants WHERE id = '${OLD_TENANT_UUID}'`);
-    pushLine(`  ON CONFLICT (id) DO NOTHING;`);
+    pushLine('  ON CONFLICT (id) DO NOTHING;');
     pushLine();
     pushLine(`UPDATE skulytics_import_matches SET tenant_id = '${NEW_TENANT_UUID}' WHERE tenant_id = '${OLD_TENANT_UUID}';`);
     pushLine(`UPDATE tenant_product_overrides SET tenant_id = '${NEW_TENANT_UUID}' WHERE tenant_id = '${OLD_TENANT_UUID}';`);
@@ -225,7 +225,7 @@ async function generate() {
         /GROUP BY u\.id,/i,
         'GROUP BY u.id, u.tenant_id,'
       );
-      pushLine(`CREATE MATERIALIZED VIEW employee_fraud_metrics AS`);
+      pushLine('CREATE MATERIALIZED VIEW employee_fraud_metrics AS');
       pushLine(modifiedDef + ';');
       pushLine();
       pushLine('CREATE INDEX IF NOT EXISTS idx_employee_fraud_metrics_tenant_id ON employee_fraud_metrics(tenant_id);');

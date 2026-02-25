@@ -60,24 +60,24 @@ async function main() {
     cols.rows.forEach(r => console.log('  ' + r.column_name + ' (' + r.data_type + ')'));
 
     // 3. Sample transactions
-    const txns = await pool.query("SELECT transaction_id, user_id, salesperson_id, total_amount, status, created_at FROM transactions ORDER BY created_at DESC LIMIT 10");
+    const txns = await pool.query('SELECT transaction_id, user_id, salesperson_id, total_amount, status, created_at FROM transactions ORDER BY created_at DESC LIMIT 10');
     console.log('\n=== Recent Transactions (last 10) ===');
     txns.rows.forEach(r => {
       console.log('  #' + r.transaction_id + ' | user:' + r.user_id + ' | salesperson:' + r.salesperson_id + ' | $' + r.total_amount + ' | ' + r.status + ' | ' + new Date(r.created_at).toISOString().slice(0,19));
     });
 
     // 4. Total count
-    const total = await pool.query("SELECT COUNT(*) as total FROM transactions");
+    const total = await pool.query('SELECT COUNT(*) as total FROM transactions');
     console.log('\n=== Total Transactions: ' + total.rows[0].total + ' ===');
 
     // 5. Count by status
-    const counts = await pool.query("SELECT status, COUNT(*) as cnt FROM transactions GROUP BY status ORDER BY cnt DESC");
+    const counts = await pool.query('SELECT status, COUNT(*) as cnt FROM transactions GROUP BY status ORDER BY cnt DESC');
     console.log('\n=== Transaction Counts by Status ===');
     counts.rows.forEach(r => console.log('  ' + r.status + ': ' + r.cnt));
 
     // 6. Check commission_rules
     try {
-      const rules = await pool.query("SELECT * FROM commission_rules LIMIT 10");
+      const rules = await pool.query('SELECT * FROM commission_rules LIMIT 10');
       console.log('\n=== Commission Rules (sample) ===');
       console.log(JSON.stringify(rules.rows, null, 2));
     } catch(e) {
@@ -86,7 +86,7 @@ async function main() {
 
     // 7. Check commission_rates
     try {
-      const rates = await pool.query("SELECT * FROM commission_rates LIMIT 10");
+      const rates = await pool.query('SELECT * FROM commission_rates LIMIT 10');
       console.log('\n=== Commission Rates (sample) ===');
       console.log(JSON.stringify(rates.rows, null, 2));
     } catch(e) {

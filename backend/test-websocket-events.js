@@ -203,7 +203,7 @@ async function main() {
 
   // ---- Find product ----
   const { rows: [product] } = await pool.query(
-    `SELECT id, name, price, cost FROM products WHERE price > 0 AND cost > 0 AND price > cost ORDER BY id LIMIT 1`
+    'SELECT id, name, price, cost FROM products WHERE price > 0 AND cost > 0 AND price > cost ORDER BY id LIMIT 1'
   );
   if (!product) throw new Error('No suitable product found');
   const price = parseFloat(product.price);
@@ -486,7 +486,7 @@ async function main() {
   section('8. BATCH APPROVAL WS EVENTS');
 
   const { rows: [product2] } = await pool.query(
-    `SELECT id, price FROM products WHERE price > 0 AND cost > 0 AND price > cost AND id != $1 ORDER BY id LIMIT 1`,
+    'SELECT id, price FROM products WHERE price > 0 AND cost > 0 AND price > cost AND id != $1 ORDER BY id LIMIT 1',
     [product.id]
   );
 
@@ -600,7 +600,7 @@ async function main() {
   console.log(`  📊 Total:   ${results.passed + results.failed + results.skipped}`);
 
   if (results.errors.length > 0) {
-    console.log(`\n  FAILURES:`);
+    console.log('\n  FAILURES:');
     results.errors.forEach((e, i) => console.log(`  ${i + 1}. ${e}`));
   }
 

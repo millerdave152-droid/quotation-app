@@ -441,7 +441,7 @@ class PromotionEngine {
             if (freeProductId) {
               // Get product price
               const productResult = await this.pool.query(
-                `SELECT retail_price_cents, name FROM products WHERE id = $1`,
+                'SELECT retail_price_cents, name FROM products WHERE id = $1',
                 [freeProductId]
               );
               if (productResult.rows.length > 0) {
@@ -1013,7 +1013,7 @@ class PromotionEngine {
    */
   async _getPromotionRules(promotionId) {
     const result = await this.pool.query(
-      `SELECT * FROM pos_promotion_rules WHERE promotion_id = $1`,
+      'SELECT * FROM pos_promotion_rules WHERE promotion_id = $1',
       [promotionId]
     );
     return result.rows;
@@ -1104,7 +1104,7 @@ class PromotionEngine {
    */
   async _getCustomerPurchaseCount(customerId) {
     const result = await this.pool.query(
-      `SELECT COUNT(*) as count FROM transactions WHERE customer_id = $1`,
+      'SELECT COUNT(*) as count FROM transactions WHERE customer_id = $1',
       [customerId]
     );
     return parseInt(result.rows[0].count, 10);
@@ -1115,7 +1115,7 @@ class PromotionEngine {
    */
   async _checkScheduleRestrictions(promotionId) {
     const result = await this.pool.query(
-      `SELECT * FROM pos_promotion_schedules WHERE promotion_id = $1`,
+      'SELECT * FROM pos_promotion_schedules WHERE promotion_id = $1',
       [promotionId]
     );
 
@@ -1259,7 +1259,7 @@ class PromotionEngine {
 
     // Get both promotions to check combinable flag and combination groups
     const promosResult = await this.pool.query(
-      `SELECT id, combinable, combination_group FROM pos_promotions WHERE id IN ($1, $2)`,
+      'SELECT id, combinable, combination_group FROM pos_promotions WHERE id IN ($1, $2)',
       [promoId1, promoId2]
     );
 

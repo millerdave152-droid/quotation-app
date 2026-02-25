@@ -6,6 +6,7 @@
  */
 
 const { error, ErrorCodes, ErrorStatusCodes } = require('../utils/apiResponse');
+const logger = require('../utils/logger');
 
 /**
  * Custom API Error class for throwing standardized errors
@@ -108,27 +109,19 @@ const errorHandler = (err, req, res, next) => {
   const statusCode = err.statusCode || (err instanceof ApiError ? err.statusCode : 500);
   const duration = req._startTime ? Date.now() - req._startTime : null;
 
-  // Structured error logging
-  const logEntry = {
-    level: statusCode >= 500 ? 'error' : 'warn',
-    timestamp: new Date().toISOString(),
-    requestId: req.id || req.headers['x-request-id'] || null,
-    method: req.method,
-    path: req.originalUrl,
+  // Structured error logging via pino
+  const log = req.log || logger;
+  const logData = {
+    err,
     statusCode,
-    userId: req.user?.id || null,
     errorCode: err.code || 'UNKNOWN',
-    message: err.message,
     ...(duration !== null && { durationMs: duration })
   };
 
   if (statusCode >= 500) {
-    console.error('[ERROR]', JSON.stringify(logEntry));
-    if (process.env.NODE_ENV === 'development') {
-      console.error(`   Stack: ${err.stack}`);
-    }
+    log.error(logData, err.message);
   } else {
-    console.warn('[WARN]', JSON.stringify(logEntry));
+    log.warn(logData, err.message);
   }
 
   // Handle known ApiError instances
@@ -155,10 +148,8 @@ const errorHandler = (err, req, res, next) => {
       status: 500
     };
 
-    // SECURITY: Log database errors server-side for debugging, but never expose in responses
-    if (process.env.NODE_ENV === 'development') {
-      console.log('DB_ERROR_DETAIL:', JSON.stringify({ pgCode: err.code, pgDetail: err.detail, pgMessage: err.message, pgHint: err.hint, pgWhere: err.where }));
-    }
+    // Log database error details server-side for debugging
+    (req.log || logger).debug({ pgCode: err.code, pgDetail: err.detail, pgHint: err.hint, pgWhere: err.where }, 'DB error detail');
     // TEMPORARY DEBUG: include pg error details in the message itself
     const debugMsg = process.env.NODE_ENV === 'development'
       ? `${pgError.message} [${err.message}] pos:${err.position}`

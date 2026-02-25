@@ -103,7 +103,7 @@ async function fixManufacturers() {
   console.log('\nSample models per manufacturer:');
   for (const mfr of ['WHIRLPOOL', 'MAYTAG', 'KITCHENAID', 'AMANA', 'GLADIATOR', 'EVERYDROP']) {
     const sample = await pool.query(
-      `SELECT model FROM products WHERE manufacturer = $1 LIMIT 5`,
+      'SELECT model FROM products WHERE manufacturer = $1 LIMIT 5',
       [mfr]
     );
     if (sample.rows.length > 0) {

@@ -78,7 +78,7 @@ class UnifiedOrderService {
       // Generate order number
       const prefix = this._getOrderPrefix(data.source || 'pos');
       const orderNumberResult = await client.query(
-        `SELECT generate_order_number($1) as order_number`,
+        'SELECT generate_order_number($1) as order_number',
         [prefix]
       );
       const orderNumber = orderNumberResult.rows[0].order_number;
@@ -222,7 +222,7 @@ class UnifiedOrderService {
       }
 
       const shiftResult = await client.query(
-        `SELECT * FROM register_shifts WHERE shift_id = $1 AND status = 'open'`,
+        'SELECT * FROM register_shifts WHERE shift_id = $1 AND status = \'open\'',
         [data.shiftId]
       );
 
@@ -325,7 +325,7 @@ class UnifiedOrderService {
 
       // Transition to final status
       await client.query(
-        `SELECT transition_order_status($1, $2::order_status, $3, $4)`,
+        'SELECT transition_order_status($1, $2::order_status, $3, $4)',
         [order.id, finalStatus, data.createdBy, 'POS transaction completed']
       );
 
@@ -420,7 +420,7 @@ class UnifiedOrderService {
     // Include items
     if (includeItems) {
       const itemsResult = await this.pool.query(
-        `SELECT * FROM unified_order_items WHERE order_id = $1 ORDER BY sort_order, id`,
+        'SELECT * FROM unified_order_items WHERE order_id = $1 ORDER BY sort_order, id',
         [id]
       );
       order.items = itemsResult.rows.map(this._mapItemRow);
@@ -695,7 +695,7 @@ class UnifiedOrderService {
     }
 
     // Perform transition
-    await this.pool.query(`SELECT transition_order_status($1, $2::order_status, $3, $4, $5)`, [
+    await this.pool.query('SELECT transition_order_status($1, $2::order_status, $3, $4, $5)', [
       id,
       newStatus,
       userId || null,
@@ -766,7 +766,7 @@ class UnifiedOrderService {
 
       if (updated.amount_paid_cents >= updated.total_cents && updated.total_cents > 0 && updated.status !== 'paid') {
         try {
-          await client.query(`SELECT transition_order_status($1, 'paid'::order_status, $2, $3)`, [
+          await client.query('SELECT transition_order_status($1, \'paid\'::order_status, $2, $3)', [
             orderId,
             userId,
             'Payment received in full',
@@ -866,7 +866,7 @@ class UnifiedOrderService {
 
       if (newStatus) {
         try {
-          await client.query(`SELECT transition_order_status($1, $2::order_status, $3, $4)`, [
+          await client.query('SELECT transition_order_status($1, $2::order_status, $3, $4)', [
             orderId,
             newStatus,
             userId,
@@ -1131,7 +1131,7 @@ class UnifiedOrderService {
    * Generate order number
    */
   async _generateOrderNumber(client, prefix) {
-    const result = await client.query(`SELECT generate_order_number($1) as order_number`, [
+    const result = await client.query('SELECT generate_order_number($1) as order_number', [
       prefix,
     ]);
     return result.rows[0].order_number;

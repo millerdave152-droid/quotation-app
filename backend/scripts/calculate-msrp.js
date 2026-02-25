@@ -228,7 +228,7 @@ async function main() {
         console.log('DRY RUN SUMMARY');
         console.log('='.repeat(70));
         console.log(`Products that would be updated: ${result.calculated}`);
-        console.log(`\nTo apply changes, run:`);
+        console.log('\nTo apply changes, run:');
         console.log(`  node scripts/calculate-msrp.js --markup=${markupPercent} --execute`);
       }
     }

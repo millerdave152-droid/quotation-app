@@ -506,11 +506,11 @@ Keep the response concise and action-oriented.`;
   generateStatisticalSummary(data) {
     const lines = [];
 
-    lines.push(`## Purchasing Intelligence Summary\n`);
+    lines.push('## Purchasing Intelligence Summary\n');
     lines.push(`Analyzed ${data.productsAnalyzed || 0} products with sales activity.\n`);
 
     if (data.criticalAlerts?.length > 0) {
-      lines.push(`\n### Critical Actions Required`);
+      lines.push('\n### Critical Actions Required');
       lines.push(`${data.criticalAlerts.length} products need immediate restocking:\n`);
       data.criticalAlerts.slice(0, 3).forEach(p => {
         lines.push(`- **${p.product_name}**: ${p.days_of_stock_remaining} days of stock remaining`);
@@ -518,12 +518,12 @@ Keep the response concise and action-oriented.`;
     }
 
     if (data.trendingUp?.length > 0) {
-      lines.push(`\n### Trending Up`);
+      lines.push('\n### Trending Up');
       lines.push(`${data.trendingUp.length} products showing increasing demand.`);
     }
 
     if (data.trendingDown?.length > 0) {
-      lines.push(`\n### Declining Products`);
+      lines.push('\n### Declining Products');
       lines.push(`${data.trendingDown.length} products showing decreasing demand - consider reducing orders.`);
     }
 

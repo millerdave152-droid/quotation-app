@@ -57,7 +57,7 @@ class ApprovalService {
    */
   async _getProduct(productId, client = this.pool) {
     const { rows } = await client.query(
-      `SELECT id, name, sku, price, cost FROM products WHERE id = $1`,
+      'SELECT id, name, sku, price, cost FROM products WHERE id = $1',
       [productId]
     );
     if (rows.length === 0) throw new Error(`Product ${productId} not found`);
@@ -69,7 +69,7 @@ class ApprovalService {
    */
   async _getUser(userId, client = this.pool) {
     const { rows } = await client.query(
-      `SELECT id, first_name, last_name, email, role FROM users WHERE id = $1`,
+      'SELECT id, first_name, last_name, email, role FROM users WHERE id = $1',
       [userId]
     );
     if (rows.length === 0) throw new Error(`User ${userId} not found`);
@@ -324,7 +324,7 @@ class ApprovalService {
 
       // 1. Load request (lock row)
       const { rows: [request] } = await client.query(
-        `SELECT * FROM approval_requests WHERE id = $1 FOR UPDATE`,
+        'SELECT * FROM approval_requests WHERE id = $1 FOR UPDATE',
         [requestId]
       );
       if (!request) throw new Error(`Approval request ${requestId} not found`);
@@ -334,7 +334,7 @@ class ApprovalService {
 
       // 2. Authorization — manager role must meet tier requirement (or delegation)
       const { rows: [tierSetting] } = await client.query(
-        `SELECT * FROM approval_tier_settings WHERE tier = $1`,
+        'SELECT * FROM approval_tier_settings WHERE tier = $1',
         [request.tier]
       );
       if (!tierSetting) throw new Error(`Tier ${request.tier} configuration not found`);
@@ -417,7 +417,7 @@ class ApprovalService {
       await client.query('BEGIN');
 
       const { rows: [request] } = await client.query(
-        `SELECT * FROM approval_requests WHERE id = $1 FOR UPDATE`,
+        'SELECT * FROM approval_requests WHERE id = $1 FOR UPDATE',
         [requestId]
       );
       if (!request) throw new Error(`Approval request ${requestId} not found`);
@@ -427,7 +427,7 @@ class ApprovalService {
 
       // Authorization (with delegation support)
       const { rows: [tierSetting] } = await client.query(
-        `SELECT * FROM approval_tier_settings WHERE tier = $1`,
+        'SELECT * FROM approval_tier_settings WHERE tier = $1',
         [request.tier]
       );
       if (tierSetting) {
@@ -479,7 +479,7 @@ class ApprovalService {
       await client.query('BEGIN');
 
       const { rows: [request] } = await client.query(
-        `SELECT * FROM approval_requests WHERE id = $1 FOR UPDATE`,
+        'SELECT * FROM approval_requests WHERE id = $1 FOR UPDATE',
         [requestId]
       );
       if (!request) throw new Error(`Approval request ${requestId} not found`);
@@ -494,7 +494,7 @@ class ApprovalService {
 
       // Authorization (with delegation support)
       const { rows: [tierSetting] } = await client.query(
-        `SELECT * FROM approval_tier_settings WHERE tier = $1`,
+        'SELECT * FROM approval_tier_settings WHERE tier = $1',
         [request.tier]
       );
       if (tierSetting) {
@@ -533,7 +533,7 @@ class ApprovalService {
 
       // Mark parent request as countered, record responding manager
       await client.query(
-        `UPDATE approval_requests SET status = 'countered', manager_id = $2 WHERE id = $1`,
+        'UPDATE approval_requests SET status = \'countered\', manager_id = $2 WHERE id = $1',
         [requestId, managerId]
       );
 
@@ -558,7 +558,7 @@ class ApprovalService {
 
       // 1. Load the counter-offer
       const { rows: [offer] } = await client.query(
-        `SELECT * FROM approval_counter_offers WHERE id = $1 FOR UPDATE`,
+        'SELECT * FROM approval_counter_offers WHERE id = $1 FOR UPDATE',
         [counterOfferId]
       );
       if (!offer) throw new Error(`Counter offer ${counterOfferId} not found`);
@@ -568,7 +568,7 @@ class ApprovalService {
 
       // 2. Verify the parent request belongs to this salesperson
       const { rows: [request] } = await client.query(
-        `SELECT * FROM approval_requests WHERE id = $1`,
+        'SELECT * FROM approval_requests WHERE id = $1',
         [offer.approval_request_id]
       );
       if (!request) throw new Error('Parent approval request not found');
@@ -578,7 +578,7 @@ class ApprovalService {
 
       // 3. Mark the counter-offer as accepted
       await client.query(
-        `UPDATE approval_counter_offers SET status = 'accepted', responded_at = NOW() WHERE id = $1`,
+        'UPDATE approval_counter_offers SET status = \'accepted\', responded_at = NOW() WHERE id = $1',
         [counterOfferId]
       );
 
@@ -612,7 +612,7 @@ class ApprovalService {
       await client.query('BEGIN');
 
       const { rows: [offer] } = await client.query(
-        `SELECT * FROM approval_counter_offers WHERE id = $1 FOR UPDATE`,
+        'SELECT * FROM approval_counter_offers WHERE id = $1 FOR UPDATE',
         [counterOfferId]
       );
       if (!offer) throw new Error(`Counter offer ${counterOfferId} not found`);
@@ -621,7 +621,7 @@ class ApprovalService {
       }
 
       const { rows: [request] } = await client.query(
-        `SELECT * FROM approval_requests WHERE id = $1`,
+        'SELECT * FROM approval_requests WHERE id = $1',
         [offer.approval_request_id]
       );
       if (!request) throw new Error('Parent approval request not found');
@@ -630,11 +630,11 @@ class ApprovalService {
       }
 
       await client.query(
-        `UPDATE approval_counter_offers SET status = 'declined', responded_at = NOW() WHERE id = $1`,
+        'UPDATE approval_counter_offers SET status = \'declined\', responded_at = NOW() WHERE id = $1',
         [counterOfferId]
       );
       const { rows: [updated] } = await client.query(
-        `UPDATE approval_requests SET status = 'pending' WHERE id = $1 RETURNING *`,
+        'UPDATE approval_requests SET status = \'pending\' WHERE id = $1 RETURNING *',
         [offer.approval_request_id]
       );
 
@@ -685,7 +685,7 @@ class ApprovalService {
       }
 
       await client.query(
-        `UPDATE approval_requests SET token_used = TRUE WHERE id = $1`,
+        'UPDATE approval_requests SET token_used = TRUE WHERE id = $1',
         [request.id]
       );
 
@@ -709,7 +709,7 @@ class ApprovalService {
 
   async cancelRequest({ requestId, salespersonId }) {
     const { rows: [request] } = await this.pool.query(
-      `SELECT * FROM approval_requests WHERE id = $1`,
+      'SELECT * FROM approval_requests WHERE id = $1',
       [requestId]
     );
     if (!request) throw new Error(`Approval request ${requestId} not found`);
@@ -721,7 +721,7 @@ class ApprovalService {
     }
 
     const { rows: [updated] } = await this.pool.query(
-      `UPDATE approval_requests SET status = 'cancelled', responded_at = NOW() WHERE id = $1 RETURNING *`,
+      'UPDATE approval_requests SET status = \'cancelled\', responded_at = NOW() WHERE id = $1 RETURNING *',
       [requestId]
     );
     return updated;
@@ -738,7 +738,7 @@ class ApprovalService {
   async getAvailableManagers({ tier }) {
     // Look up what role is required for this tier
     const { rows: [tierSetting] } = await this.pool.query(
-      `SELECT required_role FROM approval_tier_settings WHERE tier = $1`,
+      'SELECT required_role FROM approval_tier_settings WHERE tier = $1',
       [tier]
     );
     if (!tierSetting) throw new Error(`Tier ${tier} not found`);
@@ -999,7 +999,7 @@ class ApprovalService {
 
       // Lock parent
       const { rows: [parent] } = await client.query(
-        `SELECT * FROM approval_requests WHERE id = $1 AND request_type = 'batch' FOR UPDATE`,
+        'SELECT * FROM approval_requests WHERE id = $1 AND request_type = \'batch\' FOR UPDATE',
         [parentRequestId]
       );
       if (!parent) throw new Error(`Batch request ${parentRequestId} not found`);
@@ -1009,7 +1009,7 @@ class ApprovalService {
 
       // Auth check (with delegation support)
       const { rows: [tierSetting] } = await client.query(
-        `SELECT * FROM approval_tier_settings WHERE tier = $1`,
+        'SELECT * FROM approval_tier_settings WHERE tier = $1',
         [parent.tier]
       );
       if (!tierSetting) throw new Error(`Tier ${parent.tier} configuration not found`);
@@ -1127,7 +1127,7 @@ class ApprovalService {
       await client.query('BEGIN');
 
       const { rows: [parent] } = await client.query(
-        `SELECT * FROM approval_requests WHERE id = $1 AND request_type = 'batch' FOR UPDATE`,
+        'SELECT * FROM approval_requests WHERE id = $1 AND request_type = \'batch\' FOR UPDATE',
         [parentRequestId]
       );
       if (!parent) throw new Error(`Batch request ${parentRequestId} not found`);
@@ -1137,7 +1137,7 @@ class ApprovalService {
 
       // Auth check (with delegation support)
       const { rows: [tierSetting] } = await client.query(
-        `SELECT * FROM approval_tier_settings WHERE tier = $1`,
+        'SELECT * FROM approval_tier_settings WHERE tier = $1',
         [parent.tier]
       );
       let batchDenyDelegation = null;
@@ -1258,7 +1258,7 @@ class ApprovalService {
       const consumed = [];
       for (const child of children) {
         await client.query(
-          `UPDATE approval_requests SET token_used = TRUE WHERE id = $1`,
+          'UPDATE approval_requests SET token_used = TRUE WHERE id = $1',
           [child.id]
         );
         consumed.push({
@@ -1433,7 +1433,7 @@ class ApprovalService {
    */
   async revokeDelegation(delegationId, userId) {
     const { rows: [delegation] } = await this.pool.query(
-      `SELECT * FROM manager_delegations WHERE id = $1`,
+      'SELECT * FROM manager_delegations WHERE id = $1',
       [delegationId]
     );
     if (!delegation) throw new Error('Delegation not found');

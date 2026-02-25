@@ -227,7 +227,7 @@ describe('Activity Feed System', () => {
         const params = [quotationId];
 
         if (limit) {
-          query += ` LIMIT $2`;
+          query += ' LIMIT $2';
           params.push(parseInt(limit));
         }
 
@@ -269,7 +269,7 @@ describe('Activity Feed System', () => {
         const params = [userId];
 
         if (limit) {
-          query += ` LIMIT $2`;
+          query += ' LIMIT $2';
           params.push(parseInt(limit));
         }
 

@@ -249,7 +249,7 @@ async function run() {
       }
     }
 
-    console.log(`\n=== SUMMARY ===`);
+    console.log('\n=== SUMMARY ===');
     console.log(`Total pairs: ${pairsFound}`);
     console.log(`Exact color matches: ${exactColorMatches}`);
     console.log(`Fallback matches: ${fallbackMatches}`);

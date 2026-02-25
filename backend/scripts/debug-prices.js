@@ -10,7 +10,7 @@ const pool = new Pool({
   console.log('Samsung Q60:', samsung.rows);
 
   // TVs with prices
-  const tvs = await pool.query("SELECT id, name, price, cost, category_id FROM products WHERE category_id = 27 AND price IS NOT NULL AND price > 0 LIMIT 5");
+  const tvs = await pool.query('SELECT id, name, price, cost, category_id FROM products WHERE category_id = 27 AND price IS NOT NULL AND price > 0 LIMIT 5');
   console.log('\nTVs with prices:', tvs.rows.length);
   tvs.rows.forEach(r => console.log(`  id=${r.id}: ${r.name} price=$${r.price} cost=$${r.cost}`));
 

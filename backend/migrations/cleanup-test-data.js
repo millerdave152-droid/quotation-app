@@ -40,7 +40,7 @@ async function run() {
 
       // Mark as inactive instead of deleting (to preserve foreign key references)
       const result = await pool.query(
-        `UPDATE products SET active = false WHERE id = ANY($1) RETURNING id, model`,
+        'UPDATE products SET active = false WHERE id = ANY($1) RETURNING id, model',
         [ids]
       );
 

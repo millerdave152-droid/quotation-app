@@ -17,7 +17,7 @@ async function api(method, path, body) {
 
   // Find products
   var prods = (await pool.query(
-    "SELECT id, price FROM products WHERE price > 50 AND quantity_in_stock > 0 LIMIT 2"
+    'SELECT id, price FROM products WHERE price > 50 AND quantity_in_stock > 0 LIMIT 2'
   )).rows;
 
   var p1 = prods[0], p2 = prods[1];

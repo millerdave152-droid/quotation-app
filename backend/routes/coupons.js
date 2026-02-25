@@ -175,7 +175,7 @@ function init({ pool }) {
 
         // Mark promotion as requiring code with unique type if not already set
         await pool.query(
-          `UPDATE promotions SET requires_code = true, code_type = COALESCE(code_type, 'unique') WHERE id = $1`,
+          'UPDATE promotions SET requires_code = true, code_type = COALESCE(code_type, \'unique\') WHERE id = $1',
           [id]
         );
 

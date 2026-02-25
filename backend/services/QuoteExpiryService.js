@@ -337,7 +337,7 @@ class QuoteExpiryService {
       query += ` AND q.status = $${paramIndex++}`;
       params.push(status);
     } else {
-      query += ` AND q.status IN ('DRAFT', 'SENT', 'VIEWED')`;
+      query += ' AND q.status IN (\'DRAFT\', \'SENT\', \'VIEWED\')';
     }
 
     if (customerId) {
@@ -533,9 +533,9 @@ class QuoteExpiryService {
 
     // Filter by expiry window
     if (includeExpired) {
-      query += ` AND uo.quote_expiry_date >= CURRENT_DATE - INTERVAL '7 days'`;
+      query += ' AND uo.quote_expiry_date >= CURRENT_DATE - INTERVAL \'7 days\'';
     } else {
-      query += ` AND uo.quote_expiry_date >= CURRENT_DATE`;
+      query += ' AND uo.quote_expiry_date >= CURRENT_DATE';
     }
 
     query += ` AND uo.quote_expiry_date <= CURRENT_DATE + $${paramIdx++} * INTERVAL '1 day'`;
@@ -550,10 +550,10 @@ class QuoteExpiryService {
     // Sorting
     switch (sortBy) {
       case 'expiry':
-        query += ` ORDER BY uo.quote_expiry_date ASC, uo.total_cents DESC`;
+        query += ' ORDER BY uo.quote_expiry_date ASC, uo.total_cents DESC';
         break;
       case 'value':
-        query += ` ORDER BY uo.total_cents DESC, uo.quote_expiry_date ASC`;
+        query += ' ORDER BY uo.total_cents DESC, uo.quote_expiry_date ASC';
         break;
       case 'priority':
       default:
@@ -655,7 +655,7 @@ class QuoteExpiryService {
 
     const params = [];
     if (salesRepId) {
-      query += ` AND salesperson_id = $1`;
+      query += ' AND salesperson_id = $1';
       params.push(salesRepId);
     }
 
@@ -692,7 +692,7 @@ class QuoteExpiryService {
 
     // Verify the quote exists
     const { rows: quoteRows } = await this.pool.query(
-      `SELECT id, order_number, customer_name FROM unified_orders WHERE id = $1 AND source = 'quote'`,
+      'SELECT id, order_number, customer_name FROM unified_orders WHERE id = $1 AND source = \'quote\'',
       [quoteId]
     );
 
@@ -702,7 +702,7 @@ class QuoteExpiryService {
 
     // Check if table exists, create if not
     try {
-      await this.pool.query(`SELECT 1 FROM quote_follow_ups LIMIT 1`);
+      await this.pool.query('SELECT 1 FROM quote_follow_ups LIMIT 1');
     } catch (error) {
       if (error.message.includes('does not exist')) {
         // Create the table
@@ -718,7 +718,7 @@ class QuoteExpiryService {
             created_at TIMESTAMP DEFAULT NOW()
           )
         `);
-        await this.pool.query(`CREATE INDEX IF NOT EXISTS idx_quote_follow_ups_quote ON quote_follow_ups(quote_id)`);
+        await this.pool.query('CREATE INDEX IF NOT EXISTS idx_quote_follow_ups_quote ON quote_follow_ups(quote_id)');
       } else {
         throw error;
       }
@@ -735,7 +735,7 @@ class QuoteExpiryService {
 
     // Get updated follow-up count
     const { rows: countRows } = await this.pool.query(
-      `SELECT COUNT(*) AS count FROM quote_follow_ups WHERE quote_id = $1`,
+      'SELECT COUNT(*) AS count FROM quote_follow_ups WHERE quote_id = $1',
       [quoteId]
     );
 

@@ -768,14 +768,14 @@ class WarrantyService {
     // Fall back to DB exact match on category name
     try {
       const result = await this.pool.query(
-        `SELECT id FROM categories WHERE LOWER(name) = $1 LIMIT 1`,
+        'SELECT id FROM categories WHERE LOWER(name) = $1 LIMIT 1',
         [normalized]
       );
       if (result.rows.length > 0) return result.rows[0].id;
 
       // Partial match: category name found within the string or vice versa
       const partial = await this.pool.query(
-        `SELECT id FROM categories WHERE LOWER(name) LIKE '%' || $1 || '%' OR $1 LIKE '%' || LOWER(name) || '%' ORDER BY LENGTH(name) LIMIT 1`,
+        'SELECT id FROM categories WHERE LOWER(name) LIKE \'%\' || $1 || \'%\' OR $1 LIKE \'%\' || LOWER(name) || \'%\' ORDER BY LENGTH(name) LIMIT 1',
         [normalized]
       );
       if (partial.rows.length > 0) return partial.rows[0].id;
@@ -987,7 +987,7 @@ class WarrantyService {
 
     return `For just $${pricePerMonth.toFixed(2)} a month, you can protect your ${productType} with our ${bestWarranty.warranty_name}. ` +
       `This covers ${this._formatCoverageDescription(bestWarranty.coverage_details).toLowerCase()} for ${bestWarranty.duration_months} months. ` +
-      `Would you like to add this protection today?`;
+      'Would you like to add this protection today?';
   }
 
   /**
@@ -1007,7 +1007,7 @@ class WarrantyService {
     if (providerCode === 'excelsior_appliance') {
       mainScript = `I see you're getting the ${productName}. For just $${pricePerMonth.toFixed(2)} a month, ` +
         `you can add our Excelsior service plan - ${warranty.durationMonths} months of complete coverage. ` +
-        `That includes in-home service, no deductible, power surge protection, and even food spoilage coverage. Would you like to add this protection?`;
+        'That includes in-home service, no deductible, power surge protection, and even food spoilage coverage. Would you like to add this protection?';
       talkingPoints = [
         `Only $${pricePerMonth.toFixed(2)}/month for total peace of mind`,
         'No deductible - zero out-of-pocket for service calls',
@@ -1018,7 +1018,7 @@ class WarrantyService {
         'Fully transferable if you sell or gift the appliance',
       ];
       objectionHandlers = {
-        'too expensive': `I understand. But consider that an appliance repair averages $200-$400. ` +
+        'too expensive': 'I understand. But consider that an appliance repair averages $200-$400. ' +
           `For $${warranty.price.toFixed(2)} total, you get ${warranty.durationMonths} months of complete coverage with zero deductible.`,
         'already have warranty': 'The manufacturer warranty typically only covers 1 year. ' +
           'Our Excelsior plan extends that to ' + (warranty.durationMonths / 12) + ' years AND adds power surge and food spoilage coverage.',
@@ -1030,7 +1030,7 @@ class WarrantyService {
     } else if (providerCode === 'guardian_angel_tv') {
       mainScript = `I see you're getting the ${productName}. For just $${pricePerMonth.toFixed(2)} a month, ` +
         `you can add Guardian Angel protection - ${warranty.durationMonths} months beyond the manufacturer warranty. ` +
-        `Full parts & labor coverage plus a one-time remote replacement if needed. Would you like to add this?`;
+        'Full parts & labor coverage plus a one-time remote replacement if needed. Would you like to add this?';
       talkingPoints = [
         `Only $${pricePerMonth.toFixed(2)}/month - less than a streaming subscription`,
         'Full parts & labor coverage',
@@ -1078,10 +1078,10 @@ class WarrantyService {
       objectionHandlers,
       closeStatements: [
         `Should I add the ${warranty.name} to your order?`,
-        `Can I include the protection plan for you today?`,
+        'Can I include the protection plan for you today?',
         allWarranties.length > 1
           ? `Would you prefer the ${allWarranties[0].durationMonths}-month or ${allWarranties[allWarranties.length - 1].durationMonths}-month plan?`
-          : `Would you like to add this protection?`,
+          : 'Would you like to add this protection?',
       ],
     };
   }
@@ -1156,7 +1156,7 @@ class WarrantyService {
         whereClause += ` AND wp.status = $${params.length}`;
       } else if (!includeExpired) {
         // By default, exclude expired warranties unless specifically requested
-        whereClause += ` AND (wp.status = 'active' OR wp.coverage_end_date >= CURRENT_DATE)`;
+        whereClause += ' AND (wp.status = \'active\' OR wp.coverage_end_date >= CURRENT_DATE)';
       }
 
       const query = `

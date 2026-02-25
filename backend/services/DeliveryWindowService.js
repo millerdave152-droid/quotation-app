@@ -353,7 +353,7 @@ class DeliveryWindowService {
       values.push(options.estimatedArrival);
     }
     if (newStatus === 'delivered') {
-      updates.push(`actual_arrival = NOW()`);
+      updates.push('actual_arrival = NOW()');
     }
     if (options.notes !== undefined) {
       updates.push(`notes = $${paramIndex++}`);

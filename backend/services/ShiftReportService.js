@@ -3,6 +3,8 @@
  * Generates comprehensive end-of-day/shift reports
  */
 
+const { parseDollars } = require('../utils/money');
+
 class ShiftReportService {
   constructor(pool) {
     this.pool = pool;

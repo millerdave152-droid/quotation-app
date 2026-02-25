@@ -386,21 +386,21 @@ router.post('/',
         const productIds = data.items.filter(i => i.productId).map(i => i.productId);
         if (productIds.length > 0) {
           const { rows: skuProducts } = await client.query(
-            `SELECT id, skulytics_id FROM products WHERE id = ANY($1) AND skulytics_id IS NOT NULL`,
+            'SELECT id, skulytics_id FROM products WHERE id = ANY($1) AND skulytics_id IS NOT NULL',
             [productIds]
           );
           if (skuProducts.length > 0) {
             const skuIds = skuProducts.map(p => p.skulytics_id);
             const pid2sku = new Map(skuProducts.map(p => [p.id, p.skulytics_id]));
             const { rows: globalRows } = await client.query(
-              `SELECT * FROM global_skulytics_products WHERE skulytics_id = ANY($1)`, [skuIds]
+              'SELECT * FROM global_skulytics_products WHERE skulytics_id = ANY($1)', [skuIds]
             );
             const globalMap = new Map(globalRows.map(g => [g.skulytics_id, g]));
             const tenantId = req.user?.tenant_id || null;
             let overrideMap = new Map();
             if (tenantId) {
               const { rows: ov } = await client.query(
-                `SELECT * FROM tenant_product_overrides WHERE tenant_id = $1 AND skulytics_id = ANY($2)`,
+                'SELECT * FROM tenant_product_overrides WHERE tenant_id = $1 AND skulytics_id = ANY($2)',
                 [tenantId, skuIds]
               );
               overrideMap = new Map(ov.map(o => [o.skulytics_id, o]));
@@ -608,7 +608,7 @@ router.put('/:id',
         values.push(data.validUntil);
       }
 
-      updates.push(`updated_at = NOW()`);
+      updates.push('updated_at = NOW()');
 
       if (updates.length > 1) {
         values.push(quoteId);
@@ -644,21 +644,21 @@ router.put('/:id',
             .map(i => i.productId);
           if (newPids.length > 0) {
             const { rows: skuProds } = await client.query(
-              `SELECT id, skulytics_id FROM products WHERE id = ANY($1) AND skulytics_id IS NOT NULL`,
+              'SELECT id, skulytics_id FROM products WHERE id = ANY($1) AND skulytics_id IS NOT NULL',
               [newPids]
             );
             if (skuProds.length > 0) {
               const skuIds = skuProds.map(p => p.skulytics_id);
               const pid2sku = new Map(skuProds.map(p => [p.id, p.skulytics_id]));
               const { rows: gRows } = await client.query(
-                `SELECT * FROM global_skulytics_products WHERE skulytics_id = ANY($1)`, [skuIds]
+                'SELECT * FROM global_skulytics_products WHERE skulytics_id = ANY($1)', [skuIds]
               );
               const gMap = new Map(gRows.map(g => [g.skulytics_id, g]));
               const tid = req.user?.tenant_id || null;
               let ovMap = new Map();
               if (tid) {
                 const { rows: ov } = await client.query(
-                  `SELECT * FROM tenant_product_overrides WHERE tenant_id = $1 AND skulytics_id = ANY($2)`,
+                  'SELECT * FROM tenant_product_overrides WHERE tenant_id = $1 AND skulytics_id = ANY($2)',
                   [tid, skuIds]
                 );
                 ovMap = new Map(ov.map(o => [o.skulytics_id, o]));
@@ -859,11 +859,11 @@ router.patch('/:id/status',
     let paramIdx = 3;
 
     if (newStatus === 'WON' || newStatus === 'APPROVED') {
-      updates.push(`accepted_at = NOW()`);
+      updates.push('accepted_at = NOW()');
     } else if (newStatus === 'LOST') {
-      updates.push(`rejected_at = NOW()`);
+      updates.push('rejected_at = NOW()');
     } else if (newStatus === 'EXPIRED') {
-      updates.push(`expired_at = NOW()`);
+      updates.push('expired_at = NOW()');
     }
 
     await pool.query(

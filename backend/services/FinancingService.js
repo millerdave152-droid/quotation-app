@@ -224,7 +224,7 @@ class FinancingService {
     const { userId, amountCents, transactionId } = options;
 
     // Get the financing option
-    const optionQuery = `SELECT * FROM financing_options WHERE id = $1`;
+    const optionQuery = 'SELECT * FROM financing_options WHERE id = $1';
     const { rows: optionRows } = await this.pool.query(optionQuery, [planId]);
 
     if (optionRows.length === 0) {
@@ -236,7 +236,7 @@ class FinancingService {
     // Get order details if not providing amount
     let financingAmount = amountCents;
     if (!financingAmount && orderId) {
-      const orderQuery = `SELECT total_amount FROM orders WHERE id = $1`;
+      const orderQuery = 'SELECT total_amount FROM orders WHERE id = $1';
       const { rows: orderRows } = await this.pool.query(orderQuery, [orderId]);
       if (orderRows.length > 0) {
         financingAmount = Math.round(orderRows[0].total_amount * 100);
@@ -248,7 +248,7 @@ class FinancingService {
     }
 
     // Generate application number
-    const appNumberQuery = `SELECT generate_financing_application_number() as num`;
+    const appNumberQuery = 'SELECT generate_financing_application_number() as num';
     const { rows: numRows } = await this.pool.query(appNumberQuery);
     const applicationNumber = numRows[0].num;
 
@@ -625,7 +625,7 @@ class FinancingService {
 
     // Get agreement details
     const { rows: agRows } = await this.pool.query(
-      `SELECT * FROM financing_agreements WHERE id = $1`,
+      'SELECT * FROM financing_agreements WHERE id = $1',
       [agreementId]
     );
 
@@ -728,7 +728,7 @@ class FinancingService {
     const params = [minDaysOverdue];
 
     if (riskLevel) {
-      query += ` AND risk_level = $2`;
+      query += ' AND risk_level = $2';
       params.push(riskLevel);
     }
 
@@ -1000,7 +1000,7 @@ class FinancingService {
 
     // Update application to active
     await this.pool.query(
-      `UPDATE financing_applications SET status = 'active' WHERE id = $1`,
+      'UPDATE financing_applications SET status = \'active\' WHERE id = $1',
       [applicationId]
     );
 
@@ -1081,7 +1081,7 @@ class FinancingService {
     // Update application with external ID
     if (providerResponse.externalId) {
       await this.pool.query(
-        `UPDATE financing_applications SET external_application_id = $1 WHERE id = $2`,
+        'UPDATE financing_applications SET external_application_id = $1 WHERE id = $2',
         [providerResponse.externalId, applicationId]
       );
     }
@@ -1111,7 +1111,7 @@ class FinancingService {
     const totalInterest = totalCost - principalCents;
 
     // Generate agreement number
-    const numQuery = `SELECT generate_financing_agreement_number() as num`;
+    const numQuery = 'SELECT generate_financing_agreement_number() as num';
     const { rows: numRows } = await this.pool.query(numQuery);
     const agreementNumber = numRows[0].num;
 
@@ -1158,7 +1158,7 @@ class FinancingService {
     const agreementId = rows[0].id;
 
     // Generate payment schedule
-    await this.pool.query(`SELECT generate_payment_schedule($1)`, [agreementId]);
+    await this.pool.query('SELECT generate_payment_schedule($1)', [agreementId]);
 
     return {
       agreementId,
@@ -1259,7 +1259,7 @@ class FinancingService {
 
     // Find application by external ID
     const { rows } = await this.pool.query(
-      `SELECT id FROM financing_applications WHERE external_application_id = $1`,
+      'SELECT id FROM financing_applications WHERE external_application_id = $1',
       [callbackData.checkout_token || callbackData.id]
     );
 

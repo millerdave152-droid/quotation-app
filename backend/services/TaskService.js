@@ -90,7 +90,7 @@ class TaskService {
     let paramCount = 0;
 
     if (!include_completed) {
-      whereClause += ` AND t.status NOT IN ('completed', 'cancelled')`;
+      whereClause += ' AND t.status NOT IN (\'completed\', \'cancelled\')';
     }
 
     if (status) {
@@ -201,7 +201,7 @@ class TaskService {
 
     // Handle completion
     if (updates.status === 'completed') {
-      setClauses.push(`completed_at = CURRENT_TIMESTAMP`);
+      setClauses.push('completed_at = CURRENT_TIMESTAMP');
       if (updatedBy) {
         setClauses.push(`completed_by = $${++paramCount}`);
         values.push(updatedBy);
@@ -273,10 +273,10 @@ class TaskService {
     const params = [];
     if (assignedTo) {
       params.push(assignedTo);
-      query += ` AND t.assigned_to = $1`;
+      query += ' AND t.assigned_to = $1';
     }
 
-    query += ` ORDER BY t.due_time ASC NULLS LAST, t.priority DESC`;
+    query += ' ORDER BY t.due_time ASC NULLS LAST, t.priority DESC';
 
     const result = await this.pool.query(query, params);
 
@@ -302,10 +302,10 @@ class TaskService {
     const params = [];
     if (assignedTo) {
       params.push(assignedTo);
-      query += ` AND t.assigned_to = $1`;
+      query += ' AND t.assigned_to = $1';
     }
 
-    query += ` ORDER BY t.due_date ASC`;
+    query += ' ORDER BY t.due_date ASC';
 
     const result = await this.pool.query(query, params);
 
@@ -336,10 +336,10 @@ class TaskService {
     const params = [];
     if (assignedTo) {
       params.push(assignedTo);
-      query += ` AND t.assigned_to = $1`;
+      query += ' AND t.assigned_to = $1';
     }
 
-    query += ` ORDER BY t.due_date ASC, t.due_time ASC NULLS LAST`;
+    query += ' ORDER BY t.due_date ASC, t.due_time ASC NULLS LAST';
 
     const result = await this.pool.query(query, params);
 

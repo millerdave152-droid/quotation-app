@@ -173,7 +173,7 @@ function init({ pool }) {
         const minQty = parseInt(min_quantity, 10) || 1;
 
         const conditions = [
-          `li.quantity_on_hand >= $1`,
+          'li.quantity_on_hand >= $1',
           `p.id NOT IN (
             SELECT DISTINCT oi.product_id FROM order_items oi
             JOIN orders o ON o.id = oi.order_id

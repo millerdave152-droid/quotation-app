@@ -21,7 +21,7 @@ class PurchaseOrderService {
     const db = client || this.pool;
     const today = new Date().toISOString().slice(0, 10).replace(/-/g, '');
     const { rows } = await db.query(
-      `SELECT po_number FROM purchase_orders WHERE po_number LIKE $1 ORDER BY po_number DESC LIMIT 1`,
+      'SELECT po_number FROM purchase_orders WHERE po_number LIKE $1 ORDER BY po_number DESC LIMIT 1',
       [`PO-${today}-%`]
     );
     let seq = 1;
@@ -36,7 +36,7 @@ class PurchaseOrderService {
     const db = client || this.pool;
     const today = new Date().toISOString().slice(0, 10).replace(/-/g, '');
     const { rows } = await db.query(
-      `SELECT receipt_number FROM goods_receipts WHERE receipt_number LIKE $1 ORDER BY receipt_number DESC LIMIT 1`,
+      'SELECT receipt_number FROM goods_receipts WHERE receipt_number LIKE $1 ORDER BY receipt_number DESC LIMIT 1',
       [`GR-${today}-%`]
     );
     let seq = 1;
@@ -117,7 +117,7 @@ class PurchaseOrderService {
 
     if (!fields.length) return this.getPO(poId);
 
-    fields.push(`updated_at = NOW()`);
+    fields.push('updated_at = NOW()');
     params.push(poId);
 
     await this.pool.query(
@@ -167,7 +167,7 @@ class PurchaseOrderService {
     if (!items.rows.length) throw ApiError.badRequest('PO must have at least one item');
 
     await this.pool.query(
-      `UPDATE purchase_orders SET status = 'submitted', updated_at = NOW() WHERE id = $1`,
+      'UPDATE purchase_orders SET status = \'submitted\', updated_at = NOW() WHERE id = $1',
       [poId]
     );
     return this.getPO(poId);
@@ -178,7 +178,7 @@ class PurchaseOrderService {
     if (po.status !== 'submitted') throw ApiError.badRequest('Only submitted POs can be confirmed');
 
     await this.pool.query(
-      `UPDATE purchase_orders SET status = 'confirmed', approved_by = $2, approved_at = NOW(), updated_at = NOW() WHERE id = $1`,
+      'UPDATE purchase_orders SET status = \'confirmed\', approved_by = $2, approved_at = NOW(), updated_at = NOW() WHERE id = $1',
       [poId, userId]
     );
     return this.getPO(poId);
@@ -189,7 +189,7 @@ class PurchaseOrderService {
     if (['received', 'cancelled'].includes(po.status)) throw ApiError.badRequest('Cannot cancel a received or already cancelled PO');
 
     await this.pool.query(
-      `UPDATE purchase_orders SET status = 'cancelled', cancelled_by = $2, cancelled_at = NOW(), cancel_reason = $3, updated_at = NOW() WHERE id = $1`,
+      'UPDATE purchase_orders SET status = \'cancelled\', cancelled_by = $2, cancelled_at = NOW(), cancel_reason = $3, updated_at = NOW() WHERE id = $1',
       [poId, userId, reason || null]
     );
     return this.getPO(poId);
@@ -423,10 +423,10 @@ class PurchaseOrderService {
 
   async getDashboardStats() {
     const [openPOs, pendingReceipts, overdue, spend] = await Promise.all([
-      this.pool.query(`SELECT COUNT(*)::int AS cnt FROM purchase_orders WHERE status NOT IN ('received','cancelled')`),
-      this.pool.query(`SELECT COUNT(*)::int AS cnt FROM purchase_orders WHERE status IN ('confirmed','partially_received')`),
-      this.pool.query(`SELECT COUNT(*)::int AS cnt FROM purchase_orders WHERE status IN ('confirmed','partially_received') AND expected_date < CURRENT_DATE`),
-      this.pool.query(`SELECT COALESCE(SUM(total_cents),0)::int AS total FROM purchase_orders WHERE status != 'cancelled' AND order_date >= date_trunc('month', CURRENT_DATE)`),
+      this.pool.query('SELECT COUNT(*)::int AS cnt FROM purchase_orders WHERE status NOT IN (\'received\',\'cancelled\')'),
+      this.pool.query('SELECT COUNT(*)::int AS cnt FROM purchase_orders WHERE status IN (\'confirmed\',\'partially_received\')'),
+      this.pool.query('SELECT COUNT(*)::int AS cnt FROM purchase_orders WHERE status IN (\'confirmed\',\'partially_received\') AND expected_date < CURRENT_DATE'),
+      this.pool.query('SELECT COALESCE(SUM(total_cents),0)::int AS total FROM purchase_orders WHERE status != \'cancelled\' AND order_date >= date_trunc(\'month\', CURRENT_DATE)'),
     ]);
 
     return {
@@ -508,7 +508,7 @@ class PurchaseOrderService {
 
     if (!fields.length) return this.getVendor(vendorId);
 
-    fields.push(`updated_at = NOW()`);
+    fields.push('updated_at = NOW()');
     params.push(vendorId);
 
     await this.pool.query(`UPDATE vendors SET ${fields.join(', ')} WHERE id = $${idx}`, params);
@@ -611,7 +611,7 @@ class PurchaseOrderService {
 
       // Verify receipt exists
       const { rows: [receipt] } = await client.query(
-        `SELECT id, purchase_order_id FROM goods_receipts WHERE id = $1`, [receiptId]
+        'SELECT id, purchase_order_id FROM goods_receipts WHERE id = $1', [receiptId]
       );
       if (!receipt) throw new ApiError(404, 'Goods receipt not found');
 
@@ -658,7 +658,7 @@ class PurchaseOrderService {
 
       // Get unallocated cost entries
       const { rows: costEntries } = await client.query(
-        `SELECT * FROM landed_cost_entries WHERE goods_receipt_id = $1 AND allocated = FALSE`,
+        'SELECT * FROM landed_cost_entries WHERE goods_receipt_id = $1 AND allocated = FALSE',
         [receiptId]
       );
       if (!costEntries.length) throw new ApiError(400, 'No unallocated costs to distribute');
@@ -700,7 +700,7 @@ class PurchaseOrderService {
         if (item.product_id) {
           const perUnitLanded = item.quantity_received > 0 ? Math.round(landedCost / item.quantity_received) : 0;
           await client.query(
-            `UPDATE products SET landed_cost_cents = $2, last_landed_cost_at = NOW() WHERE id = $1`,
+            'UPDATE products SET landed_cost_cents = $2, last_landed_cost_at = NOW() WHERE id = $1',
             [item.product_id, perUnitLanded]
           );
         }
@@ -708,12 +708,12 @@ class PurchaseOrderService {
 
       // Mark entries as allocated
       await client.query(
-        `UPDATE landed_cost_entries SET allocated = TRUE, updated_at = NOW() WHERE goods_receipt_id = $1 AND allocated = FALSE`,
+        'UPDATE landed_cost_entries SET allocated = TRUE, updated_at = NOW() WHERE goods_receipt_id = $1 AND allocated = FALSE',
         [receiptId]
       );
 
       await client.query(
-        `UPDATE goods_receipts SET landed_cost_calculated = TRUE WHERE id = $1`, [receiptId]
+        'UPDATE goods_receipts SET landed_cost_calculated = TRUE WHERE id = $1', [receiptId]
       );
 
       await client.query('COMMIT');
@@ -736,7 +736,7 @@ class PurchaseOrderService {
     if (!receipt) throw new ApiError(404, 'Receipt not found');
 
     const { rows: entries } = await this.pool.query(
-      `SELECT * FROM landed_cost_entries WHERE goods_receipt_id = $1 ORDER BY cost_type`, [receiptId]
+      'SELECT * FROM landed_cost_entries WHERE goods_receipt_id = $1 ORDER BY cost_type', [receiptId]
     );
 
     const { rows: items } = await this.pool.query(

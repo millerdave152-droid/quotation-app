@@ -61,7 +61,7 @@ async function check() {
 
   // Check sync logs (recent)
   const logs = await pool.query(
-    "SELECT sync_type, status, records_processed, records_succeeded, records_failed, sync_start_time FROM marketplace_sync_log ORDER BY sync_start_time DESC LIMIT 10"
+    'SELECT sync_type, status, records_processed, records_succeeded, records_failed, sync_start_time FROM marketplace_sync_log ORDER BY sync_start_time DESC LIMIT 10'
   );
   console.log('\n=== RECENT SYNC LOGS ===');
   console.table(logs.rows);

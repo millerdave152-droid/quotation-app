@@ -149,7 +149,7 @@ class LeadAssignmentService {
    */
   async deleteRule(id) {
     const result = await this.pool.query(
-      `DELETE FROM lead_assignment_rules WHERE id = $1 RETURNING id`,
+      'DELETE FROM lead_assignment_rules WHERE id = $1 RETURNING id',
       [id]
     );
     this.cache?.invalidatePattern?.('assignment:*');

@@ -203,21 +203,9 @@ app.use('/vendor-images', express.static(path.join(__dirname, 'public/vendor-ima
 // Attach standardized response helpers to res object
 app.use(attachResponseHelpers);
 
-// Request ID and timing for structured logging
-app.use((req, res, next) => {
-  if (!req.id) {
-    req.id = req.requestId = `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-    req._startTime = Date.now();
-    res.setHeader('X-Request-ID', req.id);
-  }
-  next();
-});
-
-// Request logging middleware
-app.use((req, res, next) => {
-  console.log(`📥 ${req.method} ${req.path}`);
-  next();
-});
+// Structured logging with correlation IDs (pino)
+const { requestLogger } = require('./utils/logger');
+app.use(requestLogger);
 
 // ============================================
 // DATABASE CONNECTION (tenant-aware pool from db.js)
@@ -350,6 +338,14 @@ console.log('✅ Scheduled batch email service initialized');
 // HEALTH CHECK ENDPOINTS
 // ============================================
 
+// Resolve git commit hash once at startup for health endpoint
+const APP_VERSION = process.env.npm_package_version || '2.0.1';
+const COMMIT_HASH = (() => {
+  if (process.env.GIT_COMMIT_SHA) return process.env.GIT_COMMIT_SHA;
+  try { return require('child_process').execSync('git rev-parse --short HEAD', { encoding: 'utf8' }).trim(); }
+  catch { return 'unknown'; }
+})();
+
 /**
  * GET /health - Full health check with DB and cache status
  * Use for monitoring dashboards and alerting
@@ -361,7 +357,8 @@ app.get('/health', async (req, res) => {
     timestamp: new Date().toISOString(),
     uptime: process.uptime(),
     environment: process.env.NODE_ENV || 'development',
-    version: '2.0.1',
+    version: APP_VERSION,
+    commitHash: COMMIT_HASH,
     checks: {
       database: { status: 'unknown' },
       cache: { status: 'unknown' }
@@ -1229,23 +1226,23 @@ app.post('/api/quotations/:id/send-email', authenticate, upload.single('pdf'), a
       `From: "${process.env.EMAIL_FROM_NAME || 'Your Company'}" <${process.env.EMAIL_FROM}>`,
       `To: ${recipientEmail}`,
       `Subject: ${subject || `Quote #${quote.quote_number || quote.id} - ${recipientName}`}`,
-      `MIME-Version: 1.0`,
+      'MIME-Version: 1.0',
       `Content-Type: multipart/mixed; boundary="${boundary}"`,
-      ``,
+      '',
       `--${boundary}`,
-      `Content-Type: text/html; charset=UTF-8`,
-      `Content-Transfer-Encoding: 7bit`,
-      ``,
+      'Content-Type: text/html; charset=UTF-8',
+      'Content-Transfer-Encoding: 7bit',
+      '',
       emailHtml,
-      ``,
+      '',
       `--${boundary}`,
       `Content-Type: application/pdf; name="Quote_${quote.quote_number || quote.id}.pdf"`,
       `Content-Description: Quote_${quote.quote_number || quote.id}.pdf`,
       `Content-Disposition: attachment; filename="Quote_${quote.quote_number || quote.id}.pdf"`,
-      `Content-Transfer-Encoding: base64`,
-      ``,
+      'Content-Transfer-Encoding: base64',
+      '',
       pdfBase64,
-      ``,
+      '',
       `--${boundary}--`
     ].join('\r\n');
 
@@ -1594,7 +1591,7 @@ app.post('/api/quotations/:id/request-approval', authenticate, async (req, res) 
 
     // Check if there's already a pending approval
     const existing = await pool.query(
-      `SELECT * FROM quote_approvals WHERE quotation_id = $1 AND status = 'PENDING'`,
+      'SELECT * FROM quote_approvals WHERE quotation_id = $1 AND status = \'PENDING\'',
       [id]
     );
 
@@ -1616,7 +1613,7 @@ app.post('/api/quotations/:id/request-approval', authenticate, async (req, res) 
 
     // Update quote status to PENDING_APPROVAL
     await pool.query(
-      `UPDATE quotations SET status = 'PENDING_APPROVAL' WHERE id = $1`,
+      'UPDATE quotations SET status = \'PENDING_APPROVAL\' WHERE id = $1',
       [id]
     );
 
@@ -1712,7 +1709,7 @@ app.get('/api/quotations/:id/approvals', authenticate, async (req, res) => {
   try {
     const { id } = req.params;
     const result = await pool.query(
-      `SELECT * FROM quote_approvals WHERE quotation_id = $1 ORDER BY requested_at DESC`,
+      'SELECT * FROM quote_approvals WHERE quotation_id = $1 ORDER BY requested_at DESC',
       [id]
     );
     res.json(result.rows);
@@ -1730,7 +1727,7 @@ app.get('/api/quotations/:id/approval-summary', authenticate, async (req, res) =
     const { id } = req.params;
 
     const quoteResult = await pool.query(
-      `SELECT * FROM quotations WHERE id = $1`,
+      'SELECT * FROM quotations WHERE id = $1',
       [id]
     );
 
@@ -1769,11 +1766,11 @@ app.get('/api/approvals/pending', authenticate, async (req, res) => {
 
     const params = [];
     if (approver_email) {
-      query += ` AND qa.approver_email = $1`;
+      query += ' AND qa.approver_email = $1';
       params.push(approver_email);
     }
 
-    query += ` ORDER BY qa.requested_at DESC`;
+    query += ' ORDER BY qa.requested_at DESC';
 
     const result = await pool.query(query, params);
     res.json(result.rows);
@@ -1824,7 +1821,7 @@ app.post('/api/approvals/:id/approve', authenticate, async (req, res) => {
 
     // Update quote status to APPROVED with audit fields
     await pool.query(
-      `UPDATE quotations SET status = 'APPROVED', approved_at = CURRENT_TIMESTAMP, approved_by = $2 WHERE id = $1`,
+      'UPDATE quotations SET status = \'APPROVED\', approved_at = CURRENT_TIMESTAMP, approved_by = $2 WHERE id = $1',
       [approval.quotation_id, req.user.id]
     );
 
@@ -1939,7 +1936,7 @@ app.post('/api/approvals/:id/reject', authenticate, async (req, res) => {
 
     // Update quote status to REJECTED with audit fields
     await pool.query(
-      `UPDATE quotations SET status = 'REJECTED', rejected_at = CURRENT_TIMESTAMP, rejected_by = $2, rejected_reason = $3 WHERE id = $1`,
+      'UPDATE quotations SET status = \'REJECTED\', rejected_at = CURRENT_TIMESTAMP, rejected_by = $2, rejected_reason = $3 WHERE id = $1',
       [approval.quotation_id, req.user.id, comments]
     );
 
@@ -2672,12 +2669,12 @@ app.post('/api/ai/upsell-suggestions', async (req, res) => {
             benefit: {
               priceDifference: priceDiff,
               marginIncrease: Math.round(marginIncrease * 100) / 100,
-              customerValue: `Enhanced features and performance`
+              customerValue: 'Enhanced features and performance'
             },
             talking_points: [
               `Only $${priceDiff.toFixed(2)} more for upgraded model`,
               `${marginIncrease.toFixed(1)}% better margin`,
-              `Premium features include better warranty and energy efficiency`
+              'Premium features include better warranty and energy efficiency'
             ]
           });
         });

@@ -1,5 +1,5 @@
 const http = require('http');
-function req(m,p,b,t){return new Promise((res,rej)=>{const o={hostname:'localhost',port:3001,path:p,method:m,headers:{'Content-Type':'application/json'}};if(t)o.headers.Authorization='Bearer '+t;const r=http.request(o,rs=>{let d='';rs.on('data',c=>d+=c);rs.on('end',()=>res(JSON.parse(d)))});r.on('error',rej);if(b)r.write(JSON.stringify(b));r.end()});}
+function req(m,p,b,t){return new Promise((res,rej)=>{const o={hostname:'localhost',port:3001,path:p,method:m,headers:{'Content-Type':'application/json'}};if(t)o.headers.Authorization='Bearer '+t;const r=http.request(o,rs=>{let d='';rs.on('data',c=>d+=c);rs.on('end',()=>res(JSON.parse(d)));});r.on('error',rej);if(b)r.write(JSON.stringify(b));r.end();});}
 async function main(){
   const l=await req('POST','/api/auth/login',{email:'admin@yourcompany.com',password:'TestPass123!'});
   const t=l.data.accessToken;

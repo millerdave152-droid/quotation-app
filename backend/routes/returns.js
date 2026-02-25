@@ -48,16 +48,16 @@ router.get('/', asyncHandler(async (req, res) => {
     let dateCondition;
     switch (dateRange) {
       case 'today':
-        dateCondition = `t.created_at >= CURRENT_DATE`;
+        dateCondition = 't.created_at >= CURRENT_DATE';
         break;
       case 'this_week':
-        dateCondition = `t.created_at >= date_trunc('week', CURRENT_DATE)`;
+        dateCondition = 't.created_at >= date_trunc(\'week\', CURRENT_DATE)';
         break;
       case 'this_month':
-        dateCondition = `t.created_at >= date_trunc('month', CURRENT_DATE)`;
+        dateCondition = 't.created_at >= date_trunc(\'month\', CURRENT_DATE)';
         break;
       case 'last_month':
-        dateCondition = `t.created_at >= date_trunc('month', CURRENT_DATE - INTERVAL '1 month') AND t.created_at < date_trunc('month', CURRENT_DATE)`;
+        dateCondition = 't.created_at >= date_trunc(\'month\', CURRENT_DATE - INTERVAL \'1 month\') AND t.created_at < date_trunc(\'month\', CURRENT_DATE)';
         break;
     }
     if (dateCondition) conditions.push(dateCondition);

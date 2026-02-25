@@ -53,8 +53,8 @@ class DeliveryService {
    */
   async getZones(activeOnly = true) {
     const query = activeOnly
-      ? `SELECT * FROM delivery_zones WHERE is_active = true ORDER BY zone_name`
-      : `SELECT * FROM delivery_zones ORDER BY zone_name`;
+      ? 'SELECT * FROM delivery_zones WHERE is_active = true ORDER BY zone_name'
+      : 'SELECT * FROM delivery_zones ORDER BY zone_name';
 
     const result = await this.pool.query(query);
     return result.rows;
@@ -137,7 +137,7 @@ class DeliveryService {
       throw new Error('No valid fields to update');
     }
 
-    setClauses.push(`updated_at = CURRENT_TIMESTAMP`);
+    setClauses.push('updated_at = CURRENT_TIMESTAMP');
     values.push(zoneId);
 
     const result = await this.pool.query(`

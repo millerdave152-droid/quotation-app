@@ -14,7 +14,7 @@ async function getAgingReport({ as_of_date, location_id } = {}) {
   const params = [asOf];
   let locationFilter = '';
   if (location_id) {
-    locationFilter = `AND o.location_id = $2`;
+    locationFilter = 'AND o.location_id = $2';
     params.push(location_id);
   }
 

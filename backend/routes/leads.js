@@ -382,20 +382,20 @@ function generateFollowUpDraft(lead, tone = 'professional') {
   };
 
   const openings = {
-    professional: `Thank you for visiting us and discussing your appliance needs.`,
-    friendly: `It was great meeting you and learning about what you're looking for!`,
-    casual: `Thanks for stopping by - loved chatting about your project!`
+    professional: 'Thank you for visiting us and discussing your appliance needs.',
+    friendly: 'It was great meeting you and learning about what you\'re looking for!',
+    casual: 'Thanks for stopping by - loved chatting about your project!'
   };
 
   let body = '';
 
   // Add context based on inquiry reason
   if (lead.inquiry_reason === 'moving') {
-    body += ` Congratulations on your upcoming move!`;
+    body += ' Congratulations on your upcoming move!';
   } else if (lead.inquiry_reason === 'renovation') {
-    body += ` Your renovation project sounds exciting!`;
+    body += ' Your renovation project sounds exciting!';
   } else if (lead.inquiry_reason === 'builder_project') {
-    body += ` We appreciate you considering us for your builder project.`;
+    body += ' We appreciate you considering us for your builder project.';
   }
 
   // Mention requirements if any
@@ -407,19 +407,19 @@ function generateFollowUpDraft(lead, tone = 'professional') {
   // Timeline-based closing
   let closing = '';
   if (lead.timeline === 'asap') {
-    closing = `I understand you need these items soon, so I'm ready to help you finalize your selection and arrange delivery at your earliest convenience.`;
+    closing = 'I understand you need these items soon, so I\'m ready to help you finalize your selection and arrange delivery at your earliest convenience.';
   } else if (lead.timeline === '1_2_weeks') {
-    closing = `Since you're looking to make a decision within the next couple of weeks, I'd love to schedule a time to go over some options that fit your needs perfectly.`;
+    closing = 'Since you\'re looking to make a decision within the next couple of weeks, I\'d love to schedule a time to go over some options that fit your needs perfectly.';
   } else if (lead.timeline === 'just_researching') {
-    closing = `Take your time researching - I'm here whenever you have questions or want to see any products in person.`;
+    closing = 'Take your time researching - I\'m here whenever you have questions or want to see any products in person.';
   } else {
-    closing = `Please don't hesitate to reach out if you have any questions or would like to discuss your options further.`;
+    closing = 'Please don\'t hesitate to reach out if you have any questions or would like to discuss your options further.';
   }
 
   const signatures = {
-    professional: `\n\nBest regards,\n[Your Name]\nTeletime Electronics`,
-    friendly: `\n\nLooking forward to helping you!\n[Your Name]`,
-    casual: `\n\nCheers,\n[Your Name]`
+    professional: '\n\nBest regards,\n[Your Name]\nTeletime Electronics',
+    friendly: '\n\nLooking forward to helping you!\n[Your Name]',
+    casual: '\n\nCheers,\n[Your Name]'
   };
 
   return `${greetings[tone] || greetings.professional}\n\n${openings[tone] || openings.professional}${body}\n\n${closing}${signatures[tone] || signatures.professional}`;

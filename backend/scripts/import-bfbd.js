@@ -32,9 +32,9 @@ async function importBFBDProducts() {
   const allErrors = [];
 
   for (const sheetName of sheetsToImport) {
-    console.log(`\n========================================`);
+    console.log('\n========================================');
     console.log(`Processing sheet: ${sheetName}`);
-    console.log(`========================================`);
+    console.log('========================================');
 
     const sheet = workbook.Sheets[sheetName];
     const data = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: '' });

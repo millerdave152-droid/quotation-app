@@ -759,7 +759,7 @@ class HubReturnService {
 
   async getReasonCodes() {
     const result = await this.pool.query(
-      `SELECT * FROM return_reason_codes WHERE active = true ORDER BY sort_order, id`
+      'SELECT * FROM return_reason_codes WHERE active = true ORDER BY sort_order, id'
     );
     return result.rows.map(row => ({
       id: row.id,
@@ -783,7 +783,7 @@ class HubReturnService {
       case 'return_to_stock': {
         // Restore to sellable inventory via PL/pgSQL function
         const result = await client.query(
-          `SELECT * FROM restore_inventory($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+          'SELECT * FROM restore_inventory($1, $2, $3, $4, $5, $6, $7, $8, $9)',
           [
             productId,
             quantity,
@@ -803,7 +803,7 @@ class HubReturnService {
       case 'clearance': {
         // Still restore to inventory but mark as clearance via reason
         const result = await client.query(
-          `SELECT * FROM restore_inventory($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+          'SELECT * FROM restore_inventory($1, $2, $3, $4, $5, $6, $7, $8, $9)',
           [
             productId,
             quantity,

@@ -559,7 +559,7 @@ function init({ pool }) {
     // Log location
     if (latitude && longitude) {
       await pool.query(
-        `INSERT INTO driver_location_log (driver_id, lat, lng) VALUES ($1, $2, $3)`,
+        'INSERT INTO driver_location_log (driver_id, lat, lng) VALUES ($1, $2, $3)',
         [driver.id, latitude, longitude]
       );
     }
@@ -753,7 +753,7 @@ function init({ pool }) {
       // Log location
       if (latitude && longitude) {
         await client.query(
-          `INSERT INTO driver_location_log (driver_id, lat, lng) VALUES ($1, $2, $3)`,
+          'INSERT INTO driver_location_log (driver_id, lat, lng) VALUES ($1, $2, $3)',
           [driver.id, latitude, longitude]
         );
       }

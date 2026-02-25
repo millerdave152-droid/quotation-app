@@ -290,7 +290,7 @@ module.exports = (pool) => {
   router.get('/quote-templates/:id', authenticate, asyncHandler(async (req, res) => {
     const { id } = req.params;
 
-    const template = await pool.query(`SELECT * FROM quote_templates WHERE id = $1`, [id]);
+    const template = await pool.query('SELECT * FROM quote_templates WHERE id = $1', [id]);
     if (template.rows.length === 0) {
       throw ApiError.notFound('Template');
     }
@@ -338,7 +338,7 @@ module.exports = (pool) => {
     const { customer_id } = req.body;
 
     // Get template
-    const template = await pool.query(`SELECT * FROM quote_templates WHERE id = $1`, [id]);
+    const template = await pool.query('SELECT * FROM quote_templates WHERE id = $1', [id]);
     if (template.rows.length === 0) {
       throw ApiError.notFound('Template');
     }
@@ -369,7 +369,7 @@ module.exports = (pool) => {
     }
 
     // Increment use count
-    await pool.query(`UPDATE quote_templates SET use_count = use_count + 1 WHERE id = $1`, [id]);
+    await pool.query('UPDATE quote_templates SET use_count = use_count + 1 WHERE id = $1', [id]);
 
     res.json(quote.rows[0]);
   }));
@@ -384,7 +384,7 @@ module.exports = (pool) => {
     const { version_notes, changed_by } = req.body;
 
     // Get current quote
-    const current = await pool.query(`SELECT * FROM quotations WHERE id = $1`, [id]);
+    const current = await pool.query('SELECT * FROM quotations WHERE id = $1', [id]);
     if (current.rows.length === 0) {
       throw ApiError.notFound('Quote');
     }
@@ -393,7 +393,7 @@ module.exports = (pool) => {
     const newVersion = (currentQuote.version || 1) + 1;
 
     // Save current state to history
-    const items = await pool.query(`SELECT * FROM quote_items WHERE quotation_id = $1`, [id]);
+    const items = await pool.query('SELECT * FROM quote_items WHERE quotation_id = $1', [id]);
     const snapshot = { quote: currentQuote, items: items.rows };
 
     await pool.query(`
@@ -484,7 +484,7 @@ module.exports = (pool) => {
 
   // Get follow-up rules
   router.get('/follow-up-rules', authenticate, asyncHandler(async (req, res) => {
-    const result = await pool.query(`SELECT * FROM quote_follow_up_rules ORDER BY trigger_days LIMIT 100`);
+    const result = await pool.query('SELECT * FROM quote_follow_up_rules ORDER BY trigger_days LIMIT 100');
     res.json(result.rows);
   }));
 
@@ -613,7 +613,7 @@ module.exports = (pool) => {
   // Delete attachment
   router.delete('/attachments/:id', authenticate, asyncHandler(async (req, res) => {
     const { id } = req.params;
-    await pool.query(`DELETE FROM quote_attachments WHERE id = $1`, [id]);
+    await pool.query('DELETE FROM quote_attachments WHERE id = $1', [id]);
     res.json({ success: true });
   }));
 
@@ -667,7 +667,7 @@ module.exports = (pool) => {
       query += ` AND pn.acknowledged = ${acknowledged === 'true'}`;
     }
 
-    query += ` ORDER BY pn.created_at DESC LIMIT 100`;
+    query += ' ORDER BY pn.created_at DESC LIMIT 100';
 
     const result = await pool.query(query);
     res.json(result.rows);

@@ -199,7 +199,7 @@ function transformProduct(excelRow) {
 async function upsertProduct(client, product) {
   // Check if product exists by model and manufacturer
   const existing = await client.query(
-    `SELECT id FROM products WHERE model = $1 AND manufacturer ILIKE $2`,
+    'SELECT id FROM products WHERE model = $1 AND manufacturer ILIKE $2',
     [product.model, 'Samsung']
   );
 
@@ -296,7 +296,7 @@ async function importSamsungPricelist(filePath, dryRun = false) {
     const withRetail = products.filter(p => p.retail_price_cents > 0).length;
     const withPromo = products.filter(p => p.promo_price_cents > 0).length;
 
-    console.log(`\nPrice data coverage:`);
+    console.log('\nPrice data coverage:');
     console.log(`  - With cost (Q3 Promo Cost): ${withCost} (${Math.round(withCost/products.length*100)}%)`);
     console.log(`  - With retail price (Go To): ${withRetail} (${Math.round(withRetail/products.length*100)}%)`);
     console.log(`  - With promo price (Q3 AVG Promo): ${withPromo} (${Math.round(withPromo/products.length*100)}%)`);

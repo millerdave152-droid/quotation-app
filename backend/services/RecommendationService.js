@@ -809,7 +809,7 @@ class RecommendationService {
   async getRuleBasedRecs(productIds, limit) {
     // Get categories of cart items
     const categoriesResult = await this.pool.query(
-      `SELECT DISTINCT category_id FROM products WHERE id = ANY($1) AND category_id IS NOT NULL`,
+      'SELECT DISTINCT category_id FROM products WHERE id = ANY($1) AND category_id IS NOT NULL',
       [productIds]
     );
     const categoryIds = categoriesResult.rows.map((r) => r.category_id);

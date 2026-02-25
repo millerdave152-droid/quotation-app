@@ -145,7 +145,7 @@ async function updateProduct(productId, updates) {
     return false;
   }
 
-  setParts.push(`last_updated = CURRENT_TIMESTAMP`);
+  setParts.push('last_updated = CURRENT_TIMESTAMP');
   values.push(productId);
 
   const query = `

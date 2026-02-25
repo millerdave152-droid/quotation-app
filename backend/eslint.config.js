@@ -7,7 +7,7 @@ module.exports = [
       ecmaVersion: 2022,
       sourceType: 'commonjs',
       globals: {
-        // Node.js globals
+        // Node.js core globals
         console: 'readonly',
         process: 'readonly',
         require: 'readonly',
@@ -23,6 +23,19 @@ module.exports = [
         setImmediate: 'readonly',
         clearImmediate: 'readonly',
         Promise: 'readonly',
+        // Node 18+ globals
+        URL: 'readonly',
+        URLSearchParams: 'readonly',
+        fetch: 'readonly',
+        AbortController: 'readonly',
+        AbortSignal: 'readonly',
+        Blob: 'readonly',
+        FormData: 'readonly',
+        Headers: 'readonly',
+        Request: 'readonly',
+        Response: 'readonly',
+        structuredClone: 'readonly',
+        navigator: 'readonly',
         // Jest globals
         jest: 'readonly',
         describe: 'readonly',
@@ -32,14 +45,37 @@ module.exports = [
         beforeAll: 'readonly',
         afterAll: 'readonly',
         beforeEach: 'readonly',
-        afterEach: 'readonly'
+        afterEach: 'readonly',
+        fail: 'readonly'
       }
     },
     rules: {
       'no-unused-vars': ['warn', { argsIgnorePattern: '^_' }],
       'no-console': 'off',
       'semi': ['error', 'always'],
-      'quotes': ['warn', 'single', { avoidEscape: true }]
+      'quotes': ['warn', 'single', { avoidEscape: true }],
+      'no-case-declarations': 'warn',
+      'no-empty': ['warn', { allowEmptyCatch: true }],
+      'no-prototype-builtins': 'warn',
+      'no-useless-catch': 'warn',
+      'no-useless-escape': 'warn',
+      'no-dupe-keys': 'warn',
+      'no-dupe-class-members': 'warn'
+    }
+  },
+  // Scraper/PDF files run code in browser contexts (Puppeteer evaluate, jsPDF)
+  {
+    files: [
+      'services/PdfService.js',
+      'services/pdf/**/*.js',
+      'scrapers/**/*.js',
+      'scripts/whirlpool-*.js'
+    ],
+    languageOptions: {
+      globals: {
+        document: 'readonly',
+        window: 'readonly'
+      }
     }
   },
   {
@@ -47,7 +83,11 @@ module.exports = [
       'node_modules/**',
       'coverage/**',
       'build/**',
-      'dist/**'
+      'dist/**',
+      'tmp-*.js',
+      '_*.js',
+      'write-test.js',
+      'migrations/**'
     ]
   }
 ];

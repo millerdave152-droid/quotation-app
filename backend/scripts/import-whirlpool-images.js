@@ -60,7 +60,7 @@ async function main() {
 
     // Get vendor products
     const vendorResult = await pool.query(
-      `SELECT id FROM vendor_sources WHERE name ILIKE '%whirlpool%' LIMIT 1`
+      'SELECT id FROM vendor_sources WHERE name ILIKE \'%whirlpool%\' LIMIT 1'
     );
 
     if (vendorResult.rows.length === 0) {
@@ -80,7 +80,7 @@ async function main() {
       try {
         // Find the product by model number
         const productResult = await pool.query(
-          `SELECT id FROM vendor_products WHERE model_number = $1 AND vendor_source_id = $2`,
+          'SELECT id FROM vendor_products WHERE model_number = $1 AND vendor_source_id = $2',
           [sku, vendorSourceId]
         );
 
@@ -93,7 +93,7 @@ async function main() {
 
         // Delete existing images for this product
         await pool.query(
-          `DELETE FROM vendor_product_images WHERE vendor_product_id = $1`,
+          'DELETE FROM vendor_product_images WHERE vendor_product_id = $1',
           [productId]
         );
 

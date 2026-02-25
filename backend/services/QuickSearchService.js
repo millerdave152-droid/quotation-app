@@ -65,7 +65,7 @@ class QuickSearchService {
       paramIndex++;
     } else {
       // By default, exclude discontinued unless explicitly requested
-      whereConditions.push(`p.product_status != 'discontinued'`);
+      whereConditions.push('p.product_status != \'discontinued\'');
     }
 
     // Brand/Manufacturer filter (case-insensitive)
@@ -107,19 +107,19 @@ class QuickSearchService {
     if (filters.stockStatus) {
       switch (filters.stockStatus) {
         case 'in_stock':
-          whereConditions.push(`p.stock_quantity > 5`);
+          whereConditions.push('p.stock_quantity > 5');
           break;
         case 'low_stock':
-          whereConditions.push(`p.stock_quantity > 0 AND p.stock_quantity <= 5`);
+          whereConditions.push('p.stock_quantity > 0 AND p.stock_quantity <= 5');
           break;
         case 'overstock':
-          whereConditions.push(`p.stock_quantity > COALESCE(p.reorder_point, 20) * 2`);
+          whereConditions.push('p.stock_quantity > COALESCE(p.reorder_point, 20) * 2');
           break;
         case 'out_of_stock':
-          whereConditions.push(`(p.stock_quantity IS NULL OR p.stock_quantity <= 0)`);
+          whereConditions.push('(p.stock_quantity IS NULL OR p.stock_quantity <= 0)');
           break;
         case 'last_pieces':
-          whereConditions.push(`p.stock_quantity > 0 AND p.stock_quantity <= 2`);
+          whereConditions.push('p.stock_quantity > 0 AND p.stock_quantity <= 2');
           break;
       }
     }
@@ -176,16 +176,16 @@ class QuickSearchService {
     switch (sortBy) {
       case 'relevance':
         if (query && query.trim()) {
-          orderClause = `ORDER BY search_rank DESC`;
+          orderClause = 'ORDER BY search_rank DESC';
         } else {
-          orderClause = `ORDER BY p.updated_at DESC`;
+          orderClause = 'ORDER BY p.updated_at DESC';
         }
         break;
       case 'price_low':
-        orderClause = `ORDER BY COALESCE(p.clearance_price_cents, p.msrp_cents) ASC`;
+        orderClause = 'ORDER BY COALESCE(p.clearance_price_cents, p.msrp_cents) ASC';
         break;
       case 'price_high':
-        orderClause = `ORDER BY COALESCE(p.clearance_price_cents, p.msrp_cents) DESC`;
+        orderClause = 'ORDER BY COALESCE(p.clearance_price_cents, p.msrp_cents) DESC';
         break;
       case 'discount':
         orderClause = `ORDER BY
@@ -194,7 +194,7 @@ class QuickSearchService {
           ELSE 0 END DESC`;
         break;
       case 'stock':
-        orderClause = `ORDER BY COALESCE(p.stock_quantity, 0) DESC`;
+        orderClause = 'ORDER BY COALESCE(p.stock_quantity, 0) DESC';
         break;
       case 'sellability':
         // Composite score: margin + stock + recent sales
@@ -211,7 +211,7 @@ class QuickSearchService {
         ) DESC`;
         break;
       case 'newest':
-        orderClause = `ORDER BY p.created_at DESC`;
+        orderClause = 'ORDER BY p.created_at DESC';
         break;
       case 'margin':
         // Only for admin/manager
@@ -221,7 +221,7 @@ class QuickSearchService {
             THEN (p.msrp_cents - p.cost_cents)::float / p.msrp_cents
             ELSE 0 END DESC`;
         } else {
-          orderClause = `ORDER BY p.msrp_cents DESC`;
+          orderClause = 'ORDER BY p.msrp_cents DESC';
         }
         break;
       default:
@@ -481,7 +481,7 @@ class QuickSearchService {
 
       // Always exclude discontinued by default
       if (!baseFilters.productStatus || !baseFilters.productStatus.includes('discontinued')) {
-        conditions.push(`product_status != 'discontinued'`);
+        conditions.push('product_status != \'discontinued\'');
       }
 
       if (excludeFilter !== 'brands' && baseFilters.brands?.length) {

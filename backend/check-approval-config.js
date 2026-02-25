@@ -47,7 +47,7 @@ const pool = require('./db');
 
     // 4. Users with manager+ roles
     const { rows: mgrs } = await pool.query(
-      `SELECT id, first_name, last_name, email, role FROM users WHERE role IN ('manager', 'senior_manager', 'admin') AND is_active = true ORDER BY role, last_name`
+      'SELECT id, first_name, last_name, email, role FROM users WHERE role IN (\'manager\', \'senior_manager\', \'admin\') AND is_active = true ORDER BY role, last_name'
     );
     console.log('\n=== USERS WITH MANAGER+ ROLES ===');
     mgrs.forEach(m => {

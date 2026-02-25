@@ -9,7 +9,7 @@ const svc = new WarrantyService(pool);
 
 (async () => {
   // Test the Danby fridge the user added to cart ($999.99)
-  const danby = await pool.query("SELECT id, name, price, category_id FROM products WHERE id = 12484");
+  const danby = await pool.query('SELECT id, name, price, category_id FROM products WHERE id = 12484');
   const p = danby.rows[0];
   console.log('Product:', p.name);
   console.log('  id=' + p.id, 'price=$' + p.price, 'cat=' + p.category_id);

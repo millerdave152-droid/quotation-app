@@ -420,7 +420,7 @@ function getRecipients() {
 function startScheduler(options = {}) {
   const timezone = process.env.TIMEZONE || 'America/Toronto';
 
-  console.log(`Starting purchasing intelligence scheduler...`);
+  console.log('Starting purchasing intelligence scheduler...');
   console.log(`  - Daily schedule: ${options.dailySchedule || DAILY_SCHEDULE}`);
   console.log(`  - Weekly schedule: ${options.weeklySchedule || WEEKLY_SCHEDULE}`);
   console.log(`  - Timezone: ${timezone}`);

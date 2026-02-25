@@ -141,7 +141,7 @@ async function testDatabaseSchema() {
 
   // Check approval_tier_settings table
   const { rows: tiers } = await pool.query(
-    `SELECT * FROM approval_tier_settings ORDER BY tier`
+    'SELECT * FROM approval_tier_settings ORDER BY tier'
   );
   test('approval_tier_settings has 4 tiers', tiers.length === 4, `found ${tiers.length}`);
   if (tiers.length >= 4) {
@@ -197,7 +197,7 @@ async function testDatabaseSchema() {
 
   // Check indexes on manager_delegations
   const { rows: mdIdx } = await pool.query(
-    `SELECT indexname FROM pg_indexes WHERE tablename = 'manager_delegations'`
+    'SELECT indexname FROM pg_indexes WHERE tablename = \'manager_delegations\''
   );
   const idxNames = mdIdx.map(r => r.indexname);
   test('manager_delegations has active index', idxNames.some(n => n.includes('active')));
@@ -316,7 +316,7 @@ async function setupUsers() {
 
   // Reset daily override counters so tests aren't blocked by limits from prior runs
   await pool.query(
-    `UPDATE manager_pins SET override_count_today = 0 WHERE user_id IN ($1, $2)`,
+    'UPDATE manager_pins SET override_count_today = 0 WHERE user_id IN ($1, $2)',
     [manager.id, admin.id]
   );
   test('Daily override counters reset for test run', true);
@@ -895,7 +895,7 @@ async function testBatchDeny() {
   const price = parseFloat(TEST_PRODUCT.price);
 
   const { rows: prods } = await pool.query(
-    `SELECT id, price FROM products WHERE price > 0 AND cost > 0 AND price > cost AND id != $1 ORDER BY id LIMIT 1`,
+    'SELECT id, price FROM products WHERE price > 0 AND cost > 0 AND price > cost AND id != $1 ORDER BY id LIMIT 1',
     [TEST_PRODUCT.id]
   );
   if (prods.length === 0) { skip('Batch deny', 'Need 2 products'); return; }
@@ -1152,7 +1152,7 @@ async function testDelegationSystem() {
     } else {
       // Check in DB directly
       const { rows } = await pool.query(
-        `SELECT delegation_id FROM approval_requests WHERE id = $1`,
+        'SELECT delegation_id FROM approval_requests WHERE id = $1',
         [tier2ReqId]
       );
       test('Delegation ID recorded on approval',
@@ -1218,7 +1218,7 @@ async function testTimeoutHandling() {
 
   // Manually backdate to trigger timeout (tier 2 = 180s timeout)
   await pool.query(
-    `UPDATE approval_requests SET created_at = NOW() - INTERVAL '10 minutes' WHERE id = $1`,
+    'UPDATE approval_requests SET created_at = NOW() - INTERVAL \'10 minutes\' WHERE id = $1',
     [requestId]
   );
 
@@ -1240,13 +1240,13 @@ async function testTimeoutHandling() {
 
   // Actually time it out
   await pool.query(
-    `UPDATE approval_requests SET status = 'timed_out', responded_at = NOW() WHERE id = $1`,
+    'UPDATE approval_requests SET status = \'timed_out\', responded_at = NOW() WHERE id = $1',
     [requestId]
   );
 
   // Verify it's timed out
   const { rows: [req] } = await pool.query(
-    `SELECT status FROM approval_requests WHERE id = $1`, [requestId]
+    'SELECT status FROM approval_requests WHERE id = $1', [requestId]
   );
   test('Request status is timed_out after manual timeout', req?.status === 'timed_out');
 }
@@ -1339,7 +1339,7 @@ async function testDelegationConstraints() {
     );
     test('DB rejects tier > 4', false, 'INSERT should have failed');
     // Clean up
-    await pool.query(`DELETE FROM manager_delegations WHERE max_tier = 5`);
+    await pool.query('DELETE FROM manager_delegations WHERE max_tier = 5');
   } catch (e) {
     test('DB rejects tier > 4 (chk_valid_tier)', e.message.includes('chk_valid_tier'));
   }
@@ -1414,7 +1414,7 @@ async function main() {
   console.log(`  📊 Total:   ${results.passed + results.failed + results.skipped}`);
 
   if (results.errors.length > 0) {
-    console.log(`\n  FAILURES:`);
+    console.log('\n  FAILURES:');
     results.errors.forEach((e, i) => console.log(`  ${i + 1}. ${e}`));
   }
 

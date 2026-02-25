@@ -77,12 +77,12 @@ async function migrate() {
     `);
 
     // Create indexes for filtering
-    await client.query(`CREATE INDEX IF NOT EXISTS idx_pea_product ON product_extended_attributes(product_id)`);
-    await client.query(`CREATE INDEX IF NOT EXISTS idx_pea_fuel ON product_extended_attributes(fuel_type)`);
-    await client.query(`CREATE INDEX IF NOT EXISTS idx_pea_finish ON product_extended_attributes(finish)`);
-    await client.query(`CREATE INDEX IF NOT EXISTS idx_pea_width ON product_extended_attributes(width_inches_x10)`);
-    await client.query(`CREATE INDEX IF NOT EXISTS idx_pea_tier ON product_extended_attributes(package_tier)`);
-    await client.query(`CREATE INDEX IF NOT EXISTS idx_pea_appliance ON product_extended_attributes(appliance_type)`);
+    await client.query('CREATE INDEX IF NOT EXISTS idx_pea_product ON product_extended_attributes(product_id)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_pea_fuel ON product_extended_attributes(fuel_type)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_pea_finish ON product_extended_attributes(finish)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_pea_width ON product_extended_attributes(width_inches_x10)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_pea_tier ON product_extended_attributes(package_tier)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_pea_appliance ON product_extended_attributes(appliance_type)');
     console.log('  ✅ product_extended_attributes created with indexes\n');
 
     // ============================================
@@ -101,8 +101,8 @@ async function migrate() {
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       )
     `);
-    await client.query(`CREATE INDEX IF NOT EXISTS idx_pq_type ON package_questionnaires(package_type)`);
-    await client.query(`CREATE INDEX IF NOT EXISTS idx_pq_active ON package_questionnaires(is_active)`);
+    await client.query('CREATE INDEX IF NOT EXISTS idx_pq_type ON package_questionnaires(package_type)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_pq_active ON package_questionnaires(is_active)');
     console.log('  ✅ package_questionnaires created\n');
 
     // ============================================
@@ -126,8 +126,8 @@ async function migrate() {
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       )
     `);
-    await client.query(`CREATE INDEX IF NOT EXISTS idx_pques_questionnaire ON package_questions(questionnaire_id)`);
-    await client.query(`CREATE INDEX IF NOT EXISTS idx_pques_order ON package_questions(display_order)`);
+    await client.query('CREATE INDEX IF NOT EXISTS idx_pques_questionnaire ON package_questions(questionnaire_id)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_pques_order ON package_questions(display_order)');
     console.log('  ✅ package_questions created\n');
 
     // ============================================
@@ -150,8 +150,8 @@ async function migrate() {
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       )
     `);
-    await client.query(`CREATE INDEX IF NOT EXISTS idx_pqo_question ON package_question_options(question_id)`);
-    await client.query(`CREATE INDEX IF NOT EXISTS idx_pqo_order ON package_question_options(display_order)`);
+    await client.query('CREATE INDEX IF NOT EXISTS idx_pqo_question ON package_question_options(question_id)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_pqo_order ON package_question_options(display_order)');
     console.log('  ✅ package_question_options created\n');
 
     // ============================================
@@ -174,9 +174,9 @@ async function migrate() {
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       )
     `);
-    await client.query(`CREATE INDEX IF NOT EXISTS idx_ps_uuid ON package_sessions(session_uuid)`);
-    await client.query(`CREATE INDEX IF NOT EXISTS idx_ps_customer ON package_sessions(customer_id)`);
-    await client.query(`CREATE INDEX IF NOT EXISTS idx_ps_status ON package_sessions(status)`);
+    await client.query('CREATE INDEX IF NOT EXISTS idx_ps_uuid ON package_sessions(session_uuid)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_ps_customer ON package_sessions(customer_id)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_ps_status ON package_sessions(status)');
     console.log('  ✅ package_sessions created\n');
 
     // ============================================
@@ -223,8 +223,8 @@ async function migrate() {
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       )
     `);
-    await client.query(`CREATE INDEX IF NOT EXISTS idx_pt_type ON package_templates(package_type)`);
-    await client.query(`CREATE INDEX IF NOT EXISTS idx_pt_active ON package_templates(is_active)`);
+    await client.query('CREATE INDEX IF NOT EXISTS idx_pt_type ON package_templates(package_type)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_pt_active ON package_templates(is_active)');
     console.log('  ✅ package_templates created\n');
 
     // ============================================

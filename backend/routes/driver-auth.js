@@ -51,7 +51,7 @@ function init({ pool }) {
       const lockUntil = locked ? new Date(Date.now() + LOCK_TIME_MS) : null;
 
       await pool.query(
-        `UPDATE drivers SET failed_login_attempts = $1, locked_until = $2 WHERE id = $3`,
+        'UPDATE drivers SET failed_login_attempts = $1, locked_until = $2 WHERE id = $3',
         [attempts, lockUntil, driver.id]
       );
 
@@ -63,7 +63,7 @@ function init({ pool }) {
 
     // Success — reset failed attempts, set last_login
     await pool.query(
-      `UPDATE drivers SET failed_login_attempts = 0, locked_until = NULL, last_login = NOW() WHERE id = $1`,
+      'UPDATE drivers SET failed_login_attempts = 0, locked_until = NULL, last_login = NOW() WHERE id = $1',
       [driver.id]
     );
 

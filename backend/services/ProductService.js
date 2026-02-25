@@ -123,11 +123,11 @@ class ProductService {
 
       if (status) {
         if (status === 'active') {
-          whereConditions.push(`p.active = true`);
+          whereConditions.push('p.active = true');
         } else if (status === 'discontinued') {
-          whereConditions.push(`p.discontinued = true`);
+          whereConditions.push('p.discontinued = true');
         } else if (status === 'inactive') {
-          whereConditions.push(`p.active = false`);
+          whereConditions.push('p.active = false');
         }
       }
 
@@ -135,7 +135,7 @@ class ProductService {
       if (tags) {
         const tagIds = tags.split(',').map(t => parseInt(t.trim())).filter(t => !isNaN(t));
         if (tagIds.length > 0) {
-          joinClauses.push(`INNER JOIN product_tag_mappings ptm ON p.id = ptm.product_id`);
+          joinClauses.push('INNER JOIN product_tag_mappings ptm ON p.id = ptm.product_id');
           whereConditions.push(`ptm.tag_id = ANY($${paramIndex}::int[])`);
           queryParams.push(tagIds);
           paramIndex++;
@@ -159,7 +159,7 @@ class ProductService {
 
       // Recent filter - products added/updated in last 7 days
       if (recent === 'true') {
-        whereConditions.push(`(p.created_at >= NOW() - INTERVAL '7 days' OR p.updated_at >= NOW() - INTERVAL '7 days')`);
+        whereConditions.push('(p.created_at >= NOW() - INTERVAL \'7 days\' OR p.updated_at >= NOW() - INTERVAL \'7 days\')');
       }
 
       // Favorites filter

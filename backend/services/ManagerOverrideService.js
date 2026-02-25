@@ -754,7 +754,7 @@ class ManagerOverrideService {
       // Check if expired
       if (request.expires_at && new Date(request.expires_at) < new Date()) {
         await this.pool.query(
-          `UPDATE override_requests SET status = 'expired', updated_at = NOW() WHERE id = $1`,
+          'UPDATE override_requests SET status = \'expired\', updated_at = NOW() WHERE id = $1',
           [requestId]
         );
         return {
@@ -1521,7 +1521,7 @@ class ManagerOverrideService {
         params.push(endDate);
       }
 
-      query += ` GROUP BY period, override_type ORDER BY period DESC, override_type`;
+      query += ' GROUP BY period, override_type ORDER BY period DESC, override_type';
 
       const result = await this.pool.query(query, params);
 

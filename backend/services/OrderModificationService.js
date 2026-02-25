@@ -146,7 +146,7 @@ class OrderModificationService {
    */
   async isPriceLocked(orderId) {
     const result = await this.pool.query(
-      `SELECT price_locked, price_lock_until FROM orders WHERE order_id = $1`,
+      'SELECT price_locked, price_lock_until FROM orders WHERE order_id = $1',
       [orderId]
     );
 
@@ -227,7 +227,7 @@ class OrderModificationService {
 
       // Get current order state
       const orderResult = await client.query(
-        `SELECT * FROM orders WHERE order_id = $1 FOR UPDATE`,
+        'SELECT * FROM orders WHERE order_id = $1 FOR UPDATE',
         [orderId]
       );
 
@@ -259,7 +259,7 @@ class OrderModificationService {
 
       // Generate amendment number
       const numResult = await client.query(
-        `SELECT generate_amendment_number() as num`
+        'SELECT generate_amendment_number() as num'
       );
       const amendmentNumber = numResult.rows[0].num;
 
@@ -368,7 +368,7 @@ class OrderModificationService {
     let quotePrices = new Map();
     if (quoteId) {
       const quoteResult = await client.query(
-        `SELECT product_id, unit_price FROM quote_items WHERE quote_id = $1`,
+        'SELECT product_id, unit_price FROM quote_items WHERE quote_id = $1',
         [quoteId]
       );
       quoteResult.rows.forEach((qi) => {
@@ -380,7 +380,7 @@ class OrderModificationService {
     if (changes.addItems) {
       for (const item of changes.addItems) {
         const productResult = await client.query(
-          `SELECT product_id, name, sku, price FROM products WHERE product_id = $1`,
+          'SELECT product_id, name, sku, price FROM products WHERE product_id = $1',
           [item.productId]
         );
 
@@ -599,7 +599,7 @@ class OrderModificationService {
 
       // Get amendment
       const amendmentResult = await client.query(
-        `SELECT * FROM order_amendments WHERE id = $1 FOR UPDATE`,
+        'SELECT * FROM order_amendments WHERE id = $1 FOR UPDATE',
         [amendmentId]
       );
 
@@ -619,14 +619,14 @@ class OrderModificationService {
 
       // Create version snapshot before changes
       const versionResult = await client.query(
-        `SELECT create_order_version($1, $2, $3) as version_id`,
+        'SELECT create_order_version($1, $2, $3) as version_id',
         [amendment.order_id, userId, `Pre-amendment: ${amendment.amendment_number}`]
       );
       const preVersionId = versionResult.rows[0].version_id;
 
       // Get amendment items
       const itemsResult = await client.query(
-        `SELECT * FROM order_amendment_items WHERE amendment_id = $1`,
+        'SELECT * FROM order_amendment_items WHERE amendment_id = $1',
         [amendmentId]
       );
 
@@ -684,7 +684,7 @@ class OrderModificationService {
 
       // Create post-amendment version
       await client.query(
-        `SELECT create_order_version($1, $2, $3) as version_id`,
+        'SELECT create_order_version($1, $2, $3) as version_id',
         [amendment.order_id, userId, `Post-amendment: ${amendment.amendment_number}`]
       );
 
@@ -732,7 +732,7 @@ class OrderModificationService {
 
     // Get order for discount and tax province
     const orderResult = await client.query(
-      `SELECT discount_amount, tax_province FROM orders WHERE order_id = $1`,
+      'SELECT discount_amount, tax_province FROM orders WHERE order_id = $1',
       [orderId]
     );
 
@@ -804,7 +804,7 @@ class OrderModificationService {
 
     // Get amendment items
     const itemsResult = await this.pool.query(
-      `SELECT * FROM order_amendment_items WHERE amendment_id = $1 ORDER BY id`,
+      'SELECT * FROM order_amendment_items WHERE amendment_id = $1 ORDER BY id',
       [amendmentId]
     );
 
@@ -917,11 +917,11 @@ class OrderModificationService {
    */
   async compareVersions(orderId, version1, version2) {
     const v1Result = await this.pool.query(
-      `SELECT * FROM order_versions WHERE order_id = $1 AND version_number = $2`,
+      'SELECT * FROM order_versions WHERE order_id = $1 AND version_number = $2',
       [orderId, version1]
     );
     const v2Result = await this.pool.query(
-      `SELECT * FROM order_versions WHERE order_id = $1 AND version_number = $2`,
+      'SELECT * FROM order_versions WHERE order_id = $1 AND version_number = $2',
       [orderId, version2]
     );
 
@@ -1017,7 +1017,7 @@ class OrderModificationService {
 
       // Generate shipment number
       const numResult = await client.query(
-        `SELECT generate_shipment_number() as num`
+        'SELECT generate_shipment_number() as num'
       );
       const shipmentNumber = numResult.rows[0].num;
 
@@ -1102,7 +1102,7 @@ class OrderModificationService {
 
       // Create version for audit
       await client.query(
-        `SELECT create_order_version($1, $2, $3)`,
+        'SELECT create_order_version($1, $2, $3)',
         [orderId, userId, 'Items marked as backordered']
       );
 

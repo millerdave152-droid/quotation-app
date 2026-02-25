@@ -94,7 +94,7 @@ class QuoteService {
     try {
       // Check for existing pending approval
       const existing = await db.query(
-        `SELECT id FROM quote_approvals WHERE quotation_id = $1 AND status = 'PENDING'`,
+        'SELECT id FROM quote_approvals WHERE quotation_id = $1 AND status = \'PENDING\'',
         [quoteId]
       );
 
@@ -145,7 +145,7 @@ class QuoteService {
 
       // Update quote status to PENDING_APPROVAL
       await db.query(
-        `UPDATE quotations SET status = 'PENDING_APPROVAL' WHERE id = $1`,
+        'UPDATE quotations SET status = \'PENDING_APPROVAL\' WHERE id = $1',
         [quoteId]
       );
 
@@ -1507,7 +1507,7 @@ class QuoteService {
 
     // 1. Which products have a skulytics_id?
     const { rows: productRows } = await client.query(
-      `SELECT id, skulytics_id FROM products WHERE id = ANY($1) AND skulytics_id IS NOT NULL`,
+      'SELECT id, skulytics_id FROM products WHERE id = ANY($1) AND skulytics_id IS NOT NULL',
       [productIds]
     );
     if (productRows.length === 0) return result;
@@ -1517,7 +1517,7 @@ class QuoteService {
 
     // 2. Fetch global catalogue rows
     const { rows: globalProducts } = await client.query(
-      `SELECT * FROM global_skulytics_products WHERE skulytics_id = ANY($1)`,
+      'SELECT * FROM global_skulytics_products WHERE skulytics_id = ANY($1)',
       [skulyticsIds]
     );
     const globalMap = new Map(globalProducts.map(g => [g.skulytics_id, g]));
@@ -1526,7 +1526,7 @@ class QuoteService {
     let overrideMap = new Map();
     if (tenantId) {
       const { rows: overrides } = await client.query(
-        `SELECT * FROM tenant_product_overrides WHERE tenant_id = $1 AND skulytics_id = ANY($2)`,
+        'SELECT * FROM tenant_product_overrides WHERE tenant_id = $1 AND skulytics_id = ANY($2)',
         [tenantId, skulyticsIds]
       );
       overrideMap = new Map(overrides.map(o => [o.skulytics_id, o]));
@@ -1706,11 +1706,11 @@ class QuoteService {
 
     // Set appropriate date based on new status
     if (newStatus === 'SENT' && currentStatus !== 'SENT') {
-      updateFields.push(`sent_at = CURRENT_TIMESTAMP`);
+      updateFields.push('sent_at = CURRENT_TIMESTAMP');
     } else if (newStatus === 'WON') {
-      updateFields.push(`won_at = CURRENT_TIMESTAMP`);
+      updateFields.push('won_at = CURRENT_TIMESTAMP');
     } else if (newStatus === 'LOST') {
-      updateFields.push(`lost_at = CURRENT_TIMESTAMP`);
+      updateFields.push('lost_at = CURRENT_TIMESTAMP');
       if (options.lostReason) {
         updateFields.push(`lost_reason = $${paramIndex}`);
         values.push(options.lostReason);
@@ -1718,7 +1718,7 @@ class QuoteService {
       }
     } else if (newStatus === 'DRAFT') {
       // Clear status dates when reopening
-      updateFields.push(`won_at = NULL`, `lost_at = NULL`);
+      updateFields.push('won_at = NULL', 'lost_at = NULL');
     }
 
     values.push(id);

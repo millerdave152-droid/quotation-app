@@ -208,7 +208,7 @@ async function runMigration() {
       END
       WHERE noise_band IS NULL AND db_level IS NOT NULL;
     `);
-    const noiseResult = await client.query(`SELECT COUNT(*) FROM product_extended_attributes WHERE noise_band IS NOT NULL`);
+    const noiseResult = await client.query('SELECT COUNT(*) FROM product_extended_attributes WHERE noise_band IS NOT NULL');
     console.log(`   - Set noise_band for ${noiseResult.rows[0].count} products`);
 
     // Set capacity_band based on capacity_cubic_ft_x10
@@ -223,7 +223,7 @@ async function runMigration() {
       END
       WHERE capacity_band IS NULL AND capacity_cubic_ft_x10 IS NOT NULL;
     `);
-    const capacityResult = await client.query(`SELECT COUNT(*) FROM product_extended_attributes WHERE capacity_band IS NOT NULL`);
+    const capacityResult = await client.query('SELECT COUNT(*) FROM product_extended_attributes WHERE capacity_band IS NOT NULL');
     console.log(`   - Set capacity_band for ${capacityResult.rows[0].count} products`);
 
     // Set depth_type based on depth_inches_x10 (counter depth typically 24-30")
@@ -236,7 +236,7 @@ async function runMigration() {
       END
       WHERE depth_type IS NULL AND depth_inches_x10 IS NOT NULL;
     `);
-    const depthResult = await client.query(`SELECT COUNT(*) FROM product_extended_attributes WHERE depth_type IS NOT NULL`);
+    const depthResult = await client.query('SELECT COUNT(*) FROM product_extended_attributes WHERE depth_type IS NOT NULL');
     console.log(`   - Set depth_type for ${depthResult.rows[0].count} products`);
 
     await client.query('COMMIT');

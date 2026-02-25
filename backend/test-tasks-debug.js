@@ -5,7 +5,7 @@ const pool = require('./db');
   try {
     // Test count query
     const r1 = await pool.query(
-      `SELECT COUNT(*) FROM tasks t WHERE 1=1 AND t.status NOT IN ('completed', 'cancelled') AND t.assigned_to = $1`,
+      'SELECT COUNT(*) FROM tasks t WHERE 1=1 AND t.status NOT IN (\'completed\', \'cancelled\') AND t.assigned_to = $1',
       [1]
     );
     console.log('COUNT ok:', r1.rows[0].count);

@@ -50,7 +50,7 @@ class VolumeDiscountService {
     try {
       // Use optimized database function
       const result = await this.pool.query(
-        `SELECT * FROM get_volume_price($1, $2, $3, NULL)`,
+        'SELECT * FROM get_volume_price($1, $2, $3, NULL)',
         [productId, quantity, customerId]
       );
 
@@ -99,7 +99,7 @@ class VolumeDiscountService {
       );
 
       const result = await this.pool.query(
-        `SELECT * FROM get_cart_volume_prices($1::jsonb, $2)`,
+        'SELECT * FROM get_cart_volume_prices($1::jsonb, $2)',
         [itemsJson, customerId]
       );
 
@@ -232,7 +232,7 @@ class VolumeDiscountService {
 
     // Get current tier to know product_id for cache invalidation
     const current = await this.pool.query(
-      `SELECT product_id FROM product_volume_tiers WHERE id = $1`,
+      'SELECT product_id FROM product_volume_tiers WHERE id = $1',
       [tierId]
     );
 
@@ -267,7 +267,7 @@ class VolumeDiscountService {
   async deleteProductVolumeTier(tierId) {
     // Get product_id for cache invalidation
     const current = await this.pool.query(
-      `SELECT product_id FROM product_volume_tiers WHERE id = $1`,
+      'SELECT product_id FROM product_volume_tiers WHERE id = $1',
       [tierId]
     );
 
@@ -276,7 +276,7 @@ class VolumeDiscountService {
     }
 
     await this.pool.query(
-      `DELETE FROM product_volume_tiers WHERE id = $1`,
+      'DELETE FROM product_volume_tiers WHERE id = $1',
       [tierId]
     );
 
@@ -314,11 +314,11 @@ class VolumeDiscountService {
     const params = [customerId];
 
     if (productId) {
-      query += ` AND (cvt.product_id = $2 OR cvt.product_id IS NULL)`;
+      query += ' AND (cvt.product_id = $2 OR cvt.product_id IS NULL)';
       params.push(productId);
     }
 
-    query += ` ORDER BY cvt.min_qty ASC`;
+    query += ' ORDER BY cvt.min_qty ASC';
 
     const result = await this.pool.query(query, params);
 

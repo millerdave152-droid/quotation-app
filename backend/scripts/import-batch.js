@@ -5,30 +5,30 @@ const pool = require('../db');
 
 const products = [
   {
-    "vendor": "Maytag",
-    "sku": "MGD5605RU",
-    "title": "Maytag® 7.0 Cu Ft. Load Gas Dryer with Extra Power and Pet Pro Option",
-    "upc": "883049920238",
-    "gtin": "00883049920238",
-    "status": "30 - Active",
-    "category": "Laundry",
-    "type": "Gas Dryer",
-    "capacity": "7.0 cu ft",
-    "rating": "No reviews",
-    "specs": {
-      "available_finishes": [
-        {"color": "Volcano Black", "sku": "MGD5605RU"},
-        {"color": "White", "sku": "MGD5605RW"}
+    'vendor': 'Maytag',
+    'sku': 'MGD5605RU',
+    'title': 'Maytag® 7.0 Cu Ft. Load Gas Dryer with Extra Power and Pet Pro Option',
+    'upc': '883049920238',
+    'gtin': '00883049920238',
+    'status': '30 - Active',
+    'category': 'Laundry',
+    'type': 'Gas Dryer',
+    'capacity': '7.0 cu ft',
+    'rating': 'No reviews',
+    'specs': {
+      'available_finishes': [
+        {'color': 'Volcano Black', 'sku': 'MGD5605RU'},
+        {'color': 'White', 'sku': 'MGD5605RW'}
       ],
-      "top_features": [
-        "Pet Pro Option (traps pet hair)",
-        "Extra Power",
-        "Advanced Moisture Sensing",
-        "Steam-enhanced",
-        "30-day money back guarantee"
+      'top_features': [
+        'Pet Pro Option (traps pet hair)',
+        'Extra Power',
+        'Advanced Moisture Sensing',
+        'Steam-enhanced',
+        '30-day money back guarantee'
       ],
-      "fuel_type": "Gas",
-      "configuration": {"type": "Gas Dryer", "capacity": "7.0 cu ft"}
+      'fuel_type': 'Gas',
+      'configuration': {'type': 'Gas Dryer', 'capacity': '7.0 cu ft'}
     }
   }
 ];

@@ -552,8 +552,12 @@ router.post('/', authenticate, fraudCheck('transaction.create'), asyncHandler(as
         etransfer_reference, etransfer_status,
         is_deposit, deposit_amount, balance_due,
         marketing_source, marketing_source_detail,
-        client_transaction_id
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24)
+        client_transaction_id,
+        subtotal_cents, discount_amount_cents,
+        hst_amount_cents, gst_amount_cents, pst_amount_cents,
+        total_amount_cents, deposit_amount_cents, balance_due_cents
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24,
+        $25, $26, $27, $28, $29, $30, $31, $32)
       RETURNING transaction_id, transaction_number, created_at`;
     const txParams = [
         transactionNumber,
@@ -579,7 +583,15 @@ router.post('/', authenticate, fraudCheck('transaction.create'), asyncHandler(as
         balanceDue,
         marketingSource || null,
         marketingSourceDetail || null,
-        clientTransactionId || null
+        clientTransactionId || null,
+        dollarsToCents(finalSubtotal),
+        dollarsToCents(discountAmount || 0),
+        dollarsToCents(taxes.hstAmount),
+        dollarsToCents(taxes.gstAmount),
+        dollarsToCents(taxes.pstAmount),
+        dollarsToCents(totalAmount),
+        depositAmount != null ? dollarsToCents(depositAmount) : null,
+        balanceDue != null ? dollarsToCents(balanceDue) : null
       ];
     logToFile('========== TRANSACTION INSERT ==========');
     logToFile('QUERY: ' + txQuery);
@@ -598,8 +610,9 @@ router.post('/', authenticate, fraudCheck('transaction.create'), asyncHandler(as
           transaction_id, product_id, product_name, product_sku,
           quantity, unit_price, unit_cost,
           discount_percent, discount_amount, tax_amount, line_total,
-          serial_number, taxable
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)`,
+          serial_number, taxable,
+          unit_price_cents, unit_cost_cents, discount_amount_cents, tax_amount_cents, line_total_cents
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18)`,
         [
           transaction.transaction_id,
           item.productId,
@@ -613,7 +626,12 @@ router.post('/', authenticate, fraudCheck('transaction.create'), asyncHandler(as
           item.taxAmount,
           item.lineTotal,
           item.serialNumber || null,
-          item.taxable !== false
+          item.taxable !== false,
+          dollarsToCents(item.unitPrice),
+          item.unitCost != null ? dollarsToCents(item.unitCost) : null,
+          dollarsToCents(item.discountAmount),
+          dollarsToCents(item.taxAmount),
+          dollarsToCents(item.lineTotal)
         ]
       );
 
@@ -637,8 +655,9 @@ router.post('/', authenticate, fraudCheck('transaction.create'), asyncHandler(as
         `INSERT INTO payments (
           transaction_id, payment_method, amount,
           card_last_four, card_brand, authorization_code, processor_reference,
-          cash_tendered, change_given, status
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
+          cash_tendered, change_given, status,
+          amount_cents, cash_tendered_cents, change_given_cents
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)`,
         [
           transaction.transaction_id,
           payment.paymentMethod,
@@ -649,7 +668,10 @@ router.post('/', authenticate, fraudCheck('transaction.create'), asyncHandler(as
           payment.processorReference || null,
           payment.cashTendered || null,
           payment.changeGiven || null,
-          paymentStatus
+          paymentStatus,
+          dollarsToCents(payment.amount),
+          payment.cashTendered != null ? dollarsToCents(payment.cashTendered) : null,
+          payment.changeGiven != null ? dollarsToCents(payment.changeGiven) : null
         ]
       );
     }
@@ -1596,8 +1618,9 @@ router.post('/:id/collect-balance', authenticate, asyncHandler(async (req, res) 
     await client.query(
       `INSERT INTO payments (
         transaction_id, payment_method, amount,
-        card_last_four, card_brand, authorization_code, processor_reference, status
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, 'completed')`,
+        card_last_four, card_brand, authorization_code, processor_reference, status,
+        amount_cents
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, 'completed', $8)`,
       [
         id,
         paymentMethod,
@@ -1606,13 +1629,14 @@ router.post('/:id/collect-balance', authenticate, asyncHandler(async (req, res) 
         cardBrand || null,
         authorizationCode || null,
         processorReference || null,
+        dollarsToCents(amount),
       ]
     );
 
     // Update transaction to completed
     await client.query(
       `UPDATE transactions
-       SET status = 'completed', balance_due = 0, completed_at = NOW()
+       SET status = 'completed', balance_due = 0, balance_due_cents = 0, completed_at = NOW()
        WHERE transaction_id = $1`,
       [id]
     );
@@ -1669,7 +1693,7 @@ router.get('/:id/balance', authenticate, asyncHandler(async (req, res) => {
 
   const txn = txnResult.rows[0];
   const paymentsResult = await pool.query(
-    `SELECT COALESCE(SUM(amount), 0) as total_paid FROM payments WHERE transaction_id = $1 AND status = 'completed'`,
+    'SELECT COALESCE(SUM(amount), 0) as total_paid FROM payments WHERE transaction_id = $1 AND status = \'completed\'',
     [id]
   );
 
@@ -1814,9 +1838,9 @@ router.post('/:id/refund', authenticate, requirePermission('pos.returns.process_
     // Create refund payment record
     await client.query(
       `INSERT INTO payments (
-        transaction_id, payment_method, amount, status, processed_at
-      ) VALUES ($1, 'cash', $2, 'refunded', NOW())`,
-      [id, -refundAmount]  // Negative amount for refund
+        transaction_id, payment_method, amount, status, processed_at, amount_cents
+      ) VALUES ($1, 'cash', $2, 'refunded', NOW(), $3)`,
+      [id, -refundAmount, -dollarsToCents(refundAmount)]  // Negative amount for refund
     );
 
     // Update transaction status

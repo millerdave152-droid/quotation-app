@@ -8,6 +8,7 @@ const router = express.Router();
 const Joi = require('joi');
 const { ApiError, asyncHandler } = require('../middleware/errorHandler');
 const { authenticate, requireRole } = require('../middleware/auth');
+const { dollarsToCents } = require('../utils/money');
 
 // ============================================================================
 // MODULE STATE
@@ -307,12 +308,12 @@ router.post('/open', authenticate, asyncHandler(async (req, res) => {
       );
     }
 
-    // Create new shift
+    // Create new shift (dual-write: DECIMAL + cents)
     const shiftResult = await client.query(
-      `INSERT INTO register_shifts (register_id, user_id, opening_cash, status)
-       VALUES ($1, $2, $3, 'open')
+      `INSERT INTO register_shifts (register_id, user_id, opening_cash, opening_cash_cents, status)
+       VALUES ($1, $2, $3, $4, 'open')
        RETURNING shift_id, opened_at, opening_cash`,
-      [registerId, userId, openingCash]
+      [registerId, userId, openingCash, dollarsToCents(openingCash)]
     );
 
     await client.query('COMMIT');
@@ -666,7 +667,7 @@ router.post('/close', authenticate, asyncHandler(async (req, res) => {
                          parseFloat(cashData.change_given);
     const variance = closingCash - expectedCash;
 
-    // Update shift
+    // Update shift (dual-write: DECIMAL + cents)
     const updateResult = await client.query(
       `UPDATE register_shifts
        SET status = 'closed',
@@ -674,10 +675,14 @@ router.post('/close', authenticate, asyncHandler(async (req, res) => {
            closing_cash = $1,
            expected_cash = $2,
            cash_variance = $3,
-           notes = $4
+           notes = $4,
+           closing_cash_cents = $6,
+           expected_cash_cents = $7,
+           cash_variance_cents = $8
        WHERE shift_id = $5
        RETURNING closed_at`,
-      [closingCash, expectedCash, variance, notes || null, shiftId]
+      [closingCash, expectedCash, variance, notes || null, shiftId,
+       dollarsToCents(closingCash), dollarsToCents(expectedCash), dollarsToCents(variance)]
     );
 
     await client.query('COMMIT');
@@ -861,7 +866,7 @@ router.get('/all-sales-reps', authenticate, asyncHandler(async (req, res) => {
     params.push(`%${search}%`);
   }
 
-  query += ` ORDER BY u.first_name, u.last_name LIMIT 50`;
+  query += ' ORDER BY u.first_name, u.last_name LIMIT 50';
 
   const result = await pool.query(query, params);
 

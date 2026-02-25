@@ -113,7 +113,7 @@ class LeadAIService {
       // For Range, also search by name to find actual stoves
       if (requirement.category === 'Range') {
         query += ` AND ((p.category ILIKE ANY(ARRAY[${mappedCategories.map((_, i) => `$${paramIndex + i}`).join(', ')}]))`;
-        query += ` OR (p.name ILIKE '%range%' AND (p.name ILIKE '%electric%' OR p.name ILIKE '%gas%' OR p.name ILIKE '%freestanding%' OR p.name ILIKE '%slide%in%')))`;
+        query += ' OR (p.name ILIKE \'%range%\' AND (p.name ILIKE \'%electric%\' OR p.name ILIKE \'%gas%\' OR p.name ILIKE \'%freestanding%\' OR p.name ILIKE \'%slide%in%\')))';
         params.push(...mappedCategories.map(c => `%${c}%`));
         paramIndex += mappedCategories.length;
       } else {
@@ -125,16 +125,16 @@ class LeadAIService {
 
       // Exclude accessories, hoods, kits, handles, and parts for appliance searches
       if (['Range', 'Refrigerator', 'Dishwasher', 'Washer', 'Dryer'].includes(requirement.category)) {
-        query += ` AND p.category NOT ILIKE '%accessory%' AND p.category NOT ILIKE '%hood%' AND p.category NOT ILIKE '%vent%'`;
-        query += ` AND p.category NOT ILIKE '%microwave%'`;
-        query += ` AND p.name NOT ILIKE '%handle%' AND p.name NOT ILIKE '%kit%' AND p.name NOT ILIKE '%trim%' AND p.name NOT ILIKE '%grate%' AND p.name NOT ILIKE '%basket%'`;
-        query += ` AND p.name NOT ILIKE '%wine%' AND p.name NOT ILIKE '%beverage%' AND p.name NOT ILIKE '%cooler%'`;
+        query += ' AND p.category NOT ILIKE \'%accessory%\' AND p.category NOT ILIKE \'%hood%\' AND p.category NOT ILIKE \'%vent%\'';
+        query += ' AND p.category NOT ILIKE \'%microwave%\'';
+        query += ' AND p.name NOT ILIKE \'%handle%\' AND p.name NOT ILIKE \'%kit%\' AND p.name NOT ILIKE \'%trim%\' AND p.name NOT ILIKE \'%grate%\' AND p.name NOT ILIKE \'%basket%\'';
+        query += ' AND p.name NOT ILIKE \'%wine%\' AND p.name NOT ILIKE \'%beverage%\' AND p.name NOT ILIKE \'%cooler%\'';
       }
 
       // For Range specifically, exclude over-the-range microwaves and refrigerators
       if (requirement.category === 'Range') {
-        query += ` AND p.name NOT ILIKE '%over-the-range%' AND p.name NOT ILIKE '%over the range%'`;
-        query += ` AND p.name NOT ILIKE '%microwave%' AND p.name NOT ILIKE '%refrigerator%'`;
+        query += ' AND p.name NOT ILIKE \'%over-the-range%\' AND p.name NOT ILIKE \'%over the range%\'';
+        query += ' AND p.name NOT ILIKE \'%microwave%\' AND p.name NOT ILIKE \'%refrigerator%\'';
       }
     }
 
@@ -174,7 +174,7 @@ class LeadAIService {
     }
 
     // Only include products with actual prices
-    query += ` AND p.msrp_cents > 0`;
+    query += ' AND p.msrp_cents > 0';
 
     // Order by relevance (in-stock first, then by price)
     query += `

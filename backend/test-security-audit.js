@@ -83,7 +83,7 @@ async function run() {
   console.log(`Logged in as staff: ${staffUser.email} (id=${staffUser.id})\n`);
 
   const prodResult = await pool.query(
-    "SELECT id, name, price, cost FROM products WHERE cost > 0 AND price > 0 LIMIT 1"
+    'SELECT id, name, price, cost FROM products WHERE cost > 0 AND price > 0 LIMIT 1'
   );
   const product = prodResult.rows[0];
   console.log(`Test product: ${product.name} ($${product.price}, cost $${product.cost})\n`);

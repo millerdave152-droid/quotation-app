@@ -57,10 +57,10 @@ class UnifiedReportingService {
     const { startDate, endDate, groupBy = 'day' } = options;
 
     const dateFormat = {
-      day: "DATE(completed_date)",
+      day: 'DATE(completed_date)',
       week: "DATE_TRUNC('week', completed_date)",
       month: "DATE_TRUNC('month', completed_date)"
-    }[groupBy] || "DATE(completed_date)";
+    }[groupBy] || 'DATE(completed_date)';
 
     let query = `
       SELECT
@@ -122,7 +122,7 @@ class UnifiedReportingService {
       totalsParams.push(endDate);
     }
 
-    totalsQuery += ` GROUP BY source`;
+    totalsQuery += ' GROUP BY source';
 
     const totalsResult = await this.pool.query(totalsQuery, totalsParams);
 
@@ -244,7 +244,7 @@ class UnifiedReportingService {
       paramIndex++;
     }
 
-    query += ` GROUP BY conversion_status`;
+    query += ' GROUP BY conversion_status';
 
     const result = await this.pool.query(query, params);
 
@@ -279,7 +279,7 @@ class UnifiedReportingService {
       timeDistQuery += ` AND quote_date <= $${timeDistParams.length}`;
     }
 
-    timeDistQuery += ` GROUP BY time_bucket ORDER BY MIN(days_to_conversion)`;
+    timeDistQuery += ' GROUP BY time_bucket ORDER BY MIN(days_to_conversion)';
 
     const timeDistResult = await this.pool.query(timeDistQuery, timeDistParams);
 
@@ -300,7 +300,7 @@ class UnifiedReportingService {
     const { startDate, endDate, groupBy = 'week' } = options;
 
     const dateFormat = {
-      day: "DATE(quote_date)",
+      day: 'DATE(quote_date)',
       week: "DATE_TRUNC('week', quote_date)",
       month: "DATE_TRUNC('month', quote_date)"
     }[groupBy] || "DATE_TRUNC('week', quote_date)";
@@ -378,7 +378,7 @@ class UnifiedReportingService {
       params.push(endDate);
     }
 
-    query += ` GROUP BY source, customer_type`;
+    query += ' GROUP BY source, customer_type';
 
     const result = await this.pool.query(query, params);
 
@@ -410,7 +410,7 @@ class UnifiedReportingService {
       distQuery += ` AND completed_date <= $${distParams.length}`;
     }
 
-    distQuery += ` GROUP BY source, customer_type, value_range ORDER BY source, customer_type, MIN(total_amount)`;
+    distQuery += ' GROUP BY source, customer_type, value_range ORDER BY source, customer_type, MIN(total_amount)';
 
     const distResult = await this.pool.query(distQuery, distParams);
 
@@ -632,17 +632,17 @@ class UnifiedReportingService {
 
     const repParams = [];
     if (startDate || endDate) {
-      query += ` AND (`;
+      query += ' AND (';
       if (startDate) {
         repParams.push(startDate);
         query += `q.created_at >= $${repParams.length}`;
       }
-      if (startDate && endDate) query += ` AND `;
+      if (startDate && endDate) query += ' AND ';
       if (endDate) {
         repParams.push(endDate);
         query += `q.created_at <= $${repParams.length}`;
       }
-      query += `)`;
+      query += ')';
     }
 
     query += `
@@ -650,17 +650,17 @@ class UnifiedReportingService {
     `;
 
     if (startDate || endDate) {
-      query += ` AND (`;
+      query += ' AND (';
       if (startDate) {
         repParams.push(startDate);
         query += `t.created_at >= $${repParams.length}`;
       }
-      if (startDate && endDate) query += ` AND `;
+      if (startDate && endDate) query += ' AND ';
       if (endDate) {
         repParams.push(endDate);
         query += `t.created_at <= $${repParams.length}`;
       }
-      query += `)`;
+      query += ')';
     }
 
     query += `

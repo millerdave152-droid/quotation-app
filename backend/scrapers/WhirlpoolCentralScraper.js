@@ -114,7 +114,7 @@ class WhirlpoolCentralScraper {
         const pageContent = await this.page.content();
         console.log('Page contains form:', pageContent.includes('<form'));
         console.log('Page contains input:', pageContent.includes('<input'));
-        throw new Error(`Login form not found. Page may require JavaScript or has changed. Check debug screenshots.`);
+        throw new Error('Login form not found. Page may require JavaScript or has changed. Check debug screenshots.');
       }
 
       // Fill in username
@@ -721,7 +721,7 @@ class WhirlpoolCentralScraper {
               }
 
             } else {
-              console.log(`    Skipped: No model number found`);
+              console.log('    Skipped: No model number found');
               totalProductsFailed++;
             }
 

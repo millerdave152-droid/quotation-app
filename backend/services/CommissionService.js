@@ -10,6 +10,8 @@
  * - Reduced commission on heavily discounted items
  */
 
+const { centsToDollars, dollarsToCents, roundDollars } = require('../utils/money');
+
 class CommissionService {
   constructor(pool, cache = null) {
     this.pool = pool;
@@ -64,8 +66,8 @@ class CommissionService {
     return rows.map(tier => ({
       id: tier.id,
       tierName: tier.tier_name,
-      minAmount: tier.min_amount_cents / 100,
-      maxAmount: tier.max_amount_cents ? tier.max_amount_cents / 100 : null,
+      minAmount: centsToDollars(tier.min_amount_cents),
+      maxAmount: tier.max_amount_cents ? centsToDollars(tier.max_amount_cents) : null,
       rate: parseFloat(tier.rate),
     }));
   }
@@ -86,8 +88,8 @@ class CommissionService {
       return {
         baseRateOverride: settings.base_rate_override ? parseFloat(settings.base_rate_override) : null,
         warrantyBonusOverride: settings.warranty_bonus_override ? parseFloat(settings.warranty_bonus_override) : null,
-        monthlyTarget: settings.monthly_target_cents ? settings.monthly_target_cents / 100 : null,
-        quarterlyTarget: settings.quarterly_target_cents ? settings.quarterly_target_cents / 100 : null,
+        monthlyTarget: settings.monthly_target_cents ? centsToDollars(settings.monthly_target_cents) : null,
+        quarterlyTarget: settings.quarterly_target_cents ? centsToDollars(settings.quarterly_target_cents) : null,
         acceleratorRate: settings.accelerator_rate ? parseFloat(settings.accelerator_rate) : null,
         acceleratorThreshold: settings.accelerator_threshold ? parseFloat(settings.accelerator_threshold) : 1.0,
       };
@@ -218,7 +220,7 @@ class CommissionService {
           quantity: item.quantity || 1,
           unitPrice: parseFloat(item.unit_price) || 0,
           lineTotal: parseFloat(item.line_total) || 0,
-          discountCents: item.item_discount_amount ? Math.round(parseFloat(item.item_discount_amount) * 100) : 0,
+          discountCents: item.item_discount_amount ? dollarsToCents(item.item_discount_amount) : 0,
           discountPercent: item.discount_percent ? parseFloat(item.discount_percent) : 0,
           itemType: 'product',
           categoryId: item.category_id,
@@ -231,17 +233,17 @@ class CommissionService {
       cart = {
         orderId,
         orderNumber: order.order_number,
-        subtotal: (order.subtotal_cents || 0) / 100,
-        discount: (order.discount_cents || 0) / 100,
-        total: (order.total_cents || 0) / 100,
+        subtotal: centsToDollars(order.subtotal_cents || 0),
+        discount: centsToDollars(order.discount_cents || 0),
+        total: centsToDollars(order.total_cents || 0),
         items: items.map(item => ({
           itemId: item.item_id,
           productId: item.product_id,
           name: item.product_name,
           sku: item.sku,
           quantity: item.quantity || 1,
-          unitPrice: (item.unit_price_cents || 0) / 100,
-          lineTotal: (item.line_total_cents || 0) / 100,
+          unitPrice: centsToDollars(item.unit_price_cents || 0),
+          lineTotal: centsToDollars(item.line_total_cents || 0),
           discountCents: item.item_discount_cents || 0,
           discountPercent: item.discount_percent ? parseFloat(item.discount_percent) : 0,
           itemType: item.item_type || 'product',
@@ -285,7 +287,7 @@ class CommissionService {
     // Check for accelerator bonus if rep has exceeded target
     if (repSettings?.acceleratorRate && repSettings?.monthlyTarget) {
       const mtdSales = await this.getRepMTDSales(salesRepId);
-      const targetPercent = mtdSales / (repSettings.monthlyTarget * 100);
+      const targetPercent = mtdSales / dollarsToCents(repSettings.monthlyTarget);
 
       if (targetPercent >= repSettings.acceleratorThreshold) {
         const acceleratorBonus = totalCommission * repSettings.acceleratorRate;
@@ -295,7 +297,7 @@ class CommissionService {
     }
 
     return {
-      totalCommission: Math.round(totalCommission * 100) / 100,
+      totalCommission: roundDollars(totalCommission),
       breakdown,
       notes,
       summary: {
@@ -351,7 +353,7 @@ class CommissionService {
 
         // Calculate commission
         if (rule.bonusFlatCents) {
-          commission = rule.bonusFlatCents / 100;
+          commission = centsToDollars(rule.bonusFlatCents);
         } else {
           commission = saleAmount * appliedRate;
         }
@@ -395,10 +397,10 @@ class CommissionService {
       itemId: item.itemId,
       itemName: item.name,
       sku: item.sku,
-      saleAmount: Math.round(saleAmount * 100) / 100,
+      saleAmount: roundDollars(saleAmount),
       rate: appliedRate,
       ratePercent: `${(appliedRate * 100).toFixed(2)}%`,
-      commission: Math.round(commission * 100) / 100,
+      commission: roundDollars(commission),
       ruleId: appliedRule?.id,
       ruleName: appliedRule?.ruleName,
       ruleType: appliedRule?.ruleType,
@@ -435,7 +437,7 @@ class CommissionService {
 
       case 'tiered':
         // Tiered rules apply to the total, checked at order level
-        const orderTotal = cart.total * 100;
+        const orderTotal = dollarsToCents(cart.total);
         return orderTotal >= rule.minThresholdCents &&
                (rule.maxThresholdCents === null || orderTotal < rule.maxThresholdCents);
 
@@ -539,9 +541,9 @@ class CommissionService {
           salesRepId,
           orderId,
           item.itemId,
-          Math.round(item.commission * 100),
+          dollarsToCents(item.commission),
           item.rate,
-          Math.round(item.saleAmount * 100),
+          dollarsToCents(item.saleAmount),
           item.ruleId,
           item.ruleName,
           item.ruleType,
@@ -584,7 +586,7 @@ class CommissionService {
     return {
       orderId,
       earnings: rows.map(this.formatEarning),
-      totalCommission: rows.reduce((sum, r) => sum + r.commission_amount_cents, 0) / 100,
+      totalCommission: centsToDollars(rows.reduce((sum, r) => sum + r.commission_amount_cents, 0)),
     };
   }
 
@@ -659,9 +661,9 @@ class CommissionService {
       const mtdCommission = parseInt(summary.total_commission_cents) || 0;
       targetProgress = {
         target: repSettings.monthlyTarget,
-        earned: mtdCommission / 100,
-        percent: (mtdCommission / 100) / repSettings.monthlyTarget * 100,
-        remaining: Math.max(0, repSettings.monthlyTarget - mtdCommission / 100),
+        earned: centsToDollars(mtdCommission),
+        percent: centsToDollars(mtdCommission) / repSettings.monthlyTarget * 100,
+        remaining: Math.max(0, repSettings.monthlyTarget - centsToDollars(mtdCommission)),
       };
     }
 
@@ -670,9 +672,9 @@ class CommissionService {
       dateRange: { startDate, endDate },
       summary: {
         orderCount: parseInt(summary.order_count) || 0,
-        totalSales: (parseInt(summary.total_sales_cents) || 0) / 100,
-        totalCommission: (parseInt(summary.total_commission_cents) || 0) / 100,
-        bonusCommission: (parseInt(summary.bonus_commission_cents) || 0) / 100,
+        totalSales: centsToDollars(parseInt(summary.total_sales_cents) || 0),
+        totalCommission: centsToDollars(parseInt(summary.total_commission_cents) || 0),
+        bonusCommission: centsToDollars(parseInt(summary.bonus_commission_cents) || 0),
         averageRate: summary.avg_rate ? parseFloat(summary.avg_rate) : 0,
         bonusItems: parseInt(summary.bonus_items) || 0,
         reducedItems: parseInt(summary.reduced_items) || 0,
@@ -681,8 +683,8 @@ class CommissionService {
       dailyBreakdown: dailyResult.rows.map(day => ({
         date: day.order_date,
         orders: parseInt(day.orders),
-        sales: day.sales_cents / 100,
-        commission: day.commission_cents / 100,
+        sales: centsToDollars(day.sales_cents),
+        commission: centsToDollars(day.commission_cents),
       })),
       earnings: earningsResult.rows.map(this.formatEarning),
     };
@@ -749,11 +751,11 @@ class CommissionService {
     const periodRow = periodTxns.rows[0];
 
     const todaySalesCount = parseInt(todayRow.sales_count) || 0;
-    const todayRevenueCents = Math.round((parseFloat(todayRow.total_revenue) || 0) * 100);
+    const todayRevenueCents = dollarsToCents(parseFloat(todayRow.total_revenue) || 0);
     const todayCommCents = Math.round(todayRevenueCents * (defaultRate / 100));
 
     const periodSalesCount = parseInt(periodRow.sales_count) || 0;
-    const periodRevenueCents = Math.round((parseFloat(periodRow.total_revenue) || 0) * 100);
+    const periodRevenueCents = dollarsToCents(parseFloat(periodRow.total_revenue) || 0);
     const periodCommCents = Math.round(periodRevenueCents * (defaultRate / 100));
 
     // Target progress from monthly sales
@@ -768,11 +770,11 @@ class CommissionService {
           AND created_at::date >= $2::date
       `, [repId, monthStart]);
       const mtdRevenue = parseFloat(mtdResult.rows[0].total) || 0;
-      const mtdCommCents = Math.round(mtdRevenue * 100 * (defaultRate / 100));
+      const mtdCommCents = dollarsToCents(mtdRevenue * (defaultRate / 100));
       targetProgress = {
         targetDollars: repSettings.monthlyTarget,
-        earnedDollars: mtdCommCents / 100,
-        percent: Math.round((mtdCommCents / 100) / repSettings.monthlyTarget * 1000) / 10,
+        earnedDollars: centsToDollars(mtdCommCents),
+        percent: Math.round(centsToDollars(mtdCommCents) / repSettings.monthlyTarget * 1000) / 10,
       };
     }
 
@@ -855,9 +857,9 @@ class CommissionService {
       repId: row.sales_rep_id,
       repName: row.rep_name,
       orders: parseInt(row.orders),
-      sales: row.sales_cents / 100,
-      commission: row.commission_cents / 100,
-      bonus: row.bonus_cents / 100,
+      sales: centsToDollars(row.sales_cents),
+      commission: centsToDollars(row.commission_cents),
+      bonus: centsToDollars(row.bonus_cents),
       avgRate: parseFloat(row.avg_rate),
     }));
   }
@@ -902,8 +904,8 @@ class CommissionService {
       summary: {
         activeReps: parseInt(stats.active_reps) || 0,
         orders: parseInt(stats.orders) || 0,
-        totalSales: (parseInt(stats.total_sales_cents) || 0) / 100,
-        totalCommission: (parseInt(stats.total_commission_cents) || 0) / 100,
+        totalSales: centsToDollars(parseInt(stats.total_sales_cents) || 0),
+        totalCommission: centsToDollars(parseInt(stats.total_commission_cents) || 0),
         avgRate: stats.avg_rate ? parseFloat(stats.avg_rate) : 0,
         effectiveRate: stats.total_sales_cents > 0
           ? (parseInt(stats.total_commission_cents) / parseInt(stats.total_sales_cents))
@@ -912,7 +914,7 @@ class CommissionService {
       byRuleType: byTypeResult.rows.map(row => ({
         ruleType: row.rule_type || 'flat',
         count: parseInt(row.count),
-        commission: row.commission_cents / 100,
+        commission: centsToDollars(row.commission_cents),
       })),
     };
   }
@@ -959,8 +961,8 @@ class CommissionService {
       ruleType,
       description,
       rate,
-      minThreshold ? Math.round(minThreshold * 100) : 0,
-      maxThreshold ? Math.round(maxThreshold * 100) : null,
+      minThreshold ? dollarsToCents(minThreshold) : 0,
+      maxThreshold ? dollarsToCents(maxThreshold) : null,
       categoryId,
       productType,
       appliesToDiscounted,
@@ -1010,13 +1012,13 @@ class CommissionService {
 
     if (updates.minThreshold !== undefined) {
       setClauses.push(`min_threshold_cents = $${paramIndex}`);
-      values.push(updates.minThreshold ? Math.round(updates.minThreshold * 100) : 0);
+      values.push(updates.minThreshold ? dollarsToCents(updates.minThreshold) : 0);
       paramIndex++;
     }
 
     if (updates.maxThreshold !== undefined) {
       setClauses.push(`max_threshold_cents = $${paramIndex}`);
-      values.push(updates.maxThreshold ? Math.round(updates.maxThreshold * 100) : null);
+      values.push(updates.maxThreshold ? dollarsToCents(updates.maxThreshold) : null);
       paramIndex++;
     }
 
@@ -1024,7 +1026,7 @@ class CommissionService {
       throw new Error('No valid fields to update');
     }
 
-    setClauses.push(`updated_at = NOW()`);
+    setClauses.push('updated_at = NOW()');
     values.push(ruleId);
 
     const { rows } = await this.pool.query(`
@@ -1116,9 +1118,9 @@ class CommissionService {
         email: row.email,
         role: row.role,
         orderCount: parseInt(row.order_count) || 0,
-        totalSales: (parseInt(row.total_sales_cents) || 0) / 100,
-        totalCommission: (parseInt(row.total_commission_cents) || 0) / 100,
-        bonusCommission: (parseInt(row.bonus_cents) || 0) / 100,
+        totalSales: centsToDollars(parseInt(row.total_sales_cents) || 0),
+        totalCommission: centsToDollars(parseInt(row.total_commission_cents) || 0),
+        bonusCommission: centsToDollars(parseInt(row.bonus_cents) || 0),
         avgRate: row.avg_rate ? parseFloat(row.avg_rate) : 0,
         bonusItems: parseInt(row.bonus_items) || 0,
         avgPerOrder: 0,
@@ -1160,7 +1162,7 @@ class CommissionService {
 
     // Get rep info
     const repResult = await this.pool.query(
-      `SELECT id, COALESCE(first_name || ' ' || last_name, email) AS name, email, role FROM users WHERE id = $1`,
+      'SELECT id, COALESCE(first_name || \' \' || last_name, email) AS name, email, role FROM users WHERE id = $1',
       [repId]
     );
 
@@ -1230,9 +1232,9 @@ class CommissionService {
       repId: row.sales_rep_id,
       repName: row.rep_name,
       email: row.email,
-      grossCommission: row.gross_commission_cents / 100,
+      grossCommission: centsToDollars(row.gross_commission_cents),
       orderCount: parseInt(row.order_count),
-      totalSales: row.total_sales_cents / 100,
+      totalSales: centsToDollars(row.total_sales_cents),
     }));
   }
 
@@ -1277,9 +1279,9 @@ class CommissionService {
       repId: payout.sales_rep_id,
       periodStart: payout.payout_period_start,
       periodEnd: payout.payout_period_end,
-      grossCommission: payout.gross_commission_cents / 100,
-      adjustments: payout.adjustments_cents / 100,
-      netCommission: payout.net_commission_cents / 100,
+      grossCommission: centsToDollars(payout.gross_commission_cents),
+      adjustments: centsToDollars(payout.adjustments_cents),
+      netCommission: centsToDollars(payout.net_commission_cents),
       status: payout.status,
       notes: payout.notes,
     };
@@ -1386,11 +1388,11 @@ class CommissionService {
     const params = [startDate, endDate];
 
     if (repId) {
-      query += ` AND ce.sales_rep_id = $3`;
+      query += ' AND ce.sales_rep_id = $3';
       params.push(repId);
     }
 
-    query += ` ORDER BY ce.order_date DESC, ce.created_at DESC`;
+    query += ' ORDER BY ce.order_date DESC, ce.created_at DESC';
 
     const { rows } = await this.pool.query(query, params);
 
@@ -1419,9 +1421,9 @@ class CommissionService {
       row.item_name || '',
       row.item_sku || '',
       row.category_name || '',
-      (row.base_amount_cents / 100).toFixed(2),
+      centsToDollars(row.base_amount_cents).toFixed(2),
       (parseFloat(row.commission_rate) * 100).toFixed(2) + '%',
-      (row.commission_amount_cents / 100).toFixed(2),
+      centsToDollars(row.commission_amount_cents).toFixed(2),
       row.rule_name || '',
       row.is_bonus ? 'Yes' : 'No',
       row.is_reduced ? 'Yes' : 'No',
@@ -1455,9 +1457,9 @@ class CommissionService {
       email: row.email,
       periodStart: row.payout_period_start,
       periodEnd: row.payout_period_end,
-      grossCommission: row.gross_commission_cents / 100,
-      adjustments: row.adjustments_cents / 100,
-      netCommission: row.net_commission_cents / 100,
+      grossCommission: centsToDollars(row.gross_commission_cents),
+      adjustments: centsToDollars(row.adjustments_cents),
+      netCommission: centsToDollars(row.net_commission_cents),
       status: row.status,
       approvedBy: row.approved_by,
       approvedAt: row.approved_at,
@@ -1482,8 +1484,8 @@ class CommissionService {
       ratePercent: `${(parseFloat(row.rate) * 100).toFixed(2)}%`,
       minThresholdCents: row.min_threshold_cents,
       maxThresholdCents: row.max_threshold_cents,
-      minThreshold: row.min_threshold_cents ? row.min_threshold_cents / 100 : 0,
-      maxThreshold: row.max_threshold_cents ? row.max_threshold_cents / 100 : null,
+      minThreshold: row.min_threshold_cents ? centsToDollars(row.min_threshold_cents) : 0,
+      maxThreshold: row.max_threshold_cents ? centsToDollars(row.max_threshold_cents) : null,
       categoryId: row.category_id,
       categoryName: row.category_name,
       productType: row.product_type,
@@ -1506,11 +1508,11 @@ class CommissionService {
       orderId: row.order_id,
       orderNumber: row.order_number,
       lineItemId: row.line_item_id,
-      commission: row.commission_amount_cents / 100,
+      commission: centsToDollars(row.commission_amount_cents),
       commissionCents: row.commission_amount_cents,
       rate: parseFloat(row.commission_rate),
       ratePercent: `${(parseFloat(row.commission_rate) * 100).toFixed(2)}%`,
-      baseAmount: row.base_amount_cents / 100,
+      baseAmount: centsToDollars(row.base_amount_cents),
       baseAmountCents: row.base_amount_cents,
       ruleId: row.rule_id,
       ruleName: row.rule_name,

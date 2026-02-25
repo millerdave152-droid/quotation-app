@@ -649,7 +649,7 @@ describe('API Integration System', () => {
         const { api_key_id } = req.query;
 
         const result = await mockPool.query(
-          `SELECT * FROM rate_limits WHERE api_key_id = $1`,
+          'SELECT * FROM rate_limits WHERE api_key_id = $1',
           [api_key_id || 1]
         );
 

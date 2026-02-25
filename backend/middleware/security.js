@@ -102,7 +102,7 @@ const corsOptions = (req, callback) => {
       'X-Requested-With',
       'Accept',
     ],
-    exposedHeaders: ['X-Total-Count', 'X-Page-Count'],
+    exposedHeaders: ['X-Total-Count', 'X-Page-Count', 'RateLimit-Limit', 'RateLimit-Remaining', 'RateLimit-Reset'],
     credentials: true, // Allow cookies
     maxAge: 86400, // Cache preflight request for 24 hours
     optionsSuccessStatus: 200,

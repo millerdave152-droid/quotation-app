@@ -359,11 +359,11 @@ class VendorScraperService {
     const params = [];
 
     if (vendorSourceId) {
-      query += ` AND vendor_source_id = $1`;
+      query += ' AND vendor_source_id = $1';
       params.push(vendorSourceId);
     }
 
-    query += ` GROUP BY category ORDER BY category`;
+    query += ' GROUP BY category ORDER BY category';
 
     const result = await pool.query(query, params);
     return result.rows;
@@ -378,11 +378,11 @@ class VendorScraperService {
     const params = [];
 
     if (vendorSourceId) {
-      query += ` AND vendor_source_id = $1`;
+      query += ' AND vendor_source_id = $1';
       params.push(vendorSourceId);
     }
 
-    query += ` GROUP BY brand ORDER BY brand`;
+    query += ' GROUP BY brand ORDER BY brand';
 
     const result = await pool.query(query, params);
     return result.rows;

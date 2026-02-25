@@ -107,10 +107,10 @@ class NotificationService {
     `;
 
     if (unreadOnly) {
-      query += ` AND n.is_read = false`;
+      query += ' AND n.is_read = false';
     }
 
-    query += ` ORDER BY n.created_at DESC LIMIT $2 OFFSET $3`;
+    query += ' ORDER BY n.created_at DESC LIMIT $2 OFFSET $3';
 
     const result = await this.pool.query(query, [userId, limit, offset]);
     return result.rows;
@@ -123,7 +123,7 @@ class NotificationService {
    */
   async getUnreadCount(userId) {
     const result = await this.pool.query(
-      `SELECT COUNT(*) FROM user_notifications WHERE user_id = $1 AND is_read = false`,
+      'SELECT COUNT(*) FROM user_notifications WHERE user_id = $1 AND is_read = false',
       [userId]
     );
     return parseInt(result.rows[0].count) || 0;

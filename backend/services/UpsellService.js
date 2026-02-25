@@ -1198,7 +1198,7 @@ class UpsellService {
 
   async _getProduct(productId) {
     const result = await db.query(
-      `SELECT * FROM products WHERE id = $1 OR product_id = $1`,
+      'SELECT * FROM products WHERE id = $1 OR product_id = $1',
       [productId]
     );
     return result.rows[0] || null;

@@ -125,7 +125,7 @@ class CustomerPricingService {
   async calculateCustomerPrice(customerId, productId, quantity = 1) {
     // Use database function for complex calculation
     const result = await this.pool.query(
-      `SELECT * FROM calculate_customer_price($1, $2, $3)`,
+      'SELECT * FROM calculate_customer_price($1, $2, $3)',
       [customerId, productId, quantity]
     );
 
@@ -352,7 +352,7 @@ class CustomerPricingService {
       ((originalPriceCents - overridePriceCents) / originalPriceCents) * 100;
 
     const result = await this.pool.query(
-      `SELECT check_override_requires_approval($1, $2) as requires_approval`,
+      'SELECT check_override_requires_approval($1, $2) as requires_approval',
       [customerId, discountPercent]
     );
 
@@ -399,7 +399,7 @@ class CustomerPricingService {
 
     // Get product cost for margin impact
     const productResult = await this.pool.query(
-      `SELECT cost FROM products WHERE product_id = $1`,
+      'SELECT cost FROM products WHERE product_id = $1',
       [productId]
     );
     const costCents = productResult.rows[0]?.cost
@@ -610,7 +610,7 @@ class CustomerPricingService {
   async getVolumeDiscounts(productId, customerId = null) {
     // Get product category
     const productResult = await this.pool.query(
-      `SELECT category_id FROM products WHERE product_id = $1`,
+      'SELECT category_id FROM products WHERE product_id = $1',
       [productId]
     );
 
@@ -624,7 +624,7 @@ class CustomerPricingService {
     let customerTier = null;
     if (customerId) {
       const customerResult = await this.pool.query(
-        `SELECT pricing_tier FROM customers WHERE customer_id = $1`,
+        'SELECT pricing_tier FROM customers WHERE customer_id = $1',
         [customerId]
       );
       customerTier = customerResult.rows[0]?.pricing_tier;
@@ -676,7 +676,7 @@ class CustomerPricingService {
    */
   async getPricingTiers() {
     const result = await this.pool.query(
-      `SELECT * FROM pricing_tier_config ORDER BY base_discount_percent ASC`
+      'SELECT * FROM pricing_tier_config ORDER BY base_discount_percent ASC'
     );
 
     return result.rows.map((row) => ({

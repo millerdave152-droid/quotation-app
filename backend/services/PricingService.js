@@ -477,11 +477,11 @@ class PricingService {
     const params = [customerId];
 
     if (productId) {
-      query += ` AND cph.product_id = $2`;
+      query += ' AND cph.product_id = $2';
       params.push(productId);
     }
 
-    query += ` ORDER BY cph.last_purchase_date DESC NULLS LAST`;
+    query += ' ORDER BY cph.last_purchase_date DESC NULLS LAST';
 
     const result = await this.pool.query(query, params);
     return result.rows;

@@ -257,7 +257,7 @@ class DraftService {
     }
 
     if (!includeExpired) {
-      conditions.push(`(d.expires_at IS NULL OR d.expires_at > NOW())`);
+      conditions.push('(d.expires_at IS NULL OR d.expires_at > NOW())');
     }
 
     const whereClause = conditions.length > 0
@@ -414,7 +414,7 @@ class DraftService {
   async getPendingSyncOperations(options = {}) {
     const { userId, deviceId, limit = 100 } = options;
 
-    const conditions = [`status IN ('pending', 'failed')`, `retry_count < max_retries`];
+    const conditions = ['status IN (\'pending\', \'failed\')', 'retry_count < max_retries'];
     const params = [];
     let paramIndex = 1;
 

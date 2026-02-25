@@ -443,6 +443,46 @@ router.delete('/:id', authenticate, asyncHandler(async (req, res) => {
 }));
 
 // ============================================
+// AI DATA CONSENT (PIPEDA)
+// ============================================
+
+/**
+ * PUT /api/customers/:id/ai-consent
+ * Toggle AI data consent flag — admin/manager only
+ */
+router.put('/:id/ai-consent', authenticate, asyncHandler(async (req, res) => {
+  // Only admin and manager roles may toggle consent
+  const role = req.user?.role;
+  if (role !== 'admin' && role !== 'manager') {
+    throw ApiError.forbidden('Only admin or manager can update AI data consent');
+  }
+
+  const { id } = req.params;
+  const { consent } = req.body;
+
+  if (typeof consent !== 'boolean') {
+    throw ApiError.badRequest('consent must be a boolean');
+  }
+
+  const result = await customerService.pool.query(
+    `UPDATE customers
+     SET ai_data_consent = $1,
+         ai_consent_updated_at = NOW(),
+         ai_consent_updated_by = $2,
+         updated_at = NOW()
+     WHERE id = $3
+     RETURNING id, name, ai_data_consent, ai_consent_updated_at`,
+    [consent, req.user.id, id]
+  );
+
+  if (result.rows.length === 0) {
+    throw ApiError.notFound('Customer');
+  }
+
+  res.success(result.rows[0]);
+}));
+
+// ============================================
 // CUSTOMER ACTIVITY ROUTES (CRM)
 // ============================================
 
@@ -861,7 +901,7 @@ router.get('/:id/quick-stats', authenticate, asyncHandler(async (req, res) => {
   let loyaltyTier = 'none';
   try {
     const loyaltyResult = await pool.query(
-      `SELECT points_balance, tier_level FROM customer_loyalty WHERE customer_id = $1`,
+      'SELECT points_balance, tier_level FROM customer_loyalty WHERE customer_id = $1',
       [id]
     );
     if (loyaltyResult.rows.length > 0) {
@@ -877,7 +917,7 @@ router.get('/:id/quick-stats', authenticate, asyncHandler(async (req, res) => {
   let clvData = {};
   try {
     const clvResult = await pool.query(
-      `SELECT clv_score, clv_segment, churn_risk, clv_trend FROM customers WHERE id = $1`,
+      'SELECT clv_score, clv_segment, churn_risk, clv_trend FROM customers WHERE id = $1',
       [id]
     );
     if (clvResult.rows.length > 0) {

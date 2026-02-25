@@ -53,7 +53,7 @@ router.get('/', authenticate, requireRole('admin', 'manager'), asyncHandler(asyn
 
   // Filter by active status
   if (!includeInactive || includeInactive === 'false') {
-    query += ` AND u.is_active = true`;
+    query += ' AND u.is_active = true';
   }
 
   // Search by name or email
@@ -68,7 +68,7 @@ router.get('/', authenticate, requireRole('admin', 'manager'), asyncHandler(asyn
     paramIndex++;
   }
 
-  query += ` ORDER BY u.created_at DESC`;
+  query += ' ORDER BY u.created_at DESC';
 
   const result = await db.query(query, params);
 
@@ -396,7 +396,7 @@ router.put('/:id', authenticate, asyncHandler(async (req, res) => {
       throw ApiError.badRequest('No valid fields to update');
     }
 
-    updates.push(`updated_at = CURRENT_TIMESTAMP`);
+    updates.push('updated_at = CURRENT_TIMESTAMP');
     values.push(userId);
 
     const query = `

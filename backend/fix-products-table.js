@@ -20,7 +20,7 @@ async function fixProductsTable() {
         console.log('✓ Made name column nullable');
         
         // Set default for existing null values
-        await pool.query(`UPDATE products SET name = model WHERE name IS NULL`);
+        await pool.query('UPDATE products SET name = model WHERE name IS NULL');
         console.log('✓ Set default names for existing products');
         
         console.log('\n✅ Products table fixed successfully!');

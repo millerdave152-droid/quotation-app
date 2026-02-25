@@ -11,11 +11,11 @@ async function run() {
 
   // 1. Create enums
   const enums = [
-    ["order_status", "('draft','quote_sent','quote_viewed','quote_expired','quote_rejected','quote_approved','order_pending','order_processing','order_ready','order_completed','invoice_sent','invoice_overdue','paid','partial_refund','refunded','void','archived')"],
-    ["order_source", "('quote','pos','online','phone','import','api')"],
-    ["payment_method_type", "('cash','credit_card','debit_card','gift_card','store_credit','check','bank_transfer','financing','other')"],
-    ["payment_status", "('pending','authorized','captured','completed','failed','refunded','partially_refunded','voided')"],
-    ["discount_type", "('percent','fixed_amount','buy_x_get_y','bundle')"],
+    ['order_status', "('draft','quote_sent','quote_viewed','quote_expired','quote_rejected','quote_approved','order_pending','order_processing','order_ready','order_completed','invoice_sent','invoice_overdue','paid','partial_refund','refunded','void','archived')"],
+    ['order_source', "('quote','pos','online','phone','import','api')"],
+    ['payment_method_type', "('cash','credit_card','debit_card','gift_card','store_credit','check','bank_transfer','financing','other')"],
+    ['payment_status', "('pending','authorized','captured','completed','failed','refunded','partially_refunded','voided')"],
+    ['discount_type', "('percent','fixed_amount','buy_x_get_y','bundle')"],
   ];
 
   for (const [name, values] of enums) {

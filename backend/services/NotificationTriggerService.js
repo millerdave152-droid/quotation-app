@@ -180,7 +180,7 @@ class NotificationTriggerService {
         try {
           // Mark processing
           await pool.query(
-            `UPDATE notification_queue SET status = 'processing', attempts = attempts + 1 WHERE id = $1`,
+            'UPDATE notification_queue SET status = \'processing\', attempts = attempts + 1 WHERE id = $1',
             [notification.id]
           );
 

@@ -158,7 +158,7 @@ function init({ financingService }) {
       params.push(parseInt(customerId, 10));
     }
 
-    query += ` ORDER BY fa.created_at DESC`;
+    query += ' ORDER BY fa.created_at DESC';
     query += ` LIMIT $${paramIdx++} OFFSET $${paramIdx++}`;
     params.push(parseInt(limit, 10), (parseInt(page, 10) - 1) * parseInt(limit, 10));
 
@@ -205,7 +205,7 @@ function init({ financingService }) {
 
     // Get application
     const { rows: appRows } = await pool.query(
-      `SELECT * FROM financing_applications WHERE id = $1 AND status IN ('pending', 'more_info')`,
+      'SELECT * FROM financing_applications WHERE id = $1 AND status IN (\'pending\', \'more_info\')',
       [parseInt(id, 10)]
     );
 
@@ -240,7 +240,7 @@ function init({ financingService }) {
 
       // Update to active
       await pool.query(
-        `UPDATE financing_applications SET status = 'active' WHERE id = $1`,
+        'UPDATE financing_applications SET status = \'active\' WHERE id = $1',
         [parseInt(id, 10)]
       );
     }
@@ -550,7 +550,7 @@ function init({ financingService }) {
       params.push(provider);
     }
 
-    query += ` ORDER BY fa.created_at DESC`;
+    query += ' ORDER BY fa.created_at DESC';
     query += ` LIMIT $${paramIdx++} OFFSET $${paramIdx++}`;
     params.push(parseInt(limit, 10), (parseInt(page, 10) - 1) * parseInt(limit, 10));
 
@@ -599,7 +599,7 @@ function init({ financingService }) {
       params.push(parseInt(customerId, 10));
     }
 
-    query += ` ORDER BY fg.created_at DESC`;
+    query += ' ORDER BY fg.created_at DESC';
     query += ` LIMIT $${paramIdx++} OFFSET $${paramIdx++}`;
     params.push(parseInt(limit, 10), (parseInt(page, 10) - 1) * parseInt(limit, 10));
 
@@ -685,7 +685,7 @@ function init({ financingService }) {
 
     // Get application
     const { rows: appRows } = await pool.query(
-      `SELECT * FROM financing_applications WHERE id = $1 AND status = 'pending'`,
+      'SELECT * FROM financing_applications WHERE id = $1 AND status = \'pending\'',
       [parseInt(id, 10)]
     );
 
@@ -719,7 +719,7 @@ function init({ financingService }) {
 
     // Update to active
     await pool.query(
-      `UPDATE financing_applications SET status = 'active' WHERE id = $1`,
+      'UPDATE financing_applications SET status = \'active\' WHERE id = $1',
       [parseInt(id, 10)]
     );
 

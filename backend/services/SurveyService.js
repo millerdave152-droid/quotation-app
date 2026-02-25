@@ -51,12 +51,12 @@ class SurveyService {
 
   async queueSurvey(templateId, customerId, transactionId = null, workOrderId = null) {
     const { rows: [template] } = await this.pool.query(
-      `SELECT * FROM survey_templates WHERE id = $1 AND is_active = TRUE`, [templateId]
+      'SELECT * FROM survey_templates WHERE id = $1 AND is_active = TRUE', [templateId]
     );
     if (!template) return null;
 
     const { rows: [customer] } = await this.pool.query(
-      `SELECT email, phone FROM customers WHERE id = $1`, [customerId]
+      'SELECT email, phone FROM customers WHERE id = $1', [customerId]
     );
 
     const sendAt = new Date(Date.now() + template.trigger_delay_hours * 3600000);
@@ -71,7 +71,7 @@ class SurveyService {
 
   async respondToSurvey(token, data) {
     const { rows: [response] } = await this.pool.query(
-      `SELECT * FROM survey_responses WHERE token = $1`, [token]
+      'SELECT * FROM survey_responses WHERE token = $1', [token]
     );
     if (!response) throw new ApiError(404, 'Survey not found');
     if (response.completed_at) throw new ApiError(400, 'Survey already completed');
@@ -130,7 +130,7 @@ class SurveyService {
       );
 
       await this.pool.query(
-        `UPDATE survey_queue SET status = 'sent', sent_at = NOW() WHERE id = $1`, [item.id]
+        'UPDATE survey_queue SET status = \'sent\', sent_at = NOW() WHERE id = $1', [item.id]
       );
     }
 

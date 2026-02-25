@@ -66,7 +66,7 @@ class POSPaymentService {
 
     // Look up the transaction ID for this order
     const result = await this.pool.query(
-      `SELECT moneris_trans_id FROM payment_transactions WHERE moneris_order_id = $1 LIMIT 1`,
+      'SELECT moneris_trans_id FROM payment_transactions WHERE moneris_order_id = $1 LIMIT 1',
       [paymentIntentId]
     );
 
@@ -208,7 +208,7 @@ class POSPaymentService {
 
       // Check credit availability inside transaction with row lock
       const creditCheck = await client.query(
-        `SELECT credit_limit, current_balance FROM customers WHERE id = $1 FOR UPDATE`,
+        'SELECT credit_limit, current_balance FROM customers WHERE id = $1 FOR UPDATE',
         [customerId]
       );
 

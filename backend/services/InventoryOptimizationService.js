@@ -283,9 +283,9 @@ class InventoryOptimizationService {
       case 'reorder_now':
         return `Reorder ${eoq} units soon. Stock is below reorder point.`;
       case 'watch':
-        return `Monitor stock levels. Will need reorder within 1-2 weeks.`;
+        return 'Monitor stock levels. Will need reorder within 1-2 weeks.';
       case 'overstock':
-        return `Consider promotions or reduced ordering. Stock is 2x+ the optimal level.`;
+        return 'Consider promotions or reduced ordering. Stock is 2x+ the optimal level.';
       default:
         return `Stock levels are healthy. Review in ${Math.round(currentStock / (reorderPoint / 7))} weeks.`;
     }

@@ -82,7 +82,7 @@ describe('PDF Generation System', () => {
             [
               quote.customer_email,
               `Quote ${quote.quote_number}`,
-              `Please find your quote attached.`,
+              'Please find your quote attached.',
               fileUrl
             ]
           );

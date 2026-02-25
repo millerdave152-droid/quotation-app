@@ -209,7 +209,7 @@ async function addProductContext(context, query) {
         params.push(`%${foundBrand}%`);
       }
 
-      sql += ` ORDER BY in_stock DESC, msrp_cents DESC LIMIT 5`;
+      sql += ' ORDER BY in_stock DESC, msrp_cents DESC LIMIT 5';
 
       const result = await db.query(sql, params);
       products = result.rows;
@@ -257,7 +257,7 @@ async function addQuotationContext(context, query) {
       // Also add customer context if not already present
       if (!context.customer && result.rows[0].customer_id) {
         const customerResult = await db.query(
-          `SELECT id, name, email, phone, clv_score FROM customers WHERE id = $1`,
+          'SELECT id, name, email, phone, clv_score FROM customers WHERE id = $1',
           [result.rows[0].customer_id]
         );
         if (customerResult.rows.length > 0) {

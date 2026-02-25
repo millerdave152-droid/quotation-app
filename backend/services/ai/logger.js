@@ -1,8 +1,11 @@
 /**
  * AI Service Structured Logger
  * Provides consistent, structured logging for AI requests
- * Enables easy parsing for monitoring dashboards
+ * Delegates to the shared pino logger.
  */
+
+const parentLogger = require('../../utils/logger');
+const log = parentLogger.child({ service: 'ai-assistant' });
 
 const LOG_LEVELS = {
   DEBUG: 'DEBUG',
@@ -12,28 +15,10 @@ const LOG_LEVELS = {
 };
 
 /**
- * Format a structured log entry
- */
-function formatLog(level, event, data = {}) {
-  return JSON.stringify({
-    timestamp: new Date().toISOString(),
-    level,
-    service: 'ai-assistant',
-    event,
-    ...data
-  });
-}
-
-/**
  * Log an AI request start
  */
 function logRequestStart({ conversationId, userId, queryType, model }) {
-  console.log(formatLog(LOG_LEVELS.INFO, 'ai_request_start', {
-    conversationId,
-    userId,
-    queryType,
-    model
-  }));
+  log.info({ event: 'ai_request_start', conversationId, userId, queryType, model }, 'AI request started');
 }
 
 /**
@@ -50,19 +35,7 @@ function logRequestComplete({
   costUsd,
   toolsUsed = []
 }) {
-  console.log(formatLog(LOG_LEVELS.INFO, 'ai_request_complete', {
-    conversationId,
-    userId,
-    queryType,
-    model,
-    responseTimeMs,
-    inputTokens,
-    outputTokens,
-    totalTokens: inputTokens + outputTokens,
-    costUsd,
-    toolsUsed,
-    toolCount: toolsUsed.length
-  }));
+  log.info({ event: 'ai_request_complete', conversationId, userId, queryType, model, responseTimeMs, inputTokens, outputTokens, totalTokens: inputTokens + outputTokens, costUsd, toolsUsed, toolCount: toolsUsed.length }, 'AI request completed');
 }
 
 /**
@@ -77,61 +50,35 @@ function logRequestError({
   errorMessage,
   responseTimeMs
 }) {
-  console.error(formatLog(LOG_LEVELS.ERROR, 'ai_request_error', {
-    conversationId,
-    userId,
-    queryType,
-    model,
-    errorType,
-    errorMessage,
-    responseTimeMs
-  }));
+  log.error({ event: 'ai_request_error', conversationId, userId, queryType, model, errorType, errorMessage, responseTimeMs }, 'AI request error');
 }
 
 /**
  * Log tool execution
  */
 function logToolExecution({ toolName, executionTimeMs, success, resultSize }) {
-  console.log(formatLog(LOG_LEVELS.DEBUG, 'ai_tool_execution', {
-    toolName,
-    executionTimeMs,
-    success,
-    resultSize
-  }));
+  log.debug({ event: 'ai_tool_execution', toolName, executionTimeMs, success, resultSize }, 'AI tool executed');
 }
 
 /**
  * Log model routing decision
  */
 function logModelRouting({ query, selectedModel, reasons, contextSize }) {
-  console.log(formatLog(LOG_LEVELS.INFO, 'ai_model_routing', {
-    queryPreview: query.substring(0, 50),
-    selectedModel,
-    reasons,
-    contextSize
-  }));
+  log.info({ event: 'ai_model_routing', queryPreview: query.substring(0, 50), selectedModel, reasons, contextSize }, 'AI model routed');
 }
 
 /**
  * Log feedback submission
  */
 function logFeedback({ queryLogId, userId, feedback, hasNotes }) {
-  console.log(formatLog(LOG_LEVELS.INFO, 'ai_feedback_submitted', {
-    queryLogId,
-    userId,
-    feedback,
-    hasNotes
-  }));
+  log.info({ event: 'ai_feedback_submitted', queryLogId, userId, feedback, hasNotes }, 'AI feedback submitted');
 }
 
 /**
  * Log rate limit hit
  */
 function logRateLimit({ userId, retryAfter }) {
-  console.warn(formatLog(LOG_LEVELS.WARN, 'ai_rate_limit', {
-    userId,
-    retryAfter
-  }));
+  log.warn({ event: 'ai_rate_limit', userId, retryAfter }, 'AI rate limit hit');
 }
 
 /**

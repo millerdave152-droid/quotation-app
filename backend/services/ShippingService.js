@@ -262,7 +262,7 @@ class ShippingService {
 
     // Look up order
     const oRes = await this.pool.query(
-      `SELECT mo.*, mo.shipping_address FROM marketplace_orders mo WHERE mo.id = $1`,
+      'SELECT mo.*, mo.shipping_address FROM marketplace_orders mo WHERE mo.id = $1',
       [orderId]
     );
     if (oRes.rows.length === 0) throw new Error('Order not found: ' + orderId);

@@ -386,7 +386,7 @@ function init({ pool }) {
     async (req, res, next) => {
       try {
         const { id } = req.params;
-        const current = await pool.query("SELECT id, status FROM inventory_alerts WHERE id = $1", [id]);
+        const current = await pool.query('SELECT id, status FROM inventory_alerts WHERE id = $1', [id]);
         if (current.rows.length === 0) {
           throw ApiError.notFound('Alert');
         }

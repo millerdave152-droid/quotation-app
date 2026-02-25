@@ -50,13 +50,13 @@ class CatalogExportService {
 
   async runExport(exportId) {
     const { rows: [config] } = await this.pool.query(
-      `SELECT * FROM catalog_exports WHERE id = $1`, [exportId]
+      'SELECT * FROM catalog_exports WHERE id = $1', [exportId]
     );
     if (!config) throw new ApiError(404, 'Export config not found');
 
     // Create log entry
     const { rows: [log] } = await this.pool.query(
-      `INSERT INTO catalog_export_log (export_id, format) VALUES ($1, $2) RETURNING *`,
+      'INSERT INTO catalog_export_log (export_id, format) VALUES ($1, $2) RETURNING *',
       [exportId, config.platform === 'google_shopping' ? 'xml' : 'csv']
     );
 
@@ -70,7 +70,7 @@ class CatalogExportService {
       if (filters.categoryId) { conditions.push(`p.category_id = $${pi++}`); params.push(filters.categoryId); }
       if (filters.manufacturer) { conditions.push(`p.manufacturer = $${pi++}`); params.push(filters.manufacturer); }
       if (filters.minPrice) { conditions.push(`p.price >= $${pi++}`); params.push(filters.minPrice); }
-      if (filters.inStock !== false) { conditions.push(`p.stock_quantity > 0`); }
+      if (filters.inStock !== false) { conditions.push('p.stock_quantity > 0'); }
 
       const where = conditions.length ? 'WHERE ' + conditions.join(' AND ') : '';
 
@@ -95,13 +95,13 @@ class CatalogExportService {
       );
 
       await this.pool.query(
-        `UPDATE catalog_exports SET last_export_at = NOW() WHERE id = $1`, [exportId]
+        'UPDATE catalog_exports SET last_export_at = NOW() WHERE id = $1', [exportId]
       );
 
       return { logId: log.id, productsExported: products.length, content, format: log.format };
     } catch (err) {
       await this.pool.query(
-        `UPDATE catalog_export_log SET status = 'failed', errors = $2, completed_at = NOW() WHERE id = $1`,
+        'UPDATE catalog_export_log SET status = \'failed\', errors = $2, completed_at = NOW() WHERE id = $1',
         [log.id, JSON.stringify([err.message])]
       );
       throw err;
@@ -148,7 +148,7 @@ class CatalogExportService {
 
   async getExportLogs(exportId, limit = 20) {
     const { rows } = await this.pool.query(
-      `SELECT * FROM catalog_export_log WHERE export_id = $1 ORDER BY started_at DESC LIMIT $2`,
+      'SELECT * FROM catalog_export_log WHERE export_id = $1 ORDER BY started_at DESC LIMIT $2',
       [exportId, limit]
     );
     return rows;

@@ -8,7 +8,7 @@ const express = require('express');
 const router = express.Router();
 const { rawPool: db } = require('../db'); // Use rawPool — login/register bypass RLS
 const { hashPassword, comparePassword, validatePasswordStrength } = require('../utils/password');
-const { generateAccessToken, generateRefreshToken, verifyRefreshToken } = require('../utils/jwt');
+const { generateAccessToken, generateRefreshToken, verifyRefreshToken, REFRESH_TOKEN_EXPIRY } = require('../utils/jwt');
 const { authenticate, requireRole } = require('../middleware/auth');
 const {
   validateRegister,
@@ -19,6 +19,37 @@ const {
 const { authLimiter } = require('../middleware/security');
 const { ApiError, asyncHandler } = require('../middleware/errorHandler');
 const crypto = require('crypto');
+
+// ── Helpers ─────────────────────────────────────────────────────────────
+/**
+ * Parse a duration string like '7d', '24h', '30m' into milliseconds.
+ * Falls back to 7 days if unrecognised.
+ */
+function parseDurationMs(str) {
+  const match = String(str).match(/^(\d+)\s*(ms|s|m|h|d)$/i);
+  if (!match) return 7 * 24 * 60 * 60 * 1000;
+  const n = parseInt(match[1], 10);
+  const unit = match[2].toLowerCase();
+  const multipliers = { ms: 1, s: 1000, m: 60000, h: 3600000, d: 86400000 };
+  return n * (multipliers[unit] || 86400000);
+}
+
+const REFRESH_TTL_MS = parseDurationMs(REFRESH_TOKEN_EXPIRY);
+
+/**
+ * Store a refresh token in the database with session metadata.
+ * @returns {number} The inserted token row id
+ */
+async function storeRefreshToken(client, { userId, token, familyId, ip, userAgent }) {
+  const expiresAt = new Date(Date.now() + REFRESH_TTL_MS);
+  const result = await client.query(
+    `INSERT INTO refresh_tokens (user_id, token, expires_at, family_id, ip_address, user_agent, created_at)
+     VALUES ($1, $2, $3, $4, $5, $6, CURRENT_TIMESTAMP)
+     RETURNING id`,
+    [userId, token, expiresAt, familyId || crypto.randomUUID(), ip || null, userAgent || null]
+  );
+  return result.rows[0].id;
+}
 
 // Constants
 const MAX_FAILED_ATTEMPTS = 5;
@@ -95,13 +126,13 @@ router.post('/register', authLimiter, validateRegister, asyncHandler(async (req,
     const accessToken = generateAccessToken(user);
     const refreshToken = generateRefreshToken(user);
 
-    // Store refresh token in database
-    const tokenExpiry = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000); // 7 days
-    await db.query(
-      `INSERT INTO refresh_tokens (user_id, token, expires_at, created_at)
-       VALUES ($1, $2, $3, CURRENT_TIMESTAMP)`,
-      [userId, refreshToken, tokenExpiry]
-    );
+    // Store refresh token with session metadata (outside tx — user row already committed)
+    await storeRefreshToken(db, {
+      userId,
+      token: refreshToken,
+      ip: req.ip,
+      userAgent: req.get('user-agent'),
+    });
 
     res.status(201).json({
       success: true,
@@ -214,13 +245,13 @@ router.post('/login', authLimiter, validateLogin, asyncHandler(async (req, res) 
   const accessToken = generateAccessToken(tokenPayload);
   const refreshToken = generateRefreshToken(tokenPayload);
 
-  // Store refresh token in database
-  const tokenExpiry = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000); // 7 days
-  await db.query(
-    `INSERT INTO refresh_tokens (user_id, token, expires_at, created_at)
-     VALUES ($1, $2, $3, CURRENT_TIMESTAMP)`,
-    [user.id, refreshToken, tokenExpiry]
-  );
+  // Store refresh token with session metadata
+  await storeRefreshToken(db, {
+    userId: user.id,
+    token: refreshToken,
+    ip: req.ip,
+    userAgent: req.get('user-agent'),
+  });
 
   // Log successful login
   await db.query(
@@ -249,13 +280,19 @@ router.post('/login', authLimiter, validateLogin, asyncHandler(async (req, res) 
 
 /**
  * @route   POST /api/auth/refresh
- * @desc    Refresh access token using refresh token
+ * @desc    Refresh access token using refresh token (with rotation)
  * @access  Public
+ *
+ * Security model — Refresh-Token Rotation with Reuse Detection:
+ *   1. Each refresh token can only be used ONCE.
+ *   2. On use the old token is revoked and a new refresh + access pair is issued.
+ *   3. If a revoked token is presented again, the ENTIRE token family is revoked
+ *      (all devices for that lineage) because it indicates the token was stolen.
  */
 router.post('/refresh', validateRefreshToken, asyncHandler(async (req, res) => {
   const { refreshToken } = req.body;
 
-  // Verify refresh token
+  // Verify JWT signature / expiry
   let decoded;
   try {
     decoded = verifyRefreshToken(refreshToken);
@@ -263,32 +300,51 @@ router.post('/refresh', validateRefreshToken, asyncHandler(async (req, res) => {
     throw ApiError.unauthorized(error.message || 'Invalid refresh token');
   }
 
-  // Check if refresh token exists in database and is not revoked
+  // Look up the token row (regardless of revoked status — we need to detect reuse)
   const tokens = await db.query(
     `SELECT rt.*, u.email, u.role, u.is_active, u.tenant_id
      FROM refresh_tokens rt
      JOIN users u ON rt.user_id = u.id
-     WHERE rt.token = $1 AND rt.revoked = false`,
+     WHERE rt.token = $1`,
     [refreshToken]
   );
 
   if (tokens.rows.length === 0) {
-    throw ApiError.unauthorized('Refresh token has been revoked or does not exist');
+    throw ApiError.unauthorized('Refresh token does not exist');
   }
 
   const tokenData = tokens.rows[0];
 
-  // Check if token has expired
+  // ── Reuse detection ─────────────────────────────────────────────────
+  // If the token was already revoked, someone is replaying a stolen token.
+  // Revoke the ENTIRE family to protect the user.
+  if (tokenData.revoked) {
+    await db.query(
+      `UPDATE refresh_tokens
+       SET revoked = true, revoked_at = CURRENT_TIMESTAMP
+       WHERE family_id = $1 AND revoked = false`,
+      [tokenData.family_id]
+    );
+
+    console.warn(
+      `[Auth] Refresh-token reuse detected for user ${tokenData.user_id}, ` +
+      `family ${tokenData.family_id}. All tokens in family revoked.`
+    );
+
+    throw ApiError.unauthorized('Refresh token reuse detected. All sessions in this family have been revoked. Please log in again.');
+  }
+
+  // Check expiry
   if (new Date(tokenData.expires_at) < new Date()) {
     throw ApiError.unauthorized('Refresh token has expired');
   }
 
-  // Check if user is still active
+  // Check user account status
   if (!tokenData.is_active) {
     throw ApiError.forbidden('User account is inactive');
   }
 
-  // Generate new access token
+  // ── Rotate: revoke old, issue new ───────────────────────────────────
   const user = {
     id: tokenData.user_id,
     email: tokenData.email,
@@ -297,15 +353,32 @@ router.post('/refresh', validateRefreshToken, asyncHandler(async (req, res) => {
   };
 
   const newAccessToken = generateAccessToken(user);
+  const newRefreshToken = generateRefreshToken(user);
 
-  // Touch token's updated timestamp (for tracking last use)
-  // Note: last_used_at column doesn't exist yet; no-op for now
+  // Store the new refresh token in the same family
+  const newTokenId = await storeRefreshToken(db, {
+    userId: tokenData.user_id,
+    token: newRefreshToken,
+    familyId: tokenData.family_id,
+    ip: req.ip,
+    userAgent: req.get('user-agent'),
+  });
+
+  // Revoke the old token and link to its replacement
+  await db.query(
+    `UPDATE refresh_tokens
+     SET revoked = true, revoked_at = CURRENT_TIMESTAMP,
+         last_used_at = CURRENT_TIMESTAMP, replaced_by_id = $1
+     WHERE id = $2`,
+    [newTokenId, tokenData.id]
+  );
 
   res.json({
     success: true,
     message: 'Token refreshed successfully',
     data: {
-      accessToken: newAccessToken
+      accessToken: newAccessToken,
+      refreshToken: newRefreshToken
     }
   });
 }));
@@ -491,7 +564,7 @@ router.put('/change-password', authenticate, validateChangePassword, asyncHandle
  */
 router.get('/sessions', authenticate, asyncHandler(async (req, res) => {
   const sessions = await db.query(
-    `SELECT id, created_at, expires_at
+    `SELECT id, created_at, expires_at, last_used_at, ip_address, user_agent
      FROM refresh_tokens
      WHERE user_id = $1 AND revoked = false AND expires_at > CURRENT_TIMESTAMP
      ORDER BY created_at DESC`,
@@ -504,7 +577,10 @@ router.get('/sessions', authenticate, asyncHandler(async (req, res) => {
       sessions: sessions.rows.map(session => ({
         id: session.id,
         createdAt: session.created_at,
-        expiresAt: session.expires_at
+        expiresAt: session.expires_at,
+        lastUsedAt: session.last_used_at,
+        ipAddress: session.ip_address,
+        userAgent: session.user_agent
       }))
     }
   });

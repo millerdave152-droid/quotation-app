@@ -507,7 +507,7 @@ class DiscountAuthorityService {
       return null;
     }
 
-    setClauses.push(`updated_at = NOW()`);
+    setClauses.push('updated_at = NOW()');
     values.push(roleName);
 
     const result = await this.pool.query(

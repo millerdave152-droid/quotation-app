@@ -107,18 +107,18 @@ async function reactivateProduct(productId) {
  * List discontinued products with optional filters.
  */
 async function listDiscontinued({ with_stock, without_replacement, page = 1, limit = 50 } = {}) {
-  const conditions = [`p.product_status = 'discontinued'`];
+  const conditions = ['p.product_status = \'discontinued\''];
   const params = [];
   let idx = 1;
 
   if (with_stock === true) {
-    conditions.push(`COALESCE(inv.total, 0) > 0`);
+    conditions.push('COALESCE(inv.total, 0) > 0');
   } else if (with_stock === false) {
-    conditions.push(`COALESCE(inv.total, 0) <= 0`);
+    conditions.push('COALESCE(inv.total, 0) <= 0');
   }
 
   if (without_replacement) {
-    conditions.push(`p.replacement_product_id IS NULL`);
+    conditions.push('p.replacement_product_id IS NULL');
   }
 
   const offset = (page - 1) * limit;
@@ -202,7 +202,7 @@ async function autoHideDiscontinuedProducts() {
   if (toHide.length > 0) {
     const ids = toHide.map(r => r.id);
     await pool.query(
-      `UPDATE products SET is_active = false WHERE id = ANY($1::int[])`,
+      'UPDATE products SET is_active = false WHERE id = ANY($1::int[])',
       [ids]
     );
   }

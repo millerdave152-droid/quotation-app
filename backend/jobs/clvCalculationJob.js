@@ -69,6 +69,7 @@ class CLVCalculationJob {
 
     console.log('[CLV Job] Starting CLV calculation...');
 
+    let jobLogId = null;
     try {
       // Log job start
       const jobLog = await pool.query(
@@ -76,7 +77,7 @@ class CLVCalculationJob {
          VALUES (NOW(), 'running', $1) RETURNING id`,
         [triggeredBy || 'scheduled']
       ).catch(() => ({ rows: [{ id: null }] }));
-      const jobLogId = jobLog.rows[0]?.id;
+      jobLogId = jobLog.rows[0]?.id;
 
       // Get all customers
       const customersResult = await pool.query(`

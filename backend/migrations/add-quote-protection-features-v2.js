@@ -80,8 +80,8 @@ What time works best for a quick call this week?
 Best regards,
 {sales_rep_name}
 {sales_rep_phone}`,
-        JSON.stringify(["customer_name", "customer_first_name", "quote_number", "quote_date", "product_summary", "monthly_payment", "sales_rep_name", "sales_rep_phone"]),
-        JSON.stringify(["Ask if they received the quote", "Confirm the products meet their needs", "Address any budget concerns", "Highlight financing options", "Create urgency with limited-time rebates"]),
+        JSON.stringify(['customer_name', 'customer_first_name', 'quote_number', 'quote_date', 'product_summary', 'monthly_payment', 'sales_rep_name', 'sales_rep_phone']),
+        JSON.stringify(['Ask if they received the quote', 'Confirm the products meet their needs', 'Address any budget concerns', 'Highlight financing options', 'Create urgency with limited-time rebates']),
         true
       ]
     );
@@ -111,8 +111,8 @@ Can we schedule a brief call to answer any questions?
 
 Best,
 {sales_rep_name}`,
-        JSON.stringify(["customer_first_name", "quote_number", "product_summary", "quote_expiry_date", "sales_rep_name"]),
-        JSON.stringify(["Ask if there are any obstacles to moving forward", "Mention competitor comparisons if applicable", "Emphasize time-sensitive rebates/promotions", "Offer to adjust quote if needed", "Provide customer testimonials"]),
+        JSON.stringify(['customer_first_name', 'quote_number', 'product_summary', 'quote_expiry_date', 'sales_rep_name']),
+        JSON.stringify(['Ask if there are any obstacles to moving forward', 'Mention competitor comparisons if applicable', 'Emphasize time-sensitive rebates/promotions', 'Offer to adjust quote if needed', 'Provide customer testimonials']),
         false
       ]
     );
@@ -143,8 +143,8 @@ Call me directly: {sales_rep_phone}
 
 Thanks,
 {sales_rep_name}`,
-        JSON.stringify(["customer_first_name", "quote_number", "product_summary", "quote_expiry_date", "days_until_expiry", "sales_rep_phone", "sales_rep_name"]),
-        JSON.stringify(["Create urgency with expiring rebates", "Offer to negotiate if needed", "Address last-minute objections", "Suggest alternative products if budget is tight", "Get commitment or close the quote"]),
+        JSON.stringify(['customer_first_name', 'quote_number', 'product_summary', 'quote_expiry_date', 'days_until_expiry', 'sales_rep_phone', 'sales_rep_name']),
+        JSON.stringify(['Create urgency with expiring rebates', 'Offer to negotiate if needed', 'Address last-minute objections', 'Suggest alternative products if budget is tight', 'Get commitment or close the quote']),
         false
       ]
     );
@@ -172,8 +172,8 @@ Otherwise, I'll close this quote and won't bother you further. If your needs cha
 
 Take care,
 {sales_rep_name}`,
-        JSON.stringify(["customer_first_name", "quote_number", "sales_rep_name"]),
-        JSON.stringify(["Give customer permission to say no", "Open door for future business", "Ask for feedback on why they didn't purchase", "Offer to stay in touch", "Archive quote if no response"]),
+        JSON.stringify(['customer_first_name', 'quote_number', 'sales_rep_name']),
+        JSON.stringify(['Give customer permission to say no', 'Open door for future business', "Ask for feedback on why they didn't purchase", 'Offer to stay in touch', 'Archive quote if no response']),
         false
       ]
     );
@@ -206,7 +206,7 @@ Best regards,
 {sales_rep_phone}
 
 {company_name}`,
-        JSON.stringify(["customer_name", "company_name", "quote_number", "quote_total", "quote_expiry_date", "sales_rep_name", "sales_rep_email", "sales_rep_phone"]),
+        JSON.stringify(['customer_name', 'company_name', 'quote_number', 'quote_total', 'quote_expiry_date', 'sales_rep_name', 'sales_rep_email', 'sales_rep_phone']),
         JSON.stringify([]),
         true
       ]

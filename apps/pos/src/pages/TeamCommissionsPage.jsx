@@ -308,7 +308,7 @@ export default function TeamCommissionsPage() {
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-4">
               <button
-                onClick={() => navigate(-1)}
+                onClick={() => navigate('/')}
                 className="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg transition-colors"
               >
                 <ArrowLeftIcon className="w-5 h-5" />

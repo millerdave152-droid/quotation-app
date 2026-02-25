@@ -29,7 +29,7 @@ class HubCommissionService {
 
       // Check for existing commission on this order+user
       const existing = await client.query(
-        `SELECT id FROM order_commissions WHERE order_id = $1 AND user_id = $2`,
+        'SELECT id FROM order_commissions WHERE order_id = $1 AND user_id = $2',
         [orderId, userId]
       );
       if (existing.rows.length > 0) {
@@ -428,22 +428,22 @@ class HubCommissionService {
 
     switch (period) {
       case 'today':
-        dateCondition = `oc.created_at >= CURRENT_DATE AND oc.created_at < CURRENT_DATE + INTERVAL '1 day'`;
+        dateCondition = 'oc.created_at >= CURRENT_DATE AND oc.created_at < CURRENT_DATE + INTERVAL \'1 day\'';
         break;
       case 'week':
-        dateCondition = `oc.created_at >= DATE_TRUNC('week', CURRENT_DATE) AND oc.created_at < DATE_TRUNC('week', CURRENT_DATE) + INTERVAL '7 days'`;
+        dateCondition = 'oc.created_at >= DATE_TRUNC(\'week\', CURRENT_DATE) AND oc.created_at < DATE_TRUNC(\'week\', CURRENT_DATE) + INTERVAL \'7 days\'';
         break;
       case 'month':
-        dateCondition = `oc.created_at >= DATE_TRUNC('month', CURRENT_DATE) AND oc.created_at < DATE_TRUNC('month', CURRENT_DATE) + INTERVAL '1 month'`;
+        dateCondition = 'oc.created_at >= DATE_TRUNC(\'month\', CURRENT_DATE) AND oc.created_at < DATE_TRUNC(\'month\', CURRENT_DATE) + INTERVAL \'1 month\'';
         break;
       case 'pay_period': {
         // Bi-weekly pay period: 1st-15th and 16th-end of month
         const today = new Date();
         const day = today.getDate();
         if (day <= 15) {
-          dateCondition = `oc.created_at >= DATE_TRUNC('month', CURRENT_DATE) AND oc.created_at < DATE_TRUNC('month', CURRENT_DATE) + INTERVAL '15 days'`;
+          dateCondition = 'oc.created_at >= DATE_TRUNC(\'month\', CURRENT_DATE) AND oc.created_at < DATE_TRUNC(\'month\', CURRENT_DATE) + INTERVAL \'15 days\'';
         } else {
-          dateCondition = `oc.created_at >= DATE_TRUNC('month', CURRENT_DATE) + INTERVAL '15 days' AND oc.created_at < DATE_TRUNC('month', CURRENT_DATE) + INTERVAL '1 month'`;
+          dateCondition = 'oc.created_at >= DATE_TRUNC(\'month\', CURRENT_DATE) + INTERVAL \'15 days\' AND oc.created_at < DATE_TRUNC(\'month\', CURRENT_DATE) + INTERVAL \'1 month\'';
         }
         break;
       }

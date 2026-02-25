@@ -42,7 +42,7 @@ async function run() {
     await runSQL('005_tax_configuration (fixed company_name->company)', sql005);
   } else if (!hasCompanyName) {
     // Add column first
-    await runSQL('005 prep: add company_name', "ALTER TABLE customers ADD COLUMN IF NOT EXISTS company_name VARCHAR(255)");
+    await runSQL('005 prep: add company_name', 'ALTER TABLE customers ADD COLUMN IF NOT EXISTS company_name VARCHAR(255)');
     await runFile('005_tax_configuration', '005_tax_configuration.sql');
   } else {
     await runFile('005_tax_configuration', '005_tax_configuration.sql');
@@ -69,7 +69,7 @@ async function run() {
   // ---- 017: Warranty products - needs sku column on products ----
   const skuCol = await db.query("SELECT column_name FROM information_schema.columns WHERE table_name='products' AND column_name='sku'");
   if (skuCol.rows.length === 0) {
-    await runSQL('017 prep: add sku to products', "ALTER TABLE products ADD COLUMN IF NOT EXISTS sku VARCHAR(100)");
+    await runSQL('017 prep: add sku to products', 'ALTER TABLE products ADD COLUMN IF NOT EXISTS sku VARCHAR(100)');
   }
   await runFile('017_warranty_products', '017_warranty_products.sql');
 
@@ -185,7 +185,7 @@ async function run() {
     'warranty_products', 'batch_email_settings', 'locations',
     'return_reason_codes', 'hub_returns'
   ];
-  const existing = await db.query(`SELECT tablename FROM pg_tables WHERE schemaname='public' AND tablename = ANY($1)`, [keyTables]);
+  const existing = await db.query('SELECT tablename FROM pg_tables WHERE schemaname=\'public\' AND tablename = ANY($1)', [keyTables]);
   const existingSet = new Set(existing.rows.map(r => r.tablename));
   for (const t of keyTables) {
     console.log(`  ${existingSet.has(t) ? '✓' : '✗'} ${t}`);

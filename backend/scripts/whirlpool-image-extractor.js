@@ -151,7 +151,7 @@
 
     console.log('');
     console.log('🖼️ STARTING IMAGE EXTRACTION');
-    console.log(`━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`);
+    console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
     console.log(`📋 Products to process: ${skuList.length}`);
     console.log('');
 
@@ -185,7 +185,7 @@
     console.log('');
     console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
     console.log('✅ IMAGE EXTRACTION COMPLETE');
-    console.log(`━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`);
+    console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
     console.log(`📦 Processed: ${Object.keys(results).length} products`);
     console.log(`❌ Errors: ${errors.length}`);
     console.log(`⏱️ Time: ${elapsed}s`);

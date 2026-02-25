@@ -57,7 +57,7 @@ async function runTests() {
 
   // Save original roles
   const origRows = (await pool.query(
-    "SELECT id, role FROM users WHERE id IN (1, 3, 4, 5)"
+    'SELECT id, role FROM users WHERE id IN (1, 3, 4, 5)'
   )).rows;
   const originalRoles = {};
   origRows.forEach(function(u) { originalRoles[u.id] = u.role; });
@@ -79,7 +79,7 @@ async function runTests() {
 
   // Find product with high margin so all tiers are testable (need >50% margin for Tier 3 above-cost)
   const prodRow = (await pool.query(
-    "SELECT id, name, price, cost FROM products WHERE price > 100 AND cost > 0 AND cost < price * 0.45 ORDER BY price DESC LIMIT 1"
+    'SELECT id, name, price, cost FROM products WHERE price > 100 AND cost > 0 AND cost < price * 0.45 ORDER BY price DESC LIMIT 1'
   )).rows[0];
   if (!prodRow) { console.error('No suitable product'); process.exit(1); }
   const PID = prodRow.id;
@@ -91,7 +91,7 @@ async function runTests() {
   // Ensure manager_pins row for manager (daily limit checks)
   // Unique constraint is on (user_id, is_active), not just user_id
   for (var pinUser of [mgr.id, seniorMgr.id, admin.id]) {
-    var existing = await pool.query("SELECT id FROM manager_pins WHERE user_id = $1 AND is_active = true", [pinUser]);
+    var existing = await pool.query('SELECT id FROM manager_pins WHERE user_id = $1 AND is_active = true', [pinUser]);
     if (existing.rows.length === 0) {
       await pool.query(
         "INSERT INTO manager_pins (user_id, pin_hash, max_daily_overrides, is_active) VALUES ($1, 'test', 999, true)",
@@ -110,7 +110,7 @@ async function runTests() {
   for (var ti = 0; ti < tables.length; ti++) {
     var table = tables[ti];
     var tc = await pool.query(
-      "SELECT COUNT(*) as cnt FROM information_schema.tables WHERE table_name = $1", [table]
+      'SELECT COUNT(*) as cnt FROM information_schema.tables WHERE table_name = $1', [table]
     );
     assert(parseInt(tc.rows[0].cnt) > 0, 'Table "' + table + '" exists');
   }
@@ -128,7 +128,7 @@ async function runTests() {
   }
 
   // Check tier settings
-  var tiers = (await pool.query("SELECT * FROM approval_tier_settings ORDER BY tier")).rows;
+  var tiers = (await pool.query('SELECT * FROM approval_tier_settings ORDER BY tier')).rows;
   assert(tiers.length >= 4, 'Tier settings seeded (' + tiers.length + ' tiers)');
 
   if (tiers.length >= 4) {
@@ -146,7 +146,7 @@ async function runTests() {
   var enums = (await pool.query(
     "SELECT typname FROM pg_type WHERE typname IN ('approval_request_status', 'approval_method', 'counter_offer_status')"
   )).rows;
-  assert(enums.length >= 3, 'Enum types created', enums.map(function(r){return r.typname}).join(', '));
+  assert(enums.length >= 3, 'Enum types created', enums.map(function(r){return r.typname;}).join(', '));
 
   // ═══════════════════════════════════════════════════════════════
   // TEST 2: TIER DETERMINATION
@@ -271,11 +271,11 @@ async function runTests() {
   var coId = co.id;
 
   // Verify parent request is now 'countered'
-  var coParent = (await pool.query("SELECT status FROM approval_requests WHERE id = $1", [reqCO.id])).rows[0];
+  var coParent = (await pool.query('SELECT status FROM approval_requests WHERE id = $1', [reqCO.id])).rows[0];
   assert(coParent.status === 'countered', 'Parent request status = countered');
 
   // Counter-offer record stored correctly
-  var coRow = (await pool.query("SELECT * FROM approval_counter_offers WHERE id = $1", [coId])).rows[0];
+  var coRow = (await pool.query('SELECT * FROM approval_counter_offers WHERE id = $1', [coId])).rows[0];
   assert(coRow.status === 'pending', 'Counter-offer status = pending');
   assert(coRow.approval_request_id === reqCO.id, 'Counter-offer linked to request');
 
@@ -289,7 +289,7 @@ async function runTests() {
     'Accept counter: approved at counter price', '$' + accepted.approved_price);
 
   // Verify counter-offer record marked accepted
-  var coAfter = (await pool.query("SELECT status FROM approval_counter_offers WHERE id = $1", [coId])).rows[0];
+  var coAfter = (await pool.query('SELECT status FROM approval_counter_offers WHERE id = $1', [coId])).rows[0];
   assert(coAfter.status === 'accepted', 'Counter-offer record = accepted');
 
   // Test DECLINE flow
@@ -305,7 +305,7 @@ async function runTests() {
   });
   assert(declined.status === 'pending', 'Decline counter: back to pending');
 
-  var co2After = (await pool.query("SELECT status FROM approval_counter_offers WHERE id = $1", [co2.id])).rows[0];
+  var co2After = (await pool.query('SELECT status FROM approval_counter_offers WHERE id = $1', [co2.id])).rows[0];
   assert(co2After.status === 'declined', 'Declined counter-offer record = declined');
 
   // Cleanup
@@ -335,7 +335,7 @@ async function runTests() {
   console.log('\n--- TEST 7: AUDIT TRAIL ---\n');
 
   // Check approved request (tier 2)
-  var auditRow = (await pool.query("SELECT * FROM approval_requests WHERE id = $1", [r2.id])).rows[0];
+  var auditRow = (await pool.query('SELECT * FROM approval_requests WHERE id = $1', [r2.id])).rows[0];
   assert(auditRow.salesperson_id === salesperson.id, 'Audit: salesperson_id');
   assert(auditRow.manager_id === mgr.id, 'Audit: manager_id');
   assert(auditRow.product_id === PID, 'Audit: product_id');
@@ -350,7 +350,7 @@ async function runTests() {
   assert(parseFloat(auditRow.margin_percent) > 0, 'Audit: margin_percent recorded', auditRow.margin_percent + '%');
 
   // Check denied request
-  var denyAudit = (await pool.query("SELECT * FROM approval_requests WHERE id = $1", [reqDeny.id])).rows[0];
+  var denyAudit = (await pool.query('SELECT * FROM approval_requests WHERE id = $1', [reqDeny.id])).rows[0];
   assert(denyAudit.reason_code === 'PRICE_TOO_LOW', 'Audit: denial reason_code');
   assert(denyAudit.reason_note === 'Test denial', 'Audit: denial reason_note');
   assert(denyAudit.responded_at !== null, 'Audit: denial responded_at set');
@@ -376,7 +376,7 @@ async function runTests() {
   // Tier 2 timeout is 180s = 3 minutes, so 10 minutes ago is well past timeout
   // Run the timeout sweep SQL (same logic as WebSocketService)
   var tierTimeouts = {};
-  var tierRows = (await pool.query("SELECT tier, timeout_seconds FROM approval_tier_settings WHERE timeout_seconds > 0")).rows;
+  var tierRows = (await pool.query('SELECT tier, timeout_seconds FROM approval_tier_settings WHERE timeout_seconds > 0')).rows;
   tierRows.forEach(function(t) { tierTimeouts[t.tier] = t.timeout_seconds; });
 
   var sweepResult = await pool.query(
@@ -387,7 +387,7 @@ async function runTests() {
   assert(wasSwept, 'Timeout: sweep caught expired request');
 
   // Verify status
-  var toRow = (await pool.query("SELECT status, approval_token FROM approval_requests WHERE id = $1", [reqTO.id])).rows[0];
+  var toRow = (await pool.query('SELECT status, approval_token FROM approval_requests WHERE id = $1', [reqTO.id])).rows[0];
   assert(toRow.status === 'timed_out', 'Timeout: status = timed_out');
   assert(!toRow.approval_token, 'Timeout: no token for timed-out request');
 
@@ -576,14 +576,14 @@ async function runTests() {
   console.log('\n--- CLEANUP ---\n');
 
   var cleaned = await pool.query(
-    "DELETE FROM approval_requests WHERE salesperson_id = $1 AND product_id = $2 RETURNING id",
+    'DELETE FROM approval_requests WHERE salesperson_id = $1 AND product_id = $2 RETURNING id',
     [salesperson.id, PID]
   );
   console.log('  Cleaned ' + cleaned.rows.length + ' test approval requests');
 
   // Restore original roles
   for (var uid in originalRoles) {
-    await pool.query("UPDATE users SET role = $1 WHERE id = $2", [originalRoles[uid], parseInt(uid)]);
+    await pool.query('UPDATE users SET role = $1 WHERE id = $2', [originalRoles[uid], parseInt(uid)]);
   }
   console.log('  Restored original user roles');
 

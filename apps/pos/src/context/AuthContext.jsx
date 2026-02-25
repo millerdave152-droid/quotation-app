@@ -158,8 +158,9 @@ export function AuthProvider({ children }) {
   // Logout function
   const logout = useCallback(async () => {
     try {
-      // Notify server (optional, for session tracking)
-      await api.post('/auth/logout').catch(() => {});
+      // Revoke the current refresh token server-side
+      const refreshToken = localStorage.getItem('pos_refresh_token');
+      await api.post('/auth/logout', { refreshToken: refreshToken || undefined }).catch(() => {});
     } finally {
       clearAuth();
       localStorage.removeItem('pos_refresh_token');

@@ -27,8 +27,8 @@ async function runMigration() {
         console.log('✓ SQL file loaded successfully');
         
         console.log('\nConnecting to database...');
-        console.log(`Host: quotation-db.ccrqkqs0m6eu.us-east-1.rds.amazonaws.com`);
-        console.log(`Database: quotationapp`);
+        console.log('Host: quotation-db.ccrqkqs0m6eu.us-east-1.rds.amazonaws.com');
+        console.log('Database: quotationapp');
         
         console.log('\nExecuting migration...');
         await pool.query(sql);

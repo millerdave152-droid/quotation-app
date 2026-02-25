@@ -208,7 +208,7 @@ async function makePayment(layawayId, { amount, payment_method, reference_number
     if (newBalance <= 0) {
       // Paid in full — complete
       await client.query(
-        `UPDATE layaways SET balance_due = 0, status = 'completed', completed_date = CURRENT_DATE WHERE id = $1`,
+        'UPDATE layaways SET balance_due = 0, status = \'completed\', completed_date = CURRENT_DATE WHERE id = $1',
         [layawayId]
       );
 

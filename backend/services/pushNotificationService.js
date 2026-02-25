@@ -235,7 +235,7 @@ class PushNotificationService {
   async getSubscriptionsForUser(userId) {
     try {
       const { rows } = await pool.query(
-        `SELECT * FROM push_subscriptions WHERE user_id = $1`,
+        'SELECT * FROM push_subscriptions WHERE user_id = $1',
         [userId]
       );
       return rows.map(row => ({
@@ -404,7 +404,7 @@ class PushNotificationService {
   async getPreferences(userId) {
     try {
       const { rows } = await pool.query(
-        `SELECT * FROM notification_preferences WHERE user_id = $1`,
+        'SELECT * FROM notification_preferences WHERE user_id = $1',
         [userId]
       );
       if (rows.length > 0) return rows[0];

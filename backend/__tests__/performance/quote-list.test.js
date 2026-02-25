@@ -283,7 +283,7 @@ describe('Performance Tests', () => {
       console.log(`  Quote list (filtered): ${duration}ms`);
     });
 
-    test(`should paginate through 1000+ quotes efficiently`, async () => {
+    test('should paginate through 1000+ quotes efficiently', async () => {
       const durations = [];
 
       // Test multiple pages

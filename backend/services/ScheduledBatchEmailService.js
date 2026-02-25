@@ -432,7 +432,7 @@ class ScheduledBatchEmailService {
         <h2 style="color: #1f2937;">Batch Receipt Email Summary</h2>
 
         ${summary.shiftId ? `<p style="color: #6b7280;">Shift #${summary.shiftId} has ended.</p>` : ''}
-        ${summary.scheduled ? `<p style="color: #6b7280;">Scheduled batch run completed.</p>` : ''}
+        ${summary.scheduled ? '<p style="color: #6b7280;">Scheduled batch run completed.</p>' : ''}
 
         <div style="background: ${hasFailures ? '#fef3c7' : '#d1fae5'}; padding: 20px; border-radius: 8px; margin: 20px 0;">
           <h3 style="margin: 0 0 15px 0; color: ${hasFailures ? '#92400e' : '#065f46'};">

@@ -54,7 +54,7 @@ class ReturnsManager {
     let orderId = null;
     if (miraklOrderId) {
       const orderResult = await this.pool.query(
-        `SELECT id FROM marketplace_orders WHERE mirakl_order_id = $1 LIMIT 1`,
+        'SELECT id FROM marketplace_orders WHERE mirakl_order_id = $1 LIMIT 1',
         [miraklOrderId]
       );
       if (orderResult.rows.length > 0) orderId = orderResult.rows[0].id;
@@ -116,7 +116,7 @@ class ReturnsManager {
    */
   async _evaluateRules(returnId, context) {
     const { rows: rules } = await this.pool.query(
-      `SELECT * FROM return_rules WHERE active = true ORDER BY priority ASC`
+      'SELECT * FROM return_rules WHERE active = true ORDER BY priority ASC'
     );
 
     for (const rule of rules) {
@@ -252,7 +252,7 @@ class ReturnsManager {
   async receiveReturn(returnId, condition = 'resellable') {
     // Load the return
     const { rows } = await this.pool.query(
-      `SELECT * FROM marketplace_returns WHERE id = $1`, [returnId]
+      'SELECT * FROM marketplace_returns WHERE id = $1', [returnId]
     );
     if (rows.length === 0) throw new Error(`Return #${returnId} not found`);
 
@@ -294,7 +294,7 @@ class ReturnsManager {
 
         // Find product by SKU
         const prodResult = await this.pool.query(
-          `SELECT id, stock_quantity FROM products WHERE sku = $1 LIMIT 1`, [sku]
+          'SELECT id, stock_quantity FROM products WHERE sku = $1 LIMIT 1', [sku]
         );
         if (prodResult.rows.length === 0) continue;
 
@@ -304,7 +304,7 @@ class ReturnsManager {
 
         // Increment stock
         await this.pool.query(
-          `UPDATE products SET stock_quantity = $1 WHERE id = $2`,
+          'UPDATE products SET stock_quantity = $1 WHERE id = $2',
           [newQty, product.id]
         );
 
@@ -481,7 +481,7 @@ class ReturnsManager {
 
   async getRules() {
     const { rows } = await this.pool.query(
-      `SELECT * FROM return_rules ORDER BY priority ASC`
+      'SELECT * FROM return_rules ORDER BY priority ASC'
     );
     return rows;
   }

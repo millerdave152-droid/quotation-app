@@ -20,25 +20,25 @@ class ReportBuilderService {
         id: 'totalRevenue',
         name: 'Total Revenue',
         category: 'revenue',
-        sql: `SUM(total_cents) / 100.0`,
+        sql: 'SUM(total_cents) / 100.0',
         table: 'quotations',
-        condition: `status = 'WON'`
+        condition: 'status = \'WON\''
       },
       avgOrderValue: {
         id: 'avgOrderValue',
         name: 'Average Order Value',
         category: 'revenue',
-        sql: `AVG(total_cents) / 100.0`,
+        sql: 'AVG(total_cents) / 100.0',
         table: 'quotations',
-        condition: `status = 'WON'`
+        condition: 'status = \'WON\''
       },
       pipelineValue: {
         id: 'pipelineValue',
         name: 'Pipeline Value',
         category: 'revenue',
-        sql: `SUM(total_cents) / 100.0`,
+        sql: 'SUM(total_cents) / 100.0',
         table: 'quotations',
-        condition: `status NOT IN ('WON', 'LOST', 'EXPIRED')`
+        condition: 'status NOT IN (\'WON\', \'LOST\', \'EXPIRED\')'
       },
 
       // Quote metrics
@@ -46,28 +46,28 @@ class ReportBuilderService {
         id: 'totalQuotes',
         name: 'Total Quotes',
         category: 'quotes',
-        sql: `COUNT(*)`,
+        sql: 'COUNT(*)',
         table: 'quotations'
       },
       wonQuotes: {
         id: 'wonQuotes',
         name: 'Won Quotes',
         category: 'quotes',
-        sql: `COUNT(*) FILTER (WHERE status = 'WON')`,
+        sql: 'COUNT(*) FILTER (WHERE status = \'WON\')',
         table: 'quotations'
       },
       lostQuotes: {
         id: 'lostQuotes',
         name: 'Lost Quotes',
         category: 'quotes',
-        sql: `COUNT(*) FILTER (WHERE status = 'LOST')`,
+        sql: 'COUNT(*) FILTER (WHERE status = \'LOST\')',
         table: 'quotations'
       },
       winRate: {
         id: 'winRate',
         name: 'Win Rate',
         category: 'quotes',
-        sql: `ROUND(COUNT(*) FILTER (WHERE status = 'WON')::numeric / NULLIF(COUNT(*) FILTER (WHERE status IN ('WON', 'LOST')), 0) * 100, 1)`,
+        sql: 'ROUND(COUNT(*) FILTER (WHERE status = \'WON\')::numeric / NULLIF(COUNT(*) FILTER (WHERE status IN (\'WON\', \'LOST\')), 0) * 100, 1)',
         table: 'quotations'
       },
 
@@ -76,21 +76,21 @@ class ReportBuilderService {
         id: 'totalCustomers',
         name: 'Total Customers',
         category: 'customers',
-        sql: `COUNT(DISTINCT id)`,
+        sql: 'COUNT(DISTINCT id)',
         table: 'customers'
       },
       newCustomers: {
         id: 'newCustomers',
         name: 'New Customers',
         category: 'customers',
-        sql: `COUNT(*) FILTER (WHERE created_at >= $dateStart)`,
+        sql: 'COUNT(*) FILTER (WHERE created_at >= $dateStart)',
         table: 'customers'
       },
       avgCLV: {
         id: 'avgCLV',
         name: 'Average CLV',
         category: 'customers',
-        sql: `AVG(clv_score)`,
+        sql: 'AVG(clv_score)',
         table: 'customers'
       },
 
@@ -99,25 +99,25 @@ class ReportBuilderService {
         id: 'totalProducts',
         name: 'Total Products',
         category: 'products',
-        sql: `COUNT(*)`,
+        sql: 'COUNT(*)',
         table: 'products',
-        condition: `active = true`
+        condition: 'active = true'
       },
       lowStockProducts: {
         id: 'lowStockProducts',
         name: 'Low Stock Products',
         category: 'products',
-        sql: `COUNT(*) FILTER (WHERE COALESCE(qty_on_hand, 0) <= 5)`,
+        sql: 'COUNT(*) FILTER (WHERE COALESCE(qty_on_hand, 0) <= 5)',
         table: 'products',
-        condition: `active = true`
+        condition: 'active = true'
       },
       outOfStockProducts: {
         id: 'outOfStockProducts',
         name: 'Out of Stock Products',
         category: 'products',
-        sql: `COUNT(*) FILTER (WHERE COALESCE(qty_on_hand, 0) = 0)`,
+        sql: 'COUNT(*) FILTER (WHERE COALESCE(qty_on_hand, 0) = 0)',
         table: 'products',
-        condition: `active = true`
+        condition: 'active = true'
       },
 
       // Invoice metrics
@@ -125,21 +125,21 @@ class ReportBuilderService {
         id: 'totalInvoiced',
         name: 'Total Invoiced',
         category: 'invoices',
-        sql: `SUM(total_cents) / 100.0`,
+        sql: 'SUM(total_cents) / 100.0',
         table: 'invoices'
       },
       overdueInvoices: {
         id: 'overdueInvoices',
         name: 'Overdue Invoices',
         category: 'invoices',
-        sql: `COUNT(*) FILTER (WHERE status = 'SENT' AND due_date < CURRENT_DATE)`,
+        sql: 'COUNT(*) FILTER (WHERE status = \'SENT\' AND due_date < CURRENT_DATE)',
         table: 'invoices'
       },
       overdueAmount: {
         id: 'overdueAmount',
         name: 'Overdue Amount',
         category: 'invoices',
-        sql: `SUM(CASE WHEN status = 'SENT' AND due_date < CURRENT_DATE THEN balance_due_cents ELSE 0 END) / 100.0`,
+        sql: 'SUM(CASE WHEN status = \'SENT\' AND due_date < CURRENT_DATE THEN balance_due_cents ELSE 0 END) / 100.0',
         table: 'invoices'
       }
     };
@@ -155,20 +155,20 @@ class ReportBuilderService {
       week: {
         id: 'week',
         name: 'Week',
-        sql: `DATE_TRUNC('week', created_at)::date`,
-        groupBy: `DATE_TRUNC('week', created_at)`
+        sql: 'DATE_TRUNC(\'week\', created_at)::date',
+        groupBy: 'DATE_TRUNC(\'week\', created_at)'
       },
       month: {
         id: 'month',
         name: 'Month',
-        sql: `TO_CHAR(created_at, 'YYYY-MM')`,
-        groupBy: `DATE_TRUNC('month', created_at)`
+        sql: 'TO_CHAR(created_at, \'YYYY-MM\')',
+        groupBy: 'DATE_TRUNC(\'month\', created_at)'
       },
       quarter: {
         id: 'quarter',
         name: 'Quarter',
-        sql: `TO_CHAR(created_at, 'YYYY-"Q"Q')`,
-        groupBy: `DATE_TRUNC('quarter', created_at)`
+        sql: 'TO_CHAR(created_at, \'YYYY-"Q"Q\')',
+        groupBy: 'DATE_TRUNC(\'quarter\', created_at)'
       },
       salesperson: {
         id: 'salesperson',
@@ -332,7 +332,7 @@ class ReportBuilderService {
    * Delete a report template
    */
   async deleteTemplate(templateId) {
-    await this.pool.query(`DELETE FROM report_templates WHERE id = $1`, [templateId]);
+    await this.pool.query('DELETE FROM report_templates WHERE id = $1', [templateId]);
     return { deleted: true };
   }
 
@@ -450,7 +450,7 @@ class ReportBuilderService {
 
     if (dimension) {
       query += ` GROUP BY ${dimension.groupBy}`;
-      query += ` ORDER BY dimension`;
+      query += ' ORDER BY dimension';
     }
 
     // Execute query
@@ -526,11 +526,11 @@ class ReportBuilderService {
 
     const params = [];
     if (templateId) {
-      query += ` WHERE sr.template_id = $1`;
+      query += ' WHERE sr.template_id = $1';
       params.push(templateId);
     }
 
-    query += ` ORDER BY sr.next_run_at`;
+    query += ' ORDER BY sr.next_run_at';
 
     const result = await this.pool.query(query, params);
     return result.rows;
@@ -572,7 +572,7 @@ class ReportBuilderService {
    * Delete scheduled report
    */
   async deleteScheduledReport(scheduleId) {
-    await this.pool.query(`DELETE FROM scheduled_reports WHERE id = $1`, [scheduleId]);
+    await this.pool.query('DELETE FROM scheduled_reports WHERE id = $1', [scheduleId]);
     return { deleted: true };
   }
 
@@ -704,7 +704,7 @@ class ReportBuilderService {
 
     const params = [];
     if (templateId) {
-      query += ` WHERE re.template_id = $1`;
+      query += ' WHERE re.template_id = $1';
       params.push(templateId);
     }
 

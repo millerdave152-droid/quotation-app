@@ -102,9 +102,9 @@ router.get('/',
     }
 
     if (hasBalance === true) {
-      query += ` AND c.current_balance > 0`;
+      query += ' AND c.current_balance > 0';
     } else if (hasBalance === false) {
-      query += ` AND c.current_balance = 0`;
+      query += ' AND c.current_balance = 0';
     }
 
     if (minCreditLimit !== undefined) {

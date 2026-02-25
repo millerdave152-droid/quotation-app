@@ -17,7 +17,7 @@ class PreOrderService {
 
     if (product.preorder_max_qty) {
       const { rows: [{ count }] } = await this.pool.query(
-        `SELECT COUNT(*)::int FROM pre_orders WHERE product_id = $1 AND status NOT IN ('cancelled', 'refunded')`,
+        'SELECT COUNT(*)::int FROM pre_orders WHERE product_id = $1 AND status NOT IN (\'cancelled\', \'refunded\')',
         [data.productId]
       );
       if (count >= product.preorder_max_qty) throw new ApiError(400, 'Pre-order limit reached');

@@ -123,7 +123,7 @@ const tenantPool = {
       return result;
     } finally {
       try {
-        await client.query("RESET app.current_tenant");
+        await client.query('RESET app.current_tenant');
       } catch (_) { /* ignore reset errors on broken connections */ }
       client.release();
     }
@@ -150,7 +150,7 @@ const tenantPool = {
       released = true;
       if (tenantId) {
         try {
-          await client.query("RESET app.current_tenant");
+          await client.query('RESET app.current_tenant');
         } catch (_) { /* ignore */ }
       }
       return originalRelease(err);

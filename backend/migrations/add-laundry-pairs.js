@@ -221,7 +221,7 @@ async function run() {
       }
     }
 
-    console.log(`\n=== SUMMARY ===`);
+    console.log('\n=== SUMMARY ===');
     console.log(`Pairs detected: ${pairsFound}`);
     console.log(`Products updated: ${pairsUpdated}`);
 

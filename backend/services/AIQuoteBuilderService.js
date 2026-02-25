@@ -471,13 +471,13 @@ class AIQuoteBuilderService {
   getBundleReason(bundleType, category) {
     switch (bundleType) {
       case 'accessory':
-        return `Essential accessory for your selected items`;
+        return 'Essential accessory for your selected items';
       case 'service':
         return `Professional ${category.toLowerCase()} service recommended`;
       case 'protection':
-        return `Protect your investment with extended coverage`;
+        return 'Protect your investment with extended coverage';
       default:
-        return `Complements your selection perfectly`;
+        return 'Complements your selection perfectly';
     }
   }
 

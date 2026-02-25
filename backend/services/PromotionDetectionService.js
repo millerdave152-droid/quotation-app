@@ -252,11 +252,11 @@ class PromotionDetectionService {
     let paramIdx = 1;
 
     if (active_only) {
-      query += ` AND mp.is_active = true`;
+      query += ' AND mp.is_active = true';
     }
 
     if (!include_expired) {
-      query += ` AND mp.end_date >= CURRENT_DATE`;
+      query += ' AND mp.end_date >= CURRENT_DATE';
     }
 
     if (manufacturer) {

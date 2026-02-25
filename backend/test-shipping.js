@@ -17,7 +17,7 @@ function assert(cond, label, detail) {
   var cpId;
   if (cpRes.rows.length === 0) {
     var ins = await pool.query(
-      "INSERT INTO shipping_carriers (carrier_code, carrier_name, api_endpoint, default_package_type, rate_markup_percent, rate_markup_flat, is_active) " +
+      'INSERT INTO shipping_carriers (carrier_code, carrier_name, api_endpoint, default_package_type, rate_markup_percent, rate_markup_flat, is_active) ' +
       "VALUES ('canada_post', 'Canada Post', 'https://api.canadapost.ca', 'PARCEL', 5.00, 1.50, true) RETURNING id"
     );
     cpId = ins.rows[0].id;
@@ -25,7 +25,7 @@ function assert(cond, label, detail) {
   } else {
     cpId = cpRes.rows[0].id;
     // Ensure markup is set for testing
-    await pool.query("UPDATE shipping_carriers SET rate_markup_percent = 5.00, rate_markup_flat = 1.50 WHERE id = $1", [cpId]);
+    await pool.query('UPDATE shipping_carriers SET rate_markup_percent = 5.00, rate_markup_flat = 1.50 WHERE id = $1', [cpId]);
     console.log('  Canada Post carrier exists id=' + cpId + ' (markup updated)');
   }
 
@@ -33,7 +33,7 @@ function assert(cond, label, detail) {
   var purId;
   if (purRes.rows.length === 0) {
     var ins2 = await pool.query(
-      "INSERT INTO shipping_carriers (carrier_code, carrier_name, api_endpoint, default_package_type, rate_markup_percent, is_active) " +
+      'INSERT INTO shipping_carriers (carrier_code, carrier_name, api_endpoint, default_package_type, rate_markup_percent, is_active) ' +
       "VALUES ('purolator', 'Purolator', 'https://api.purolator.com', 'PARCEL', 3.00, true) RETURNING id"
     );
     purId = ins2.rows[0].id;
@@ -48,7 +48,7 @@ function assert(cond, label, detail) {
   var rateCheck = await pool.query('SELECT COUNT(*) as cnt FROM shipping_rates WHERE carrier_id = $1', [cpId]);
   if (parseInt(rateCheck.rows[0].cnt) === 0) {
     await pool.query(
-      "INSERT INTO shipping_rates (carrier_id, service_code, service_name, destination_zone, destination_country, min_weight_kg, max_weight_kg, base_rate, per_kg_rate, estimated_days_min, estimated_days_max, is_active) VALUES " +
+      'INSERT INTO shipping_rates (carrier_id, service_code, service_name, destination_zone, destination_country, min_weight_kg, max_weight_kg, base_rate, per_kg_rate, estimated_days_min, estimated_days_max, is_active) VALUES ' +
       "($1, 'regular', 'Regular Parcel', 'domestic', 'CA', 0, 30, 12.99, 1.50, 5, 10, true)," +
       "($1, 'expedited', 'Expedited Parcel', 'domestic', 'CA', 0, 30, 18.99, 2.00, 2, 5, true)," +
       "($1, 'priority', 'Priority', 'domestic', 'CA', 0, 30, 29.99, 3.50, 1, 2, true)",
@@ -62,7 +62,7 @@ function assert(cond, label, detail) {
   var rateCheck2 = await pool.query('SELECT COUNT(*) as cnt FROM shipping_rates WHERE carrier_id = $1', [purId]);
   if (parseInt(rateCheck2.rows[0].cnt) === 0) {
     await pool.query(
-      "INSERT INTO shipping_rates (carrier_id, service_code, service_name, destination_zone, destination_country, min_weight_kg, max_weight_kg, base_rate, per_kg_rate, estimated_days_min, estimated_days_max, is_active) VALUES " +
+      'INSERT INTO shipping_rates (carrier_id, service_code, service_name, destination_zone, destination_country, min_weight_kg, max_weight_kg, base_rate, per_kg_rate, estimated_days_min, estimated_days_max, is_active) VALUES ' +
       "($1, 'ground', 'Purolator Ground', 'domestic', 'CA', 0, 50, 14.50, 1.25, 4, 8, true)," +
       "($1, 'express', 'Purolator Express', 'domestic', 'CA', 0, 50, 24.99, 2.75, 1, 3, true)",
       [purId]

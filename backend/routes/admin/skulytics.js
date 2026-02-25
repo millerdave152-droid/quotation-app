@@ -209,7 +209,7 @@ router.post(
 
     // Fetch the freshly-upserted row for last_synced_at
     const { rows: freshRows } = await pool.query(
-      `SELECT last_synced_at FROM global_skulytics_products WHERE skulytics_id = $1`,
+      'SELECT last_synced_at FROM global_skulytics_products WHERE skulytics_id = $1',
       [normalized.skulytics_id]
     );
 
@@ -314,7 +314,7 @@ router.post(
 
     // Check if a sync is already running
     const { rows: running } = await pool.query(
-      `SELECT 1 FROM skulytics_sync_runs WHERE status = 'running' LIMIT 1`
+      'SELECT 1 FROM skulytics_sync_runs WHERE status = \'running\' LIMIT 1'
     );
     if (running.length > 0) {
       return res.status(409).json({

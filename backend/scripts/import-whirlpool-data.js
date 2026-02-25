@@ -85,7 +85,7 @@ function mergeJsonFiles(filePaths) {
 async function getVendorSourceId() {
   // Check if Whirlpool Central source exists
   let result = await pool.query(
-    `SELECT id FROM vendor_sources WHERE name ILIKE '%whirlpool%' LIMIT 1`
+    'SELECT id FROM vendor_sources WHERE name ILIKE \'%whirlpool%\' LIMIT 1'
   );
 
   if (result.rows.length > 0) {
@@ -134,7 +134,7 @@ async function importProduct(product, vendorSourceId) {
 
   // Check if product already exists
   const existing = await pool.query(
-    `SELECT id FROM vendor_products WHERE model_number = $1 AND vendor_source_id = $2`,
+    'SELECT id FROM vendor_products WHERE model_number = $1 AND vendor_source_id = $2',
     [product.sku, vendorSourceId]
   );
 

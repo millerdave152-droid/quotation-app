@@ -113,6 +113,155 @@ function ShiftRow({ shift, onViewDetails }) {
 }
 
 /**
+ * Printable Report View
+ */
+function PrintableReport({ summary, shifts, dateRange, onClose }) {
+  const handlePrint = () => {
+    window.print();
+  };
+
+  const rangeLabel = dateRange === 'today' ? 'Today' : dateRange === 'week' ? 'This Week' : 'This Month';
+  const now = new Date();
+
+  return (
+    <div className="fixed inset-0 z-50 bg-white overflow-auto print-report">
+      {/* Screen-only controls */}
+      <div className="print-hide sticky top-0 bg-white border-b border-gray-200 px-6 py-3 flex items-center justify-between z-10">
+        <h2 className="text-lg font-semibold text-gray-900">Print Preview</h2>
+        <div className="flex items-center gap-3">
+          <button
+            onClick={handlePrint}
+            className="flex items-center gap-2 px-5 py-2 bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700 transition-colors"
+          >
+            <PrinterIcon className="w-5 h-5" />
+            Print
+          </button>
+          <button
+            onClick={onClose}
+            className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
+          >
+            Close
+          </button>
+        </div>
+      </div>
+
+      {/* Printable content */}
+      <div className="max-w-3xl mx-auto px-8 py-6">
+        {/* Report Header */}
+        <div className="text-center mb-8 pb-4 border-b-2 border-gray-900">
+          <h1 className="text-2xl font-bold text-gray-900">TeleTime Solutions</h1>
+          <h2 className="text-lg font-semibold text-gray-700 mt-1">Sales Report - {rangeLabel}</h2>
+          <p className="text-sm text-gray-500 mt-1">
+            Generated: {now.toLocaleDateString('en-CA')} at {now.toLocaleTimeString('en-CA', { hour: '2-digit', minute: '2-digit' })}
+          </p>
+        </div>
+
+        {/* Summary Section */}
+        <div className="mb-8">
+          <h3 className="text-base font-bold text-gray-900 mb-3 uppercase tracking-wide border-b border-gray-300 pb-1">Sales Summary</h3>
+          <table className="w-full text-sm">
+            <tbody>
+              <tr className="border-b border-gray-100">
+                <td className="py-2 text-gray-600">Gross Sales</td>
+                <td className="py-2 text-right font-semibold text-gray-900">{formatCurrency(summary?.totalSales || 0)}</td>
+              </tr>
+              <tr className="border-b border-gray-100">
+                <td className="py-2 text-gray-600">Net Revenue</td>
+                <td className="py-2 text-right font-semibold text-gray-900">{formatCurrency(summary?.netRevenue || 0)}</td>
+              </tr>
+              <tr className="border-b border-gray-100">
+                <td className="py-2 text-gray-600">Transactions</td>
+                <td className="py-2 text-right font-semibold text-gray-900">{summary?.transactionCount || 0}</td>
+              </tr>
+              <tr className="border-b border-gray-100">
+                <td className="py-2 text-gray-600">Items Sold</td>
+                <td className="py-2 text-right font-semibold text-gray-900">{summary?.itemsSold || 0}</td>
+              </tr>
+              <tr className="border-b border-gray-100">
+                <td className="py-2 text-gray-600">Average Ticket</td>
+                <td className="py-2 text-right font-semibold text-gray-900">{formatCurrency(summary?.averageTicket || 0)}</td>
+              </tr>
+              {(summary?.refundCount > 0) && (
+                <tr className="border-b border-gray-100">
+                  <td className="py-2 text-red-600">Refunds ({summary.refundCount})</td>
+                  <td className="py-2 text-right font-semibold text-red-600">-{formatCurrency(summary?.refundAmount || 0)}</td>
+                </tr>
+              )}
+              {(summary?.voidCount > 0) && (
+                <tr className="border-b border-gray-100">
+                  <td className="py-2 text-amber-600">Voided Transactions</td>
+                  <td className="py-2 text-right font-semibold text-amber-600">{summary.voidCount}</td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+
+        {/* Shift History */}
+        {shifts.length > 0 && (
+          <div className="mb-8">
+            <h3 className="text-base font-bold text-gray-900 mb-3 uppercase tracking-wide border-b border-gray-300 pb-1">Shift History</h3>
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-gray-300 text-xs uppercase text-gray-500">
+                  <th className="py-2 text-left">Register / Staff</th>
+                  <th className="py-2 text-left">Time</th>
+                  <th className="py-2 text-right">Sales</th>
+                  <th className="py-2 text-right">Txns</th>
+                  <th className="py-2 text-right">Variance</th>
+                </tr>
+              </thead>
+              <tbody>
+                {shifts.map((shift, i) => {
+                  const registerName = shift.registerName || shift.register_name || 'Register';
+                  const userName = shift.userName || shift.user_name || 'Staff';
+                  const openedAt = shift.openedAt || shift.opened_at;
+                  const closedAt = shift.closedAt || shift.closed_at;
+                  const totalSales = shift.totalSales || shift.total_sales || 0;
+                  const transactionCount = shift.transactionCount || shift.transaction_count || 0;
+                  const variance = shift.variance || 0;
+
+                  return (
+                    <tr key={i} className="border-b border-gray-100">
+                      <td className="py-2 text-gray-900">{registerName} - {userName}</td>
+                      <td className="py-2 text-gray-600 text-xs">
+                        {openedAt ? formatDateTime(openedAt) : ''}
+                        {closedAt ? ` - ${formatDateTime(closedAt)}` : ' (open)'}
+                      </td>
+                      <td className="py-2 text-right font-medium">{formatCurrency(totalSales)}</td>
+                      <td className="py-2 text-right">{transactionCount}</td>
+                      <td className={`py-2 text-right ${Math.abs(variance) > 5 ? 'text-red-600 font-medium' : 'text-gray-500'}`}>
+                        {variance !== 0 ? `${variance >= 0 ? '+' : ''}${formatCurrency(variance)}` : '-'}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+
+        {/* Footer */}
+        <div className="mt-12 pt-4 border-t border-gray-300 text-center text-xs text-gray-400">
+          <p>TeleTime Solutions - Confidential</p>
+        </div>
+      </div>
+
+      {/* Print-specific styles */}
+      <style>{`
+        @media print {
+          .print-hide { display: none !important; }
+          .print-report { position: static; overflow: visible; }
+          body * { visibility: hidden; }
+          .print-report, .print-report * { visibility: visible; }
+          .print-report { position: absolute; top: 0; left: 0; width: 100%; }
+        }
+      `}</style>
+    </div>
+  );
+}
+
+/**
  * Reports page component
  */
 export function Reports() {
@@ -125,6 +274,7 @@ export function Reports() {
   const [summary, setSummary] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [showPrintView, setShowPrintView] = useState(false);
 
   // Check access
   useEffect(() => {
@@ -180,7 +330,7 @@ export function Reports() {
 
       const data = reportRes?.data || reportRes;
 
-      const sales = data?.sales || {};
+      const sales = data?.salesSummary || data?.sales || {};
       const txns = sales?.transactions || {};
       const revenue = sales?.revenue || {};
       const averages = sales?.averages || {};
@@ -215,8 +365,19 @@ export function Reports() {
   };
 
   const handlePrint = () => {
-    window.print();
+    setShowPrintView(true);
   };
+
+  if (showPrintView) {
+    return (
+      <PrintableReport
+        summary={summary}
+        shifts={shifts}
+        dateRange={dateRange}
+        onClose={() => setShowPrintView(false)}
+      />
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gray-100">

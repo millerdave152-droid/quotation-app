@@ -36,7 +36,7 @@ async function run() {
   const shiftsExists = await db.query("SELECT EXISTS(SELECT 1 FROM pg_tables WHERE tablename='shifts')");
   if (!shiftsExists.rows[0].exists) {
     // Create shifts as a view of register_shifts for compatibility
-    await runSQL('shifts view', "CREATE OR REPLACE VIEW shifts AS SELECT shift_id as id, * FROM register_shifts");
+    await runSQL('shifts view', 'CREATE OR REPLACE VIEW shifts AS SELECT shift_id as id, * FROM register_shifts');
   }
   let sql015 = fs.readFileSync(path.join(migrationsDir, '015_manager_override_system.sql'), 'utf8');
   sql015 = sql015.replace(/REFERENCES\s+shifts\([^)]+\)/g, '');
@@ -44,7 +44,7 @@ async function run() {
   await runSQL('015_manager_override_system', sql015);
 
   // 017: warranty products - needs quantity_in_stock on products
-  await runSQL('products.quantity_in_stock', "ALTER TABLE products ADD COLUMN IF NOT EXISTS quantity_in_stock INTEGER DEFAULT 0");
+  await runSQL('products.quantity_in_stock', 'ALTER TABLE products ADD COLUMN IF NOT EXISTS quantity_in_stock INTEGER DEFAULT 0');
   await runSQL('017', fs.readFileSync(path.join(migrationsDir, '017_warranty_products.sql'), 'utf8'));
 
   // 018: warranty_terms_url

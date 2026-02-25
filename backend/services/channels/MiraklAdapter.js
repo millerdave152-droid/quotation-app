@@ -128,13 +128,13 @@ class MiraklAdapter extends ChannelAdapter {
   async _lookupCommissionRate(categoryLabel) {
     if (!categoryLabel) return null;
     const exact = await this.pool.query(
-      `SELECT commission_pct FROM marketplace_commission_rates WHERE LOWER(category_leaf) = LOWER($1) LIMIT 1`,
+      'SELECT commission_pct FROM marketplace_commission_rates WHERE LOWER(category_leaf) = LOWER($1) LIMIT 1',
       [categoryLabel.trim()]
     );
     if (exact.rows.length > 0) return parseFloat(exact.rows[0].commission_pct);
 
     const partial = await this.pool.query(
-      `SELECT commission_pct FROM marketplace_commission_rates WHERE LOWER(category_path) LIKE LOWER($1) ORDER BY LENGTH(category_path) DESC LIMIT 1`,
+      'SELECT commission_pct FROM marketplace_commission_rates WHERE LOWER(category_path) LIKE LOWER($1) ORDER BY LENGTH(category_path) DESC LIMIT 1',
       [`%${categoryLabel.trim()}%`]
     );
     if (partial.rows.length > 0) return parseFloat(partial.rows[0].commission_pct);

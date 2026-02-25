@@ -51,10 +51,10 @@ class AdvancedPricingService {
     }
 
     if (!includeExpired) {
-      query += ` AND (vdr.valid_until IS NULL OR vdr.valid_until > NOW())`;
+      query += ' AND (vdr.valid_until IS NULL OR vdr.valid_until > NOW())';
     }
 
-    query += ` GROUP BY vdr.id ORDER BY vdr.priority DESC, vdr.created_at DESC`;
+    query += ' GROUP BY vdr.id ORDER BY vdr.priority DESC, vdr.created_at DESC';
 
     const result = await pool.query(query, params);
     return result.rows;
@@ -352,10 +352,10 @@ class AdvancedPricingService {
     }
 
     if (!includeExpired) {
-      query += ` AND p.end_date > NOW()`;
+      query += ' AND p.end_date > NOW()';
     }
 
-    query += ` ORDER BY p.created_at DESC`;
+    query += ' ORDER BY p.created_at DESC';
 
     const result = await pool.query(query, params);
     return result.rows;

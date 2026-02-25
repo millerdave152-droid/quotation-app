@@ -1275,7 +1275,7 @@ router.post('/offers/enable', authenticate, asyncHandler(async (req, res) => {
   }
 
   const result = await pool.query(
-    `UPDATE products SET marketplace_enabled = $2 WHERE id = ANY($1)`,
+    'UPDATE products SET marketplace_enabled = $2 WHERE id = ANY($1)',
     [productIds, enabled]
   );
 
@@ -1417,7 +1417,7 @@ router.post('/products/batch-sync', authenticate, asyncHandler(async (req, res) 
       // Update last_synced_at for all products in batch
       const productIds = batch.map(p => p.id);
       await pool.query(
-        `UPDATE products SET last_synced_at = CURRENT_TIMESTAMP WHERE id = ANY($1)`,
+        'UPDATE products SET last_synced_at = CURRENT_TIMESTAMP WHERE id = ANY($1)',
         [productIds]
       );
       totalSucceeded += batch.length;
@@ -1460,7 +1460,7 @@ router.post('/products/set-default-stock', authenticate, asyncHandler(async (req
   const params = [default_stock];
 
   if (manufacturer) {
-    query += ` AND LOWER(manufacturer) = LOWER($2)`;
+    query += ' AND LOWER(manufacturer) = LOWER($2)';
     params.push(manufacturer);
   }
 
@@ -2469,7 +2469,7 @@ router.get('/activity-feed', authenticate, asyncHandler(async (req, res) => {
   activities.push(...recentShipments.rows.map(sh => ({
     type: 'shipment',
     icon: '🚚',
-    title: `Shipment Created`,
+    title: 'Shipment Created',
     description: `${sh.carrier_name || 'Carrier'} - ${sh.tracking_number || 'No tracking'}`,
     timestamp: sh.timestamp,
     status: sh.shipment_status
@@ -2533,17 +2533,17 @@ router.get('/notifications', authenticate, asyncHandler(async (req, res) => {
   `;
 
   if (unread_only === 'true') {
-    query += ` AND n.read = false`;
+    query += ' AND n.read = false';
   }
 
-  query += ` ORDER BY n.created_at DESC LIMIT $1 OFFSET $2`;
+  query += ' ORDER BY n.created_at DESC LIMIT $1 OFFSET $2';
 
   const notifications = await pool.query(query, [limit, offset]);
 
   // Get total count
-  let countQuery = `SELECT COUNT(*) FROM marketplace_notifications WHERE dismissed = false`;
+  let countQuery = 'SELECT COUNT(*) FROM marketplace_notifications WHERE dismissed = false';
   if (unread_only === 'true') {
-    countQuery += ` AND read = false`;
+    countQuery += ' AND read = false';
   }
   const totalCount = await pool.query(countQuery);
 
@@ -2628,7 +2628,7 @@ async function createNotification(type, title, message, orderId = null, miraklOr
 
 // Get all settings
 router.get('/order-settings', authenticate, asyncHandler(async (req, res) => {
-  const result = await pool.query(`SELECT * FROM marketplace_order_settings ORDER BY setting_key`);
+  const result = await pool.query('SELECT * FROM marketplace_order_settings ORDER BY setting_key');
 
   // Convert to key-value object
   const settings = {};
@@ -2660,7 +2660,7 @@ router.put('/order-settings/:key', authenticate, asyncHandler(async (req, res) =
 
 // Get all settings (general-purpose)
 router.get('/settings', authenticate, asyncHandler(async (req, res) => {
-  const result = await pool.query(`SELECT * FROM marketplace_order_settings ORDER BY setting_key`);
+  const result = await pool.query('SELECT * FROM marketplace_order_settings ORDER BY setting_key');
   const settings = {};
   result.rows.forEach(row => {
     settings[row.setting_key] = row.setting_value;
@@ -2702,7 +2702,7 @@ router.post('/orders/batch-accept', authenticate, asyncHandler(async (req, res) 
 
   // OPTIMIZED: Batch fetch all orders at once instead of N+1 pattern
   const ordersResult = await pool.query(
-    `SELECT * FROM marketplace_orders WHERE id = ANY($1)`,
+    'SELECT * FROM marketplace_orders WHERE id = ANY($1)',
     [order_ids]
   );
   const ordersMap = new Map(ordersResult.rows.map(o => [o.id, o]));
@@ -2787,7 +2787,7 @@ router.post('/orders/batch-reject', authenticate, asyncHandler(async (req, res) 
 
   // OPTIMIZED: Batch fetch all orders at once instead of N+1 pattern
   const ordersResult = await pool.query(
-    `SELECT * FROM marketplace_orders WHERE id = ANY($1)`,
+    'SELECT * FROM marketplace_orders WHERE id = ANY($1)',
     [order_ids]
   );
   const ordersMap = new Map(ordersResult.rows.map(o => [o.id, o]));
@@ -2878,11 +2878,11 @@ router.post('/orders/export', authenticate, asyncHandler(async (req, res) => {
 
   let params = [];
   if (order_ids && Array.isArray(order_ids) && order_ids.length > 0) {
-    query += ` WHERE mo.id = ANY($1)`;
+    query += ' WHERE mo.id = ANY($1)';
     params = [order_ids];
   }
 
-  query += ` ORDER BY mo.order_date DESC`;
+  query += ' ORDER BY mo.order_date DESC';
 
   const result = await pool.query(query, params);
 
@@ -3000,7 +3000,7 @@ router.get('/auto-rules', authenticate, asyncHandler(async (req, res) => {
 // Get single auto-rule
 router.get('/auto-rules/:id', authenticate, asyncHandler(async (req, res) => {
   const { id } = req.params;
-  const result = await pool.query(`SELECT * FROM marketplace_auto_rules WHERE id = $1`, [id]);
+  const result = await pool.query('SELECT * FROM marketplace_auto_rules WHERE id = $1', [id]);
 
   if (result.rows.length === 0) {
     throw ApiError.notFound('Rule');
@@ -3095,7 +3095,7 @@ router.put('/auto-rules/:id/toggle', authenticate, asyncHandler(async (req, res)
 router.delete('/auto-rules/:id', authenticate, asyncHandler(async (req, res) => {
   const { id } = req.params;
 
-  const result = await pool.query(`DELETE FROM marketplace_auto_rules WHERE id = $1 RETURNING id`, [id]);
+  const result = await pool.query('DELETE FROM marketplace_auto_rules WHERE id = $1 RETURNING id', [id]);
 
   if (result.rows.length === 0) {
     throw ApiError.notFound('Rule');
@@ -3479,7 +3479,7 @@ router.post('/pull-offers-from-bestbuy', authenticate, asyncHandler(async (req, 
     try {
       // Check if product already exists by shop_sku or product_sku
       const existingProduct = await pool.query(
-        `SELECT id FROM products WHERE mirakl_sku = $1 OR model = $2`,
+        'SELECT id FROM products WHERE mirakl_sku = $1 OR model = $2',
         [offer.shop_sku, offer.shop_sku]
       );
 
@@ -3498,7 +3498,7 @@ router.post('/pull-offers-from-bestbuy', authenticate, asyncHandler(async (req, 
       let validCategoryCode = null;
       if (offer.category_code) {
         const categoryCheck = await pool.query(
-          `SELECT code FROM bestbuy_categories WHERE code = $1`,
+          'SELECT code FROM bestbuy_categories WHERE code = $1',
           [offer.category_code]
         );
         if (categoryCheck.rows.length > 0) {
@@ -4513,7 +4513,7 @@ router.get('/reports/sales', authenticate, asyncHandler(async (req, res) => {
   const startDate = start_date || new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
 
   // Build filters
-  let filters = `mo.order_date >= $1 AND mo.order_date <= $2`;
+  let filters = 'mo.order_date >= $1 AND mo.order_date <= $2';
   const params = [startDate, endDate + ' 23:59:59'];
   let paramIndex = 3;
 
@@ -4693,7 +4693,7 @@ router.get('/reports/orders', authenticate, asyncHandler(async (req, res) => {
   const endDate = end_date || new Date().toISOString().split('T')[0];
   const startDate = start_date || new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
 
-  let filters = `mo.order_date >= $1 AND mo.order_date <= $2`;
+  let filters = 'mo.order_date >= $1 AND mo.order_date <= $2';
   const params = [startDate, endDate + ' 23:59:59'];
   let paramIndex = 3;
 
@@ -4704,9 +4704,9 @@ router.get('/reports/orders', authenticate, asyncHandler(async (req, res) => {
   }
 
   if (customer_matched === 'true') {
-    filters += ` AND mo.customer_id IS NOT NULL`;
+    filters += ' AND mo.customer_id IS NOT NULL';
   } else if (customer_matched === 'false') {
-    filters += ` AND mo.customer_id IS NULL`;
+    filters += ' AND mo.customer_id IS NULL';
   }
 
   // Summary by status
@@ -5713,7 +5713,7 @@ router.post('/competitors', authenticate, asyncHandler(async (req, res) => {
   const { product_id, competitor_name, competitor_price, competitor_url, notes } = req.body;
 
   // Get our price for comparison
-  const productResult = await pool.query(`SELECT price FROM products WHERE id = $1`, [product_id]);
+  const productResult = await pool.query('SELECT price FROM products WHERE id = $1', [product_id]);
   if (productResult.rows.length === 0) {
     throw ApiError.notFound('Product');
   }
@@ -6043,7 +6043,7 @@ router.get('/returns', authenticate, asyncHandler(async (req, res) => {
   }
 
   // Get count before pagination — build count query from same WHERE conditions
-  let countQuery = `SELECT COUNT(*) as total FROM marketplace_returns r LEFT JOIN marketplace_orders mo ON r.order_id = mo.id WHERE 1=1`;
+  let countQuery = 'SELECT COUNT(*) as total FROM marketplace_returns r LEFT JOIN marketplace_orders mo ON r.order_id = mo.id WHERE 1=1';
   if (status) countQuery += ` AND r.status = $${params.indexOf(status) + 1}`;
   if (return_type) countQuery += ` AND r.return_type = $${params.indexOf(return_type) + 1}`;
   if (start_date) countQuery += ` AND r.created_at >= $${params.indexOf(start_date) + 1}`;
@@ -7375,7 +7375,7 @@ router.post('/channels/:channelId/auto-map', authenticate, asyncHandler(async (r
   // 3. Try to match by category name similarity
   // First, build a map of bestbuy category labels from marketplace_commission_rates
   const commRates = await pool.query(
-    `SELECT DISTINCT category_label FROM marketplace_commission_rates WHERE category_label IS NOT NULL`
+    'SELECT DISTINCT category_label FROM marketplace_commission_rates WHERE category_label IS NOT NULL'
   );
   const bbCatLabels = new Map();
   for (const row of commRates.rows) {
@@ -7483,7 +7483,7 @@ router.post('/channels/:channelId/go-live', authenticate, asyncHandler(async (re
 
   // 2. Check mapped products
   const listingCount = await pool.query(
-    `SELECT COUNT(*) as cnt FROM product_channel_listings WHERE channel_id = $1`,
+    'SELECT COUNT(*) as cnt FROM product_channel_listings WHERE channel_id = $1',
     [channelId]
   );
   const totalListings = parseInt(listingCount.rows[0].cnt, 10);
@@ -8043,7 +8043,7 @@ router.put('/onboarding/:id/step/:stepNumber', authenticate, asyncHandler(async 
     if (shopId) credentials.shop_id = shopId;
 
     await pool.query(
-      `UPDATE marketplace_channels SET api_url = $1, credentials = $2, updated_at = NOW() WHERE id = $3`,
+      'UPDATE marketplace_channels SET api_url = $1, credentials = $2, updated_at = NOW() WHERE id = $3',
       [apiUrl, JSON.stringify(credentials), channelId]
     );
 

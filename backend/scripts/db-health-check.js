@@ -237,17 +237,17 @@ async function runDiagnostics() {
     console.log('----------------------------');
 
     const nullChecks = [
-      { table: 'transactions', field: 'transaction_number', query: `SELECT COUNT(*) as nulls FROM transactions WHERE transaction_number IS NULL` },
-      { table: 'transactions', field: 'status', query: `SELECT COUNT(*) as nulls FROM transactions WHERE status IS NULL` },
-      { table: 'transactions', field: 'total_cents', query: `SELECT COUNT(*) as nulls FROM transactions WHERE total_cents IS NULL` },
-      { table: 'products', field: 'name', query: `SELECT COUNT(*) as nulls FROM products WHERE name IS NULL` },
-      { table: 'products', field: 'sku', query: `SELECT COUNT(*) as nulls FROM products WHERE sku IS NULL OR sku = ''` },
-      { table: 'customers', field: 'name', query: `SELECT COUNT(*) as nulls FROM customers WHERE name IS NULL OR name = ''` },
-      { table: 'quotations', field: 'quote_number', query: `SELECT COUNT(*) as nulls FROM quotations WHERE quote_number IS NULL` },
-      { table: 'quotations', field: 'status', query: `SELECT COUNT(*) as nulls FROM quotations WHERE status IS NULL` },
-      { table: 'shifts', field: 'status', query: `SELECT COUNT(*) as nulls FROM shifts WHERE status IS NULL` },
-      { table: 'payments', field: 'amount_cents', query: `SELECT COUNT(*) as nulls FROM payments WHERE amount_cents IS NULL` },
-      { table: 'payments', field: 'payment_method', query: `SELECT COUNT(*) as nulls FROM payments WHERE payment_method IS NULL` }
+      { table: 'transactions', field: 'transaction_number', query: 'SELECT COUNT(*) as nulls FROM transactions WHERE transaction_number IS NULL' },
+      { table: 'transactions', field: 'status', query: 'SELECT COUNT(*) as nulls FROM transactions WHERE status IS NULL' },
+      { table: 'transactions', field: 'total_cents', query: 'SELECT COUNT(*) as nulls FROM transactions WHERE total_cents IS NULL' },
+      { table: 'products', field: 'name', query: 'SELECT COUNT(*) as nulls FROM products WHERE name IS NULL' },
+      { table: 'products', field: 'sku', query: 'SELECT COUNT(*) as nulls FROM products WHERE sku IS NULL OR sku = \'\'' },
+      { table: 'customers', field: 'name', query: 'SELECT COUNT(*) as nulls FROM customers WHERE name IS NULL OR name = \'\'' },
+      { table: 'quotations', field: 'quote_number', query: 'SELECT COUNT(*) as nulls FROM quotations WHERE quote_number IS NULL' },
+      { table: 'quotations', field: 'status', query: 'SELECT COUNT(*) as nulls FROM quotations WHERE status IS NULL' },
+      { table: 'shifts', field: 'status', query: 'SELECT COUNT(*) as nulls FROM shifts WHERE status IS NULL' },
+      { table: 'payments', field: 'amount_cents', query: 'SELECT COUNT(*) as nulls FROM payments WHERE amount_cents IS NULL' },
+      { table: 'payments', field: 'payment_method', query: 'SELECT COUNT(*) as nulls FROM payments WHERE payment_method IS NULL' }
     ];
 
     for (const check of nullChecks) {
@@ -346,7 +346,7 @@ async function runDiagnostics() {
       });
 
       // Check for unclosed shifts
-      const unclosedQuery = `SELECT COUNT(*) as count FROM shifts WHERE status = 'open' AND started_at < NOW() - INTERVAL '24 hours'`;
+      const unclosedQuery = 'SELECT COUNT(*) as count FROM shifts WHERE status = \'open\' AND started_at < NOW() - INTERVAL \'24 hours\'';
       const unclosed = await pool.query(unclosedQuery);
       if (parseInt(unclosed.rows[0].count) > 0) {
         console.log(`    [!!] WARNING: ${unclosed.rows[0].count} shifts open for more than 24 hours`);
@@ -364,7 +364,7 @@ async function runDiagnostics() {
     console.log('\n7. DATABASE SIZE & PERFORMANCE');
     console.log('------------------------------');
 
-    const dbSizeQuery = `SELECT pg_size_pretty(pg_database_size(current_database())) as size;`;
+    const dbSizeQuery = 'SELECT pg_size_pretty(pg_database_size(current_database())) as size;';
     const dbSize = await pool.query(dbSizeQuery);
     console.log(`  Database size: ${dbSize.rows[0].size}`);
     report.summary.databaseSize = dbSize.rows[0].size;

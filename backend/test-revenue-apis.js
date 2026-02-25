@@ -381,7 +381,7 @@ async function testQuoteAssociations() {
         logTest(
           `${endpoint.method} /api${endpoint.path}`,
           result.status === 200 || result.status === 404,
-          `Endpoint accessible`
+          'Endpoint accessible'
         );
       } catch (error) {
         logTest(`${endpoint.method} /api${endpoint.path}`, false, error.message);

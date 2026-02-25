@@ -276,9 +276,9 @@ function init({ commissionService, pool }) {
     if (includeInactive === 'true') {
       // Get all rules including inactive
       const { rows } = await commissionService.pool.query(`
-        SELECT cr.*, pc.name AS category_name
+        SELECT cr.*, c.name AS category_name
         FROM commission_rules cr
-        LEFT JOIN product_categories pc ON pc.id = cr.category_id
+        LEFT JOIN categories c ON c.id = cr.category_id
         ORDER BY cr.priority ASC, cr.id ASC
       `);
       rules = rows.map(r => commissionService.formatRule(r));

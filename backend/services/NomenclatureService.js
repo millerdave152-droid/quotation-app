@@ -779,7 +779,7 @@ class NomenclatureService {
 
     const params = [];
     if (manufacturer) {
-      query += ` AND UPPER(qa.manufacturer) = UPPER($1)`;
+      query += ' AND UPPER(qa.manufacturer) = UPPER($1)';
       params.push(manufacturer);
     }
 

@@ -20,6 +20,8 @@ const AdminFinancingPage = lazy(() => import('./pages/AdminFinancingPage'));
 const CustomerFinancingPage = lazy(() => import('./pages/CustomerFinancingPage'));
 const MyCommissionsPage = lazy(() => import('./pages/MyCommissionsPage'));
 const TeamCommissionsPage = lazy(() => import('./pages/TeamCommissionsPage'));
+const CommissionRulesPage = lazy(() => import('./pages/CommissionRulesPage'));
+const PayrollSummaryPage = lazy(() => import('./pages/PayrollSummaryPage'));
 const ReturnInitiation = lazy(() => import('./pages/ReturnInitiation'));
 const TransactionsPage = lazy(() => import('./pages/Transactions'));
 
@@ -448,6 +450,26 @@ function App() {
           element={
             <ManagerRoute>
               <TeamCommissionsPage />
+            </ManagerRoute>
+          }
+        />
+
+        {/* Commission Rules - Manager only */}
+        <Route
+          path="/admin/commissions/rules"
+          element={
+            <ManagerRoute>
+              <CommissionRulesPage />
+            </ManagerRoute>
+          }
+        />
+
+        {/* Payroll Summary - Manager only */}
+        <Route
+          path="/admin/commissions/payroll"
+          element={
+            <ManagerRoute>
+              <PayrollSummaryPage />
             </ManagerRoute>
           }
         />

@@ -8,7 +8,7 @@ class CustomerAccountService {
 
   async openAccount(customerId, creditLimitCents, paymentTermsDays, userId) {
     const existing = await this.pool.query(
-      `SELECT id FROM customer_accounts WHERE customer_id = $1`, [customerId]
+      'SELECT id FROM customer_accounts WHERE customer_id = $1', [customerId]
     );
     if (existing.rows.length) throw new ApiError(409, 'Customer already has an account');
 
@@ -37,7 +37,7 @@ class CustomerAccountService {
       await client.query('BEGIN');
 
       const { rows: [account] } = await client.query(
-        `SELECT * FROM customer_accounts WHERE id = $1 FOR UPDATE`, [accountId]
+        'SELECT * FROM customer_accounts WHERE id = $1 FOR UPDATE', [accountId]
       );
       if (!account) throw new ApiError(404, 'Account not found');
       if (account.status !== 'active') throw new ApiError(400, 'Account is not active');
@@ -48,7 +48,7 @@ class CustomerAccountService {
       }
 
       await client.query(
-        `UPDATE customer_accounts SET balance_cents = $2, last_charge_at = NOW(), updated_at = NOW() WHERE id = $1`,
+        'UPDATE customer_accounts SET balance_cents = $2, last_charge_at = NOW(), updated_at = NOW() WHERE id = $1',
         [accountId, newBalance]
       );
 
@@ -73,14 +73,14 @@ class CustomerAccountService {
     try {
       await client.query('BEGIN');
       const { rows: [account] } = await client.query(
-        `SELECT * FROM customer_accounts WHERE id = $1 FOR UPDATE`, [accountId]
+        'SELECT * FROM customer_accounts WHERE id = $1 FOR UPDATE', [accountId]
       );
       if (!account) throw new ApiError(404, 'Account not found');
 
       const newBalance = account.balance_cents - amountCents;
 
       await client.query(
-        `UPDATE customer_accounts SET balance_cents = $2, last_payment_at = NOW(), updated_at = NOW() WHERE id = $1`,
+        'UPDATE customer_accounts SET balance_cents = $2, last_payment_at = NOW(), updated_at = NOW() WHERE id = $1',
         [accountId, newBalance]
       );
 
@@ -158,7 +158,7 @@ class CustomerAccountService {
 
   async checkCreditHold(customerId) {
     const { rows: [account] } = await this.pool.query(
-      `SELECT * FROM customer_accounts WHERE customer_id = $1`, [customerId]
+      'SELECT * FROM customer_accounts WHERE customer_id = $1', [customerId]
     );
     if (!account) return { hasAccount: false, canCharge: false };
     return {

@@ -27,7 +27,7 @@ class WebhookService {
    */
   async getWebhooks(options = {}) {
     const { active, event } = options;
-    let query = `SELECT * FROM webhooks WHERE 1=1`;
+    let query = 'SELECT * FROM webhooks WHERE 1=1';
     const params = [];
 
     if (active !== undefined) {
@@ -40,7 +40,7 @@ class WebhookService {
       query += ` AND $${params.length} = ANY(events)`;
     }
 
-    query += ` ORDER BY created_at DESC`;
+    query += ' ORDER BY created_at DESC';
 
     const result = await this.pool.query(query, params);
     return result.rows;
@@ -51,7 +51,7 @@ class WebhookService {
    */
   async getWebhookById(id) {
     const result = await this.pool.query(
-      `SELECT * FROM webhooks WHERE id = $1`,
+      'SELECT * FROM webhooks WHERE id = $1',
       [id]
     );
     return result.rows[0] || null;
@@ -135,7 +135,7 @@ class WebhookService {
    */
   async deleteWebhook(id) {
     const result = await this.pool.query(
-      `DELETE FROM webhooks WHERE id = $1 RETURNING id`,
+      'DELETE FROM webhooks WHERE id = $1 RETURNING id',
       [id]
     );
     this.cache?.invalidatePattern?.('webhooks:*');
@@ -336,9 +336,9 @@ class WebhookService {
     const params = [webhookId];
 
     if (success === true) {
-      query += ` AND response_status IS NOT NULL AND response_status >= 200 AND response_status < 300`;
+      query += ' AND response_status IS NOT NULL AND response_status >= 200 AND response_status < 300';
     } else if (success === false) {
-      query += ` AND (response_status IS NULL OR response_status >= 300)`;
+      query += ' AND (response_status IS NULL OR response_status >= 300)';
     }
 
     query += ` ORDER BY created_at DESC LIMIT $${params.length + 1} OFFSET $${params.length + 2}`;

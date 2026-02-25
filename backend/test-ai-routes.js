@@ -22,7 +22,7 @@ async function api(method, path, body) {
   console.log('=== MARKETPLACE AI ROUTES TEST ===\n');
 
   // Find test product + channel
-  var prodRes = await pool.query("SELECT id, sku, name FROM products WHERE sku IS NOT NULL AND price > 50 AND description IS NOT NULL LIMIT 1");
+  var prodRes = await pool.query('SELECT id, sku, name FROM products WHERE sku IS NOT NULL AND price > 50 AND description IS NOT NULL LIMIT 1');
   var chRes = await pool.query("SELECT id, channel_code FROM marketplace_channels WHERE status = 'ACTIVE' LIMIT 1");
 
   if (prodRes.rows.length === 0 || chRes.rows.length === 0) {

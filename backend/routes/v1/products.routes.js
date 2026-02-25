@@ -188,13 +188,13 @@ router.get('/',
     }
 
     if (inStock === true) {
-      query += ` AND p.quantity_available > 0`;
+      query += ' AND p.quantity_available > 0';
     } else if (inStock === false) {
-      query += ` AND p.quantity_available <= 0`;
+      query += ' AND p.quantity_available <= 0';
     }
 
     if (lowStock === true) {
-      query += ` AND p.quantity_available <= p.reorder_point AND p.track_inventory = true`;
+      query += ' AND p.quantity_available <= p.reorder_point AND p.track_inventory = true';
     }
 
     if (minPrice !== undefined) {

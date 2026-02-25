@@ -570,7 +570,7 @@ class RebateService {
     }
 
     if (!includeExpired) {
-      whereClause += ` AND rc.claim_status != 'expired'`;
+      whereClause += ' AND rc.claim_status != \'expired\'';
     }
 
     const query = `
@@ -693,7 +693,7 @@ class RebateService {
     let paramIndex = 3;
 
     if (status === 'submitted') {
-      updates.push(`submitted_at = NOW()`);
+      updates.push('submitted_at = NOW()');
       if (claimReference) {
         updates.push(`claim_reference = $${paramIndex++}`);
         params.push(claimReference);
@@ -701,7 +701,7 @@ class RebateService {
     }
 
     if (status === 'approved' || status === 'denied') {
-      updates.push(`processed_at = NOW()`);
+      updates.push('processed_at = NOW()');
       updates.push(`processed_by = $${paramIndex++}`);
       params.push(userId);
     }
@@ -712,7 +712,7 @@ class RebateService {
     }
 
     if (status === 'paid') {
-      updates.push(`paid_at = NOW()`);
+      updates.push('paid_at = NOW()');
       if (paymentMethod) {
         updates.push(`payment_method = $${paramIndex++}`);
         params.push(paymentMethod);
@@ -783,7 +783,7 @@ class RebateService {
   async listActiveRebates(options = {}) {
     const { manufacturer, rebateType, page = 1, limit = 50 } = options;
 
-    let whereClause = `WHERE r.is_active = true AND NOW() BETWEEN r.valid_from AND r.valid_to`;
+    let whereClause = 'WHERE r.is_active = true AND NOW() BETWEEN r.valid_from AND r.valid_to';
     const params = [];
     let paramIndex = 1;
 

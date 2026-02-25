@@ -153,7 +153,7 @@ class ChannelManager {
 
     if (sets.length === 0) return null;
 
-    sets.push(`updated_at = NOW()`);
+    sets.push('updated_at = NOW()');
     params.push(channelId);
 
     const { rows } = await this.pool.query(
@@ -198,7 +198,7 @@ class ChannelManager {
     const params = [channelId];
 
     if (productIds && productIds.length > 0) {
-      query += ` AND pcl.product_id = ANY($2)`;
+      query += ' AND pcl.product_id = ANY($2)';
       params.push(productIds);
     }
 

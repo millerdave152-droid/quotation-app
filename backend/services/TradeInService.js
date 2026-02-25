@@ -47,8 +47,8 @@ class TradeInService {
 
     // Base conditions
     if (activeOnly) {
-      conditions.push(`tip.is_active = true`);
-      conditions.push(`tic.is_active = true`);
+      conditions.push('tip.is_active = true');
+      conditions.push('tic.is_active = true');
     }
 
     // Brand filter
@@ -371,7 +371,7 @@ class TradeInService {
     }
 
     // Get condition multiplier
-    const conditionQuery = `SELECT * FROM trade_in_conditions WHERE id = $1`;
+    const conditionQuery = 'SELECT * FROM trade_in_conditions WHERE id = $1';
     const conditionResult = await this.pool.query(conditionQuery, [conditionId]);
 
     if (conditionResult.rows.length === 0) {
@@ -632,7 +632,7 @@ class TradeInService {
       offset = 0,
     } = options;
 
-    const conditions = [`tia.customer_id = $1`];
+    const conditions = ['tia.customer_id = $1'];
     const params = [customerId];
     let paramIndex = 2;
 
@@ -643,7 +643,7 @@ class TradeInService {
     }
 
     if (!includeVoided) {
-      conditions.push(`tia.status != 'void'`);
+      conditions.push('tia.status != \'void\'');
     }
 
     params.push(limit, offset);

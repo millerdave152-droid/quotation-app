@@ -10,7 +10,7 @@ class SpecialOrderService {
     const db = client || this.pool;
     const today = new Date().toISOString().slice(0, 10).replace(/-/g, '');
     const { rows } = await db.query(
-      `SELECT so_number FROM special_orders WHERE so_number LIKE $1 ORDER BY so_number DESC LIMIT 1`,
+      'SELECT so_number FROM special_orders WHERE so_number LIKE $1 ORDER BY so_number DESC LIMIT 1',
       [`SO-${today}-%`]
     );
     let seq = 1;

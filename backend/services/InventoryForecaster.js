@@ -375,7 +375,7 @@ class InventoryForecaster {
       LEFT JOIN (
         SELECT li2.product_id, SUM(li2.quantity_on_hand)::int as quantity_on_hand
         FROM location_inventory li2
-        ${locationId ? `WHERE li2.location_id = $2` : ''}
+        ${locationId ? 'WHERE li2.location_id = $2' : ''}
         GROUP BY li2.product_id
       ) li ON li.product_id = p.id
       LEFT JOIN (
@@ -411,7 +411,7 @@ class InventoryForecaster {
       FROM products p
       LEFT JOIN (
         SELECT li.product_id, SUM(li.quantity_on_hand)::int as qty FROM location_inventory li
-        ${locationId ? `WHERE li.location_id = $2` : ''}
+        ${locationId ? 'WHERE li.location_id = $2' : ''}
         GROUP BY li.product_id
       ) inv ON inv.product_id = p.id
       LEFT JOIN (

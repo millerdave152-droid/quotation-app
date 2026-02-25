@@ -10,7 +10,7 @@ class WorkOrderService {
     const db = client || this.pool;
     const today = new Date().toISOString().slice(0, 10).replace(/-/g, '');
     const { rows } = await db.query(
-      `SELECT wo_number FROM work_orders WHERE wo_number LIKE $1 ORDER BY wo_number DESC LIMIT 1`,
+      'SELECT wo_number FROM work_orders WHERE wo_number LIKE $1 ORDER BY wo_number DESC LIMIT 1',
       [`WO-${today}-%`]
     );
     let seq = 1;
@@ -102,11 +102,11 @@ class WorkOrderService {
     );
 
     const { rows: photos } = await this.pool.query(
-      `SELECT id, photo_type, caption, latitude, longitude, created_at FROM work_order_photos WHERE work_order_id = $1`, [woId]
+      'SELECT id, photo_type, caption, latitude, longitude, created_at FROM work_order_photos WHERE work_order_id = $1', [woId]
     );
 
     const { rows: signatures } = await this.pool.query(
-      `SELECT id, signer_name, relationship, created_at FROM work_order_signatures WHERE work_order_id = $1`, [woId]
+      'SELECT id, signer_name, relationship, created_at FROM work_order_signatures WHERE work_order_id = $1', [woId]
     );
 
     return { ...wo, items, history, photos, signatures };
@@ -166,8 +166,8 @@ class WorkOrderService {
 
     if (fields.length === 0) throw new ApiError(400, 'No valid fields to update');
 
-    fields.push(`total_cost_cents = COALESCE(labor_cost_cents, 0) + COALESCE(parts_cost_cents, 0)`);
-    fields.push(`updated_at = NOW()`);
+    fields.push('total_cost_cents = COALESCE(labor_cost_cents, 0) + COALESCE(parts_cost_cents, 0)');
+    fields.push('updated_at = NOW()');
     params.push(woId);
 
     const { rows: [wo] } = await this.pool.query(
@@ -191,7 +191,7 @@ class WorkOrderService {
     };
 
     const { rows: [wo] } = await this.pool.query(
-      `SELECT * FROM work_orders WHERE id = $1`, [woId]
+      'SELECT * FROM work_orders WHERE id = $1', [woId]
     );
     if (!wo) throw new ApiError(404, 'Work order not found');
 
@@ -199,16 +199,16 @@ class WorkOrderService {
       throw new ApiError(400, `Cannot transition from ${wo.status} to ${newStatus}`);
     }
 
-    const updateFields = [`status = $2`, `updated_at = NOW()`];
+    const updateFields = ['status = $2', 'updated_at = NOW()'];
     const params = [woId, newStatus];
     let pi = 3;
 
     if (newStatus === 'in_progress' && !wo.started_at) {
-      updateFields.push(`started_at = NOW()`);
+      updateFields.push('started_at = NOW()');
     } else if (newStatus === 'completed') {
-      updateFields.push(`completed_at = NOW()`);
+      updateFields.push('completed_at = NOW()');
     } else if (newStatus === 'closed') {
-      updateFields.push(`closed_at = NOW()`);
+      updateFields.push('closed_at = NOW()');
     }
 
     const { rows: [updated] } = await this.pool.query(
@@ -265,7 +265,7 @@ class WorkOrderService {
 
   async removeItem(woId, itemId) {
     await this.pool.query(
-      `DELETE FROM work_order_items WHERE id = $1 AND work_order_id = $2`, [itemId, woId]
+      'DELETE FROM work_order_items WHERE id = $1 AND work_order_id = $2', [itemId, woId]
     );
 
     await this.pool.query(

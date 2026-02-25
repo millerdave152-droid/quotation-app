@@ -21,7 +21,7 @@ async function analyze() {
   for (const catName of categories) {
     // Get category ID
     const catResult = await pool.query(
-      `SELECT id, slug FROM categories WHERE name = $1 AND level = 2`,
+      'SELECT id, slug FROM categories WHERE name = $1 AND level = 2',
       [catName]
     );
 

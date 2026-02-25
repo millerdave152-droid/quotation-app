@@ -100,7 +100,7 @@ async function api(method, path, body) {
 
   // 7. Step 5: Product selection
   console.log('\n--- STEP 5: PRODUCTS ---\n');
-  var prods = (await pool.query("SELECT id FROM products WHERE price > 50 AND quantity_in_stock > 0 LIMIT 3")).rows;
+  var prods = (await pool.query('SELECT id FROM products WHERE price > 50 AND quantity_in_stock > 0 LIMIT 3')).rows;
   var pids = prods.map(function(p) { return p.id; });
   var s5 = await api('PUT', '/onboarding/' + obId + '/step/5', { productIds: pids });
   assert(s5.status === 200, 'Step 5 complete', 'status=' + s5.status);

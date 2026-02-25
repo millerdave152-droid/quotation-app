@@ -38,7 +38,7 @@ async function migrate() {
 
     // Add color column if not exists
     if (!colNames.includes('color')) {
-      await client.query(`ALTER TABLE products ADD COLUMN color VARCHAR(100)`);
+      await client.query('ALTER TABLE products ADD COLUMN color VARCHAR(100)');
       console.log('✓ Added column: color');
     } else {
       console.log('- Column already exists: color');
@@ -46,7 +46,7 @@ async function migrate() {
 
     // Add samsung_category column if not exists
     if (!colNames.includes('samsung_category')) {
-      await client.query(`ALTER TABLE products ADD COLUMN samsung_category VARCHAR(255)`);
+      await client.query('ALTER TABLE products ADD COLUMN samsung_category VARCHAR(255)');
       console.log('✓ Added column: samsung_category');
     } else {
       console.log('- Column already exists: samsung_category');
@@ -54,7 +54,7 @@ async function migrate() {
 
     // Add retail_price_cents column if not exists (separate from msrp_cents for Go To price)
     if (!colNames.includes('retail_price_cents')) {
-      await client.query(`ALTER TABLE products ADD COLUMN retail_price_cents BIGINT`);
+      await client.query('ALTER TABLE products ADD COLUMN retail_price_cents BIGINT');
       console.log('✓ Added column: retail_price_cents');
     } else {
       console.log('- Column already exists: retail_price_cents');
@@ -62,7 +62,7 @@ async function migrate() {
 
     // Add go_to_margin column if not exists
     if (!colNames.includes('go_to_margin')) {
-      await client.query(`ALTER TABLE products ADD COLUMN go_to_margin NUMERIC(10,2)`);
+      await client.query('ALTER TABLE products ADD COLUMN go_to_margin NUMERIC(10,2)');
       console.log('✓ Added column: go_to_margin');
     } else {
       console.log('- Column already exists: go_to_margin');
@@ -70,7 +70,7 @@ async function migrate() {
 
     // Add promo_margin column if not exists
     if (!colNames.includes('promo_margin')) {
-      await client.query(`ALTER TABLE products ADD COLUMN promo_margin NUMERIC(10,2)`);
+      await client.query('ALTER TABLE products ADD COLUMN promo_margin NUMERIC(10,2)');
       console.log('✓ Added column: promo_margin');
     } else {
       console.log('- Column already exists: promo_margin');
@@ -78,7 +78,7 @@ async function migrate() {
 
     // Add availability column if not exists
     if (!colNames.includes('availability')) {
-      await client.query(`ALTER TABLE products ADD COLUMN availability VARCHAR(50)`);
+      await client.query('ALTER TABLE products ADD COLUMN availability VARCHAR(50)');
       console.log('✓ Added column: availability');
     } else {
       console.log('- Column already exists: availability');
@@ -86,7 +86,7 @@ async function migrate() {
 
     // Add handle_type column if not exists
     if (!colNames.includes('handle_type')) {
-      await client.query(`ALTER TABLE products ADD COLUMN handle_type VARCHAR(100)`);
+      await client.query('ALTER TABLE products ADD COLUMN handle_type VARCHAR(100)');
       console.log('✓ Added column: handle_type');
     } else {
       console.log('- Column already exists: handle_type');
@@ -94,7 +94,7 @@ async function migrate() {
 
     // Add replacement_for column if not exists
     if (!colNames.includes('replacement_for')) {
-      await client.query(`ALTER TABLE products ADD COLUMN replacement_for VARCHAR(255)`);
+      await client.query('ALTER TABLE products ADD COLUMN replacement_for VARCHAR(255)');
       console.log('✓ Added column: replacement_for');
     } else {
       console.log('- Column already exists: replacement_for');
@@ -102,7 +102,7 @@ async function migrate() {
 
     // Add is_mto (made to order) column if not exists
     if (!colNames.includes('is_mto')) {
-      await client.query(`ALTER TABLE products ADD COLUMN is_mto BOOLEAN DEFAULT false`);
+      await client.query('ALTER TABLE products ADD COLUMN is_mto BOOLEAN DEFAULT false');
       console.log('✓ Added column: is_mto');
     } else {
       console.log('- Column already exists: is_mto');
@@ -110,7 +110,7 @@ async function migrate() {
 
     // Add emp_price_cents column if not exists
     if (!colNames.includes('emp_price_cents')) {
-      await client.query(`ALTER TABLE products ADD COLUMN emp_price_cents BIGINT`);
+      await client.query('ALTER TABLE products ADD COLUMN emp_price_cents BIGINT');
       console.log('✓ Added column: emp_price_cents');
     } else {
       console.log('- Column already exists: emp_price_cents');
@@ -118,7 +118,7 @@ async function migrate() {
 
     // Add set_or_accessory column if not exists
     if (!colNames.includes('set_or_accessory')) {
-      await client.query(`ALTER TABLE products ADD COLUMN set_or_accessory VARCHAR(20)`);
+      await client.query('ALTER TABLE products ADD COLUMN set_or_accessory VARCHAR(20)');
       console.log('✓ Added column: set_or_accessory');
     } else {
       console.log('- Column already exists: set_or_accessory');

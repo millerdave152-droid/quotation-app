@@ -285,7 +285,7 @@
 
     console.log('');
     console.log('🚀 STARTING BATCH EXTRACTION');
-    console.log(`━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`);
+    console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
     console.log(`📋 Products to extract: ${skuList.length}`);
     console.log(`⏱️  Delay between products: ${delay}ms`);
     console.log('');
@@ -325,7 +325,7 @@
     console.log('');
     console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
     console.log('✅ BATCH EXTRACTION COMPLETE');
-    console.log(`━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`);
+    console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
     console.log(`📦 Successfully extracted: ${results.length}`);
     console.log(`❌ Errors: ${errors.length}`);
     console.log(`⏱️  Total time: ${elapsed}s`);

@@ -39,28 +39,28 @@ class SkulyticsImportService {
 
     // In-stock filter
     if (inStock === 'true' || inStock === true) {
-      conditions.push(`gsp.is_in_stock = true`);
+      conditions.push('gsp.is_in_stock = true');
     } else if (inStock === 'false' || inStock === false) {
-      conditions.push(`gsp.is_in_stock = false`);
+      conditions.push('gsp.is_in_stock = false');
     }
 
     // Status filter
     if (status) {
       switch (status) {
         case 'not_imported':
-          conditions.push(`(sim.id IS NULL OR sim.match_status = 'new') AND p.skulytics_id IS NULL`);
+          conditions.push('(sim.id IS NULL OR sim.match_status = \'new\') AND p.skulytics_id IS NULL');
           break;
         case 'matched':
-          conditions.push(`sim.match_status = 'pending'`);
+          conditions.push('sim.match_status = \'pending\'');
           break;
         case 'confirmed':
-          conditions.push(`sim.match_status = 'confirmed'`);
+          conditions.push('sim.match_status = \'confirmed\'');
           break;
         case 'rejected':
-          conditions.push(`sim.match_status = 'rejected'`);
+          conditions.push('sim.match_status = \'rejected\'');
           break;
         case 'imported':
-          conditions.push(`p.skulytics_id IS NOT NULL`);
+          conditions.push('p.skulytics_id IS NOT NULL');
           break;
       }
     }
@@ -337,7 +337,7 @@ class SkulyticsImportService {
 
           // Check if already imported
           const { rows: existingRows } = await client.query(
-            `SELECT id FROM products WHERE skulytics_id = $1`,
+            'SELECT id FROM products WHERE skulytics_id = $1',
             [skulyticsId]
           );
 

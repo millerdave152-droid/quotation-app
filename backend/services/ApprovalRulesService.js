@@ -147,7 +147,7 @@ class ApprovalRulesService {
     // First try: User's manager
     if (requestingUser.manager_id) {
       const managerResult = await pool.query(
-        `SELECT * FROM users WHERE id = $1 AND is_active = true`,
+        'SELECT * FROM users WHERE id = $1 AND is_active = true',
         [requestingUser.manager_id]
       );
       if (managerResult.rows.length > 0) {

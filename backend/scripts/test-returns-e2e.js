@@ -171,7 +171,7 @@ async function run() {
   }
 
   const refund = paymentInfo.body.data.refundBreakdown;
-  console.log(`Refund breakdown:`);
+  console.log('Refund breakdown:');
   console.log(`  Subtotal: $${(refund.subtotalCents / 100).toFixed(2)}`);
   console.log(`  Tax:      $${(refund.taxCents / 100).toFixed(2)}`);
   console.log(`  Total:    $${(refund.totalCents / 100).toFixed(2)}`);
@@ -196,7 +196,7 @@ async function run() {
   }
 
   const result = processRefund.body.data;
-  console.log(`Refund completed!`);
+  console.log('Refund completed!');
   console.log(`  Return ID:    ${result.returnId}`);
   console.log(`  Status:       ${result.status}`);
   console.log(`  Method:       ${result.refundMethod}`);

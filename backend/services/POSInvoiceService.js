@@ -598,7 +598,7 @@ class POSInvoiceService {
     if (endDate) { query += ` AND t.created_at <= $${paramIndex}`; params.push(endDate); paramIndex++; }
 
     if (unpaidOnly) {
-      query += ` GROUP BY t.transaction_id HAVING COALESCE(SUM(p.amount), 0) < t.total_amount`;
+      query += ' GROUP BY t.transaction_id HAVING COALESCE(SUM(p.amount), 0) < t.total_amount';
     }
 
     query += ' ORDER BY t.created_at DESC LIMIT 100';

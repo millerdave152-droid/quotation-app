@@ -649,7 +649,7 @@ class CustomerService {
 
     if (setClauses.length === 0) return null;
 
-    setClauses.push(`updated_at = CURRENT_TIMESTAMP`);
+    setClauses.push('updated_at = CURRENT_TIMESTAMP');
     values.push(tagId);
 
     const result = await this.pool.query(`

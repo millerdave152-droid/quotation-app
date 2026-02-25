@@ -15,7 +15,7 @@ class BundleManager {
       // Calculate sum of component prices
       const productIds = components.map(function(c) { return c.productId; });
       const { rows: products } = await client.query(
-        `SELECT id, price FROM products WHERE id = ANY($1)`,
+        'SELECT id, price FROM products WHERE id = ANY($1)',
         [productIds]
       );
       const priceMap = {};
@@ -124,7 +124,7 @@ class BundleManager {
       // If any component is OOS and bundle was active, deactivate
       if (!shouldBeActive && bundle.is_active && avail.maxAvailable === 0) {
         await this.pool.query(
-          `UPDATE product_bundles SET is_active = false, updated_at = NOW() WHERE id = $1`,
+          'UPDATE product_bundles SET is_active = false, updated_at = NOW() WHERE id = $1',
           [bundle.id]
         );
       }

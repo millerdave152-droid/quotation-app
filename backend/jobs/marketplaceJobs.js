@@ -233,7 +233,7 @@ async function jobInventorySync() {
     } else {
       // Legacy single-channel path
       const pendingResult = await pool.query(
-        `SELECT COUNT(*) as cnt FROM marketplace_inventory_queue WHERE synced_at IS NULL`
+        'SELECT COUNT(*) as cnt FROM marketplace_inventory_queue WHERE synced_at IS NULL'
       );
       const pendingCount = parseInt(pendingResult.rows[0].cnt) || 0;
 
@@ -453,7 +453,7 @@ async function jobHealthScan() {
   try {
     // Get all active channels
     const { rows: channels } = await pool.query(
-      `SELECT id, channel_code FROM marketplace_channels WHERE status = 'ACTIVE' ORDER BY id`
+      'SELECT id, channel_code FROM marketplace_channels WHERE status = \'ACTIVE\' ORDER BY id'
     );
 
     if (channels.length === 0) {

@@ -20,7 +20,7 @@ async function run() {
   const md = path.join(__dirname, '..', 'migrations');
 
   // Fix products table - add missing columns needed by migrations
-  await q('products.is_active', "ALTER TABLE products ADD COLUMN IF NOT EXISTS is_active BOOLEAN DEFAULT TRUE");
+  await q('products.is_active', 'ALTER TABLE products ADD COLUMN IF NOT EXISTS is_active BOOLEAN DEFAULT TRUE');
 
   // 017: warranty_products
   await q('017', fs.readFileSync(path.join(md, '017_warranty_products.sql'), 'utf8'));
@@ -53,8 +53,8 @@ async function run() {
   await q('030', sql030);
 
   // 041: locations needs pickup_hours
-  await q('locations.pickup_hours', "ALTER TABLE locations ADD COLUMN IF NOT EXISTS pickup_hours JSONB");
-  await q('locations.is_pickup_location', "ALTER TABLE locations ADD COLUMN IF NOT EXISTS is_pickup_location BOOLEAN DEFAULT FALSE");
+  await q('locations.pickup_hours', 'ALTER TABLE locations ADD COLUMN IF NOT EXISTS pickup_hours JSONB');
+  await q('locations.is_pickup_location', 'ALTER TABLE locations ADD COLUMN IF NOT EXISTS is_pickup_location BOOLEAN DEFAULT FALSE');
   await q('041', fs.readFileSync(path.join(md, '041_pickup_details.sql'), 'utf8'));
 
   // 059: locations enhancements

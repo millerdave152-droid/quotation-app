@@ -37,8 +37,7 @@ class InventorySyncService {
         qty_reserved,
         qty_available,
         reorder_point,
-        track_inventory,
-        allow_backorder
+        track_inventory
       FROM products
       WHERE id = $1${forUpdate}
     `, [productId]);
@@ -62,8 +61,7 @@ class InventorySyncService {
         qty_reserved,
         qty_available,
         reorder_point,
-        track_inventory,
-        allow_backorder
+        track_inventory
       FROM products
       WHERE id = ANY($1)
     `, [productIds]);
@@ -101,15 +99,6 @@ class InventorySyncService {
         qtyAvailable: availableQty,
         qtyOnHand: product.qty_on_hand,
         qtyReserved: product.qty_reserved,
-      };
-    }
-
-    if (product.allow_backorder) {
-      return {
-        available: true,
-        backorder: true,
-        backorderQty: quantity - availableQty,
-        qtyAvailable: availableQty,
       };
     }
 

@@ -10,7 +10,7 @@ class PhysicalCountService {
     const db = client || this.pool;
     const today = new Date().toISOString().slice(0, 10).replace(/-/g, '');
     const { rows } = await db.query(
-      `SELECT count_number FROM physical_counts WHERE count_number LIKE $1 ORDER BY count_number DESC LIMIT 1`,
+      'SELECT count_number FROM physical_counts WHERE count_number LIKE $1 ORDER BY count_number DESC LIMIT 1',
       [`PC-${today}-%`]
     );
     let seq = 1;
@@ -49,7 +49,7 @@ class PhysicalCountService {
       await client.query('BEGIN');
 
       const { rows: [count] } = await client.query(
-        `SELECT * FROM physical_counts WHERE id = $1`, [countId]
+        'SELECT * FROM physical_counts WHERE id = $1', [countId]
       );
       if (!count) throw new ApiError(404, 'Count not found');
       if (count.status !== 'draft') throw new ApiError(400, 'Count must be in draft status to start');
@@ -83,7 +83,7 @@ class PhysicalCountService {
 
   async recordCount(countId, productId, countedQty, userId, scannedBarcode = null) {
     const { rows: [count] } = await this.pool.query(
-      `SELECT * FROM physical_counts WHERE id = $1`, [countId]
+      'SELECT * FROM physical_counts WHERE id = $1', [countId]
     );
     if (!count) throw new ApiError(404, 'Count not found');
     if (count.status !== 'in_progress') throw new ApiError(400, 'Count must be in progress');
@@ -145,13 +145,13 @@ class PhysicalCountService {
       await client.query('BEGIN');
 
       const { rows: [count] } = await client.query(
-        `SELECT * FROM physical_counts WHERE id = $1 AND status = 'review'`, [countId]
+        'SELECT * FROM physical_counts WHERE id = $1 AND status = \'review\'', [countId]
       );
       if (!count) throw new ApiError(400, 'Count must be in review status to approve');
 
       // Get all items with variance
       const { rows: items } = await client.query(
-        `SELECT * FROM physical_count_items WHERE physical_count_id = $1 AND variance != 0`,
+        'SELECT * FROM physical_count_items WHERE physical_count_id = $1 AND variance != 0',
         [countId]
       );
 
@@ -285,7 +285,7 @@ class PhysicalCountService {
 
   async generateCycleCount(locationId) {
     const { rows: schedules } = await this.pool.query(
-      `SELECT * FROM cycle_count_schedule WHERE location_id = $1 AND is_active = TRUE AND next_count_date <= CURRENT_DATE`,
+      'SELECT * FROM cycle_count_schedule WHERE location_id = $1 AND is_active = TRUE AND next_count_date <= CURRENT_DATE',
       [locationId]
     );
 

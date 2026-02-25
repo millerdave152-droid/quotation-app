@@ -77,7 +77,7 @@ rolesRouter.get('/:id', checkPermission('admin.roles'), asyncHandler(async (req,
   );
 
   const usersResult = await pool.query(
-    `SELECT id, email, first_name, last_name FROM users WHERE role_id = $1 ORDER BY first_name`,
+    'SELECT id, email, first_name, last_name FROM users WHERE role_id = $1 ORDER BY first_name',
     [id]
   );
 

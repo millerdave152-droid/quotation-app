@@ -21,24 +21,24 @@ async function runSQL(label, sql) {
 
 async function run() {
   // Enums
-  await runSQL('fulfillment_option_type', `DO $$ BEGIN CREATE TYPE fulfillment_option_type AS ENUM ('pickup_now','pickup_scheduled','local_delivery','shipping'); EXCEPTION WHEN duplicate_object THEN NULL; END $$`);
-  await runSQL('fulfillment_status', `DO $$ BEGIN CREATE TYPE fulfillment_status AS ENUM ('pending','processing','ready_for_pickup','out_for_delivery','in_transit','delivered','failed_delivery','returned','cancelled'); EXCEPTION WHEN duplicate_object THEN NULL; END $$`);
-  await runSQL('delivery_zone_type', `DO $$ BEGIN CREATE TYPE delivery_zone_type AS ENUM ('radius','postal_code','city','custom'); EXCEPTION WHEN duplicate_object THEN NULL; END $$`);
+  await runSQL('fulfillment_option_type', 'DO $$ BEGIN CREATE TYPE fulfillment_option_type AS ENUM (\'pickup_now\',\'pickup_scheduled\',\'local_delivery\',\'shipping\'); EXCEPTION WHEN duplicate_object THEN NULL; END $$');
+  await runSQL('fulfillment_status', 'DO $$ BEGIN CREATE TYPE fulfillment_status AS ENUM (\'pending\',\'processing\',\'ready_for_pickup\',\'out_for_delivery\',\'in_transit\',\'delivered\',\'failed_delivery\',\'returned\',\'cancelled\'); EXCEPTION WHEN duplicate_object THEN NULL; END $$');
+  await runSQL('delivery_zone_type', 'DO $$ BEGIN CREATE TYPE delivery_zone_type AS ENUM (\'radius\',\'postal_code\',\'city\',\'custom\'); EXCEPTION WHEN duplicate_object THEN NULL; END $$');
 
   // Add missing columns to existing delivery_zones
-  await runSQL('delivery_zones: add base_delivery_fee', `ALTER TABLE delivery_zones ADD COLUMN IF NOT EXISTS base_delivery_fee DECIMAL(10,2) DEFAULT 0`);
-  await runSQL('delivery_zones: add per_km_fee', `ALTER TABLE delivery_zones ADD COLUMN IF NOT EXISTS per_km_fee DECIMAL(6,2) DEFAULT 0`);
-  await runSQL('delivery_zones: add min_order_for_free', `ALTER TABLE delivery_zones ADD COLUMN IF NOT EXISTS min_order_for_free DECIMAL(10,2)`);
-  await runSQL('delivery_zones: add estimated_days_min', `ALTER TABLE delivery_zones ADD COLUMN IF NOT EXISTS estimated_days_min INTEGER DEFAULT 0`);
-  await runSQL('delivery_zones: add estimated_days_max', `ALTER TABLE delivery_zones ADD COLUMN IF NOT EXISTS estimated_days_max INTEGER DEFAULT 1`);
-  await runSQL('delivery_zones: add radius_km', `ALTER TABLE delivery_zones ADD COLUMN IF NOT EXISTS radius_km DECIMAL(6,2)`);
-  await runSQL('delivery_zones: add center_lat', `ALTER TABLE delivery_zones ADD COLUMN IF NOT EXISTS center_lat DECIMAL(10,7)`);
-  await runSQL('delivery_zones: add center_lng', `ALTER TABLE delivery_zones ADD COLUMN IF NOT EXISTS center_lng DECIMAL(10,7)`);
-  await runSQL('delivery_zones: add notes', `ALTER TABLE delivery_zones ADD COLUMN IF NOT EXISTS notes TEXT`);
-  await runSQL('delivery_zones: add created_by', `ALTER TABLE delivery_zones ADD COLUMN IF NOT EXISTS created_by INTEGER REFERENCES users(id)`);
+  await runSQL('delivery_zones: add base_delivery_fee', 'ALTER TABLE delivery_zones ADD COLUMN IF NOT EXISTS base_delivery_fee DECIMAL(10,2) DEFAULT 0');
+  await runSQL('delivery_zones: add per_km_fee', 'ALTER TABLE delivery_zones ADD COLUMN IF NOT EXISTS per_km_fee DECIMAL(6,2) DEFAULT 0');
+  await runSQL('delivery_zones: add min_order_for_free', 'ALTER TABLE delivery_zones ADD COLUMN IF NOT EXISTS min_order_for_free DECIMAL(10,2)');
+  await runSQL('delivery_zones: add estimated_days_min', 'ALTER TABLE delivery_zones ADD COLUMN IF NOT EXISTS estimated_days_min INTEGER DEFAULT 0');
+  await runSQL('delivery_zones: add estimated_days_max', 'ALTER TABLE delivery_zones ADD COLUMN IF NOT EXISTS estimated_days_max INTEGER DEFAULT 1');
+  await runSQL('delivery_zones: add radius_km', 'ALTER TABLE delivery_zones ADD COLUMN IF NOT EXISTS radius_km DECIMAL(6,2)');
+  await runSQL('delivery_zones: add center_lat', 'ALTER TABLE delivery_zones ADD COLUMN IF NOT EXISTS center_lat DECIMAL(10,7)');
+  await runSQL('delivery_zones: add center_lng', 'ALTER TABLE delivery_zones ADD COLUMN IF NOT EXISTS center_lng DECIMAL(10,7)');
+  await runSQL('delivery_zones: add notes', 'ALTER TABLE delivery_zones ADD COLUMN IF NOT EXISTS notes TEXT');
+  await runSQL('delivery_zones: add created_by', 'ALTER TABLE delivery_zones ADD COLUMN IF NOT EXISTS created_by INTEGER REFERENCES users(id)');
 
   // Backfill base_delivery_fee from cents column if available
-  await runSQL('delivery_zones: backfill fees', `UPDATE delivery_zones SET base_delivery_fee = COALESCE(base_delivery_fee_cents, 0) / 100.0 WHERE base_delivery_fee IS NULL OR base_delivery_fee = 0`);
+  await runSQL('delivery_zones: backfill fees', 'UPDATE delivery_zones SET base_delivery_fee = COALESCE(base_delivery_fee_cents, 0) / 100.0 WHERE base_delivery_fee IS NULL OR base_delivery_fee = 0');
 
   // delivery_options
   await runSQL('delivery_options', `CREATE TABLE IF NOT EXISTS delivery_options (
@@ -204,7 +204,7 @@ async function run() {
     $$ LANGUAGE plpgsql
   `);
   await db.query('DROP TRIGGER IF EXISTS trg_generate_pickup_code ON order_fulfillment');
-  await runSQL('pickup trigger', `CREATE TRIGGER trg_generate_pickup_code BEFORE INSERT ON order_fulfillment FOR EACH ROW EXECUTE FUNCTION trigger_generate_pickup_code()`);
+  await runSQL('pickup trigger', 'CREATE TRIGGER trg_generate_pickup_code BEFORE INSERT ON order_fulfillment FOR EACH ROW EXECUTE FUNCTION trigger_generate_pickup_code()');
 
   await runSQL('fulfillment timestamp trigger', `
     CREATE OR REPLACE FUNCTION trigger_update_fulfillment_timestamp() RETURNS TRIGGER AS $$
@@ -212,7 +212,7 @@ async function run() {
     $$ LANGUAGE plpgsql
   `);
   await db.query('DROP TRIGGER IF EXISTS trg_fulfillment_updated ON order_fulfillment');
-  await runSQL('fulfillment timestamp trigger bind', `CREATE TRIGGER trg_fulfillment_updated BEFORE UPDATE ON order_fulfillment FOR EACH ROW EXECUTE FUNCTION trigger_update_fulfillment_timestamp()`);
+  await runSQL('fulfillment timestamp trigger bind', 'CREATE TRIGGER trg_fulfillment_updated BEFORE UPDATE ON order_fulfillment FOR EACH ROW EXECUTE FUNCTION trigger_update_fulfillment_timestamp()');
 
   // Seed delivery options
   await runSQL('seed delivery_options', `

@@ -302,7 +302,7 @@ describe('OrderModificationService', () => {
         .mockResolvedValueOnce({ rows: [] }) // Current items
         .mockResolvedValueOnce({ rows: [{ num: 'AMD-001' }] }) // Amendment number
         .mockResolvedValueOnce({ rows: [{ id: 1 }] }) // Insert amendment
-        .mockResolvedValueOnce({}) // COMMIT
+        .mockResolvedValueOnce({}); // COMMIT
     });
 
     it('should create amendment without approval for small changes', async () => {

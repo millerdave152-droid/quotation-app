@@ -240,7 +240,7 @@ class ClientErrorTrackingService {
       ),
       // Open groups count
       this.pool.query(
-        `SELECT COUNT(*) AS open_count FROM client_error_groups WHERE status = 'open'`
+        'SELECT COUNT(*) AS open_count FROM client_error_groups WHERE status = \'open\''
       ),
       // Errors by type
       this.pool.query(

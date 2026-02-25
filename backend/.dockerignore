@@ -1,0 +1,11 @@
+node_modules
+npm-debug.log
+.env
+.env.*
+coverage
+__tests__
+*.test.js
+_*.js
+tmp-*.js
+write-test.js
+.claude

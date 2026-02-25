@@ -144,7 +144,7 @@ class PromotionFolderWatcher {
         await fs.mkdir(failedPath, { recursive: true });
         await fs.rename(filePath, path.join(failedPath, fileName));
       } catch (moveErr) {
-        console.error(`[PromotionFolderWatcher] Could not move failed file:`, moveErr.message);
+        console.error('[PromotionFolderWatcher] Could not move failed file:', moveErr.message);
       }
 
       throw err;

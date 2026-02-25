@@ -51,7 +51,7 @@ class AIPersonalizationService {
       query += ` AND dpr.rule_type = $${params.length}`;
     }
 
-    query += ` GROUP BY dpr.id ORDER BY dpr.priority DESC`;
+    query += ' GROUP BY dpr.id ORDER BY dpr.priority DESC';
 
     const result = await pool.query(query, params);
     return result.rows;

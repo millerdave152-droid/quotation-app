@@ -155,7 +155,7 @@ function scoreAnswer(response, evalCase) {
   // - At least 2 keyword matches OR
   // - At least 2 expected content matches
   // - AND response is not an error/apology
-  const isError = responseLower.includes("i'm sorry") && responseLower.includes("cannot");
+  const isError = responseLower.includes("i'm sorry") && responseLower.includes('cannot');
   const hasContent = keywordMatches.length >= 2 || expectedMatches >= 2;
 
   return (!isError && hasContent) ? 1 : 0;

@@ -308,7 +308,7 @@ class POSPromotionService {
    */
   async deletePromotion(id) {
     const result = await this.pool.query(
-      `DELETE FROM pos_promotions WHERE id = $1 RETURNING id`,
+      'DELETE FROM pos_promotions WHERE id = $1 RETURNING id',
       [id]
     );
     return result.rowCount > 0;
@@ -383,7 +383,7 @@ class POSPromotionService {
    */
   async replacePromotionProducts(promotionId, products) {
     await this.pool.query(
-      `DELETE FROM pos_promotion_products WHERE promotion_id = $1`,
+      'DELETE FROM pos_promotion_products WHERE promotion_id = $1',
       [promotionId]
     );
 
@@ -412,7 +412,7 @@ class POSPromotionService {
 
     // Check if promotion is valid
     const validityResult = await this.pool.query(
-      `SELECT is_promotion_valid($1) AS valid`,
+      'SELECT is_promotion_valid($1) AS valid',
       [promo.id]
     );
 
@@ -422,7 +422,7 @@ class POSPromotionService {
 
     // Check customer eligibility
     const eligibilityResult = await this.pool.query(
-      `SELECT * FROM can_customer_use_promotion($1, $2)`,
+      'SELECT * FROM can_customer_use_promotion($1, $2)',
       [promo.id, customerId]
     );
 
@@ -466,7 +466,7 @@ class POSPromotionService {
     );
 
     const result = await this.pool.query(
-      `SELECT * FROM get_applicable_promotions($1, $2::jsonb, $3, TRUE)`,
+      'SELECT * FROM get_applicable_promotions($1, $2::jsonb, $3, TRUE)',
       [customerId || null, cartItemsJson, subtotalCents]
     );
 
@@ -611,7 +611,7 @@ class POSPromotionService {
           if (promo.freeItemProductId) {
             // Specific free item
             const productResult = await this.pool.query(
-              `SELECT retail_price_cents FROM products WHERE id = $1`,
+              'SELECT retail_price_cents FROM products WHERE id = $1',
               [promo.freeItemProductId]
             );
             if (productResult.rows.length > 0) {
@@ -654,7 +654,7 @@ class POSPromotionService {
    */
   async _getMatchingItems(promotionId, items) {
     const productTargets = await this.pool.query(
-      `SELECT * FROM pos_promotion_products WHERE promotion_id = $1 AND is_included = TRUE`,
+      'SELECT * FROM pos_promotion_products WHERE promotion_id = $1 AND is_included = TRUE',
       [promotionId]
     );
 
@@ -675,7 +675,7 @@ class POSPromotionService {
 
     // Check exclusions
     const exclusions = await this.pool.query(
-      `SELECT * FROM pos_promotion_products WHERE promotion_id = $1 AND is_included = FALSE`,
+      'SELECT * FROM pos_promotion_products WHERE promotion_id = $1 AND is_included = FALSE',
       [promotionId]
     );
 
@@ -737,7 +737,7 @@ class POSPromotionService {
     } = data;
 
     const result = await this.pool.query(
-      `SELECT * FROM apply_promotion($1, $2, $3, $4, $5, $6, $7, $8)`,
+      'SELECT * FROM apply_promotion($1, $2, $3, $4, $5, $6, $7, $8)',
       [
         promotionId,
         transactionId || null,
@@ -767,7 +767,7 @@ class POSPromotionService {
    */
   async voidPromotionUsage(usageId, userId, reason = null) {
     const result = await this.pool.query(
-      `SELECT void_promotion_usage($1, $2, $3) AS success`,
+      'SELECT void_promotion_usage($1, $2, $3) AS success',
       [usageId, userId, reason]
     );
     return result.rows[0].success;
@@ -824,7 +824,7 @@ class POSPromotionService {
    */
   async getCustomerUsageCount(promotionId, customerId) {
     const result = await this.pool.query(
-      `SELECT get_customer_promo_usage_count($1, $2) AS count`,
+      'SELECT get_customer_promo_usage_count($1, $2) AS count',
       [promotionId, customerId]
     );
     return result.rows[0].count;
@@ -841,7 +841,7 @@ class POSPromotionService {
    */
   async getPromotionPerformance(promotionId) {
     const result = await this.pool.query(
-      `SELECT * FROM v_promotion_usage_summary WHERE promotion_id = $1`,
+      'SELECT * FROM v_promotion_usage_summary WHERE promotion_id = $1',
       [promotionId]
     );
 
@@ -875,7 +875,7 @@ class POSPromotionService {
    * @returns {Array} Active promotions with metrics
    */
   async getActivePromotionsSummary() {
-    const result = await this.pool.query(`SELECT * FROM v_active_promotions`);
+    const result = await this.pool.query('SELECT * FROM v_active_promotions');
     return result.rows.map((row) => this._formatPromotion(row));
   }
 

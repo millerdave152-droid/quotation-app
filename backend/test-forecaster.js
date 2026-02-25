@@ -10,7 +10,7 @@ const forecaster = require('./services/InventoryForecaster');
 
     // Find a product that has marketplace sales
     var matched = (await pool.query(
-      "SELECT oi.product_id, p.name, p.sku FROM marketplace_order_items oi JOIN products p ON p.id = oi.product_id WHERE oi.product_id IS NOT NULL LIMIT 1"
+      'SELECT oi.product_id, p.name, p.sku FROM marketplace_order_items oi JOIN products p ON p.id = oi.product_id WHERE oi.product_id IS NOT NULL LIMIT 1'
     )).rows;
     var pid = matched.length > 0 ? matched[0].product_id : 12145;
     console.log('Test product:', pid, matched[0] ? matched[0].name : '(fallback)');

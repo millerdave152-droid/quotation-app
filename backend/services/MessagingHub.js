@@ -103,7 +103,7 @@ class MessagingHub {
   async sendReply(messageId, body) {
     // Load original message
     const { rows } = await this.pool.query(
-      `SELECT * FROM marketplace_messages WHERE id = $1`, [messageId]
+      'SELECT * FROM marketplace_messages WHERE id = $1', [messageId]
     );
     if (rows.length === 0) throw new Error(`Message #${messageId} not found`);
 
@@ -140,7 +140,7 @@ class MessagingHub {
 
     // Mark original as replied
     await this.pool.query(
-      `UPDATE marketplace_messages SET replied_at = NOW() WHERE id = $1`,
+      'UPDATE marketplace_messages SET replied_at = NOW() WHERE id = $1',
       [messageId]
     );
 
@@ -159,7 +159,7 @@ class MessagingHub {
   async sendTriggeredMessage(triggerEvent, orderData) {
     // Find matching active template
     const { rows: templates } = await this.pool.query(
-      `SELECT * FROM message_templates WHERE trigger_event = $1 AND active = true ORDER BY id LIMIT 1`,
+      'SELECT * FROM message_templates WHERE trigger_event = $1 AND active = true ORDER BY id LIMIT 1',
       [triggerEvent]
     );
 
@@ -247,7 +247,7 @@ class MessagingHub {
    * @param {object} options - { unreadOnly, limit, offset }
    */
   async getInbox(channelId = null, options = {}) {
-    const conditions = [`m.direction = 'INBOUND'`];
+    const conditions = ['m.direction = \'INBOUND\''];
     const params = [];
     let idx = 1;
 
@@ -256,7 +256,7 @@ class MessagingHub {
       params.push(channelId);
     }
     if (options.unreadOnly) {
-      conditions.push(`m.read_at IS NULL`);
+      conditions.push('m.read_at IS NULL');
     }
 
     const limit = parseInt(options.limit) || 50;
@@ -409,7 +409,7 @@ class MessagingHub {
 
   async getTemplates() {
     const { rows } = await this.pool.query(
-      `SELECT * FROM message_templates ORDER BY COALESCE(trigger_event, 'zzz'), id`
+      'SELECT * FROM message_templates ORDER BY COALESCE(trigger_event, \'zzz\'), id'
     );
     return rows;
   }

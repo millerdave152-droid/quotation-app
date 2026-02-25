@@ -176,8 +176,20 @@ class PdfService {
         }
       }
 
+      // Fetch tenant branding (fallback to env vars for PDF generation)
+      let tenantBranding = {};
+      if (quote.tenant_id) {
+        try {
+          const { rows } = await this.pool.query(
+            'SELECT * FROM tenant_settings WHERE tenant_id = $1',
+            [quote.tenant_id]
+          );
+          if (rows.length > 0) tenantBranding = rows[0];
+        } catch (e) { /* fallback to env */ }
+      }
+
       // Generate PDF
-      const pdfBuffer = await this.createPdfDocument(quote, items, type, signatures, clvData);
+      const pdfBuffer = await this.createPdfDocument(quote, items, type, signatures, clvData, tenantBranding);
 
       const duration = Date.now() - startTime;
       console.log(`[PDF] Generated PDF for quote ${quoteId} (${type}) in ${duration}ms, size: ${pdfBuffer.length} bytes`);
@@ -207,7 +219,7 @@ class PdfService {
    * @param {array} signatures - Signature records
    * @param {object} clvData - Customer Lifetime Value data (internal only)
    */
-  createPdfDocument(quote, items, type = 'customer', signatures = [], clvData = null) {
+  createPdfDocument(quote, items, type = 'customer', signatures = [], clvData = null, tenantBranding = {}) {
     return new Promise((resolve, reject) => {
       try {
         const doc = new PDFDocument({
@@ -240,13 +252,13 @@ class PdfService {
           warning: '#f59e0b'        // Amber
         };
 
-        // Company info (configurable)
-        const companyName = process.env.COMPANY_NAME || 'Your Company';
-        const companyAddress = process.env.COMPANY_ADDRESS || '123 Business Street';
-        const companyCity = process.env.COMPANY_CITY || 'City, Province, Postal';
-        const companyPhone = process.env.COMPANY_PHONE || '(555) 123-4567';
-        const companyEmail = process.env.COMPANY_EMAIL || 'sales@company.com';
-        const companyWebsite = process.env.COMPANY_WEBSITE || 'www.company.com';
+        // Company info (tenant branding → env vars → defaults)
+        const companyName = tenantBranding.company_name || process.env.COMPANY_NAME || 'Your Company';
+        const companyAddress = tenantBranding.company_address || process.env.COMPANY_ADDRESS || '123 Business Street';
+        const companyCity = tenantBranding.company_city || process.env.COMPANY_CITY || 'City, Province, Postal';
+        const companyPhone = tenantBranding.company_phone || process.env.COMPANY_PHONE || '(555) 123-4567';
+        const companyEmail = tenantBranding.company_email || process.env.COMPANY_EMAIL || 'sales@company.com';
+        const companyWebsite = tenantBranding.company_website || process.env.COMPANY_WEBSITE || 'www.company.com';
 
         // ============================================
         // HEADER SECTION - ACCENT BAR & LOGO

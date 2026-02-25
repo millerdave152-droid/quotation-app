@@ -260,7 +260,7 @@ router.get('/admin/strategies', asyncHandler(async (req, res) => {
     params.push(active === 'true');
   }
 
-  query += ` GROUP BY us.id ORDER BY us.display_priority ASC, us.created_at DESC`;
+  query += ' GROUP BY us.id ORDER BY us.display_priority ASC, us.created_at DESC';
   query += ` LIMIT $${paramIndex++} OFFSET $${paramIndex++}`;
   params.push(parseInt(limit), offset);
 

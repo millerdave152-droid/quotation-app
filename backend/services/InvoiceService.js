@@ -564,7 +564,7 @@ class InvoiceService {
     }
 
     if (overdue === 'true') {
-      conditions.push(`i.due_date < CURRENT_DATE AND i.status NOT IN ('paid', 'void')`);
+      conditions.push('i.due_date < CURRENT_DATE AND i.status NOT IN (\'paid\', \'void\')');
     }
 
     if (search) {

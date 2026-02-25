@@ -53,7 +53,7 @@ async function testShopInfo() {
     console.log(`  Shop State: ${response.data.shop_state || 'N/A'}`);
     return { success: true, data: response.data };
   } catch (error) {
-    console.log(`  Status: FAILED`);
+    console.log('  Status: FAILED');
     console.log(`  Error: ${error.response?.status || error.code} - ${error.response?.data?.message || error.message}`);
     return { success: false, error: error.response?.data || error.message };
   }
@@ -73,7 +73,7 @@ async function testOffersList() {
     console.log(`  Total Offers: ${totalCount}`);
     return { success: true, count: totalCount };
   } catch (error) {
-    console.log(`  Status: FAILED`);
+    console.log('  Status: FAILED');
     console.log(`  Error: ${error.response?.status || error.code} - ${error.response?.data?.message || error.message}`);
     return { success: false, error: error.response?.data || error.message };
   }
@@ -106,7 +106,7 @@ async function testOrdersList() {
     }
     return { success: true, count: totalCount, orders: response.data.orders };
   } catch (error) {
-    console.log(`  Status: FAILED`);
+    console.log('  Status: FAILED');
     console.log(`  Error: ${error.response?.status || error.code} - ${error.response?.data?.message || error.message}`);
     return { success: false, error: error.response?.data || error.message };
   }
@@ -124,7 +124,7 @@ async function testCategories() {
     console.log(`  Categories Available: ${categoryCount}`);
     return { success: true, count: categoryCount };
   } catch (error) {
-    console.log(`  Status: FAILED`);
+    console.log('  Status: FAILED');
     console.log(`  Error: ${error.response?.status || error.code} - ${error.response?.data?.message || error.message}`);
     return { success: false, error: error.response?.data || error.message };
   }
@@ -146,7 +146,7 @@ async function testShippingCarriers() {
     }
     return { success: true, count: carrierCount };
   } catch (error) {
-    console.log(`  Status: FAILED`);
+    console.log('  Status: FAILED');
     console.log(`  Error: ${error.response?.status || error.code} - ${error.response?.data?.message || error.message}`);
     return { success: false, error: error.response?.data || error.message };
   }

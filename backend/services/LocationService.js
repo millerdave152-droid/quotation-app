@@ -23,7 +23,7 @@ class LocationService {
 
     if (filters.type) {
       if (filters.type === 'pickup') {
-        conditions.push(`is_pickup_location = true`);
+        conditions.push('is_pickup_location = true');
       } else {
         conditions.push(`type = $${paramIndex}`);
         values.push(filters.type);
@@ -38,7 +38,7 @@ class LocationService {
       conditions.push(`is_active = $${paramIndex++}`);
       values.push(filters.active);
     } else {
-      conditions.push(`is_active = true`);
+      conditions.push('is_active = true');
     }
 
     const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';

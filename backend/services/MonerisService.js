@@ -742,7 +742,7 @@ class MonerisService {
 
     // Check for duplicate processing
     const existing = await this.pool.query(
-      `SELECT id FROM moneris_webhook_events WHERE moneris_event_id = $1`,
+      'SELECT id FROM moneris_webhook_events WHERE moneris_event_id = $1',
       [payload.id || orderId]
     );
 

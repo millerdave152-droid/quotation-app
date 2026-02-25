@@ -193,7 +193,7 @@ class InventorySyncScheduler {
 
       const params = [];
       if (productIds && productIds.length > 0) {
-        query += ` AND p.id = ANY($1)`;
+        query += ' AND p.id = ANY($1)';
         params.push(productIds);
       }
 

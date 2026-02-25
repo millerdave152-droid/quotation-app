@@ -12,7 +12,7 @@ function assert(cond, label, detail) {
   console.log('=== MARKETPLACE AI TEST ===\n');
 
   // Find a product and channel to test with
-  var prodRes = await pool.query("SELECT id, sku, name, manufacturer, price FROM products WHERE sku IS NOT NULL AND price > 50 AND description IS NOT NULL LIMIT 1");
+  var prodRes = await pool.query('SELECT id, sku, name, manufacturer, price FROM products WHERE sku IS NOT NULL AND price > 50 AND description IS NOT NULL LIMIT 1');
   var chRes = await pool.query("SELECT id, channel_code, channel_name FROM marketplace_channels WHERE status = 'ACTIVE' LIMIT 1");
 
   if (prodRes.rows.length === 0 || chRes.rows.length === 0) {
@@ -129,7 +129,7 @@ function assert(cond, label, detail) {
     // =========================================
     console.log('\n--- 6. query (natural language) ---\n');
     try {
-      var nlq = await marketplaceAI.query("What are my top 5 selling products this month?");
+      var nlq = await marketplaceAI.query('What are my top 5 selling products this month?');
       assert(nlq.question !== undefined, 'Question echoed back');
       assert(typeof nlq.answer === 'string', 'Has natural language answer');
       assert(typeof nlq.sql === 'string', 'Has SQL query');

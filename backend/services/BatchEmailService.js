@@ -340,7 +340,7 @@ class BatchEmailService {
     try {
       // Update batch status
       await this.pool.query(
-        `UPDATE email_batches SET status = 'processing', started_at = NOW() WHERE id = $1`,
+        'UPDATE email_batches SET status = \'processing\', started_at = NOW() WHERE id = $1',
         [batchId]
       );
 
@@ -371,7 +371,7 @@ class BatchEmailService {
         try {
           // Mark as processing
           await this.pool.query(
-            `UPDATE email_queue SET status = 'processing', processing_started_at = NOW() WHERE id = $1`,
+            'UPDATE email_queue SET status = \'processing\', processing_started_at = NOW() WHERE id = $1',
             [item.id]
           );
 
@@ -381,7 +381,7 @@ class BatchEmailService {
           if (sendResult.success) {
             // Mark as sent
             await this.pool.query(
-              `UPDATE email_queue SET status = 'sent', sent_at = NOW() WHERE id = $1`,
+              'UPDATE email_queue SET status = \'sent\', sent_at = NOW() WHERE id = $1',
               [item.id]
             );
 
@@ -440,7 +440,7 @@ class BatchEmailService {
       // Update batch counters and status
       await this.pool.query('SELECT update_batch_counters($1)', [batchId]);
       await this.pool.query(
-        `UPDATE email_batches SET status = 'completed', completed_at = NOW() WHERE id = $1`,
+        'UPDATE email_batches SET status = \'completed\', completed_at = NOW() WHERE id = $1',
         [batchId]
       );
 
@@ -461,12 +461,12 @@ class BatchEmailService {
     }
 
     await this.pool.query(
-      `UPDATE email_batches SET status = 'cancelled' WHERE id = $1 AND status IN ('pending', 'processing')`,
+      'UPDATE email_batches SET status = \'cancelled\' WHERE id = $1 AND status IN (\'pending\', \'processing\')',
       [batchId]
     );
 
     await this.pool.query(
-      `UPDATE email_queue SET status = 'cancelled' WHERE batch_id = $1 AND status = 'pending'`,
+      'UPDATE email_queue SET status = \'cancelled\' WHERE batch_id = $1 AND status = \'pending\'',
       [batchId]
     );
   }

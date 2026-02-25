@@ -231,7 +231,8 @@ async function lookupCustomer({ search_term, search_type = 'auto' }) {
       clv_score, churn_risk, clv_segment,
       lifetime_value_cents, total_quotes, total_won_quotes,
       credit_limit_cents, current_balance, credit_status,
-      tags, notes, created_at, pricing_tier
+      tags, notes, created_at, pricing_tier,
+      ai_data_consent
     FROM customers
     WHERE 1=1
   `;
@@ -263,7 +264,7 @@ async function lookupCustomer({ search_term, search_type = 'auto' }) {
     case 'phone':
       // Normalize phone number for comparison
       const normalizedPhone = search_term.replace(/\D/g, '');
-      query += ` AND REPLACE(REPLACE(REPLACE(REPLACE(phone, '-', ''), '(', ''), ')', ''), ' ', '') LIKE $1`;
+      query += ' AND REPLACE(REPLACE(REPLACE(REPLACE(phone, \'-\', \'\'), \'(\', \'\'), \')\', \'\'), \' \', \'\') LIKE $1';
       params.push(`%${normalizedPhone}%`);
       break;
     case 'name':
@@ -281,29 +282,33 @@ async function lookupCustomer({ search_term, search_type = 'auto' }) {
     return { found: false, message: `No customer found matching "${search_term}"` };
   }
 
-  // Format results
-  const customers = result.rows.map(c => ({
-    id: c.id,
-    name: c.name,
-    email: c.email,
-    phone: c.phone,
-    company: c.company,
-    address: c.address ? `${c.address}, ${c.city}, ${c.province} ${c.postal_code}` : null,
-    isVIP: c.clv_score >= VIP_CLV_THRESHOLD,
-    clvScore: c.clv_score,
-    clvSegment: c.clv_segment,
-    churnRisk: c.churn_risk,
-    lifetimeValue: c.lifetime_value_cents ? (c.lifetime_value_cents / 100).toFixed(2) : null,
-    totalQuotes: c.total_quotes,
-    wonQuotes: c.total_won_quotes,
-    creditLimit: c.credit_limit_cents ? (c.credit_limit_cents / 100).toFixed(2) : null,
-    currentBalance: c.current_balance ? parseFloat(c.current_balance).toFixed(2) : null,
-    creditStatus: c.credit_status,
-    pricingTier: c.pricing_tier,
-    tags: c.tags,
-    notes: c.notes,
-    customerSince: c.created_at
-  }));
+  // Format results — mask PII when customer has not consented to AI data access
+  const customers = result.rows.map(c => {
+    const consented = c.ai_data_consent === true;
+    return {
+      id: c.id,
+      name: consented ? c.name : `Customer #${c.id}`,
+      email: consented ? c.email : '[consent required]',
+      phone: consented ? c.phone : '[consent required]',
+      company: consented ? c.company : '[consent required]',
+      address: consented && c.address ? `${c.address}, ${c.city}, ${c.province} ${c.postal_code}` : (consented ? null : '[consent required]'),
+      aiDataConsent: consented,
+      isVIP: c.clv_score >= VIP_CLV_THRESHOLD,
+      clvScore: c.clv_score,
+      clvSegment: c.clv_segment,
+      churnRisk: c.churn_risk,
+      lifetimeValue: c.lifetime_value_cents ? (c.lifetime_value_cents / 100).toFixed(2) : null,
+      totalQuotes: c.total_quotes,
+      wonQuotes: c.total_won_quotes,
+      creditLimit: c.credit_limit_cents ? (c.credit_limit_cents / 100).toFixed(2) : null,
+      currentBalance: c.current_balance ? parseFloat(c.current_balance).toFixed(2) : null,
+      creditStatus: c.credit_status,
+      pricingTier: c.pricing_tier,
+      tags: c.tags,
+      notes: consented ? c.notes : null,
+      customerSince: c.created_at
+    };
+  });
 
   return {
     found: true,
@@ -365,7 +370,7 @@ async function searchProducts({ query, category, manufacturer, min_price, max_pr
   }
 
   if (in_stock_only) {
-    sql += ` AND (in_stock = true OR COALESCE(qty_on_hand, 0) > 0)`;
+    sql += ' AND (in_stock = true OR COALESCE(qty_on_hand, 0) > 0)';
   }
 
   sql += ` ORDER BY
@@ -414,7 +419,7 @@ async function getQuotation({ quote_id, quote_number }) {
     SELECT
       q.*,
       c.name as customer_name, c.email as customer_email, c.phone as customer_phone,
-      c.clv_score as customer_clv_score
+      c.clv_score as customer_clv_score, c.ai_data_consent
     FROM quotations q
     LEFT JOIN customers c ON c.id = q.customer_id
     WHERE 1=1
@@ -459,10 +464,11 @@ async function getQuotation({ quote_id, quote_number }) {
       status: q.status,
       customer: {
         id: q.customer_id,
-        name: q.customer_name,
-        email: q.customer_email,
-        phone: q.customer_phone,
-        isVIP: q.customer_clv_score >= VIP_CLV_THRESHOLD
+        name: q.ai_data_consent ? q.customer_name : `Customer #${q.customer_id}`,
+        email: q.ai_data_consent ? q.customer_email : '[consent required]',
+        phone: q.ai_data_consent ? q.customer_phone : '[consent required]',
+        isVIP: q.customer_clv_score >= VIP_CLV_THRESHOLD,
+        aiDataConsent: q.ai_data_consent === true,
       },
       subtotal: q.subtotal_cents ? (q.subtotal_cents / 100).toFixed(2) : null,
       discount: q.discount_cents ? (q.discount_cents / 100).toFixed(2) : null,
@@ -544,7 +550,8 @@ async function getCustomerHistory({ customer_id }) {
       total_quotes, total_won_quotes, total_lost_quotes,
       average_quote_value_cents, win_rate,
       preferred_categories, preferred_brands,
-      first_quote_date, last_quote_date, pricing_tier
+      first_quote_date, last_quote_date, pricing_tier,
+      ai_data_consent
     FROM customers
     WHERE id = $1
   `, [customer_id]);
@@ -585,12 +592,15 @@ async function getCustomerHistory({ customer_id }) {
     });
   });
 
+  const consented = c.ai_data_consent === true;
+
   return {
     found: true,
     customer: {
       id: c.id,
-      name: c.name,
-      email: c.email,
+      name: consented ? c.name : `Customer #${c.id}`,
+      email: consented ? c.email : '[consent required]',
+      aiDataConsent: consented,
       isVIP: c.clv_score >= VIP_CLV_THRESHOLD,
       clvScore: c.clv_score,
       clvSegment: c.clv_segment,

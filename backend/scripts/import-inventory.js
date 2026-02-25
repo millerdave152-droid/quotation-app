@@ -78,7 +78,7 @@ async function importInventory() {
     }
   }
 
-  console.log(`\n=== Matching Results ===`);
+  console.log('\n=== Matching Results ===');
   console.log(`Matched: ${matches.length} products`);
   console.log(`Not matched: ${noMatch.length} products`);
   console.log(`Match rate: ${((matches.length / data.length) * 100).toFixed(1)}%\n`);
@@ -114,12 +114,12 @@ async function importInventory() {
       }
     }
 
-    console.log(`\n=== Update Results ===`);
+    console.log('\n=== Update Results ===');
     console.log(`Successfully updated: ${updated} products`);
     console.log(`Errors: ${errors}`);
 
     // Show sample of updates
-    console.log(`\n=== Sample of Updated Products ===`);
+    console.log('\n=== Sample of Updated Products ===');
     const sampleMatches = matches.slice(0, 10);
     for (const m of sampleMatches) {
       console.log(`  ${m.model} (${m.manufacturer || m.excelBrand}): ${m.qty} units`);
@@ -131,7 +131,7 @@ async function importInventory() {
 
   // Step 5: Show sample of non-matched products
   if (noMatch.length > 0) {
-    console.log(`\n=== Sample of Non-Matched Products (first 20) ===`);
+    console.log('\n=== Sample of Non-Matched Products (first 20) ===');
     const sampleNoMatch = noMatch.slice(0, 20);
     for (const nm of sampleNoMatch) {
       console.log(`  ${nm.model} (${nm.brand}): ${nm.qty} units`);
@@ -139,7 +139,7 @@ async function importInventory() {
   }
 
   // Summary by brand
-  console.log(`\n=== Match Summary by Brand ===`);
+  console.log('\n=== Match Summary by Brand ===');
   const brandStats = {};
   for (const m of matches) {
     const brand = m.excelBrand || 'Unknown';

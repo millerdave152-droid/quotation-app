@@ -609,14 +609,14 @@ function init({ pool }) {
         let pi = 2;
 
         if (status === 'completed' || status === 'delivered') {
-          updates.push(`completed_at = NOW()`);
-          updates.push(`actual_departure = NOW()`);
+          updates.push('completed_at = NOW()');
+          updates.push('actual_departure = NOW()');
         }
         if (status === 'in_progress') {
-          updates.push(`actual_arrival = NOW()`);
+          updates.push('actual_arrival = NOW()');
         }
         if (status === 'cancelled') {
-          updates.push(`cancelled_at = NOW()`);
+          updates.push('cancelled_at = NOW()');
           if (notes) { updates.push(`cancellation_reason = $${pi++}`); params.push(notes); }
         }
         if (notes && status !== 'cancelled') {

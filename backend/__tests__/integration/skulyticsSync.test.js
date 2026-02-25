@@ -258,7 +258,7 @@ describe('Skulytics Sync Pipeline (integration)', () => {
     // (in real usage, partial runs with cursor would need retry logic
     //  or the operator would fix the issue and re-run)
     await testPool.query(
-      `UPDATE skulytics_sync_runs SET status = 'completed' WHERE id = $1`,
+      'UPDATE skulytics_sync_runs SET status = \'completed\' WHERE id = $1',
       [result1.runId]
     );
 

@@ -21,7 +21,7 @@ const pool = require('../db');
 async function getProductName(dbPool, productId) {
   if (!productId) return null;
   const { rows: [row] } = await dbPool.query(
-    `SELECT name FROM products WHERE id = $1`, [productId]
+    'SELECT name FROM products WHERE id = $1', [productId]
   );
   return row?.name || null;
 }
@@ -421,7 +421,7 @@ module.exports = function (approvalService) {
     // WS: notify salesperson of counter-offer
     try {
       const { rows: [parentReq] } = await approvalService.pool.query(
-        `SELECT salesperson_id FROM approval_requests WHERE id = $1`, [requestId]
+        'SELECT salesperson_id FROM approval_requests WHERE id = $1', [requestId]
       );
       if (parentReq) {
         const managerName = `${req.user.firstName} ${req.user.lastName}`;
@@ -485,7 +485,7 @@ module.exports = function (approvalService) {
     const [tierResult, historyResult, customerResult] = await Promise.all([
       // 2. Tier settings — for floor price calculation
       pool.query(
-        `SELECT min_margin_percent, allows_below_cost FROM approval_tier_settings WHERE tier = $1`,
+        'SELECT min_margin_percent, allows_below_cost FROM approval_tier_settings WHERE tier = $1',
         [ar.tier]
       ),
 
@@ -842,8 +842,8 @@ module.exports = function (approvalService) {
     const prevStart = new Date(currentStart.getTime() - periodMs);
 
     const prevConditions = [
-      `ar.created_at >= $1::timestamptz`,
-      `ar.created_at <= $2::timestamptz`,
+      'ar.created_at >= $1::timestamptz',
+      'ar.created_at <= $2::timestamptz',
     ];
     const prevParams = [prevStart.toISOString(), prevEnd.toISOString()];
     let prevIdx = 3;
@@ -1049,7 +1049,7 @@ module.exports = function (approvalService) {
   router.get('/settings/tiers', requireRole('admin'), asyncHandler(async (req, res) => {
     const pool = approvalService.pool;
     const { rows } = await pool.query(
-      `SELECT * FROM approval_tier_settings ORDER BY tier ASC`
+      'SELECT * FROM approval_tier_settings ORDER BY tier ASC'
     );
     res.json({ success: true, data: rows });
   }));
@@ -1256,7 +1256,7 @@ module.exports = function (approvalService) {
       try {
         // 1. Check dedup
         const { rows: existing } = await pool.query(
-          `SELECT id FROM approval_requests WHERE client_request_id = $1`,
+          'SELECT id FROM approval_requests WHERE client_request_id = $1',
           [clientRequestId]
         );
 
@@ -1336,7 +1336,7 @@ module.exports = function (approvalService) {
         // Catch unique constraint violation (23505) as secondary dedup
         if (err.code === '23505' && err.constraint?.includes('client_request_id')) {
           const { rows: dup } = await pool.query(
-            `SELECT id FROM approval_requests WHERE client_request_id = $1`,
+            'SELECT id FROM approval_requests WHERE client_request_id = $1',
             [clientRequestId]
           );
           results.push({ clientRequestId, success: true, deduplicated: true, requestId: dup[0]?.id });

@@ -504,7 +504,7 @@ class FraudDetectionService {
     // Generate incident number: FRD-YYYYMMDD-0001
     const dateStr = new Date().toISOString().slice(0, 10).replace(/-/g, '');
     const { rows: countRows } = await this.pool.query(
-      `SELECT COUNT(*) FROM fraud_incidents WHERE incident_number LIKE $1`,
+      'SELECT COUNT(*) FROM fraud_incidents WHERE incident_number LIKE $1',
       [`FRD-${dateStr}-%`]
     );
     const seq = (parseInt(countRows[0].count) + 1).toString().padStart(4, '0');
@@ -530,7 +530,7 @@ class FraudDetectionService {
     // Update related alerts to 'confirmed_fraud'
     if (alertIds.length > 0) {
       await this.pool.query(
-        `UPDATE fraud_alerts SET status = 'confirmed_fraud' WHERE id = ANY($1)`,
+        'UPDATE fraud_alerts SET status = \'confirmed_fraud\' WHERE id = ANY($1)',
         [alertIds]
       );
     }
@@ -604,7 +604,7 @@ class FraudDetectionService {
       if (updates.status === 'resolved' || updates.status === 'closed') {
         fields.push(`resolved_by = $${paramIdx++}`);
         params.push(userId);
-        fields.push(`resolved_at = NOW()`);
+        fields.push('resolved_at = NOW()');
       }
     }
     if (updates.description !== undefined) {
@@ -641,14 +641,14 @@ class FraudDetectionService {
   async getEmployeeMetrics(userId = null) {
     if (userId) {
       const { rows } = await this.pool.query(
-        `SELECT * FROM employee_fraud_metrics WHERE user_id = $1`,
+        'SELECT * FROM employee_fraud_metrics WHERE user_id = $1',
         [userId]
       );
       return rows[0] || null;
     }
 
     const { rows } = await this.pool.query(
-      `SELECT * FROM employee_fraud_metrics ORDER BY fraud_alert_count DESC, void_count DESC`
+      'SELECT * FROM employee_fraud_metrics ORDER BY fraud_alert_count DESC, void_count DESC'
     );
     return rows;
   }
@@ -721,7 +721,7 @@ class FraudDetectionService {
    */
   async getRules() {
     const { rows } = await this.pool.query(
-      `SELECT * FROM fraud_rules ORDER BY rule_type, rule_code`
+      'SELECT * FROM fraud_rules ORDER BY rule_type, rule_code'
     );
     return rows;
   }
@@ -987,7 +987,7 @@ class FraudDetectionService {
     }
 
     const { rows } = await this.pool.query(
-      `SELECT * FROM fraud_rules WHERE is_active = true`
+      'SELECT * FROM fraud_rules WHERE is_active = true'
     );
 
     this._rulesCache = rows;
@@ -1043,7 +1043,7 @@ class FraudDetectionService {
    */
   async _checkSelfRefund(userId, originalTxnId, rule) {
     const { rows } = await this.pool.query(
-      `SELECT user_id FROM transactions WHERE transaction_id = $1`,
+      'SELECT user_id FROM transactions WHERE transaction_id = $1',
       [originalTxnId]
     );
 
@@ -1060,7 +1060,7 @@ class FraudDetectionService {
    */
   async _checkVoidCompleted(txnId, rule) {
     const { rows } = await this.pool.query(
-      `SELECT status FROM transactions WHERE transaction_id = $1`,
+      'SELECT status FROM transactions WHERE transaction_id = $1',
       [txnId]
     );
 
@@ -1099,7 +1099,7 @@ class FraudDetectionService {
    */
   async _checkCustomerChargebackHistory(customerId, rule) {
     const { rows } = await this.pool.query(
-      `SELECT COUNT(*) FROM chargeback_cases WHERE customer_id = $1`,
+      'SELECT COUNT(*) FROM chargeback_cases WHERE customer_id = $1',
       [customerId]
     );
 

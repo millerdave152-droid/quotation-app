@@ -652,7 +652,7 @@ async function importAccessInventory() {
     console.log('--- DRY-RUN PREVIEW ---');
 
     if (matched.length > 0) {
-      console.log(`\nMatched products (first 25):`);
+      console.log('\nMatched products (first 25):');
       for (const m of matched.slice(0, 25)) {
         console.log(`  MATCHED: Model ${m.model} - ${m.action}`);
       }
@@ -660,7 +660,7 @@ async function importAccessInventory() {
     }
 
     if (newProducts.length > 0) {
-      console.log(`\nNew products to insert (first 25):`);
+      console.log('\nNew products to insert (first 25):');
       for (const n of newProducts.slice(0, 25)) {
         console.log(`  NEW: ${n.brand} / ${n.product} / Model ${n.model} - qty: ${n.qty}`);
       }

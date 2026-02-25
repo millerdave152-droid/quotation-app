@@ -229,7 +229,7 @@ function init({ pool }) {
         if (disposition === 'return_to_stock' || disposition === 'clearance') {
           try {
             await client.query(
-              `SELECT * FROM restore_inventory($1,$2,$3,$4,$5,$6,$7,$8,$9)`,
+              'SELECT * FROM restore_inventory($1,$2,$3,$4,$5,$6,$7,$8,$9)',
               [
                 item.productId, item.quantity,
                 `Exchange return: ${returnNumber}`, 'return', returnRecord.id,
@@ -257,7 +257,7 @@ function init({ pool }) {
 
       // ---- 7. Create new exchange order ----
       const newOrderNumResult = await client.query(
-        `SELECT generate_order_number($1) as order_number`, ['EXC']
+        'SELECT generate_order_number($1) as order_number', ['EXC']
       );
       const newOrderNumber = newOrderNumResult.rows[0].order_number;
 
@@ -327,7 +327,7 @@ function init({ pool }) {
 
         // Deduct inventory for new items
         const _stockRes = await client.query(
-          `UPDATE products SET qty_on_hand = qty_on_hand - $1, updated_at = NOW() WHERE id = $2 RETURNING qty_on_hand`,
+          'UPDATE products SET qty_on_hand = qty_on_hand - $1, updated_at = NOW() WHERE id = $2 RETURNING qty_on_hand',
           [item.quantity, item.productId]
         );
         const _newQty = _stockRes.rows[0]?.qty_on_hand ?? 0;
@@ -376,7 +376,7 @@ function init({ pool }) {
 
         // Update amount_paid
         await client.query(
-          `UPDATE unified_orders SET amount_paid_cents = $1, status = 'paid', updated_at = NOW() WHERE id = $2`,
+          'UPDATE unified_orders SET amount_paid_cents = $1, status = \'paid\', updated_at = NOW() WHERE id = $2',
           [newTotalCents, newOrder.id]
         );
 
@@ -403,7 +403,7 @@ function init({ pool }) {
         );
 
         await client.query(
-          `UPDATE unified_orders SET amount_paid_cents = $1, status = 'paid', updated_at = NOW() WHERE id = $2`,
+          'UPDATE unified_orders SET amount_paid_cents = $1, status = \'paid\', updated_at = NOW() WHERE id = $2',
           [newTotalCents, newOrder.id]
         );
 
@@ -448,7 +448,7 @@ function init({ pool }) {
               order_id, payment_method, amount_cents, status,
               is_refund, refund_reason, processed_by, processed_at, notes
             ) VALUES ($1,'cash',$2,'completed',true,$3,$4,NOW(),$5)`,
-            [original_order_id, -absDiff, `Exchange difference refund`,
+            [original_order_id, -absDiff, 'Exchange difference refund',
              userId, `Cash refund for exchange ${returnNumber}`]
           );
 
@@ -465,7 +465,7 @@ function init({ pool }) {
               order_id, payment_method, amount_cents, status,
               is_refund, refund_reason, processed_by, processed_at, notes
             ) VALUES ($1,'original_payment',$2,'completed',true,$3,$4,NOW(),$5)`,
-            [original_order_id, -absDiff, `Exchange difference refund`,
+            [original_order_id, -absDiff, 'Exchange difference refund',
              userId, `Refund to original payment for exchange ${returnNumber}`]
           );
 
@@ -489,7 +489,7 @@ function init({ pool }) {
         );
 
         await client.query(
-          `UPDATE unified_orders SET amount_paid_cents = $1, status = 'paid', updated_at = NOW() WHERE id = $2`,
+          'UPDATE unified_orders SET amount_paid_cents = $1, status = \'paid\', updated_at = NOW() WHERE id = $2',
           [newTotalCents, newOrder.id]
         );
 

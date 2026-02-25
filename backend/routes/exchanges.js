@@ -180,7 +180,7 @@ router.post('/', asyncHandler(async (req, res) => {
       RETURNING *`,
       [
         originalTransactionId, returnNumber, returnType, userId,
-        notes || `Exchange for new items`,
+        notes || 'Exchange for new items',
         Math.round(returnSubtotal * 100),
         Math.round(returnTax * 100),
         Math.round(returnTotal * 100),
@@ -308,7 +308,7 @@ router.post('/', asyncHandler(async (req, res) => {
         await client.query(
           `INSERT INTO store_credit_transactions (store_credit_id, amount_cents, transaction_type, balance_after, notes, performed_by)
            VALUES ($1, $2, 'issue', $3, $4, $5)`,
-          [creditResult.rows[0].id, refundAmountCents, refundAmountCents, `Exchange difference`, userId]
+          [creditResult.rows[0].id, refundAmountCents, refundAmountCents, 'Exchange difference', userId]
         );
 
         storeCreditInfo = {

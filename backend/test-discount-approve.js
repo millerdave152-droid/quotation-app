@@ -107,9 +107,9 @@ async function run() {
     if (highMarginProduct && standardMarginProduct) break;
   }
 
-  assert(!!highMarginProduct, `Found high-margin product (>= 35%)`,
+  assert(!!highMarginProduct, 'Found high-margin product (>= 35%)',
     highMarginProduct ? `${highMarginProduct.name} — $${highMarginProduct.effectivePrice}, cost $${highMarginProduct.effectiveCost}, margin ${highMarginProduct.margin}%` : 'None found');
-  assert(!!standardMarginProduct, `Found standard-margin product (20-30%)`,
+  assert(!!standardMarginProduct, 'Found standard-margin product (20-30%)',
     standardMarginProduct ? `${standardMarginProduct.name} — $${standardMarginProduct.effectivePrice}, cost $${standardMarginProduct.effectiveCost}, margin ${standardMarginProduct.margin}%` : 'None found');
 
   if (!highMarginProduct || !standardMarginProduct) {
