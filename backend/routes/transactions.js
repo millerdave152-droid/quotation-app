@@ -16,6 +16,7 @@ function logToFile(message) {
   const timestamp = new Date().toISOString();
   fs.appendFileSync(LOG_FILE, `[${timestamp}] ${message}\n`);
 }
+const { roundDollars, dollarsToCents, parseDollars } = require('../utils/money');
 const { ApiError, asyncHandler } = require('../middleware/errorHandler');
 const { authenticate, requireRole, requirePermission } = require('../middleware/auth');
 const { fraudCheck } = require('../middleware/fraudCheck');
@@ -47,6 +48,84 @@ const TAX_RATES = {
   NT: { hst: 0, gst: 0.05, pst: 0 },        // NWT - GST 5% only
   NU: { hst: 0, gst: 0.05, pst: 0 },        // Nunavut - GST 5% only
 };
+
+// ============================================================================
+// INVENTORY HELPER (runs inside caller's transaction)
+// ============================================================================
+
+/**
+ * Adjust inventory atomically within an existing DB transaction.
+ * 1. Updates products.qty_on_hand
+ * 2. UPSERTs location_inventory (skipped when locationId is null)
+ * 3. Inserts an inventory_transactions audit row
+ *
+ * @param {object} client - pg client with an active BEGIN
+ * @param {object} opts
+ * @param {number} opts.productId
+ * @param {number} opts.quantity - always positive
+ * @param {string} opts.type - 'sale' | 'void' | 'return'
+ * @param {number|null} opts.locationId
+ * @param {number} opts.transactionId - POS transaction PK
+ * @param {string} opts.transactionNumber
+ * @param {number} opts.userId
+ * @param {string} [opts.reason]
+ * @returns {{ oldQty: number, newQty: number }}
+ */
+async function adjustInventoryInline(client, { productId, quantity, type, locationId, transactionId, transactionNumber, userId, reason }) {
+  // delta: negative for sale, positive for void/return
+  const delta = type === 'sale' ? -quantity : quantity;
+
+  // 1. Update global stock
+  const stockRes = await client.query(
+    'UPDATE products SET qty_on_hand = COALESCE(qty_on_hand, 0) + $1 WHERE id = $2 RETURNING qty_on_hand',
+    [delta, productId]
+  );
+  const newQty = stockRes.rows[0]?.qty_on_hand ?? 0;
+  const oldQty = newQty - delta;
+
+  // 2. UPSERT location_inventory (skip when no location)
+  if (locationId != null) {
+    await client.query(
+      `INSERT INTO location_inventory (location_id, product_id, quantity_on_hand)
+       VALUES ($1, $2, GREATEST(0, $3))
+       ON CONFLICT (location_id, product_id)
+       DO UPDATE SET quantity_on_hand = location_inventory.quantity_on_hand + $4,
+                     updated_at = NOW()`,
+      [locationId, productId, delta, delta]
+    );
+  }
+
+  // 3. Audit row in inventory_transactions
+  await client.query(
+    `INSERT INTO inventory_transactions
+       (product_id, location_id, transaction_type, quantity,
+        qty_before, qty_after, reference_type, reference_id, reference_number,
+        reason, created_by)
+     VALUES ($1, $2, $3, $4, $5, $6, 'pos_transaction', $7, $8, $9, $10)`,
+    [
+      productId, locationId, type, quantity,
+      oldQty, newQty, transactionId, transactionNumber,
+      reason || null, userId
+    ]
+  );
+
+  return { oldQty, newQty };
+}
+
+/**
+ * Resolve locationId from a shift's register via register_shifts → registers.
+ * Returns null if the register has no location_id.
+ */
+async function resolveLocationId(client, shiftId) {
+  const res = await client.query(
+    `SELECT r.location_id
+     FROM register_shifts rs
+     JOIN registers r ON r.register_id = rs.register_id
+     WHERE rs.shift_id = $1`,
+    [shiftId]
+  );
+  return res.rows[0]?.location_id ?? null;
+}
 
 // ============================================================================
 // VALIDATION SCHEMAS
@@ -210,10 +289,10 @@ function calculateTaxes(subtotal, province = 'ON') {
   const rates = TAX_RATES[province] || TAX_RATES.ON;
 
   return {
-    hstAmount: parseFloat((subtotal * rates.hst).toFixed(2)),
-    gstAmount: parseFloat((subtotal * rates.gst).toFixed(2)),
-    pstAmount: parseFloat((subtotal * rates.pst).toFixed(2)),
-    totalTax: parseFloat((subtotal * (rates.hst + rates.gst + rates.pst)).toFixed(2))
+    hstAmount: roundDollars(subtotal * rates.hst),
+    gstAmount: roundDollars(subtotal * rates.gst),
+    pstAmount: roundDollars(subtotal * rates.pst),
+    totalTax: roundDollars(subtotal * (rates.hst + rates.gst + rates.pst))
   };
 }
 
@@ -235,13 +314,13 @@ function calculateLineItem(item, taxRates) {
   let taxAmount = 0;
   if (item.taxable !== false) {
     const totalRate = taxRates.hst + taxRates.gst + taxRates.pst;
-    taxAmount = parseFloat((afterDiscount * totalRate).toFixed(2));
+    taxAmount = roundDollars(afterDiscount * totalRate);
   }
 
-  const lineTotal = parseFloat((afterDiscount + taxAmount).toFixed(2));
+  const lineTotal = roundDollars(afterDiscount + taxAmount);
 
   return {
-    discountAmount: parseFloat(discountAmount.toFixed(2)),
+    discountAmount: roundDollars(discountAmount),
     taxAmount,
     lineTotal
   };
@@ -355,7 +434,7 @@ router.post('/', authenticate, fraudCheck('transaction.create'), asyncHandler(as
       return res.success({
         transactionId: row.transaction_id,
         transactionNumber: row.transaction_number,
-        totalAmount: parseFloat(row.total_amount),
+        totalAmount: parseDollars(row.total_amount),
         status: row.status,
         createdAt: row.created_at,
         idempotentReplay: true,
@@ -381,6 +460,9 @@ router.post('/', authenticate, fraudCheck('transaction.create'), asyncHandler(as
     if (shiftResult.rows[0].status !== 'open') {
       throw ApiError.badRequest('Cannot create transaction on a closed shift');
     }
+
+    // Resolve location from register for inventory tracking
+    const _saleLocationId = await resolveLocationId(client, shiftId);
 
     // Get tax rates for province
     const taxRates = TAX_RATES[taxProvince] || TAX_RATES.ON;
@@ -456,7 +538,7 @@ router.post('/', authenticate, fraudCheck('transaction.create'), asyncHandler(as
 
     // Insert transaction
     const depositAmount = isDeposit ? paymentTotal : null;
-    const balanceDue = isDeposit ? parseFloat((totalAmount - paymentTotal).toFixed(2)) : null;
+    const balanceDue = isDeposit ? roundDollars(totalAmount - paymentTotal) : null;
 
     // Calculate completed_at timestamp
     const completedAt = transactionStatus === 'completed' ? new Date() : null;
@@ -535,13 +617,17 @@ router.post('/', authenticate, fraudCheck('transaction.create'), asyncHandler(as
         ]
       );
 
-      // Update inventory
-      const _stockRes = await client.query(
-        'UPDATE products SET qty_on_hand = COALESCE(qty_on_hand, 0) - $1 WHERE id = $2 RETURNING qty_on_hand',
-        [item.quantity, item.productId]
-      );
-      const _newQty = _stockRes.rows[0]?.qty_on_hand ?? 0;
-      _inventoryQueue.push({ productId: item.productId, sku: item.productSku, oldQty: _newQty + item.quantity, newQty: _newQty, source: 'POS_SALE' });
+      // Update inventory (global + location + audit)
+      const { oldQty: _oldQty, newQty: _newQty } = await adjustInventoryInline(client, {
+        productId: item.productId,
+        quantity: item.quantity,
+        type: 'sale',
+        locationId: _saleLocationId,
+        transactionId: transaction.transaction_id,
+        transactionNumber: transaction.transaction_number,
+        userId: req.user.id,
+      });
+      _inventoryQueue.push({ productId: item.productId, sku: item.productSku, oldQty: _oldQty, newQty: _newQty, source: 'POS_SALE' });
     }
 
     // Insert payments
@@ -754,7 +840,7 @@ router.post('/', authenticate, fraudCheck('transaction.create'), asyncHandler(as
       const totalPct = commissionSplit.splits.reduce((s, sp) => s + Number(sp.splitPercentage), 0);
       if (Math.abs(totalPct - 100) <= 0.01) {
         // Estimate commission at 3% for now; actual calculation happens via commission service
-        const estimatedCommissionCents = Math.round(totalAmount * 100 * 0.03);
+        const estimatedCommissionCents = dollarsToCents(totalAmount * 0.03);
         let remainderCents = estimatedCommissionCents;
 
         for (let i = 0; i < commissionSplit.splits.length; i++) {
@@ -1055,9 +1141,9 @@ router.get('/', authenticate, asyncHandler(async (req, res) => {
       transactionNumber: row.transaction_number,
       customerId: row.customer_id,
       customerName: row.customer_name,
-      subtotal: parseFloat(row.subtotal),
-      discountAmount: parseFloat(row.discount_amount),
-      totalAmount: parseFloat(row.total_amount),
+      subtotal: parseDollars(row.subtotal),
+      discountAmount: parseDollars(row.discount_amount),
+      totalAmount: parseDollars(row.total_amount),
       status: row.status,
       itemCount: parseInt(row.item_count, 10),
       cashierName: row.cashier_name,
@@ -1132,7 +1218,7 @@ router.get('/daily-summary', authenticate, asyncHandler(async (req, res) => {
   paymentResult.rows.forEach(row => {
     paymentBreakdown[row.payment_method] = {
       count: parseInt(row.count, 10),
-      total: parseFloat(row.total)
+      total: parseDollars(row.total)
     };
   });
 
@@ -1142,10 +1228,10 @@ router.get('/daily-summary', authenticate, asyncHandler(async (req, res) => {
       transactionCount: parseInt(summary.transaction_count, 10),
       voidCount: parseInt(summary.void_count, 10),
       refundCount: parseInt(summary.refund_count, 10),
-      totalSales: parseFloat(summary.total_sales),
-      subtotal: parseFloat(summary.subtotal),
-      totalDiscounts: parseFloat(summary.total_discounts),
-      totalTax: parseFloat(summary.total_tax),
+      totalSales: parseDollars(summary.total_sales),
+      subtotal: parseDollars(summary.subtotal),
+      totalDiscounts: parseDollars(summary.total_discounts),
+      totalTax: parseDollars(summary.total_tax),
       paymentBreakdown
     }
   });
@@ -1254,7 +1340,7 @@ router.get('/:id', authenticate, asyncHandler(async (req, res) => {
     [id]
   );
 
-  const tradeInTotal = tradeInsResult.rows.reduce((sum, ti) => sum + parseFloat(ti.final_value), 0);
+  const tradeInTotal = tradeInsResult.rows.reduce((sum, ti) => sum + parseDollars(ti.final_value), 0);
 
   res.json({
     success: true,
@@ -1282,14 +1368,14 @@ router.get('/:id', authenticate, asyncHandler(async (req, res) => {
         name: transaction.salesperson_name
       } : null,
       totals: {
-        subtotal: parseFloat(transaction.subtotal),
-        discountAmount: parseFloat(transaction.discount_amount),
+        subtotal: parseDollars(transaction.subtotal),
+        discountAmount: parseDollars(transaction.discount_amount),
         discountReason: transaction.discount_reason,
-        hstAmount: parseFloat(transaction.hst_amount),
-        gstAmount: parseFloat(transaction.gst_amount),
-        pstAmount: parseFloat(transaction.pst_amount),
+        hstAmount: parseDollars(transaction.hst_amount),
+        gstAmount: parseDollars(transaction.gst_amount),
+        pstAmount: parseDollars(transaction.pst_amount),
         taxProvince: transaction.tax_province,
-        totalAmount: parseFloat(transaction.total_amount)
+        totalAmount: parseDollars(transaction.total_amount)
       },
       items: itemsResult.rows.map(item => ({
         itemId: item.item_id,
@@ -1297,19 +1383,19 @@ router.get('/:id', authenticate, asyncHandler(async (req, res) => {
         productName: item.product_name,
         productSku: item.product_sku,
         quantity: item.quantity,
-        unitPrice: parseFloat(item.unit_price),
-        unitCost: item.unit_cost ? parseFloat(item.unit_cost) : null,
+        unitPrice: parseDollars(item.unit_price),
+        unitCost: item.unit_cost ? parseDollars(item.unit_cost) : null,
         discountPercent: parseFloat(item.discount_percent),
-        discountAmount: parseFloat(item.discount_amount),
-        taxAmount: parseFloat(item.tax_amount),
-        lineTotal: parseFloat(item.line_total),
+        discountAmount: parseDollars(item.discount_amount),
+        taxAmount: parseDollars(item.tax_amount),
+        lineTotal: parseDollars(item.line_total),
         serialNumber: item.serial_number,
         taxable: item.taxable
       })),
       payments: paymentsResult.rows.map(payment => ({
         paymentId: payment.payment_id,
         paymentMethod: payment.payment_method,
-        amount: parseFloat(payment.amount),
+        amount: parseDollars(payment.amount),
         cardLastFour: payment.card_last_four,
         cardBrand: payment.card_brand,
         authorizationCode: payment.authorization_code,
@@ -1329,7 +1415,7 @@ router.get('/:id', authenticate, asyncHandler(async (req, res) => {
           condition: ti.condition_name,
           serialNumber: ti.serial_number,
           imei: ti.imei,
-          creditAmount: parseFloat(ti.final_value),
+          creditAmount: parseDollars(ti.final_value),
           notes: ti.condition_notes,
           status: ti.status,
           assessedAt: ti.assessed_at
@@ -1371,7 +1457,7 @@ router.post('/:id/void', authenticate, requirePermission('pos.checkout.void'), f
 
     // Get transaction
     const transactionResult = await client.query(
-      'SELECT transaction_id, status FROM transactions WHERE transaction_id = $1 FOR UPDATE',
+      'SELECT transaction_id, transaction_number, shift_id, status FROM transactions WHERE transaction_id = $1 FOR UPDATE',
       [id]
     );
 
@@ -1385,6 +1471,9 @@ router.post('/:id/void', authenticate, requirePermission('pos.checkout.void'), f
       throw ApiError.badRequest(`Cannot void transaction with status '${transaction.status}'`);
     }
 
+    // Resolve location from original transaction's shift
+    const _voidLocationId = transaction.shift_id ? await resolveLocationId(client, transaction.shift_id) : null;
+
     // Get items to restore inventory
     const itemsResult = await client.query(
       'SELECT ti.product_id, ti.quantity, ti.product_sku FROM transaction_items ti WHERE ti.transaction_id = $1',
@@ -1394,12 +1483,17 @@ router.post('/:id/void', authenticate, requirePermission('pos.checkout.void'), f
     // Restore inventory
     const _voidQueue = [];
     for (const item of itemsResult.rows) {
-      const _stockRes = await client.query(
-        'UPDATE products SET qty_on_hand = COALESCE(qty_on_hand, 0) + $1 WHERE id = $2 RETURNING qty_on_hand',
-        [item.quantity, item.product_id]
-      );
-      const _newQty = _stockRes.rows[0]?.qty_on_hand ?? 0;
-      _voidQueue.push({ productId: item.product_id, sku: item.product_sku, oldQty: _newQty - item.quantity, newQty: _newQty, source: 'RETURN' });
+      const { oldQty: _oldQty, newQty: _newQty } = await adjustInventoryInline(client, {
+        productId: item.product_id,
+        quantity: item.quantity,
+        type: 'void',
+        locationId: _voidLocationId,
+        transactionId: transaction.transaction_id,
+        transactionNumber: transaction.transaction_number,
+        userId: req.user.id,
+        reason: reason || 'Transaction voided',
+      });
+      _voidQueue.push({ productId: item.product_id, sku: item.product_sku, oldQty: _oldQty, newQty: _newQty, source: 'RETURN' });
     }
 
     // Update transaction status
@@ -1579,17 +1673,17 @@ router.get('/:id/balance', authenticate, asyncHandler(async (req, res) => {
     [id]
   );
 
-  const totalPaid = paymentsResult.rows.length > 0 ? parseFloat(paymentsResult.rows[0].total_paid) : 0;
+  const totalPaid = parseDollars(paymentsResult.rows[0]?.total_paid);
 
   res.json({
     success: true,
     data: {
       transactionId: txn.transaction_id,
-      totalAmount: parseFloat(txn.total_amount),
+      totalAmount: parseDollars(txn.total_amount),
       amountPaid: totalPaid,
-      balanceDue: parseFloat(txn.balance_due || 0),
+      balanceDue: parseDollars(txn.balance_due),
       isDeposit: txn.is_deposit,
-      depositAmount: txn.deposit_amount ? parseFloat(txn.deposit_amount) : null,
+      depositAmount: txn.deposit_amount ? parseDollars(txn.deposit_amount) : null,
       paymentStatus: txn.status,
     },
   });
@@ -1619,7 +1713,7 @@ router.post('/:id/refund', authenticate, requirePermission('pos.returns.process_
 
     // Get transaction
     const transactionResult = await client.query(
-      'SELECT transaction_id, status, total_amount FROM transactions WHERE transaction_id = $1 FOR UPDATE',
+      'SELECT transaction_id, transaction_number, shift_id, status, total_amount FROM transactions WHERE transaction_id = $1 FOR UPDATE',
       [id]
     );
 
@@ -1632,6 +1726,9 @@ router.post('/:id/refund', authenticate, requirePermission('pos.returns.process_
     if (transaction.status !== 'completed') {
       throw ApiError.badRequest(`Cannot refund transaction with status '${transaction.status}'`);
     }
+
+    // Resolve location from original transaction's shift
+    const _refundLocationId = transaction.shift_id ? await resolveLocationId(client, transaction.shift_id) : null;
 
     let refundAmount = amount;
     let refundedItems = [];
@@ -1662,25 +1759,30 @@ router.post('/:id/refund', authenticate, requirePermission('pos.returns.process_
         refundAmount += itemRefundAmount;
 
         // Restore inventory
-        const _stockRes = await client.query(
-          'UPDATE products SET qty_on_hand = COALESCE(qty_on_hand, 0) + $1 WHERE id = $2 RETURNING qty_on_hand',
-          [refundItem.quantity, item.product_id]
-        );
-        const _newQty = _stockRes.rows[0]?.qty_on_hand ?? 0;
-        _refundQueue.push({ productId: item.product_id, sku: item.product_sku, oldQty: _newQty - refundItem.quantity, newQty: _newQty, source: 'RETURN' });
+        const { oldQty: _oldQty, newQty: _newQty } = await adjustInventoryInline(client, {
+          productId: item.product_id,
+          quantity: refundItem.quantity,
+          type: 'return',
+          locationId: _refundLocationId,
+          transactionId: transaction.transaction_id,
+          transactionNumber: transaction.transaction_number,
+          userId: req.user.id,
+          reason: reason || 'Partial refund',
+        });
+        _refundQueue.push({ productId: item.product_id, sku: item.product_sku, oldQty: _oldQty, newQty: _newQty, source: 'RETURN' });
 
         refundedItems.push({
           itemId: refundItem.itemId,
           quantity: refundItem.quantity,
-          amount: parseFloat(itemRefundAmount.toFixed(2))
+          amount: roundDollars(itemRefundAmount)
         });
       }
 
-      refundAmount = parseFloat(refundAmount.toFixed(2));
+      refundAmount = roundDollars(refundAmount);
     } else {
       // Full refund - use total amount if not specified
       if (!refundAmount) {
-        refundAmount = parseFloat(transaction.total_amount);
+        refundAmount = parseDollars(transaction.total_amount);
       }
 
       // Restore all inventory
@@ -1690,17 +1792,22 @@ router.post('/:id/refund', authenticate, requirePermission('pos.returns.process_
       );
 
       for (const item of allItemsResult.rows) {
-        const _stockRes = await client.query(
-          'UPDATE products SET qty_on_hand = COALESCE(qty_on_hand, 0) + $1 WHERE id = $2 RETURNING qty_on_hand',
-          [item.quantity, item.product_id]
-        );
-        const _newQty = _stockRes.rows[0]?.qty_on_hand ?? 0;
-        _refundQueue.push({ productId: item.product_id, sku: item.product_sku, oldQty: _newQty - item.quantity, newQty: _newQty, source: 'RETURN' });
+        const { oldQty: _oldQty, newQty: _newQty } = await adjustInventoryInline(client, {
+          productId: item.product_id,
+          quantity: item.quantity,
+          type: 'return',
+          locationId: _refundLocationId,
+          transactionId: transaction.transaction_id,
+          transactionNumber: transaction.transaction_number,
+          userId: req.user.id,
+          reason: reason || 'Full refund',
+        });
+        _refundQueue.push({ productId: item.product_id, sku: item.product_sku, oldQty: _oldQty, newQty: _newQty, source: 'RETURN' });
       }
     }
 
     // Validate refund amount
-    if (refundAmount > parseFloat(transaction.total_amount)) {
+    if (refundAmount > parseDollars(transaction.total_amount)) {
       throw ApiError.badRequest('Refund amount cannot exceed transaction total');
     }
 
@@ -1713,7 +1820,7 @@ router.post('/:id/refund', authenticate, requirePermission('pos.returns.process_
     );
 
     // Update transaction status
-    const isFullRefund = Math.abs(refundAmount - parseFloat(transaction.total_amount)) < 0.01;
+    const isFullRefund = Math.abs(refundAmount - parseDollars(transaction.total_amount)) < 0.01;
 
     await client.query(
       `UPDATE transactions
