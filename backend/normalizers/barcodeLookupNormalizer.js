@@ -78,6 +78,94 @@ const SKIP_BRANDS = new Set([
   'NINTENDO', 'STUDIO', 'BUNDLE',
 ]);
 
+// Category keywords — if a field contains one of these, it's a category not a model/brand
+const CATEGORY_KEYWORDS = /\b(TV|Television|Theater|Audio|Sound|Speaker|Headphone|Appliance|Kitchen|Laundry|Refrigerat|Dishwasher|Microwave|Oven|Range|Cooktop|Dryer|Washer|Freezer|Computer|Laptop|Tablet|Monitor|Gaming|Console|Camera|Phone|Display|Home\s+Theater|Soundbar|Receiver|Amplifier|Projector|Blu-?ray|DVD|Equipment)\b/i;
+
+/**
+ * Detect and correct swapped brand/model/category fields.
+ *
+ * The Barcode Lookup API sometimes returns fields in wrong positions, e.g.:
+ *   brand = "65QD6QF" (actually the model)
+ *   model = "TVs & Home Theater Equipment" (actually the category)
+ *   category = "" (empty)
+ *
+ * @param {Object} product - Raw API product object (mutated in place)
+ */
+function correctSwappedFields(product) {
+  if (!product) return;
+
+  const brand = (product.brand || '').trim();
+  const model = (product.model || '').trim();
+  const category = (product.category || '').trim();
+
+  const brandIsModel = brand && looksLikeModel(brand) && !SKIP_BRANDS.has(brand.toUpperCase());
+  const modelIsCategory = model && CATEGORY_KEYWORDS.test(model) && !looksLikeModel(model);
+  const brandIsBrand = brand && SKIP_BRANDS.has(brand.toUpperCase());
+
+  // Case: brand has the model, model has the category
+  if (brandIsModel && modelIsCategory) {
+    product.category = product.category || model;
+    product.model = brand;
+    // Try to recover real brand from title or manufacturer
+    product.brand = product.manufacturer || extractBrandFromTitle(product.product_name || product.title) || brand;
+  }
+  // Case: model field has a category string but brand is fine
+  else if (modelIsCategory && (brandIsBrand || !brand)) {
+    product.category = product.category || model;
+    product.model = null; // let extractModelFromTitle handle it
+  }
+
+  // If category is still empty, infer from product name
+  if (!product.category || product.category.trim() === '') {
+    product.category = inferCategoryFromTitle(product.product_name || product.title);
+  }
+}
+
+/**
+ * Extract brand name from a product title (first word if it's a known brand).
+ * @param {string|null} title
+ * @returns {string|null}
+ */
+function extractBrandFromTitle(title) {
+  if (!title) return null;
+  const firstWord = title.split(/[\s-]/)[0].trim().toUpperCase();
+  return SKIP_BRANDS.has(firstWord) ? title.split(/[\s-]/)[0].trim() : null;
+}
+
+/**
+ * Infer a category from the product title using keyword matching.
+ * @param {string|null} title
+ * @returns {string|null}
+ */
+function inferCategoryFromTitle(title) {
+  if (!title) return null;
+  const t = title.toLowerCase();
+
+  if (/\b(tv|television|smart tv|qled|oled|uhd|4k.*tv|8k.*tv|fire tv)\b/i.test(t)) return 'TV';
+  if (/\bsoundbar\b/i.test(t)) return 'SOUNDBAR';
+  if (/\b(speaker|subwoofer|rear speaker)\b/i.test(t)) return 'SPEAKER';
+  if (/\b(headphone|earphone|earbud|earbuds)\b/i.test(t)) return 'HEADPHONES';
+  if (/\b(home theater|receiver|amplifier|av receiver)\b/i.test(t)) return 'HOME THEATER';
+  if (/\b(projector)\b/i.test(t)) return 'PROJECTOR';
+  if (/\b(refrigerator|fridge)\b/i.test(t)) return 'REFRIGERATOR';
+  if (/\b(dishwasher)\b/i.test(t)) return 'DISHWASHER';
+  if (/\b(washer|washing machine)\b/i.test(t)) return 'WASHER';
+  if (/\b(dryer)\b/i.test(t)) return 'DRYER';
+  if (/\b(range|stove)\b/i.test(t)) return 'RANGE';
+  if (/\b(microwave)\b/i.test(t)) return 'MICROWAVE';
+  if (/\b(oven|wall oven)\b/i.test(t)) return 'OVEN';
+  if (/\b(cooktop)\b/i.test(t)) return 'COOKTOP';
+  if (/\b(freezer)\b/i.test(t)) return 'FREEZER';
+  if (/\b(laptop|notebook)\b/i.test(t)) return 'Computing';
+  if (/\b(tablet|ipad)\b/i.test(t)) return 'Mobile';
+  if (/\b(playstation|xbox|nintendo|gaming console)\b/i.test(t)) return 'Electronics > Video Game Consoles';
+  if (/\b(blu-?ray|dvd player)\b/i.test(t)) return 'BLU-RAY';
+  if (/\b(air purifier)\b/i.test(t)) return 'AIR PURIFIER';
+  if (/\b(vacuum|robot vacuum)\b/i.test(t)) return 'Appliances';
+
+  return null;
+}
+
 /**
  * Extract the consumer-facing model number from the product title.
  *
@@ -352,6 +440,9 @@ function normalizeBarcodeProduct(raw) {
     throw new Error('barcodeLookupNormalizer: no product data found in response');
   }
 
+  // Detect and fix swapped brand/model/category fields from the API
+  correctSwappedFields(product);
+
   const { primary: imageUrl, additional: additionalImages } = collectImages(product.images);
   const flatSpecs = flattenSpecifications(product.specifications);
   const ceSpecs = mergePhysicalAttributes(product, flatSpecs);
@@ -410,5 +501,7 @@ module.exports = {
     collectAttributes,
     isMeasurement,
     looksLikeModel,
+    correctSwappedFields,
+    inferCategoryFromTitle,
   },
 };

@@ -301,13 +301,20 @@ router.post('/', authenticate, validateJoi(productSchemas.create), asyncHandler(
 router.put('/:id', authenticate, validateJoi(productSchemas.update), asyncHandler(async (req, res) => {
   const { id } = req.params;
 
-  const product = await productService.updateProduct(id, req.body);
+  try {
+    const product = await productService.updateProduct(id, req.body);
 
-  if (!product) {
-    throw ApiError.notFound('Product');
+    if (!product) {
+      throw ApiError.notFound('Product');
+    }
+
+    res.success(product);
+  } catch (error) {
+    if (error.code === '23505' && error.constraint && error.constraint.includes('model')) {
+      throw ApiError.conflict('Model already exists. Another product is already using this model number.');
+    }
+    throw error;
   }
-
-  res.success(product);
 }));
 
 /**

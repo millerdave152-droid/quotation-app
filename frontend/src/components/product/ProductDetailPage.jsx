@@ -150,14 +150,15 @@ const ProductDetailPage = () => {
         {barcodeAttrs && Object.keys(barcodeAttrs).length > 0 && (
           <div style={panelStyle}>
             <div style={panelHeaderStyle}>Product Attributes</div>
-            <div style={{ padding: '14px 18px' }}>
+            <div style={{ padding: '14px 18px', maxHeight: '400px', overflowY: 'auto' }}>
               {Object.entries(barcodeAttrs).map(([key, value]) => {
                 if (value == null || value === '') return null;
-                const displayVal = typeof value === 'object' ? JSON.stringify(value) : String(value);
                 return (
-                  <div key={key} style={kvRowStyle}>
+                  <div key={key} style={{ ...kvRowStyle, flexDirection: Array.isArray(value) ? 'column' : 'row' }}>
                     <span style={kvKeyStyle}>{formatKey(key)}</span>
-                    <span style={kvValueStyle}>{displayVal}</span>
+                    <span style={{ ...kvValueStyle, textAlign: Array.isArray(value) ? 'left' : 'right' }}>
+                      {renderValue(value)}
+                    </span>
                   </div>
                 );
               })}
@@ -170,7 +171,7 @@ const ProductDetailPage = () => {
       {ceSpecs && Object.keys(ceSpecs).length > 0 && (
         <div style={{ ...panelStyle, marginTop: '20px' }}>
           <div style={panelHeaderStyle}>Specifications</div>
-          <div style={{ padding: '14px 18px', columns: '2', columnGap: '24px' }}>
+          <div style={{ padding: '14px 18px', maxHeight: '500px', overflowY: 'auto', columns: '2', columnGap: '24px' }}>
             {Object.entries(ceSpecs).map(([key, value]) => {
               if (value == null || value === '' || key === 'Additional Images') return null;
               return (
@@ -193,6 +194,28 @@ const ProductDetailPage = () => {
 };
 
 // Helpers
+function renderValue(value) {
+  if (Array.isArray(value)) {
+    return (
+      <ul style={{ margin: '4px 0 0', paddingLeft: '18px', listStyle: 'disc' }}>
+        {value.map((item, i) => (
+          <li key={i} style={{ padding: '2px 0', fontSize: '13px', lineHeight: '1.4' }}>
+            {typeof item === 'object' ? JSON.stringify(item) : String(item)}
+          </li>
+        ))}
+      </ul>
+    );
+  }
+  if (value && typeof value === 'object') {
+    return Object.entries(value).map(([k, v]) => (
+      <div key={k} style={{ fontSize: '13px', lineHeight: '1.4' }}>
+        <strong>{k}:</strong> {String(v)}
+      </div>
+    ));
+  }
+  return String(value);
+}
+
 function formatKey(key) {
   return key
     .replace(/_/g, ' ')

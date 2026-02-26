@@ -629,7 +629,7 @@ const ProductManagement = () => {
 
       if (!response.ok) {
         const errorData = await response.json();
-        throw new Error(errorData.error || 'Failed to update product');
+        throw new Error(typeof errorData.error === 'string' ? errorData.error : errorData.error?.message || errorData.message || 'Failed to update product');
       }
 
       // Update local state
@@ -940,7 +940,7 @@ const ProductManagement = () => {
 
       if (!response.ok) {
         const errorData = await response.json();
-        throw new Error(errorData.error || 'Failed to create product');
+        throw new Error(typeof errorData.error === 'string' ? errorData.error : errorData.error?.message || errorData.message || 'Failed to create product');
       }
 
       showNotification('Product created successfully!', 'success');
@@ -965,7 +965,7 @@ const ProductManagement = () => {
 
       if (!response.ok) {
         const errorData = await response.json();
-        throw new Error(errorData.error || 'Failed to update product');
+        throw new Error(typeof errorData.error === 'string' ? errorData.error : errorData.error?.message || errorData.message || 'Failed to update product');
       }
 
       showNotification('Product updated successfully!', 'success');
