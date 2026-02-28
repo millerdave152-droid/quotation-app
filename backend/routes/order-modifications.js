@@ -549,6 +549,12 @@ const init = (deps) => {
   pool = deps.pool;
   cache = deps.cache;
   modificationService = new OrderModificationService(pool, cache);
+
+  // Wire CreditMemoService so amendments can auto-generate credit memos
+  const CreditMemoService = require('../services/CreditMemoService');
+  const cms = new CreditMemoService(pool, cache);
+  modificationService.setCreditMemoService(cms);
+
   return router;
 };
 
