@@ -13,6 +13,10 @@ import {
   CheckCircleIcon,
   ExclamationTriangleIcon,
   ArrowTopRightOnSquareIcon,
+  PencilSquareIcon,
+  MinusCircleIcon,
+  PlusCircleIcon,
+  TrashIcon,
 } from '@heroicons/react/24/outline';
 import { ShieldCheckIcon as ShieldCheckSolid } from '@heroicons/react/24/solid';
 import { formatCurrency, formatDateTime } from '../../utils/formatters';
@@ -199,6 +203,15 @@ export function TransactionDetails({
   const [error, setError] = useState(null);
   const [receiptData, setReceiptData] = useState(null);
 
+  // Amendment state
+  const [showAmendForm, setShowAmendForm] = useState(false);
+  const [amendQtyChanges, setAmendQtyChanges] = useState({});
+  const [amendRemovals, setAmendRemovals] = useState({});
+  const [amendReason, setAmendReason] = useState('');
+  const [amendSubmitting, setAmendSubmitting] = useState(false);
+  const [amendSuccess, setAmendSuccess] = useState(null);
+  const [amendError, setAmendError] = useState(null);
+
   const normalizeSignatureSrc = useCallback((sig) => {
     if (!sig?.signatureData) return null;
     if (sig.signatureData.startsWith('data:')) return sig.signatureData;
@@ -255,6 +268,136 @@ export function TransactionDetails({
     }
   }, [receiptData, onEmailReceipt]);
 
+  // Toggle amendment form
+  const handleToggleAmend = useCallback(() => {
+    setShowAmendForm((prev) => {
+      if (prev) {
+        // Closing — reset form state
+        setAmendQtyChanges({});
+        setAmendRemovals({});
+        setAmendReason('');
+        setAmendError(null);
+        setAmendSuccess(null);
+      }
+      return !prev;
+    });
+  }, []);
+
+  // Handle qty change for an item
+  const handleQtyChange = useCallback((productId, delta, currentQty) => {
+    setAmendQtyChanges((prev) => {
+      const existing = prev[productId] ?? currentQty;
+      const next = Math.max(0, existing + delta);
+      if (next === currentQty) {
+        const copy = { ...prev };
+        delete copy[productId];
+        return copy;
+      }
+      return { ...prev, [productId]: next };
+    });
+  }, []);
+
+  // Handle removal toggle
+  const handleToggleRemove = useCallback((productId) => {
+    setAmendRemovals((prev) => {
+      const copy = { ...prev };
+      if (copy[productId]) {
+        delete copy[productId];
+      } else {
+        copy[productId] = true;
+      }
+      return copy;
+    });
+  }, []);
+
+  // Check if any amendment changes exist
+  const hasAmendChanges =
+    Object.keys(amendQtyChanges).length > 0 || Object.keys(amendRemovals).length > 0;
+
+  // Submit amendment
+  const handleSubmitAmendment = useCallback(async () => {
+    if (!hasAmendChanges || !amendReason.trim()) return;
+
+    setAmendSubmitting(true);
+    setAmendError(null);
+    setAmendSuccess(null);
+
+    try {
+      const modifyItems = [];
+      const removeItems = [];
+
+      // Build modify list from qty changes
+      for (const [pidStr, newQty] of Object.entries(amendQtyChanges)) {
+        const pid = parseInt(pidStr, 10);
+        if (amendRemovals[pid]) continue; // skip if also marked for removal
+        if (newQty > 0) {
+          modifyItems.push({ productId: pid, quantity: newQty });
+        } else {
+          // qty set to 0 means removal
+          removeItems.push({ productId: pid, reason: amendReason.trim() });
+        }
+      }
+
+      // Build remove list
+      for (const pidStr of Object.keys(amendRemovals)) {
+        const pid = parseInt(pidStr, 10);
+        if (!removeItems.find((r) => r.productId === pid)) {
+          removeItems.push({ productId: pid, reason: amendReason.trim() });
+        }
+      }
+
+      // Determine amendment type
+      let amendmentType = 'item_modified';
+      if (removeItems.length > 0 && modifyItems.length === 0) {
+        amendmentType = 'item_removed';
+      } else if (modifyItems.length > 0 && removeItems.length === 0) {
+        amendmentType = 'quantity_changed';
+      }
+
+      const body = {
+        amendmentType,
+        reason: amendReason.trim(),
+        ...(modifyItems.length > 0 && { modifyItems }),
+        ...(removeItems.length > 0 && { removeItems }),
+      };
+
+      const response = await fetch(
+        `${API_BASE}/order-modifications/${transactionId}/amendments`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${localStorage.getItem('pos_token')}`,
+          },
+          body: JSON.stringify(body),
+        }
+      );
+
+      if (!response.ok) {
+        const errData = await response.json().catch(() => ({}));
+        throw new Error(errData.error || errData.message || 'Failed to submit amendment');
+      }
+
+      const result = await response.json();
+      setAmendSuccess(
+        result.data?.requiresApproval
+          ? 'Amendment submitted — pending manager approval.'
+          : 'Amendment applied successfully.'
+      );
+      setAmendQtyChanges({});
+      setAmendRemovals({});
+      setAmendReason('');
+
+      // Refresh receipt data after successful amendment
+      setTimeout(() => fetchData(), 1500);
+    } catch (err) {
+      console.error('[TransactionDetails] Amendment error:', err);
+      setAmendError(err.message);
+    } finally {
+      setAmendSubmitting(false);
+    }
+  }, [hasAmendChanges, amendReason, amendQtyChanges, amendRemovals, transactionId, fetchData]);
+
   if (!isOpen) return null;
 
   return (
@@ -293,6 +436,20 @@ export function TransactionDetails({
               title="Email Receipt"
             >
               <EnvelopeIcon className="w-5 h-5" />
+            </button>
+            <button
+              type="button"
+              onClick={handleToggleAmend}
+              disabled={loading || !receiptData}
+              className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg border transition-colors disabled:opacity-50 ${
+                showAmendForm
+                  ? 'bg-gray-500 text-white border-gray-500 hover:bg-gray-600'
+                  : 'bg-blue-600 text-white border-blue-600 hover:bg-blue-700'
+              }`}
+              title={showAmendForm ? 'Cancel Amendment' : 'Amend Order'}
+            >
+              <PencilSquareIcon className="w-4 h-4" />
+              {showAmendForm ? 'Cancel' : 'Amend'}
             </button>
             <button
               type="button"
@@ -470,6 +627,161 @@ export function TransactionDetails({
                         </div>
                       );
                     })}
+                  </div>
+                </div>
+              )}
+
+              {/* Amendment Form */}
+              {showAmendForm && (
+                <div className="border-2 border-blue-200 rounded-lg overflow-hidden">
+                  <div className="bg-blue-50 px-4 py-3 border-b border-blue-200">
+                    <h3 className="font-semibold text-blue-900 text-sm flex items-center gap-2">
+                      <PencilSquareIcon className="w-4 h-4" />
+                      Quick Amendment — Qty Changes &amp; Removals
+                    </h3>
+                    <p className="text-xs text-blue-600 mt-0.5">
+                      Adjust quantities or remove items. A reason is required.
+                    </p>
+                  </div>
+
+                  {/* Success banner */}
+                  {amendSuccess && (
+                    <div className="mx-4 mt-3 p-3 bg-green-50 border border-green-200 rounded-lg flex items-start gap-2">
+                      <CheckCircleIcon className="w-5 h-5 text-green-600 flex-shrink-0 mt-0.5" />
+                      <p className="text-sm text-green-800">{amendSuccess}</p>
+                    </div>
+                  )}
+
+                  {/* Error banner */}
+                  {amendError && (
+                    <div className="mx-4 mt-3 p-3 bg-red-50 border border-red-200 rounded-lg flex items-start gap-2">
+                      <ExclamationTriangleIcon className="w-5 h-5 text-red-600 flex-shrink-0 mt-0.5" />
+                      <p className="text-sm text-red-800">{amendError}</p>
+                    </div>
+                  )}
+
+                  {/* Item list with controls */}
+                  <div className="p-4 space-y-3">
+                    {receiptData.items.map((item) => {
+                      const pid = item.productId;
+                      const isRemoved = !!amendRemovals[pid];
+                      const currentQty = amendQtyChanges[pid] ?? item.quantity;
+                      const qtyChanged = amendQtyChanges[pid] !== undefined && amendQtyChanges[pid] !== item.quantity;
+
+                      return (
+                        <div
+                          key={pid || item.itemId}
+                          className={`flex items-center gap-3 p-3 rounded-lg border transition-colors ${
+                            isRemoved
+                              ? 'bg-red-50 border-red-200 opacity-60'
+                              : qtyChanged
+                                ? 'bg-amber-50 border-amber-200'
+                                : 'bg-white border-gray-200'
+                          }`}
+                        >
+                          {/* Product info */}
+                          <div className="flex-1 min-w-0">
+                            <p className={`text-sm font-medium truncate ${isRemoved ? 'line-through text-gray-400' : 'text-gray-900'}`}>
+                              {item.name}
+                            </p>
+                            {item.sku && (
+                              <p className="text-xs text-gray-400">{item.sku}</p>
+                            )}
+                            <p className="text-xs text-gray-500 mt-0.5">
+                              {formatCurrency(item.unitPrice)} each
+                            </p>
+                          </div>
+
+                          {/* Qty controls */}
+                          <div className="flex items-center gap-1.5">
+                            <button
+                              type="button"
+                              onClick={() => handleQtyChange(pid, -1, item.quantity)}
+                              disabled={isRemoved || currentQty <= 0 || amendSubmitting}
+                              className="p-1 text-gray-500 hover:text-blue-600 hover:bg-blue-50 rounded disabled:opacity-30 disabled:cursor-not-allowed"
+                              title="Decrease quantity"
+                            >
+                              <MinusCircleIcon className="w-5 h-5" />
+                            </button>
+                            <span className={`w-8 text-center text-sm font-semibold tabular-nums ${
+                              qtyChanged ? 'text-amber-700' : 'text-gray-900'
+                            }`}>
+                              {isRemoved ? 0 : currentQty}
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => handleQtyChange(pid, 1, item.quantity)}
+                              disabled={isRemoved || amendSubmitting}
+                              className="p-1 text-gray-500 hover:text-blue-600 hover:bg-blue-50 rounded disabled:opacity-30 disabled:cursor-not-allowed"
+                              title="Increase quantity"
+                            >
+                              <PlusCircleIcon className="w-5 h-5" />
+                            </button>
+                          </div>
+
+                          {/* Original qty indicator */}
+                          {qtyChanged && !isRemoved && (
+                            <span className="text-xs text-amber-600 whitespace-nowrap">
+                              was {item.quantity}
+                            </span>
+                          )}
+
+                          {/* Remove toggle */}
+                          <button
+                            type="button"
+                            onClick={() => handleToggleRemove(pid)}
+                            disabled={amendSubmitting}
+                            className={`p-1.5 rounded transition-colors ${
+                              isRemoved
+                                ? 'bg-red-100 text-red-600 hover:bg-red-200'
+                                : 'text-gray-400 hover:text-red-500 hover:bg-red-50'
+                            }`}
+                            title={isRemoved ? 'Undo removal' : 'Remove item'}
+                          >
+                            <TrashIcon className="w-4 h-4" />
+                          </button>
+                        </div>
+                      );
+                    })}
+
+                    {/* Reason input */}
+                    <div className="pt-2">
+                      <label className="block text-xs font-medium text-gray-700 mb-1">
+                        Reason for amendment <span className="text-red-500">*</span>
+                      </label>
+                      <textarea
+                        value={amendReason}
+                        onChange={(e) => setAmendReason(e.target.value)}
+                        placeholder="e.g. Customer changed mind on quantity, item out of stock..."
+                        rows={2}
+                        disabled={amendSubmitting}
+                        className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 disabled:bg-gray-100 resize-none"
+                      />
+                    </div>
+
+                    {/* Submit row */}
+                    <div className="flex items-center justify-between pt-2 border-t border-gray-100">
+                      <p className="text-xs text-gray-400">
+                        {hasAmendChanges
+                          ? `${Object.keys(amendRemovals).length} removal(s), ${Object.keys(amendQtyChanges).length} qty change(s)`
+                          : 'No changes yet'}
+                      </p>
+                      <button
+                        type="button"
+                        onClick={handleSubmitAmendment}
+                        disabled={!hasAmendChanges || !amendReason.trim() || amendSubmitting}
+                        className="inline-flex items-center gap-1.5 px-4 py-2 bg-blue-600 text-white text-sm font-semibold rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                      >
+                        {amendSubmitting ? (
+                          <>
+                            <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                            Submitting...
+                          </>
+                        ) : (
+                          'Submit Amendment'
+                        )}
+                      </button>
+                    </div>
                   </div>
                 </div>
               )}

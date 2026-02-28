@@ -354,6 +354,7 @@ class ReceiptService {
     const itemsResult = await this.pool.query(`
       SELECT
         item_id,
+        product_id,
         product_name,
         product_sku,
         quantity,
@@ -2407,6 +2408,8 @@ class ReceiptService {
 
     // Map grouped items with warranties
     const groupedItems = (data.groupedItems || data.items).map(item => ({
+      itemId: item.item_id,
+      productId: item.product_id,
       name: item.product_name,
       sku: item.product_sku,
       quantity: item.quantity,
