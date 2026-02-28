@@ -6,7 +6,8 @@
  * All monetary values are stored and calculated in cents (integers).
  */
 
-const { SESv2Client } = require('@aws-sdk/client-sesv2');
+const { SESv2Client, SendEmailCommand } = require('@aws-sdk/client-sesv2');
+const PDFDocument = require('pdfkit');
 
 // ============================================================================
 // Tax Rate Constants (Canadian provinces) — mirrors OrderModificationService
@@ -869,33 +870,837 @@ class CreditMemoService {
   }
 
   // ============================================================================
-  // PDF GENERATION (STUB — Task 3)
+  // PDF GENERATION
   // ============================================================================
 
   /**
-   * Generate a PDF for a credit memo.
-   * Stub implementation — will be completed in Task 3.
+   * Generate a professional PDF for a credit memo.
+   * Follows the same enterprise visual style as PdfService and POSInvoiceService.
    *
    * @param {number} creditMemoId - Credit memo ID
-   * @returns {Buffer} PDF buffer
+   * @returns {Promise<Buffer>} PDF buffer
    */
   async generatePdf(creditMemoId) {
-    // Stub: return placeholder buffer
-    return Buffer.from('PDF placeholder');
+    const memo = await this.getById(creditMemoId);
+    if (!memo) {
+      throw new Error(`Credit memo ${creditMemoId} not found`);
+    }
+
+    return new Promise((resolve, reject) => {
+      try {
+        const doc = new PDFDocument({
+          margin: 50,
+          size: 'LETTER',
+          bufferPages: true,
+        });
+
+        const chunks = [];
+        doc.on('data', (c) => chunks.push(c));
+        doc.on('end', () => resolve(Buffer.concat(chunks)));
+        doc.on('error', reject);
+
+        // ============================================
+        // ENTERPRISE COLOR SCHEME (matches PdfService)
+        // ============================================
+        const colors = {
+          primary: '#1e40af',
+          primaryLight: '#3b82f6',
+          text: '#1f2937',
+          textSecondary: '#374151',
+          textMuted: '#6b7280',
+          textLight: '#9ca3af',
+          border: '#e5e7eb',
+          borderMedium: '#d1d5db',
+          background: '#f9fafb',
+          bgLight: '#f8fafc',
+          bgMuted: '#fafafa',
+          white: '#ffffff',
+          success: '#10b981',
+          error: '#dc2626',
+          warning: '#f59e0b',
+        };
+
+        // Helpers
+        const fmtMoney = (cents) => `$${(cents / 100).toFixed(2)}`;
+        const fmtDate = (d) =>
+          d
+            ? new Date(d).toLocaleDateString('en-CA', {
+                year: 'numeric',
+                month: 'short',
+                day: 'numeric',
+              })
+            : 'N/A';
+
+        // ============================================
+        // HEADER — ACCENT BAR & COMPANY INFO
+        // ============================================
+        doc.rect(0, 0, 612, 4).fill(colors.primary);
+
+        doc
+          .fontSize(22)
+          .font('Helvetica-Bold')
+          .fillColor(colors.primary)
+          .text(this.companyName, 50, 20);
+
+        doc.fontSize(9).font('Helvetica').fillColor(colors.textMuted);
+        let headerY = 45;
+        if (this.companyAddress) {
+          doc.text(this.companyAddress, 50, headerY);
+          headerY += 11;
+        }
+        if (this.companyPhone) {
+          doc.text(`Tel: ${this.companyPhone}`, 50, headerY);
+          headerY += 11;
+        }
+        if (this.companyEmail) {
+          doc.text(this.companyEmail, 50, headerY);
+        }
+
+        // CREDIT MEMO BADGE (right side)
+        doc
+          .roundedRect(400, 12, 162, 78, 4)
+          .fillAndStroke(colors.bgLight, colors.border);
+
+        doc
+          .fontSize(10)
+          .font('Helvetica-Bold')
+          .fillColor(colors.error)
+          .text('CREDIT MEMO', 402, 18, { width: 158, align: 'center' });
+
+        doc
+          .fontSize(13)
+          .font('Helvetica-Bold')
+          .fillColor(colors.text)
+          .text(memo.creditMemoNumber || 'DRAFT', 402, 34, {
+            width: 158,
+            align: 'center',
+          });
+
+        doc
+          .fontSize(8)
+          .font('Helvetica')
+          .fillColor(colors.textMuted)
+          .text(`Date: ${fmtDate(memo.issuedAt || memo.createdAt)}`, 402, 52, {
+            width: 158,
+            align: 'center',
+          });
+
+        // Status badge inside the card
+        const statusColors = {
+          draft: { bg: '#f3f4f6', fg: colors.textMuted },
+          issued: { bg: '#dbeafe', fg: colors.primary },
+          applied: { bg: '#dcfce7', fg: colors.success },
+          voided: { bg: '#fee2e2', fg: colors.error },
+        };
+        const sc = statusColors[memo.status] || statusColors.draft;
+        doc.roundedRect(430, 66, 102, 18, 3).fill(sc.bg);
+        doc
+          .fontSize(9)
+          .font('Helvetica-Bold')
+          .fillColor(sc.fg)
+          .text(memo.status.toUpperCase(), 430, 71, {
+            width: 102,
+            align: 'center',
+          });
+
+        // ============================================
+        // REFERENCE INFO BOX
+        // ============================================
+        const refY = 100;
+        doc
+          .roundedRect(50, refY, 512, 52, 4)
+          .fillAndStroke(colors.bgLight, colors.border);
+
+        doc.fontSize(8).font('Helvetica').fillColor(colors.textMuted);
+
+        doc.text('Original Order:', 60, refY + 8);
+        doc
+          .font('Helvetica-Bold')
+          .fillColor(colors.text)
+          .text(memo.orderNumber || 'N/A', 150, refY + 8);
+
+        doc.font('Helvetica').fillColor(colors.textMuted);
+        doc.text('Original Invoice:', 300, refY + 8);
+        doc
+          .font('Helvetica-Bold')
+          .fillColor(colors.text)
+          .text(memo.originalInvoiceNumber || 'N/A', 395, refY + 8);
+
+        doc.font('Helvetica').fillColor(colors.textMuted);
+        doc.text('Reason:', 60, refY + 24);
+        doc
+          .font('Helvetica-Bold')
+          .fillColor(colors.text)
+          .text((memo.reason || 'N/A').substring(0, 60), 150, refY + 24, {
+            width: 200,
+          });
+
+        doc.font('Helvetica').fillColor(colors.textMuted);
+        doc.text('Reason Code:', 300, refY + 24);
+        doc
+          .font('Helvetica-Bold')
+          .fillColor(colors.text)
+          .text(memo.reasonCodeLabel || memo.reasonCode || 'N/A', 395, refY + 24);
+
+        if (memo.province) {
+          doc.font('Helvetica').fillColor(colors.textMuted);
+          doc.text('Province:', 60, refY + 38);
+          doc
+            .font('Helvetica-Bold')
+            .fillColor(colors.text)
+            .text(memo.province, 150, refY + 38);
+        }
+
+        // ============================================
+        // CUSTOMER CARD — BILL TO
+        // ============================================
+        const custY = 162;
+        const custH = 55;
+        doc
+          .roundedRect(50, custY, 512, custH, 6)
+          .fillAndStroke(colors.bgMuted, colors.border);
+
+        doc
+          .fontSize(9)
+          .font('Helvetica-Bold')
+          .fillColor(colors.primaryLight)
+          .text('BILL TO', 60, custY + 10);
+
+        doc
+          .moveTo(60, custY + 22)
+          .lineTo(150, custY + 22)
+          .strokeColor(colors.border)
+          .lineWidth(0.5)
+          .stroke();
+
+        doc
+          .fontSize(10)
+          .font('Helvetica-Bold')
+          .fillColor(colors.text)
+          .text(memo.customerName || 'N/A', 60, custY + 28, { width: 220 });
+
+        // Divider
+        doc
+          .moveTo(300, custY + 10)
+          .lineTo(300, custY + custH - 10)
+          .strokeColor(colors.border)
+          .stroke();
+
+        doc
+          .fontSize(9)
+          .font('Helvetica-Bold')
+          .fillColor(colors.primaryLight)
+          .text('CONTACT', 315, custY + 10);
+
+        doc
+          .moveTo(315, custY + 22)
+          .lineTo(405, custY + 22)
+          .strokeColor(colors.border)
+          .lineWidth(0.5)
+          .stroke();
+
+        doc.fontSize(8).font('Helvetica').fillColor(colors.textLight);
+        doc.text('Email:', 315, custY + 28);
+        doc
+          .fontSize(9)
+          .fillColor(memo.customerEmail ? colors.primaryLight : colors.textMuted)
+          .text(memo.customerEmail || 'N/A', 355, custY + 28, { width: 200 });
+
+        // ============================================
+        // LINE ITEMS TABLE
+        // ============================================
+        let yPos = custY + custH + 15;
+        const tableTop = yPos;
+
+        const cols = {
+          line: { x: 50, w: 35 },
+          sku: { x: 85, w: 65 },
+          desc: { x: 150, w: 145 },
+          qty: { x: 295, w: 35 },
+          origPrice: { x: 330, w: 65 },
+          creditPrice: { x: 395, w: 65 },
+          total: { x: 460, w: 102 },
+        };
+
+        // Draw table header helper
+        const drawTableHeader = (startY) => {
+          doc.rect(50, startY, 512, 22).fill(colors.primary);
+          doc.fontSize(7).font('Helvetica-Bold').fillColor('white');
+          doc.text('LINE', cols.line.x + 3, startY + 7, {
+            width: cols.line.w - 6,
+            align: 'center',
+          });
+          doc.text('SKU', cols.sku.x + 3, startY + 7);
+          doc.text('DESCRIPTION', cols.desc.x + 3, startY + 7);
+          doc.text('QTY', cols.qty.x, startY + 7, {
+            width: cols.qty.w,
+            align: 'center',
+          });
+          doc.text('ORIG PRICE', cols.origPrice.x, startY + 7, {
+            width: cols.origPrice.w,
+            align: 'right',
+          });
+          doc.text('CREDIT PRICE', cols.creditPrice.x, startY + 7, {
+            width: cols.creditPrice.w,
+            align: 'right',
+          });
+          doc.text('LINE TOTAL', cols.total.x, startY + 7, {
+            width: cols.total.w,
+            align: 'right',
+          });
+        };
+
+        drawTableHeader(tableTop);
+        yPos = tableTop + 22;
+        const rowHeight = 28;
+
+        (memo.lines || []).forEach((line, index) => {
+          // Page break check
+          if (yPos > 680) {
+            doc.addPage();
+            doc.rect(0, 0, 612, 4).fill(colors.primary);
+            drawTableHeader(20);
+            yPos = 42;
+          }
+
+          // Zebra striping
+          if (index % 2 === 0) {
+            doc.rect(50, yPos, 512, rowHeight).fill(colors.background);
+          }
+
+          // Row border
+          doc
+            .moveTo(50, yPos + rowHeight)
+            .lineTo(562, yPos + rowHeight)
+            .strokeColor(colors.border)
+            .lineWidth(0.5)
+            .stroke();
+
+          const rowTextY = yPos + 8;
+
+          // Line number
+          doc
+            .fontSize(8)
+            .font('Helvetica')
+            .fillColor(colors.textMuted)
+            .text(String(line.lineNumber), cols.line.x + 3, rowTextY, {
+              width: cols.line.w - 6,
+              align: 'center',
+            });
+
+          // SKU
+          doc
+            .fontSize(7)
+            .fillColor(colors.textMuted)
+            .text((line.productSku || '-').substring(0, 12), cols.sku.x + 3, rowTextY, {
+              width: cols.sku.w - 6,
+            });
+
+          // Description (product name + description)
+          if (line.productName) {
+            doc
+              .font('Helvetica-Bold')
+              .fontSize(8)
+              .fillColor(colors.text)
+              .text(line.productName.substring(0, 30), cols.desc.x + 3, rowTextY, {
+                width: cols.desc.w - 6,
+              });
+          }
+          if (line.description) {
+            doc
+              .font('Helvetica')
+              .fontSize(6)
+              .fillColor(colors.textMuted)
+              .text(line.description.substring(0, 50), cols.desc.x + 3, rowTextY + 10, {
+                width: cols.desc.w - 6,
+              });
+          }
+
+          // Quantity
+          doc
+            .font('Helvetica-Bold')
+            .fontSize(9)
+            .fillColor(colors.text)
+            .text(String(line.quantity), cols.qty.x, rowTextY, {
+              width: cols.qty.w,
+              align: 'center',
+            });
+
+          // Original Price
+          doc
+            .font('Helvetica')
+            .fontSize(8)
+            .fillColor(colors.textSecondary)
+            .text(
+              fmtMoney(line.originalUnitPriceCents),
+              cols.origPrice.x,
+              rowTextY,
+              { width: cols.origPrice.w, align: 'right' }
+            );
+
+          // Credited Price
+          doc
+            .font('Helvetica')
+            .fontSize(8)
+            .fillColor(colors.textSecondary)
+            .text(
+              fmtMoney(line.creditedUnitPriceCents),
+              cols.creditPrice.x,
+              rowTextY,
+              { width: cols.creditPrice.w, align: 'right' }
+            );
+
+          // Line Total
+          doc
+            .font('Helvetica-Bold')
+            .fontSize(9)
+            .fillColor(colors.error)
+            .text(fmtMoney(line.lineTotalCents), cols.total.x, rowTextY, {
+              width: cols.total.w,
+              align: 'right',
+            });
+
+          yPos += rowHeight;
+        });
+
+        // ============================================
+        // TOTALS CARD
+        // ============================================
+        yPos += 15;
+
+        // Check if we need a new page for totals
+        if (yPos > 580) {
+          doc.addPage();
+          doc.rect(0, 0, 612, 4).fill(colors.primary);
+          yPos = 30;
+        }
+
+        const totalsBoxX = 350;
+        const totalsBoxWidth = 212;
+
+        // Calculate needed height dynamically
+        let totalsLines = 1; // subtotal
+        if (memo.discountCents && memo.discountCents > 0) totalsLines++;
+        if (memo.hstCents && memo.hstCents > 0) totalsLines++;
+        if (memo.gstCents && memo.gstCents > 0) totalsLines++;
+        if (memo.pstCents && memo.pstCents > 0) totalsLines++;
+        // divider + total credit badge
+        const totalsBoxHeight = totalsLines * 16 + 70;
+
+        doc
+          .roundedRect(totalsBoxX, yPos, totalsBoxWidth, totalsBoxHeight, 4)
+          .fillAndStroke(colors.bgMuted, colors.border);
+
+        const labelX = totalsBoxX + 15;
+        const valueX = totalsBoxX + totalsBoxWidth - 15;
+        let lineY = yPos + 14;
+
+        // Subtotal
+        doc
+          .fontSize(9)
+          .font('Helvetica')
+          .fillColor(colors.textMuted)
+          .text('Subtotal', labelX, lineY);
+        doc
+          .fillColor(colors.textSecondary)
+          .text(fmtMoney(memo.subtotalCents || 0), valueX - 80, lineY, {
+            width: 80,
+            align: 'right',
+          });
+
+        // Discount
+        if (memo.discountCents && memo.discountCents > 0) {
+          lineY += 16;
+          doc.fillColor(colors.textMuted).text('Discount', labelX, lineY);
+          doc
+            .fillColor(colors.error)
+            .text(`-${fmtMoney(memo.discountCents)}`, valueX - 80, lineY, {
+              width: 80,
+              align: 'right',
+            });
+        }
+
+        // HST
+        if (memo.hstCents && memo.hstCents > 0) {
+          lineY += 16;
+          const hstLabel =
+            memo.province && TAX_RATES[memo.province] && TAX_RATES[memo.province].hst
+              ? `HST (${(TAX_RATES[memo.province].hst * 100).toFixed(0)}%)`
+              : 'HST';
+          doc.fillColor(colors.textMuted).text(hstLabel, labelX, lineY);
+          doc
+            .fillColor(colors.textSecondary)
+            .text(fmtMoney(memo.hstCents), valueX - 80, lineY, {
+              width: 80,
+              align: 'right',
+            });
+        }
+
+        // GST
+        if (memo.gstCents && memo.gstCents > 0) {
+          lineY += 16;
+          doc.fillColor(colors.textMuted).text('GST (5%)', labelX, lineY);
+          doc
+            .fillColor(colors.textSecondary)
+            .text(fmtMoney(memo.gstCents), valueX - 80, lineY, {
+              width: 80,
+              align: 'right',
+            });
+        }
+
+        // PST
+        if (memo.pstCents && memo.pstCents > 0) {
+          lineY += 16;
+          doc.fillColor(colors.textMuted).text('PST', labelX, lineY);
+          doc
+            .fillColor(colors.textSecondary)
+            .text(fmtMoney(memo.pstCents), valueX - 80, lineY, {
+              width: 80,
+              align: 'right',
+            });
+        }
+
+        // Divider
+        lineY += 18;
+        doc
+          .moveTo(labelX, lineY)
+          .lineTo(valueX, lineY)
+          .strokeColor(colors.borderMedium)
+          .lineWidth(0.5)
+          .stroke();
+
+        // TOTAL CREDIT badge
+        lineY += 10;
+        doc
+          .roundedRect(totalsBoxX + 10, lineY, totalsBoxWidth - 20, 28, 3)
+          .fill(colors.error);
+
+        doc
+          .fontSize(10)
+          .font('Helvetica-Bold')
+          .fillColor('white')
+          .text('TOTAL CREDIT', labelX, lineY + 8);
+
+        doc
+          .fontSize(13)
+          .text(fmtMoney(memo.totalCents || 0), valueX - 85, lineY + 6, {
+            width: 80,
+            align: 'right',
+          });
+
+        // ============================================
+        // AUTHORIZATION SECTION
+        // ============================================
+        const authY = yPos + totalsBoxHeight + 20;
+        let authStartY = authY;
+
+        // Check if we need a new page
+        if (authStartY > 650) {
+          doc.addPage();
+          doc.rect(0, 0, 612, 4).fill(colors.primary);
+          authStartY = 30;
+        }
+
+        doc
+          .fontSize(10)
+          .font('Helvetica-Bold')
+          .fillColor(colors.text)
+          .text('AUTHORIZATION', 50, authStartY);
+
+        authStartY += 14;
+        const authBoxH = memo.applicationMethod ? 70 : 55;
+        doc
+          .roundedRect(50, authStartY, 280, authBoxH, 4)
+          .fillAndStroke(colors.bgLight, colors.border);
+
+        let authLineY = authStartY + 10;
+
+        // Authorized By
+        doc.fontSize(8).font('Helvetica').fillColor(colors.textMuted);
+        doc.text('Authorized By:', 60, authLineY);
+        doc
+          .font('Helvetica-Bold')
+          .fillColor(colors.text)
+          .text(
+            memo.issuedByName || memo.createdByName || 'N/A',
+            145,
+            authLineY
+          );
+
+        // Date
+        authLineY += 14;
+        doc.font('Helvetica').fillColor(colors.textMuted);
+        doc.text('Date:', 60, authLineY);
+        doc
+          .font('Helvetica-Bold')
+          .fillColor(colors.text)
+          .text(fmtDate(memo.issuedAt || memo.createdAt), 145, authLineY);
+
+        // Application Method (if applied)
+        if (memo.applicationMethod) {
+          authLineY += 14;
+          const methodLabels = {
+            refund_to_original: 'Refund to Original Payment',
+            store_credit: 'Store Credit',
+            manual_adjustment: 'Manual Adjustment',
+          };
+          doc.font('Helvetica').fillColor(colors.textMuted);
+          doc.text('Application Method:', 60, authLineY);
+          doc
+            .font('Helvetica-Bold')
+            .fillColor(colors.text)
+            .text(
+              methodLabels[memo.applicationMethod] || memo.applicationMethod,
+              165,
+              authLineY
+            );
+
+          if (memo.appliedAt) {
+            authLineY += 14;
+            doc.font('Helvetica').fillColor(colors.textMuted);
+            doc.text('Applied:', 60, authLineY);
+            doc
+              .font('Helvetica-Bold')
+              .fillColor(colors.text)
+              .text(
+                `${fmtDate(memo.appliedAt)} by ${memo.appliedByName || 'N/A'}`,
+                145,
+                authLineY
+              );
+          }
+        }
+
+        // Void info (if voided)
+        if (memo.status === 'voided' && memo.voidedAt) {
+          const voidBoxY = authStartY;
+          doc
+            .roundedRect(345, voidBoxY, 217, authBoxH, 4)
+            .fillAndStroke('#fee2e2', colors.error);
+
+          doc
+            .fontSize(9)
+            .font('Helvetica-Bold')
+            .fillColor(colors.error)
+            .text('VOIDED', 355, voidBoxY + 10);
+
+          doc.fontSize(8).font('Helvetica').fillColor(colors.textSecondary);
+          doc.text(`Date: ${fmtDate(memo.voidedAt)}`, 355, voidBoxY + 26);
+          doc.text(`By: ${memo.voidedByName || 'N/A'}`, 355, voidBoxY + 40);
+          if (memo.voidReason) {
+            doc.text(
+              `Reason: ${memo.voidReason.substring(0, 40)}`,
+              355,
+              voidBoxY + 54
+            );
+          }
+        }
+
+        // ============================================
+        // FOOTER — ALL PAGES
+        // ============================================
+        const pageCount = doc.bufferedPageRange().count;
+
+        // Prevent auto-page creation when rendering footer below margin
+        const _origAddPage = doc.addPage;
+        doc.addPage = function () {
+          return this;
+        };
+
+        for (let i = 0; i < pageCount; i++) {
+          doc.switchToPage(i);
+
+          doc
+            .moveTo(50, 745)
+            .lineTo(562, 745)
+            .strokeColor(colors.border)
+            .lineWidth(0.5)
+            .stroke();
+
+          doc
+            .fontSize(8)
+            .font('Helvetica')
+            .fillColor(colors.textMuted)
+            .text(
+              `This document is a credit memo issued by ${this.companyName}`,
+              50,
+              752,
+              { lineBreak: false }
+            );
+
+          doc
+            .fontSize(8)
+            .fillColor(colors.textLight)
+            .text(`Page ${i + 1} of ${pageCount}`, 450, 752, {
+              width: 112,
+              align: 'right',
+              lineBreak: false,
+            });
+
+          const contactParts = [
+            this.companyWebsite,
+            this.companyPhone,
+            this.companyEmail,
+          ].filter(Boolean);
+          if (contactParts.length > 0) {
+            doc
+              .fontSize(7)
+              .fillColor(colors.textLight)
+              .text(contactParts.join('  |  '), 50, 765, {
+                width: 512,
+                align: 'center',
+                lineBreak: false,
+              });
+          }
+        }
+
+        // Restore addPage before doc.end()
+        doc.addPage = _origAddPage;
+
+        doc.end();
+      } catch (error) {
+        reject(error);
+      }
+    });
   }
 
   // ============================================================================
-  // EMAIL CREDIT MEMO (STUB — Task 3)
+  // EMAIL CREDIT MEMO
   // ============================================================================
 
   /**
    * Email a credit memo PDF to the customer.
-   * Stub implementation — will be completed in Task 3.
+   * Follows the same raw MIME / SES pattern as POSInvoiceService.
    *
    * @param {number} creditMemoId - Credit memo ID
+   * @returns {{ success: boolean, messageId: string, email: string, creditMemoNumber: string }}
    */
   async emailCreditMemo(creditMemoId) {
-    throw new Error('Not implemented yet');
+    const memo = await this.getById(creditMemoId);
+    if (!memo) {
+      throw new Error(`Credit memo ${creditMemoId} not found`);
+    }
+    if (!memo.customerEmail) {
+      throw new Error('Customer email address is not available for this credit memo');
+    }
+
+    // Generate the PDF
+    const pdfBuffer = await this.generatePdf(creditMemoId);
+
+    // Helpers
+    const fmtMoney = (cents) => `$${(cents / 100).toFixed(2)}`;
+    const fmtDate = (d) =>
+      d
+        ? new Date(d).toLocaleDateString('en-CA', {
+            year: 'numeric',
+            month: 'short',
+            day: 'numeric',
+          })
+        : 'N/A';
+
+    const memoNumber = memo.creditMemoNumber || `CM-${creditMemoId}`;
+
+    // Build HTML email body
+    const emailHtml = `
+      <!DOCTYPE html>
+      <html>
+      <head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"></head>
+      <body style="margin:0;padding:0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:#f3f4f6;">
+        <div style="background:#1e40af;height:4px;"></div>
+        <div style="max-width:600px;margin:0 auto;padding:0;">
+          <div style="background:#fff;padding:30px;">
+            <h1 style="margin:0 0 10px;color:#1e40af;font-size:24px;">${this.companyName}</h1>
+            <p style="margin:0;color:#6b7280;">Credit Memo ${memoNumber}</p>
+            <div style="margin:25px 0;padding:20px;background:#fef2f2;border:1px solid #fecaca;border-radius:8px;">
+              <table width="100%" cellpadding="0" cellspacing="0">
+                <tr>
+                  <td>
+                    <p style="margin:0 0 5px;font-size:12px;color:#6b7280;">Credit Amount</p>
+                    <p style="margin:0;font-size:28px;font-weight:700;color:#dc2626;">${fmtMoney(memo.totalCents || 0)}</p>
+                  </td>
+                  <td style="text-align:right;">
+                    <p style="margin:0 0 5px;font-size:12px;color:#6b7280;">Date Issued</p>
+                    <p style="margin:0;font-size:16px;font-weight:600;color:#1f2937;">${fmtDate(memo.issuedAt || memo.createdAt)}</p>
+                    ${memo.orderNumber ? `<p style="margin:5px 0 0;font-size:12px;color:#6b7280;">Order: ${memo.orderNumber}</p>` : ''}
+                  </td>
+                </tr>
+              </table>
+            </div>
+            <p style="color:#374151;line-height:1.6;">Dear ${memo.customerName || 'Valued Customer'},</p>
+            <p style="color:#374151;line-height:1.6;">
+              Please find attached your credit memo from ${this.companyName}.
+              A credit of ${fmtMoney(memo.totalCents || 0)} has been issued${memo.reason ? ` for the following reason: ${memo.reason}` : ''}.
+            </p>
+            ${memo.applicationMethod
+              ? `<p style="color:#374151;line-height:1.6;">
+                  This credit will be applied via <strong>${
+                    memo.applicationMethod === 'refund_to_original'
+                      ? 'refund to your original payment method'
+                      : memo.applicationMethod === 'store_credit'
+                      ? 'store credit'
+                      : 'manual adjustment'
+                  }</strong>.
+                </p>`
+              : ''
+            }
+            <p style="color:#374151;line-height:1.6;">If you have any questions, please do not hesitate to contact us.</p>
+            <p style="color:#374151;line-height:1.6;">Thank you for your business!</p>
+          </div>
+          <div style="background:#f9fafb;padding:20px 30px;border-top:1px solid #e5e7eb;">
+            <p style="margin:0;text-align:center;color:#9ca3af;font-size:12px;">
+              ${[this.companyPhone, this.companyEmail].filter(Boolean).join(' | ')}
+            </p>
+          </div>
+        </div>
+      </body>
+      </html>
+    `;
+
+    // Build raw MIME email with PDF attachment
+    const pdfBase64 = pdfBuffer.toString('base64');
+    const boundary = `----=_Part_${Date.now()}_${Math.random().toString(36).substr(2)}`;
+    const filename = `CreditMemo-${memoNumber}.pdf`;
+
+    const rawEmail = [
+      `From: ${this.companyName} <${this.fromEmail}>`,
+      `To: ${memo.customerEmail}`,
+      `Subject: Credit Memo ${memoNumber} from ${this.companyName}`,
+      'MIME-Version: 1.0',
+      `Content-Type: multipart/mixed; boundary="${boundary}"`,
+      '',
+      `--${boundary}`,
+      'Content-Type: text/html; charset=UTF-8',
+      'Content-Transfer-Encoding: 7bit',
+      '',
+      emailHtml,
+      '',
+      `--${boundary}`,
+      `Content-Type: application/pdf; name="${filename}"`,
+      'Content-Transfer-Encoding: base64',
+      `Content-Disposition: attachment; filename="${filename}"`,
+      '',
+      pdfBase64,
+      '',
+      `--${boundary}--`,
+    ].join('\r\n');
+
+    const command = new SendEmailCommand({
+      FromEmailAddress: this.fromEmail,
+      Destination: { ToAddresses: [memo.customerEmail] },
+      Content: { Raw: { Data: Buffer.from(rawEmail) } },
+    });
+
+    try {
+      const result = await this.sesClient.send(command);
+      return {
+        success: true,
+        messageId: result.MessageId,
+        email: memo.customerEmail,
+        creditMemoNumber: memoNumber,
+      };
+    } catch (error) {
+      console.error('[CreditMemoService] Email error:', error);
+      throw new Error(`Failed to send credit memo email: ${error.message}`);
+    }
   }
 }
 
