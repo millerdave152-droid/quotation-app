@@ -12,6 +12,8 @@ import VersionHistory from './VersionHistory';
 import QuotePromotionAlerts from './QuotePromotionAlerts';
 import TransactionSummary from './TransactionSummary';
 import FulfillmentTracker from './FulfillmentTracker';
+import OrderEditModal from '../orders/OrderEditModal';
+import AmendmentTimeline from '../orders/AmendmentTimeline';
 
 const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:3001';
 
@@ -257,6 +259,9 @@ const QuoteViewer = ({
   // Win probability state
   const [winProbability, setWinProbability] = useState(null);
   const [winProbabilityLoading, setWinProbabilityLoading] = useState(false);
+
+  // Order edit modal state
+  const [editModalOpen, setEditModalOpen] = useState(false);
 
   // Fetch signatures when quote is loaded
   useEffect(() => {
@@ -1071,6 +1076,16 @@ const QuoteViewer = ({
         </div>
       )}
 
+      {/* Amendment History */}
+      {(quote.order_id || ['converted', 'order_pending', 'order_processing', 'order_completed', 'paid', 'invoiced'].includes(quote.status)) && (
+        <div style={{ marginTop: '32px', padding: '24px', background: '#f9fafb', borderRadius: '12px', marginBottom: '24px' }}>
+          <h3 style={{ margin: '0 0 16px 0', fontSize: '18px', fontWeight: 600, color: '#1f2937' }}>
+            Amendment History
+          </h3>
+          <AmendmentTimeline orderId={quote.order_id || quote.id} />
+        </div>
+      )}
+
       {/* Notes and Terms */}
       {(quote.notes || quote.internal_notes || quote.terms) && (
         <div style={{
@@ -1388,6 +1403,27 @@ const QuoteViewer = ({
           >
             <span>Edit Quote</span>
           </button>
+
+          {/* Show "Edit Order" button for converted quotes/orders */}
+          {(quote.order_id || ['converted', 'order_pending', 'order_processing', 'order_completed', 'paid', 'invoiced'].includes(quote.status)) && (
+            <button
+              onClick={() => setEditModalOpen(true)}
+              style={{
+                padding: '12px 24px',
+                background: '#1e40af',
+                color: 'white',
+                border: 'none',
+                borderRadius: '8px',
+                fontWeight: 'bold',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px',
+              }}
+            >
+              <span>Edit Order</span>
+            </button>
+          )}
 
           <button
             onClick={() => onDuplicate?.(quote)}
@@ -1899,6 +1935,16 @@ const QuoteViewer = ({
           </div>
         </div>
       )}
+
+      {/* Order Edit Modal */}
+      <OrderEditModal
+        orderId={quote.order_id || quote.id}
+        isOpen={editModalOpen}
+        onClose={() => setEditModalOpen(false)}
+        onAmendmentCreated={() => {
+          setEditModalOpen(false);
+        }}
+      />
     </div>
   );
 };
