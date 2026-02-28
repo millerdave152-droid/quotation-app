@@ -75,6 +75,9 @@ const SerialRegistry = React.lazy(() => import('./components/inventory/SerialReg
 const PurchaseOrderDashboard = React.lazy(() => import('./components/purchasing/PurchaseOrderDashboard'));
 const VariantManager = React.lazy(() => import('./components/products/VariantManager'));
 
+// Order Amendments
+const PendingAmendments = React.lazy(() => import('./components/orders/PendingAmendments'));
+
 // Product Detail Page (barcode, attributes, online stores)
 const ProductDetailPage = React.lazy(() => import('./components/product/ProductDetailPage'));
 
@@ -644,6 +647,11 @@ function App() {
           <Route path="/admin/product-variants" element={
             <ProtectedRoute requiredRoles={['admin', 'manager']}>
               <VariantManager />
+            </ProtectedRoute>
+          } />
+          <Route path="/admin/pending-amendments" element={
+            <ProtectedRoute requiredRoles={['admin', 'manager']}>
+              <PendingAmendments />
             </ProtectedRoute>
           } />
 
