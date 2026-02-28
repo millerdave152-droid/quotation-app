@@ -224,7 +224,7 @@ class OrderModificationService {
   /**
    * Create an amendment (draft) for order modification
    */
-  async createAmendment(orderId, amendmentType, changes, userId) {
+  async createAmendment(orderId, amendmentType, changes, userId, userRole = null) {
     const client = await this.pool.connect();
 
     try {
@@ -241,6 +241,22 @@ class OrderModificationService {
       }
 
       const order = orderResult.rows[0];
+
+      // Enforce role-based permissions
+      let permissions = null;
+      if (userRole) {
+        permissions = await this._getAmendmentPermissions(userRole);
+        if (permissions) {
+          const isPostInvoice = ['invoiced', 'paid', 'order_completed', 'completed'].includes(order.status);
+          if (isPostInvoice && !permissions.can_edit_post_invoice) {
+            throw new Error(`Your role (${userRole}) cannot edit orders after invoicing. Please contact a manager.`);
+          }
+          if (!isPostInvoice && !permissions.can_edit_pre_invoice) {
+            throw new Error(`Your role (${userRole}) does not have permission to edit orders. Please contact a manager.`);
+          }
+        }
+      }
+
       const currentTotalCents = Math.round(
         parseFloat(order.total_amount || 0) * 100
       );
@@ -256,10 +272,23 @@ class OrderModificationService {
 
       const differenceCents = newTotalCents - currentTotalCents;
 
+      // Enforce dollar limit — reject if over limit and role requires approval
+      if (permissions && permissions.max_adjustment_cents != null) {
+        if (Math.abs(differenceCents) > permissions.max_adjustment_cents) {
+          const limitDollars = (permissions.max_adjustment_cents / 100).toFixed(2);
+          const adjustmentDollars = (Math.abs(differenceCents) / 100).toFixed(2);
+          throw new Error(
+            `Amendment of $${adjustmentDollars} exceeds your role limit of $${limitDollars}. ` +
+            `Please contact a manager or admin to make this change.`
+          );
+        }
+      }
+
       // Check if approval is required
       const requiresApproval = this._checkRequiresApproval(
         differenceCents,
-        currentTotalCents
+        currentTotalCents,
+        permissions
       );
 
       // Generate amendment number
@@ -531,9 +560,35 @@ class OrderModificationService {
   }
 
   /**
+   * Get amendment permissions for a user's role
+   */
+  async _getAmendmentPermissions(userRole) {
+    const result = await this.pool.query(
+      'SELECT * FROM amendment_permissions WHERE role_name = $1',
+      [userRole]
+    );
+    return result.rows.length > 0 ? result.rows[0] : null;
+  }
+
+  /**
    * Check if amendment requires approval
    */
-  _checkRequiresApproval(differenceCents, currentTotalCents) {
+  _checkRequiresApproval(differenceCents, currentTotalCents, permissions = null) {
+    // If role-based permissions exist, use them
+    if (permissions) {
+      // If role always requires approval, short-circuit
+      if (permissions.requires_approval) {
+        return true;
+      }
+      // If role has a dollar limit and amendment exceeds it, require approval
+      if (permissions.max_adjustment_cents != null &&
+          Math.abs(differenceCents) > permissions.max_adjustment_cents) {
+        return true;
+      }
+      return false;
+    }
+
+    // Fallback: hardcoded thresholds (should not happen with permissions table seeded)
     if (Math.abs(differenceCents) > this.APPROVAL_THRESHOLD_CENTS) {
       return true;
     }

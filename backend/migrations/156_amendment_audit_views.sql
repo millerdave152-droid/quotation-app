@@ -112,9 +112,11 @@ SELECT
     SELECT json_agg(json_build_object(
       'change_type',        ai.change_type,
       'product_name',       ai.product_name,
+      'product_sku',        ai.product_sku,
       'previous_quantity',  ai.previous_quantity,
       'new_quantity',       ai.new_quantity,
-      'price_cents',        ai.applied_price_cents
+      'unit_price',         ai.applied_price_cents / 100.0,
+      'line_difference',    ai.line_difference_cents / 100.0
     ))
     FROM order_amendment_items ai
     WHERE ai.amendment_id = a.id

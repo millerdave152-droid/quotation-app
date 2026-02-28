@@ -11,6 +11,18 @@ const OrderModificationService = require('../services/OrderModificationService')
 const { asyncHandler, ApiError } = require('../middleware/errorHandler');
 const { authenticate, requireRole } = require('../middleware/auth');
 
+/**
+ * Escape a value for safe CSV output
+ */
+function escapeCsvField(value) {
+  if (value == null) return '';
+  const str = String(value);
+  if (str.includes(',') || str.includes('"') || str.includes('\n')) {
+    return '"' + str.replace(/"/g, '""') + '"';
+  }
+  return str;
+}
+
 // ============================================================================
 // MODULE STATE
 // ============================================================================
@@ -172,7 +184,7 @@ router.get('/audit-report',
   authenticate,
   requireRole('admin'),
   asyncHandler(async (req, res) => {
-    const { startDate, endDate } = req.query;
+    const { startDate, endDate, format } = req.query;
 
     if (!startDate || !endDate) {
       throw ApiError.badRequest('startDate and endDate query parameters are required');
@@ -184,6 +196,55 @@ router.get('/audit-report',
        ORDER BY amendment_date`,
       [startDate, endDate]
     );
+
+    if (format === 'csv') {
+      // Flatten each amendment row + its item changes into CSV rows
+      const csvHeaders = [
+        'Amendment #', 'Date', 'Order #', 'Customer', 'Requested By', 'Approved By',
+        'Type', 'Status', 'Previous Total ($)', 'New Total ($)', 'Difference ($)',
+        'Item Change Type', 'Product SKU', 'Product Name', 'Previous Qty', 'New Qty',
+        'Unit Price ($)', 'Line Difference ($)',
+        'Credit Memo #', 'Credit Memo Total ($)', 'Credit Memo Status',
+        'Rejection Reason'
+      ];
+
+      const csvRows = [csvHeaders.join(',')];
+
+      for (const row of result.rows) {
+        const items = row.items_changed || [{ change_type: '', product_sku: '', product_name: '', previous_quantity: '', new_quantity: '', unit_price: '', line_difference: '' }];
+        for (const item of items) {
+          csvRows.push([
+            escapeCsvField(row.amendment_number),
+            escapeCsvField(row.amendment_date ? new Date(row.amendment_date).toISOString().split('T')[0] : ''),
+            escapeCsvField(row.order_number),
+            escapeCsvField(row.customer_name),
+            escapeCsvField(row.requested_by),
+            escapeCsvField(row.approved_by),
+            escapeCsvField(row.amendment_type),
+            escapeCsvField(row.amendment_status),
+            row.previous_total != null ? Number(row.previous_total).toFixed(2) : '',
+            row.new_total != null ? Number(row.new_total).toFixed(2) : '',
+            row.difference != null ? Number(row.difference).toFixed(2) : '',
+            escapeCsvField(item.change_type),
+            escapeCsvField(item.product_sku),
+            escapeCsvField(item.product_name),
+            item.previous_quantity != null ? item.previous_quantity : '',
+            item.new_quantity != null ? item.new_quantity : '',
+            item.unit_price != null ? Number(item.unit_price).toFixed(2) : '',
+            item.line_difference != null ? Number(item.line_difference).toFixed(2) : '',
+            escapeCsvField(row.credit_memo_number),
+            row.credit_memo_total != null ? Number(row.credit_memo_total).toFixed(2) : '',
+            escapeCsvField(row.credit_memo_status),
+            escapeCsvField(row.rejection_reason),
+          ].join(','));
+        }
+      }
+
+      const csvContent = csvRows.join('\n');
+      res.setHeader('Content-Type', 'text/csv');
+      res.setHeader('Content-Disposition', `attachment; filename="amendment-audit-report_${startDate}_to_${endDate}.csv"`);
+      return res.send(csvContent);
+    }
 
     res.json({
       success: true,
@@ -369,17 +430,27 @@ router.post(
     }
 
     const orderId = parseInt(req.params.orderId);
-    const result = await modificationService.createAmendment(
-      orderId,
-      value.amendmentType,
-      value,
-      req.user.id
-    );
 
-    res.status(201).json({
-      success: true,
-      data: result,
-    });
+    try {
+      const result = await modificationService.createAmendment(
+        orderId,
+        value.amendmentType,
+        value,
+        req.user.id,
+        req.user.role
+      );
+
+      res.status(201).json({
+        success: true,
+        data: result,
+      });
+    } catch (err) {
+      // Convert permission errors to 403 with descriptive messages
+      if (err.message && (err.message.includes('role') || err.message.includes('limit') || err.message.includes('permission'))) {
+        throw ApiError.forbidden(err.message);
+      }
+      throw err;
+    }
   })
 );
 
