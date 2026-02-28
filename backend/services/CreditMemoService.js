@@ -445,7 +445,7 @@ class CreditMemoService {
       // Generate number and update
       await client.query(
         `UPDATE credit_memos
-         SET credit_memo_number = 'CM-' || LPAD(nextval('credit_memo_number_seq')::text, 6, '0'),
+         SET credit_memo_number = generate_credit_memo_number(),
              status = 'issued',
              issued_at = NOW(),
              issued_by = $2

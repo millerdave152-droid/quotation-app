@@ -97,6 +97,155 @@ const markBackorderedSchema = Joi.object({
 });
 
 // ============================================================================
+// PERMISSION / AUDIT / TAX ROUTES (must be before parameterized /:orderId)
+// ============================================================================
+
+/**
+ * GET /api/order-modifications/check-permission/:orderId
+ * Pre-check whether the current user can edit a specific order
+ */
+router.get('/check-permission/:orderId',
+  authenticate,
+  asyncHandler(async (req, res) => {
+    const orderId = parseInt(req.params.orderId);
+    const userId = req.user.id;
+    const userRole = req.user.role;
+
+    // Get order status
+    const orderResult = await pool.query(
+      'SELECT id, status, order_number FROM orders WHERE id = $1',
+      [orderId]
+    );
+    if (orderResult.rows.length === 0) {
+      throw ApiError.notFound('Order not found');
+    }
+    const order = orderResult.rows[0];
+
+    // Get role permissions from amendment_permissions table
+    const permResult = await pool.query(
+      'SELECT * FROM amendment_permissions WHERE role_name = $1',
+      [userRole]
+    );
+
+    const isPostInvoice = ['invoiced', 'paid', 'order_completed', 'completed'].includes(order.status);
+    let canEdit = false;
+    let requiresApproval = true;
+    let maxAdjustmentCents = null;
+    let reason = '';
+
+    if (permResult.rows.length > 0) {
+      const perm = permResult.rows[0];
+      canEdit = isPostInvoice ? perm.can_edit_post_invoice : perm.can_edit_pre_invoice;
+      requiresApproval = perm.requires_approval;
+      maxAdjustmentCents = perm.max_adjustment_cents;
+
+      if (!canEdit) {
+        reason = isPostInvoice
+          ? 'Your role cannot edit post-invoice orders'
+          : 'Your role cannot edit orders';
+      }
+    } else {
+      // No permission entry for this role — default to no access
+      reason = 'No amendment permissions configured for your role';
+    }
+
+    res.json({
+      success: true,
+      data: {
+        canEdit,
+        requiresApproval,
+        maxAdjustmentCents,
+        maxAdjustmentDollars: maxAdjustmentCents ? maxAdjustmentCents / 100 : null,
+        orderStatus: order.status,
+        isPostInvoice,
+        reason,
+      }
+    });
+  })
+);
+
+/**
+ * GET /api/order-modifications/audit-report
+ * Date-range audit export — admin only
+ */
+router.get('/audit-report',
+  authenticate,
+  requireRole('admin'),
+  asyncHandler(async (req, res) => {
+    const { startDate, endDate } = req.query;
+
+    if (!startDate || !endDate) {
+      throw ApiError.badRequest('startDate and endDate query parameters are required');
+    }
+
+    const result = await pool.query(
+      `SELECT * FROM v_amendment_audit_report
+       WHERE amendment_date >= $1 AND amendment_date < ($2::date + INTERVAL '1 day')
+       ORDER BY amendment_date`,
+      [startDate, endDate]
+    );
+
+    res.json({
+      success: true,
+      data: result.rows,
+      meta: {
+        startDate,
+        endDate,
+        totalRecords: result.rows.length,
+      }
+    });
+  })
+);
+
+/**
+ * GET /api/order-modifications/year-end-summary/:year
+ * Year-end tax summary — admin only
+ */
+router.get('/year-end-summary/:year',
+  authenticate,
+  requireRole('admin'),
+  asyncHandler(async (req, res) => {
+    const year = parseInt(req.params.year);
+
+    if (isNaN(year) || year < 2000 || year > 2100) {
+      throw ApiError.badRequest('Invalid year');
+    }
+
+    const result = await pool.query(
+      `SELECT * FROM v_year_end_tax_summary
+       WHERE EXTRACT(YEAR FROM month) = $1
+       ORDER BY month`,
+      [year]
+    );
+
+    // Also get annual totals
+    const totalsResult = await pool.query(
+      `SELECT
+        SUM(total_amendments)::integer as total_amendments,
+        SUM(applied_amendments)::integer as applied_amendments,
+        SUM(rejected_amendments)::integer as rejected_amendments,
+        SUM(net_adjustment_total) as net_adjustment_total,
+        SUM(total_increases) as total_increases,
+        SUM(total_decreases) as total_decreases,
+        SUM(credit_memos_issued)::integer as credit_memos_issued,
+        SUM(credit_memo_total) as credit_memo_total
+       FROM v_year_end_tax_summary
+       WHERE EXTRACT(YEAR FROM month) = $1`,
+      [year]
+    );
+
+    res.json({
+      success: true,
+      data: {
+        year,
+        monthly: result.rows,
+        annual: totalsResult.rows[0] || {},
+      }
+    });
+  })
+);
+
+// ============================================================================
 // ORDER ROUTES
 // ============================================================================
 
