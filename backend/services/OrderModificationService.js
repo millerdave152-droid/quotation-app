@@ -12,10 +12,15 @@ class OrderModificationService {
   constructor(pool, cache = null) {
     this.pool = pool;
     this.cache = cache;
+    this.creditMemoService = null;
 
     // Amendment approval thresholds
     this.APPROVAL_THRESHOLD_CENTS = 10000; // $100
     this.APPROVAL_THRESHOLD_PERCENT = 10; // 10% of order
+  }
+
+  setCreditMemoService(creditMemoService) {
+    this.creditMemoService = creditMemoService;
   }
 
   // ============================================================================
@@ -698,6 +703,15 @@ class OrderModificationService {
         [amendmentId, userId]
       );
 
+      // Auto-generate credit memo if amendment reduced order total
+      if (amendment.difference_cents < 0 && this.creditMemoService) {
+        try {
+          await this.creditMemoService.createFromAmendment(amendmentId, userId);
+        } catch (cmError) {
+          console.error('Credit memo auto-generation failed:', cmError.message);
+        }
+      }
+
       await client.query('COMMIT');
 
       return {
@@ -776,6 +790,45 @@ class OrderModificationService {
        WHERE order_id = $1`,
       [orderId, subtotal, taxAmount, totalAmount]
     );
+  }
+
+  /**
+   * Get order with full details for amendment — no status gate.
+   * Used by admin/manager to edit any order regardless of status.
+   */
+  async getAmendableOrder(orderId) {
+    const orderResult = await this.pool.query(
+      `SELECT o.*, c.first_name || ' ' || c.last_name as customer_name, c.email as customer_email
+       FROM orders o
+       LEFT JOIN customers c ON o.customer_id = c.customer_id
+       WHERE o.order_id = $1`,
+      [orderId]
+    );
+    if (orderResult.rows.length === 0) return null;
+
+    const itemsResult = await this.pool.query(
+      `SELECT oi.*, p.sku, p.name as current_product_name
+       FROM order_items oi
+       LEFT JOIN products p ON oi.product_id = p.product_id
+       WHERE oi.order_id = $1
+       ORDER BY oi.id`,
+      [orderId]
+    );
+
+    const amendmentsResult = await this.pool.query(
+      `SELECT a.*, u.first_name || ' ' || u.last_name as created_by_name
+       FROM order_amendments a
+       LEFT JOIN users u ON a.created_by = u.user_id
+       WHERE a.order_id = $1
+       ORDER BY a.created_at DESC`,
+      [orderId]
+    );
+
+    return {
+      ...orderResult.rows[0],
+      items: itemsResult.rows,
+      amendments: amendmentsResult.rows,
+    };
   }
 
   /**
