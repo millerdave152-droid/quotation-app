@@ -30,12 +30,14 @@ CREATE TABLE IF NOT EXISTS amendment_permissions (
 
 -- Seed default permissions
 INSERT INTO amendment_permissions (role_name, can_edit_pre_invoice, can_edit_post_invoice, max_adjustment_cents, requires_approval, can_approve, can_create_credit_memos, notes) VALUES
-  ('cashier',      true,  false, NULL,    true,  false, false, 'Can flag issues for managers'),
-  ('sales',        true,  false, 50000,   true,  false, false, 'Direct edit on drafts/quotes up to $500'),
-  ('senior_sales', true,  false, 50000,   true,  false, false, 'Direct edit on drafts/quotes up to $500'),
-  ('manager',      true,  true,  500000,  false, true,  true,  'Can approve staff requests, edit up to $5,000'),
-  ('admin',        true,  true,  NULL,    false, true,  true,  'Full access, no approval needed'),
-  ('master',       true,  true,  NULL,    false, true,  true,  'System-level, for Dave')
+  ('cashier',        true,  false, NULL,    true,  false, false, 'Can flag issues for managers'),
+  ('sales',          true,  false, 50000,   true,  false, false, 'Direct edit on drafts/quotes up to $500'),
+  ('salesperson',    true,  false, 50000,   true,  false, false, 'Direct edit on drafts/quotes up to $500'),
+  ('senior_sales',   true,  false, 50000,   true,  false, false, 'Direct edit on drafts/quotes up to $500'),
+  ('manager',        true,  true,  500000,  false, true,  true,  'Can approve staff requests, edit up to $5,000'),
+  ('senior_manager', true,  true,  500000,  false, true,  true,  'Can approve staff requests, edit up to $5,000'),
+  ('admin',          true,  true,  NULL,    false, true,  true,  'Full access, no approval needed'),
+  ('master',         true,  true,  NULL,    false, true,  true,  'System-level, for Dave')
 ON CONFLICT (role_name) DO NOTHING;
 
 -- ============================================================================

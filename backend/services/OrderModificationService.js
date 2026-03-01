@@ -34,16 +34,16 @@ class OrderModificationService {
     const result = await this.pool.query(
       `SELECT
         o.*,
-        q.quote_id,
-        q.quote_number,
+        q.id as quote_id,
+        q.quotation_number as quote_number,
         q.total_amount as quote_total_amount,
         q.created_at as quote_created_at,
         c.name as customer_name,
         c.pricing_tier
       FROM orders o
-      LEFT JOIN quotes q ON o.original_quote_id = q.quote_id
-      LEFT JOIN customers c ON o.customer_id = c.customer_id
-      WHERE o.order_id = $1`,
+      LEFT JOIN quotations q ON o.quotation_id = q.id
+      LEFT JOIN customers c ON o.customer_id = c.id
+      WHERE o.id = $1`,
       [orderId]
     );
 
@@ -55,22 +55,22 @@ class OrderModificationService {
     const itemsResult = await this.pool.query(
       `SELECT
         oi.*,
-        p.name as product_name,
+        COALESCE(oi.product_name, p.name) as product_name,
         p.sku as product_sku,
         p.price as current_price,
         qi.unit_price as quote_price,
         qi.discount_percent as quote_discount
       FROM order_items oi
-      LEFT JOIN products p ON oi.product_id = p.product_id
+      LEFT JOIN products p ON oi.product_id = p.id
       LEFT JOIN quote_items qi ON oi.product_id = qi.product_id
-        AND qi.quote_id = $2
+        AND qi.quotation_id = $2
       WHERE oi.order_id = $1
       ORDER BY oi.id`,
-      [orderId, order.quote_id]
+      [orderId, order.quotation_id]
     );
 
     return {
-      orderId: order.order_id,
+      orderId: order.id,
       orderNumber: order.order_number,
       status: order.status,
       versionNumber: order.version_number,
@@ -80,13 +80,13 @@ class OrderModificationService {
       customerId: order.customer_id,
       customerName: order.customer_name,
       pricingTier: order.pricing_tier,
-      subtotal: parseFloat(order.subtotal || 0),
-      discountAmount: parseFloat(order.discount_amount || 0),
-      taxAmount: parseFloat(order.tax_amount || 0),
-      totalAmount: parseFloat(order.total_amount || 0),
-      quote: order.quote_id
+      subtotal: (order.subtotal_cents || 0) / 100,
+      discountAmount: (order.discount_cents || 0) / 100,
+      taxAmount: (order.tax_cents || 0) / 100,
+      totalAmount: (order.total_cents || 0) / 100,
+      quote: order.quotation_id
         ? {
-            quoteId: order.quote_id,
+            quoteId: order.quotation_id,
             quoteNumber: order.quote_number,
             totalAmount: parseFloat(order.quote_total_amount || 0),
             createdAt: order.quote_created_at,
@@ -98,7 +98,7 @@ class OrderModificationService {
         productName: item.product_name,
         productSku: item.product_sku,
         quantity: item.quantity,
-        unitPrice: parseFloat(item.unit_price || item.price_at_order_cents / 100 || 0),
+        unitPrice: (item.unit_price_cents || 0) / 100,
         discountPercent: parseFloat(item.discount_percent || 0),
         lineTotal: parseFloat(item.line_total || 0),
         fulfillmentStatus: item.fulfillment_status || 'pending',
@@ -134,7 +134,7 @@ class OrderModificationService {
            price_lock_until = $3,
            last_modified_by = $4,
            last_modified_at = NOW()
-       WHERE order_id = $1
+       WHERE id = $1
        RETURNING *`,
       [orderId, locked, lockUntil, userId]
     );
@@ -151,7 +151,7 @@ class OrderModificationService {
    */
   async isPriceLocked(orderId) {
     const result = await this.pool.query(
-      'SELECT price_locked, price_lock_until FROM orders WHERE order_id = $1',
+      'SELECT price_locked, price_lock_until FROM orders WHERE id = $1',
       [orderId]
     );
 
@@ -178,15 +178,15 @@ class OrderModificationService {
         qi.unit_price as quote_price,
         qi.discount_percent as quote_discount,
         oi.unit_price as order_price,
-        oi.price_at_order_cents,
+        oi.unit_price_cents as price_at_order_cents,
         o.price_locked,
         o.quote_prices_honored
       FROM orders o
-      LEFT JOIN order_items oi ON o.order_id = oi.order_id AND oi.product_id = $2
-      LEFT JOIN quotes q ON o.original_quote_id = q.quote_id
-      LEFT JOIN quote_items qi ON q.quote_id = qi.quote_id AND qi.product_id = $2
-      LEFT JOIN products p ON p.product_id = $2
-      WHERE o.order_id = $1`,
+      LEFT JOIN order_items oi ON o.id = oi.order_id AND oi.product_id = $2
+      LEFT JOIN quotations q ON o.quotation_id = q.id
+      LEFT JOIN quote_items qi ON q.id = qi.quotation_id AND qi.product_id = $2
+      LEFT JOIN products p ON p.id = $2
+      WHERE o.id = $1`,
       [orderId, productId]
     );
 
@@ -232,7 +232,7 @@ class OrderModificationService {
 
       // Get current order state
       const orderResult = await client.query(
-        'SELECT * FROM orders WHERE order_id = $1 FOR UPDATE',
+        'SELECT * FROM orders WHERE id = $1 FOR UPDATE',
         [orderId]
       );
 
@@ -257,9 +257,7 @@ class OrderModificationService {
         }
       }
 
-      const currentTotalCents = Math.round(
-        parseFloat(order.total_amount || 0) * 100
-      );
+      const currentTotalCents = order.total_cents || 0;
 
       // Calculate new total based on changes
       const { newTotalCents, itemChanges } = await this._calculateAmendmentImpact(
@@ -267,7 +265,7 @@ class OrderModificationService {
         orderId,
         changes,
         order.price_locked,
-        order.original_quote_id
+        order.quotation_id
       );
 
       const differenceCents = newTotalCents - currentTotalCents;
@@ -386,9 +384,9 @@ class OrderModificationService {
 
     // Get current items
     const currentItemsResult = await client.query(
-      `SELECT oi.*, p.price as current_price, p.name, p.sku
+      `SELECT oi.*, p.price as current_price, COALESCE(oi.product_name, p.name) as name, p.sku
        FROM order_items oi
-       LEFT JOIN products p ON oi.product_id = p.product_id
+       LEFT JOIN products p ON oi.product_id = p.id
        WHERE oi.order_id = $1`,
       [orderId]
     );
@@ -402,7 +400,7 @@ class OrderModificationService {
     let quotePrices = new Map();
     if (quoteId) {
       const quoteResult = await client.query(
-        'SELECT product_id, unit_price FROM quote_items WHERE quote_id = $1',
+        'SELECT product_id, unit_price FROM quote_items WHERE quotation_id = $1',
         [quoteId]
       );
       quoteResult.rows.forEach((qi) => {
@@ -414,7 +412,7 @@ class OrderModificationService {
     if (changes.addItems) {
       for (const item of changes.addItems) {
         const productResult = await client.query(
-          'SELECT product_id, name, sku, price FROM products WHERE product_id = $1',
+          'SELECT id as product_id, name, sku, price FROM products WHERE id = $1',
           [item.productId]
         );
 
@@ -465,7 +463,7 @@ class OrderModificationService {
         if (!currentItem) continue;
 
         const priceCents = Math.round(
-          parseFloat(currentItem.unit_price || currentItem.price_at_order_cents / 100) * 100
+          currentItem.unit_price_cents || 0
         );
         const lineTotalCents = -priceCents * currentItem.quantity;
 
@@ -500,7 +498,7 @@ class OrderModificationService {
 
         // Determine price
         let appliedPriceCents;
-        const currentPriceCents = Math.round(parseFloat(currentItem.current_price) * 100);
+        const currentPriceCents = Math.round(parseFloat(currentItem.current_price || 0) * 100);
         const quotePriceCents = quotePrices.has(item.productId)
           ? Math.round(quotePrices.get(item.productId) * 100)
           : null;
@@ -513,13 +511,13 @@ class OrderModificationService {
           appliedPriceCents = quotePriceCents;
         } else {
           appliedPriceCents = Math.round(
-            parseFloat(currentItem.unit_price || currentItem.price_at_order_cents / 100) * 100
+            currentItem.unit_price_cents || 0
           );
         }
 
         const previousLineCents =
           previousQuantity *
-          Math.round(parseFloat(currentItem.unit_price || currentItem.price_at_order_cents / 100) * 100);
+          Math.round(currentItem.unit_price_cents || 0);
         const newLineCents = newQuantity * appliedPriceCents;
         const lineDifferenceCents = newLineCents - previousLineCents;
 
@@ -551,7 +549,7 @@ class OrderModificationService {
     // Add unchanged items to total
     for (const [, item] of currentItems) {
       const priceCents = Math.round(
-        parseFloat(item.unit_price || item.price_at_order_cents / 100) * 100
+        item.unit_price_cents || 0
       );
       newTotalCents += priceCents * item.quantity;
     }
@@ -696,18 +694,16 @@ class OrderModificationService {
           // Insert new order item
           await client.query(
             `INSERT INTO order_items (
-              order_id, product_id, product_name, product_sku,
-              quantity, unit_price, price_at_order_cents, line_total
-            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+              order_id, product_id, product_name,
+              quantity, unit_price_cents, total_cents
+            ) VALUES ($1, $2, $3, $4, $5, $6)`,
             [
               amendment.order_id,
               item.product_id,
               item.product_name,
-              item.product_sku,
               item.new_quantity,
-              item.applied_price_cents / 100,
               item.applied_price_cents,
-              (item.applied_price_cents * item.new_quantity) / 100,
+              item.applied_price_cents * item.new_quantity,
             ]
           );
         } else if (item.change_type === 'remove') {
@@ -724,16 +720,14 @@ class OrderModificationService {
           await client.query(
             `UPDATE order_items
              SET quantity = $2,
-                 unit_price = $3,
-                 price_at_order_cents = $4,
-                 line_total = $5
+                 unit_price_cents = $3,
+                 total_cents = $4
              WHERE id = $1`,
             [
               item.order_item_id,
               item.new_quantity,
-              item.applied_price_cents / 100,
               item.applied_price_cents,
-              (item.applied_price_cents * item.new_quantity) / 100,
+              item.applied_price_cents * item.new_quantity,
             ]
           );
         }
@@ -789,24 +783,25 @@ class OrderModificationService {
     // Get sum of active line items
     const itemsResult = await client.query(
       `SELECT
-        COALESCE(SUM(line_total), 0) as subtotal,
+        COALESCE(SUM(total_cents), 0) as subtotal_cents,
         COUNT(*) as item_count
        FROM order_items
        WHERE order_id = $1
-         AND (quantity_cancelled IS NULL OR quantity_cancelled < quantity)`,
+         AND (fulfillment_status IS NULL OR fulfillment_status != 'cancelled')`,
       [orderId]
     );
 
-    const subtotal = parseFloat(itemsResult.rows[0].subtotal);
+    const subtotalCents = parseInt(itemsResult.rows[0].subtotal_cents);
+    const subtotal = subtotalCents / 100;
 
     // Get order for discount and tax province
     const orderResult = await client.query(
-      'SELECT discount_amount, tax_province FROM orders WHERE order_id = $1',
+      'SELECT discount_cents, tax_province FROM orders WHERE id = $1',
       [orderId]
     );
 
     const order = orderResult.rows[0];
-    const discount = parseFloat(order.discount_amount || 0);
+    const discount = (order.discount_cents || 0) / 100;
 
     // Calculate tax based on the order's province
     const taxableAmount = subtotal - discount;
@@ -838,12 +833,12 @@ class OrderModificationService {
     // Update order
     await client.query(
       `UPDATE orders
-       SET subtotal = $2,
-           tax_amount = $3,
-           total_amount = $4,
-           last_modified_at = NOW()
-       WHERE order_id = $1`,
-      [orderId, subtotal, taxAmount, totalAmount]
+       SET subtotal_cents = $2,
+           tax_cents = $3,
+           total_cents = $4,
+           updated_at = NOW()
+       WHERE id = $1`,
+      [orderId, Math.round(subtotal * 100), Math.round(taxAmount * 100), Math.round(totalAmount * 100)]
     );
   }
 
@@ -853,10 +848,10 @@ class OrderModificationService {
    */
   async getAmendableOrder(orderId) {
     const orderResult = await this.pool.query(
-      `SELECT o.*, c.first_name || ' ' || c.last_name as customer_name, c.email as customer_email
+      `SELECT o.*, c.name as customer_name, c.email as customer_email
        FROM orders o
-       LEFT JOIN customers c ON o.customer_id = c.customer_id
-       WHERE o.order_id = $1`,
+       LEFT JOIN customers c ON o.customer_id = c.id
+       WHERE o.id = $1`,
       [orderId]
     );
     if (orderResult.rows.length === 0) return null;
@@ -864,7 +859,7 @@ class OrderModificationService {
     const itemsResult = await this.pool.query(
       `SELECT oi.*, p.sku, p.name as current_product_name
        FROM order_items oi
-       LEFT JOIN products p ON oi.product_id = p.product_id
+       LEFT JOIN products p ON oi.product_id = p.id
        WHERE oi.order_id = $1
        ORDER BY oi.id`,
       [orderId]
@@ -873,7 +868,7 @@ class OrderModificationService {
     const amendmentsResult = await this.pool.query(
       `SELECT a.*, u.first_name || ' ' || u.last_name as created_by_name
        FROM order_amendments a
-       LEFT JOIN users u ON a.created_by = u.user_id
+       LEFT JOIN users u ON a.created_by = u.id
        WHERE a.order_id = $1
        ORDER BY a.created_at DESC`,
       [orderId]
@@ -898,10 +893,10 @@ class OrderModificationService {
         u_approved.first_name || ' ' || u_approved.last_name as approved_by_name,
         u_applied.first_name || ' ' || u_applied.last_name as applied_by_name
       FROM order_amendments oa
-      JOIN orders o ON oa.order_id = o.order_id
-      LEFT JOIN users u_created ON oa.created_by = u_created.user_id
-      LEFT JOIN users u_approved ON oa.approved_by = u_approved.user_id
-      LEFT JOIN users u_applied ON oa.applied_by = u_applied.user_id
+      JOIN orders o ON oa.order_id = o.id
+      LEFT JOIN users u_created ON oa.created_by = u_created.id
+      LEFT JOIN users u_approved ON oa.approved_by = u_approved.id
+      LEFT JOIN users u_applied ON oa.applied_by = u_applied.id
       WHERE oa.id = $1`,
       [amendmentId]
     );
@@ -948,8 +943,8 @@ class OrderModificationService {
         u_approved.first_name || ' ' || u_approved.last_name as approved_by_name,
         (SELECT COUNT(*) FROM order_amendment_items oai WHERE oai.amendment_id = oa.id) as item_count
       FROM order_amendments oa
-      LEFT JOIN users u_created ON oa.created_by = u_created.user_id
-      LEFT JOIN users u_approved ON oa.approved_by = u_approved.user_id
+      LEFT JOIN users u_created ON oa.created_by = u_created.id
+      LEFT JOIN users u_approved ON oa.approved_by = u_approved.id
       WHERE oa.order_id = $1
       ORDER BY oa.created_at DESC`,
       [orderId]
@@ -970,9 +965,9 @@ class OrderModificationService {
         u_created.first_name || ' ' || u_created.last_name as created_by_name,
         (SELECT COUNT(*) FROM order_amendment_items oai WHERE oai.amendment_id = oa.id) as item_count
       FROM order_amendments oa
-      JOIN orders o ON oa.order_id = o.order_id
-      LEFT JOIN customers c ON o.customer_id = c.customer_id
-      LEFT JOIN users u_created ON oa.created_by = u_created.user_id
+      JOIN orders o ON oa.order_id = o.id
+      LEFT JOIN customers c ON o.customer_id = c.id
+      LEFT JOIN users u_created ON oa.created_by = u_created.id
       WHERE oa.status = 'pending_approval'
       ORDER BY oa.created_at ASC
       LIMIT $1`,
@@ -999,7 +994,7 @@ class OrderModificationService {
         ov.*,
         u.first_name || ' ' || u.last_name as created_by_name
       FROM order_versions ov
-      LEFT JOIN users u ON ov.created_by = u.user_id
+      LEFT JOIN users u ON ov.created_by = u.id
       WHERE ov.order_id = $1
       ORDER BY ov.version_number DESC`,
       [orderId]
@@ -1234,7 +1229,7 @@ class OrderModificationService {
         os.*,
         u.first_name || ' ' || u.last_name as created_by_name
       FROM order_shipments os
-      LEFT JOIN users u ON os.created_by = u.user_id
+      LEFT JOIN users u ON os.created_by = u.id
       WHERE os.order_id = $1
       ORDER BY os.created_at DESC`,
       [orderId]
@@ -1251,7 +1246,7 @@ class OrderModificationService {
           p.sku as product_sku
         FROM order_shipment_items osi
         JOIN order_items oi ON osi.order_item_id = oi.id
-        LEFT JOIN products p ON oi.product_id = p.product_id
+        LEFT JOIN products p ON oi.product_id = p.id
         WHERE osi.shipment_id = $1`,
         [shipment.id]
       );
