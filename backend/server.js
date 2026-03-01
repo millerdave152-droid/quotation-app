@@ -73,6 +73,11 @@ const emailService = require('./services/EmailService'); // singleton
 const NotificationService = require('./services/NotificationService');
 const TaxService = require('./services/TaxService');
 const FraudDetectionService = require('./services/FraudDetectionService');
+const VelocityService = require('./services/VelocityService');
+const BINValidationService = require('./services/BINValidationService');
+const AuditLogService = require('./services/AuditLogService');
+const EmployeeMonitorService = require('./services/EmployeeMonitorService');
+const cron = require('node-cron');
 const DiscountAuthorityService = require('./services/DiscountAuthorityService');
 const SerialNumberService = require('./services/SerialNumberService');
 const PurchaseOrderService = require('./services/PurchaseOrderService');
@@ -177,6 +182,10 @@ const { init: initSurveyRoutes } = require('./routes/surveys');
 const { init: initCatalogExportRoutes } = require('./routes/catalog-exports');
 const { init: initAudienceSyncRoutes } = require('./routes/audience-sync');
 
+// Order Amendments & Credit Memos
+const { init: initOrderModificationRoutes } = require('./routes/order-modifications');
+const { init: initCreditMemoRoutes } = require('./routes/credit-memos');
+
 const app = express();
 const PORT = process.env.PORT || 3001;
 
@@ -204,6 +213,7 @@ app.use('/vendor-images', express.static(path.join(__dirname, 'public/vendor-ima
 app.use(attachResponseHelpers);
 
 // Structured logging with correlation IDs (pino)
+const logger = require('./utils/logger');
 const { requestLogger } = require('./utils/logger');
 app.use(requestLogger);
 
@@ -217,9 +227,9 @@ const { rawPool } = pool;
 
 rawPool.query('SELECT NOW()', (err, res) => {
   if (err) {
-    console.error('❌ Database connection error:', err);
+    logger.error({ err }, 'Database connection error');
   } else {
-    console.log('✅ Database connected successfully!');
+    logger.info('Database connected successfully');
   }
 });
 
@@ -265,8 +275,41 @@ const batchEmailService = new BatchEmailService(pool, {
 const serialNumberService = new SerialNumberService(pool, cache);
 const purchaseOrderService = new PurchaseOrderService(pool, cache, serialNumberService);
 const productVariantService = new ProductVariantService(pool, cache);
-const fraudService = new FraudDetectionService(pool);
+// Phase 2 Fraud Infrastructure: Redis + service wiring
+let redisClient = null;
+if (process.env.REDIS_URL) {
+  try {
+    const Redis = require('ioredis');
+    redisClient = new Redis(process.env.REDIS_URL, { maxRetriesPerRequest: 3, lazyConnect: true });
+    redisClient.on('error', (err) => logger.warn({ err }, 'Redis connection error — falling back to PostgreSQL'));
+    redisClient.connect().then(() => {
+      logger.info('Redis connected for velocity/BIN caching');
+    }).catch((redisConnErr) => {
+      logger.warn({ err: redisConnErr }, 'Redis connect failed — using PostgreSQL fallback');
+      redisClient = null;
+    });
+  } catch (redisErr) {
+    logger.warn({ err: redisErr }, 'Redis init failed — using PostgreSQL fallback');
+    redisClient = null;
+  }
+}
+
+const auditLogService = new AuditLogService(pool);
+const velocityService = new VelocityService(pool, redisClient);
+const binService = new BINValidationService(pool, redisClient);
+const fraudService = new FraudDetectionService(pool, { velocityService, binService, auditLogService });
+const employeeMonitorService = new EmployeeMonitorService(pool, wsService);
 app.set('fraudService', fraudService);
+app.set('auditLogService', auditLogService);
+app.set('employeeMonitorService', employeeMonitorService);
+
+// Phase 3: Hourly employee monitoring cron
+cron.schedule('0 * * * *', () => {
+  employeeMonitorService.refreshProfiles()
+    .then(() => employeeMonitorService.detectAnomalies())
+    .catch(err => logger.error({ err }, 'Employee monitor refresh failed'));
+});
+logger.info('Employee monitor cron scheduled (hourly)');
 app.set('pool', pool);
 app.set('cache', cache);
 const discountAuthorityService = new DiscountAuthorityService(pool);
@@ -285,13 +328,13 @@ const audienceSyncService = new AudienceSyncService(pool, cache);
 setInterval(async () => {
   try {
     const expired = await discountAuthorityService.expireStalePendingEscalations();
-    if (expired.length > 0) console.log(`[EscalationExpiry] Expired ${expired.length} pending escalations`);
+    if (expired.length > 0) logger.info({ count: expired.length }, '[EscalationExpiry] Expired pending escalations');
   } catch (err) {
-    console.error('[EscalationExpiry] Error:', err.message);
+    logger.error({ err }, '[EscalationExpiry] Error');
   }
 }, 5 * 60 * 1000);
 
-console.log('✅ Enterprise services initialized');
+logger.info('Enterprise services initialized');
 
 // ============================================
 // FILE UPLOAD & AWS SES CONFIGURATION
@@ -330,9 +373,9 @@ const emailServiceWrapper = {
 // Initialize scheduled batch email service
 const scheduledBatchEmailService = new ScheduledBatchEmailService(pool, batchEmailService, emailServiceWrapper);
 scheduledBatchEmailService.initialize().catch(err => {
-  console.error('Failed to initialize scheduled batch email service:', err);
+  logger.error({ err }, 'Failed to initialize scheduled batch email service');
 });
-console.log('✅ Scheduled batch email service initialized');
+logger.info('Scheduled batch email service initialized');
 
 // ============================================
 // HEALTH CHECK ENDPOINTS
@@ -455,14 +498,14 @@ app.get('/api/users/me/permissions', authenticate, (req, res) => {
   });
 });
 
-console.log('✅ User management routes loaded');
+logger.info('User management routes loaded');
 
 // ============================================
 // QUOTE ACCEPTANCE (PUBLIC) ROUTES
 // ============================================
 const quoteAcceptanceRoutes = require('./routes/quote-acceptance');
 app.use('/api/quote-accept', quoteAcceptanceRoutes({ pool }));
-console.log('✅ Quote acceptance routes loaded');
+logger.info('Quote acceptance routes loaded');
 
 // ============================================
 // COUNTER-OFFER / NEGOTIATION ROUTES
@@ -470,14 +513,14 @@ console.log('✅ Quote acceptance routes loaded');
 const counterOfferRoutes = require('./routes/counterOffers');
 counterOfferRoutes.setSesClient(sesClient); // Pass SES client for email notifications
 app.use('/api', counterOfferRoutes);
-console.log('✅ Counter-offer routes loaded');
+logger.info('Counter-offer routes loaded');
 
 // ============================================
 // IN-APP NOTIFICATIONS
 // ============================================
 const notificationRoutes = require('./routes/notifications');
 app.use('/api/notifications', notificationRoutes);
-console.log('✅ In-app notification routes loaded');
+logger.info('In-app notification routes loaded');
 
 // ============================================
 // QUOTE PROTECTION & EMAIL TEMPLATES
@@ -498,13 +541,13 @@ app.use('/api/push', pushNotificationRoutes);
 // API KEY MANAGEMENT
 // ============================================
 app.use('/api/api-keys', apiKeysRoutes);
-console.log('✅ API key management routes loaded');
+logger.info('API key management routes loaded');
 
 // ============================================
 // CUSTOMER MANAGEMENT (Modular)
 // ============================================
 app.use('/api/customers', initCustomerRoutes({ pool, cache }));
-console.log('✅ Customer routes loaded (modular)');
+logger.info('Customer routes loaded (modular)');
 
 // Communication Preferences & CASL Compliance
 const commPrefs = require('./routes/communication-preferences');
@@ -512,7 +555,7 @@ const commPrefRouters = commPrefs.init({ pool });
 app.use('/api/customers', commPrefRouters.customerRouter);
 app.use('/api/customers', commPrefRouters.publicRouter);
 app.use('/api/marketing', commPrefRouters.marketingRouter);
-console.log('✅ Communication preferences & CASL routes loaded');
+logger.info('Communication preferences & CASL routes loaded');
 
 // RBAC Management
 const { init: initRbacRoutes } = require('./routes/rbac');
@@ -521,14 +564,14 @@ app.use('/api/rbac', rbacRouters.rbacRouter);
 app.use('/api/roles', rbacRouters.rolesRouter);
 app.use('/api/permissions', rbacRouters.permissionsRouter);
 app.use('/api/users', rbacRouters.usersRbacRouter);
-console.log('✅ RBAC management routes loaded');
+logger.info('RBAC management routes loaded');
 
 // Marketing Attribution
 const marketingAttribution = require('./routes/marketing-attribution');
 const marketingRouters = marketingAttribution.init({ pool });
 app.use('/api/marketing-sources', marketingRouters.sourcesRouter);
 app.use('/api/reports', marketingRouters.reportRouter);
-console.log('✅ Marketing attribution routes loaded');
+logger.info('Marketing attribution routes loaded');
 
 // POS Roles — list all roles with permissions
 app.get('/api/pos-roles', authenticate, asyncHandler(async (req, res) => {
@@ -547,25 +590,25 @@ app.get('/api/pos-roles', authenticate, asyncHandler(async (req, res) => {
 // LOOKUP SERVICE (Cities, Postal Codes, Names)
 // ============================================
 app.use('/api/lookup', lookupRoutes);
-console.log('✅ Lookup routes loaded');
+logger.info('Lookup routes loaded');
 
 // ============================================
 // PRODUCT BARCODE LOOKUP (must be before /:id routes)
 // ============================================
 app.use('/api/products', productLookupRoutes.init({ pool }));
-console.log('✅ Product barcode lookup routes loaded');
+logger.info('Product barcode lookup routes loaded');
 
 // ============================================
 // DISCONTINUED PRODUCTS (must be before /:id routes)
 // ============================================
 app.use('/api/products', discontinuedProductRoutes.init({ pool }));
-console.log('✅ Discontinued product routes loaded');
+logger.info('Discontinued product routes loaded');
 
 // ============================================
 // PRODUCT MANAGEMENT (Modular)
 // ============================================
 app.use('/api/products', initProductRoutes({ pool, cache, upload }));
-console.log('✅ Product routes loaded (modular)');
+logger.info('Product routes loaded (modular)');
 
 // ============================================
 // CATEGORY MANAGEMENT (Normalized Hierarchy)
@@ -574,48 +617,48 @@ const categoriesRoutes = require('./routes/categories');
 const ProductService = require('./services/ProductService');
 const categoryProductService = new ProductService(pool, cache);
 app.use('/api/categories', categoriesRoutes(pool, categoryProductService));
-console.log('✅ Category routes loaded');
+logger.info('Category routes loaded');
 
 // ============================================
 // IMPORT TEMPLATES (Manufacturer Mappings)
 // ============================================
 app.use('/api/import-templates', initImportTemplateRoutes({ pool, cache }));
-console.log('✅ Import template routes loaded');
+logger.info('Import template routes loaded');
 
 // ============================================
 // PRICE LIST IMPORTS
 // ============================================
 const { init: initPriceImportRoutes } = require('./routes/price-imports');
 app.use('/api/price-imports', initPriceImportRoutes({ pool }));
-console.log('✅ Price list import routes loaded');
+logger.info('Price list import routes loaded');
 
 // ============================================
 // PRICE HISTORY
 // ============================================
 const { init: initPriceHistoryRoutes } = require('./routes/price-history');
 app.use('/api', initPriceHistoryRoutes({ pool }));
-console.log('✅ Price history routes loaded');
+logger.info('Price history routes loaded');
 
 // ============================================
 // HUB PROMOTIONS (Sale Pricing & Scheduling)
 // ============================================
 const { init: initHubPromotionRoutes } = require('./routes/hub-promotions');
 app.use('/api/hub-promotions', initHubPromotionRoutes({ pool }));
-console.log('✅ Hub promotions routes loaded');
+logger.info('Hub promotions routes loaded');
 
 // ============================================
 // COUPONS (Code Generation, Validation, Apply)
 // ============================================
 const { init: initCouponRoutes } = require('./routes/coupons');
 app.use('/api', initCouponRoutes({ pool }));
-console.log('✅ Coupon code routes loaded');
+logger.info('Coupon code routes loaded');
 
 // ============================================
 // BUNDLES & KITS
 // ============================================
 const { init: initBundleRoutes } = require('./routes/bundles');
 app.use('/api/bundles', initBundleRoutes({ pool }));
-console.log('✅ Bundle routes loaded');
+logger.info('Bundle routes loaded');
 
 // ============================================
 // MULTI-LOCATION INVENTORY
@@ -652,19 +695,19 @@ app.get('/api/inventory/summary', authenticate, async (req, res, next) => {
 
 const { init: initLocationInventoryRoutes } = require('./routes/location-inventory');
 app.use('/api/inventory', initLocationInventoryRoutes({ pool }));
-console.log('✅ Multi-location inventory routes loaded');
+logger.info('Multi-location inventory routes loaded');
 
 const { init: initTransferRoutes } = require('./routes/inventory-transfers');
 app.use('/api/inventory/transfers', initTransferRoutes({ pool }));
-console.log('✅ Inventory transfer routes loaded');
+logger.info('Inventory transfer routes loaded');
 
 const { init: initInventoryReportRoutes } = require('./routes/inventory-reports');
 app.use('/api/inventory', initInventoryReportRoutes({ pool }));
-console.log('✅ Inventory reports & alerts routes loaded');
+logger.info('Inventory reports & alerts routes loaded');
 
 const { init: initInventoryAgingRoutes } = require('./routes/inventory-aging');
 app.use('/api/inventory', initInventoryAgingRoutes({ pool }));
-console.log('✅ Inventory aging & turnover routes loaded');
+logger.info('Inventory aging & turnover routes loaded');
 
 // ============================================
 // SCHEDULED REPORTS & ON-DEMAND GENERATION
@@ -673,26 +716,26 @@ const { init: initScheduledReportRoutes } = require('./routes/scheduled-reports'
 const scheduledReportRouter = initScheduledReportRoutes({ pool });
 app.use('/api/scheduled-reports', scheduledReportRouter);
 app.use('/api/reports', scheduledReportRouter);
-console.log('✅ Scheduled reports & generation routes loaded');
+logger.info('Scheduled reports & generation routes loaded');
 
 // ============================================
 // DISPATCH CONSOLE
 // ============================================
 const { init: initDispatchRoutes } = require('./routes/dispatch');
 app.use('/api/dispatch', initDispatchRoutes({ pool }));
-console.log('✅ Dispatch console routes loaded');
+logger.info('Dispatch console routes loaded');
 
 const { init: initRoutePlanningRoutes } = require('./routes/route-planning');
 app.use('/api/dispatch/routes', initRoutePlanningRoutes({ pool }));
-console.log('✅ Route planning routes loaded');
+logger.info('Route planning routes loaded');
 
 const { init: initDriverMgmtRoutes } = require('./routes/driver-management');
 app.use('/api/dispatch', initDriverMgmtRoutes({ pool }));
-console.log('✅ Driver management routes loaded');
+logger.info('Driver management routes loaded');
 
 const { init: initNotificationTemplateRoutes } = require('./routes/notification-templates');
 app.use('/api/notification-templates', initNotificationTemplateRoutes({ pool }));
-console.log('✅ Notification template routes loaded');
+logger.info('Notification template routes loaded');
 
 const { init: initNotificationTriggerRoutes } = require('./routes/notification-triggers');
 app.use('/api/notifications', initNotificationTriggerRoutes({ pool }));
@@ -700,172 +743,172 @@ const { startReminderCron } = require('./services/notificationTriggers');
 startReminderCron();
 const notificationQueueService = require('./services/NotificationTriggerService');
 notificationQueueService.startQueueProcessor();
-console.log('✅ Notification trigger routes loaded');
+logger.info('Notification trigger routes loaded');
 
 const { init: initHubExchangeRoutes } = require('./routes/hub-exchanges');
 app.use('/api/exchanges', initHubExchangeRoutes({ pool }));
-console.log('✅ Hub exchange routes loaded');
+logger.info('Hub exchange routes loaded');
 
 // Driver Auth (mobile app PIN login)
 const { init: initDriverAuthRoutes } = require('./routes/driver-auth');
 app.use('/api/auth/driver-login', initDriverAuthRoutes({ pool }));
-console.log('✅ Driver auth routes loaded');
+logger.info('Driver auth routes loaded');
 
 // Driver App (profile, shifts, vehicles)
 const { init: initDriverAppRoutes } = require('./routes/driver-app');
 app.use('/api/driver', initDriverAppRoutes({ pool }));
-console.log('✅ Driver app routes loaded');
+logger.info('Driver app routes loaded');
 
 // ============================================
 // CE COMPETITOR PRICING (PricesAPI.io)
 // ============================================
 const cePricingRoutes = require('./routes/ce-pricing');
 app.use('/api/pricing/ce', cePricingRoutes.init({ pool }));
-console.log('✅ CE competitor pricing routes loaded (PricesAPI)');
+logger.info('CE competitor pricing routes loaded (PricesAPI)');
 
 // ============================================
 // PRICING ENGINE (Promotional Price Calculation)
 // ============================================
 const { init: initPricingEngineRoutes } = require('./routes/pricing-engine');
 app.use('/api/pricing', initPricingEngineRoutes({ pool }));
-console.log('✅ Pricing engine routes loaded');
+logger.info('Pricing engine routes loaded');
 
 // ============================================
 // ANALYTICS (Modular)
 // ============================================
 app.use('/api/analytics', initAnalyticsRoutes({ pool }));
-console.log('✅ Analytics routes loaded (modular)');
+logger.info('Analytics routes loaded (modular)');
 
 // ============================================
 // UNIFIED DASHBOARD (Sales Pipeline)
 // ============================================
 const { init: initDashboardRoutes } = require('./routes/dashboard');
 app.use('/api/dashboard', initDashboardRoutes({ pool, cache }));
-console.log('✅ Unified dashboard routes loaded (sales pipeline)');
+logger.info('Unified dashboard routes loaded (sales pipeline)');
 
 // ============================================
 // INSIGHTS (AI-Powered Business Insights)
 // ============================================
 app.use('/api/insights', initInsightsRoutes({ pool }));
-console.log('✅ Insights routes loaded (AI-powered business insights)');
+logger.info('Insights routes loaded (AI-powered business insights)');
 
 // ============================================
 // REPORTS (Report Builder & Scheduling)
 // ============================================
 app.use('/api/reports', initReportsRoutes({ pool }));
-console.log('✅ Reports routes loaded (report builder & scheduling)');
+logger.info('Reports routes loaded (report builder & scheduling)');
 
 // ============================================
 // LEADS / INQUIRY CAPTURE
 // ============================================
 app.use('/api/leads', initLeadsRoutes({ pool, cache }));
-console.log('✅ Leads routes loaded (inquiry capture system)');
+logger.info('Leads routes loaded (inquiry capture system)');
 
 // ============================================
 // TASKS / FOLLOW-UP SCHEDULING
 // ============================================
 const { init: initTasksRoutes } = require('./routes/tasks');
 app.use('/api/tasks', initTasksRoutes({ pool, cache }));
-console.log('✅ Tasks routes loaded (follow-up scheduling)');
+logger.info('Tasks routes loaded (follow-up scheduling)');
 
 // ============================================
 // CUSTOMER PORTAL SELF-SERVICE
 // ============================================
 const { init: initCustomerPortalRoutes } = require('./routes/customer-portal');
 app.use('/api/customer-portal', initCustomerPortalRoutes({ pool, cache }));
-console.log('✅ Customer portal routes loaded (self-service)');
+logger.info('Customer portal routes loaded (self-service)');
 
 // ============================================
 // WEBHOOKS INTEGRATION SYSTEM
 // ============================================
 const { init: initWebhooksRoutes, getService: getWebhookService } = require('./routes/webhooks');
 app.use('/api/webhooks', initWebhooksRoutes({ pool, cache }));
-console.log('✅ Webhooks routes loaded (integrations)');
+logger.info('Webhooks routes loaded (integrations)');
 
 // ============================================
 // DATA QUALITY TOOLS
 // ============================================
 const { init: initDataQualityRoutes } = require('./routes/data-quality');
 app.use('/api/data-quality', initDataQualityRoutes({ pool, cache }));
-console.log('✅ Data quality routes loaded');
+logger.info('Data quality routes loaded');
 
 // ============================================
 // QUOTATIONS (Modular)
 // ============================================
 app.use('/api/quotations', initQuotesRoutes({ pool }));
-console.log('✅ Quotation routes loaded (modular)');
+logger.info('Quotation routes loaded (modular)');
 
 // ============================================
 // POS TRANSACTIONS (TeleTime POS)
 // ============================================
 const { init: initTransactionsRoutes } = require('./routes/transactions');
 app.use('/api/transactions', initTransactionsRoutes({ pool, cache, discountAuthorityService }));
-console.log('✅ POS transactions routes loaded');
+logger.info('POS transactions routes loaded');
 
 // POS RETURNS
 const { init: initReturnsRoutes } = require('./routes/returns');
 app.use('/api/returns', initReturnsRoutes({ pool, cache, monerisService }));
-console.log('✅ POS returns routes loaded');
+logger.info('POS returns routes loaded');
 
 // POS STORE CREDITS
 const { init: initStoreCreditsRoutes } = require('./routes/store-credits');
 app.use('/api/store-credits', initStoreCreditsRoutes({ pool, cache }));
-console.log('✅ Store credits routes loaded');
+logger.info('Store credits routes loaded');
 
 // EMPLOYEE TIME CLOCK
 app.use('/api/timeclock', timeClockRoutes.init({ pool }));
-console.log('✅ Employee time clock routes loaded');
+logger.info('Employee time clock routes loaded');
 
 // LAYAWAY MANAGEMENT
 app.use('/api/layaways', layawayRoutes.init({ pool }));
-console.log('✅ Layaway management routes loaded');
+logger.info('Layaway management routes loaded');
 
 // GIFT CARDS
 const { init: initGiftCardRoutes } = require('./routes/gift-cards');
 app.use('/api/gift-cards', initGiftCardRoutes({ pool, emailService }));
-console.log('✅ Gift card routes loaded');
+logger.info('Gift card routes loaded');
 
 // POS EXCHANGES
 const { init: initExchangesRoutes } = require('./routes/exchanges');
 app.use('/api/exchanges', initExchangesRoutes({ pool, cache, monerisService }));
-console.log('✅ POS exchanges routes loaded');
+logger.info('POS exchanges routes loaded');
 
 // ============================================
 // POS REGISTERS & SHIFTS (TeleTime POS)
 // ============================================
 const { init: initRegisterRoutes } = require('./routes/register');
 app.use('/api/registers', initRegisterRoutes({ pool, cache, scheduledBatchEmailService }));
-console.log('✅ POS register routes loaded');
+logger.info('POS register routes loaded');
 
 // ============================================
 // POS PAYMENTS (Moneris, Account, Gift Cards)
 // ============================================
 app.use('/api/pos-payments', initPosPaymentsRoutes({ posPaymentService, pool, emailService }));
-console.log('✅ POS payments routes loaded');
+logger.info('POS payments routes loaded');
 
 // ============================================
 // RECEIPTS (PDF generation, thermal, email)
 // ============================================
 app.use('/api/receipts', initReceiptsRoutes({ receiptService }));
-console.log('✅ Receipt routes loaded');
+logger.info('Receipt routes loaded');
 
 // ============================================
 // CASH DRAWER MANAGEMENT
 // ============================================
 app.use('/api/cash-drawer', initCashDrawerRoutes({ cashDrawerService }));
-console.log('✅ Cash drawer routes loaded');
+logger.info('Cash drawer routes loaded');
 
 // ============================================
 // POS INVOICES (Account customer invoicing)
 // ============================================
 app.use('/api/pos-invoices', initPosInvoicesRoutes({ posInvoiceService }));
-console.log('✅ POS invoice routes loaded');
+logger.info('POS invoice routes loaded');
 
 // ============================================
 // UNIFIED REPORTS (Combined Quote + POS Analytics)
 // ============================================
 app.use('/api/reports/unified', initUnifiedReportsRoutes({ reportingService }));
-console.log('✅ Unified reporting routes loaded');
+logger.info('Unified reporting routes loaded');
 
 // ============================================
 // API V1 (Standardized versioned API)
@@ -877,47 +920,47 @@ app.use('/api/v1', initV1Routes({ db: { query: pool.query.bind(pool), pool }, se
   pricingService,
   productService: categoryProductService
 }}));
-console.log('✅ API v1 routes loaded (standardized versioned API)');
+logger.info('API v1 routes loaded (standardized versioned API)');
 
 // ============================================
 // DRAFTS (Quote/POS draft persistence & offline sync)
 // ============================================
 const { init: initDraftRoutes } = require('./routes/drafts');
 app.use('/api/drafts', initDraftRoutes({ pool }));
-console.log('✅ Draft persistence routes loaded (offline sync support)');
+logger.info('Draft persistence routes loaded (offline sync support)');
 
 // ============================================
 // TAX (Canadian tax calculations)
 // ============================================
 const { init: initTaxRoutes } = require('./routes/tax');
 app.use('/api/tax', initTaxRoutes({ taxService }));
-console.log('✅ Tax routes loaded');
+logger.info('Tax routes loaded');
 
 // ============================================
 // FRAUD DETECTION & AUDIT
 // ============================================
 const { init: initFraudRoutes } = require('./routes/fraud');
-app.use('/api/fraud', initFraudRoutes({ fraudService }));
-console.log('✅ Fraud detection routes loaded');
+app.use('/api/fraud', initFraudRoutes({ fraudService, employeeMonitorService }));
+logger.info('Fraud detection routes loaded');
 
 const { init: initAuditRoutes } = require('./routes/audit');
-app.use('/api/audit', initAuditRoutes({ fraudService }));
-console.log('✅ Audit log routes loaded');
+app.use('/api/audit', initAuditRoutes({ fraudService, auditLogService }));
+logger.info('Audit log routes loaded');
 
 const { init: initChargebackRoutes } = require('./routes/chargebacks');
 app.use('/api/chargebacks', initChargebackRoutes({ fraudService }));
-console.log('✅ Chargeback routes loaded');
+logger.info('Chargeback routes loaded');
 
 app.use('/api/serials', initSerialNumberRoutes({ serialService: serialNumberService }));
 app.use('/api/serial-numbers', initSerialNumberRoutes({ serialService: serialNumberService }));
-console.log('✅ Serial number routes loaded');
+logger.info('Serial number routes loaded');
 
 const inventorySyncRouter = require('./routes/inventory-sync');
 app.use('/api/inventory-sync', inventorySyncRouter);
-console.log('✅ Inventory sync routes loaded');
+logger.info('Inventory sync routes loaded');
 
 app.use('/api/purchase-orders', initPurchaseOrderRoutes({ poService: purchaseOrderService }));
-console.log('✅ Purchase order routes loaded');
+logger.info('Purchase order routes loaded');
 
 app.use('/api/product-variants', initProductVariantRoutes({ variantService: productVariantService }));
 
@@ -930,7 +973,7 @@ app.use('/api/pre-orders', initPreOrderRoutes({ preOrderService }));
 app.use('/api/surveys', initSurveyRoutes({ surveyService }));
 app.use('/api/catalog-exports', initCatalogExportRoutes({ catalogService: catalogExportService }));
 app.use('/api/audience-sync', initAudienceSyncRoutes({ syncService: audienceSyncService }));
-console.log('✅ Product variant routes loaded');
+logger.info('Product variant routes loaded');
 
 // ============================================
 // CLIENT ERROR TRACKING
@@ -939,88 +982,88 @@ const ClientErrorTrackingService = require('./services/ClientErrorTrackingServic
 const clientErrorTrackingService = new ClientErrorTrackingService(pool);
 const { init: initClientErrorRoutes } = require('./routes/client-errors');
 app.use('/api/errors', initClientErrorRoutes({ errorTrackingService: clientErrorTrackingService }));
-console.log('✅ Client error tracking routes loaded');
+logger.info('Client error tracking routes loaded');
 
 // ============================================
 // POS EMAIL (Receipt emails via AWS SES)
 // ============================================
 const emailRoutes = require('./routes/email');
 app.use('/api/email', emailRoutes);
-console.log('✅ POS email routes loaded');
+logger.info('POS email routes loaded');
 
 // ============================================
 // POS QUOTES (Quote lookup & conversion)
 // ============================================
 const { init: initPosQuotesRoutes } = require('./routes/pos-quotes');
 app.use('/api/pos-quotes', initPosQuotesRoutes({ pool }));
-console.log('✅ POS quote routes loaded');
+logger.info('POS quote routes loaded');
 
 // ============================================
 // POS QUOTE EXPIRY (Expiring quotes detection)
 // ============================================
 app.use('/api/pos/quotes', initPosQuoteExpiryRoutes({ quoteExpiryService }));
-console.log('✅ POS quote expiry routes loaded');
+logger.info('POS quote expiry routes loaded');
 
 // ============================================
 // POS SALES REPS (Active/on-shift sales reps)
 // ============================================
 const { init: initPosSalesRepsRoutes } = require('./routes/pos-sales-reps');
 app.use('/api/pos', initPosSalesRepsRoutes(pool));
-console.log('✅ POS sales reps routes loaded');
+logger.info('POS sales reps routes loaded');
 
 // ============================================
 // SHIFT REPORTS (End-of-day/shift reports)
 // ============================================
 const { init: initShiftReportsRoutes } = require('./routes/shift-reports');
 app.use('/api/reports', initShiftReportsRoutes(pool));
-console.log('✅ Shift reports routes loaded');
+logger.info('Shift reports routes loaded');
 
 // ============================================
 // CUSTOMER PAYMENTS & CREDIT TRACKING
 // ============================================
 app.use('/api/payments', paymentsRoutes);
-console.log('✅ Customer payments routes loaded');
+logger.info('Customer payments routes loaded');
 
 // ============================================
 // MARKETPLACE INTEGRATION (BEST BUY)
 // ============================================
 app.use('/api/marketplace', marketplaceRoutes);
-console.log('✅ Marketplace integration routes loaded');
+logger.info('Marketplace integration routes loaded');
 
 // ============================================
 // 2026 FEATURES (Special Orders, E-Signatures, Portal, Templates, etc.)
 // ============================================
 const features2026Routes = require('./routes/features2026')(pool);
 app.use('/api/features', features2026Routes);
-console.log('✅ 2026 Features routes loaded');
+logger.info('2026 Features routes loaded');
 
 // ============================================
 // PACKAGE BUILDER (Guided Package Wizard)
 // ============================================
 const initPackageBuilderRoutes = require('./routes/packageBuilder');
 app.use('/api/package-builder', initPackageBuilderRoutes({ pool }));
-console.log('✅ Package builder routes loaded');
+logger.info('Package builder routes loaded');
 
 // ============================================
 // PACKAGE BUILDER V2 (Faceted Filtering)
 // ============================================
 const packageBuilderV2Routes = require('./routes/packageBuilderV2');
 app.use('/api/package-builder-v2', packageBuilderV2Routes);
-console.log('✅ Package builder V2 routes loaded');
+logger.info('Package builder V2 routes loaded');
 
 // ============================================
 // MANUFACTURER PROMOTIONS (Bundle Savings, Gifts, Guarantees)
 // ============================================
 const { init: initManufacturerPromotionsRoutes } = require('./routes/manufacturerPromotions');
 app.use('/api/promotions/manufacturer', initManufacturerPromotionsRoutes({ pool }));
-console.log('✅ Manufacturer promotions routes loaded');
+logger.info('Manufacturer promotions routes loaded');
 
 // ============================================
 // MANUFACTURER REBATES (Instant, Mail-In, Online Rebates)
 // ============================================
 const createRebateRoutes = require('./routes/rebates');
 app.use('/api/rebates', createRebateRoutes(pool, authenticate));
-console.log('✅ Manufacturer rebates routes loaded');
+logger.info('Manufacturer rebates routes loaded');
 
 // ============================================
 // TRADE-IN SYSTEM (Assessment, Approvals, History)
@@ -1030,16 +1073,16 @@ app.use('/api/trade-in', tradeInRoutes);
 
 // Product Recommendations
 app.use('/api/recommendations', initRecommendationsRoutes({ pool, cache }));
-console.log('✅ Trade-in routes loaded');
+logger.info('Trade-in routes loaded');
 
 // Upsell Strategies
 const upsellRoutes = require('./routes/upsell');
 app.use('/api/upsell', upsellRoutes);
-console.log('✅ Upsell routes loaded');
+logger.info('Upsell routes loaded');
 
 // Financing Service
 app.use('/api/financing', initFinancingRoutes({ financingService }));
-console.log('✅ Financing routes loaded');
+logger.info('Financing routes loaded');
 
 // Commission Service
 app.use('/api/commissions', authenticate, initCommissionsRoutes({ commissionService, pool }));
@@ -1048,7 +1091,7 @@ app.use('/api/batch-email', initBatchEmailRoutes({ batchEmailService, receiptSer
 
 // Batch email settings routes (uses scheduledBatchEmailService initialized earlier)
 app.use('/api/batch-email-settings', authenticate, batchEmailSettingsRoutes(pool, scheduledBatchEmailService));
-console.log('✅ Commission and batch email routes loaded');
+logger.info('Commission and batch email routes loaded');
 
 // ============================================
 // EMAIL ENDPOINTS (PHASE 5)
@@ -1069,7 +1112,7 @@ app.get('/api/test-email', authenticate, requireRole('admin', 'manager'), async 
     await sesClient.send(command);
     res.json({ success: true, message: 'Test email sent successfully!' });
   } catch (error) {
-    console.error('Email test error:', error);
+    logger.error({ err: error }, 'Email test error');
     res.status(500).json({ success: false, error: error.message });
   }
 });
@@ -1096,7 +1139,7 @@ app.post('/api/quotations/:id/send-email', authenticate, upload.single('pdf'), a
         (typeof quote.revenue_features === 'string' ? JSON.parse(quote.revenue_features) : quote.revenue_features) :
         null;
     } catch (e) {
-      console.warn('Could not parse revenue_features for email:', e);
+      logger.warn({ err: e }, 'Could not parse revenue_features for email');
     }
 
     // Build revenue features HTML section
@@ -1260,19 +1303,19 @@ app.post('/api/quotations/:id/send-email', authenticate, upload.single('pdf'), a
 
     res.json({ success: true, message: 'Quote sent successfully', sentTo: recipientEmail });
   } catch (error) {
-    console.error('Error sending quote email:', error);
+    logger.error({ err: error }, 'Error sending quote email');
     res.status(500).json({ error: 'Failed to send email', details: error.message });
   }
 });
 
-console.log('✅ Phase 5: Email routes loaded');
+logger.info('Phase 5: Email routes loaded');
 
 // ============================================
 // ACTIVITY TRACKING ROUTES
 // ============================================
 const activityRoutes = require('./routes/activities')(pool);
 app.use('/api/activities', activityRoutes);
-console.log('✅ Activity tracking routes loaded');
+logger.info('Activity tracking routes loaded');
 
 // ============================================
 // CUSTOMER MANAGEMENT ENDPOINTS
@@ -1287,18 +1330,18 @@ app.get('/api/postal-code/:code', async (req, res) => {
   try {
     const { code } = req.params;
 
-    console.log('📮 Looking up postal code:', code);
+    logger.info({ postalCode: code }, 'Looking up postal code');
 
     const addressInfo = await postalCodeService.lookupCanadianPostalCode(code);
 
-    console.log('✅ Postal code found:', addressInfo);
+    logger.info({ postalCode: code, addressInfo }, 'Postal code found');
 
     res.json({
       success: true,
       address: addressInfo
     });
   } catch (error) {
-    console.error('❌ Postal code lookup error:', error.message);
+    logger.error({ errMsg: error.message }, 'Postal code lookup error');
 
     // Fallback to basic region info from postal code pattern
     try {
@@ -1345,7 +1388,7 @@ app.get('/api/cities/:province', (req, res) => {
       cities: provinceData.cities
     });
   } catch (error) {
-    console.error('Error fetching cities:', error);
+    logger.error({ err: error }, 'Error fetching cities');
     res.status(500).json({
       success: false,
       error: 'Failed to fetch cities'
@@ -1361,7 +1404,7 @@ app.get('/api/cities', (req, res) => {
       data: canadianCities.provinces
     });
   } catch (error) {
-    console.error('Error fetching all cities:', error);
+    logger.error({ err: error }, 'Error fetching all cities');
     res.status(500).json({
       success: false,
       error: 'Failed to fetch cities data'
@@ -1469,7 +1512,7 @@ app.get('/api/dashboard/stats', authenticate, async (req, res) => {
       statusDistribution: statusDistribution.rows
     });
   } catch (error) {
-    console.error('Error fetching dashboard stats:', error);
+    logger.error({ err: error }, 'Error fetching dashboard stats');
     res.status(500).json({ error: 'Failed to fetch dashboard statistics' });
   }
 });
@@ -1487,7 +1530,7 @@ app.get('/api/payment-terms', async (req, res) => {
     `);
     res.json(result.rows);
   } catch (error) {
-    console.error('Error fetching payment terms:', error);
+    logger.error({ err: error }, 'Error fetching payment terms');
     res.status(500).json({ error: 'Failed to fetch payment terms' });
   }
 });
@@ -1502,16 +1545,16 @@ app.post('/api/payment-terms', async (req, res) => {
     `, [name, terms_text]);
     res.status(201).json(result.rows[0]);
   } catch (error) {
-    console.error('Error creating payment terms:', error);
+    logger.error({ err: error }, 'Error creating payment terms');
     res.status(500).json({ error: 'Failed to create payment terms' });
   }
 });
 
-console.log('✅ Payment terms endpoints loaded');
+logger.info('Payment terms endpoints loaded');
 
 // Quote aliases - redirect /api/quotes/* to /api/quotations/*
 app.use('/api/quotes', initQuotesRoutes({ pool }));
-console.log('✅ Quote aliases loaded (/api/quotes -> /api/quotations)');
+logger.info('Quote aliases loaded (/api/quotes -> /api/quotations)');
 
 // ============================================
 // QUOTE TEMPLATES
@@ -1526,7 +1569,7 @@ app.get('/api/quote-templates', async (req, res) => {
     `);
     res.json(result.rows);
   } catch (err) {
-    console.error('Error fetching quote templates:', err);
+    logger.error({ err }, 'Error fetching quote templates');
     res.status(500).json({ error: err.message });
   }
 });
@@ -1547,10 +1590,10 @@ app.post('/api/quote-templates', async (req, res) => {
       [name, description, JSON.stringify(items), discount_percent, notes, terms]
     );
 
-    console.log(`✅ Created quote template: ${name}`);
+    logger.info({ templateName: name }, 'Created quote template');
     res.status(201).json(result.rows[0]);
   } catch (err) {
-    console.error('Error creating quote template:', err);
+    logger.error({ err }, 'Error creating quote template');
     res.status(500).json({ error: err.message });
   }
 });
@@ -1569,15 +1612,15 @@ app.delete('/api/quote-templates/:id', async (req, res) => {
       return res.status(404).json({ error: 'Template not found' });
     }
 
-    console.log(`✅ Deleted quote template: ${result.rows[0].name}`);
+    logger.info({ templateName: result.rows[0].name }, 'Deleted quote template');
     res.json({ message: 'Template deleted successfully' });
   } catch (err) {
-    console.error('Error deleting quote template:', err);
+    logger.error({ err }, 'Error deleting quote template');
     res.status(500).json({ error: err.message });
   }
 });
 
-console.log('✅ Quote template endpoints loaded');
+logger.info('Quote template endpoints loaded');
 
 // ============================================
 // APPROVAL WORKFLOW ENDPOINTS
@@ -1691,15 +1734,15 @@ app.post('/api/quotations/:id/request-approval', authenticate, async (req, res) 
           }
         });
         await sesClient.send(command);
-        console.log(`✅ Approval request email sent to ${approver_email}`);
+        logger.info({ recipient: approver_email }, 'Approval request email sent');
       } catch (emailErr) {
-        console.error('Error sending approval email:', emailErr);
+        logger.error({ err: emailErr }, 'Error sending approval email');
       }
     }
 
     res.status(201).json(result.rows[0]);
   } catch (error) {
-    console.error('Error requesting approval:', error);
+    logger.error({ err: error }, 'Error requesting approval');
     res.status(500).json({ error: 'Failed to request approval' });
   }
 });
@@ -1714,7 +1757,7 @@ app.get('/api/quotations/:id/approvals', authenticate, async (req, res) => {
     );
     res.json(result.rows);
   } catch (error) {
-    console.error('Error fetching approvals:', error);
+    logger.error({ err: error }, 'Error fetching approvals');
     res.status(500).json({ error: 'Failed to fetch approvals' });
   }
 });
@@ -1740,7 +1783,7 @@ app.get('/api/quotations/:id/approval-summary', authenticate, async (req, res) =
 
     res.json(summary);
   } catch (error) {
-    console.error('Error getting approval summary:', error);
+    logger.error({ err: error }, 'Error getting approval summary');
     res.status(500).json({ error: 'Failed to fetch approvals' });
   }
 });
@@ -1775,7 +1818,7 @@ app.get('/api/approvals/pending', authenticate, async (req, res) => {
     const result = await pool.query(query, params);
     res.json(result.rows);
   } catch (error) {
-    console.error('Error fetching pending approvals:', error);
+    logger.error({ err: error }, 'Error fetching pending approvals');
     res.status(500).json({ error: 'Failed to fetch pending approvals' });
   }
 });
@@ -1879,14 +1922,14 @@ app.post('/api/approvals/:id/approve', authenticate, async (req, res) => {
           });
           await sesClient.send(command);
         } catch (emailErr) {
-          console.error('Error sending approval notification:', emailErr);
+          logger.error({ err: emailErr }, 'Error sending approval notification');
         }
       }
     }
 
     res.json(result.rows[0]);
   } catch (error) {
-    console.error('Error approving quote:', error);
+    logger.error({ err: error }, 'Error approving quote');
     res.status(500).json({ error: 'Failed to approve quote' });
   }
 });
@@ -1994,19 +2037,19 @@ app.post('/api/approvals/:id/reject', authenticate, async (req, res) => {
           });
           await sesClient.send(command);
         } catch (emailErr) {
-          console.error('Error sending rejection notification:', emailErr);
+          logger.error({ err: emailErr }, 'Error sending rejection notification');
         }
       }
     }
 
     res.json(result.rows[0]);
   } catch (error) {
-    console.error('Error rejecting quote:', error);
+    logger.error({ err: error }, 'Error rejecting quote');
     res.status(500).json({ error: 'Failed to reject quote' });
   }
 });
 
-console.log('✅ Approval workflow endpoints loaded');
+logger.info('Approval workflow endpoints loaded');
 
 // ============================================
 // REVENUE FEATURES - DELIVERY & INSTALLATION
@@ -2020,7 +2063,7 @@ app.get('/api/delivery-services', async (req, res) => {
     );
     res.json(result.rows);
   } catch (error) {
-    console.error('Error fetching delivery services:', error);
+    logger.error({ err: error }, 'Error fetching delivery services');
     res.status(500).json({ error: 'Failed to fetch delivery services' });
   }
 });
@@ -2076,7 +2119,7 @@ app.post('/api/delivery-services/calculate', async (req, res) => {
       }
     });
   } catch (error) {
-    console.error('Error calculating delivery cost:', error);
+    logger.error({ err: error }, 'Error calculating delivery cost');
     res.status(500).json({ error: 'Failed to calculate delivery cost' });
   }
 });
@@ -2113,7 +2156,7 @@ app.get('/api/warranty-plans', async (req, res) => {
     const result = await pool.query(query, params);
     res.json(result.rows);
   } catch (error) {
-    console.error('Error fetching warranty plans:', error);
+    logger.error({ err: error }, 'Error fetching warranty plans');
     res.status(500).json({ error: 'Failed to fetch warranty plans' });
   }
 });
@@ -2145,7 +2188,7 @@ app.post('/api/warranty-plans/calculate', async (req, res) => {
       warrantyCostCents: warrantyCostCents
     });
   } catch (error) {
-    console.error('Error calculating warranty cost:', error);
+    logger.error({ err: error }, 'Error calculating warranty cost');
     res.status(500).json({ error: 'Failed to calculate warranty cost' });
   }
 });
@@ -2174,7 +2217,7 @@ app.get('/api/financing-plans', async (req, res) => {
     const result = await pool.query(query, params);
     res.json(result.rows);
   } catch (error) {
-    console.error('Error fetching financing plans:', error);
+    logger.error({ err: error }, 'Error fetching financing plans');
     res.status(500).json({ error: 'Failed to fetch financing plans' });
   }
 });
@@ -2226,7 +2269,7 @@ app.post('/api/financing-plans/calculate', async (req, res) => {
       }
     });
   } catch (error) {
-    console.error('Error calculating financing:', error);
+    logger.error({ err: error }, 'Error calculating financing');
     res.status(500).json({ error: 'Failed to calculate financing' });
   }
 });
@@ -2261,7 +2304,7 @@ app.get('/api/rebates', async (req, res) => {
     const result = await pool.query(query, params);
     res.json(result.rows);
   } catch (error) {
-    console.error('Error fetching rebates:', error);
+    logger.error({ err: error }, 'Error fetching rebates');
     res.status(500).json({ error: 'Failed to fetch rebates' });
   }
 });
@@ -2298,7 +2341,7 @@ app.post('/api/rebates/calculate', async (req, res) => {
       rebateAmountCents: rebateAmountCents
     });
   } catch (error) {
-    console.error('Error calculating rebate:', error);
+    logger.error({ err: error }, 'Error calculating rebate');
     res.status(500).json({ error: 'Failed to calculate rebate' });
   }
 });
@@ -2342,7 +2385,7 @@ app.get('/api/trade-in-values', async (req, res) => {
     const result = await pool.query(query, params);
     res.json(result.rows);
   } catch (error) {
-    console.error('Error fetching trade-in values:', error);
+    logger.error({ err: error }, 'Error fetching trade-in values');
     res.status(500).json({ error: 'Failed to fetch trade-in values' });
   }
 });
@@ -2361,7 +2404,7 @@ app.get('/api/sales-reps', async (req, res) => {
     );
     res.json(result.rows);
   } catch (error) {
-    console.error('Error fetching sales reps:', error);
+    logger.error({ err: error }, 'Error fetching sales reps');
     res.status(500).json({ error: 'Failed to fetch sales reps' });
   }
 });
@@ -2384,7 +2427,7 @@ app.get('/api/commission-rules', async (req, res) => {
     const result = await pool.query(query, params);
     res.json(result.rows);
   } catch (error) {
-    console.error('Error fetching commission rules:', error);
+    logger.error({ err: error }, 'Error fetching commission rules');
     res.status(500).json({ error: 'Failed to fetch commission rules' });
   }
 });
@@ -2436,7 +2479,7 @@ app.post('/api/commission-rules/calculate', async (req, res) => {
       }
     });
   } catch (error) {
-    console.error('Error calculating commission:', error);
+    logger.error({ err: error }, 'Error calculating commission');
     res.status(500).json({ error: 'Failed to calculate commission' });
   }
 });
@@ -2582,7 +2625,7 @@ app.get('/api/ai/recommendations/:productId', async (req, res) => {
     });
 
   } catch (error) {
-    console.error('Error generating recommendations:', error);
+    logger.error({ err: error }, 'Error generating recommendations');
     res.status(500).json({ error: 'Failed to generate recommendations', details: error.message });
   }
 });
@@ -2835,7 +2878,7 @@ app.post('/api/ai/upsell-suggestions', async (req, res) => {
     });
 
   } catch (error) {
-    console.error('Error generating upsell suggestions:', error);
+    logger.error({ err: error }, 'Error generating upsell suggestions');
     res.status(500).json({ error: 'Failed to generate upsell suggestions', details: error.message });
   }
 });
@@ -2892,96 +2935,96 @@ app.post('/api/ai/quote-recommendations', async (req, res) => {
     });
 
   } catch (error) {
-    console.error('Error generating quote recommendations:', error);
+    logger.error({ err: error }, 'Error generating quote recommendations');
     res.status(500).json({ error: 'Failed to generate quote recommendations', details: error.message });
   }
 });
 
-console.log('✅ AI recommendation endpoints loaded');
+logger.info('AI recommendation endpoints loaded');
 
 // ============================================
 // ENTERPRISE ROUTES (Phase 2)
 // Orders, Invoices, Inventory, Delivery, Pricing, Moneris
 // ============================================
 app.use('/api/orders', ordersRoutes(pool, cache, orderService, inventoryService));
-console.log('✅ Orders routes loaded');
+logger.info('Orders routes loaded');
 
 app.use('/api/invoices', invoicesRoutes(pool, cache, invoiceService));
-console.log('✅ Invoices routes loaded');
+logger.info('Invoices routes loaded');
 
 app.use('/api/inventory', inventoryRoutes(pool, cache, inventoryService));
-console.log('✅ Inventory routes loaded');
+logger.info('Inventory routes loaded');
 
 app.use('/api/delivery', deliveryRoutes(pool, cache, deliveryService));
-console.log('✅ Delivery routes loaded');
+logger.info('Delivery routes loaded');
 
 app.use('/api/pricing', pricingRoutes(pool, cache, pricingService));
-console.log('✅ Pricing routes loaded');
+logger.info('Pricing routes loaded');
 
 app.use('/api/pricing/volume', volumePricingRoutes(pool, cache, volumeDiscountService));
-console.log('✅ Volume pricing routes loaded');
+logger.info('Volume pricing routes loaded');
 
 app.use('/api/pos-promotions', posPromotionsRoutes(posPromotionService, promotionEngine));
-console.log('✅ POS promotions routes loaded');
+logger.info('POS promotions routes loaded');
 
 app.use('/api/manager-overrides', managerOverrideRoutes(managerOverrideService));
-console.log('✅ Manager override routes loaded');
+logger.info('Manager override routes loaded');
 
 app.use('/api/customer-pricing', customerPricingRoutes.init({ pool, cache }));
-console.log('✅ Customer pricing routes loaded');
+logger.info('Customer pricing routes loaded');
 
 app.use('/api/pos-approvals', approvalRoutes(approvalService));
-console.log('✅ POS price-override approval routes loaded');
+logger.info('POS price-override approval routes loaded');
 
 app.use('/api/discount-authority', discountAuthorityRoutes(discountAuthorityService, fraudService));
-console.log('✅ Discount authority routes loaded (with fraud detection)');
+logger.info('Discount authority routes loaded (with fraud detection)');
 
 app.use('/api/discount-escalations', discountEscalationRoutes(discountAuthorityService, fraudService));
-console.log('✅ Discount escalation routes loaded (with audit logging)');
+logger.info('Discount escalation routes loaded (with audit logging)');
 
 app.use('/api/discount-analytics', discountAnalyticsRoutes(pool));
-console.log('✅ Discount analytics routes loaded');
+logger.info('Discount analytics routes loaded');
 
 app.use('/api/delivery', deliveryFulfillmentRoutes(deliveryFulfillmentService));
 const deliveryWindowRoutes = require('./routes/delivery-windows');
 app.use('/api/delivery-windows', deliveryWindowRoutes.init({ pool }));
-console.log('✅ Delivery window scheduling routes loaded');
+logger.info('Delivery window scheduling routes loaded');
 const locationRoutes = require('./routes/locations');
 app.use('/api/locations', locationRoutes.init({ pool }));
-console.log('✅ Location routes loaded');
+logger.info('Location routes loaded');
 const hubReturnRoutes = require('./routes/hub-returns');
 app.use('/api/hub-returns', hubReturnRoutes.init({ pool, monerisService }));
-console.log('✅ Hub returns routes loaded');
+logger.info('Hub returns routes loaded');
 const hubCommissionRoutes = require('./routes/hub-commissions');
 app.use('/api/hub-commissions', hubCommissionRoutes.init({ pool }));
-console.log('✅ Hub commission routes loaded');
+logger.info('Hub commission routes loaded');
 const commissionApi = require('./routes/commission-api');
 const commissionRouters = commissionApi.init({ pool });
 app.use('/api/orders', commissionRouters.orderRouter);
 app.use('/api/users', commissionRouters.userRouter);
 app.use('/api/commissions', commissionRouters.commissionRouter);
 app.use('/api/commission-rules', commissionRouters.rulesRouter);
-console.log('✅ Commission management API routes loaded');
+logger.info('Commission management API routes loaded');
 const etransferPaymentRoutes = require('./routes/etransfer-payments');
 const etransferRouters = etransferPaymentRoutes.init({ pool, emailService });
 app.use('/api/orders', etransferRouters.orderRouter);
 app.use('/api/payments', etransferRouters.paymentRouter);
-console.log('✅ E-transfer payment routes loaded');
+logger.info('E-transfer payment routes loaded');
 app.use('/api/warranty', warrantyRoutes(warrantyService));
-console.log('✅ Delivery fulfillment routes loaded');
+logger.info('Delivery fulfillment routes loaded');
 
 app.use('/api/product-metrics', productMetricsRoutes(pool, cache, productMetricsService));
-console.log('✅ Product metrics routes loaded');
+logger.info('Product metrics routes loaded');
 
 // Moneris payment routes
 app.use('/api/moneris', monerisRoutes(pool, cache, monerisService));
-console.log('✅ Moneris payment routes loaded');
+logger.info('Moneris payment routes loaded');
 
 // ============================================
 // ADVANCED PRICING (Volume Discounts, Promotions, Stacking)
 // ============================================
 app.use('/api/advanced-pricing', advancedPricingRoutes);
-console.log('✅ Advanced pricing routes loaded');
+logger.info('Advanced pricing routes loaded');
 
 // ============================================
 // AI PERSONALIZATION (Dynamic Pricing, Upselling, Suggestions)
@@ -2993,45 +3036,45 @@ app.use('/api/ai', aiRouter);
 if (aiPersonalizationRoutes.initQuoteBuilderService) {
   aiPersonalizationRoutes.initQuoteBuilderService(pool, cache);
 }
-console.log('✅ AI personalization routes loaded');
+logger.info('AI personalization routes loaded');
 
 // 3D PRODUCT CONFIGURATOR
 // ============================================
 app.use('/api/product-3d', product3dRoutes);
-console.log('✅ 3D product configurator routes loaded');
+logger.info('3D product configurator routes loaded');
 
 // PRODUCT IMAGES
 // ============================================
 app.use('/api/products', productImageRoutes.init({ pool }));
-console.log('✅ Product image gallery routes loaded');
+logger.info('Product image gallery routes loaded');
 
 // BARCODE IMAGE GENERATION
 // ============================================
 const barcodeImageRoutes = require('./routes/barcode-image');
 app.use('/api/products', barcodeImageRoutes.init({ pool }));
-console.log('✅ Barcode image routes loaded');
+logger.info('Barcode image routes loaded');
 
 // CALL LOG TRACKING
 // ============================================
 const callLogRouter = callLogRoutes.init({ pool });
 app.use('/api', callLogRouter);
-console.log('✅ Call log tracking routes loaded');
+logger.info('Call log tracking routes loaded');
 
 // AR AGING REPORT
 // ============================================
 app.use('/api/reports', arAgingRoutes.init({ pool, emailService }));
-console.log('✅ AR aging report routes loaded');
+logger.info('AR aging report routes loaded');
 
 // TAX SUMMARY REPORT
 // ============================================
 app.use('/api/reports', taxSummaryRoutes.init({ pool }));
-console.log('✅ Tax summary report routes loaded');
+logger.info('Tax summary report routes loaded');
 
 // ============================================
 // VENDOR PRODUCT VISUALIZATION & SCRAPER
 // ============================================
 vendorProductsRoutes(app);
-console.log('✅ Vendor product visualization routes loaded');
+logger.info('Vendor product visualization routes loaded');
 
 // ============================================
 // CHURN ALERTS (Automated Email Alerts for High Churn Risk Customers)
@@ -3039,7 +3082,7 @@ console.log('✅ Vendor product visualization routes loaded');
 const churnAlertsRoutes = require('./routes/churnAlerts');
 const churnAlertJob = require('./jobs/churnAlertJob');
 app.use('/api/churn-alerts', churnAlertsRoutes);
-console.log('✅ Churn alerts routes loaded');
+logger.info('Churn alerts routes loaded');
 
 // ============================================
 // CLV ADMIN (CLV Job Management & Trend Data)
@@ -3047,7 +3090,7 @@ console.log('✅ Churn alerts routes loaded');
 const clvAdminRoutes = require('./routes/clv-admin');
 const clvCalculationJob = require('./jobs/clvCalculationJob');
 app.use('/api/clv', clvAdminRoutes);
-console.log('✅ CLV admin routes loaded');
+logger.info('CLV admin routes loaded');
 
 // ============================================
 // PURCHASING INTELLIGENCE (AI-Powered Purchasing Recommendations)
@@ -3055,54 +3098,54 @@ console.log('✅ CLV admin routes loaded');
 const purchasingIntelligenceRoutes = require('./routes/purchasingIntelligence');
 const purchasingIntelligenceJob = require('./jobs/purchasingIntelligenceJob');
 app.use('/api/purchasing-intelligence', purchasingIntelligenceRoutes);
-console.log('✅ Purchasing intelligence routes loaded');
+logger.info('Purchasing intelligence routes loaded');
 
 // ============================================
 // NOMENCLATURE SCRAPER SCHEDULED JOB
 // ============================================
 const nomenclatureScraperJob = require('./jobs/nomenclatureScraperJob');
 nomenclatureScraperJob.init(pool);
-console.log('✅ Nomenclature scraper job initialized');
+logger.info('Nomenclature scraper job initialized');
 
 // ============================================
 // MODEL NOMENCLATURE DECODER & TRAINING
 // ============================================
 app.use('/api/nomenclature', initNomenclatureRoutes({ pool, cache }));
-console.log('✅ Nomenclature decoder routes loaded');
+logger.info('Nomenclature decoder routes loaded');
 
 // ============================================
 // QUICK SEARCH (Universal Product Finder)
 // ============================================
 app.use('/api/quick-search', quickSearchRoutes(pool, cache));
-console.log('✅ Quick Search routes loaded');
+logger.info('Quick Search routes loaded');
 
 // ============================================
 // ADMIN ROUTES (Email Queue Monitoring)
 // ============================================
 const adminRoutes = require('./routes/admin');
 app.use('/api/admin', adminRoutes);
-console.log('✅ Admin routes loaded (email monitoring, queue management)');
+logger.info('Admin routes loaded (email monitoring, queue management)');
 
 // ============================================
 // ADMIN APPROVAL RULES (Threshold Configuration)
 // ============================================
 const adminApprovalRulesRoutes = require('./routes/admin-approval-rules');
 app.use('/api/admin/approval-rules', authenticate, requireRole('admin', 'manager'), adminApprovalRulesRoutes(pool));
-console.log('✅ Admin approval rules routes loaded');
+logger.info('Admin approval rules routes loaded');
 
 // ============================================
 // ADMIN SKULYTICS ROUTES (SKU Refresh & Health)
 // ============================================
 const adminSkulyticsRoutes = require('./routes/admin/skulytics');
 app.use('/api/admin/skulytics', adminSkulyticsRoutes);
-console.log('✅ Admin Skulytics routes loaded (SKU refresh, health)');
+logger.info('Admin Skulytics routes loaded (SKU refresh, health)');
 
 // ============================================
 // ADMIN CE IMPORT ROUTES (Icecat Bulk Import)
 // ============================================
 const ceImportRoutes = require('./routes/admin/ce-import');
 app.use('/api/admin/products', ceImportRoutes.init({ pool, cache }));
-console.log('✅ Admin CE import routes loaded (Barcode Lookup + Icecat)');
+logger.info('Admin CE import routes loaded (Barcode Lookup + Icecat)');
 
 // Skulytics job scheduler (started in app.listen callback below)
 const scheduler = require('./jobs/scheduler');
@@ -3112,7 +3155,16 @@ const scheduler = require('./jobs/scheduler');
 // ============================================
 const aiAssistantRoutes = require('./routes/ai-assistant');
 app.use('/api/ai', aiAssistantRoutes);
-console.log('✅ AI Assistant routes loaded');
+logger.info('AI Assistant routes loaded');
+
+// ============================================
+// ORDER AMENDMENTS & CREDIT MEMOS
+// ============================================
+app.use('/api/order-modifications', initOrderModificationRoutes({ pool, cache }));
+logger.info('Order modification routes loaded');
+
+app.use('/api/credit-memos', initCreditMemoRoutes({ pool, cache }));
+logger.info('Credit memo routes loaded');
 
 // ============================================
 // ERROR HANDLING MIDDLEWARE
@@ -3130,26 +3182,18 @@ app.use(errorHandler);
 let serverStarted = false;
 const server = app.listen(PORT, () => {
   serverStarted = true;
-  console.log('');
-  console.log('========================================');
-  console.log('🚀 CUSTOMER QUOTATION APP - BACKEND SERVER');
-  console.log('========================================');
-  console.log(`Server running on: http://localhost:${PORT}`);
-  console.log(`Environment: ${process.env.NODE_ENV || 'development'}`);
-  console.log('========================================');
+  logger.info({ port: PORT, env: process.env.NODE_ENV || 'development', url: `http://localhost:${PORT}` }, '[Server] Customer Quotation App backend started');
 
   // CE integration key checks (non-fatal)
   if (!process.env.BARCODE_LOOKUP_API_KEY) {
-    console.warn('⚠️  WARNING: BARCODE_LOOKUP_API_KEY not set — CE product import primary source will fail, falling back to Icecat');
+    logger.warn('BARCODE_LOOKUP_API_KEY not set — CE product import primary source will fail, falling back to Icecat');
   }
   if (!process.env.ICECAT_USERNAME) {
-    console.warn('⚠️  WARNING: ICECAT_USERNAME not set — CE product import will fail');
+    logger.warn('ICECAT_USERNAME not set — CE product import will fail');
   }
   if (!process.env.PRICES_API_KEY) {
-    console.warn('⚠️  WARNING: PRICES_API_KEY not set — CE live pricing will fail');
+    logger.warn('PRICES_API_KEY not set — CE live pricing will fail');
   }
-
-  console.log('');
 
   // Initialize WebSocket service (shares the same port via HTTP upgrade)
   wsService.init(server);
@@ -3163,32 +3207,32 @@ const server = app.listen(PORT, () => {
   if (process.env.ENABLE_EMAIL_QUEUE !== 'false') {
     const EmailQueueService = require('./services/EmailQueueService');
     EmailQueueService.start(process.env.EMAIL_QUEUE_SCHEDULE || '*/2 * * * *');
-    console.log('✅ Email queue processor started');
+    logger.info('Email queue processor started');
   }
 
   // Start churn alert scheduler for daily high churn risk notifications
   if (process.env.ENABLE_CHURN_ALERTS !== 'false') {
     churnAlertJob.startScheduler(process.env.CHURN_ALERT_SCHEDULE || '0 9 * * *');
-    console.log('✅ Churn alert scheduler started');
+    logger.info('Churn alert scheduler started');
   }
 
   // Start purchasing intelligence scheduler for daily/weekly analysis
   if (process.env.ENABLE_PURCHASING_INTELLIGENCE !== 'false') {
     purchasingIntelligenceJob.startScheduler();
-    console.log('✅ Purchasing intelligence scheduler started (Daily 6AM, Weekly Monday 6AM)');
+    logger.info('Purchasing intelligence scheduler started (Daily 6AM, Weekly Monday 6AM)');
   }
 
   // Start nomenclature scraper scheduler for weekly nomenclature updates
   if (process.env.ENABLE_NOMENCLATURE_SCRAPER !== 'false') {
     nomenclatureScraperJob.startSchedule(process.env.NOMENCLATURE_SCRAPE_SCHEDULE || '0 2 * * 0');
-    console.log('✅ Nomenclature scraper scheduler started (Weekly Sunday 2 AM)');
+    logger.info('Nomenclature scraper scheduler started (Weekly Sunday 2 AM)');
   }
 
   // Start quote expiry digest job for daily email digests to sales reps
   if (process.env.ENABLE_QUOTE_EXPIRY_DIGEST !== 'false') {
     const quoteExpiryDigestJob = new QuoteExpiryDigestJob(pool, emailService);
     quoteExpiryDigestJob.start();
-    console.log('✅ Quote expiry digest scheduler started (Weekdays 8 AM)');
+    logger.info('Quote expiry digest scheduler started (Weekdays 8 AM)');
   }
 
   // Start daily digest job for morning overview emails to sales reps
@@ -3196,35 +3240,35 @@ const server = app.listen(PORT, () => {
     const DailyDigestJob = require('./services/DailyDigestJob');
     const dailyDigestJob = new DailyDigestJob(pool, emailService);
     dailyDigestJob.start();
-    console.log('✅ Daily digest scheduler started (Weekdays 8:15 AM)');
+    logger.info('Daily digest scheduler started (Weekdays 8:15 AM)');
   }
 
   // Start discontinued product auto-hide job (daily at 2 AM)
   const discontinuedProductJob = require('./jobs/discontinuedProductJob');
   discontinuedProductJob.start(process.env.DISCONTINUED_HIDE_SCHEDULE || '0 2 * * *');
-  console.log('✅ Discontinued product auto-hide job started (Daily 2 AM)');
+  logger.info('Discontinued product auto-hide job started (Daily 2 AM)');
 
   // Start customer auto-tag evaluation job (daily at 3 AM)
   const autoTagJob = require('./jobs/autoTagJob');
   autoTagJob.start(process.env.AUTO_TAG_SCHEDULE || '0 3 * * *');
-  console.log('✅ Customer auto-tag job started (Daily 3 AM)');
+  logger.info('Customer auto-tag job started (Daily 3 AM)');
 
   // Start CLV calculation job (daily at 2:30 AM)
   if (process.env.ENABLE_CLV_JOB !== 'false') {
     clvCalculationJob.start(process.env.CLV_JOB_SCHEDULE || '30 2 * * *');
-    console.log('✅ CLV calculation job started (Daily 2:30 AM)');
+    logger.info('CLV calculation job started (Daily 2:30 AM)');
   }
 
   // Initialize ChannelManager (loads active marketplace channels from DB)
   try {
     const { getInstance: getChannelManager } = require('./services/ChannelManager');
     getChannelManager().then(cm => {
-      console.log(`✅ ChannelManager ready (${cm.getAllAdapters().length} channel(s))`);
+      logger.info({ channelCount: cm.getAllAdapters().length }, 'ChannelManager ready');
     }).catch(err => {
-      console.warn('⚠️  ChannelManager init failed:', err.message);
+      logger.warn({ err }, 'ChannelManager init failed');
     });
   } catch (err) {
-    console.warn('⚠️  ChannelManager not available:', err.message);
+    logger.warn({ err }, 'ChannelManager not available');
   }
 
   // Start Skulytics nightly sync job (2 AM ET) via centralized scheduler
@@ -3235,10 +3279,10 @@ const server = app.listen(PORT, () => {
     const marketplaceJobs = require('./jobs/marketplaceJobs');
     if (process.env.MARKETPLACE_POLLING_ENABLED === 'true' && process.env.MIRAKL_API_KEY) {
       marketplaceJobs.startPolling();
-      console.log('✅ Marketplace polling started');
+      logger.info('Marketplace polling started');
     }
   } catch (err) {
-    console.warn('⚠️  Marketplace polling skipped:', err.message);
+    logger.warn({ err }, 'Marketplace polling skipped');
   }
 });
 
@@ -3247,38 +3291,38 @@ server.on('error', (error) => {
   if (error.code === 'EADDRINUSE') {
     if (serverStarted) {
       // Dual-stack race on Windows — server is already listening on IPv4, ignore IPv6 failure
-      console.warn(`⚠️  Port ${PORT} dual-stack conflict (non-fatal, server is running)`);
+      logger.warn({ port: PORT }, 'Port dual-stack conflict (non-fatal, server is running)');
     } else {
-      console.error(`❌ Port ${PORT} is already in use`);
+      logger.error({ port: PORT }, 'Port is already in use');
       process.exit(1);
     }
   } else {
-    console.error('❌ Server error:', error);
+    logger.error({ err: error }, 'Server error');
   }
 });
 
 // Graceful shutdown
 process.on('SIGTERM', () => {
-  console.log('⚠️  SIGTERM signal received: closing HTTP server');
+  logger.info('SIGTERM signal received: closing HTTP server');
   scheduler.stopAll();
   wsService.shutdown();
   server.close(() => {
-    console.log('✅ HTTP server closed');
+    logger.info('HTTP server closed');
     pool.end(() => {
-      console.log('✅ Database pool closed');
+      logger.info('Database pool closed');
       process.exit(0);
     });
   });
 });
 
 process.on('SIGINT', () => {
-  console.log('\n⚠️  SIGINT signal received: closing HTTP server');
+  logger.info('SIGINT signal received: closing HTTP server');
   scheduler.stopAll();
   wsService.shutdown();
   server.close(() => {
-    console.log('✅ HTTP server closed');
+    logger.info('HTTP server closed');
     pool.end(() => {
-      console.log('✅ Database pool closed');
+      logger.info('Database pool closed');
       process.exit(0);
     });
   });
@@ -3286,12 +3330,12 @@ process.on('SIGINT', () => {
 
 // Handle uncaught exceptions
 process.on('uncaughtException', (error) => {
-  console.error('❌ Uncaught Exception:', error);
+  logger.error({ err: error }, 'Uncaught Exception');
   process.exit(1);
 });
 
 // Handle unhandled promise rejections
 process.on('unhandledRejection', (reason, promise) => {
-  console.error('❌ Unhandled Rejection at:', promise, 'reason:', reason);
+  logger.error({ err: reason, promise: String(promise) }, 'Unhandled Rejection');
   process.exit(1);
 });

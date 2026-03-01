@@ -11,6 +11,18 @@ const OrderModificationService = require('../services/OrderModificationService')
 const { asyncHandler, ApiError } = require('../middleware/errorHandler');
 const { authenticate, requireRole } = require('../middleware/auth');
 
+/**
+ * Escape a value for safe CSV output
+ */
+function escapeCsvField(value) {
+  if (value == null) return '';
+  const str = String(value);
+  if (str.includes(',') || str.includes('"') || str.includes('\n')) {
+    return '"' + str.replace(/"/g, '""') + '"';
+  }
+  return str;
+}
+
 // ============================================================================
 // MODULE STATE
 // ============================================================================
@@ -95,6 +107,204 @@ const markBackorderedSchema = Joi.object({
     .min(1)
     .required(),
 });
+
+// ============================================================================
+// PERMISSION / AUDIT / TAX ROUTES (must be before parameterized /:orderId)
+// ============================================================================
+
+/**
+ * GET /api/order-modifications/check-permission/:orderId
+ * Pre-check whether the current user can edit a specific order
+ */
+router.get('/check-permission/:orderId',
+  authenticate,
+  asyncHandler(async (req, res) => {
+    const orderId = parseInt(req.params.orderId);
+    const userId = req.user.id;
+    const userRole = req.user.role;
+
+    // Get order status
+    const orderResult = await pool.query(
+      'SELECT id, status, order_number FROM orders WHERE id = $1',
+      [orderId]
+    );
+    if (orderResult.rows.length === 0) {
+      throw ApiError.notFound('Order not found');
+    }
+    const order = orderResult.rows[0];
+
+    // Get role permissions from amendment_permissions table
+    const permResult = await pool.query(
+      'SELECT * FROM amendment_permissions WHERE role_name = $1',
+      [userRole]
+    );
+
+    const isPostInvoice = ['invoiced', 'paid', 'order_completed', 'completed'].includes(order.status);
+    let canEdit = false;
+    let requiresApproval = true;
+    let maxAdjustmentCents = null;
+    let reason = '';
+
+    if (permResult.rows.length > 0) {
+      const perm = permResult.rows[0];
+      canEdit = isPostInvoice ? perm.can_edit_post_invoice : perm.can_edit_pre_invoice;
+      requiresApproval = perm.requires_approval;
+      maxAdjustmentCents = perm.max_adjustment_cents;
+
+      if (!canEdit) {
+        reason = isPostInvoice
+          ? 'Your role cannot edit post-invoice orders'
+          : 'Your role cannot edit orders';
+      }
+    } else {
+      // No permission entry for this role — default to no access
+      reason = 'No amendment permissions configured for your role';
+    }
+
+    res.json({
+      success: true,
+      data: {
+        canEdit,
+        requiresApproval,
+        maxAdjustmentCents,
+        maxAdjustmentDollars: maxAdjustmentCents ? maxAdjustmentCents / 100 : null,
+        orderStatus: order.status,
+        isPostInvoice,
+        reason,
+      }
+    });
+  })
+);
+
+/**
+ * GET /api/order-modifications/audit-report
+ * Date-range audit export — admin only
+ */
+router.get('/audit-report',
+  authenticate,
+  requireRole('admin'),
+  asyncHandler(async (req, res) => {
+    const { startDate, endDate, format } = req.query;
+
+    if (!startDate || !endDate) {
+      throw ApiError.badRequest('startDate and endDate query parameters are required');
+    }
+
+    const result = await pool.query(
+      `SELECT * FROM v_amendment_audit_report
+       WHERE amendment_date >= $1 AND amendment_date < ($2::date + INTERVAL '1 day')
+       ORDER BY amendment_date`,
+      [startDate, endDate]
+    );
+
+    if (format === 'csv') {
+      // Flatten each amendment row + its item changes into CSV rows
+      const csvHeaders = [
+        'Amendment #', 'Date', 'Order #', 'Customer', 'Requested By', 'Approved By',
+        'Type', 'Status', 'Previous Total ($)', 'New Total ($)', 'Difference ($)',
+        'Item Change Type', 'Product SKU', 'Product Name', 'Previous Qty', 'New Qty',
+        'Unit Price ($)', 'Line Difference ($)',
+        'Credit Memo #', 'Credit Memo Total ($)', 'Credit Memo Status',
+        'Rejection Reason'
+      ];
+
+      const csvRows = [csvHeaders.join(',')];
+
+      for (const row of result.rows) {
+        const items = row.items_changed || [{ change_type: '', product_sku: '', product_name: '', previous_quantity: '', new_quantity: '', unit_price: '', line_difference: '' }];
+        for (const item of items) {
+          csvRows.push([
+            escapeCsvField(row.amendment_number),
+            escapeCsvField(row.amendment_date ? new Date(row.amendment_date).toISOString().split('T')[0] : ''),
+            escapeCsvField(row.order_number),
+            escapeCsvField(row.customer_name),
+            escapeCsvField(row.requested_by),
+            escapeCsvField(row.approved_by),
+            escapeCsvField(row.amendment_type),
+            escapeCsvField(row.amendment_status),
+            row.previous_total != null ? Number(row.previous_total).toFixed(2) : '',
+            row.new_total != null ? Number(row.new_total).toFixed(2) : '',
+            row.difference != null ? Number(row.difference).toFixed(2) : '',
+            escapeCsvField(item.change_type),
+            escapeCsvField(item.product_sku),
+            escapeCsvField(item.product_name),
+            item.previous_quantity != null ? item.previous_quantity : '',
+            item.new_quantity != null ? item.new_quantity : '',
+            item.unit_price != null ? Number(item.unit_price).toFixed(2) : '',
+            item.line_difference != null ? Number(item.line_difference).toFixed(2) : '',
+            escapeCsvField(row.credit_memo_number),
+            row.credit_memo_total != null ? Number(row.credit_memo_total).toFixed(2) : '',
+            escapeCsvField(row.credit_memo_status),
+            escapeCsvField(row.rejection_reason),
+          ].join(','));
+        }
+      }
+
+      const csvContent = csvRows.join('\n');
+      res.setHeader('Content-Type', 'text/csv');
+      res.setHeader('Content-Disposition', `attachment; filename="amendment-audit-report_${startDate}_to_${endDate}.csv"`);
+      return res.send(csvContent);
+    }
+
+    res.json({
+      success: true,
+      data: result.rows,
+      meta: {
+        startDate,
+        endDate,
+        totalRecords: result.rows.length,
+      }
+    });
+  })
+);
+
+/**
+ * GET /api/order-modifications/year-end-summary/:year
+ * Year-end tax summary — admin only
+ */
+router.get('/year-end-summary/:year',
+  authenticate,
+  requireRole('admin'),
+  asyncHandler(async (req, res) => {
+    const year = parseInt(req.params.year);
+
+    if (isNaN(year) || year < 2000 || year > 2100) {
+      throw ApiError.badRequest('Invalid year');
+    }
+
+    const result = await pool.query(
+      `SELECT * FROM v_year_end_tax_summary
+       WHERE EXTRACT(YEAR FROM month) = $1
+       ORDER BY month`,
+      [year]
+    );
+
+    // Also get annual totals
+    const totalsResult = await pool.query(
+      `SELECT
+        SUM(total_amendments)::integer as total_amendments,
+        SUM(applied_amendments)::integer as applied_amendments,
+        SUM(rejected_amendments)::integer as rejected_amendments,
+        SUM(net_adjustment_total) as net_adjustment_total,
+        SUM(total_increases) as total_increases,
+        SUM(total_decreases) as total_decreases,
+        SUM(credit_memos_issued)::integer as credit_memos_issued,
+        SUM(credit_memo_total) as credit_memo_total
+       FROM v_year_end_tax_summary
+       WHERE EXTRACT(YEAR FROM month) = $1`,
+      [year]
+    );
+
+    res.json({
+      success: true,
+      data: {
+        year,
+        monthly: result.rows,
+        annual: totalsResult.rows[0] || {},
+      }
+    });
+  })
+);
 
 // ============================================================================
 // ORDER ROUTES
@@ -220,17 +430,27 @@ router.post(
     }
 
     const orderId = parseInt(req.params.orderId);
-    const result = await modificationService.createAmendment(
-      orderId,
-      value.amendmentType,
-      value,
-      req.user.id
-    );
 
-    res.status(201).json({
-      success: true,
-      data: result,
-    });
+    try {
+      const result = await modificationService.createAmendment(
+        orderId,
+        value.amendmentType,
+        value,
+        req.user.id,
+        req.user.role
+      );
+
+      res.status(201).json({
+        success: true,
+        data: result,
+      });
+    } catch (err) {
+      // Convert permission errors to 403 with descriptive messages
+      if (err.message && (err.message.includes('role') || err.message.includes('limit') || err.message.includes('permission'))) {
+        throw ApiError.forbidden(err.message);
+      }
+      throw err;
+    }
   })
 );
 
@@ -549,6 +769,12 @@ const init = (deps) => {
   pool = deps.pool;
   cache = deps.cache;
   modificationService = new OrderModificationService(pool, cache);
+
+  // Wire CreditMemoService so amendments can auto-generate credit memos
+  const CreditMemoService = require('../services/CreditMemoService');
+  const cms = new CreditMemoService(pool, cache);
+  modificationService.setCreditMemoService(cms);
+
   return router;
 };
 

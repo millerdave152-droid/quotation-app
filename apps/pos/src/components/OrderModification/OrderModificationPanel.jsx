@@ -389,9 +389,26 @@ function AmendmentCard({ amendment, onApprove, onReject, onApply, canApprove }) 
             {new Date(amendment.createdAt).toLocaleString()}
           </p>
         </div>
-        <span className={`px-2 py-0.5 text-xs font-medium rounded ${statusColors[amendment.status]}`}>
-          {amendment.status.replace('_', ' ')}
-        </span>
+        <div className="flex items-center">
+          <span className={`px-2 py-0.5 text-xs font-medium rounded ${statusColors[amendment.status]}`}>
+            {amendment.status.replace('_', ' ')}
+          </span>
+          {/* Credit Memo indicator badge */}
+          {amendment.creditMemoId && (
+            <span style={{
+              display: 'inline-block',
+              background: '#dbeafe',
+              color: '#1e40af',
+              padding: '2px 8px',
+              borderRadius: '12px',
+              fontSize: '11px',
+              fontWeight: 600,
+              marginLeft: '8px',
+            }}>
+              Credit Memo
+            </span>
+          )}
+        </div>
       </div>
 
       <div className="flex items-center gap-4 text-sm mb-3">
@@ -502,6 +519,7 @@ export function OrderModificationPanel({ orderId, onClose }) {
     canApprove,
     priceChangeItems,
     loadAll,
+    loadAmendments,
     setPriceLock,
     removeItemFromPending,
     modifyItemInPending,
@@ -517,9 +535,106 @@ export function OrderModificationPanel({ orderId, onClose }) {
   const [submitReason, setSubmitReason] = useState('');
   const [useQuotePrices, setUseQuotePrices] = useState(false);
 
+  // Quick Amendment state
+  const [quickAmendMode, setQuickAmendMode] = useState(false);
+  const [quickAmendChanges, setQuickAmendChanges] = useState({});
+  const [quickAmendReason, setQuickAmendReason] = useState('');
+  const [quickAmendSubmitting, setQuickAmendSubmitting] = useState(false);
+  const [quickAmendSuccess, setQuickAmendSuccess] = useState(false);
+
   useEffect(() => {
     loadAll();
   }, [loadAll]);
+
+  // Quick Amendment helpers
+  const handleQuickAmendQtyChange = (itemId, newQty) => {
+    if (newQty < 0) return;
+    setQuickAmendChanges((prev) => {
+      const updated = { ...prev };
+      if (newQty === 0) {
+        // Treat zero quantity as removal
+        updated[itemId] = 'remove';
+      } else {
+        updated[itemId] = newQty;
+      }
+      return updated;
+    });
+  };
+
+  const handleQuickAmendRemoveToggle = (itemId) => {
+    setQuickAmendChanges((prev) => {
+      const updated = { ...prev };
+      if (updated[itemId] === 'remove') {
+        delete updated[itemId];
+      } else {
+        updated[itemId] = 'remove';
+      }
+      return updated;
+    });
+  };
+
+  const handleQuickAmendSubmit = async () => {
+    if (!quickAmendReason.trim()) return;
+
+    const entries = Object.entries(quickAmendChanges);
+    if (entries.length === 0) return;
+
+    const modify = entries
+      .filter(([id, val]) => {
+        if (val === 'remove') return false;
+        // Only include if quantity actually changed from original
+        const item = order.items.find((i) => i.id === parseInt(id));
+        return item && val !== item.quantity;
+      })
+      .map(([id, newQty]) => ({ orderItemId: parseInt(id), newQuantity: newQty }));
+
+    const remove = entries
+      .filter(([, val]) => val === 'remove')
+      .map(([id]) => ({ orderItemId: parseInt(id) }));
+
+    if (modify.length === 0 && remove.length === 0) return;
+
+    setQuickAmendSubmitting(true);
+    try {
+      const token = localStorage.getItem('auth_token');
+      const apiBase = import.meta.env.VITE_API_URL || '/api';
+      const response = await fetch(
+        `${apiBase}/order-modifications/${orderId}/amendments`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: token ? `Bearer ${token}` : '',
+          },
+          body: JSON.stringify({
+            amendmentType: 'item_modified',
+            reason: quickAmendReason,
+            changes: { modify, remove },
+          }),
+        }
+      );
+
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.error || data.message || 'Failed to submit amendment');
+      }
+
+      // Success: reset form and show feedback
+      setQuickAmendChanges({});
+      setQuickAmendReason('');
+      setQuickAmendMode(false);
+      setQuickAmendSuccess(true);
+      setTimeout(() => setQuickAmendSuccess(false), 4000);
+
+      // Refresh amendments list
+      loadAmendments();
+    } catch (err) {
+      console.error('[QuickAmend] Submit error:', err);
+      alert('Failed to submit amendment: ' + err.message);
+    } finally {
+      setQuickAmendSubmitting(false);
+    }
+  };
 
   const handleSubmitChanges = async () => {
     const result = await submitAmendment(
@@ -699,6 +814,178 @@ export function OrderModificationPanel({ orderId, onClose }) {
                 <span className="font-bold">{formatCurrency(order.totalAmount)}</span>
               </div>
             </div>
+
+            {/* Quick Amendment Success Banner */}
+            {quickAmendSuccess && (
+              <div className="p-3 bg-green-50 border border-green-200 rounded-lg flex items-center gap-2">
+                <CheckCircleIcon className="w-5 h-5 text-green-600 flex-shrink-0" />
+                <span className="text-sm font-medium text-green-800">
+                  Amendment submitted successfully
+                </span>
+              </div>
+            )}
+
+            {/* Quick Amendment Section */}
+            {order.status !== 'completed' && (
+              <div className="border border-gray-200 rounded-lg overflow-hidden">
+                <button
+                  onClick={() => {
+                    setQuickAmendMode((prev) => !prev);
+                    if (quickAmendMode) {
+                      setQuickAmendChanges({});
+                      setQuickAmendReason('');
+                    }
+                  }}
+                  className={`
+                    w-full flex items-center justify-between px-4 py-3
+                    text-sm font-medium transition-colors
+                    ${quickAmendMode
+                      ? 'bg-blue-50 text-blue-700 hover:bg-blue-100'
+                      : 'bg-gray-50 text-gray-700 hover:bg-gray-100'
+                    }
+                  `}
+                >
+                  <span className="flex items-center gap-2">
+                    <PencilIcon className="w-4 h-4" />
+                    {quickAmendMode ? 'Cancel Quick Amendment' : 'Create Quick Amendment'}
+                  </span>
+                  {quickAmendMode ? (
+                    <XMarkIcon className="w-4 h-4" />
+                  ) : (
+                    <PlusIcon className="w-4 h-4" />
+                  )}
+                </button>
+
+                {quickAmendMode && (
+                  <div className="p-4 space-y-4">
+                    <p className="text-xs text-gray-500">
+                      Adjust quantities or remove items. Price changes are not available from POS.
+                    </p>
+
+                    {/* Quick Amend Item Rows */}
+                    <div className="space-y-2">
+                      {order.items.map((item) => {
+                        const isRemoved = quickAmendChanges[item.id] === 'remove';
+                        const currentQty =
+                          quickAmendChanges[item.id] !== undefined && quickAmendChanges[item.id] !== 'remove'
+                            ? quickAmendChanges[item.id]
+                            : item.quantity;
+
+                        return (
+                          <div
+                            key={item.id}
+                            className={`
+                              flex items-center gap-3 p-3 rounded-lg border
+                              ${isRemoved
+                                ? 'border-red-200 bg-red-50 opacity-75'
+                                : 'border-gray-200 bg-white'
+                              }
+                            `}
+                          >
+                            {/* Product info */}
+                            <div className="flex-1 min-w-0">
+                              <p className={`text-sm font-medium truncate ${isRemoved ? 'line-through text-red-500' : 'text-gray-900'}`}>
+                                {item.productName}
+                              </p>
+                              <p className="text-xs text-gray-500">
+                                {item.productSku} | {formatCurrency(item.unitPrice)} each
+                              </p>
+                            </div>
+
+                            {/* Quantity controls */}
+                            {!isRemoved && (
+                              <div className="flex items-center gap-1">
+                                <button
+                                  onClick={() => handleQuickAmendQtyChange(item.id, currentQty - 1)}
+                                  disabled={currentQty <= 1}
+                                  className="w-7 h-7 flex items-center justify-center text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded disabled:opacity-30 disabled:cursor-not-allowed"
+                                >
+                                  <MinusIcon className="w-3.5 h-3.5" />
+                                </button>
+                                <input
+                                  type="number"
+                                  value={currentQty}
+                                  onChange={(e) => {
+                                    const val = parseInt(e.target.value);
+                                    if (!isNaN(val)) handleQuickAmendQtyChange(item.id, val);
+                                  }}
+                                  min="1"
+                                  className="w-14 h-7 text-center text-sm border border-gray-200 rounded"
+                                />
+                                <button
+                                  onClick={() => handleQuickAmendQtyChange(item.id, currentQty + 1)}
+                                  className="w-7 h-7 flex items-center justify-center text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded"
+                                >
+                                  <PlusIcon className="w-3.5 h-3.5" />
+                                </button>
+                              </div>
+                            )}
+
+                            {/* Original qty reference */}
+                            {!isRemoved && currentQty !== item.quantity && (
+                              <span className="text-xs text-blue-600 font-medium whitespace-nowrap">
+                                was {item.quantity}
+                              </span>
+                            )}
+
+                            {/* Remove toggle */}
+                            <button
+                              onClick={() => handleQuickAmendRemoveToggle(item.id)}
+                              className={`
+                                px-2.5 py-1 text-xs font-medium rounded-lg transition-colors whitespace-nowrap
+                                ${isRemoved
+                                  ? 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                                  : 'bg-red-100 text-red-700 hover:bg-red-200'
+                                }
+                              `}
+                            >
+                              {isRemoved ? 'Undo' : 'Remove'}
+                            </button>
+                          </div>
+                        );
+                      })}
+                    </div>
+
+                    {/* Reason + Submit */}
+                    <div className="space-y-3 pt-2 border-t border-gray-200">
+                      <div>
+                        <label className="block text-xs font-medium text-gray-700 mb-1">
+                          Reason for amendment <span className="text-red-500">*</span>
+                        </label>
+                        <input
+                          type="text"
+                          value={quickAmendReason}
+                          onChange={(e) => setQuickAmendReason(e.target.value)}
+                          placeholder="e.g., Customer requested quantity change..."
+                          className="w-full h-9 px-3 text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                        />
+                      </div>
+                      <button
+                        onClick={handleQuickAmendSubmit}
+                        disabled={
+                          quickAmendSubmitting ||
+                          !quickAmendReason.trim() ||
+                          Object.keys(quickAmendChanges).length === 0
+                        }
+                        className="w-full h-10 flex items-center justify-center gap-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed rounded-lg transition-colors"
+                      >
+                        {quickAmendSubmitting ? (
+                          <>
+                            <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                            Submitting...
+                          </>
+                        ) : (
+                          <>
+                            <CheckCircleIcon className="w-4 h-4" />
+                            Submit Amendment
+                          </>
+                        )}
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         )}
 
