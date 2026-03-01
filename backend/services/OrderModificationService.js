@@ -791,44 +791,28 @@ class OrderModificationService {
       [orderId]
     );
 
-    const subtotalCents = parseInt(itemsResult.rows[0].subtotal_cents);
-    const subtotal = subtotalCents / 100;
+    const newSubtotalCents = parseInt(itemsResult.rows[0].subtotal_cents);
 
-    // Get order for discount and tax province
+    // Get current order totals to derive effective tax rate
     const orderResult = await client.query(
-      'SELECT discount_cents, tax_province FROM orders WHERE id = $1',
+      'SELECT subtotal_cents, discount_cents, tax_cents, total_cents FROM orders WHERE id = $1',
       [orderId]
     );
 
     const order = orderResult.rows[0];
-    const discount = (order.discount_cents || 0) / 100;
+    const discountCents = order.discount_cents || 0;
 
-    // Calculate tax based on the order's province
-    const taxableAmount = subtotal - discount;
-    const TAX_RATES = {
-      ON: { hst: 0.13, gst: 0, pst: 0 },
-      NB: { hst: 0.15, gst: 0, pst: 0 },
-      NS: { hst: 0.15, gst: 0, pst: 0 },
-      NL: { hst: 0.15, gst: 0, pst: 0 },
-      PE: { hst: 0.15, gst: 0, pst: 0 },
-      BC: { hst: 0, gst: 0.05, pst: 0.07 },
-      SK: { hst: 0, gst: 0.05, pst: 0.06 },
-      MB: { hst: 0, gst: 0.05, pst: 0.07 },
-      QC: { hst: 0, gst: 0.05, pst: 0.09975 },
-      AB: { hst: 0, gst: 0.05, pst: 0 },
-      NT: { hst: 0, gst: 0.05, pst: 0 },
-      NU: { hst: 0, gst: 0.05, pst: 0 },
-      YT: { hst: 0, gst: 0.05, pst: 0 },
-    };
-    const province = order.tax_province || 'ON';
-    const rates = TAX_RATES[province] || TAX_RATES.ON;
-    const hstAmount = taxableAmount * rates.hst;
-    const gstAmount = taxableAmount * rates.gst;
-    // QST (Quebec) is compound: calculated on amount + GST
-    const pstBase = province === 'QC' ? taxableAmount + gstAmount : taxableAmount;
-    const pstAmount = pstBase * rates.pst;
-    const taxAmount = hstAmount + gstAmount + pstAmount;
-    const totalAmount = taxableAmount + taxAmount;
+    // Derive effective tax rate from existing order data
+    // taxRate = tax_cents / (subtotal_cents - discount_cents)
+    const oldTaxableBase = (order.subtotal_cents || 0) - discountCents;
+    const effectiveTaxRate = oldTaxableBase > 0
+      ? (order.tax_cents || 0) / oldTaxableBase
+      : 0.13; // Default to ON HST if no prior data
+
+    // Apply same tax rate to new subtotal
+    const newTaxableCents = newSubtotalCents - discountCents;
+    const newTaxCents = Math.round(newTaxableCents * effectiveTaxRate);
+    const newTotalCents = newTaxableCents + newTaxCents;
 
     // Update order
     await client.query(
@@ -838,7 +822,7 @@ class OrderModificationService {
            total_cents = $4,
            updated_at = NOW()
        WHERE id = $1`,
-      [orderId, Math.round(subtotal * 100), Math.round(taxAmount * 100), Math.round(totalAmount * 100)]
+      [orderId, newSubtotalCents, newTaxCents, newTotalCents]
     );
   }
 
