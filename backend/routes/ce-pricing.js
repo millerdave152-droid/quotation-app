@@ -334,7 +334,7 @@ router.get('/:upc', authenticate, asyncHandler(async (req, res) => {
 
   } catch (err) {
     // Rate-limited or API error — fall back to stale cache
-    if (err.statusCode === 429) {
+    if (err.statusCode === 429 || err.code === 'EPROTO' || err.code === 'ECONNREFUSED' || err.code === 'ENOTFOUND' || err.code === 'ERR_TLS_CERT_ALTNAME_INVALID') {
       const stale = await getStalePricing(productId, upc);
       if (stale) {
         return res.success({
@@ -347,9 +347,21 @@ router.get('/:upc', authenticate, asyncHandler(async (req, res) => {
           last_fetched_at: stale.lastFetchedAt,
           cached: true,
           stale: true,
-          message: 'Rate limited — returning stale cached data',
+          message: err.statusCode === 429
+            ? 'Rate limited — returning stale cached data'
+            : 'External API unavailable — returning stale cached data',
         });
       }
+      // No stale cache — return graceful empty response
+      return res.success({
+        upc,
+        competitor_pricing: null,
+        is_in_stock: false,
+        pricing_source: 'pricesapi',
+        last_fetched_at: null,
+        cached: false,
+        message: 'External pricing API temporarily unavailable',
+      });
     }
     throw err;
   }

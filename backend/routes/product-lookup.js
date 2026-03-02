@@ -20,13 +20,12 @@ function init({ pool }) {
 
     const code = barcode.trim();
 
-    // 1. Try exact match on barcode/upc field
+    // 1. Try exact match on UPC field
     let { rows: [product] } = await pool.query(
-      `SELECT p.*, c.name AS category_name, b.name AS brand_name
+      `SELECT p.*, c.name AS category_name, p.manufacturer AS brand_name
        FROM products p
        LEFT JOIN categories c ON c.id = p.category_id
-       LEFT JOIN brands b ON b.id = p.brand_id
-       WHERE (p.barcode = $1 OR p.upc = $1) AND p.deleted_at IS NULL AND p.is_active = true
+       WHERE p.upc = $1 AND p.is_active = true
        LIMIT 1`,
       [code]
     );
@@ -37,11 +36,10 @@ function init({ pool }) {
 
     // 2. Try exact match on SKU
     ({ rows: [product] } = await pool.query(
-      `SELECT p.*, c.name AS category_name, b.name AS brand_name
+      `SELECT p.*, c.name AS category_name, p.manufacturer AS brand_name
        FROM products p
        LEFT JOIN categories c ON c.id = p.category_id
-       LEFT JOIN brands b ON b.id = p.brand_id
-       WHERE p.sku = $1 AND p.deleted_at IS NULL AND p.is_active = true
+       WHERE p.sku = $1 AND p.is_active = true
        LIMIT 1`,
       [code]
     ));
@@ -54,11 +52,10 @@ function init({ pool }) {
     const trimmedCode = code.replace(/^0+/, '');
     if (trimmedCode !== code && trimmedCode.length >= 3) {
       ({ rows: [product] } = await pool.query(
-        `SELECT p.*, c.name AS category_name, b.name AS brand_name
+        `SELECT p.*, c.name AS category_name, p.manufacturer AS brand_name
          FROM products p
          LEFT JOIN categories c ON c.id = p.category_id
-         LEFT JOIN brands b ON b.id = p.brand_id
-         WHERE p.sku = $1 AND p.deleted_at IS NULL AND p.is_active = true
+         WHERE p.sku = $1 AND p.is_active = true
          LIMIT 1`,
         [trimmedCode]
       ));
@@ -70,11 +67,10 @@ function init({ pool }) {
 
     // 4. Try model number match
     ({ rows: [product] } = await pool.query(
-      `SELECT p.*, c.name AS category_name, b.name AS brand_name
+      `SELECT p.*, c.name AS category_name, p.manufacturer AS brand_name
        FROM products p
        LEFT JOIN categories c ON c.id = p.category_id
-       LEFT JOIN brands b ON b.id = p.brand_id
-       WHERE p.model = $1 AND p.deleted_at IS NULL AND p.is_active = true
+       WHERE p.model = $1 AND p.is_active = true
        LIMIT 1`,
       [code]
     ));
@@ -85,11 +81,10 @@ function init({ pool }) {
 
     // 5. Try case-insensitive SKU match
     ({ rows: [product] } = await pool.query(
-      `SELECT p.*, c.name AS category_name, b.name AS brand_name
+      `SELECT p.*, c.name AS category_name, p.manufacturer AS brand_name
        FROM products p
        LEFT JOIN categories c ON c.id = p.category_id
-       LEFT JOIN brands b ON b.id = p.brand_id
-       WHERE LOWER(p.sku) = LOWER($1) AND p.deleted_at IS NULL AND p.is_active = true
+       WHERE LOWER(p.sku) = LOWER($1) AND p.is_active = true
        LIMIT 1`,
       [code]
     ));

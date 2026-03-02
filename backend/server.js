@@ -45,6 +45,7 @@ const InventoryService = require('./services/InventoryService');
 const OrderService = require('./services/OrderService');
 const InvoiceService = require('./services/InvoiceService');
 const MonerisService = require('./services/MonerisService');
+const MonerisVaultService = require('./services/MonerisVaultService');
 const DeliveryService = require('./services/DeliveryService');
 const PricingService = require('./services/PricingService');
 const ProductMetricsService = require('./services/ProductMetricsService');
@@ -73,10 +74,17 @@ const emailService = require('./services/EmailService'); // singleton
 const NotificationService = require('./services/NotificationService');
 const TaxService = require('./services/TaxService');
 const FraudDetectionService = require('./services/FraudDetectionService');
+const FraudScoringService = require('./services/FraudScoringService');
 const VelocityService = require('./services/VelocityService');
 const BINValidationService = require('./services/BINValidationService');
 const AuditLogService = require('./services/AuditLogService');
 const EmployeeMonitorService = require('./services/EmployeeMonitorService');
+const ChargebackEvidenceService = require('./services/ChargebackEvidenceService');
+const LogArchiveService = require('./services/LogArchiveService');
+const FraudMLDataService = require('./services/FraudMLDataService');
+const MLScoringService = require('./services/MLScoringService');
+const FeatureStoreService = require('./services/FeatureStoreService');
+const redisConfig = require('./config/redis');
 const cron = require('node-cron');
 const DiscountAuthorityService = require('./services/DiscountAuthorityService');
 const SerialNumberService = require('./services/SerialNumberService');
@@ -276,40 +284,144 @@ const serialNumberService = new SerialNumberService(pool, cache);
 const purchaseOrderService = new PurchaseOrderService(pool, cache, serialNumberService);
 const productVariantService = new ProductVariantService(pool, cache);
 // Phase 2 Fraud Infrastructure: Redis + service wiring
-let redisClient = null;
-if (process.env.REDIS_URL) {
-  try {
-    const Redis = require('ioredis');
-    redisClient = new Redis(process.env.REDIS_URL, { maxRetriesPerRequest: 3, lazyConnect: true });
-    redisClient.on('error', (err) => logger.warn({ err }, 'Redis connection error — falling back to PostgreSQL'));
-    redisClient.connect().then(() => {
-      logger.info('Redis connected for velocity/BIN caching');
-    }).catch((redisConnErr) => {
-      logger.warn({ err: redisConnErr }, 'Redis connect failed — using PostgreSQL fallback');
-      redisClient = null;
-    });
-  } catch (redisErr) {
-    logger.warn({ err: redisErr }, 'Redis init failed — using PostgreSQL fallback');
-    redisClient = null;
-  }
+const redisClient = redisConfig.createClient();
+if (redisClient) {
+  redisConfig.connect().catch(() => {
+    logger.warn('[Server] Redis connect deferred — will use PostgreSQL fallback');
+  });
 }
 
 const auditLogService = new AuditLogService(pool);
+const logArchiveService = new LogArchiveService(pool);
 const velocityService = new VelocityService(pool, redisClient);
 const binService = new BINValidationService(pool, redisClient);
 const fraudService = new FraudDetectionService(pool, { velocityService, binService, auditLogService });
-const employeeMonitorService = new EmployeeMonitorService(pool, wsService);
+const mlScoringService = new MLScoringService();
+const fraudScoringService = new FraudScoringService(pool, { velocityService, binService, redisClient, mlScoringService });
+const employeeMonitorService = new EmployeeMonitorService(pool, { wsService, auditLogService });
+const chargebackEvidenceService = new ChargebackEvidenceService(pool, wsService);
+const fraudMLDataService = new FraudMLDataService(pool, redisClient);
+const featureStoreService = new FeatureStoreService(pool, redisClient);
+const vaultService = new MonerisVaultService(pool, monerisService, auditLogService);
 app.set('fraudService', fraudService);
+app.set('fraudScoringService', fraudScoringService);
 app.set('auditLogService', auditLogService);
+app.set('vaultService', vaultService);
 app.set('employeeMonitorService', employeeMonitorService);
+app.set('velocityService', velocityService);
+app.set('wsService', wsService);
 
-// Phase 3: Hourly employee monitoring cron
+// ── Scheduled jobs ──────────────────────────────────────────────────────────
+// Hourly: Refresh employee fraud metrics and detect anomalies
 cron.schedule('0 * * * *', () => {
-  employeeMonitorService.refreshProfiles()
-    .then(() => employeeMonitorService.detectAnomalies())
+  employeeMonitorService.refreshMetrics()
     .catch(err => logger.error({ err }, 'Employee monitor refresh failed'));
+  // Also refresh ML feature store materialized views
+  featureStoreService.refreshViews()
+    .catch(err => logger.error({ err }, 'Feature store refresh failed'));
 });
 logger.info('Employee monitor cron scheduled (hourly)');
+
+// Daily 3 AM: Audit log hash-chain integrity verification (yesterday's records)
+cron.schedule('0 3 * * *', () => {
+  const yesterday = new Date();
+  yesterday.setDate(yesterday.getDate() - 1);
+  const startOfDay = new Date(yesterday.getFullYear(), yesterday.getMonth(), yesterday.getDate());
+  const endOfDay = new Date(startOfDay);
+  endOfDay.setHours(23, 59, 59, 999);
+
+  auditLogService.verifyChainIntegrity(startOfDay, endOfDay)
+    .then(result => {
+      if (result.violations && result.violations.length > 0) {
+        logger.error({ violations: result.violations.length }, '[AuditChain] Daily integrity check: VIOLATIONS DETECTED');
+        if (wsService) {
+          wsService.broadcastToRoles(['admin'], 'audit:chain_violation', {
+            violations: result.violations.length,
+            verified: result.verified,
+            totalRecords: result.totalRecords,
+            timestamp: new Date().toISOString(),
+          });
+        }
+      } else {
+        logger.info({ verified: result.verified }, '[AuditChain] Daily integrity check passed');
+      }
+    })
+    .catch(err => logger.error({ err }, 'Audit chain verification failed'));
+});
+logger.info('Audit chain verification cron scheduled (daily 3 AM)');
+
+// Weekly Sunday 3:30 AM: Full 7-day chain verification + compliance summary
+cron.schedule('30 3 * * 0', () => {
+  const weekAgo = new Date();
+  weekAgo.setDate(weekAgo.getDate() - 7);
+
+  auditLogService.verifyChainIntegrity(weekAgo, new Date())
+    .then(result => {
+      logger.info({
+        verified: result.verified,
+        violations: result.violations.length,
+      }, '[AuditChain] Weekly integrity check complete');
+      return auditLogService.generateComplianceReport('week');
+    })
+    .then(report => {
+      logger.info({
+        totalEvents: report.total_events,
+        failedLogins: report.failed_logins.total,
+        chainStatus: report.chain_integrity.status,
+      }, '[Compliance] Weekly compliance summary generated');
+    })
+    .catch(err => logger.error({ err }, 'Weekly chain verification / compliance report failed'));
+});
+logger.info('Weekly chain verification + compliance summary cron scheduled (Sunday 3:30 AM)');
+
+// Monthly 1st at 5 AM: Generate monthly compliance report + archive old logs
+cron.schedule('0 5 1 * *', () => {
+  auditLogService.generateComplianceReport('month')
+    .then(report => {
+      logger.info({
+        period: report.report_period,
+        totalEvents: report.total_events,
+        chainStatus: report.chain_integrity.status,
+        retention: report.retention,
+      }, '[Compliance] Monthly compliance report generated');
+      // Archive logs older than 12 months to cold storage
+      return logArchiveService.archiveLogs(12);
+    })
+    .then(archiveResult => {
+      if (archiveResult.exported > 0) {
+        logger.info({
+          exported: archiveResult.exported,
+          files: archiveResult.files,
+        }, '[LogArchive] Monthly archive complete');
+      }
+    })
+    .catch(err => logger.error({ err }, 'Monthly compliance report / archive failed'));
+});
+logger.info('Monthly compliance report + log archive cron scheduled (1st at 5 AM)');
+
+// Daily 4 AM: Clean up velocity_events older than 30 days
+cron.schedule('0 4 * * *', () => {
+  employeeMonitorService.cleanupVelocityEvents()
+    .catch(err => logger.error({ err }, 'Velocity events cleanup failed'));
+});
+logger.info('Velocity events cleanup cron scheduled (daily 4 AM)');
+
+// Weekly Sunday 5 AM: Clean up expired bin_cache entries
+cron.schedule('0 5 * * 0', () => {
+  employeeMonitorService.cleanupExpiredBinCache()
+    .catch(err => logger.error({ err }, 'BIN cache cleanup failed'));
+});
+logger.info('BIN cache cleanup cron scheduled (weekly Sunday 5 AM)');
+
+// Chargeback deadline check (daily 9 AM)
+cron.schedule('0 9 * * *', () => {
+  if (chargebackRouter._checkDeadlines) {
+    chargebackRouter._checkDeadlines()
+      .catch(err => logger.error({ err }, 'Chargeback deadline check failed'));
+  }
+});
+logger.info('Chargeback deadline check cron scheduled (daily 9 AM)');
+
 app.set('pool', pool);
 app.set('cache', cache);
 const discountAuthorityService = new DiscountAuthorityService(pool);
@@ -940,16 +1052,25 @@ logger.info('Tax routes loaded');
 // FRAUD DETECTION & AUDIT
 // ============================================
 const { init: initFraudRoutes } = require('./routes/fraud');
-app.use('/api/fraud', initFraudRoutes({ fraudService, employeeMonitorService }));
+app.use('/api/fraud', initFraudRoutes({ fraudService, employeeMonitorService, cache, fraudMLDataService, mlScoringService, featureStoreService }));
 logger.info('Fraud detection routes loaded');
 
 const { init: initAuditRoutes } = require('./routes/audit');
-app.use('/api/audit', initAuditRoutes({ fraudService, auditLogService }));
+app.use('/api/audit', initAuditRoutes({ fraudService, auditLogService, logArchiveService }));
 logger.info('Audit log routes loaded');
 
 const { init: initChargebackRoutes } = require('./routes/chargebacks');
-app.use('/api/chargebacks', initChargebackRoutes({ fraudService }));
+const chargebackRouter = initChargebackRoutes({ fraudService, pool, upload, wsService, chargebackEvidenceService });
+app.use('/api/chargebacks', chargebackRouter);
 logger.info('Chargeback routes loaded');
+
+const { init: initMotoRoutes } = require('./routes/moto');
+app.use('/api/moto', initMotoRoutes({ pool, fraudService, fraudScoringService, monerisService, auditLogService }));
+logger.info('MOTO security routes loaded');
+
+const { init: initPaymentMethodRoutes } = require('./routes/payment-methods');
+app.use('/api/customers/:customerId/payment-methods', initPaymentMethodRoutes({ pool, vaultService }));
+logger.info('Payment methods (Moneris Vault) routes loaded');
 
 app.use('/api/serials', initSerialNumberRoutes({ serialService: serialNumberService }));
 app.use('/api/serial-numbers', initSerialNumberRoutes({ serialService: serialNumberService }));
@@ -2548,11 +2669,11 @@ app.get('/api/ai/recommendations/:productId', async (req, res) => {
         FROM products p
         LEFT JOIN product_pairs pp ON p.id = pp.product_id
         WHERE p.id != $1
-          AND p.status = 'active'
+          AND p.is_active = true
       )
       SELECT
         id,
-        model_number,
+        model,
         manufacturer,
         category,
         description,
@@ -2573,10 +2694,18 @@ app.get('/api/ai/recommendations/:productId', async (req, res) => {
       const remainingCount = parseInt(limit) - finalRecommendations.length;
       const existingIds = finalRecommendations.map(r => r.id);
 
+      const baseParams = [productId, baseProduct.category, remainingCount];
+      const excludeClause = existingIds.length > 0
+        ? 'AND p.id != ALL($4::int[])'
+        : '';
+      const queryParams = existingIds.length > 0
+        ? [...baseParams, existingIds]
+        : baseParams;
+
       const popularProducts = await pool.query(`
         SELECT
           p.id,
-          p.model_number,
+          p.model,
           p.manufacturer,
           p.category,
           p.description,
@@ -2587,13 +2716,13 @@ app.get('/api/ai/recommendations/:productId', async (req, res) => {
         FROM products p
         LEFT JOIN quotation_items qi ON p.id = qi.product_id
         WHERE p.id != $1
-          AND p.status = 'active'
+          AND p.is_active = true
           AND p.category = $2
-          ${existingIds.length > 0 ? 'AND p.id NOT IN (' + existingIds.join(',') + ')' : ''}
+          ${excludeClause}
         GROUP BY p.id
         ORDER BY times_quoted DESC, margin_percent DESC
         LIMIT $3
-      `, [productId, baseProduct.category, remainingCount]);
+      `, queryParams);
 
       finalRecommendations = [...finalRecommendations, ...popularProducts.rows];
     }
@@ -2602,13 +2731,13 @@ app.get('/api/ai/recommendations/:productId', async (req, res) => {
       success: true,
       baseProduct: {
         id: baseProduct.id,
-        model_number: baseProduct.model_number,
+        model: baseProduct.model,
         manufacturer: baseProduct.manufacturer,
         category: baseProduct.category
       },
       recommendations: finalRecommendations.map(rec => ({
         id: rec.id,
-        modelNumber: rec.model_number,
+        modelNumber: rec.model,
         manufacturer: rec.manufacturer,
         category: rec.category,
         description: rec.description,
@@ -2683,7 +2812,7 @@ app.post('/api/ai/upsell-suggestions', async (req, res) => {
           AND p.manufacturer = $2
           AND p.msrp_cents > $3
           AND p.msrp_cents <= $3 * 1.5
-          AND p.status = 'active'
+          AND p.is_active = true
           AND p.id != $4
         ORDER BY margin_percent DESC
         LIMIT 2
@@ -2698,12 +2827,12 @@ app.post('/api/ai/upsell-suggestions', async (req, res) => {
             type: 'upgrade',
             originalProduct: {
               id: lowMarginProduct.id,
-              modelNumber: lowMarginProduct.model_number,
+              modelNumber: lowMarginProduct.model,
               msrp: lowMarginProduct.msrp_cents / 100
             },
             suggestedProduct: {
               id: upgrade.id,
-              modelNumber: upgrade.model_number,
+              modelNumber: upgrade.model,
               manufacturer: upgrade.manufacturer,
               description: upgrade.description,
               msrp: upgrade.msrp_cents / 100,
@@ -2793,7 +2922,7 @@ app.post('/api/ai/upsell-suggestions', async (req, res) => {
     const frequentPairsResult = await pool.query(`
       SELECT
         p.id,
-        p.model_number,
+        p.model,
         p.manufacturer,
         p.category,
         p.description,
@@ -2806,7 +2935,7 @@ app.post('/api/ai/upsell-suggestions', async (req, res) => {
       JOIN products p ON qi2.product_id = p.id
       WHERE qi1.product_id = ANY($1::int[])
         AND qi2.product_id != ALL($1::int[])
-        AND p.status = 'active'
+        AND p.is_active = true
       GROUP BY p.id
       HAVING COUNT(DISTINCT qi2.quotation_id) >= 2
       ORDER BY times_paired DESC, margin_percent DESC
@@ -2818,7 +2947,7 @@ app.post('/api/ai/upsell-suggestions', async (req, res) => {
         type: 'bundle',
         product: {
           id: bundle.id,
-          modelNumber: bundle.model_number,
+          modelNumber: bundle.model,
           manufacturer: bundle.manufacturer,
           category: bundle.category,
           description: bundle.description,
@@ -3179,10 +3308,65 @@ app.use(errorHandler);
 // ============================================
 // START SERVER
 // ============================================
+
+// Initialize audit log hash chain before accepting requests
+auditLogService.initializeChain().catch(err => {
+  logger.error({ err }, '[AuditLog] Chain init failed — will lazy-init on first write');
+});
+
+// Rebuild velocity counters from PostgreSQL if Redis was restarted
+velocityService.rebuildFromPostgres().catch(err => {
+  logger.warn({ err: err.message }, '[VelocityService] Startup rebuild failed — will count from zero');
+});
+
+// Preload common Canadian bank BINs into cache
+binService.preloadCanadianBINs().catch(err => {
+  logger.warn({ err: err.message }, '[BINService] Canadian BIN preload failed — will use API/static fallback');
+});
+
+// Initialize fraud scoring engine (loads rules, starts auto-refresh)
+fraudScoringService.initialize().catch(err => {
+  logger.warn({ err: err.message }, '[FraudScoring] Initialization failed — will lazy-load rules on first score');
+});
+
 let serverStarted = false;
 const server = app.listen(PORT, () => {
   serverStarted = true;
   logger.info({ port: PORT, env: process.env.NODE_ENV || 'development', url: `http://localhost:${PORT}` }, '[Server] Customer Quotation App backend started');
+
+  // PCI DSS Req 10.6 — NTP synchronization check
+  (() => {
+    const https = require('https');
+    const checkStart = Date.now();
+    https.get('https://worldtimeapi.org/api/timezone/Etc/UTC', (resp) => {
+      let data = '';
+      resp.on('data', chunk => { data += chunk; });
+      resp.on('end', () => {
+        try {
+          const parsed = JSON.parse(data);
+          const serverTime = Date.now();
+          const ntpTime = new Date(parsed.utc_datetime).getTime();
+          const driftMs = Math.abs(serverTime - ntpTime);
+          if (driftMs > 1000) {
+            logger.warn({ driftMs, serverTime: new Date(serverTime).toISOString(), ntpTime: parsed.utc_datetime },
+              '[NTP] Clock drift exceeds 1 second — PCI DSS Req 10.6 requires NTP synchronization');
+            auditLogService.logEvent({
+              eventType: 'system.ntp_drift',
+              eventCategory: 'system',
+              severity: 'warning',
+              details: { drift_ms: driftMs, server_time: new Date(serverTime).toISOString(), ntp_time: parsed.utc_datetime },
+            });
+          } else {
+            logger.info({ driftMs }, '[NTP] Clock synchronized (drift within tolerance)');
+          }
+        } catch (_) {
+          logger.warn('[NTP] Could not parse NTP response — manual verification recommended');
+        }
+      });
+    }).on('error', () => {
+      logger.warn('[NTP] Could not reach time server — manual NTP verification recommended');
+    });
+  })();
 
   // CE integration key checks (non-fatal)
   if (!process.env.BARCODE_LOOKUP_API_KEY) {

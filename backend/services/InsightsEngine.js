@@ -324,7 +324,7 @@ class InsightsEngine {
         type: this.TYPES.INVENTORY_LOW,
         priority,
         title,
-        message: `${row.stock_quantity} units remaining${row.avg_daily_sales > 0 ? ` (selling ${row.avg_daily_sales.toFixed(1)}/day)` : ''}. Reorder point: ${row.reorder_point}`,
+        message: `${row.stock_quantity} units remaining${parseFloat(row.avg_daily_sales) > 0 ? ` (selling ${parseFloat(row.avg_daily_sales).toFixed(1)}/day)` : ''}. Reorder point: ${row.reorder_point}`,
         timestamp: new Date().toISOString(),
         data: {
           productId: row.id,

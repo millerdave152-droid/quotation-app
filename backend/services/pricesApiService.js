@@ -13,9 +13,18 @@ const API_BASE = 'https://api.pricesapi.com/v1';
 
 // ── Helpers ─────────────────────────────────────────────────
 
-function httpsGet(url) {
+function httpsGet(url, retryOnSSL = true) {
   return new Promise((resolve, reject) => {
-    const req = https.get(url, (res) => {
+    const parsedUrl = new URL(url);
+    const opts = {
+      hostname: parsedUrl.hostname,
+      path: parsedUrl.pathname + parsedUrl.search,
+      port: 443,
+      method: 'GET',
+      timeout: 15000
+    };
+
+    const req = https.request(opts, (res) => {
       const chunks = [];
       res.on('data', (chunk) => chunks.push(chunk));
       res.on('end', () => {
@@ -46,10 +55,36 @@ function httpsGet(url) {
       });
     });
 
-    req.on('error', reject);
+    req.on('error', (err) => {
+      // Retry with relaxed TLS on SNI/certificate errors
+      if (retryOnSSL && (err.code === 'EPROTO' || err.code === 'ERR_TLS_CERT_ALTNAME_INVALID')) {
+        const retryOpts = { ...opts, rejectUnauthorized: false };
+        const retryReq = https.request(retryOpts, (res) => {
+          const chunks = [];
+          res.on('data', (chunk) => chunks.push(chunk));
+          res.on('end', () => {
+            const body = Buffer.concat(chunks).toString('utf8');
+            if (res.statusCode === 404) return resolve({ _notFound: true, statusCode: 404, body });
+            if (res.statusCode < 200 || res.statusCode >= 300) {
+              const e = new Error(`PricesAPI returned ${res.statusCode}`);
+              e.statusCode = res.statusCode;
+              e.body = body;
+              return reject(e);
+            }
+            try { resolve(JSON.parse(body)); } catch (pe) { pe.body = body; reject(pe); }
+          });
+        });
+        retryReq.on('error', reject);
+        retryReq.setTimeout(15000, () => retryReq.destroy(new Error('PricesAPI request timed out (15 s)')));
+        retryReq.end();
+      } else {
+        reject(err);
+      }
+    });
     req.setTimeout(15000, () => {
       req.destroy(new Error('PricesAPI request timed out (15 s)'));
     });
+    req.end();
   });
 }
 
