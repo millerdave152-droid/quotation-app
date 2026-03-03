@@ -17,6 +17,10 @@
 const { SkulyticsRateLimitError, SkulyticsApiError } = require('../../services/skulytics/SkulyticsApiClient');
 const { buildQuoteSnapshot } = require('../../services/skulytics/SkulyticsSnapshotService');
 
+// ── Shared mock state (prefixed with "mock" so jest.mock can reference them) ──
+
+const mockUpsertedProducts = new Map();
+
 // ── Mock the normalize and skulyticsUpsert modules ──────────
 // These are imported by SkulyticsSyncService at load time.
 
@@ -59,16 +63,11 @@ jest.mock('../../services/skulytics/normalizers', () => ({
   })),
 }));
 
-// Track upserted products in memory for assertion
-const _upsertedProducts = new Map();
-let _upsertCallCount = 0;
-
 jest.mock('../../services/skulytics/skulyticsUpsert', () => ({
-  skulyticsUpsert: jest.fn(async (product, syncRunId, _pgClient) => {
-    _upsertCallCount++;
-    const existing = _upsertedProducts.has(product.skulytics_id);
+  skulyticsUpsert: jest.fn(async (product, syncRunId) => {
+    const existing = mockUpsertedProducts.has(product.skulytics_id);
     // Store product data for later assertions
-    _upsertedProducts.set(product.skulytics_id, {
+    mockUpsertedProducts.set(product.skulytics_id, {
       ...product,
       sync_run_id: syncRunId,
       is_stale: false,
@@ -200,17 +199,6 @@ function createMockPool() {
       return { rows: [], rowCount: 0 };
     }
 
-    // ── UPDATE skulytics_sync_runs SET status (manual test update) ──
-    if (trimmed.includes('UPDATE skulytics_sync_runs SET status')) {
-      // Generic update — parse id from params
-      const id = params[0];
-      const run = syncRuns.get(id);
-      if (run) {
-        run.status = 'completed';
-      }
-      return { rows: [], rowCount: 1 };
-    }
-
     // Default: return empty
     return { rows: [], rowCount: 0 };
   }
@@ -304,8 +292,7 @@ describe('Skulytics Sync Pipeline (integration)', () => {
 
   beforeEach(() => {
     testPool = createMockPool();
-    _upsertedProducts.clear();
-    _upsertCallCount = 0;
+    mockUpsertedProducts.clear();
 
     mockApi = new MockApiClient();
     mockNotifier = { sendAdminAlert: jest.fn() };
@@ -313,6 +300,9 @@ describe('Skulytics Sync Pipeline (integration)', () => {
     // Reset the skulyticsUpsert mock call tracking
     const { skulyticsUpsert } = require('../../services/skulytics/skulyticsUpsert');
     skulyticsUpsert.mockClear();
+
+    const { normalize } = require('../../services/skulytics/normalizers');
+    normalize.mockClear();
   });
 
   // ── Helper to build service ─────────────────────────────
@@ -346,7 +336,7 @@ describe('Skulytics Sync Pipeline (integration)', () => {
     expect(result.failed).toBe(0);
 
     // Verify all 30 products were upserted
-    expect(_upsertedProducts.size).toBe(30);
+    expect(mockUpsertedProducts.size).toBe(30);
 
     // Verify sync run record
     const run = testPool._syncRuns.get(result.runId);
@@ -356,7 +346,7 @@ describe('Skulytics Sync Pipeline (integration)', () => {
     expect(run.completed_at).not.toBeNull();
 
     // Verify all products are not stale (just synced)
-    const products = Array.from(_upsertedProducts.values());
+    const products = Array.from(mockUpsertedProducts.values());
     const staleProducts = products.filter(p => p.is_stale);
     expect(staleProducts).toHaveLength(0);
   }, 30000);
@@ -384,7 +374,7 @@ describe('Skulytics Sync Pipeline (integration)', () => {
     expect(run1.api_cursor).toBe('cursor-page-2');
 
     // 10 products upserted from first batch
-    expect(_upsertedProducts.size).toBe(10);
+    expect(mockUpsertedProducts.size).toBe(10);
 
     // Manually mark run1 as 'completed' so cursor resume works
     // (in real usage, partial runs with cursor would need retry logic
@@ -412,7 +402,7 @@ describe('Skulytics Sync Pipeline (integration)', () => {
     expect(mockApi2.getProductsCalls[0].cursor).toBe('cursor-page-2');
 
     // Total: 10 + 20 = 30 products
-    expect(_upsertedProducts.size).toBe(30);
+    expect(mockUpsertedProducts.size).toBe(30);
   }, 30000);
 
   // ════════════════════════════════════════════════════════
@@ -429,7 +419,7 @@ describe('Skulytics Sync Pipeline (integration)', () => {
 
     expect(result1.status).toBe('completed');
     expect(result1.created).toBe(10);
-    expect(_upsertedProducts.size).toBe(10);
+    expect(mockUpsertedProducts.size).toBe(10);
 
     // Second sync with identical data — the mock skulyticsUpsert returns 'updated'
     // for products that already exist in the map
@@ -449,7 +439,7 @@ describe('Skulytics Sync Pipeline (integration)', () => {
     expect(result2.created).toBe(0);
 
     // Count stays at 10 — no duplicates
-    expect(_upsertedProducts.size).toBe(10);
+    expect(mockUpsertedProducts.size).toBe(10);
   }, 30000);
 
   // ════════════════════════════════════════════════════════
@@ -506,7 +496,7 @@ describe('Skulytics Sync Pipeline (integration)', () => {
     expect(secondNormalized.is_discontinued).toBe(true);
 
     // Verify the upsert stored the discontinued state
-    const stored = _upsertedProducts.get('SKU-TEST-001');
+    const stored = mockUpsertedProducts.get('SKU-TEST-001');
     expect(stored).toBeDefined();
     expect(stored.is_discontinued).toBe(true);
   }, 30000);

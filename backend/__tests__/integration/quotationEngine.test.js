@@ -103,7 +103,7 @@ function buildMockClient(opts = {}) {
     }
 
     // Quote number generation
-    if (s.includes('MAX(CAST(SUBSTRING(quote_number')) || s.includes('tenant_quote_sequences')) {
+    if (s.includes('MAX(CAST(SUBSTRING(quote_number') || s.includes('tenant_quote_sequences')) {
       return Promise.resolve({ rows: [{ next_num: 1 }] });
     }
 
