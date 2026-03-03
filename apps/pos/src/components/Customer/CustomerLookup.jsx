@@ -334,7 +334,7 @@ export function CustomerLookup({
 
     document.addEventListener('keydown', handleEscape);
     return () => document.removeEventListener('keydown', handleEscape);
-  }, [isOpen, showQuotesPanel, showQuickAdd, onClose]);
+  }, [isOpen, showDetailPanel, showQuotesPanel, showQuickAdd, onClose]);
 
   // Prevent body scroll
   useEffect(() => {

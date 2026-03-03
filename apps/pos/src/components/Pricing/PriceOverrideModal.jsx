@@ -233,7 +233,6 @@ export function PriceOverrideModal({
     overridePrice,
     reasonText,
     canApproveOverrides,
-    quantity,
     onApply,
     onRequestApproval,
     onClose,

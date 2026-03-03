@@ -241,7 +241,7 @@ export function SchedulePicker({ optionType, _address, onComplete, onBack }) {
     };
 
     fetchSlots();
-  }, [selectedDate, optionType]);
+  }, [selectedDate, optionType, generateDefaultSlots]);
 
   // Generate default time slots
   const generateDefaultSlots = useCallback(() => {

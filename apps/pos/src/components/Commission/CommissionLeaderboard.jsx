@@ -137,7 +137,7 @@ export default function CommissionLeaderboard({
 
   useEffect(() => {
     fetchLeaderboard();
-  }, [period]);
+  }, [period]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Find current user's position
   const currentUserEntry = leaderboard.find(e => e.repId === currentUserId);

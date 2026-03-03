@@ -60,7 +60,7 @@ export default function StoreCreditPayment({ amountDue, onComplete, onBack, isPa
       storeCreditAmountCents: applyCents,
       storeCreditRemainingCents: balanceCents - applyCents,
     });
-  }, [credit, applyAmount, onComplete]);
+  }, [credit, applyAmount, balanceCents, onComplete]);
 
   return (
     <div className="flex flex-col h-full">

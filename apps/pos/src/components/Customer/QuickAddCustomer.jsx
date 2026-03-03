@@ -149,7 +149,7 @@ export function QuickAddCustomer({
     } finally {
       setIsSubmitting(false);
     }
-  }, [firstName, lastName, phone, email, marketingSource, marketingSourceDetail, commPrefs, onComplete]);
+  }, [firstName, lastName, phone, email, marketingSource, marketingSourceDetail, commPrefs, onComplete]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Success state
   if (success) {

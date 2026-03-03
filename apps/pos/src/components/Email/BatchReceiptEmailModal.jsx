@@ -153,7 +153,7 @@ export default function BatchReceiptEmailModal({
         getUnsentForToday();
       }
     }
-  }, [isOpen, mode, shiftId, date, transactionIds]);
+  }, [isOpen, mode, shiftId, date, transactionIds]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Auto-select all when receipts load
   useEffect(() => {

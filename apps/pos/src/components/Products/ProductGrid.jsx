@@ -216,7 +216,7 @@ export function ProductGrid({
         observerRef.current.disconnect();
       }
     };
-  }, [hasMore, isLoading, onLoadMore]);
+  }, [hasMore, isLoading, onLoadMore]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Handle product selection
   const handleProductSelect = useCallback(
