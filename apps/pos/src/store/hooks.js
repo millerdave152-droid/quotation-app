@@ -6,7 +6,7 @@
 import { useCallback, useMemo } from 'react';
 import { useUnifiedStore, useCustomer, useCart, usePricing, useDrafts, useSync } from './unifiedStore';
 import { useOfflineSync } from './offlineSync';
-import { draftApi, generateDraftKey, getDeviceId } from './draftApi';
+import { draftApi, getDeviceId } from './draftApi';
 
 // ============================================================================
 // UNIFIED CART HOOK
@@ -276,7 +276,7 @@ export const useDraftManagement = (options = {}) => {
       console.error('Failed to save draft:', error);
       throw error;
     }
-  }, [draftType, userId, drafts, offlineSync]);
+  }, [draftType, drafts, offlineSync]);
 
   // Load a draft
   const loadDraft = useCallback(async (draftIdOrKey) => {
