@@ -138,19 +138,18 @@ router.get('/',
         p.name,
         p.model,
         p.sku,
-        p.barcode,
+        p.upc,
         p.description,
         p.category_id,
         cat.name as category_name,
-        p.brand_id,
-        b.name as brand_name,
+        p.manufacturer as brand_name,
         p.cost_cents,
         p.sell_cents,
         p.msrp_cents,
-        p.quantity_on_hand,
-        p.quantity_reserved,
-        p.quantity_available,
-        p.min_quantity,
+        p.qty_on_hand,
+        p.qty_reserved,
+        p.qty_available,
+        p.minimum_order_qty,
         p.reorder_point,
         p.taxable,
         p.track_inventory,
@@ -160,14 +159,13 @@ router.get('/',
         p.updated_at
       FROM products p
       LEFT JOIN categories cat ON p.category_id = cat.id
-      LEFT JOIN brands b ON p.brand_id = b.id
-      WHERE p.deleted_at IS NULL
+      WHERE p.is_active = true
     `;
     const params = [];
     let paramIndex = 1;
 
     if (search) {
-      query += ` AND (p.name ILIKE $${paramIndex++} OR p.model ILIKE $${paramIndex++} OR p.sku ILIKE $${paramIndex++} OR p.barcode = $${paramIndex++})`;
+      query += ` AND (p.name ILIKE $${paramIndex++} OR p.model ILIKE $${paramIndex++} OR p.sku ILIKE $${paramIndex++} OR p.upc = $${paramIndex++})`;
       const searchPattern = `%${search}%`;
       params.push(searchPattern, searchPattern, searchPattern, search);
     }
@@ -178,8 +176,8 @@ router.get('/',
     }
 
     if (brandId) {
-      query += ` AND p.brand_id = $${paramIndex++}`;
-      params.push(brandId);
+      query += ` AND p.manufacturer ILIKE $${paramIndex++}`;
+      params.push(`%${brandId}%`);
     }
 
     if (isActive !== undefined) {
@@ -188,13 +186,13 @@ router.get('/',
     }
 
     if (inStock === true) {
-      query += ' AND p.quantity_available > 0';
+      query += ' AND p.qty_available > 0';
     } else if (inStock === false) {
-      query += ' AND p.quantity_available <= 0';
+      query += ' AND p.qty_available <= 0';
     }
 
     if (lowStock === true) {
-      query += ' AND p.quantity_available <= p.reorder_point AND p.track_inventory = true';
+      query += ' AND p.qty_available <= p.reorder_point AND p.track_inventory = true';
     }
 
     if (minPrice !== undefined) {
@@ -213,7 +211,7 @@ router.get('/',
     const total = parseInt(countResult.rows[0]?.total || 0);
 
     // Sorting
-    const validSortFields = ['name', 'model', 'sell_cents', 'quantity_available', 'created_at'];
+    const validSortFields = ['name', 'model', 'sell_cents', 'created_at'];
     const sortField = validSortFields.includes(sortBy) ? sortBy : 'name';
     query += ` ORDER BY p.${sortField} ${sortOrder} LIMIT $${paramIndex++} OFFSET $${paramIndex++}`;
     params.push(limit, offset);
@@ -272,7 +270,7 @@ router.post('/',
 
     // Check for duplicate model
     const existingResult = await db.query(
-      'SELECT id FROM products WHERE model = $1 AND deleted_at IS NULL',
+      'SELECT id FROM products WHERE model = $1',
       [model]
     );
 
@@ -280,50 +278,80 @@ router.post('/',
       throw ApiError.conflict('Product with this model number already exists');
     }
 
-    // Check for duplicate barcode if provided
-    if (barcode) {
-      const barcodeResult = await db.query(
-        'SELECT id FROM products WHERE barcode = $1 AND deleted_at IS NULL',
-        [barcode]
-      );
-
-      if (barcodeResult.rows.length > 0) {
-        throw ApiError.conflict('Product with this barcode already exists');
-      }
-    }
-
     const result = await db.query(`
       INSERT INTO products (
-        name, model, sku, barcode, description,
-        category_id, brand_id,
+        name, model, sku, upc, description,
+        category_id, manufacturer, category,
         cost_cents, sell_cents, msrp_cents,
-        min_quantity, max_quantity, reorder_point,
+        minimum_order_qty, reorder_point,
         taxable, track_inventory, is_active,
-        weight, dimensions, image_url, notes,
-        quantity_on_hand, quantity_reserved, quantity_available,
-        created_by
+        image_url,
+        qty_on_hand, qty_reserved, qty_available
       ) VALUES (
         $1, $2, $3, $4, $5,
-        $6, $7,
+        $6, $7, COALESCE((SELECT name FROM categories WHERE id = $6), 'General'),
         $8, $9, $10,
-        $11, $12, $13,
-        $14, $15, $16,
-        $17, $18, $19, $20,
-        0, 0, 0,
-        $21
+        $11, $12,
+        $13, $14, $15,
+        $16,
+        0, 0, 0
       )
       RETURNING *
     `, [
       name, model, sku || null, barcode || null, description || null,
       categoryId || null, brandId || null,
       finalCostCents, finalSellCents, finalMsrpCents,
-      minQuantity, maxQuantity || null, reorderPoint,
+      minQuantity, reorderPoint,
       taxable, trackInventory, isActive,
-      weight || null, dimensions ? JSON.stringify(dimensions) : null, imageUrl || null, notes || null,
-      req.user.id
+      imageUrl || null
     ]);
 
     res.status(201).success(result.rows[0]);
+  })
+);
+
+/**
+ * GET /api/v1/products/stats
+ * Get product statistics
+ */
+router.get('/stats',
+  ...standardStack,
+  asyncHandler(async (req, res) => {
+    const result = await db.query(`
+      SELECT
+        COUNT(*) as total_products,
+        COUNT(CASE WHEN is_active THEN 1 END) as active_products,
+        COUNT(CASE WHEN COALESCE(qty_available, 0) <= 0 AND track_inventory THEN 1 END) as out_of_stock,
+        COUNT(CASE WHEN COALESCE(qty_available, 0) <= COALESCE(reorder_point, 0) AND COALESCE(qty_available, 0) > 0 AND track_inventory THEN 1 END) as low_stock,
+        COALESCE(SUM(COALESCE(qty_on_hand, 0) * COALESCE(cost_cents, 0)), 0) as total_inventory_value_cents,
+        COALESCE(AVG(sell_cents), 0) as average_sell_price_cents
+      FROM products
+    `);
+
+    res.success(result.rows[0]);
+  })
+);
+
+/**
+ * GET /api/v1/products/low-stock
+ * Get products with low stock
+ */
+router.get('/low-stock',
+  ...standardStack,
+  asyncHandler(async (req, res) => {
+    const result = await db.query(`
+      SELECT
+        id, name, model, sku,
+        qty_on_hand, qty_available, reorder_point, minimum_order_qty
+      FROM products
+      WHERE is_active = true
+        AND track_inventory = true
+        AND COALESCE(qty_available, 0) <= COALESCE(reorder_point, 0)
+      ORDER BY (COALESCE(qty_available, 0) - COALESCE(reorder_point, 0)) ASC
+      LIMIT 50
+    `);
+
+    res.success(result.rows);
   })
 );
 
@@ -341,13 +369,10 @@ router.get('/:id',
       SELECT
         p.*,
         cat.name as category_name,
-        b.name as brand_name,
-        u.username as created_by_name
+        p.manufacturer as brand_name
       FROM products p
       LEFT JOIN categories cat ON p.category_id = cat.id
-      LEFT JOIN brands b ON p.brand_id = b.id
-      LEFT JOIN users u ON p.created_by = u.id
-      WHERE p.id = $1 AND p.deleted_at IS NULL
+      WHERE p.id = $1
     `, [id]);
 
     if (result.rows.length === 0) {
@@ -396,7 +421,7 @@ router.put('/:id',
 
     // Check product exists
     const existingResult = await db.query(
-      'SELECT * FROM products WHERE id = $1 AND deleted_at IS NULL',
+      'SELECT * FROM products WHERE id = $1',
       [id]
     );
 
@@ -407,7 +432,7 @@ router.put('/:id',
     // Check for duplicate model if being changed
     if (updates.model) {
       const modelResult = await db.query(
-        'SELECT id FROM products WHERE model = $1 AND id != $2 AND deleted_at IS NULL',
+        'SELECT id FROM products WHERE model = $1 AND id != $2',
         [updates.model, id]
       );
 
@@ -416,36 +441,21 @@ router.put('/:id',
       }
     }
 
-    // Check for duplicate barcode if being changed
-    if (updates.barcode) {
-      const barcodeResult = await db.query(
-        'SELECT id FROM products WHERE barcode = $1 AND id != $2 AND deleted_at IS NULL',
-        [updates.barcode, id]
-      );
-
-      if (barcodeResult.rows.length > 0) {
-        throw ApiError.conflict('Another product with this barcode already exists');
-      }
-    }
-
     // Build update query dynamically
     const fieldMap = {
       name: 'name',
       model: 'model',
       sku: 'sku',
-      barcode: 'barcode',
+      barcode: 'upc',
       description: 'description',
       categoryId: 'category_id',
-      brandId: 'brand_id',
-      minQuantity: 'min_quantity',
-      maxQuantity: 'max_quantity',
+      brandId: 'manufacturer',
+      minQuantity: 'minimum_order_qty',
       reorderPoint: 'reorder_point',
       taxable: 'taxable',
       trackInventory: 'track_inventory',
       isActive: 'is_active',
-      weight: 'weight',
-      imageUrl: 'image_url',
-      notes: 'notes'
+      imageUrl: 'image_url'
     };
 
     const setClauses = [];
@@ -478,12 +488,6 @@ router.put('/:id',
       params.push(msrpCents);
     }
 
-    // Handle dimensions
-    if (updates.dimensions !== undefined) {
-      setClauses.push(`dimensions = $${paramIndex++}`);
-      params.push(updates.dimensions ? JSON.stringify(updates.dimensions) : null);
-    }
-
     if (setClauses.length === 0) {
       return res.success(existingResult.rows[0]);
     }
@@ -513,7 +517,7 @@ router.delete('/:id',
 
     // Check product exists
     const existingResult = await db.query(
-      'SELECT * FROM products WHERE id = $1 AND deleted_at IS NULL',
+      'SELECT * FROM products WHERE id = $1',
       [id]
     );
 
@@ -521,9 +525,9 @@ router.delete('/:id',
       throw ApiError.notFound('Product not found');
     }
 
-    // Soft delete
+    // Soft delete (set inactive)
     await db.query(
-      'UPDATE products SET deleted_at = NOW(), is_active = false WHERE id = $1',
+      'UPDATE products SET is_active = false, updated_at = NOW() WHERE id = $1',
       [id]
     );
 
@@ -548,7 +552,7 @@ router.post('/:id/inventory/adjust',
     const { quantity, reason, notes } = req.body;
 
     const productResult = await db.query(
-      'SELECT * FROM products WHERE id = $1 AND deleted_at IS NULL',
+      'SELECT * FROM products WHERE id = $1',
       [id]
     );
 
@@ -562,13 +566,13 @@ router.post('/:id/inventory/adjust',
       throw ApiError.badRequest('This product does not track inventory');
     }
 
-    const newQuantityOnHand = product.quantity_on_hand + quantity;
+    const newQuantityOnHand = product.qty_on_hand + quantity;
 
     if (newQuantityOnHand < 0) {
       throw ApiError.badRequest('Adjustment would result in negative inventory');
     }
 
-    const newQuantityAvailable = newQuantityOnHand - product.quantity_reserved;
+    const newQuantityAvailable = newQuantityOnHand - product.qty_reserved;
 
     const client = await db.pool.connect();
     try {
@@ -577,8 +581,9 @@ router.post('/:id/inventory/adjust',
       // Update product inventory
       const updateResult = await client.query(`
         UPDATE products
-        SET quantity_on_hand = $2,
-            quantity_available = $3,
+        SET qty_on_hand = $2,
+            qty_available = $3,
+            stock_quantity = $2,
             updated_at = NOW()
         WHERE id = $1
         RETURNING *
@@ -590,7 +595,7 @@ router.post('/:id/inventory/adjust',
           product_id, quantity_change, reason, notes,
           previous_quantity, new_quantity, adjusted_by
         ) VALUES ($1, $2, $3, $4, $5, $6, $7)
-      `, [id, quantity, reason, notes || null, product.quantity_on_hand, newQuantityOnHand, req.user.id]);
+      `, [id, quantity, reason, notes || null, product.qty_on_hand || 0, newQuantityOnHand, req.user.id]);
 
       await client.query('COMMIT');
 
@@ -598,7 +603,7 @@ router.post('/:id/inventory/adjust',
         ...updateResult.rows[0],
         adjustment: {
           quantityChange: quantity,
-          previousQuantity: product.quantity_on_hand,
+          previousQuantity: product.qty_on_hand,
           newQuantity: newQuantityOnHand,
           reason
         }
@@ -625,7 +630,7 @@ router.get('/:id/inventory/history',
     const { page, limit, offset } = req.pagination;
 
     const productResult = await db.query(
-      'SELECT id, name, model FROM products WHERE id = $1 AND deleted_at IS NULL',
+      'SELECT id, name, model FROM products WHERE id = $1',
       [id]
     );
 
@@ -659,57 +664,6 @@ router.get('/:id/inventory/history',
         totalPages: Math.ceil(total / limit)
       }
     });
-  })
-);
-
-// ============================================================================
-// PRODUCT STATISTICS
-// ============================================================================
-
-/**
- * GET /api/v1/products/stats
- * Get product statistics
- */
-router.get('/stats',
-  ...standardStack,
-  asyncHandler(async (req, res) => {
-    const result = await db.query(`
-      SELECT
-        COUNT(*) as total_products,
-        COUNT(CASE WHEN is_active THEN 1 END) as active_products,
-        COUNT(CASE WHEN quantity_available <= 0 AND track_inventory THEN 1 END) as out_of_stock,
-        COUNT(CASE WHEN quantity_available <= reorder_point AND quantity_available > 0 AND track_inventory THEN 1 END) as low_stock,
-        COALESCE(SUM(quantity_on_hand * cost_cents), 0) as total_inventory_value_cents,
-        COALESCE(AVG(sell_cents), 0) as average_sell_price_cents
-      FROM products
-      WHERE deleted_at IS NULL
-    `);
-
-    res.success(result.rows[0]);
-  })
-);
-
-/**
- * GET /api/v1/products/low-stock
- * Get products with low stock
- */
-router.get('/low-stock',
-  ...standardStack,
-  asyncHandler(async (req, res) => {
-    const result = await db.query(`
-      SELECT
-        id, name, model, sku,
-        quantity_on_hand, quantity_available, reorder_point, min_quantity
-      FROM products
-      WHERE deleted_at IS NULL
-        AND is_active = true
-        AND track_inventory = true
-        AND quantity_available <= reorder_point
-      ORDER BY (quantity_available - reorder_point) ASC
-      LIMIT 50
-    `);
-
-    res.success(result.rows);
   })
 );
 

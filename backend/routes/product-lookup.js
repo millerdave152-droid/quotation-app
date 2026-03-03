@@ -112,10 +112,10 @@ function init({ pool }) {
 
     for (const code of barcodes) {
       const { rows: [product] } = await pool.query(
-        `SELECT p.id, p.name, p.sku, p.barcode, p.model
+        `SELECT p.id, p.name, p.sku, p.upc, p.model
          FROM products p
-         WHERE (p.barcode = $1 OR p.upc = $1 OR p.sku = $1 OR p.model = $1)
-           AND p.deleted_at IS NULL
+         WHERE (p.upc = $1 OR p.sku = $1 OR p.model = $1)
+           AND p.is_active = true
          LIMIT 1`,
         [code.trim()]
       );
