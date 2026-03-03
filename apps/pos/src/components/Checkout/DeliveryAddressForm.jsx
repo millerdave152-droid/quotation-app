@@ -437,7 +437,7 @@ export function DeliveryAddressForm({ customer, onComplete, onBack, fulfillmentT
 
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
-  }, [formData]);
+  }, [formData, isLocalDelivery]);
 
   // Handle continue with selected address
   const handleSelectContinue = useCallback(async () => {
@@ -522,7 +522,7 @@ export function DeliveryAddressForm({ customer, onComplete, onBack, fulfillmentT
     };
     const result = await validateAddress(addressWithExtras);
     onComplete(addressWithExtras, result);
-  }, [selectedAddress, formData, validateAddress, onComplete]);
+  }, [selectedAddress, formData, isLocalDelivery, validateAddress, onComplete]);
 
   // Handle continue with new address
   const handleFormContinue = useCallback(async () => {
@@ -563,7 +563,7 @@ export function DeliveryAddressForm({ customer, onComplete, onBack, fulfillmentT
 
     const result = await validateAddress(address);
     onComplete(address, result);
-  }, [formData, validateForm, validateAddress, onComplete]);
+  }, [formData, isLocalDelivery, validateForm, validateAddress, onComplete]);
 
   // Handle mode switch to new address
   const handleNewAddress = useCallback(() => {

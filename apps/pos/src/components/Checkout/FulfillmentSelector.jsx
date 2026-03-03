@@ -307,7 +307,7 @@ export function FulfillmentSelector({
       // Need pickup details
       setStep('pickup');
     }
-  }, [selectedOption, onComplete]);
+  }, [selectedOption]);
 
   // Handle address completion
   const handleAddressComplete = useCallback(
@@ -333,7 +333,7 @@ export function FulfillmentSelector({
         });
       }
     },
-    [selectedOption, onComplete]
+    [selectedOption, cart.subtotal, onComplete]
   );
 
   // Handle schedule completion

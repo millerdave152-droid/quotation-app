@@ -738,7 +738,7 @@ describe('ReceiptService', () => {
       receiptData = await svc.getReceiptData(42);
       thermal = await svc.generateThermalReceipt(42);
       const pdfBuf = await svc.generateReceiptPdf(42);
-      pdfText = pdfBuf.toString('latin1');
+      _pdfText = pdfBuf.toString('latin1');
       await svc.emailReceipt(42, 'test@test.com');
     });
 

@@ -182,7 +182,7 @@ export function CashMovementModal({
     } finally {
       setIsSubmitting(false);
     }
-  }, [shiftId, movementType, parsedAmount, reason, referenceNumber, notes, onSuccess]);
+  }, [shiftId, movementType, parsedAmount, reason, referenceNumber, notes, onSuccess]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Handle close
   const handleClose = () => {
