@@ -32,11 +32,6 @@ export function VolumeDiscountBadge({
   compact = false,
   className = '',
 }) {
-  // Don't render if no discount
-  if (!percentOff || percentOff <= 0) {
-    return null;
-  }
-
   // Determine badge style based on pricing source
   const badgeStyle = useMemo(() => {
     switch (pricingSource) {
@@ -74,6 +69,11 @@ export function VolumeDiscountBadge({
         };
     }
   }, [pricingSource]);
+
+  // Don't render if no discount
+  if (!percentOff || percentOff <= 0) {
+    return null;
+  }
 
   const IconComponent = badgeStyle.icon;
 
