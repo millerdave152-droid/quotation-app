@@ -168,7 +168,7 @@ describe('Discount Engine System', () => {
     // POST /api/promo-codes/validate
     app.post('/api/promo-codes/validate', async (req, res) => {
       try {
-        const { code, customer_id, quote_amount } = req.body;
+        const { code, _customer_id, quote_amount } = req.body;
 
         if (!code) {
           return res.status(400).json({ error: 'Promo code is required' });
@@ -249,7 +249,7 @@ describe('Discount Engine System', () => {
           return res.status(401).json({ error: 'Authentication required' });
         }
 
-        const { discount_rule_id, promo_code, custom_discount } = req.body;
+        const { discount_rule_id, _promo_code, custom_discount } = req.body;
 
         // Get quote
         const quoteResult = await mockPool.query(

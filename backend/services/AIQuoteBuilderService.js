@@ -132,7 +132,7 @@ class AIQuoteBuilderService {
   async getCrossSellSuggestions(quoteItems = []) {
     if (quoteItems.length === 0) return [];
 
-    const categories = [...new Set(quoteItems.map(i => i.category).filter(Boolean))];
+    const _categories = [...new Set(quoteItems.map(i => i.category).filter(Boolean))];
     const itemIds = quoteItems.map(i => i.id).filter(Boolean);
 
     // Find frequently bought together products

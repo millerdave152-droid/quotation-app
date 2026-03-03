@@ -190,7 +190,7 @@ function SalesTab({ hourlyData, productData }) {
 // ============================================================================
 
 function PaymentsTab({ paymentData }) {
-  const { byMethod = {}, _totals = {}, cashDrawer = {} } = paymentData || {};
+  const { byMethod = {}, cashDrawer = {} } = paymentData || {};
 
   // Format for pie chart
   const paymentChartData = Object.entries(byMethod).map(([method, data], index) => ({

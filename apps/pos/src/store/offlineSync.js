@@ -370,6 +370,7 @@ export const useOfflineSync = (options = {}) => {
       unsubscribeRef.current?.();
       manager.stopAutoSave();
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [draftType, userId, autoSave]);
 
   // Subscribe to store changes for debounced save
@@ -392,6 +393,7 @@ export const useOfflineSync = (options = {}) => {
     );
 
     return unsubscribe;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [draftType, userId, autoSave]);
 
   // Manual save function

@@ -112,7 +112,7 @@ class TaxEngine {
 
   // ─── All EHF rates for a province ──────────────────────────────────
   getEHFByProvince(province) {
-    var allRates = this.getEHF('_lookup', province);
+    var _allRates = this.getEHF('_lookup', province);
     // Re-call for each category to build full list
     var categories = [
       'Refrigerators', 'Freezers', 'Washers', 'Dryers', 'Dishwashers',
@@ -267,7 +267,7 @@ class TaxEngine {
 
     // Calculate ITC on commissions (GST/HST component of marketplace fees)
     // Marketplace operator (Best Buy) is ON-registered, charges 13% HST on commissions
-    var rates = this.getTaxRates();
+    var _rates = this.getTaxRates();
     var itcRows = byProvince.map(function(r) {
       // Commission is charged by the marketplace (ON-based), so HST applies
       // ITC = commission * HST_rate / (1 + HST_rate) for tax-inclusive

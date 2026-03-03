@@ -240,7 +240,7 @@
           await new Promise(r => setTimeout(r, CONFIG.pageRenderWait));
 
           // Try to access iframe content
-          const iframeDoc = iframe.contentDocument || iframe.contentWindow.document;
+          const _iframeDoc = iframe.contentDocument || iframe.contentWindow.document;
 
           // Execute extraction in iframe context
           const result = iframe.contentWindow.eval(extractorCode);

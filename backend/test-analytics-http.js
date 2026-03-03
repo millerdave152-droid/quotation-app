@@ -33,7 +33,7 @@ function testEndpoint() {
         } else {
           console.log('\n❌ Analytics endpoint returned an error');
         }
-      } catch (error) {
+      } catch (_error) {
         console.log('Raw response:', data);
         console.log('\n❌ Failed to parse JSON response');
       }

@@ -2,7 +2,7 @@ const http = require('http');
 
 const BASE = 'http://localhost:3001';
 let TOKEN = '';
-let MANAGER_TOKEN = '';
+let _MANAGER_TOKEN = '';
 
 function req(method, path, body = null, token = TOKEN) {
   return new Promise((resolve) => {

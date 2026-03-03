@@ -96,7 +96,7 @@ function correctSwappedFields(product) {
 
   const brand = (product.brand || '').trim();
   const model = (product.model || '').trim();
-  const category = (product.category || '').trim();
+  const _category = (product.category || '').trim();
 
   const brandIsModel = brand && looksLikeModel(brand) && !SKIP_BRANDS.has(brand.toUpperCase());
   const modelIsCategory = model && CATEGORY_KEYWORDS.test(model) && !looksLikeModel(model);

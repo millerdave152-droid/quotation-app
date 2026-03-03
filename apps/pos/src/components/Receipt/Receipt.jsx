@@ -118,7 +118,6 @@ export const Receipt = forwardRef(function Receipt({
   const subtotal = transaction?.subtotal || 0;
   const discountAmount = transaction?.discountAmount || transaction?.discount_amount || 0;
   const discountReason = transaction?.discountReason || transaction?.discount_reason;
-  const _taxAmount = transaction?.taxAmount || transaction?.tax_amount || 0;
   const hstAmount = transaction?.hstAmount || transaction?.hst_amount || 0;
   const gstAmount = transaction?.gstAmount || transaction?.gst_amount || 0;
   const pstAmount = transaction?.pstAmount || transaction?.pst_amount || 0;

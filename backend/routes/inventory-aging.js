@@ -53,7 +53,7 @@ function init({ pool }) {
         const where = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
 
         // Summary by age bucket (unfiltered by bucket to always show all buckets)
-        const bucketConditions = conditions.filter((_, i) => {
+        const _bucketConditions = conditions.filter((_, i) => {
           // Remove age_bucket condition for summary
           return !(age_bucket && conditions[i].includes('age_bucket'));
         });

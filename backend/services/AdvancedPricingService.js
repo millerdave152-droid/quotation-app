@@ -292,7 +292,7 @@ class AdvancedPricingService {
    */
   calculateVolumeDiscountForQuantity(rules, quantity) {
     let bestDiscount = null;
-    let bestRule = null;
+    let _bestRule = null;
 
     for (const rule of rules) {
       const tiers = rule.tiers || [];
@@ -315,7 +315,7 @@ class AdvancedPricingService {
               canStack: rule.can_stack,
               stackingGroup: rule.stacking_group
             };
-            bestRule = rule;
+            _bestRule = rule;
           }
         }
       }

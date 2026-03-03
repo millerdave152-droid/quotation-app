@@ -19,7 +19,6 @@ import { formatDateTime } from '../../utils/formatters';
  */
 function RegisterCard({ register, onSelect, isSelected }) {
   const {
-    _registerId,
     registerName,
     location,
     isActive,

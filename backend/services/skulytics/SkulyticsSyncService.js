@@ -456,7 +456,7 @@ class SkulyticsSyncService {
 
     } catch (err) {
       // Full API unavailability or unrecoverable error
-      const isUnavailable = err instanceof SkulyticsUnavailableError;
+      const _isUnavailable = err instanceof SkulyticsUnavailableError;
       const finalStatus = partialFailure ? 'partial' : 'failed';
 
       await this.completeSyncRun(runId, finalStatus, err.message, {

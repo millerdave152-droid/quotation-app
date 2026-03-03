@@ -192,12 +192,12 @@ class MessagingHub {
     }
 
     // Send via channel adapter if we have a thread
-    let channelResponse = null;
+    let _channelResponse = null;
     if (threadId) {
       try {
         const manager = await getChannelManager();
         const adapter = manager.getAdapter(orderData.channelId);
-        channelResponse = await adapter.sendMessage(threadId, body);
+        _channelResponse = await adapter.sendMessage(threadId, body);
       } catch (err) {
         console.error(`${PREFIX} Failed to send triggered message via adapter: ${err.message}`);
       }

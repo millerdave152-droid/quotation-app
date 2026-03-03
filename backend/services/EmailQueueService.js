@@ -225,7 +225,7 @@ class EmailQueueService {
       ? JSON.parse(job.template_data)
       : job.template_data;
 
-    const { quoteId, type } = templateData;
+    const { quoteId, _type } = templateData;
 
     // Use existing EmailService methods based on template type
     switch (job.template_name) {

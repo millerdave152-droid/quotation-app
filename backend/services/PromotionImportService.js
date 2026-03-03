@@ -432,7 +432,7 @@ class PromotionImportService {
    */
   async matchModelsToProducts(promotionId) {
     // Update product_id for models that match local products by model number
-    const result = await this.pool.query(`
+    const _result = await this.pool.query(`
       UPDATE promotion_eligible_models pem
       SET product_id = p.id
       FROM products p

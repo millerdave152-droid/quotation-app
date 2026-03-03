@@ -30,7 +30,7 @@ function formatTime(d) {
 
 function formatDateTime(d) {
   if (!d) return '';
-  const dt = new Date(d);
+  const _dt = new Date(d);
   return `${formatDate(d)} at ${formatTime(d)}`;
 }
 

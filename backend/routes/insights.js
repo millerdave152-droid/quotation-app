@@ -206,7 +206,7 @@ router.post('/:id/dismiss', authenticate, asyncHandler(async (req, res) => {
  * Execute an action from an insight
  */
 router.post('/:id/action', authenticate, asyncHandler(async (req, res) => {
-  const { id } = req.params;
+  const { id: _id } = req.params;
   const { action, data } = req.body;
 
   // Handle different action types

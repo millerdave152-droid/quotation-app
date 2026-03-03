@@ -430,7 +430,7 @@ describe('Quote Analytics & Reporting System', () => {
   describe('POST /api/analytics/export', () => {
     app.post('/api/analytics/export', async (req, res) => {
       try {
-        const { report_type, format, filters } = req.body;
+        const { report_type, format, _filters } = req.body;
 
         if (!report_type || !format) {
           return res.status(400).json({ error: 'Report type and format are required' });

@@ -433,7 +433,7 @@ class LeadService {
         RETURNING *
       `;
 
-      const result = await client.query(updateQuery, [
+      const _result = await client.query(updateQuery, [
         id,
         newStatus,
         newStatus === 'lost' ? lostReason : null

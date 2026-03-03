@@ -52,7 +52,7 @@ class PromotionFolderWatcher {
    * Watch a single folder for new files
    */
   async watchFolder(folder) {
-    const { id, folder_path, manufacturer } = folder;
+    const { id, folder_path, _manufacturer } = folder;
 
     // Verify folder exists
     try {
@@ -199,7 +199,7 @@ class PromotionFolderWatcher {
    * Scan a single folder for new files
    */
   async scanFolder(folder) {
-    const { id, folder_path, manufacturer } = folder;
+    const { id, folder_path, _manufacturer } = folder;
     const result = { processed: 0, failed: 0 };
 
     try {

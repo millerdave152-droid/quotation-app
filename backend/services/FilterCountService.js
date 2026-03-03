@@ -210,7 +210,7 @@ class FilterCountService {
     const model = (product.model || '').toUpperCase();
     const category = (product.category || '').toLowerCase();
     const name = (product.name || '').toLowerCase();
-    const manufacturer = (product.manufacturer || '').toLowerCase();
+    const _manufacturer = (product.manufacturer || '').toLowerCase();
 
     // Brand detection
     values.brand = product.manufacturer;

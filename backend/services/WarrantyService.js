@@ -995,7 +995,7 @@ class WarrantyService {
    */
   _generateDetailedSalesScript(product, warranty, allWarranties) {
     const pricePerMonth = warranty.pricePerMonth;
-    const productType = this._getProductTypePhrase(product.category_name || product.category);
+    const _productType = this._getProductTypePhrase(product.category_name || product.category);
     const productName = product.name || product.productName;
     const providerCode = warranty.providerCode || warranty.coverageDetails?.provider_code || '';
 

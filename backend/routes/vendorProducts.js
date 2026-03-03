@@ -213,7 +213,7 @@ router.post('/scrape', authenticate, asyncHandler(async (req, res) => {
  * Get status of current/recent scrape jobs
  */
 router.get('/scrape/status', authenticate, asyncHandler(async (req, res) => {
-  const { vendor_source_id, job_id } = req.query;
+  const { vendor_source_id: _vendor_source_id, job_id } = req.query;
 
   if (job_id) {
     const job = await VendorScraperService.getJobStatus(parseInt(job_id));

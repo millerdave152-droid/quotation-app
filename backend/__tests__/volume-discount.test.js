@@ -631,7 +631,7 @@ describe('VolumeDiscountService', () => {
         ],
       });
 
-      const tiers = await service.getCustomerVolumeTiers(1, 100);
+      const _tiers = await service.getCustomerVolumeTiers(1, 100);
 
       expect(mockPool.query).toHaveBeenCalledWith(
         expect.stringContaining('cvt.product_id = $2'),

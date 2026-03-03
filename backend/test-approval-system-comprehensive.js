@@ -349,7 +349,7 @@ async function testTierDetermination() {
   section('4. TIER DETERMINATION');
 
   const price = parseFloat(TEST_PRODUCT.price);
-  const cost = parseFloat(TEST_PRODUCT.cost);
+  const _cost = parseFloat(TEST_PRODUCT.cost);
 
   // Tier 1: 5% discount -> auto-approved
   const tier1Price = +(price * 0.95).toFixed(2);

@@ -11,7 +11,7 @@
   console.log('🔍 Whirlpool Central Extractor v2.0');
   console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
 
-  const getText = (s, c = document) => { const e = c.querySelector(s); return e ? e.textContent.trim() : null; };
+  const _getText = (s, c = document) => { const e = c.querySelector(s); return e ? e.textContent.trim() : null; };
   const getAll = (s, c = document) => Array.from(c.querySelectorAll(s));
 
   // ============================================

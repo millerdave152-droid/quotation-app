@@ -276,7 +276,7 @@ class MockApiClient {
     return page;
   }
 
-  async getProductBySku(sku) {
+  async getProductBySku(_sku) {
     return { product: null, rateLimitRemaining: 100, rateLimitResetMs: 0 };
   }
 }

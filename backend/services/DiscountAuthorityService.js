@@ -309,7 +309,7 @@ class DiscountAuthorityService {
     if (!validation.approved) {
       // Not approved — create escalation if manager approval is possible
       if (validation.requiresManagerApproval) {
-        const discountedPrice = originalPrice * (1 - discountPct / 100);
+        const _discountedPrice = originalPrice * (1 - discountPct / 100);
         const commissionImpact = originalPrice * (discountPct / 100) * 0.05; // rough 5% commission rate
         const escalation = await this.createEscalation({
           employeeId,
@@ -431,7 +431,7 @@ class DiscountAuthorityService {
     if (totalBudget == null) {
       const userResult = await this.pool.query('SELECT role FROM users WHERE id = $1', [employeeId]);
       if (userResult.rows[0]) {
-        const tier = await this.getEmployeeTier(employeeId, userResult.rows[0].role);
+        const _tier = await this.getEmployeeTier(employeeId, userResult.rows[0].role);
         // No tier-level budget column exists, so use sensible default
         totalBudget = 500.00;
       } else {

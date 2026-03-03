@@ -11,7 +11,7 @@ const { ApiError } = require('../middleware/errorHandler');
 
 const VALID_TYPES = ['percentage_off', 'fixed_amount_off', 'fixed_price', 'bogo', 'bundle'];
 const VALID_SCOPES = ['all', 'category', 'brand', 'product', 'collection'];
-const VALID_STATUSES = ['draft', 'scheduled', 'active', 'paused', 'ended', 'cancelled'];
+const _VALID_STATUSES = ['draft', 'scheduled', 'active', 'paused', 'ended', 'cancelled'];
 
 function init({ pool }) {
   const router = express.Router();

@@ -138,7 +138,7 @@ async function run() {
   const tierRes = await request('GET', '/discount-authority/my-tier', null, staffToken);
   assert(tierRes.status === 200, 'Fetched tier config');
   const tier = tierRes.body?.data?.tier;
-  const budget = tierRes.body?.data?.budget;
+  const _budget = tierRes.body?.data?.budget;
   if (tier) {
     console.log(`  Tier: standard max=${tier.max_discount_pct_standard}%, high-margin max=${tier.max_discount_pct_high_margin}%`);
     console.log(`  High-margin threshold=${tier.high_margin_threshold}%, approval below margin=${tier.requires_approval_below_margin}%`);

@@ -52,7 +52,6 @@ export function UpsellOfferModal({
   const {
     offers,
     currentOffer,
-    _currentOfferIndex,
     services,
     membershipOffers,
     financingOptions,
@@ -64,15 +63,12 @@ export function UpsellOfferModal({
     loading,
     acceptOffer,
     declineOffer,
-    _skipOffer,
     acceptService,
     declineService,
     acceptMembership,
     declineMembership,
     selectFinancing,
     startOfferTiming,
-    _moveToNextOffer,
-    _resetSession,
   } = useUpsellOffers({
     cart: { items, total, subtotal: total },
     customer,
@@ -98,6 +94,7 @@ export function UpsellOfferModal({
 
     document.addEventListener('keydown', handleEscape);
     return () => document.removeEventListener('keydown', handleEscape);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen]);
 
   // Handle accept upgrade offer
@@ -127,6 +124,7 @@ export function UpsellOfferModal({
       setAddedItems((prev) => [...prev, offer.offerId]);
       moveToNextStepIfNeeded();
     },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     [acceptOffer, items, onAddItem]
   );
 
@@ -136,6 +134,7 @@ export function UpsellOfferModal({
       await declineOffer(offer);
       moveToNextStepIfNeeded();
     },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     [declineOffer]
   );
 
@@ -172,10 +171,12 @@ export function UpsellOfferModal({
 
       moveToNextStepIfNeeded();
     },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     [acceptMembership, onJoinMembership]
   );
 
   // Handle decline membership
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   const handleDeclineMembership = useCallback(() => {
     declineMembership();
     moveToNextStepIfNeeded();
@@ -195,6 +196,7 @@ export function UpsellOfferModal({
       // Proceed to payment
       handleComplete();
     },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     [selectFinancing, onSelectFinancing]
   );
 

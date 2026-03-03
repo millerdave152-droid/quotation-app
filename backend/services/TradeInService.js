@@ -936,7 +936,7 @@ class TradeInService {
       RETURNING *
     `;
 
-    const result = await this.pool.query(updateQuery, [
+    const _result = await this.pool.query(updateQuery, [
       userId,
       overrideValue || null,
       overrideReason || null,

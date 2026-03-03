@@ -56,7 +56,6 @@ const ProductPerformance = ({ dateRange = {} }) => {
 
   // Find max revenue for bar width calculation
   const maxProductRevenue = Math.max(...products.map(p => parseFloat(p.total_revenue) || 0), 1);
-  const maxCategoryRevenue = Math.max(...categories.map(c => parseFloat(c.total_revenue) || 0), 1);
 
   return (
     <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-100">

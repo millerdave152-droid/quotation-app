@@ -58,11 +58,9 @@ export function ServiceOfferCard({
   const [showDetails, setShowDetails] = useState(false);
 
   const {
-    _serviceId,
     name,
     description,
     price,
-    _priceCents,
     serviceType = 'custom',
     duration,
     requiresScheduling,

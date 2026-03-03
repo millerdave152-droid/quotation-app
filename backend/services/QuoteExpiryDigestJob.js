@@ -193,8 +193,8 @@ class QuoteExpiryDigestJob {
   generateEmailHtml(rep, quotes) {
     const todayQuotes = quotes.filter(q => q.daysUntilExpiry <= 0);
     const urgentQuotes = quotes.filter(q => q.daysUntilExpiry === 1);
-    const soonQuotes = quotes.filter(q => q.daysUntilExpiry > 1 && q.daysUntilExpiry <= 3);
-    const laterQuotes = quotes.filter(q => q.daysUntilExpiry > 3);
+    const _soonQuotes = quotes.filter(q => q.daysUntilExpiry > 1 && q.daysUntilExpiry <= 3);
+    const _laterQuotes = quotes.filter(q => q.daysUntilExpiry > 3);
 
     const totalValue = quotes.reduce((sum, q) => sum + q.totalValue, 0);
     const posUrl = process.env.POS_URL || 'http://localhost:3000';

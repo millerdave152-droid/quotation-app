@@ -72,7 +72,7 @@ describe('TradeInService', () => {
         .mockResolvedValueOnce({ rows: [] })
         .mockResolvedValueOnce({ rows: [{ total: '0' }] });
 
-      const result = await service.searchTradeInProducts({ categoryId: 1 });
+      const _result = await service.searchTradeInProducts({ categoryId: 1 });
 
       expect(mockPool.query.mock.calls[0][1]).toContain(1);
     });

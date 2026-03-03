@@ -125,9 +125,9 @@ function connectWS(token) {
 /**
  * Wait for a specific event on a WS event collector.
  */
-function waitForEvent(events, eventName, timeoutMs = 5000) {
+function _waitForEvent(events, eventName, timeoutMs = 5000) {
   return new Promise((resolve) => {
-    const startLen = events.length;
+    const _startLen = events.length;
     const start = Date.now();
 
     const check = () => {
@@ -189,7 +189,7 @@ async function main() {
   if (!admin || !manager || !salesperson) throw new Error('Need admin, manager, and salesperson');
 
   // ---- Login ----
-  const adminLogin = await login(admin.email, 'TestPass123!');
+  const _adminLogin = await login(admin.email, 'TestPass123!');
   const mgrLogin = await login(manager.email, 'TestPass123!');
   const spLogin = await login(salesperson.email, 'TestPass123!');
 
@@ -241,7 +241,7 @@ async function main() {
   // Invalid token connection
   try {
     const badWS = new WebSocket(`${WS_URL}?token=invalid_token_abc`);
-    await new Promise((resolve, reject) => {
+    await new Promise((resolve, _reject) => {
       badWS.on('open', () => { badWS.close(); resolve('open'); });
       badWS.on('error', () => resolve('error'));
       badWS.on('unexpected-response', (req, res) => { resolve(`rejected:${res.statusCode}`); });
@@ -336,7 +336,7 @@ async function main() {
   section('4. DENY → SALESPERSON WS EVENT');
 
   const mgrEvtIdx2 = mgrEvents.length;
-  const spEvtIdx2 = spEvents.length;
+  const _spEvtIdx2 = spEvents.length;
 
   const createRes2 = await request('POST', '/pos-approvals/request', {
     productId: product.id,

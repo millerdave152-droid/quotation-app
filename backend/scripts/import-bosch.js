@@ -49,7 +49,7 @@ async function importBoschProducts() {
     const row = data[i];
     const model = row[colIndex.model];
     const description = row[colIndex.description];
-    const series = row[colIndex.series];
+    const _series = row[colIndex.series];
     const msrp = row[colIndex.msrp];
     const map = row[colIndex.map];
     const cost = row[colIndex.cost];

@@ -37,7 +37,7 @@ function req(method, path, body) {
 (async () => {
   // Start server on test port
   process.env.PORT = TEST_PORT;
-  const app = require('./server');
+  const _app = require('./server');
 
   // Wait for the server to be ready
   await new Promise(resolve => setTimeout(resolve, 3000));

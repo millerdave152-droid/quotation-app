@@ -34,7 +34,7 @@ describe('PDF Generation System', () => {
     // POST /api/quotations/:id/generate-pdf
     app.post('/api/quotations/:id/generate-pdf', async (req, res) => {
       try {
-        const { template, include_watermark, watermark_text, send_email } = req.body;
+        const { template, _include_watermark, watermark_text, send_email } = req.body;
 
         // Get quote data
         const quoteResult = await mockPool.query(
@@ -52,7 +52,7 @@ describe('PDF Generation System', () => {
         const quote = quoteResult.rows[0];
 
         // Generate PDF
-        const pdf = mockPDF.create();
+        const _pdf = mockPDF.create();
         const pdfBuffer = Buffer.from('mock-pdf-data');
         const fileName = `quote-${quote.quote_number}-${Date.now()}.pdf`;
         const fileUrl = `/pdfs/${fileName}`;
@@ -250,7 +250,7 @@ describe('PDF Generation System', () => {
           return res.status(401).json({ error: 'Authentication required' });
         }
 
-        const { quote_ids, template, send_emails } = req.body;
+        const { quote_ids, template, _send_emails } = req.body;
 
         if (!quote_ids || quote_ids.length === 0) {
           return res.status(400).json({ error: 'Quote IDs are required' });

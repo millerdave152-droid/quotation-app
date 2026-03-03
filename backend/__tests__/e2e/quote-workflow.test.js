@@ -215,7 +215,7 @@ describe('Quote Workflow E2E Tests', () => {
         const decoded = jwt.verify(token, TEST_CONFIG.JWT_SECRET);
         req.user = mockPool.mockData.users.find(u => u.id === decoded.userId);
         next();
-      } catch (err) {
+      } catch (_err) {
         res.status(401).json({ error: 'Invalid token' });
       }
     };

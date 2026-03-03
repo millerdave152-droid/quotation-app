@@ -459,7 +459,7 @@ class DeliveryService {
       const bookingNumber = await this.generateBookingNumber();
 
       // Calculate delivery fee
-      const deliveryFeeCents = slot.base_delivery_fee_cents + (slot.surcharge_cents || 0);
+      const _deliveryFeeCents = slot.base_delivery_fee_cents + (slot.surcharge_cents || 0);
 
       // Create booking
       const bookingResult = await client.query(`

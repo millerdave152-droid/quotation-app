@@ -20,7 +20,7 @@ class RebateFollowUpService {
   async getPendingReminders(options = {}) {
     const {
       daysBeforeDeadline = [14, 7, 3, 1], // Days before deadline to send reminders
-      excludeSubmitted = true,
+      _excludeSubmitted = true,
       limit = 100,
     } = options;
 

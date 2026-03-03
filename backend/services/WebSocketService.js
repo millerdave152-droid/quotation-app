@@ -28,7 +28,7 @@ const pushService = require('./pushNotificationService');
 // Constants
 // ---------------------------------------------------------------------------
 const HEARTBEAT_INTERVAL_MS = 30_000;   // ping every 30 s
-const PONG_TIMEOUT_MS       = 10_000;   // terminate if no pong within 10 s
+const _PONG_TIMEOUT_MS      = 10_000;   // terminate if no pong within 10 s
 const TIMEOUT_CHECK_MS      = 30_000;   // sweep for timed-out requests every 30 s
 
 class WebSocketService {

@@ -38,7 +38,6 @@ export function ProductDetailSuggestions({
     trackImpression,
     trackClick,
     trackAdd,
-    _refresh,
   } = useSuggestions({
     productId,
     context: 'product',

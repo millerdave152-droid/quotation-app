@@ -5658,8 +5658,6 @@ router.post('/errors/:id/retry', authenticate, asyncHandler(async (req, res) => 
     `, [id]);
 
     res.json({ success: true, message: 'Retry initiated' });
-  } catch (err) {
-    throw err;
   } finally {
     client.release();
   }

@@ -345,7 +345,7 @@ router.post('/deduct-transaction', asyncHandler(async (req, res) => {
  * Restore inventory for a single item (void/return)
  */
 router.post('/restore', asyncHandler(async (req, res) => {
-  const { productId, quantity, reason, referenceType, referenceId, referenceNumber } = req.body;
+  const { productId, quantity, reason: _reason, referenceType, referenceId, referenceNumber } = req.body;
 
   if (!productId || !quantity || quantity < 1) {
     throw ApiError.badRequest('productId and quantity are required');

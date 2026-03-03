@@ -49,7 +49,7 @@ class OrderService {
   async convertQuoteToOrder(quotationId, options = {}) {
     const {
       paymentStatus = 'unpaid',
-      depositPaidCents = 0,
+      _depositPaidCents = 0,
       deliveryDate = null,
       deliverySlotId = null,
       notes = '',

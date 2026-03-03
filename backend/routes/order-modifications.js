@@ -120,7 +120,7 @@ router.get('/check-permission/:orderId',
   authenticate,
   asyncHandler(async (req, res) => {
     const orderId = parseInt(req.params.orderId);
-    const userId = req.user.id;
+    const _userId = req.user.id;
     const userRole = req.user.role;
 
     // Get order status

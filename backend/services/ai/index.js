@@ -38,7 +38,7 @@ async function handleChat({
 }) {
   const startTime = Date.now();
   let queryLogId = null;
-  let error = null;
+  let _error = null;
 
   try {
     // 1. Get or create conversation

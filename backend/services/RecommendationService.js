@@ -16,7 +16,7 @@
 
 // In-memory cache fallback
 const memoryCache = new Map();
-const MEMORY_CACHE_TTL = 5 * 60 * 1000; // 5 minutes
+const _MEMORY_CACHE_TTL = 5 * 60 * 1000; // 5 minutes
 
 /**
  * Relationship type priorities (higher = more important)

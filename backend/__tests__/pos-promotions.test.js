@@ -13,7 +13,7 @@ const POSPromotionService = require('../services/POSPromotionService');
 
 // Mock pool for testing
 const createMockPool = () => {
-  const queryResults = new Map();
+  const _queryResults = new Map();
   let queryCallCount = 0;
 
   return {

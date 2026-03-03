@@ -50,7 +50,7 @@ async function run() {
       customer_id: 1, items: [{ product_id: 1, quantity: 1, unit_price: 100 }]
     });
     log('POST', '/api/quotes', r.status, r.body, '1. Create Quote');
-    try { const d = JSON.parse(r.body); createdQuoteId = d.data?.id || d.data?.quote_id || d.id; } catch(e) {}
+    try { const d = JSON.parse(r.body); createdQuoteId = d.data?.id || d.data?.quote_id || d.id; } catch(_e) {}
   } catch (e) {
     console.log('[FAIL] 1. Create Quote - Error: ' + e.message);
     results.push({ label: '1. Create Quote', pass: false });
@@ -76,7 +76,7 @@ async function run() {
       name: 'Test Customer ' + rand, email: 'testcust' + rand + '@example.com', phone: '555-0100'
     });
     log('POST', '/api/customers', r.status, r.body, '3. Create Customer');
-    try { const d = JSON.parse(r.body); createdCustomerId = d.data?.id || d.data?.customer_id || d.id; } catch(e) {}
+    try { const d = JSON.parse(r.body); createdCustomerId = d.data?.id || d.data?.customer_id || d.id; } catch(_e) {}
   } catch (e) {
     console.log('[FAIL] 3. Create Customer - Error: ' + e.message);
     results.push({ label: '3. Create Customer', pass: false });
@@ -104,7 +104,7 @@ async function run() {
       title: 'Test Task ' + rand, description: 'Automated test task', due_date: '2026-03-01', priority: 'normal', task_type: 'follow_up'
     });
     log('POST', '/api/tasks', r.status, r.body, '5. Create Task');
-    try { const d = JSON.parse(r.body); createdTaskId = d.data?.id || d.data?.task_id || d.id; } catch(e) {}
+    try { const d = JSON.parse(r.body); createdTaskId = d.data?.id || d.data?.task_id || d.id; } catch(_e) {}
   } catch (e) {
     console.log('[FAIL] 5. Create Task - Error: ' + e.message);
     results.push({ label: '5. Create Task', pass: false });

@@ -9,7 +9,7 @@ try {
   console.log('store-credits init returned:', typeof router);
   console.log('store-credits stack length:', router.stack ? router.stack.length : 'no stack');
   if (router.stack) {
-    router.stack.forEach((layer, i) => {
+    router.stack.forEach((layer, _i) => {
       if (layer.route) {
         console.log('  Route:', layer.route.methods ? Object.keys(layer.route.methods).join(',').toUpperCase() : '?', layer.route.path);
       } else {
@@ -29,7 +29,7 @@ try {
   console.log('gift-cards init returned:', typeof router);
   console.log('gift-cards stack length:', router.stack ? router.stack.length : 'no stack');
   if (router.stack) {
-    router.stack.forEach((layer, i) => {
+    router.stack.forEach((layer, _i) => {
       if (layer.route) {
         console.log('  Route:', Object.keys(layer.route.methods).join(',').toUpperCase(), layer.route.path);
       } else {
@@ -49,7 +49,7 @@ try {
   console.log('pos-payments init returned:', typeof router);
   console.log('pos-payments stack length:', router.stack ? router.stack.length : 'no stack');
   if (router.stack) {
-    router.stack.slice(0, 5).forEach((layer, i) => {
+    router.stack.slice(0, 5).forEach((layer, _i) => {
       if (layer.route) {
         console.log('  Route:', Object.keys(layer.route.methods).join(',').toUpperCase(), layer.route.path);
       } else {

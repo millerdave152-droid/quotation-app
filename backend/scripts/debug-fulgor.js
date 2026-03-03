@@ -25,7 +25,7 @@ for (let i = 0; i < Math.min(15, data.length); i++) {
 }
 
 // Find header row (look for MODEL or SKU or ITEM)
-let headerRowIdx = -1;
+let _headerRowIdx = -1;
 for (let i = 0; i < Math.min(20, data.length); i++) {
   const row = data[i];
   const rowStr = row.join(' ').toUpperCase();

@@ -387,7 +387,7 @@ class CommissionService {
 
     // Add full commission note if discount was under threshold
     if (discountPercent > 0 && !isReduced && appliedRule?.discountThreshold) {
-      const thresholdPercent = (appliedRule.discountThreshold * 100).toFixed(0);
+      const _thresholdPercent = (appliedRule.discountThreshold * 100).toFixed(0);
       if (discountPercent < appliedRule.discountThreshold && !notes.includes('Full commission - discount under threshold')) {
         notes.push('Full commission - discount under threshold');
       }
@@ -1361,7 +1361,7 @@ class CommissionService {
       repId,
       startDate = new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().split('T')[0],
       endDate = new Date().toISOString().split('T')[0],
-      includeDetails = true,
+      _includeDetails = true,
     } = options;
 
     let query = `

@@ -50,7 +50,7 @@ const createMockPool = (mockData) => {
   return {
     query: jest.fn().mockImplementation((sql, params) => {
       const sqlLower = sql.toLowerCase();
-      const startTime = Date.now();
+      const _startTime = Date.now();
 
       // Simulate real database latency (5-20ms)
       const simulatedLatency = () => new Promise(resolve =>
@@ -157,7 +157,7 @@ describe('Performance Tests', () => {
         jwt.verify(authHeader.split(' ')[1], TEST_CONFIG.JWT_SECRET);
         req.user = { id: 1, role: 'admin' };
         next();
-      } catch (err) {
+      } catch (_err) {
         res.status(401).json({ error: 'Invalid token' });
       }
     });

@@ -110,7 +110,7 @@ async function runDiagnostics() {
       try {
         const result = await pool.query(check.query);
         const orphans = parseInt(result.rows[0].orphans) || 0;
-        const status = orphans === 0 ? 'OK' : 'ISSUE';
+        const _status = orphans === 0 ? 'OK' : 'ISSUE';
         const icon = orphans === 0 ? '[OK]' : '[!!]';
         console.log(`  ${icon} ${check.name.padEnd(45)} ${orphans} orphans`);
         if (orphans > 0) {

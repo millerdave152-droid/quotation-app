@@ -181,7 +181,7 @@ describe('Quote Expiration System', () => {
         }
 
         // Update quote
-        const updateResult = await mockPool.query(
+        const _updateResult = await mockPool.query(
           `UPDATE quotations
            SET valid_until = $1, updated_at = CURRENT_TIMESTAMP
            WHERE id = $2

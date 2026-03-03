@@ -25,12 +25,12 @@ for (let i = 0; i < Math.min(15, data.length); i++) {
 }
 
 // Find header row
-let headerRowIdx = -1;
+let _headerRowIdx = -1;
 for (let i = 0; i < Math.min(20, data.length); i++) {
   const row = data[i];
   const rowStr = row.join(' ').toUpperCase();
   if (rowStr.includes('MODEL') || rowStr.includes('SKU') || rowStr.includes('ITEM') || rowStr.includes('DEALER') || rowStr.includes('COST')) {
-    headerRowIdx = i;
+    _headerRowIdx = i;
     console.log('\n--- Potential header row at row', i + 1, '---');
     const headers = row.filter(h => h !== '');
     headers.forEach((h, idx) => console.log(`  [${idx}] "${h}"`));

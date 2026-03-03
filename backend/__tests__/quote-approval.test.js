@@ -142,7 +142,7 @@ describe('Quote Approval Workflow System', () => {
     app.post('/api/quotes/:id/submit-for-approval', async (req, res) => {
       try {
         const quoteId = req.params.id;
-        const { submitted_by, notes } = req.body;
+        const { _submitted_by, _notes } = req.body;
 
         // Get quote details
         const quoteResult = await mockPool.query(

@@ -8,7 +8,6 @@ import api from '../api/axios';
 
 // Storage keys
 const DECLINED_KEY = 'pos_declined_suggestions';
-const _SHOWN_KEY = 'pos_shown_suggestions_session';
 const SESSION_TOUCHPOINT_KEY = 'pos_suggestion_touchpoint';
 
 // Config
@@ -197,6 +196,7 @@ export function useSuggestions({
     } finally {
       setLoading(false);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [productId, cartItems, context, limit, enabled, cacheKey, customerId]);
 
   /**

@@ -434,7 +434,7 @@ class MonerisService {
       throw new Error('Moneris Checkout ID not configured');
     }
 
-    const { successUrl, cancelUrl } = options;
+    const { _successUrl, _cancelUrl } = options;
 
     // Get invoice details
     const invoiceResult = await this.pool.query(`
@@ -815,7 +815,7 @@ class MonerisService {
 
     if (txnResult.rows.length === 0) return { orderId, status: 'no_matching_transaction' };
 
-    const { quotation_id, invoice_id, customer_id } = txnResult.rows[0];
+    const { quotation_id, invoice_id, _customer_id } = txnResult.rows[0];
 
     if (invoice_id) {
       await this.pool.query(`

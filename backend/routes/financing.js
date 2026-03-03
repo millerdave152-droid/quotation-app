@@ -113,7 +113,7 @@ function init({ financingService }) {
    * Query: status, provider, customerId, includeAll, page, limit
    */
   router.get('/applications', asyncHandler(async (req, res) => {
-    const { status, provider, customerId, includeAll, page = 1, limit = 100 } = req.query;
+    const { status, provider, customerId, includeAll: _includeAll, page = 1, limit = 100 } = req.query;
 
     let query = `
       SELECT

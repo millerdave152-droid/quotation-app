@@ -23,7 +23,7 @@ class DeliveryFulfillmentService {
    */
   async getAvailableOptions(cart, customerAddress = null) {
     try {
-      const { items = [], subtotalCents = 0, customer = null } = cart;
+      const { items = [], subtotalCents = 0, _customer = null } = cart;
       const subtotal = subtotalCents / 100;
 
       // Check if any items require delivery (can't be picked up)
@@ -706,7 +706,7 @@ class DeliveryFulfillmentService {
     const { userId, notes, deliveredTo, trackingNumber, trackingUrl } = options;
 
     try {
-      const result = await this.pool.query(`
+      const _result = await this.pool.query(`
         SELECT update_fulfillment_status($1, $2, $3, $4)
       `, [fulfillmentId, status, userId, notes]);
 

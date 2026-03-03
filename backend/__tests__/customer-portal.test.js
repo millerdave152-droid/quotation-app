@@ -45,7 +45,7 @@ describe('Customer Portal System', () => {
       try {
         if (!req.customer) return res.status(401).json({ error: 'Authentication required' });
 
-        const { status, limit, offset } = req.query;
+        const { status, limit, _offset } = req.query;
         let query = 'SELECT * FROM quotations WHERE customer_id = $1';
         const params = [req.customer.id];
 

@@ -93,7 +93,7 @@ describe('Quote Cloning System', () => {
     // POST /api/quotes/clone-multiple
     app.post('/api/quotes/clone-multiple', async (req, res) => {
       try {
-        const { quote_ids, modifications = {}, created_by } = req.body;
+        const { quote_ids, _modifications = {}, created_by } = req.body;
 
         if (!quote_ids || !Array.isArray(quote_ids) || quote_ids.length === 0) {
           return res.status(400).json({ error: 'Quote IDs array required' });

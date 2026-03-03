@@ -233,7 +233,7 @@ class FeedEngine {
    * @returns {{ results, validCount, invalidCount, errorSummary }}
    */
   async transformBulk(products, channelId) {
-    const templates = await this.getTemplates(channelId);
+    const _templates = await this.getTemplates(channelId);
     let validCount = 0;
     let invalidCount = 0;
     const errorSummary = {};

@@ -224,10 +224,10 @@ async function importProducts() {
         ) || extractCategory(description, model);
 
         // Extract UPC
-        const upc = getFirstValid(record['UPC']);
+        const _upc = getFirstValid(record['UPC']);
 
         // Create unique SKU from manufacturer and model
-        const sku = `${(manufacturer || 'UNK').substring(0, 3).toUpperCase()}-${model}`.replace(/[^a-zA-Z0-9-]/g, '');
+        const _sku = `${(manufacturer || 'UNK').substring(0, 3).toUpperCase()}-${model}`.replace(/[^a-zA-Z0-9-]/g, '');
 
         // Check if product exists (by model)
         const existingResult = await client.query(

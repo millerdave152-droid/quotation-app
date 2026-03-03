@@ -123,7 +123,7 @@ module.exports = function (promotionService, promotionEngine = null) {
    */
   router.put('/:id', requireRole(['manager', 'admin']), asyncHandler(async (req, res) => {
     const { id } = req.params;
-    const { products, rules, ...updates } = req.body;
+    const { products, rules: _rules, ...updates } = req.body;
 
     const promotion = await promotionService.updatePromotion(parseInt(id, 10), updates);
 

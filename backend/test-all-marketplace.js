@@ -8,7 +8,7 @@ function assert(cond, label, detail) {
   console.log((cond ? '\u2705' : '\u274C') + ' ' + label + (detail ? ' \u2014 ' + detail : ''));
   if (cond) passed++; else failed++;
 }
-function skip(label, reason) {
+function _skip(label, reason) {
   console.log('\u23ED ' + label + ' \u2014 ' + reason);
   skipped++;
 }
@@ -19,7 +19,7 @@ async function api(method, path, body) {
   var r = await fetch(BASE + path, opts);
   var text = await r.text();
   var data;
-  try { data = JSON.parse(text); } catch(e) { data = { _raw: text }; }
+  try { data = JSON.parse(text); } catch(_e) { data = { _raw: text }; }
   return { status: r.status, data: data };
 }
 

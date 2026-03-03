@@ -288,7 +288,7 @@ class WhirlpoolCentralScraper {
       });
 
       // Map to standard categories
-      const standardCategories = ['Cooking', 'Cleaning', 'Refrigeration', 'Laundry'];
+      const _standardCategories = ['Cooking', 'Cleaning', 'Refrigeration', 'Laundry'];
       const mappedCategories = categories.map(cat => {
         const lowerName = cat.name.toLowerCase();
         let standardCategory = cat.name;

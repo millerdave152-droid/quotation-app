@@ -733,7 +733,7 @@ class UnifiedOrderService {
         throw ApiError.notFound('Order');
       }
 
-      const { total_cents, amount_due_cents, status } = orderRow.rows[0];
+      const { _total_cents, amount_due_cents, _status } = orderRow.rows[0];
 
       // Validate order has balance due (skip for pending e-transfers and refund-type payments)
       if (payment.status !== 'pending' && !payment.isRefund) {

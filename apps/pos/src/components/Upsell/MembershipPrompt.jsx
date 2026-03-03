@@ -25,7 +25,7 @@ export function MembershipPrompt({
   className = '',
 }) {
   const [isJoining, setIsJoining] = useState(false);
-  const [_selectedProgram, setSelectedProgram] = useState(null);
+  const [, setSelectedProgram] = useState(null);
 
   const {
     type, // 'signup' or 'upgrade'

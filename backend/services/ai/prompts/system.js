@@ -107,7 +107,7 @@ ${ragContext.customer.churn_risk === 'high' ? '- WARNING: High churn risk - hand
  * Classify the query type for context assembly and logging
  */
 function classifyQuery(query) {
-  const lowerQuery = query.toLowerCase();
+  const _lowerQuery = query.toLowerCase();
 
   // Customer lookup patterns
   const customerPatterns = [

@@ -29,7 +29,7 @@ function init({ pool }) {
 
     for (const rule of rulesResult.rows) {
       // Build scope filter
-      let scopeJoin = '';
+      let _scopeJoin = '';
       let scopeWhere = '';
       const params = [];
       let pi = 1;

@@ -680,7 +680,7 @@ class OrderModificationService {
         'SELECT create_order_version($1, $2, $3) as version_id',
         [amendment.order_id, userId, `Pre-amendment: ${amendment.amendment_number}`]
       );
-      const preVersionId = versionResult.rows[0].version_id;
+      const _preVersionId = versionResult.rows[0].version_id;
 
       // Get amendment items
       const itemsResult = await client.query(

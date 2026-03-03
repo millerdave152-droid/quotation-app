@@ -283,7 +283,7 @@ class DynamicPricingService {
       CROSS JOIN prev_sales p
     `, [productId]);
 
-    const { recent_sales, recent_units, prev_sales, prev_units } = result.rows[0];
+    const { recent_sales, recent_units, _prev_sales, prev_units } = result.rows[0];
 
     // Calculate demand growth
     let demandGrowth = 0;

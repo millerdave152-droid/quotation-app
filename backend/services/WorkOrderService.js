@@ -201,7 +201,7 @@ class WorkOrderService {
 
     const updateFields = ['status = $2', 'updated_at = NOW()'];
     const params = [woId, newStatus];
-    let pi = 3;
+    let _pi = 3;
 
     if (newStatus === 'in_progress' && !wo.started_at) {
       updateFields.push('started_at = NOW()');

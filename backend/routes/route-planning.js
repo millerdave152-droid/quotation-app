@@ -158,7 +158,7 @@ function init({ pool }) {
           await client.query('ROLLBACK');
           throw ApiError.notFound('Location');
         }
-        const warehouse = locResult.rows[0];
+        const _warehouse = locResult.rows[0];
 
         // Get unassigned deliveries for the date
         const deliveries = await client.query(

@@ -149,7 +149,7 @@ router.get('/categories/:packageType', authenticate, asyncHandler(async (req, re
 router.get('/brands/:packageType', authenticate, asyncHandler(async (req, res) => {
   const { packageType } = req.params;
 
-  const categories = packageType === 'kitchen'
+  const _categories = packageType === 'kitchen'
     ? ['refrigerator', 'range', 'dishwasher']
     : ['washer', 'dryer'];
 

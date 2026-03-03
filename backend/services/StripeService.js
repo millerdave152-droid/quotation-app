@@ -70,8 +70,8 @@ class StripeService {
     const {
       successUrl,
       cancelUrl,
-      allowDeposit = false,
-      depositPercent = 25
+      _allowDeposit = false,
+      _depositPercent = 25
     } = options;
 
     // Get invoice details

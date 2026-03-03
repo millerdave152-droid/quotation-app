@@ -150,7 +150,7 @@ class NextBestActionService {
     // Determine lead temperature from score
     const isHotLead = lead.lead_score >= 70;
     const isWarmLead = lead.lead_score >= 40 && lead.lead_score < 70;
-    const isColdLead = lead.lead_score < 40;
+    const _isColdLead = lead.lead_score < 40;
 
     // Timeline urgency
     const isUrgentTimeline = ['asap', '1_2_weeks'].includes(lead.timeline);
@@ -361,7 +361,7 @@ class NextBestActionService {
     // Quote value tiers
     const totalValue = quote.total_cents / 100;
     const isHighValue = totalValue > 5000;
-    const isMediumValue = totalValue >= 1000 && totalValue <= 5000;
+    const _isMediumValue = totalValue >= 1000 && totalValue <= 5000;
 
     switch (quote.status) {
       case 'draft':

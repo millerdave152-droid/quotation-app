@@ -227,7 +227,7 @@ class WhirlpoolLocalScraper {
         return null;
       };
 
-      const getAttr = (selectors, attr) => {
+      const _getAttr = (selectors, attr) => {
         for (const sel of selectors) {
           const el = document.querySelector(sel);
           if (el) return el.getAttribute(attr);

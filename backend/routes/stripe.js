@@ -14,7 +14,7 @@ module.exports = (pool, cache, stripeService) => {
   /**
    * Middleware to check if Stripe is configured
    */
-  const requireStripeConfigured = (req, res, next) => {
+  const _requireStripeConfigured = (req, res, next) => {
     if (!stripeService.isConfigured()) {
       throw ApiError.badRequest('Stripe is not configured', {
         code: 'STRIPE_NOT_CONFIGURED'

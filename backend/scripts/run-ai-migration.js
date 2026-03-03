@@ -45,7 +45,7 @@ async function runMigration() {
     console.log('');
 
     // Check pgvector
-    const vectorCheck = await client.query("SELECT '[1,2,3]'::vector AS test_vector");
+    const _vectorCheck = await client.query("SELECT '[1,2,3]'::vector AS test_vector");
     console.log('  [OK] pgvector extension working');
 
     // Check tables

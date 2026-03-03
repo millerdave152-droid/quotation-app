@@ -13,7 +13,6 @@ import {
   PaperAirplaneIcon,
   UserIcon,
   CurrencyDollarIcon,
-  ClockIcon,
   ExclamationTriangleIcon,
   XCircleIcon,
 } from '@heroicons/react/24/outline';

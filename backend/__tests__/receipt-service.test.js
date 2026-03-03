@@ -216,7 +216,7 @@ const MOCK_TRADE_INS = [
 
 function createMockPool() {
   return {
-    query: jest.fn(async (sql, params) => {
+    query: jest.fn(async (sql, _params) => {
       const q = sql.replace(/\s+/g, ' ').trim();
 
       // Transaction query
@@ -709,7 +709,7 @@ describe('ReceiptService', () => {
   describe('Cross-format consistency', () => {
     let receiptData;
     let thermal;
-    let pdfText;
+    let _pdfText;
     let emailHtml;
 
     beforeAll(async () => {

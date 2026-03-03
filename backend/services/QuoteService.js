@@ -680,7 +680,7 @@ class QuoteService {
       status,
       page = 1,
       limit = 50,
-      sortBy = 'created_at',
+      _sortBy = 'created_at',
       sortOrder = 'DESC'
     } = options;
 

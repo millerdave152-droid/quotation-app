@@ -113,7 +113,7 @@ async function api(method, path) {
 
   // Verify total route count
   console.log('\n--- ROUTE COUNT ---\n');
-  var routeCount = await api('GET', '/../marketplace');
+  var _routeCount = await api('GET', '/../marketplace');
   // Just log it — we can't easily count routes from here
   console.log('  Routes added successfully');
 

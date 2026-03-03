@@ -148,7 +148,7 @@ async function importProducts(jsonPath) {
     const msrpCents = product.msrp ? Math.round(product.msrp * 100) : null;
     const costCents = product.dealerPrice ? Math.round(product.dealerPrice * 100) : null;
     const imageUrl = product.imageUrls || null;
-    const vendor = product.vendor || 'Manual Import';
+    const _vendor = product.vendor || 'Manual Import';
 
     try {
       // Check if product exists

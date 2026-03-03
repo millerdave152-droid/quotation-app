@@ -86,7 +86,7 @@ async function run() {
       else if (parsed.data && parsed.data.shift_id) shiftId = parsed.data.shift_id;
       if (!shiftId) { const m = regRes.body.match(/"shiftId"s*:s*(d+)/); if (m) shiftId = parseInt(m[1]); }
       if (!shiftId) { const m = regRes.body.match(/"shift_id"s*:s*(d+)/); if (m) shiftId = parseInt(m[1]); }
-    } catch (e) {}
+    } catch (_e) {}
     console.log('  Extracted active shiftId: ' + shiftId);
   }
 
@@ -108,7 +108,7 @@ async function run() {
         shiftId = (parsed.data && (parsed.data.shiftId || parsed.data.shift_id)) || null;
         if (!shiftId) { const m = openRes.body.match(/"shift_id"s*:s*(d+)/); if (m) shiftId = parseInt(m[1]); }
         if (!shiftId) { const m = openRes.body.match(/"shiftId"s*:s*(d+)/); if (m) shiftId = parseInt(m[1]); }
-      } catch (e) {}
+      } catch (_e) {}
       console.log('  Extracted shiftId: ' + shiftId);
     }
   }

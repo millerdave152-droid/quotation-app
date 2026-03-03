@@ -28,7 +28,7 @@ function apiCall(method, path, body, token) {
         res.on('data', (c) => (b += c));
         res.on('end', () => {
           try { resolve(JSON.parse(b)); }
-          catch (e) { resolve({ raw: b, statusCode: res.statusCode }); }
+          catch (_e) { resolve({ raw: b, statusCode: res.statusCode }); }
         });
       }
     );

@@ -37,7 +37,7 @@ class ManagerOverrideService {
    */
   async checkRequiresApproval(overrideType, value, context = {}) {
     try {
-      const { lineItem, subtotal, channel = 'pos', categoryId = null } = context;
+      const { _lineItem, _subtotal, channel = 'pos', categoryId = null } = context;
 
       // Get applicable thresholds
       const thresholds = await this.getActiveThresholds(channel, categoryId);

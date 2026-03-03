@@ -29,7 +29,7 @@ const SKULYTICS_ID_DISC = 'SKU-QE-TEST-DISC';
 // Fixed IDs for deterministic tests
 const QUOTE_ID = 5001;
 const ITEM_ID_1 = 9001;
-const ITEM_ID_2 = 9002;
+const _ITEM_ID_2 = 9002;
 const CUSTOMER_ID = 7001;
 const ADMIN_USER_ID = 8001;
 const SALES_USER_ID = 8002;
@@ -348,7 +348,7 @@ describe('Quotation Engine — Skulytics Snapshot Integration', () => {
       // Track when items are re-inserted to check if the snapshot was preserved
       if (s.includes('INSERT INTO quotation_items')) {
         // The snapshot should come from the preserved data, not a fresh build
-        const valuesPerRow = 18;
+        const _valuesPerRow = 18;
         const snapshotParam = params[15]; // skulytics_snapshot is at offset 15
         if (snapshotParam) {
           const parsed = JSON.parse(snapshotParam);

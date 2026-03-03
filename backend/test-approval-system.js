@@ -74,7 +74,7 @@ async function runTests() {
 
   const spToken = generateAccessToken(salesperson);
   const mgrToken = generateAccessToken(mgr);
-  const smToken = generateAccessToken(seniorMgr);
+  const _smToken = generateAccessToken(seniorMgr);
   const adminToken = generateAccessToken(admin);
 
   // Find product with high margin so all tiers are testable (need >50% margin for Tier 3 above-cost)
@@ -431,7 +431,7 @@ async function runTests() {
   try {
     var healthResp = await fetch('http://localhost:3001/api/health');
     serverRunning = healthResp.status === 200;
-  } catch(e) {}
+  } catch(_e) {}
 
   if (!serverRunning) {
     log('API tests: server not running on :3001', 'SKIP', 'Start server to test HTTP routes');
@@ -556,7 +556,7 @@ async function runTests() {
               ws.close();
               resolve();
             }
-          } catch(e) {}
+          } catch(_e) {}
         });
         ws.on('error', function(err) { clearTimeout(timeout); reject(err); });
         ws.on('close', function() { clearTimeout(timeout); resolve(); });

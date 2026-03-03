@@ -11,7 +11,7 @@ const { ApiError, asyncHandler } = require('../middleware/errorHandler');
 const miraklService = require('../services/miraklService');
 
 let pool = null;
-let monerisService = null;
+let _monerisService = null;
 
 router.use(authenticate);
 
@@ -477,7 +477,7 @@ router.post('/calculate', asyncHandler(async (req, res) => {
 
 const init = (deps) => {
   pool = deps.pool;
-  monerisService = deps.monerisService || null;
+  _monerisService = deps.monerisService || null;
   return router;
 };
 
