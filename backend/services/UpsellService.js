@@ -891,7 +891,7 @@ class UpsellService {
   /**
    * Get offers for a matching strategy
    */
-  async _getStrategyOffers(strategy, cart, customer, context) {
+  async _getStrategyOffers(strategy, _cart, _customer, _context) {
     const offers = await db.query(
       `SELECT uo.*, us.upsell_type
        FROM upsell_offers uo
@@ -984,7 +984,7 @@ class UpsellService {
   /**
    * Score and rank offers
    */
-  async _scoreOffers(offers, context) {
+  async _scoreOffers(offers, _context) {
     const scored = [];
 
     for (const offer of offers) {
@@ -1306,7 +1306,7 @@ class UpsellService {
     return gb >= 1000 ? `${gb / 1000}TB` : `${gb}GB`;
   }
 
-  _generateValueProposition(priceDiff, dailyCost, features, current, upgrade) {
+  _generateValueProposition(priceDiff, dailyCost, features, current, _upgrade) {
     const propositions = [];
 
     // Daily cost framing

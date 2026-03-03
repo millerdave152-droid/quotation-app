@@ -105,7 +105,7 @@ async function run() {
         try {
           const parsed = JSON.parse(res.body);
           errMsg = parsed.error?.message || parsed.error || JSON.stringify(parsed.error);
-        } catch(e) {
+        } catch(_e) {
           errMsg = res.body.substring(0, 100);
         }
         failures.push({ label, path, status, error: errMsg });

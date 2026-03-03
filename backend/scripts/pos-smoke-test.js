@@ -61,7 +61,7 @@ async function request(method, path, body = null, expectedStatus = [200, 201]) {
     if (contentType && contentType.includes('application/json')) {
       try {
         data = await response.json();
-      } catch (e) {
+      } catch (_e) {
         data = { parseError: true };
       }
     }

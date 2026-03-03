@@ -43,7 +43,7 @@ class PhysicalCountService {
     }
   }
 
-  async startCount(countId, userId) {
+  async startCount(countId, _userId) {
     const client = await this.pool.connect();
     try {
       await client.query('BEGIN');
@@ -126,7 +126,7 @@ class PhysicalCountService {
     return results;
   }
 
-  async completeCount(countId, userId) {
+  async completeCount(countId, _userId) {
     const { rows: [count] } = await this.pool.query(
       `UPDATE physical_counts SET status = 'review', completed_at = NOW(),
        total_variance_units = (SELECT COALESCE(SUM(ABS(variance)), 0) FROM physical_count_items WHERE physical_count_id = $1),

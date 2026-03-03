@@ -245,7 +245,7 @@ class GiftCardService {
   /**
    * Send a balance reminder email for a gift card.
    */
-  async sendReminder(code, userId) {
+  async sendReminder(code, _userId) {
     const result = await this.pool.query(
       `SELECT sc.*, c.email AS customer_email, c.name AS customer_name
        FROM store_credits sc

@@ -181,7 +181,7 @@ class QuoteExpiryDigestJob {
       return {
         emailDigest: prefs.quoteExpiryDigest !== false, // Default true
       };
-    } catch (error) {
+    } catch (_error) {
       // Table might not exist, default to enabled
       return { emailDigest: true };
     }

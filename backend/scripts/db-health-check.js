@@ -121,7 +121,7 @@ async function runDiagnostics() {
           });
           report.status = 'ISSUES_FOUND';
         }
-      } catch (err) {
+      } catch (_err) {
         console.log(`  [--] ${check.name.padEnd(45)} (table may not exist)`);
       }
     }
@@ -165,7 +165,7 @@ async function runDiagnostics() {
         } else {
           console.log(`  [OK] ${oq.name}: None found`);
         }
-      } catch (err) {
+      } catch (_err) {
         console.log(`  [--] ${oq.name}: (skipped - table may not exist)`);
       }
     }
@@ -263,7 +263,7 @@ async function runDiagnostics() {
             severity: 'MEDIUM'
           });
         }
-      } catch (err) {
+      } catch (_err) {
         console.log(`  [--] ${check.table}.${check.field.padEnd(25)} (skipped)`);
       }
     }
@@ -290,7 +290,7 @@ async function runDiagnostics() {
         console.log(`    ${icon} ${row.status.padEnd(15)} ${String(row.count).padStart(6)} transactions  (latest: ${new Date(row.latest).toLocaleString()})`);
       });
       report.summary.recentTransactions = txnStatus.rows;
-    } catch (err) {
+    } catch (_err) {
       console.log('  (Could not fetch transaction status)');
     }
 
@@ -317,7 +317,7 @@ async function runDiagnostics() {
           console.log(`    - ${row.transaction_number}: $${(row.total_cents/100).toFixed(2)} - ${row.void_reason || 'No reason'} (${new Date(row.voided_at).toLocaleString()})`);
         });
       }
-    } catch (err) {
+    } catch (_err) {
       // Void columns may not exist
     }
 
@@ -356,7 +356,7 @@ async function runDiagnostics() {
           severity: 'MEDIUM'
         });
       }
-    } catch (err) {
+    } catch (_err) {
       console.log('    (Could not fetch shift status)');
     }
 

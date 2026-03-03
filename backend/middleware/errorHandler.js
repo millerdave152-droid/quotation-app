@@ -104,7 +104,7 @@ const notFoundHandler = (req, res, next) => {
 /**
  * Global error handler middleware
  */
-const errorHandler = (err, req, res, next) => {
+const errorHandler = (err, req, res, _next) => {
   // Determine status code for log level
   const statusCode = err.statusCode || (err instanceof ApiError ? err.statusCode : 500);
   const duration = req._startTime ? Date.now() - req._startTime : null;

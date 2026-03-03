@@ -104,7 +104,7 @@ async function getStatus() {
         updatedAt: result.rows[0].updated_at
       };
     }
-  } catch (error) {
+  } catch (_error) {
     // Ignore - table might not exist
   }
 

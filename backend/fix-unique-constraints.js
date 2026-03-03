@@ -38,7 +38,7 @@ async function fixUniqueConstraints() {
         try {
             await pool.query('CREATE UNIQUE INDEX IF NOT EXISTS products_model_unique ON products (model)');
             console.log('✓ Ensured model has unique index');
-        } catch (e) {
+        } catch (_e) {
             console.log('  Model unique index already exists');
         }
         

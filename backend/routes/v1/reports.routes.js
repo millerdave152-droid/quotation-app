@@ -15,7 +15,6 @@ const {
   cacheControl
 } = require('../../shared/middleware');
 
-const Joi = require('joi');
 
 // Dependencies injected via init()
 let db;

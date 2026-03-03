@@ -303,7 +303,7 @@ class PricingEngine {
           changePct: Math.round(changePct * 100) / 100,
           status
         });
-      } catch (err) {
+      } catch (_err) {
         errorCount++;
       }
     }

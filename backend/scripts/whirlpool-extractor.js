@@ -369,7 +369,7 @@
             }
           });
         }
-      } catch (e) {}
+      } catch (_e) {}
     });
 
     return images;

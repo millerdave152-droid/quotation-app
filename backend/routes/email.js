@@ -85,7 +85,7 @@ router.post('/receipt', asyncHandler(async (req, res) => {
             email_type, recipient_email, subject, transaction_id, status, error_message, sent_at
           ) VALUES ($1, $2, $3, $4, $5, $6, NOW())
         `, ['receipt', to, subject, transactionId || null, 'failed', sendErr.message]);
-      } catch (logError) {
+      } catch (_logError) {
         // Ignore logging errors
       }
     }

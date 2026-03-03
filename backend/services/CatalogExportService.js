@@ -125,7 +125,7 @@ class CatalogExportService {
     return [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
   }
 
-  _generateGoogleShoppingXML(products, mapping) {
+  _generateGoogleShoppingXML(products, _mapping) {
     const items = products.map(p => `
     <item>
       <g:id>${p.sku || p.id}</g:id>

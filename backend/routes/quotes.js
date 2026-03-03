@@ -319,7 +319,7 @@ router.get('/salespeople', authenticate, asyncHandler(async (req, res) => {
         email: u.email
       })));
     }
-  } catch (err) {
+  } catch (_err) {
   }
 
   // Fallback: get unique created_by values from quotations

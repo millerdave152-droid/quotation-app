@@ -452,7 +452,7 @@ class WinProbabilityService {
   /**
    * Generate actionable recommendations
    */
-  generateRecommendations(factors, quote) {
+  generateRecommendations(factors, _quote) {
     const recommendations = [];
 
     // Check quote age

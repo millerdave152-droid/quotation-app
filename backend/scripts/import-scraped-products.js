@@ -66,7 +66,7 @@ async function autoDecodeProduct(modelNumber, manufacturer) {
       return result.data.confidence;
     }
     return null;
-  } catch (err) {
+  } catch (_err) {
     // Silent fail - decode is optional
     return null;
   }

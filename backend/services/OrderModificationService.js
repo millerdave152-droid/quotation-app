@@ -277,7 +277,7 @@ class OrderModificationService {
           const adjustmentDollars = (Math.abs(differenceCents) / 100).toFixed(2);
           throw new Error(
             `Amendment of $${adjustmentDollars} exceeds your role limit of $${limitDollars}. ` +
-            `Please contact a manager or admin to make this change.`
+            'Please contact a manager or admin to make this change.'
           );
         }
       }

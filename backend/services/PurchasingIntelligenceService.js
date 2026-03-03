@@ -28,7 +28,7 @@ class PurchasingIntelligenceService {
           apiKey: process.env.OPENAI_API_KEY
         });
         this.aiModel = process.env.AI_MODEL || 'gpt-4o-mini';
-      } catch (err) {
+      } catch (_err) {
         console.log('OpenAI client not available, AI summaries will be disabled');
       }
     }

@@ -86,7 +86,7 @@ function assert(condition, message) {
   if (!condition) throw new Error(message || 'Assertion failed');
 }
 
-function assertStatus(res, expected, message) {
+function _assertStatus(res, expected, message) {
   if (res.status !== expected) {
     throw new Error(message || `Expected status ${expected}, got ${res.status}`);
   }

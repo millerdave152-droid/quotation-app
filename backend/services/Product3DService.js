@@ -9,8 +9,7 @@
  */
 
 let pool = require('../db');
-const path = require('path');
-const fs = require('fs').promises;
+
 
 class Product3DService {
   /**

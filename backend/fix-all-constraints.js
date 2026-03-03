@@ -61,7 +61,7 @@ async function fixAllConstraints() {
                 // Try to make nullable - using quoted identifier for safety
                 await pool.query(`ALTER TABLE products ALTER COLUMN "${fix.column}" DROP NOT NULL`);
                 console.log(`✓ Made ${fix.column} nullable`);
-            } catch (e) {
+            } catch (_e) {
                 console.log(`  ${fix.column} already nullable or doesn't exist`);
             }
 

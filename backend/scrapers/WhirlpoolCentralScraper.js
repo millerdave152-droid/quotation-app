@@ -104,7 +104,7 @@ class WhirlpoolCentralScraper {
 
       try {
         await this.page.waitForSelector(waitSelectors, { timeout: 15000 });
-      } catch (e) {
+      } catch (_e) {
         // Take another screenshot for debugging
         const debugPath = path.join(__dirname, '..', 'public', 'debug-login-timeout.png');
         await this.page.screenshot({ path: debugPath, fullPage: true });
@@ -129,7 +129,7 @@ class WhirlpoolCentralScraper {
             usernameEntered = true;
             break;
           }
-        } catch (e) {
+        } catch (_e) {
           continue;
         }
       }
@@ -150,7 +150,7 @@ class WhirlpoolCentralScraper {
             passwordEntered = true;
             break;
           }
-        } catch (e) {
+        } catch (_e) {
           continue;
         }
       }
@@ -173,7 +173,7 @@ class WhirlpoolCentralScraper {
             loginClicked = true;
             break;
           }
-        } catch (e) {
+        } catch (_e) {
           continue;
         }
       }
@@ -402,7 +402,7 @@ class WhirlpoolCentralScraper {
             ]);
             pageNum++;
             await VendorScraperService.delay(1000);
-          } catch (e) {
+          } catch (_e) {
             hasNextPage = false;
           }
         } else {

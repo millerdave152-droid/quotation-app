@@ -55,7 +55,7 @@ async function lookupCanadianPostalCode(postalCode) {
           };
 
           resolve(addressInfo);
-        } catch (error) {
+        } catch (_error) {
           reject(new Error('Failed to parse postal code lookup response'));
         }
       });

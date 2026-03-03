@@ -185,7 +185,7 @@ class PdfService {
             [quote.tenant_id]
           );
           if (rows.length > 0) tenantBranding = rows[0];
-        } catch (e) { /* fallback to env */ }
+        } catch (_e) { /* fallback to env */ }
       }
 
       // Generate PDF

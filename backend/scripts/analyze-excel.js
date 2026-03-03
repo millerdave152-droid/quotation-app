@@ -1,5 +1,4 @@
 const XLSX = require('xlsx');
-const path = require('path');
 
 const filePath = process.argv[2];
 if (!filePath) {

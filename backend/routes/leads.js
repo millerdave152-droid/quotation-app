@@ -92,7 +92,6 @@ router.get('/:id', authenticate, asyncHandler(async (req, res) => {
  */
 router.post('/', authenticate, asyncHandler(async (req, res) => {
   // Validate with Joi and log errors
-  const Joi = require('joi');
   const { leadSchemas } = require('../middleware/validation');
   const { error, value } = leadSchemas.create.validate(req.body, { abortEarly: false, stripUnknown: true });
 

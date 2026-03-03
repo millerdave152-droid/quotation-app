@@ -164,7 +164,7 @@ class LeadImportService {
             if (!isNaN(date.getTime())) {
               lead.follow_up_date = date.toISOString().split('T')[0];
             }
-          } catch (e) {
+          } catch (_e) {
             errors.push(`Invalid date: "${value}"`);
           }
           break;

@@ -57,7 +57,7 @@ class PromotionFolderWatcher {
     // Verify folder exists
     try {
       await fs.access(folder_path);
-    } catch (err) {
+    } catch (_err) {
       console.error(`[PromotionFolderWatcher] Folder does not exist: ${folder_path}`);
       return;
     }
@@ -66,7 +66,7 @@ class PromotionFolderWatcher {
     const processedPath = path.join(folder_path, 'processed');
     try {
       await fs.mkdir(processedPath, { recursive: true });
-    } catch (err) {
+    } catch (_err) {
       // Ignore if already exists
     }
 
@@ -116,7 +116,7 @@ class PromotionFolderWatcher {
       try {
         await fs.rename(filePath, processedPath);
         console.log(`[PromotionFolderWatcher] Moved to: ${processedPath}`);
-      } catch (moveErr) {
+      } catch (_moveErr) {
         // If rename fails (cross-device), copy and delete
         await fs.copyFile(filePath, processedPath);
         await fs.unlink(filePath);
@@ -204,7 +204,7 @@ class PromotionFolderWatcher {
 
     try {
       await fs.access(folder_path);
-    } catch (err) {
+    } catch (_err) {
       console.log(`[PromotionFolderWatcher] Folder not accessible: ${folder_path}`);
       return result;
     }
@@ -261,7 +261,7 @@ class PromotionFolderWatcher {
     // Verify folder exists
     try {
       await fs.access(folderPath);
-    } catch (err) {
+    } catch (_err) {
       throw new Error(`Folder does not exist or is not accessible: ${folderPath}`);
     }
 

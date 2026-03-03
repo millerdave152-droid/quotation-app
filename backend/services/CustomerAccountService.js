@@ -136,7 +136,7 @@ class CustomerAccountService {
     return { accounts: rows, total };
   }
 
-  async updateAccount(accountId, data, userId) {
+  async updateAccount(accountId, data, _userId) {
     const fields = [];
     const params = [];
     let pi = 1;

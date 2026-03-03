@@ -657,7 +657,7 @@ class QuickSearchService {
   /**
    * Update product status (Manager+ only)
    */
-  async updateProductStatus(productId, status, reason, userId) {
+  async updateProductStatus(productId, status, reason, _userId) {
     const validStatuses = ['normal', 'clearance', 'discontinued', 'end_of_line'];
     if (!validStatuses.includes(status)) {
       throw new Error(`Invalid status: ${status}. Must be one of: ${validStatuses.join(', ')}`);
@@ -717,7 +717,7 @@ class QuickSearchService {
   /**
    * Set clearance price
    */
-  async setClearancePrice(productId, clearancePriceCents, reason, userId) {
+  async setClearancePrice(productId, clearancePriceCents, reason, _userId) {
     const result = await this.pool.query(`
       UPDATE products
       SET

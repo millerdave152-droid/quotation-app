@@ -13,7 +13,6 @@ require('dotenv').config();
 const { Pool } = require('pg');
 const fs = require('fs');
 const path = require('path');
-const os = require('os');
 
 // Database connection with SSL
 const pool = new Pool({
@@ -141,7 +140,7 @@ async function importProduct(product, vendorSourceId) {
   const specifications = product.specifications || {};
   const features = Object.entries(specifications)
     .filter(([k, v]) => k.toLowerCase().includes('feature') || v.length > 50)
-    .map(([k, v]) => v);
+    .map(([_k, v]) => v);
 
   const dimensions = {};
   Object.entries(specifications).forEach(([key, value]) => {
@@ -239,7 +238,7 @@ async function importImages(productId, product) {
           ON CONFLICT DO NOTHING
         `, [productId, img.type || 'gallery', img.url, i + 1]);
         count++;
-      } catch (err) {
+      } catch (_err) {
         // Ignore duplicates
       }
     }
@@ -265,7 +264,7 @@ async function importAssets(productId, product) {
           ON CONFLICT DO NOTHING
         `, [productId, asset.type || 'document', asset.name || 'Document', asset.url]);
         count++;
-      } catch (err) {
+      } catch (_err) {
         // Ignore duplicates
       }
     }

@@ -154,7 +154,7 @@ class CommissionService {
 
         items = itemsResult.rows;
       }
-    } catch (err) {
+    } catch (_err) {
       // unified_orders table may not exist or query failed
     }
 
@@ -512,7 +512,7 @@ class CommissionService {
           orderDate = txnResult.rows[0].created_at;
         }
       }
-    } catch (err) {
+    } catch (_err) {
       // Fall back to current date if tables don't exist
       const txnResult = await this.pool.query(
         'SELECT created_at FROM transactions WHERE transaction_id = $1',
@@ -720,7 +720,7 @@ class CommissionService {
         // rate is stored as decimal (0.03 = 3%), convert to percentage
         defaultRate = (parseFloat(ruleResult.rows[0].rate) || 0.03) * 100;
       }
-    } catch (err) {
+    } catch (_err) {
       // commission_rules table may not exist
     }
 

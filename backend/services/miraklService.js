@@ -871,7 +871,7 @@ class MiraklService {
         let expectedCommRate = null;
         try {
           expectedCommRate = await this.lookupCommissionRate(categoryLabel);
-        } catch (lookupErr) {
+        } catch (_lookupErr) {
           // Non-critical — don't fail the upsert
         }
 

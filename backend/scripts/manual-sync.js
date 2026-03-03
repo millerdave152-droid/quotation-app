@@ -24,7 +24,6 @@
 require('dotenv').config({ path: require('path').resolve(__dirname, '..', '.env') });
 
 const { SkulyticsSyncService } = require('../services/skulytics/SkulyticsSyncService');
-const { SkulyticsApiClient } = require('../services/skulytics/SkulyticsApiClient');
 const { normalize } = require('../services/skulytics/normalizers');
 const pool = require('../db');
 
@@ -229,7 +228,7 @@ async function discoverLimits() {
           } else {
             hi = mid;
           }
-        } catch (err) {
+        } catch (_err) {
           hi = mid;
         }
       }

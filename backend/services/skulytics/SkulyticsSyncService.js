@@ -607,7 +607,7 @@ class SkulyticsSyncService {
         await client.query('BEGIN');
         outcome = await this._processProduct(product, runId, client);
         await client.query('COMMIT');
-      } catch (err) {
+      } catch (_err) {
         await client.query('ROLLBACK');
         outcome = 'failed';
       } finally {

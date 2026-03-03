@@ -3,7 +3,6 @@
  * Handles all lead/inquiry capture business logic
  */
 
-const { ApiError } = require('../middleware/errorHandler');
 
 class LeadService {
   constructor(pool, cache) {

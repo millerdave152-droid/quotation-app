@@ -7,7 +7,7 @@ const express = require('express');
 const router = express.Router();
 const Joi = require('joi');
 const { ApiError, asyncHandler } = require('../middleware/errorHandler');
-const { authenticate, requireRole } = require('../middleware/auth');
+const { authenticate } = require('../middleware/auth');
 const HubReturnService = require('../services/HubReturnService');
 
 let returnService = null;

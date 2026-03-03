@@ -502,7 +502,7 @@ class UnifiedOrderService {
    * @param {number} userId - User making the update
    * @returns {Promise<Object>} Updated order
    */
-  async update(id, data, userId) {
+  async update(id, data, _userId) {
     const client = await this.pool.connect();
 
     try {

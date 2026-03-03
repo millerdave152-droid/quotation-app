@@ -4,7 +4,6 @@
  */
 process.env.DATABASE_SSL = 'false';
 const db = require('../config/database');
-const fs = require('fs');
 
 async function run() {
   const client = await db.connect();

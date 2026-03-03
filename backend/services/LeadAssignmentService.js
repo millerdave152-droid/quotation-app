@@ -407,7 +407,7 @@ class LeadAssignmentService {
   /**
    * Get default assignee (fallback)
    */
-  async getDefaultAssignee(lead) {
+  async getDefaultAssignee(_lead) {
     // Default: round-robin among all active sales users
     return this.getRoundRobinAssignee([]);
   }

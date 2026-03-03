@@ -204,7 +204,7 @@ async function insertCompetitorPrices(productId, product) {
 
   // Remove stale barcode_lookup rows for this product
   await pool.query(
-    `DELETE FROM competitor_prices WHERE product_id = $1 AND pricing_source = 'barcode_lookup'`,
+    'DELETE FROM competitor_prices WHERE product_id = $1 AND pricing_source = \'barcode_lookup\'',
     [productId]
   );
 

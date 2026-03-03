@@ -8,7 +8,6 @@
  */
 
 const cron = require('node-cron');
-const { Pool } = require('pg');
 
 // Module state
 let isInitialized = false;

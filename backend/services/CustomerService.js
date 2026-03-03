@@ -4,7 +4,6 @@
  */
 
 const LookupService = require('./LookupService');
-const { ApiError } = require('../middleware/errorHandler');
 
 class CustomerService {
   constructor(pool, cache) {

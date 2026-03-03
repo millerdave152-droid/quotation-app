@@ -72,7 +72,7 @@ class SpecialOrderService {
     return { specialOrders: rows, total };
   }
 
-  async updateStatus(soId, newStatus, userId) {
+  async updateStatus(soId, newStatus, _userId) {
     const { rows: [so] } = await this.pool.query(
       `UPDATE special_orders SET status = $2, updated_at = NOW(),
        customer_notified_at = CASE WHEN $2 = 'customer_notified' THEN NOW() ELSE customer_notified_at END,

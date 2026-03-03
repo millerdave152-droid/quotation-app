@@ -95,7 +95,7 @@ class TaxService {
           combinedRate: parseFloat(row.combined_rate) || 0,
           displayLabel: row.display_label,
         }));
-      } catch (error) {
+      } catch (_error) {
         // Return hardcoded rates as fallback
         return Object.entries(PricingCalculator.TAX_RATES).map(([code, rates]) => ({
           provinceCode: code,
@@ -375,7 +375,7 @@ class TaxService {
         `, [customerId, provinceCode]);
 
         return result.rows.length > 0;
-      } catch (error) {
+      } catch (_error) {
         // Check customers table fallback
         const fallback = await this.pool.query(
           'SELECT is_tax_exempt FROM customers WHERE id = $1',

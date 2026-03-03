@@ -205,7 +205,7 @@ class HubCommissionService {
   /**
    * Recalculate commission for an existing record (e.g., after order modification).
    */
-  async recalculate(commissionId, userId) {
+  async recalculate(commissionId, _userId) {
     const existing = await this.getById(commissionId);
     if (!existing) throw ApiError.notFound('Commission');
 

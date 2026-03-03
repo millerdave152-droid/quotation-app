@@ -367,7 +367,7 @@ class LeadAIService {
   /**
    * Analyze lead requirements and suggest package deals
    */
-  static async suggestPackages(lead, pool) {
+  static async suggestPackages(lead, _pool) {
     // Check if lead wants multiple appliances (kitchen package, laundry pair, etc.)
     if (!lead.requirements || lead.requirements.length < 2) {
       return null;

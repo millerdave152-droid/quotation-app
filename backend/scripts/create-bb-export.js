@@ -1,5 +1,4 @@
 const XLSX = require('xlsx');
-const path = require('path');
 
 // Test batch data - Samsung products with researched UPCs and specs
 const testBatchProducts = [

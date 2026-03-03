@@ -240,7 +240,7 @@ class RebateService {
   // Apply instant rebate as a line-level discount
   // ============================================================================
 
-  async applyInstantRebate(transactionId, rebateId, productId, userId) {
+  async applyInstantRebate(transactionId, rebateId, productId, _userId) {
     const client = await this.db.connect();
 
     try {

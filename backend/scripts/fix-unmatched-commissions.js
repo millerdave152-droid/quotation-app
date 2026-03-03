@@ -47,7 +47,7 @@ async function fix() {
           break;
         }
       }
-    } catch (e) {}
+    } catch (_e) {}
   }
 
   // Apply parent-category matching: if the category_code starts with

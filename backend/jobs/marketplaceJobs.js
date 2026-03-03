@@ -331,7 +331,7 @@ async function jobImportStatusCheck() {
           try {
             const adapter = manager.getAdapter(imp.channel_id);
             result = await adapter.checkImportStatus(imp.mirakl_import_id);
-          } catch (adapterErr) {
+          } catch (_adapterErr) {
             // Adapter not loaded for this channel — fall back to legacy
             result = await miraklService.checkImportStatus(imp.mirakl_import_id);
           }

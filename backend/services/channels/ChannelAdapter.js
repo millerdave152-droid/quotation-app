@@ -23,14 +23,14 @@ class ChannelAdapter {
 
   // === OFFERS / LISTINGS ===
 
-  async pushOffers(listings) {
+  async pushOffers(_listings) {
     // listings = array of product_channel_listings rows joined with product data
     // Push product offers/listings to the channel
     // Return: { submitted: count, importId: string }
     throw new Error(`pushOffers not implemented for ${this.channelCode}`);
   }
 
-  async pushSingleOffer(listing) {
+  async pushSingleOffer(_listing) {
     // Push a single product offer update
     // Return: { success: boolean }
     throw new Error(`pushSingleOffer not implemented for ${this.channelCode}`);
@@ -42,7 +42,7 @@ class ChannelAdapter {
     throw new Error(`getRemoteOffers not implemented for ${this.channelCode}`);
   }
 
-  async checkImportStatus(importId) {
+  async checkImportStatus(_importId) {
     // Check status of a bulk import job
     // Return: { status, processed, errors }
     throw new Error(`checkImportStatus not implemented for ${this.channelCode}`);
@@ -56,24 +56,24 @@ class ChannelAdapter {
     throw new Error(`pollOrders not implemented for ${this.channelCode}`);
   }
 
-  async acceptOrder(orderId, lines) {
+  async acceptOrder(_orderId, _lines) {
     // Accept/refuse order lines
     throw new Error(`acceptOrder not implemented for ${this.channelCode}`);
   }
 
-  async shipOrder(orderId, trackingInfo) {
+  async shipOrder(_orderId, _trackingInfo) {
     // Update tracking and confirm shipment
     throw new Error(`shipOrder not implemented for ${this.channelCode}`);
   }
 
-  async refundOrder(orderId, refunds) {
+  async refundOrder(_orderId, _refunds) {
     // Process refunds on order lines
     throw new Error(`refundOrder not implemented for ${this.channelCode}`);
   }
 
   // === INVENTORY ===
 
-  async pushInventory(stockUpdates) {
+  async pushInventory(_stockUpdates) {
     // stockUpdates = [{ sku, quantity }]
     // Push stock levels to channel
     // Return: { submitted: count, importId: string }
@@ -95,13 +95,13 @@ class ChannelAdapter {
     throw new Error(`pollMessages not implemented for ${this.channelCode}`);
   }
 
-  async sendMessage(threadId, message) {
+  async sendMessage(_threadId, _message) {
     throw new Error(`sendMessage not implemented for ${this.channelCode}`);
   }
 
   // === VALIDATION ===
 
-  async validateProduct(product) {
+  async validateProduct(_product) {
     // Validate a product meets this channel's listing requirements
     // Return: { valid, errors, warnings }
     throw new Error(`validateProduct not implemented for ${this.channelCode}`);

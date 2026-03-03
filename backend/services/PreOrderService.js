@@ -72,7 +72,7 @@ class PreOrderService {
     return { preOrders: rows, total };
   }
 
-  async updateStatus(preOrderId, newStatus, userId) {
+  async updateStatus(preOrderId, newStatus, _userId) {
     const { rows: [po] } = await this.pool.query(
       `UPDATE pre_orders SET status = $2, updated_at = NOW(),
        notified_at = CASE WHEN $2 = 'notified' THEN NOW() ELSE notified_at END,

@@ -3965,7 +3965,7 @@ router.get('/polling-status', authenticate, asyncHandler(async (req, res) => {
   try {
     const marketplaceJobs = require('../jobs/marketplaceJobs');
     res.json(marketplaceJobs.getPollingStatus());
-  } catch (err) {
+  } catch (_err) {
     res.json({ enabled: false, jobs: [], error: 'Polling module not available' });
   }
 }));
@@ -7443,7 +7443,7 @@ router.post('/channels/:channelId/auto-map', authenticate, asyncHandler(async (r
           mappedTo: matchedCat.category_label,
           mappedCode: matchedCat.category_code
         });
-      } catch (err) {
+      } catch (_err) {
         unmapped++;
       }
     } else {

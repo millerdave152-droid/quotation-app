@@ -9,7 +9,7 @@ const router = express.Router();
 const { rawPool: db } = require('../db'); // Use rawPool — login/register bypass RLS
 const { hashPassword, comparePassword, validatePasswordStrength } = require('../utils/password');
 const { generateAccessToken, generateRefreshToken, verifyRefreshToken, REFRESH_TOKEN_EXPIRY } = require('../utils/jwt');
-const { authenticate, requireRole } = require('../middleware/auth');
+const { authenticate } = require('../middleware/auth');
 const {
   validateRegister,
   validateLogin,

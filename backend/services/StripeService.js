@@ -307,7 +307,7 @@ class StripeService {
    * @param {object} paymentData - Payment details
    * @returns {Promise<object>} Payment result
    */
-  async processPaymentLink(token, paymentData) {
+  async processPaymentLink(token, _paymentData) {
     if (!this.isConfigured()) {
       throw new Error('Stripe is not configured');
     }

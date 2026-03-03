@@ -146,7 +146,7 @@ class WorkOrderService {
     return { workOrders: rows, total };
   }
 
-  async updateWorkOrder(woId, data, userId) {
+  async updateWorkOrder(woId, data, _userId) {
     const fields = [];
     const params = [];
     let pi = 1;

@@ -2,7 +2,7 @@ const express = require('express');
 const router = express.Router();
 const pool = require('../db');
 const { authenticate } = require('../middleware/auth');
-const { ApiError, asyncHandler } = require('../middleware/errorHandler');
+const { asyncHandler } = require('../middleware/errorHandler');
 
 // Get all follow-up reminders for a quote
 router.get('/quotations/:id/follow-ups', authenticate, asyncHandler(async (req, res) => {

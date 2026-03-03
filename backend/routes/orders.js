@@ -10,7 +10,7 @@ const { ApiError, asyncHandler } = require('../middleware/errorHandler');
 const { authenticate } = require('../middleware/auth');
 const { validateJoi, orderSchemas } = require('../middleware/validation');
 
-module.exports = (pool, cache, orderService, inventoryService) => {
+module.exports = (pool, cache, orderService, _inventoryService) => {
 
   /**
    * GET /api/orders

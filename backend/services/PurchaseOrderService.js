@@ -98,7 +98,7 @@ class PurchaseOrderService {
     }
   }
 
-  async updatePO(poId, updates, userId) {
+  async updatePO(poId, updates, _userId) {
     const po = await this._getPORow(poId);
     if (po.status !== 'draft') throw ApiError.badRequest('Only draft POs can be edited');
 
@@ -158,7 +158,7 @@ class PurchaseOrderService {
   // STATUS TRANSITIONS
   // ---------------------------------------------------------------------------
 
-  async submitPO(poId, userId) {
+  async submitPO(poId, _userId) {
     const po = await this._getPORow(poId);
     if (po.status !== 'draft') throw ApiError.badRequest('Only draft POs can be submitted');
 
@@ -604,7 +604,7 @@ class PurchaseOrderService {
   // LANDED COST (Feature 1C)
   // ---------------------------------------------------------------------------
 
-  async addLandedCosts(receiptId, costs, userId) {
+  async addLandedCosts(receiptId, costs, _userId) {
     const client = await this.pool.connect();
     try {
       await client.query('BEGIN');
@@ -651,7 +651,7 @@ class PurchaseOrderService {
     }
   }
 
-  async allocateLandedCosts(receiptId, userId) {
+  async allocateLandedCosts(receiptId, _userId) {
     const client = await this.pool.connect();
     try {
       await client.query('BEGIN');

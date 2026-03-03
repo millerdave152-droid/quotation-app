@@ -31,7 +31,7 @@ async function run() {
     try {
       const c = await db.query(`SELECT COUNT(*) FROM ${t}`);
       console.log(`  ${t}: ${c.rows[0].count} rows`);
-    } catch(e) { console.log(`  ${t}: ERROR`); }
+    } catch(_e) { console.log(`  ${t}: ERROR`); }
   }
 
   await db.end();

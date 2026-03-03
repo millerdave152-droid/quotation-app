@@ -54,7 +54,7 @@ rows.forEach(parts => {
   let msrp = '';
   let colour = '';
 
-  parts.forEach((p, idx) => {
+  parts.forEach((p, _idx) => {
     if (!p) return;
     p = p.trim();
 

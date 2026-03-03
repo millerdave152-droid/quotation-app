@@ -1109,7 +1109,7 @@ If you've already submitted your rebate, please disregard this message.
     return `$${parseFloat(amount || 0).toFixed(2)}`;
   }
 
-  _buildRebateInfoEmail(rebates, email) {
+  _buildRebateInfoEmail(rebates, _email) {
     const totalAmount = rebates.reduce((sum, r) => sum + parseFloat(r.amount), 0);
 
     const subject = `Your Rebate Information - Save $${totalAmount.toFixed(2)}!`;

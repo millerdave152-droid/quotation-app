@@ -4,7 +4,6 @@
  * Shows how many products match each filter option
  */
 
-const { Pool } = require('pg');
 
 class FilterCountService {
   constructor(pool) {

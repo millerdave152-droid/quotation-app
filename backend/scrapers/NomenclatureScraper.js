@@ -11,7 +11,6 @@
  */
 
 const puppeteer = require('puppeteer');
-const path = require('path');
 
 class NomenclatureScraper {
   constructor(pool) {
@@ -119,7 +118,7 @@ class NomenclatureScraper {
             ]);
             break;
           }
-        } catch (e) {
+        } catch (_e) {
           continue;
         }
       }

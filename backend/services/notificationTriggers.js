@@ -44,7 +44,7 @@ async function getCustomer(customerId) {
   return rows[0] || null;
 }
 
-async function getOrder(orderId) {
+async function _getOrder(orderId) {
   const { rows } = await pool.query(
     'SELECT * FROM transactions WHERE transaction_id = $1', [orderId]
   );
@@ -71,7 +71,7 @@ async function getOrderItemsSummary(transactionId) {
   return rows.map(r => `• ${r.product_name} x${r.quantity} — ${formatCurrency(r.unit_price)}`).join('\n');
 }
 
-async function getDeliveryBooking(deliveryId) {
+async function _getDeliveryBooking(deliveryId) {
   const { rows } = await pool.query('SELECT * FROM delivery_bookings WHERE id = $1', [deliveryId]);
   return rows[0] || null;
 }

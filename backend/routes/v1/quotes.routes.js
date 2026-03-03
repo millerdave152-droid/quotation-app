@@ -1286,7 +1286,7 @@ function getStatusTransitions(currentStatus) {
 /**
  * Check if approval is required based on margin thresholds
  */
-async function checkApprovalRequired(client, items) {
+async function checkApprovalRequired(_client, _items) {
   // Simple margin check - in real implementation, this would check business rules
   // For now, return false (no approval required)
   return false;

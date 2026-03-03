@@ -154,7 +154,7 @@ router.get('/search-transactions', authenticate, requirePermission('fraud.charge
     query += ` AND p.card_last_four = $${params.length}`;
   }
 
-  query += ` ORDER BY t.created_at DESC LIMIT 20`;
+  query += ' ORDER BY t.created_at DESC LIMIT 20';
 
   const { rows } = await pool.query(query, params);
   res.json({ success: true, data: rows });
@@ -219,7 +219,7 @@ router.get('/', authenticate, requirePermission('fraud.chargebacks.manage'), asy
   // Count total
   let countQuery = query.replace(/SELECT cc\.\*.*FROM/, 'SELECT COUNT(*)::int AS total FROM').replace(/ORDER BY.*$/, '');
   // Simpler approach
-  let countQ = `SELECT COUNT(*)::int AS total FROM chargeback_cases cc WHERE 1=1`;
+  let countQ = 'SELECT COUNT(*)::int AS total FROM chargeback_cases cc WHERE 1=1';
   const countParams = [];
   if (status) { countParams.push(status); countQ += ` AND cc.status = $${countParams.length}`; }
   if (card_brand) { countParams.push(card_brand); countQ += ` AND cc.card_brand = $${countParams.length}`; }
@@ -421,16 +421,16 @@ router.put('/:id', authenticate, requirePermission('fraud.chargebacks.manage'), 
     updates.push(`status = $${idx++}`);
     values.push(oldStatus);
     updates.push(`previous_status = $${idx++}`);
-    updates.push(`status_changed_at = NOW()`);
+    updates.push('status_changed_at = NOW()');
 
     // Track resolved/evidence timestamps
     if (status === 'evidence_submitted') {
-      updates.push(`evidence_submitted_at = NOW()`);
+      updates.push('evidence_submitted_at = NOW()');
     }
     if (['won', 'lost', 'expired', 'accepted'].includes(status)) {
-      updates.push(`resolved_at = NOW()`);
+      updates.push('resolved_at = NOW()');
       // Calculate response_days
-      updates.push(`response_days = EXTRACT(DAY FROM NOW() - COALESCE(received_at, created_at))::int`);
+      updates.push('response_days = EXTRACT(DAY FROM NOW() - COALESCE(received_at, created_at))::int');
     }
   }
   if (notes !== undefined) { values.push(notes); updates.push(`notes = $${idx++}`); }

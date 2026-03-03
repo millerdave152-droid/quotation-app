@@ -1,5 +1,4 @@
 const XLSX = require('xlsx');
-const path = require('path');
 
 // File paths
 const stockPath = 'C:\\Users\\davem\\OneDrive\\Desktop\\stock for bb.xlsx';

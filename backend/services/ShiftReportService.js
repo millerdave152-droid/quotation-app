@@ -3,7 +3,6 @@
  * Generates comprehensive end-of-day/shift reports
  */
 
-const { parseDollars } = require('../utils/money');
 
 class ShiftReportService {
   constructor(pool) {
@@ -861,7 +860,7 @@ class ShiftReportService {
    */
   async exportShiftReportZip(params) {
     const archiver = require('archiver');
-    const { PassThrough } = require('stream');
+
 
     // Generate all CSVs in parallel
     const [summary, transactions, products, payments, reps, hourly] = await Promise.all([

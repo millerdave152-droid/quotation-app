@@ -1,6 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const { ApiError, asyncHandler } = require('../middleware/errorHandler');
+const { asyncHandler } = require('../middleware/errorHandler');
 const { authenticate, requirePermission } = require('../middleware/auth');
 
 let preOrderService = null;

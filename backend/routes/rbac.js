@@ -433,7 +433,7 @@ usersRbacRouter.get('/me/permissions', asyncHandler(async (req, res) => {
   let permissions;
   try {
     permissions = await getUserPermissions(userId);
-  } catch (err) {
+  } catch (_err) {
     // Tables may not exist yet — fall back to req.user.permissions
     permissions = req.user.permissions || [];
   }

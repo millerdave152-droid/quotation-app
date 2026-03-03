@@ -18,7 +18,7 @@ function logToFile(message) {
 }
 const { roundDollars, dollarsToCents, parseDollars } = require('../utils/money');
 const { ApiError, asyncHandler } = require('../middleware/errorHandler');
-const { authenticate, requireRole, requirePermission } = require('../middleware/auth');
+const { authenticate, requirePermission } = require('../middleware/auth');
 const { fraudCheck } = require('../middleware/fraudCheck');
 const miraklService = require('../services/miraklService');
 

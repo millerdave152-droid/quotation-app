@@ -200,7 +200,7 @@ async function executeTools(toolUseBlocks, userId, locationId) {
 /**
  * Execute a single tool
  */
-async function executeTool(toolName, input, userId, locationId) {
+async function executeTool(toolName, input, _userId, _locationId) {
   switch (toolName) {
     case 'lookup_customer':
       return await lookupCustomer(input);
@@ -688,7 +688,7 @@ async function getProductDetails({ product_id, sku }) {
 /**
  * Tool: get_cross_sell_suggestions
  */
-async function getCrossSellSuggestions({ customer_id, product_ids, category }) {
+async function getCrossSellSuggestions({ customer_id, product_ids, _category }) {
   const suggestions = [];
 
   // Get categories of products in cart

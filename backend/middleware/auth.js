@@ -6,7 +6,7 @@
 
 const { verifyAccessToken } = require('../utils/jwt');
 const { rawPool: db, tenantContext } = require('../db'); // Use rawPool — RLS not active during auth
-const { resolvePermissions, hasPermission: checkPermission, POS_PERMISSIONS } = require('../utils/permissions');
+const { resolvePermissions, POS_PERMISSIONS } = require('../utils/permissions');
 const { ApiError } = require('./errorHandler');
 
 /**
@@ -83,7 +83,7 @@ const authenticate = async (req, res, next) => {
           [user.role_id]
         );
         normalizedPermissions = permResult.rows.map(r => r.code);
-      } catch (err) {
+      } catch (_err) {
         // Tables may not exist yet -- fall back silently
         normalizedPermissions = null;
       }
@@ -162,7 +162,7 @@ const optionalAuth = async (req, res, next) => {
               [user.role_id]
             );
             normalizedPermissions = permResult.rows.map(r => r.code);
-          } catch (err) {
+          } catch (_err) {
             normalizedPermissions = null;
           }
         }
@@ -189,7 +189,7 @@ const optionalAuth = async (req, res, next) => {
       } else {
         req.user = null;
       }
-    } catch (error) {
+    } catch (_error) {
       req.user = null;
     }
 

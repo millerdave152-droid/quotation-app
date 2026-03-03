@@ -656,7 +656,7 @@ router.get('/scores', authenticate, requirePermission('fraud.alerts.view'), asyn
 
 router.get('/scores/unreviewed-count', authenticate, requirePermission('fraud.alerts.view'), asyncHandler(async (req, res) => {
   const { rows } = await fraudService.pool.query(
-    `SELECT COUNT(*) FROM fraud_scores WHERE reviewed_by IS NULL AND score >= 30`
+    'SELECT COUNT(*) FROM fraud_scores WHERE reviewed_by IS NULL AND score >= 30'
   );
   res.json({ success: true, data: { count: parseInt(rows[0].count) } });
 }));
@@ -721,10 +721,10 @@ router.get('/transactions', authenticate, requirePermission('fraud.alerts.review
 
   // Default: show unreviewed flagged/held/escalated
   if (status === 'pending') {
-    conditions.push(`fs.reviewed_by IS NULL`);
-    conditions.push(`fs.action_taken IN ('flagged', 'held', 'escalated')`);
+    conditions.push('fs.reviewed_by IS NULL');
+    conditions.push('fs.action_taken IN (\'flagged\', \'held\', \'escalated\')');
   } else if (status === 'reviewed') {
-    conditions.push(`fs.reviewed_by IS NOT NULL`);
+    conditions.push('fs.reviewed_by IS NOT NULL');
   }
   // 'all' — no status filter
 

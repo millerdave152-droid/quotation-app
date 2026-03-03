@@ -6,7 +6,6 @@
  */
 
 const XLSX = require('xlsx');
-const path = require('path');
 
 // ============================================================
 // ENHANCED PRODUCT DATABASE - Full descriptions and images
@@ -807,7 +806,7 @@ function standardizeBrand(brand) {
   return BRAND_STANDARDIZATION[upper] || upper;
 }
 
-function mapCategory(productType, brand) {
+function mapCategory(productType, _brand) {
   const upper = (productType || '').toString().toUpperCase().trim();
   return CATEGORY_MAPPING[upper] || 'Appliances/Other Appliances';
 }

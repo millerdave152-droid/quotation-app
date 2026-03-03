@@ -7,7 +7,6 @@
 
 const { Pool } = require('pg');
 const XLSX = require('xlsx');
-const path = require('path');
 require('dotenv').config();
 
 const pool = new Pool({

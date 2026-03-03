@@ -371,7 +371,7 @@ class ConversionAnalyticsService {
   /**
    * Identify bottlenecks in the funnel
    */
-  identifyBottlenecks(stages, timing, dropoffs) {
+  identifyBottlenecks(stages, timing, _dropoffs) {
     const bottlenecks = [];
 
     // Check lead funnel dropoffs
@@ -432,7 +432,7 @@ class ConversionAnalyticsService {
   /**
    * Get suggestion based on dropoff stage
    */
-  getSuggestionForDropoff(stage, rate) {
+  getSuggestionForDropoff(stage, _rate) {
     const suggestions = {
       'New Leads': 'Improve initial outreach - try different channels or faster response',
       'Contacted': 'Enhance qualification process - better discovery questions',

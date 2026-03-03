@@ -122,7 +122,7 @@ class HubReturnService {
       // Determine return type
       const returnType = data.returnType || (
         validatedItems.length === orderItemsResult.rows.length &&
-        validatedItems.every((vi, i) => vi.quantity === orderItemsResult.rows.find(oi => oi.id === vi.orderItemId)?.quantity)
+        validatedItems.every((vi, _i) => vi.quantity === orderItemsResult.rows.find(oi => oi.id === vi.orderItemId)?.quantity)
           ? 'full'
           : 'partial'
       );

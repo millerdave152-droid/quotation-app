@@ -13,7 +13,6 @@
  */
 
 const fs = require('fs').promises;
-const fsSync = require('fs');
 const path = require('path');
 const chokidar = require('chokidar');
 const CSVImportService = require('./csv-import-service');
@@ -41,7 +40,7 @@ class ProductSyncScheduler {
         // Verify watched folder exists
         try {
             await fs.access(this.config.cleanedDataPath);
-        } catch (error) {
+        } catch (_error) {
             console.error(`Watched folder does not exist: ${this.config.cleanedDataPath}`);
             return;
         }
@@ -266,7 +265,7 @@ class ProductSyncScheduler {
                 VALUES ($1, $2, $3, CURRENT_TIMESTAMP)
                 ON CONFLICT DO NOTHING
             `, [type, fileName, JSON.stringify(data)]);
-        } catch (err) {
+        } catch (_err) {
             // Table may not exist - that's OK, just skip db logging
         }
 

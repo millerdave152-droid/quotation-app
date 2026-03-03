@@ -2511,7 +2511,7 @@ class PackageSelectionEngine {
    * Select a product for a slot with progressive filter relaxation
    * Used for laundry flow to process dryer first
    */
-  async selectProductForSlot(slotKey, slotConfig, catalog, tierRanges, requirements, preferences, tier, preferredBrand, pairConstraints, flowType) {
+  async selectProductForSlot(slotKey, slotConfig, catalog, tierRanges, requirements, preferences, tier, preferredBrand, _pairConstraints, _flowType) {
     const result = {
       selected: null,
       item: null,

@@ -46,7 +46,7 @@ class DiscountAuthorityService {
    * Validate a proposed discount against tier rules
    * Returns approval status, reasons, and margin info
    */
-  async validateDiscount({ productId, originalPrice, cost, discountPct, employeeId, role }) {
+  async validateDiscount({ _productId, originalPrice, cost, discountPct, employeeId, role }) {
     const tier = await this.getEmployeeTier(employeeId, role);
 
     if (!tier) {

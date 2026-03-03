@@ -682,7 +682,7 @@ class InsightsEngine {
       `, [userId]);
 
       return result.rows.map(r => r.insight_id);
-    } catch (err) {
+    } catch (_err) {
       // Table might not exist yet
       return [];
     }

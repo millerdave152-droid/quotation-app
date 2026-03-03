@@ -267,7 +267,7 @@ class ETransferService {
   /**
    * Mark an e-transfer as received (money arrived, not yet confirmed).
    */
-  async markReceived(reference, userId) {
+  async markReceived(reference, _userId) {
     const result = await this.pool.query(
       `UPDATE unified_order_payments
        SET etransfer_status = 'received', etransfer_received_at = NOW(), updated_at = NOW()

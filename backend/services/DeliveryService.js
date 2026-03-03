@@ -247,7 +247,7 @@ class DeliveryService {
                   dayConfig.day_surcharge_cents || 0
                 ]);
                 slotsCreated++;
-              } catch (e) {
+              } catch (_e) {
                 // Ignore duplicate errors
               }
             }

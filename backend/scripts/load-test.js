@@ -111,7 +111,7 @@ Examples:
 // HTTP CLIENT
 // ============================================================
 function makeRequest(url, options, body) {
-  return new Promise((resolve, reject) => {
+  return new Promise((resolve, _reject) => {
     const startTime = Date.now();
     const isHttps = url.startsWith('https');
     const client = isHttps ? https : http;

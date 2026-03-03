@@ -150,7 +150,7 @@ async function run() {
     'CREATE INDEX IF NOT EXISTS idx_schedules_day ON delivery_schedules(day_of_week, start_time)',
   ];
   for (const idx of indexes) {
-    try { await db.query(idx); } catch(e) {}
+    try { await db.query(idx); } catch(_e) {}
   }
   console.log('✓ Indexes created');
 

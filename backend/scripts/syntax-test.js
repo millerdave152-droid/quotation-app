@@ -4,7 +4,6 @@
  * Verifies all new services and routes can be loaded without errors
  */
 
-const path = require('path');
 
 const results = { passed: 0, failed: 0, tests: [] };
 

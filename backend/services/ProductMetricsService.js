@@ -102,7 +102,7 @@ class ProductMetricsService {
   /**
    * Classify demand based on sales velocity
    */
-  classifyDemand({ qtySold30d, qtySold90d, qtyQuoted30d, productId }) {
+  classifyDemand({ qtySold30d, qtySold90d, qtyQuoted30d, _productId }) {
     // Fast mover: high sales velocity
     if (qtySold30d >= 10 || qtySold90d >= 25) {
       return 'fast_mover';

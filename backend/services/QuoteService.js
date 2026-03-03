@@ -1181,7 +1181,7 @@ class QuoteService {
             if (userResult.rows.length > 0) {
               creatorEmail = userResult.rows[0].email;
             }
-          } catch (lookupErr) {
+          } catch (_lookupErr) {
           }
         }
 

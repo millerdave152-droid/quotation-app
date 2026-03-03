@@ -4,7 +4,6 @@
  */
 
 const XLSX = require('xlsx');
-const path = require('path');
 const pool = require('../db');
 
 const EXCEL_PATH = 'C:\\Users\\WD-PC1\\OneDrive\\Desktop\\inventory20260114.xlsx';

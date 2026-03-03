@@ -321,7 +321,7 @@ class CustomerPricingService {
   /**
    * Remove customer-specific product price
    */
-  async removeCustomerProductPrice(customerId, productId, userId) {
+  async removeCustomerProductPrice(customerId, productId, _userId) {
     await this.pool.query(
       `UPDATE customer_product_pricing
        SET effective_to = CURRENT_DATE - INTERVAL '1 day'
@@ -694,7 +694,7 @@ class CustomerPricingService {
   /**
    * Update customer's pricing tier
    */
-  async setCustomerTier(customerId, tier, userId) {
+  async setCustomerTier(customerId, tier, _userId) {
     await this.pool.query(
       `UPDATE customers
        SET pricing_tier = $2, updated_at = NOW()

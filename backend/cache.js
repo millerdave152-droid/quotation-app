@@ -123,7 +123,7 @@ const invalidatePattern = (pattern) => {
   const prefix = pattern.replace(/\*$/, '');
   let deletedCount = 0;
 
-  Object.entries(caches).forEach(([type, cache]) => {
+  Object.entries(caches).forEach(([_type, cache]) => {
     const keys = cache.keys();
     keys.forEach(key => {
       if (key.startsWith(prefix)) {

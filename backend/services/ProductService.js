@@ -7,7 +7,6 @@
  * - New: Filter by normalized category_id (p.category_id)
  */
 
-const { ApiError } = require('../middleware/errorHandler');
 
 class ProductService {
   constructor(pool, cache) {
@@ -745,7 +744,7 @@ class ProductService {
         [productId, userId]
       );
       return true;
-    } catch (err) {
+    } catch (_err) {
       return false;
     }
   }

@@ -1176,7 +1176,7 @@ class FinancingService {
    * Initiate Affirm checkout (stubbed)
    * @private
    */
-  async _initiateAffirmCheckout(applicationId, amountCents, customerId) {
+  async _initiateAffirmCheckout(applicationId, _amountCents, _customerId) {
     // In production, this would call Affirm's API
     // https://docs.affirm.com/affirm-developers/docs/checkout-api
     console.log(`[FinancingService] Affirm checkout stub for app ${applicationId}`);
@@ -1193,7 +1193,7 @@ class FinancingService {
    * Initiate Klarna session (stubbed)
    * @private
    */
-  async _initiateKlarnaSession(applicationId, amountCents, customerId) {
+  async _initiateKlarnaSession(applicationId, _amountCents, _customerId) {
     // In production, this would call Klarna's API
     // https://docs.klarna.com/klarna-payments/
     console.log(`[FinancingService] Klarna session stub for app ${applicationId}`);
@@ -1210,7 +1210,7 @@ class FinancingService {
    * Initiate Synchrony application (stubbed)
    * @private
    */
-  async _initiateSynchronyApplication(applicationId, amountCents, customerId) {
+  async _initiateSynchronyApplication(applicationId, _amountCents, _customerId) {
     // In production, this would call Synchrony's API
     console.log(`[FinancingService] Synchrony application stub for app ${applicationId}`);
 

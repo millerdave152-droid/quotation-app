@@ -35,7 +35,7 @@ const { init: initLeadsRoutes } = require('./routes/leads');
 
 // Standardized API response utilities
 const { attachResponseHelpers } = require('./utils/apiResponse');
-const { notFoundHandler, errorHandler, ApiError, asyncHandler } = require('./middleware/errorHandler');
+const { notFoundHandler, errorHandler, asyncHandler } = require('./middleware/errorHandler');
 
 // Email notification scheduler
 const notificationScheduler = require('./services/NotificationScheduler');
@@ -233,7 +233,7 @@ app.use(requestLogger);
 const pool = require('./db');
 const { rawPool } = pool;
 
-rawPool.query('SELECT NOW()', (err, res) => {
+rawPool.query('SELECT NOW()', (err, _res) => {
   if (err) {
     logger.error({ err }, 'Database connection error');
   } else {
@@ -569,7 +569,7 @@ app.get('/ready', async (req, res) => {
     // Quick database check
     await pool.query('SELECT 1');
     res.status(200).json({ ready: true });
-  } catch (error) {
+  } catch (_error) {
     res.status(503).json({ ready: false, error: 'Database not available' });
   }
 });
@@ -933,7 +933,7 @@ logger.info('Customer portal routes loaded (self-service)');
 // ============================================
 // WEBHOOKS INTEGRATION SYSTEM
 // ============================================
-const { init: initWebhooksRoutes, getService: getWebhookService } = require('./routes/webhooks');
+const { init: initWebhooksRoutes } = require('./routes/webhooks');
 app.use('/api/webhooks', initWebhooksRoutes({ pool, cache }));
 logger.info('Webhooks routes loaded (integrations)');
 
@@ -1478,7 +1478,7 @@ app.get('/api/postal-code/:code', async (req, res) => {
         },
         fallback: true
       });
-    } catch (fallbackError) {
+    } catch (_fallbackError) {
       res.status(400).json({
         success: false,
         error: error.message

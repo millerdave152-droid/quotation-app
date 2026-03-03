@@ -6,7 +6,7 @@
  */
 
 const Anthropic = require('@anthropic-ai/sdk');
-const { selectModel, MODELS } = require('./router');
+const { selectModel } = require('./router');
 const { assembleContext, getConversationHistory } = require('./context');
 const { TOOLS, executeTools } = require('./tools');
 const { buildSystemPrompt, classifyQuery } = require('./prompts/system');
@@ -547,7 +547,7 @@ function calculateCost(model, usage) {
 /**
  * Submit feedback for a query
  */
-async function submitFeedback(queryLogId, feedback, notes = null, userId) {
+async function submitFeedback(queryLogId, feedback, notes = null, _userId) {
   await db.query(
     `UPDATE ai_query_logs
      SET user_feedback = $1, feedback_notes = $2, feedback_at = CURRENT_TIMESTAMP
