@@ -131,6 +131,9 @@ describe('CLVCalculationJob', () => {
     });
 
     test('should process all active customers', async () => {
+      // Mock job log INSERT
+      pool.query.mockResolvedValueOnce({ rows: [{ id: 1 }] });
+
       // Mock getting customers
       pool.query.mockResolvedValueOnce({
         rows: [
@@ -173,6 +176,15 @@ describe('CLVCalculationJob', () => {
         .mockResolvedValueOnce({ rowCount: 1 })
         .mockResolvedValueOnce({ rowCount: 1 });
 
+      // Mock clv_history INSERT queries (3 customers)
+      pool.query
+        .mockResolvedValueOnce({ rowCount: 1 })
+        .mockResolvedValueOnce({ rowCount: 1 })
+        .mockResolvedValueOnce({ rowCount: 1 });
+
+      // Mock job log UPDATE (completion)
+      pool.query.mockResolvedValueOnce({ rowCount: 1 });
+
       const stats = await job.run();
 
       expect(stats.processed).toBe(3);
@@ -182,6 +194,9 @@ describe('CLVCalculationJob', () => {
     });
 
     test('should handle errors for individual customers', async () => {
+      // Mock job log INSERT
+      pool.query.mockResolvedValueOnce({ rows: [{ id: 1 }] });
+
       // Mock getting customers
       pool.query.mockResolvedValueOnce({
         rows: [
@@ -202,7 +217,11 @@ describe('CLVCalculationJob', () => {
       pool.query
         .mockResolvedValueOnce({ rows: [{ clv_score: 950000 }] }) // trend
         .mockResolvedValueOnce({ rows: [{ days: 15 }] })          // days
-        .mockResolvedValueOnce({ rowCount: 1 });                   // update
+        .mockResolvedValueOnce({ rowCount: 1 })                   // update
+        .mockResolvedValueOnce({ rowCount: 1 });                   // clv_history insert
+
+      // Mock job log UPDATE (completion)
+      pool.query.mockResolvedValueOnce({ rowCount: 1 });
 
       const stats = await job.run();
 
@@ -214,7 +233,12 @@ describe('CLVCalculationJob', () => {
     });
 
     test('should set lastRun and lastRunStats after completion', async () => {
+      // Mock job log INSERT
+      pool.query.mockResolvedValueOnce({ rows: [{ id: 1 }] });
+      // Mock getting customers (empty list)
       pool.query.mockResolvedValueOnce({ rows: [] });
+      // Mock job log UPDATE (completion)
+      pool.query.mockResolvedValueOnce({ rowCount: 1 });
 
       await job.run();
 
@@ -233,9 +257,10 @@ describe('CLVCalculationJob', () => {
       });
 
       pool.query
-        .mockResolvedValueOnce({ rows: [{ clv_score: 1400000 }] })
-        .mockResolvedValueOnce({ rows: [{ days: 20 }] })
-        .mockResolvedValueOnce({ rowCount: 1 });
+        .mockResolvedValueOnce({ rows: [{ clv_score: 1400000 }] }) // trend
+        .mockResolvedValueOnce({ rows: [{ days: 20 }] })           // days
+        .mockResolvedValueOnce({ rowCount: 1 })                    // update
+        .mockResolvedValueOnce({ rowCount: 1 });                   // clv_history insert
 
       const result = await job.runForCustomer(123);
 
