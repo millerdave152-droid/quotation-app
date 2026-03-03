@@ -55,7 +55,7 @@ describe('OrderModificationService', () => {
         .mockResolvedValueOnce({
           rows: [
             {
-              order_id: 1,
+              id: 1,
               order_number: 'ORD-001',
               status: 'confirmed',
               version_number: 1,
@@ -69,7 +69,7 @@ describe('OrderModificationService', () => {
               discount_amount: '50.00',
               tax_amount: '123.50',
               total_amount: '1073.50',
-              quote_id: 5,
+              quotation_id: 5,
               quote_number: 'QT-005',
               quote_total_amount: '950.00',
               quote_created_at: '2024-01-01',
@@ -118,7 +118,7 @@ describe('OrderModificationService', () => {
         .mockResolvedValueOnce({
           rows: [
             {
-              order_id: 2,
+              id: 2,
               order_number: 'ORD-002',
               status: 'confirmed',
               version_number: 1,
@@ -127,7 +127,7 @@ describe('OrderModificationService', () => {
               customer_name: 'Test Co',
               subtotal: '500.00',
               total_amount: '565.00',
-              quote_id: null,
+              quotation_id: null,
             },
           ],
         })

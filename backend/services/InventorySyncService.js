@@ -102,6 +102,18 @@ class InventorySyncService {
       };
     }
 
+    // Allow backorder if product permits
+    if (product.allow_backorder) {
+      return {
+        available: true,
+        backorder: true,
+        backorderQty: quantity - availableQty,
+        qtyAvailable: availableQty,
+        qtyOnHand: product.qty_on_hand,
+        qtyReserved: product.qty_reserved,
+      };
+    }
+
     return {
       available: false,
       reason: `Insufficient inventory. Available: ${availableQty}, Requested: ${quantity}`,
