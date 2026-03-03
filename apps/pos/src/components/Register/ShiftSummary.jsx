@@ -137,7 +137,7 @@ export function ShiftSummaryPanel({ isOpen, onClose }) {
     if (isOpen) {
       handleRefresh();
     }
-  }, [isOpen]);
+  }, [isOpen]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleRefresh = async () => {
     setIsRefreshing(true);

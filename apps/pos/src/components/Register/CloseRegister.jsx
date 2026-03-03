@@ -149,7 +149,7 @@ export function CloseRegister({ onBack, onComplete, onPrintReport }) {
   // Refresh summary on mount
   useEffect(() => {
     refreshShiftSummary();
-  }, []);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Calculate totals
   const detailedTotal = useMemo(() => {

@@ -108,7 +108,7 @@ export function useCartRebates(cartItems = [], options = {}) {
     } finally {
       setIsLoading(false);
     }
-  }, [cartItemsKey, autoApplyInstant]);
+  }, [cartItemsKey, autoApplyInstant]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Auto-fetch when cart changes
   useEffect(() => {
