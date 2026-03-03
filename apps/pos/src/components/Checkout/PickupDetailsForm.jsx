@@ -238,7 +238,7 @@ export function PickupDetailsForm({ pickupType, customer, onComplete, onBack }) 
       pickupVehicleType: vehicleType || null,
       pickupVehicleNotes: vehicleNotes.trim() || null,
     });
-  }, [validate, locations, selectedLocationId, pickupDate, timePreference, pickupPersonName, pickupPersonPhone, vehicleType, vehicleNotes, pickupType, onComplete]);
+  }, [validate, locations, selectedLocationId, pickupDate, timePreference, pickupPersonName, pickupPersonPhone, vehicleType, vehicleNotes, pickupType, onComplete]); // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
     <div className="flex flex-col h-full">

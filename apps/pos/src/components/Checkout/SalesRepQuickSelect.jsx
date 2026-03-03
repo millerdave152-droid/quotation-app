@@ -247,7 +247,7 @@ export function SalesRepQuickSelect({
   // Fetch active sales reps on mount
   useEffect(() => {
     fetchActiveReps();
-  }, []);
+  }, [fetchActiveReps]);
 
   // Update selectedRep when selectedId changes
   useEffect(() => {

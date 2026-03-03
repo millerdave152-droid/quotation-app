@@ -51,7 +51,7 @@ export function PromoCodeInput({
     if (error) {
       setError(null);
     }
-  }, [code]);
+  }, [code]); // eslint-disable-line react-hooks/exhaustive-deps
 
   /**
    * Apply the promo code
