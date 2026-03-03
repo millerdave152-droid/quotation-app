@@ -3,7 +3,7 @@
  * Grid layout for displaying products with optional internal data fetching
  */
 
-import { useState, useCallback, useRef, useEffect } from 'react';
+import { useState, useCallback, useRef, useEffect, useMemo } from 'react';
 import ProductTile from './ProductTile';
 import { getProducts, getProductsByCategory, quickSearch } from '../../api/products';
 
@@ -123,7 +123,7 @@ export function ProductGrid({
   const products = isExternalMode ? externalProducts : internalProducts;
   const isLoading = externalLoading ?? internalLoading;
   const hasMore = isExternalMode ? (externalHasMore ?? false) : hasMorePages;
-  const onLoadMore = isExternalMode ? externalOnLoadMore : () => setPage(p => p + 1);
+  const onLoadMore = useMemo(() => isExternalMode ? externalOnLoadMore : () => setPage(p => p + 1), [isExternalMode, externalOnLoadMore]);
   const handleSelect = onProductSelect || onSelect;
 
   // Fetch products (internal mode)
@@ -216,7 +216,7 @@ export function ProductGrid({
         observerRef.current.disconnect();
       }
     };
-  }, [hasMore, isLoading, onLoadMore]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [hasMore, isLoading, onLoadMore]);
 
   // Handle product selection
   const handleProductSelect = useCallback(

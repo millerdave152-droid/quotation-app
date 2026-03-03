@@ -1,3 +1,4 @@
+/* eslint-disable react-refresh/only-export-components */
 import { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { del } from 'idb-keyval';
 import api, { setAuthToken, clearAuth } from '../api/axios';

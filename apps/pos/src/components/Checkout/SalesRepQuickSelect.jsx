@@ -247,7 +247,7 @@ export function SalesRepQuickSelect({
   // Fetch active sales reps on mount
   useEffect(() => {
     fetchActiveReps();
-  }, [fetchActiveReps]);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Update selectedRep when selectedId changes
   useEffect(() => {

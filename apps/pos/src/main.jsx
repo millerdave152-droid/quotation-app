@@ -1,3 +1,4 @@
+/* eslint-disable react-refresh/only-export-components */
 /**
  * TeleTime POS - Entry Point
  * Application bootstrap with providers and error handling

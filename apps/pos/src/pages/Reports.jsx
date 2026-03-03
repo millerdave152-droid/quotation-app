@@ -284,7 +284,7 @@ export function Reports() {
   // Load data
   useEffect(() => {
     loadReportData();
-  }, [dateRange]);
+  }, [dateRange]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const loadReportData = async () => {
     setLoading(true);

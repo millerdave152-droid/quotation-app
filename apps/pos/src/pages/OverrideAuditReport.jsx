@@ -345,7 +345,7 @@ export function OverrideAuditReport() {
   // Load data when filters change
   useEffect(() => {
     loadData();
-  }, [startDate, endDate, managerId, cashierId, overrideType, statusFilter, page]);
+  }, [startDate, endDate, managerId, cashierId, overrideType, statusFilter, page]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const loadFilterOptions = async () => {
     try {

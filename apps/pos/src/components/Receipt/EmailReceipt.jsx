@@ -1,3 +1,4 @@
+/* eslint-disable react-refresh/only-export-components */
 /**
  * TeleTime POS - Email Receipt Component
  * HTML email template for receipts

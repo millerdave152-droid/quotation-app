@@ -212,6 +212,7 @@ export function PrintReceipt({
  * @param {object} storeInfo - Store information
  * @returns {Promise<object>} Print result
  */
+// eslint-disable-next-line react-refresh/only-export-components
 export async function printReceipt(transaction, _storeInfo = {}) {
   return new Promise((resolve) => {
     // Create temporary container

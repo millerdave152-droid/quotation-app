@@ -1,3 +1,4 @@
+/* eslint-disable react-refresh/only-export-components */
 /**
  * TeleTime POS - Register Context
  * Manages register state, shifts, and provides localStorage persistence

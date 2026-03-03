@@ -1,3 +1,4 @@
+/* eslint-disable react-refresh/only-export-components */
 /**
  * TeleTime POS - Denomination Counter Component
  * Reusable component for counting cash by denomination

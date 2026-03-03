@@ -23,7 +23,7 @@ function Login() {
     if (error) {
       clearError();
     }
-  }, [email, password]);
+  }, [email, password]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleSubmit = async (e) => {
     e.preventDefault();

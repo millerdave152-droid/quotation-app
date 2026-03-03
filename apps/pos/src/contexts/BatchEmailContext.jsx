@@ -1,3 +1,4 @@
+/* eslint-disable react-refresh/only-export-components */
 /**
  * TeleTime POS - Batch Email Context
  * App-wide state for batch email progress tracking

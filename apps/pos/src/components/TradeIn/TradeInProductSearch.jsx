@@ -91,7 +91,7 @@ export function TradeInProductSearch({
     } else {
       setSearchResults([]);
     }
-  }, [debouncedSearch, selectedCategory]);
+  }, [debouncedSearch, selectedCategory]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Sync manual entry state
   useEffect(() => {

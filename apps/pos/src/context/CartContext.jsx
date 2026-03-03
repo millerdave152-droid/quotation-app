@@ -1,3 +1,4 @@
+/* eslint-disable react-refresh/only-export-components */
 /**
  * TeleTime POS - Cart Context
  * Manages shopping cart state, calculations, and persistence

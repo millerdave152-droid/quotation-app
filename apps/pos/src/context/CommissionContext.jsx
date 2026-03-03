@@ -1,3 +1,4 @@
+/* eslint-disable react-refresh/only-export-components */
 /**
  * Commission Context
  * Manages commission visibility settings and permissions

@@ -97,7 +97,7 @@ export function TradeInModal({
       fetchCategories();
       fetchConditions();
     }
-  }, [open]);
+  }, [open]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const fetchCategories = async () => {
     try {

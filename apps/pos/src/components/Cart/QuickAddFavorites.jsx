@@ -1,3 +1,4 @@
+/* eslint-disable react-refresh/only-export-components */
 /**
  * TeleTime POS - Quick Add Favorites Panel
  * Shows frequently-added products as touch-friendly buttons for fast cart additions

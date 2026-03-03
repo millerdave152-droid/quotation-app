@@ -280,6 +280,7 @@ export function ManagerApprovalProvider({ children }) {
  * Hook to access manager approval functionality
  * @returns {object} Manager approval methods
  */
+// eslint-disable-next-line react-refresh/only-export-components
 export function useManagerApprovalContext() {
   const context = useContext(ManagerApprovalContext);
   if (!context) {

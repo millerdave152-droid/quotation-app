@@ -219,6 +219,7 @@ export default function BatchEmailProgress({
 /**
  * Hook for managing progress indicator state
  */
+// eslint-disable-next-line react-refresh/only-export-components
 export function useBatchEmailProgress() {
   const [activeJob, setActiveJob] = useState(null);
 

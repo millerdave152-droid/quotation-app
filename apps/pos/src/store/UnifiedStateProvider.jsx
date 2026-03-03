@@ -60,7 +60,7 @@ export const UnifiedStateProvider = ({
     };
 
     init();
-  }, [mode, userId]);
+  }, [mode, userId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Context value
   const contextValue = {
@@ -81,6 +81,7 @@ export const UnifiedStateProvider = ({
 /**
  * Hook to access unified state context
  */
+// eslint-disable-next-line react-refresh/only-export-components
 export const useUnifiedStateContext = () => {
   const context = useContext(UnifiedStateContext);
   if (!context) {

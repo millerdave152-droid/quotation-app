@@ -1056,7 +1056,7 @@ export function POSMain() {
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [cart.isEmpty, hasActiveShift, showCheckout, showCustomerLookup, showQuoteLookup, showShiftSummary, showPriceCheck, priceOverrideItem, handleHoldTransaction]);
+  }, [cart.isEmpty, hasActiveShift, showCheckout, showCustomerLookup, showQuoteLookup, showShiftSummary, showPriceCheck, priceOverrideItem, handleHoldTransaction, navigate]);
 
   // ============================================================================
   // HANDLERS
