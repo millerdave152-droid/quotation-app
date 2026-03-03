@@ -10,7 +10,12 @@
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
     "format": "prettier --write \"**/*.{js,json,md}\"",
-    "format:check": "prettier --check \"**/*.{js,json,md}\""
+    "format:check": "prettier --check \"**/*.{js,json,md}\"",
+    "migrate:skulytics": "bash scripts/run-skulytics-migrations.sh",
+    "migrate:skulytics:down": "bash scripts/run-skulytics-migrations.sh --down",
+    "migrate:skulytics:dry-run": "bash scripts/run-skulytics-migrations.sh --dry-run",
+    "migrate:ai": "node scripts/run-ai-migration.js",
+    "migrate:fix": "node scripts/fix-all-migrations.js"
   },
   "jest": {
     "testEnvironment": "node",
