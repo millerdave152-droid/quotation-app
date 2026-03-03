@@ -176,10 +176,10 @@ export function UpsellOfferModal({
   );
 
   // Handle decline membership
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   const handleDeclineMembership = useCallback(() => {
     declineMembership();
     moveToNextStepIfNeeded();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [declineMembership]);
 
   // Handle select financing

@@ -62,15 +62,6 @@ const generateItemId = () => {
 };
 
 /**
- * Calculate line total for an item
- */
-const _calculateLineTotal = (item) => {
-  const baseAmount = item.unitPrice * item.quantity;
-  const discountAmount = baseAmount * (item.discountPercent / 100);
-  return baseAmount - discountAmount;
-};
-
-/**
  * Calculate tax amounts for a given subtotal and province
  */
 const calculateTaxes = (taxableAmount, province = DEFAULT_PROVINCE) => {

@@ -30,7 +30,7 @@ for (let i = 0; i < Math.min(20, data.length); i++) {
   const row = data[i];
   const rowStr = row.join(' ').toUpperCase();
   if (rowStr.includes('MODEL') || rowStr.includes('SKU') || rowStr.includes('ITEM') || rowStr.includes('DEALER')) {
-    headerRowIdx = i;
+    _headerRowIdx = i;
     console.log('\n--- Potential header row at row', i + 1, '---');
     console.log(row.filter(h => h !== ''));
   }

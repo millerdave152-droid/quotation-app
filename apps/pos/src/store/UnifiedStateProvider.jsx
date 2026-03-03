@@ -29,7 +29,6 @@ export const UnifiedStateProvider = ({
   onOffline,
 }) => {
   const [initialized, setInitialized] = useState(false);
-  const _store = useUnifiedStore();
   const deviceIdRef = useRef(getDeviceId());
 
   // Initialize offline sync

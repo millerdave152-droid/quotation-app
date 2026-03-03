@@ -85,21 +85,6 @@ import { getMyTier, initializeBudget } from '../api/discountAuthority';
 import { formatCurrency } from '../utils/formatters';
 
 // ============================================================================
-// KEYBOARD SHORTCUTS
-// ============================================================================
-
-const _KEYBOARD_SHORTCUTS = {
-  F2: 'search',       // Focus product search
-  F4: 'customer',     // Customer lookup
-  F5: 'quote',        // Quote lookup
-  F6: 'returns',      // Returns & Exchanges
-  F7: 'hold',         // Hold transaction
-  F8: 'priceCheck',   // Price check
-  F9: 'checkout',     // Checkout (changed from F12 to allow DevTools)
-  Escape: 'cancel',   // Cancel/close modals
-};
-
-// ============================================================================
 // QUICK ACTION BAR
 // ============================================================================
 
@@ -561,7 +546,7 @@ function MobileViewToggle({ view, onViewChange, cartItemCount }) {
 // ============================================================================
 
 function PriceCheckModal({ isOpen, onClose }) {
-  const [_query, setQuery] = useState('');
+  const [, setQuery] = useState('');
   const [product, setProduct] = useState(null);
   const inputRef = useRef(null);
 
@@ -776,7 +761,7 @@ export function POSMain() {
 
   // Connection status + offline support
   const { status: connectionStatus, isOffline } = useConnectionStatus();
-  const { verifyPinOffline, clearCache: _clearPinCache } = useManagerPinCache();
+  const { verifyPinOffline } = useManagerPinCache();
   const { pendingCount: offlinePendingCount, isSyncing: offlineSyncing } = useOfflineTransaction();
 
   // Discount Authority State

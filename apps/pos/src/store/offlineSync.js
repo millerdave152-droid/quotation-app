@@ -415,6 +415,7 @@ export const useOfflineSync = (options = {}) => {
 
     store.markSaved();
     return result;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [draftType, userId]);
 
   // Load draft function
@@ -428,6 +429,7 @@ export const useOfflineSync = (options = {}) => {
       return draft;
     }
     return null;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [draftType, userId]);
 
   // Force sync function

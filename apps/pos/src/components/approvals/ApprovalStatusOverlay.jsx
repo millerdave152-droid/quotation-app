@@ -67,8 +67,6 @@ export default function ApprovalStatusOverlay({
   onCancel,
   onClose,
 }) {
-  const [, setClosing] = useState(false);
-
   // Auto-close after "done" (approved + consumed) with a brief success display
   useEffect(() => {
     if (flowState === 'done') {

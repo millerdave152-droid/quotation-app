@@ -257,7 +257,6 @@ export const useDraftManagement = (options = {}) => {
   } = options;
 
   const drafts = useDrafts();
-  const _store = useUnifiedStore();
 
   // Use offline sync
   const offlineSync = useOfflineSync({
@@ -268,8 +267,6 @@ export const useDraftManagement = (options = {}) => {
 
   // Save current state as draft
   const saveDraft = useCallback(async (_label = '') => {
-    const _snapshot = drafts.getDraftSnapshot();
-    const _draftKey = generateDraftKey(draftType, userId);
 
     try {
       const result = await offlineSync.saveDraft(true);

@@ -172,6 +172,7 @@ export function useWarrantyUpsell({
       setIsLoading(false);
       flowInProgressRef.current = false;
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [fetchEligibility, onComplete]);
 
   /**

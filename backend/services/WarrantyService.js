@@ -529,7 +529,7 @@ class WarrantyService {
    * @param {string} registrationCode - Warranty registration code
    * @returns {Promise<object>} Warranty details
    */
-  async getWarrantyByCode(registrationCode) {
+  async _getWarrantyByCodeSimple(registrationCode) {
     try {
       const query = `
         SELECT

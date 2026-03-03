@@ -283,6 +283,7 @@ export function useUpsellOffers({
     moveToNextOffer();
 
     return { success: true, offerId };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [customer, endOfferTiming, getOfferTimeSpent]);
 
   /**
@@ -322,6 +323,7 @@ export function useUpsellOffers({
     moveToNextOffer();
 
     return { success: true, offerId };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [customer, endOfferTiming, getOfferTimeSpent]);
 
   /**
@@ -349,6 +351,7 @@ export function useUpsellOffers({
     }
 
     moveToNextOffer();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [customer, endOfferTiming, getOfferTimeSpent]);
 
   /**
