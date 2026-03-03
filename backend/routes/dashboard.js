@@ -11,7 +11,7 @@ const { authenticate } = require('../middleware/auth');
 
 // Module-level service instance
 let pipelineService = null;
-let cache = null;
+let _cache = null;
 
 /**
  * Initialize the router with dependencies
@@ -20,7 +20,7 @@ let cache = null;
  * @param {object} deps.cache - Cache module
  */
 const init = (deps) => {
-  cache = deps.cache;
+  _cache = deps.cache;
   pipelineService = new UnifiedPipelineService(deps.pool, deps.cache);
   return router;
 };

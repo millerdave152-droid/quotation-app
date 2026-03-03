@@ -14,10 +14,7 @@ import {
   YAxis,
   CartesianGrid,
   Tooltip,
-  Legend,
   ResponsiveContainer,
-  LineChart,
-  Line,
 } from 'recharts';
 import {
   ChartBarIcon,
@@ -193,7 +190,7 @@ function SalesTab({ hourlyData, productData }) {
 // ============================================================================
 
 function PaymentsTab({ paymentData }) {
-  const { byMethod = {}, totals = {}, cashDrawer = {} } = paymentData || {};
+  const { byMethod = {}, _totals = {}, cashDrawer = {} } = paymentData || {};
 
   // Format for pie chart
   const paymentChartData = Object.entries(byMethod).map(([method, data], index) => ({

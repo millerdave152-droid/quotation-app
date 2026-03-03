@@ -871,7 +871,7 @@ class PackageSelectionEngine {
 
       // LAUNDRY PAIR MATCHING: Apply constraints for washer based on selected dryer
       if (flowType === 'laundry' && slotType === 'washer' && laundryPairConstraints) {
-        const beforeCount = catalog.length;
+        const _beforeCount = catalog.length;
 
         // PRIORITY 1: Use official paired_product_id if available (manufacturer-defined pair)
         // BUT validate it matches the washer_type requirement first
@@ -1157,14 +1157,14 @@ class PackageSelectionEngine {
 
         // First, try to extract color from LG model pattern
         // LG refrigerator pattern: LR[FM][A-Z]{1,4}\d{4}[WSBVD]
-        const lgColorMatch = model.match(/^LR[A-Z]+\d{2,4}([WSBVD])(?:[.\/-]|$)/i);
+        const lgColorMatch = model.match(/^LR[A-Z]+\d{2,4}([WSBVD])(?:[./-]|$)/i);
         if (lgColorMatch) {
           modelFinish = suffixFinishMap[lgColorMatch[1].toUpperCase()];
         }
 
         // Samsung pattern: RF\d{2}[A-Z]*[WSBVD]
         if (!modelFinish) {
-          const samsungColorMatch = model.match(/^RF\d{2}[A-Z0-9]*([WSBVD])(?:[.\/-]|$)/i);
+          const samsungColorMatch = model.match(/^RF\d{2}[A-Z0-9]*([WSBVD])(?:[./-]|$)/i);
           if (samsungColorMatch) {
             modelFinish = suffixFinishMap[samsungColorMatch[1].toUpperCase()];
           }
@@ -1173,7 +1173,7 @@ class PackageSelectionEngine {
         // Generic pattern: Find color code before any variant suffix (.xxx, /xx, etc)
         if (!modelFinish) {
           // Strip variant suffixes and get the base model
-          const baseModel = model.replace(/[.\/-].*$/, '').toUpperCase();
+          const baseModel = model.replace(/[./-].*$/, '').toUpperCase();
           const lastChar = baseModel.slice(-1);
           modelFinish = suffixFinishMap[lastChar];
         }
@@ -1261,7 +1261,7 @@ class PackageSelectionEngine {
     // 4b. RANGE CONFIGURATION FILTER (slide_in, freestanding, front_control)
     // STRICT: Must match exactly - slide-in should never return freestanding
     if (slotType === 'range' && requirements.range_config) {
-      const beforeCount = filtered.length;
+      const _beforeCount = filtered.length;
       filtered = filtered.filter(p => {
         const detectedConfig = this.detectRangeConfiguration(p);
 
@@ -1324,7 +1324,7 @@ class PackageSelectionEngine {
     if (!relaxations.includes('dimensions')) {
       // Fridge depth type - use detection method for reliable matching
       if (slotType === 'refrigerator' && requirements.fridge_depth) {
-        const beforeCount = filtered.length;
+        const _beforeCount = filtered.length;
         filtered = filtered.filter(p => {
           const detectedDepth = this.detectFridgeDepth(p);
 
@@ -1374,7 +1374,7 @@ class PackageSelectionEngine {
     // 6. ICE/WATER FILTER (NEVER RELAXED - customer explicit requirement)
     // This is outside the dimensions block so it's always applied
     if (slotType === 'refrigerator' && requirements.ice_water) {
-      const beforeCount = filtered.length;
+      const _beforeCount = filtered.length;
       filtered = filtered.filter(p => {
         const detectedIceWater = this.detectFridgeIceWater(p);
 
@@ -1731,7 +1731,7 @@ class PackageSelectionEngine {
     // Handle various inch markers: " ″ '' ' (double quote, prime, two singles, single)
 
     // Pattern 1: Size followed by "Width" indicator (e.g., "30″ Width", "36" Width")
-    const descWidthMatch = description.match(/(\d{2})[\s″"'''`\-]*(width|inch|in\b|wide)/i);
+    const descWidthMatch = description.match(/(\d{2})[\s″"'''`-]*(width|inch|in\b|wide)/i);
     if (descWidthMatch) {
       const width = parseInt(descWidthMatch[1]);
       if (width >= 24 && width <= 48) {
@@ -1859,7 +1859,7 @@ class PackageSelectionEngine {
     }
 
     const category = (product.category || '').toLowerCase();
-    const model = (product.model || '').toUpperCase();
+    const _model = (product.model || '').toUpperCase();
     const name = (product.name || '').toLowerCase();
 
     // Check for explicit width in name
@@ -2804,7 +2804,7 @@ class PackageSelectionEngine {
     // Check for counter-depth indicators
     const counterDepthPatterns = [
       /counter[\s-]?depth/i,
-      /c[\s\/]?depth/i,
+      /c[\s/]?depth/i,
       /c-depth/i,
       /counter-d/i,
       /\bcd\b/i,  // CD abbreviation

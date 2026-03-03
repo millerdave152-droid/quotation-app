@@ -20,12 +20,12 @@ export function MembershipPrompt({
   offer,
   onJoin,
   onDecline,
-  cartValue = 0,
+  _cartValue = 0,
   variant = 'standard',
   className = '',
 }) {
   const [isJoining, setIsJoining] = useState(false);
-  const [selectedProgram, setSelectedProgram] = useState(null);
+  const [_selectedProgram, setSelectedProgram] = useState(null);
 
   const {
     type, // 'signup' or 'upgrade'

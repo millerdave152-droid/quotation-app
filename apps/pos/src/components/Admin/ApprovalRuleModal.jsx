@@ -3,7 +3,7 @@
  * Create or edit approval threshold rules
  */
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect } from 'react';
 import {
   XMarkIcon,
   ShieldCheckIcon,

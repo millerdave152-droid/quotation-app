@@ -3,7 +3,6 @@
  * Configure what each approval level can authorize for a rule
  */
 
-import { useState } from 'react';
 import {
   UserIcon,
   ShieldCheckIcon,
@@ -78,7 +77,6 @@ const COLOR_CLASSES = {
  * Single approval level row
  */
 function ApprovalLevelRow({ level, config, thresholdType, onChange }) {
-  const levelConfig = APPROVAL_LEVELS.find((l) => l.id === level.id);
   const colors = COLOR_CLASSES[level.color];
   const Icon = level.icon;
 

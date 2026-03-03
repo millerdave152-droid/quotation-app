@@ -14,7 +14,7 @@ import {
   ShoppingCartIcon,
   ArrowLeftIcon,
 } from '@heroicons/react/24/outline';
-import { lookupQuote, getQuoteForSale, checkQuoteValidity } from '../../api/quotes';
+import { lookupQuote, getQuoteForSale } from '../../api/quotes';
 import { formatCurrency, formatDate } from '../../utils/formatters';
 
 /**

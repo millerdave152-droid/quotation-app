@@ -239,7 +239,7 @@ class FilterCountService {
 
       // 2. Name pattern: "36-inch", '36"', "36 inch Wide", "36in"
       if (!widthMatch) {
-        widthMatch = name.match(/(\d{2})[\-\s]?(inch|"|in|''|")\s*(wide)?/i);
+        widthMatch = name.match(/(\d{2})[-\s]?(inch|"|in|''|")\s*(wide)?/i);
       }
 
       // 3. Category with explicit width: '36"', "36 inch"
@@ -354,11 +354,11 @@ class FilterCountService {
 
       // WIDTH DETECTION - Multiple sources for better coverage
       // 1. Category pattern: "30\" Range", "36 Slide-In", "48 Freestanding"
-      let rangeWidthMatch = category.match(/(\d{2})["\'\s]*(range|slide|freestanding|induction|gas|electric|dual)/i);
+      let rangeWidthMatch = category.match(/(\d{2})["'\s]*(range|slide|freestanding|induction|gas|electric|dual)/i);
 
       // 2. Name pattern: "30-inch", '30"', "30 inch Wide"
       if (!rangeWidthMatch) {
-        rangeWidthMatch = name.match(/(\d{2})[\-\s]?(inch|"|in|''|")\s*(wide)?/i);
+        rangeWidthMatch = name.match(/(\d{2})[-\s]?(inch|"|in|''|")\s*(wide)?/i);
       }
 
       // 3. Category with just width

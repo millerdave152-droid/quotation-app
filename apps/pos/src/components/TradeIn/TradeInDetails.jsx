@@ -3,7 +3,7 @@
  * Step 3: Serial number, calculated value, notes, and photos
  */
 
-import React, { useState, useRef } from 'react';
+import { useState, useRef } from 'react';
 import {
   Box,
   Paper,
@@ -28,13 +28,11 @@ import {
   CameraAlt as CameraIcon,
   Delete as DeleteIcon,
   QrCodeScanner as ScanIcon,
-  Info as InfoIcon,
   AttachMoney as MoneyIcon,
   TrendingUp as ValueIcon,
   TrendingDown as DeductionIcon,
   Note as NoteIcon,
   PhotoLibrary as PhotoIcon,
-  Add as AddIcon,
   Warning as WarningIcon,
   CheckCircle as CheckIcon,
 } from '@mui/icons-material';

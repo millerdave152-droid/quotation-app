@@ -223,7 +223,7 @@ export function LoyaltyRedemption({ amountDue, onComplete, onBack, isPartial, cu
           />
           <div className="flex-1 flex justify-between">
             <span className="text-sm text-gray-700">
-              {maxApplyPoints === availablePoints ? 'All points' : `Max applicable`}
+              {maxApplyPoints === availablePoints ? 'All points' : 'Max applicable'}
             </span>
             <span className="text-sm font-medium text-gray-900">
               {maxApplyPoints.toLocaleString()} pts ({formatCurrency(maxApplyDollars)})

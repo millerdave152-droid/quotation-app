@@ -3,7 +3,6 @@
  * Allows users to toggle commission visibility preferences
  */
 
-import React from 'react';
 import {
   CurrencyDollarIcon,
   EyeIcon,

@@ -24,7 +24,7 @@ const availableWindowsSchema = Joi.object({
   date: Joi.string().isoDate().required(),
 });
 
-const scheduleDeliverySchema = Joi.object({
+const _scheduleDeliverySchema = Joi.object({
   windowId: Joi.number().integer().required(),
   deliveryDate: Joi.string().isoDate().required(),
   notes: Joi.string().optional().allow('', null),

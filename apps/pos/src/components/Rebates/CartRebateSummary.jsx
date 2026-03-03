@@ -25,42 +25,6 @@ function formatCurrency(value) {
 }
 
 /**
- * Rebate Line Item in Summary
- */
-function RebateLineItem({ icon: Icon, label, amount, type, onClick, children }) {
-  const colorClasses = {
-    instant: 'text-green-600',
-    'mail_in': 'text-blue-600',
-    online: 'text-purple-600',
-    info: 'text-gray-500',
-  };
-
-  return (
-    <div className="flex items-center justify-between py-1.5">
-      <div className="flex items-center gap-2">
-        <Icon className={`w-4 h-4 ${colorClasses[type] || 'text-gray-500'}`} />
-        <span className="text-sm text-gray-700">{label}</span>
-        {onClick && (
-          <button
-            type="button"
-            onClick={onClick}
-            className="p-0.5 text-gray-400 hover:text-blue-600 transition-colors"
-          >
-            <InformationCircleIcon className="w-4 h-4" />
-          </button>
-        )}
-      </div>
-      <div className="flex items-center gap-2">
-        <span className={`text-sm font-medium ${colorClasses[type] || 'text-gray-700'}`}>
-          {type === 'instant' ? '-' : ''}{formatCurrency(amount)}
-        </span>
-        {children}
-      </div>
-    </div>
-  );
-}
-
-/**
  * Cart Rebate Summary Component
  */
 export function CartRebateSummary({

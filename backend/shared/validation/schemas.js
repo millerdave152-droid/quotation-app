@@ -14,7 +14,7 @@ const optionalId = id.optional().allow(null);
 const requiredId = id.required();
 
 const email = Joi.string().email().max(255);
-const phone = Joi.string().pattern(/^[\d\s\-\+\(\)]+$/).min(10).max(20);
+const phone = Joi.string().pattern(/^[\d\s\-+()]+$/).min(10).max(20);
 const postalCode = Joi.string().pattern(/^[A-Za-z]\d[A-Za-z][ -]?\d[A-Za-z]\d$/).message('Invalid Canadian postal code');
 
 const cents = Joi.number().integer().min(0);

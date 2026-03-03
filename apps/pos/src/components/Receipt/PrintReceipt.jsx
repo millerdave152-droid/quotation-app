@@ -100,80 +100,6 @@ export function PrintReceipt({
   }, [onPrintComplete]);
 
   /**
-   * Print using iframe (alternative method)
-   */
-  const handleIframePrint = useCallback(() => {
-    if (!receiptRef.current) return;
-
-    setPrintStatus('printing');
-
-    try {
-      // Create hidden iframe
-      const iframe = document.createElement('iframe');
-      iframe.style.position = 'absolute';
-      iframe.style.width = '0';
-      iframe.style.height = '0';
-      iframe.style.border = '0';
-      document.body.appendChild(iframe);
-
-      const iframeDoc = iframe.contentWindow?.document;
-      if (!iframeDoc) {
-        throw new Error('Could not access iframe document');
-      }
-
-      // Write receipt content to iframe
-      iframeDoc.open();
-      iframeDoc.write(`
-        <!DOCTYPE html>
-        <html>
-        <head>
-          <title>Receipt</title>
-          <style>
-            @page {
-              size: 80mm auto;
-              margin: 0;
-            }
-            body {
-              margin: 0;
-              padding: 0;
-              font-family: 'Courier New', monospace;
-            }
-            .receipt {
-              width: 80mm;
-              padding: 10px;
-              font-size: 12px;
-            }
-          </style>
-          <link href="${window.location.origin}/src/index.css" rel="stylesheet">
-        </head>
-        <body>
-          ${receiptRef.current.outerHTML}
-        </body>
-        </html>
-      `);
-      iframeDoc.close();
-
-      // Wait for content to load then print
-      setTimeout(() => {
-        iframe.contentWindow?.print();
-
-        // Cleanup
-        setTimeout(() => {
-          if (iframe && iframe.parentNode) {
-            iframe.parentNode.removeChild(iframe);
-          }
-          setPrintStatus('success');
-          onPrintComplete?.({ success: true, method: 'iframe' });
-        }, 1000);
-      }, 250);
-    } catch (error) {
-      console.error('[PrintReceipt] Iframe print error:', error);
-      setPrintStatus('error');
-      onPrintComplete?.({ success: false, error: error.message });
-    }
-  }, [onPrintComplete]);
-
-  /**
    * Print to thermal printer (future integration)
    * This would integrate with libraries like:
    * - escpos
@@ -286,7 +212,7 @@ export function PrintReceipt({
  * @param {object} storeInfo - Store information
  * @returns {Promise<object>} Print result
  */
-export async function printReceipt(transaction, storeInfo = {}) {
+export async function printReceipt(transaction, _storeInfo = {}) {
   return new Promise((resolve) => {
     // Create temporary container
     const container = document.createElement('div');

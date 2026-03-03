@@ -7,7 +7,6 @@ import {
   GiftIcon,
   EnvelopeIcon,
   ClockIcon,
-  ArrowTopRightOnSquareIcon,
   ExclamationTriangleIcon,
 } from '@heroicons/react/24/outline';
 

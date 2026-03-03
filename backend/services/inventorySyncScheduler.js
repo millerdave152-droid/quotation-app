@@ -147,17 +147,19 @@ class InventorySyncScheduler {
           case 'markup_fixed':
             price = price + parseFloat(rule.value);
             break;
-          case 'minimum_margin':
+          case 'minimum_margin': {
             const minMarginPercent = parseFloat(rule.value);
             const minPrice = cost * (1 + minMarginPercent / 100);
             if (price < minPrice) {
               price = minPrice;
             }
             break;
-          case 'round_to':
+          }
+          case 'round_to': {
             const roundTo = parseFloat(rule.value);
             price = Math.floor(price) + roundTo;
             break;
+          }
         }
       }
 

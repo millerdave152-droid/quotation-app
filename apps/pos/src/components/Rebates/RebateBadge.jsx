@@ -65,7 +65,7 @@ export function RebateBadge({
     },
   };
 
-  const { icon: Icon, bgColor, textColor, borderColor, label, emoji } = config[type] || config.instant;
+  const { icon: bgColor, textColor, borderColor, label, emoji } = config[type] || config.instant;
 
   if (compact) {
     return (

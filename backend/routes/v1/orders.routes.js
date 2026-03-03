@@ -38,7 +38,7 @@ const {
   orderQuerySchema,
   createPaymentSchema,
   refundTransactionSchema,
-  createLineItemSchema
+  createLineItemSchema: _createLineItemSchema
 } = require('../../shared/validation/schemas');
 
 let pool = null;

@@ -10,7 +10,6 @@ import {
   ChevronLeftIcon,
   ChevronRightIcon,
   ReceiptRefundIcon,
-  EnvelopeIcon,
 } from '@heroicons/react/24/outline';
 import { getTransactions } from '../../api/transactions';
 import { formatCurrency } from '../../utils/formatters';

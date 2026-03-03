@@ -14,7 +14,7 @@ const { dollarsToCents } = require('../utils/money');
 // MODULE STATE
 // ============================================================================
 let pool = null;
-let cache = null;
+let _cache = null;
 let scheduledBatchEmailService = null;
 
 // ============================================================================
@@ -938,7 +938,7 @@ router.delete('/:id', authenticate, requireRole('admin'), asyncHandler(async (re
  */
 const init = (deps) => {
   pool = deps.pool;
-  cache = deps.cache;
+  _cache = deps.cache;
   scheduledBatchEmailService = deps.scheduledBatchEmailService || null;
   return router;
 };

@@ -3,15 +3,13 @@
  * Manager-only access to shift reports and analytics
  */
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   ArrowLeftIcon,
-  CalendarIcon,
   ChartBarIcon,
   DocumentTextIcon,
   CurrencyDollarIcon,
-  UserGroupIcon,
   ClockIcon,
   PrinterIcon,
   FunnelIcon,
@@ -19,7 +17,7 @@ import {
   ArrowRightIcon,
 } from '@heroicons/react/24/outline';
 import { useAuth } from '../context/AuthContext';
-import { formatCurrency, formatDate, formatDateTime } from '../utils/formatters';
+import { formatCurrency, formatDateTime } from '../utils/formatters';
 import api from '../api/axios';
 
 /**
@@ -266,7 +264,7 @@ function PrintableReport({ summary, shifts, dateRange, onClose }) {
  */
 export function Reports() {
   const navigate = useNavigate();
-  const { user, isAdminOrManager } = useAuth();
+  const { isAdminOrManager } = useAuth();
 
   // State
   const [dateRange, setDateRange] = useState('today'); // 'today', 'week', 'month', 'custom'

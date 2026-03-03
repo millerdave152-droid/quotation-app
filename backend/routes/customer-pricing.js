@@ -257,7 +257,7 @@ router.delete(
     const customerId = parseInt(req.params.customerId);
     const productId = parseInt(req.params.productId);
 
-    const result = await pricingService.removeCustomerProductPrice(
+    await pricingService.removeCustomerProductPrice(
       customerId,
       productId,
       req.user.id
@@ -306,7 +306,7 @@ router.put(
     }
 
     const customerId = parseInt(req.params.customerId);
-    const result = await pricingService.setCustomerTier(
+    await pricingService.setCustomerTier(
       customerId,
       value.tier,
       req.user.id

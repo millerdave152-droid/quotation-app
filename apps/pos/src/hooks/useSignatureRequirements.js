@@ -47,7 +47,7 @@ export function useSignatureRequirements({
   fulfillmentType = 'pickup_now',
   hasTradeIn = false,
   hasFinancing = false,
-  customerId = null,
+  _customerId = null,
   config = {},
 }) {
   const [capturedSignatures, setCapturedSignatures] = useState({});

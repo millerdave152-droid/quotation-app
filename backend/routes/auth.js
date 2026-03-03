@@ -293,9 +293,8 @@ router.post('/refresh', validateRefreshToken, asyncHandler(async (req, res) => {
   const { refreshToken } = req.body;
 
   // Verify JWT signature / expiry
-  let decoded;
   try {
-    decoded = verifyRefreshToken(refreshToken);
+    verifyRefreshToken(refreshToken);
   } catch (error) {
     throw ApiError.unauthorized(error.message || 'Invalid refresh token');
   }

@@ -768,7 +768,7 @@ class UpsellService {
     let reason = '';
 
     switch (trigger_type) {
-      case 'product':
+      case 'product': {
         const triggerProducts = triggerConfig.product_ids || [];
         matches = context.productIds.some(id => triggerProducts.includes(id));
         if (matches) {
@@ -776,8 +776,9 @@ class UpsellService {
           reason = 'product_match';
         }
         break;
+      }
 
-      case 'category':
+      case 'category': {
         const triggerCategories = triggerConfig.category_ids || [];
         const excludeProducts = triggerConfig.exclude_products || [];
         matches = context.categoryIds.some(id => triggerCategories.includes(id));
@@ -797,8 +798,9 @@ class UpsellService {
           reason = 'category_match';
         }
         break;
+      }
 
-      case 'cart_value':
+      case 'cart_value': {
         const minCents = triggerConfig.min_cents || 0;
         const maxCents = triggerConfig.max_cents || Infinity;
         matches = context.cartValueCents >= minCents && context.cartValueCents <= maxCents;
@@ -808,8 +810,9 @@ class UpsellService {
           reason = 'cart_value_match';
         }
         break;
+      }
 
-      case 'customer_type':
+      case 'customer_type': {
         const allowedTypes = triggerConfig.types || [];
         matches = allowedTypes.includes(context.customerType);
 
@@ -828,8 +831,9 @@ class UpsellService {
           reason = 'customer_type_match';
         }
         break;
+      }
 
-      case 'cart_item_count':
+      case 'cart_item_count': {
         const minItems = triggerConfig.min_items || 0;
         const maxItems = triggerConfig.max_items || Infinity;
         matches = context.itemCount >= minItems && context.itemCount <= maxItems;
@@ -838,8 +842,9 @@ class UpsellService {
           reason = 'item_count_match';
         }
         break;
+      }
 
-      case 'time_based':
+      case 'time_based': {
         const allowedDays = triggerConfig.days || [];
         const hours = triggerConfig.hours || {};
 
@@ -853,8 +858,9 @@ class UpsellService {
           reason = 'time_match';
         }
         break;
+      }
 
-      case 'customer_history':
+      case 'customer_history': {
         const minOrders = triggerConfig.min_orders || 0;
         const minLifetimeValue = triggerConfig.min_lifetime_value_cents || 0;
 
@@ -865,6 +871,7 @@ class UpsellService {
           reason = 'history_match';
         }
         break;
+      }
     }
 
     // Check additional conditions

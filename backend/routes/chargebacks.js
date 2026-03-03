@@ -28,7 +28,7 @@ const UPLOAD_DIR = path.join(__dirname, '..', 'public', 'uploads', 'chargebacks'
 // ============================================================================
 
 router.get('/analytics', authenticate, requirePermission('fraud.chargebacks.manage'), asyncHandler(async (req, res) => {
-  const { period } = req.query; // month, quarter, year
+  const { period: _period } = req.query; // month, quarter, year
 
   // Current period boundaries
   const now = new Date();
@@ -217,7 +217,8 @@ router.get('/', authenticate, requirePermission('fraud.chargebacks.manage'), asy
              LIMIT $${params.length - 1} OFFSET $${params.length}`;
 
   // Count total
-  let countQuery = query.replace(/SELECT cc\.\*.*FROM/, 'SELECT COUNT(*)::int AS total FROM').replace(/ORDER BY.*$/, '');
+  // Original countQuery approach replaced by simpler countQ below
+  // let countQuery = query.replace(...);
   // Simpler approach
   let countQ = 'SELECT COUNT(*)::int AS total FROM chargeback_cases cc WHERE 1=1';
   const countParams = [];

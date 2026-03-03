@@ -165,7 +165,7 @@ module.exports = (pool, cache, pricingService) => {
    * Log a new price violation
    */
   router.post('/violations', authenticate, asyncHandler(async (req, res) => {
-    const { productId, violationType, quotedPriceCents, thresholdPriceCents } = req.body;
+    const { productId, violationType, quotedPriceCents: _quotedPriceCents, thresholdPriceCents: _thresholdPriceCents } = req.body;
 
     if (!productId) {
       throw ApiError.badRequest('Product ID is required');
@@ -218,7 +218,7 @@ module.exports = (pool, cache, pricingService) => {
    * Update customer product history
    */
   router.post('/customer-history', authenticate, asyncHandler(async (req, res) => {
-    const { customerId, productId, pricePaidCents } = req.body;
+    const { customerId, productId, pricePaidCents: _pricePaidCents } = req.body;
 
     if (!customerId) {
       throw ApiError.badRequest('Customer ID is required');

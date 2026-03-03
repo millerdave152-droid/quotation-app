@@ -72,7 +72,7 @@ class PromotionFolderWatcher {
 
     // Set up chokidar watcher
     const watcher = chokidar.watch(folder_path, {
-      ignored: /(^|[\/\\])\../, // ignore dotfiles
+      ignored: /(^|[/\\])\../, // ignore dotfiles
       persistent: true,
       ignoreInitial: true, // Don't process existing files on start
       depth: 0 // Only watch top level

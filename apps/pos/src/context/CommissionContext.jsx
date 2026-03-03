@@ -3,7 +3,7 @@
  * Manages commission visibility settings and permissions
  */
 
-import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { useAuth } from './AuthContext';
 
 const CommissionContext = createContext(null);
@@ -102,7 +102,7 @@ export function CommissionProvider({ children }) {
    * Toggle a specific setting
    */
   const toggleSetting = useCallback((key) => {
-    if (settings.hasOwnProperty(key)) {
+    if (Object.hasOwn(settings, key)) {
       saveSettings({ [key]: !settings[key] });
     }
   }, [settings, saveSettings]);

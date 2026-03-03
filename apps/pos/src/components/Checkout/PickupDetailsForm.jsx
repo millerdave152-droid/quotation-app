@@ -200,7 +200,7 @@ export function PickupDetailsForm({ pickupType, customer, onComplete, onBack }) 
         personPhone: personRef,
         time: timeRef,
       };
-      const firstErrorKey = ['location', 'date', 'personName', 'personPhone', 'time'].find(
+      ['location', 'date', 'personName', 'personPhone', 'time'].find(
         (key) => errors[key] || document.querySelector(`[data-field="${key}"]`)
       );
       // Re-validate to get fresh errors since state update is async

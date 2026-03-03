@@ -3,7 +3,7 @@
  * Step 2: Visual touch-friendly condition assessment with checklists
  */
 
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import {
   Box,
   Card,
@@ -26,10 +26,7 @@ import {
 import {
   CheckCircle as CheckCircleIcon,
   Star as StarIcon,
-  StarHalf as StarHalfIcon,
   StarBorder as StarBorderIcon,
-  ThumbUp as ThumbUpIcon,
-  ThumbDown as ThumbDownIcon,
   Warning as WarningIcon,
   Info as InfoIcon,
   ExpandMore as ExpandIcon,

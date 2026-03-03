@@ -3,7 +3,7 @@
  * Preview and send batch receipt emails
  */
 
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import {
   XMarkIcon,
   EnvelopeIcon,
@@ -15,7 +15,6 @@ import {
   CurrencyDollarIcon,
   ClockIcon,
   ExclamationTriangleIcon,
-  CheckIcon,
   XCircleIcon,
 } from '@heroicons/react/24/outline';
 import { formatCurrency } from '../../utils/formatters';
@@ -96,28 +95,6 @@ function ReceiptItem({ item, isSelected, onToggle, disabled }) {
 }
 
 /**
- * Status badge for batch items
- */
-function StatusBadge({ status }) {
-  const config = {
-    pending: { bg: 'bg-gray-100', text: 'text-gray-700', icon: ClockIcon },
-    processing: { bg: 'bg-blue-100', text: 'text-blue-700', icon: ArrowPathIcon },
-    sent: { bg: 'bg-green-100', text: 'text-green-700', icon: CheckCircleIcon },
-    failed: { bg: 'bg-red-100', text: 'text-red-700', icon: XCircleIcon },
-    skipped: { bg: 'bg-amber-100', text: 'text-amber-700', icon: ExclamationTriangleIcon },
-  };
-
-  const { bg, text, icon: Icon } = config[status] || config.pending;
-
-  return (
-    <span className={`inline-flex items-center gap-1 px-2 py-0.5 text-xs font-medium rounded-full ${bg} ${text}`}>
-      <Icon className={`w-3 h-3 ${status === 'processing' ? 'animate-spin' : ''}`} />
-      {status.charAt(0).toUpperCase() + status.slice(1)}
-    </span>
-  );
-}
-
-/**
  * Batch Receipt Email Modal
  * @param {object} props
  * @param {boolean} props.isOpen - Whether modal is open
@@ -142,7 +119,6 @@ export default function BatchReceiptEmailModal({
     error,
     unsentReceipts,
     currentBatch,
-    batchStatus,
     getUnsentForShift,
     getUnsentForToday,
     getUnsentForDate,

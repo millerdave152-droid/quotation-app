@@ -66,12 +66,11 @@ export function FinancingPlanCard({
   selected = false,
   onSelect,
   recommended = false,
-  inComparison = false,
-  onCompare,
-  showCompareButton = false,
+  _inComparison = false,
+  _onCompare,
+  _showCompareButton = false,
 }) {
   const {
-    planId,
     planName,
     provider,
     termMonths,

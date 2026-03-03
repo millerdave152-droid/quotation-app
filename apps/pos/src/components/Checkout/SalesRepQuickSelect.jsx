@@ -5,7 +5,6 @@
 
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import {
-  UserIcon,
   UserGroupIcon,
   CheckCircleIcon,
   ClockIcon,

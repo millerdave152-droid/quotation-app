@@ -3,18 +3,16 @@
  * Admin report for viewing manager override history
  */
 
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   ArrowLeftIcon,
-  CalendarIcon,
   FunnelIcon,
   ArrowDownTrayIcon,
   ShieldCheckIcon,
   XCircleIcon,
   TagIcon,
   CurrencyDollarIcon,
-  UserCircleIcon,
   ChartBarIcon,
   ChevronLeftIcon,
   ChevronRightIcon,

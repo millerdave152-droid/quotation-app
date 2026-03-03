@@ -7,7 +7,6 @@
 import { useState, useEffect } from 'react';
 import {
   ShieldExclamationIcon,
-  XMarkIcon,
   ExclamationTriangleIcon,
   LockClosedIcon,
 } from '@heroicons/react/24/outline';
@@ -25,7 +24,7 @@ import { ManagerApprovalModal } from './ManagerApprovalModal';
  * @param {function} props.onOverride - Callback when manager overrides the block
  * @param {function} props.onCancel - Callback to cancel the transaction
  */
-export default function FraudBlockedModal({ isOpen, assessment, onOverride, onCancel }) {
+export default function FraudBlockedModal({ isOpen, assessment, _onOverride, onCancel }) {
   const [showManagerApproval, setShowManagerApproval] = useState(false);
 
   useEffect(() => {
@@ -47,7 +46,7 @@ export default function FraudBlockedModal({ isOpen, assessment, onOverride, onCa
           overrideType: 'fraud_block',
           description: `Fraud block override (Risk: ${assessment.riskScore}/100)`,
         }}
-        onVerifyPin={async (pin) => {
+        onVerifyPin={async (_pin) => {
           // The ManagerApprovalModal handles PIN verification
           // If successful, it calls onVerifyPin with the result
           return { success: true };

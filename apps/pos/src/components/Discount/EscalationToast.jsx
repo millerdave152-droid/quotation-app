@@ -8,7 +8,7 @@
  * every 10s during polling).
  */
 
-import { useEffect, useRef, useCallback, memo } from 'react';
+import { useEffect, useRef, memo } from 'react';
 import { createPortal } from 'react-dom';
 import {
   CheckCircleIcon,
@@ -20,7 +20,7 @@ import {
 /**
  * Single escalation toast — memoized to prevent re-renders from polling
  */
-const EscalationToastItem = memo(function EscalationToastItem({ escalationId, escalation, onDismiss, onApplyDiscount }) {
+const EscalationToastItem = memo(function EscalationToastItem({ _escalationId, escalation, onDismiss, onApplyDiscount }) {
   const status = (escalation.status || '').toLowerCase();
   const isApproved = status === 'approved';
   const isExpired = status === 'expired';

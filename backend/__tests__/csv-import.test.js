@@ -151,7 +151,7 @@ describe('CSV Import Endpoint', () => {
               new_products, updated_products, import_date
             ) VALUES ($1, $2, $3, $4, $5, $6, CURRENT_TIMESTAMP)
           `, [filename, totalRows, successful, failed, inserted, updated]);
-        } catch (err) {
+        } catch (_err) {
           // Continue even if history logging fails
         }
 

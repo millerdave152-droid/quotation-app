@@ -33,7 +33,7 @@ function init({ pool }) {
     },
   });
 
-  const ALLOWED_MIMES = [
+  const _ALLOWED_MIMES = [
     'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', // xlsx
     'application/vnd.ms-excel', // xls
     'text/csv',
@@ -321,8 +321,9 @@ function init({ pool }) {
 
     const dataRows = fileData.rows.slice(skipRows - 1); // skipRows=1 means first data row is index 0 (headers already stripped)
     let rowsProcessed = 0;
-    let rowsValid = 0;
-    let rowsWarning = 0;
+    // rowsValid and rowsWarning not yet persisted
+    // let rowsValid = 0;
+    // let rowsWarning = 0;
     let rowsErrored = 0;
     let rowsMatched = 0;
     let rowsNew = 0;
@@ -372,12 +373,13 @@ function init({ pool }) {
         let previousCost = null;
         let previousMsrp = null;
         let costChange = null;
-        let msrpChange = null;
+        // msrpChange removed — not persisted yet (only costChange is stored)
         if (matchedProduct) {
           previousCost = matchedProduct.cost != null ? Math.round(parseFloat(matchedProduct.cost) * 100) : null;
           previousMsrp = matchedProduct.price != null ? Math.round(parseFloat(matchedProduct.price) * 100) : null;
           if (previousCost != null && parsedCost != null) costChange = parsedCost - previousCost;
-          if (previousMsrp != null && parsedMsrp != null) msrpChange = parsedMsrp - previousMsrp;
+          // msrp_change not yet persisted; only cost_change is stored
+          if (previousMsrp != null && parsedMsrp != null) { /* msrpChange = parsedMsrp - previousMsrp; */ }
         }
 
         const status = errors.length > 0 ? 'error' : warnings.length > 0 ? 'warning' : 'valid';
@@ -417,8 +419,9 @@ function init({ pool }) {
         paramIdx += 16;
 
         if (status === 'error') rowsErrored++;
-        else if (status === 'warning') rowsWarning++;
-        else rowsValid++;
+        // rowsWarning and rowsValid tracked but not yet persisted
+        else if (status === 'warning') { /* rowsWarning++ */ }
+        else { /* rowsValid++ */ }
 
         if (matchedProduct) rowsMatched++;
         else if (parsedSku) rowsNew++;
@@ -913,7 +916,7 @@ function init({ pool }) {
   const cancelledImports = new Set();
 
   async function commitImport(importId, options, userId) {
-    const { skip_errors = false, apply_to_effective_date = true } = options;
+    const { skip_errors: _skip_errors = false, apply_to_effective_date = true } = options;
 
     const impResult = await pool.query('SELECT * FROM price_list_imports WHERE id = $1', [importId]);
     if (impResult.rows.length === 0) throw new Error('Import not found');
@@ -987,8 +990,8 @@ function init({ pool }) {
           );
 
           // Create price history record (both dollar and cents columns)
-          const prevCostCents = currentProduct && currentProduct.cost != null ? Math.round(parseFloat(currentProduct.cost) * 100) : null;
-          const prevPriceCents = currentProduct && currentProduct.price != null ? Math.round(parseFloat(currentProduct.price) * 100) : null;
+          // Cents values available if needed in future: Math.round(parseFloat(currentProduct.cost) * 100)
+          // The INSERT below uses dollar values (currentProduct.cost/price) directly
 
           await client.query(
             `INSERT INTO product_price_history

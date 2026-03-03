@@ -300,7 +300,7 @@ function TierCard({ tier, index, onChange, warnings }) {
 
 export function TierSettingsAdmin() {
   const navigate = useNavigate();
-  const { user, hasRole } = useAuth();
+  const { hasRole } = useAuth();
 
   const [tiers, setTiers] = useState([]);
   const [loading, setLoading] = useState(true);

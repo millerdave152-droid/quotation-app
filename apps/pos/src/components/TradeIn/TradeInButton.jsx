@@ -3,7 +3,7 @@
  * Button to trigger trade-in assessment modal, displays in cart area
  */
 
-import React, { useState } from 'react';
+import { useState } from 'react';
 import {
   Box,
   Button,

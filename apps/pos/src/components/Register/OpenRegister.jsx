@@ -34,7 +34,7 @@ const DENOMINATIONS = [
  * Denomination input row
  */
 function DenominationRow({ denomination, count, onChange }) {
-  const { id, label, value, type } = denomination;
+  const { id, label, value } = denomination;
   const total = count * value;
 
   return (

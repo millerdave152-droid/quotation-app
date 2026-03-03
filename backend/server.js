@@ -2765,7 +2765,7 @@ app.get('/api/ai/recommendations/:productId', async (req, res) => {
  */
 app.post('/api/ai/upsell-suggestions', async (req, res) => {
   try {
-    const { quoteItems, customerBudget, currentTotal } = req.body;
+    const { quoteItems, customerBudget: _customerBudget, currentTotal } = req.body;
 
     if (!quoteItems || quoteItems.length === 0) {
       return res.json({
@@ -2783,8 +2783,8 @@ app.post('/api/ai/upsell-suggestions', async (req, res) => {
     );
 
     const products = productsResult.rows;
-    const categories = [...new Set(products.map(p => p.category))];
-    const manufacturers = [...new Set(products.map(p => p.manufacturer))];
+    const _categories = [...new Set(products.map(p => p.category))];
+    const _manufacturers = [...new Set(products.map(p => p.manufacturer))];
 
     // Calculate current quote stats
     const currentMargin = products.reduce((sum, p) => {
@@ -3047,7 +3047,7 @@ app.post('/api/ai/quote-recommendations', async (req, res) => {
     }));
 
     // Use the upsell endpoint logic
-    const upsellData = {
+    const _upsellData = {
       quoteItems,
       customerBudget: quote.total_cents * 1.2, // Assume 20% flexibility
       currentTotal: quote.total_cents
@@ -3337,7 +3337,7 @@ const server = app.listen(PORT, () => {
   // PCI DSS Req 10.6 — NTP synchronization check
   (() => {
     const https = require('https');
-    const checkStart = Date.now();
+    const _checkStart = Date.now();
     https.get('https://worldtimeapi.org/api/timezone/Etc/UTC', (resp) => {
       let data = '';
       resp.on('data', chunk => { data += chunk; });

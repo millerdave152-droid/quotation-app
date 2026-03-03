@@ -15,7 +15,7 @@ import {
   LockClosedIcon,
   ArrowPathIcon,
 } from '@heroicons/react/24/outline';
-import { formatCurrency, formatDateTime } from '../../utils/formatters';
+import { formatCurrency } from '../../utils/formatters';
 import { CashMovementModal } from './CashMovementModal';
 
 const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:3001/api';
@@ -83,7 +83,7 @@ function MovementRow({ movement }) {
  * @param {number} props.shiftId - Current shift ID
  * @param {function} props.onClose - Close callback
  */
-export function CashDrawerManager({ shiftId, onClose }) {
+export function CashDrawerManager({ shiftId, _onClose }) {
   const [summary, setSummary] = useState(null);
   const [movements, setMovements] = useState([]);
   const [loading, setLoading] = useState(true);

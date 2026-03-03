@@ -39,7 +39,7 @@ module.exports = function (warrantyService) {
     // Filter out internal margin data for external API
     if (result.warranties) {
       result.warranties = result.warranties.map((w) => {
-        const { margin, marginPercent, ...publicData } = w;
+        const { margin: _margin, marginPercent: _marginPercent, ...publicData } = w;
         return publicData;
       });
     }
@@ -69,7 +69,7 @@ module.exports = function (warrantyService) {
         // Filter out margin data
         if (result.warranties) {
           result.warranties = result.warranties.map((w) => {
-            const { margin, marginPercent, ...publicData } = w;
+            const { margin: _margin, marginPercent: _marginPercent, ...publicData } = w;
             return publicData;
           });
         }
@@ -110,7 +110,7 @@ module.exports = function (warrantyService) {
     }
 
     // Filter out internal data
-    const { cost, margin, marginPercent, ...publicData } = result;
+    const { cost: _cost, margin: _margin2, marginPercent: _marginPercent2, ...publicData } = result;
 
     res.json(publicData);
   }));

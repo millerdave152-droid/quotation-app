@@ -61,7 +61,7 @@ class AIPersonalizationService {
    * Calculate dynamic price adjustment for a product
    */
   async calculateDynamicPriceAdjustment(productId, context = {}) {
-    const { quantity = 1, customerId, quoteItems = [] } = context;
+    const { quantity: _quantity = 1, customerId: _customerId, quoteItems: _quoteItems = [] } = context;
 
     // Get product details
     const productResult = await pool.query(
@@ -75,7 +75,7 @@ class AIPersonalizationService {
 
     const product = productResult.rows[0];
     const basePriceCents = Math.round(parseFloat(product.sell_price) * 100);
-    const costCents = product.cost ? Math.round(parseFloat(product.cost) * 100) : 0;
+    const _costCents = product.cost ? Math.round(parseFloat(product.cost) * 100) : 0;
 
     // Get applicable rules
     const rules = await this.getDynamicPricingRules({ isActive: true });
@@ -127,7 +127,7 @@ class AIPersonalizationService {
    * Evaluate a single pricing rule
    */
   async evaluateRule(rule, product, context) {
-    const { quantity = 1, quoteItems = [] } = context;
+    const { quantity: _quantity2 = 1, quoteItems = [] } = context;
     const costCents = product.cost ? Math.round(parseFloat(product.cost) * 100) : 0;
     const sellCents = Math.round(parseFloat(product.sell_price) * 100);
     const currentMargin = costCents > 0 ? ((sellCents - costCents) / sellCents) * 100 : 0;
@@ -140,34 +140,37 @@ class AIPersonalizationService {
         if (currentMargin < 10) return 2; // Small markup suggestion
         return 0;
 
-      case 'inventory_velocity':
+      case 'inventory_velocity': {
         // Check product age (older products get discounts)
         const productAge = Math.floor((Date.now() - new Date(product.created_at).getTime()) / (1000 * 60 * 60 * 24));
         if (productAge > 180) return -5; // 6+ months old
         if (productAge > 90) return -3; // 3+ months old
         return 0;
+      }
 
-      case 'brand_tier':
+      case 'brand_tier': {
         // Premium brands maintain pricing
         const premiumBrands = ['Sub-Zero', 'Wolf', 'Miele', 'Thermador', 'Viking'];
         if (premiumBrands.some(b => product.manufacturer?.toLowerCase().includes(b.toLowerCase()))) {
           return 3; // Premium markup
         }
         return 0;
+      }
 
-      case 'bundle_size':
+      case 'bundle_size': {
         // Discount based on bundle size
         const totalItems = quoteItems.length + 1;
         if (totalItems >= 5) return -5;
         if (totalItems >= 3) return -3;
         return 0;
+      }
 
       case 'demand_based':
         // Would integrate with sales velocity data
         // For now, return 0
         return 0;
 
-      case 'time_based':
+      case 'time_based': {
         // End of month/quarter discounts
         const now = new Date();
         const dayOfMonth = now.getDate();
@@ -177,6 +180,7 @@ class AIPersonalizationService {
         // Last month of quarter
         if ([2, 5, 8, 11].includes(month) && dayOfMonth >= 25) return -3;
         return 0;
+      }
 
       default:
         return 0;
@@ -212,7 +216,7 @@ class AIPersonalizationService {
    * Get upsell recommendations for a product
    */
   async getUpsellRecommendations(productId, context = {}) {
-    const { customerId, quoteItems = [], limit = 5 } = context;
+    const { customerId, quoteItems: _quoteItems3 = [], limit = 5 } = context;
 
     // Get product details
     const productResult = await pool.query(
@@ -357,7 +361,7 @@ class AIPersonalizationService {
 
     const recommendations = [];
     const brandPrefs = prefsResult.rows.filter(p => p.preference_type === 'brand');
-    const categoryPrefs = prefsResult.rows.filter(p => p.preference_type === 'category');
+    const _categoryPrefs = prefsResult.rows.filter(p => p.preference_type === 'category');
 
     // Recommend products matching customer preferences
     if (brandPrefs.length > 0) {

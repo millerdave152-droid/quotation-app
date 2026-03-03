@@ -20,7 +20,7 @@ import {
  * Shows in corner of screen, doesn't block user interaction
  */
 export default function BatchEmailProgress({
-  batchId,
+  _batchId,
   status, // { status, total_count, sent_count, failed_count, progress }
   onViewResults,
   onRetry,

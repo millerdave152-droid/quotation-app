@@ -3,7 +3,7 @@
  * Shows available registers for selection when no active shift exists
  */
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import {
   ComputerDesktopIcon,
   UserIcon,
@@ -19,7 +19,7 @@ import { formatDateTime } from '../../utils/formatters';
  */
 function RegisterCard({ register, onSelect, isSelected }) {
   const {
-    registerId,
+    _registerId,
     registerName,
     location,
     isActive,

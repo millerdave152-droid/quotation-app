@@ -3,7 +3,7 @@
  * Step 1: Search and select product for trade-in
  */
 
-import React, { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import {
   Box,
   TextField,
@@ -20,7 +20,6 @@ import {
   Collapse,
   Grid,
   Divider,
-  Fade,
 } from '@mui/material';
 import {
   Search as SearchIcon,

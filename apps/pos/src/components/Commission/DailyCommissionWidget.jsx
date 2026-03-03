@@ -3,7 +3,7 @@
  * Shows today's commission summary with comparisons
  */
 
-import React, { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import {
   CurrencyDollarIcon,
   ArrowTrendingUpIcon,

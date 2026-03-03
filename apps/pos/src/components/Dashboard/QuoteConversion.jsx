@@ -3,7 +3,7 @@
  * Shows quote conversion metrics and funnel
  */
 
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import DonutChart from './charts/DonutChart';
 import { getQuoteConversionMetrics, getQuoteConversionTrend } from '../../api/reports';
 import {
@@ -15,7 +15,7 @@ import {
 
 const QuoteConversion = ({ dateRange = {} }) => {
   const [conversionData, setConversionData] = useState(null);
-  const [trendData, setTrendData] = useState([]);
+  const [, setTrendData] = useState([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {

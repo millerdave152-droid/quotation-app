@@ -3,7 +3,7 @@
  * Shows top products across Quote + POS channels
  */
 
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { getProductPerformance, getCategoryPerformance } from '../../api/reports';
 import { ChartBarIcon, TagIcon } from '@heroicons/react/24/outline';
 
@@ -165,7 +165,6 @@ const ProductPerformance = ({ dateRange = {} }) => {
           ) : (
             categories.map((category, i) => {
               const revenue = parseFloat(category.total_revenue) || 0;
-              const barWidth = (revenue / maxCategoryRevenue) * 100;
               const quoteRevenue = parseFloat(category.quote_revenue) || 0;
               const posRevenue = parseFloat(category.pos_revenue) || 0;
               const quotePercent = revenue > 0 ? (quoteRevenue / revenue) * 100 : 0;

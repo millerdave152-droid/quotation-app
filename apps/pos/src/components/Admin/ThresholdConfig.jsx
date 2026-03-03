@@ -504,7 +504,7 @@ export function ThresholdConfig() {
   const [error, setError] = useState(null);
   const [thresholds, setThresholds] = useState([]);
   const [categories, setCategories] = useState([]);
-  const [showCreateModal, setShowCreateModal] = useState(false);
+  const [, setShowCreateModal] = useState(false);
   const [filter, setFilter] = useState('all'); // all, active, inactive
 
   // Fetch thresholds

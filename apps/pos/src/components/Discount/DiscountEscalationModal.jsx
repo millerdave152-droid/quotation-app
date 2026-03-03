@@ -25,7 +25,7 @@ export function DiscountEscalationModal({
   onSubmitted,
   item,
   desiredPct,
-  tier,
+  _tier,
   validationResult,
 }) {
   const [reason, setReason] = useState('');

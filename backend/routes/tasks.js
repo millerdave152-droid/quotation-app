@@ -11,13 +11,13 @@ const { authenticate } = require('../middleware/auth');
 
 // Module-level dependencies
 let taskService = null;
-let cache = null;
+let _cache = null;
 
 /**
  * Initialize the router with dependencies
  */
 const init = (deps) => {
-  cache = deps.cache;
+  _cache = deps.cache;
   taskService = new TaskService(deps.pool, deps.cache);
   return router;
 };

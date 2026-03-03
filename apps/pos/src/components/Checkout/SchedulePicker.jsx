@@ -125,7 +125,7 @@ function TimeSlotButton({ slot, isSelected, onSelect, disabled = false }) {
 /**
  * Schedule picker main component
  */
-export function SchedulePicker({ optionType, address, onComplete, onBack }) {
+export function SchedulePicker({ optionType, _address, onComplete, onBack }) {
   const [availableDates, setAvailableDates] = useState([]);
   const [selectedDate, setSelectedDate] = useState(null);
   const [timeSlots, setTimeSlots] = useState([]);

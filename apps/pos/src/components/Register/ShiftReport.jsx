@@ -3,9 +3,8 @@
  * Printable end-of-day report with shift details and statistics
  */
 
-import { forwardRef, useEffect, useState } from 'react';
-import { useRegister } from '../../context/RegisterContext';
-import { formatCurrency, formatDate, formatTime, formatDateTime } from '../../utils/formatters';
+import { forwardRef } from 'react';
+import { formatCurrency, formatDate, formatDateTime } from '../../utils/formatters';
 
 /**
  * Report section component
@@ -48,7 +47,7 @@ export const ShiftReport = forwardRef(function ShiftReport({
   summary,
   closingCash,
   variance,
-  transactions = [],
+  _transactions = [],
   topProducts = [],
   previousShiftSummary,
 }, ref) {

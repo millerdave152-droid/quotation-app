@@ -32,14 +32,14 @@ const {
 
 // Dependencies injected via init()
 let db;
-let services;
+let _services;
 
 /**
  * Initialize routes with dependencies
  */
 const init = (deps) => {
   db = deps.db;
-  services = deps.services || {};
+  _services = deps.services || {};
   return router;
 };
 
@@ -162,11 +162,11 @@ router.post('/transactions',
       shiftId,
       customerId,
       quoteId,
-      salespersonId,
+      salespersonId: _salespersonId,
       items,
       payments,
       discountAmountCents = 0,
-      discountReason,
+      discountReason: _discountReason,
       taxProvince = 'ON'
     } = req.body;
 
@@ -703,7 +703,7 @@ router.post('/shifts/:id/close',
   validate(closeShiftSchema),
   asyncHandler(async (req, res) => {
     const { id } = req.params;
-    const { closingCash, denominations, blindClose } = req.body;
+    const { closingCash, denominations, blindClose: _blindClose } = req.body;
 
     const shiftResult = await db.query(
       'SELECT * FROM shifts WHERE shift_id = $1',

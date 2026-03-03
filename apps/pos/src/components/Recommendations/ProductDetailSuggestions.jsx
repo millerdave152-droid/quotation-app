@@ -7,7 +7,6 @@ import { useEffect, useCallback, useState } from 'react';
 import { useSuggestions } from '../../hooks/useSuggestions';
 import { useCartContext } from '../../context/CartContext';
 import ProductSuggestionCard from './ProductSuggestionCard';
-import { formatCurrency } from '../../utils/formatters';
 
 /**
  * Product detail suggestions component
@@ -22,7 +21,7 @@ import { formatCurrency } from '../../utils/formatters';
  */
 export function ProductDetailSuggestions({
   productId,
-  product,
+  _product,
   limit = 4,
   title = 'Goes great with:',
   horizontal = true,
@@ -39,7 +38,7 @@ export function ProductDetailSuggestions({
     trackImpression,
     trackClick,
     trackAdd,
-    refresh,
+    _refresh,
   } = useSuggestions({
     productId,
     context: 'product',

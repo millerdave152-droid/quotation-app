@@ -8,8 +8,8 @@ const router = express.Router();
 
 const {
   asyncHandler,
-  ApiError,
-  standardStack,
+  ApiError: _ApiError,
+  standardStack: _standardStack,
   managerStack,
   parseDateRange,
   cacheControl
@@ -18,14 +18,14 @@ const {
 
 // Dependencies injected via init()
 let db;
-let services;
+let _services;
 
 /**
  * Initialize routes with dependencies
  */
 const init = (deps) => {
   db = deps.db;
-  services = deps.services || {};
+  _services = deps.services || {};
   return router;
 };
 

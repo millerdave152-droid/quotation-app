@@ -3,7 +3,7 @@
  * Compact card for displaying recommended products
  */
 
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback } from 'react';
 import { formatCurrency } from '../../utils/formatters';
 
 /**

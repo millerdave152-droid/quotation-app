@@ -36,7 +36,7 @@ export function UpsellOfferModal({
   mode = 'sequential',
   className = '',
 }) {
-  const { items, customer, total, addItem } = useCartContext();
+  const { items, customer, total } = useCartContext();
   const modalRef = useRef(null);
 
   // Active tab (for tabs mode)
@@ -52,7 +52,7 @@ export function UpsellOfferModal({
   const {
     offers,
     currentOffer,
-    currentOfferIndex,
+    _currentOfferIndex,
     services,
     membershipOffers,
     financingOptions,
@@ -64,15 +64,15 @@ export function UpsellOfferModal({
     loading,
     acceptOffer,
     declineOffer,
-    skipOffer,
+    _skipOffer,
     acceptService,
     declineService,
     acceptMembership,
     declineMembership,
     selectFinancing,
     startOfferTiming,
-    moveToNextOffer,
-    resetSession,
+    _moveToNextOffer,
+    _resetSession,
   } = useUpsellOffers({
     cart: { items, total, subtotal: total },
     customer,

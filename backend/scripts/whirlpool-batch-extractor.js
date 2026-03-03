@@ -79,7 +79,7 @@
         const sku = (window.location.pathname.match(/\\/product\\/([A-Z0-9-]+)/i) || [])[1] || '';
 
         const extractBgUrl = (style) => {
-          const match = style.match(/url\\(['"]?([^'")\s]+)['"]?\\)/);
+          const match = style.match(/url\\(['"]?([^'")s]+)['"]?\\)/);
           return match ? match[1] : null;
         };
 

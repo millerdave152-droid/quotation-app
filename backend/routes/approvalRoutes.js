@@ -1242,7 +1242,7 @@ module.exports = function (approvalService) {
         requestedPrice,
         managerId,
         managerName,
-        approvalLevel,
+        approvalLevel: _approvalLevel,
         offlineApprovedAt,
         deviceId,
         reason,

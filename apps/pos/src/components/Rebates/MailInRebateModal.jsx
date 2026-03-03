@@ -48,7 +48,6 @@ function formatDate(dateStr) {
 function RebateCard({ rebate, isUrgent = false }) {
   const [expanded, setExpanded] = useState(false);
 
-  const isMailIn = rebate.rebateType === 'mail_in' || !rebate.rebateType;
   const isOnline = rebate.rebateType === 'online';
 
   return (

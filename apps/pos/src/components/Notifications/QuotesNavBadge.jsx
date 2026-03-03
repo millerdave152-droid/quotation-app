@@ -3,7 +3,6 @@
  * Shows count of expiring quotes on navigation item
  */
 
-import React from 'react';
 import { useExpiringQuotes } from '../../hooks/useExpiringQuotes';
 
 /**
@@ -50,7 +49,7 @@ export default function QuotesNavBadge({
   showZero = false,
   className = '',
 }) {
-  const { stats, hasUrgentQuotes, loading } = useExpiringQuotes({
+  const { stats, loading } = useExpiringQuotes({
     salesRepId,
     daysAhead: 7,
     maxQuotes: 1, // We only need the count

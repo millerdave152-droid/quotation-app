@@ -39,7 +39,6 @@ export function ProductTile({
   const [imageError, setImageError] = useState(false);
 
   // Extract product data (handle different field naming)
-  const productId = product.productId || product.product_id || product.id;
   const productName = product.productName || product.product_name || product.name;
   const sku = product.productSku || product.product_sku || product.sku;
   const price = parseFloat(product.unitPrice || product.unit_price || product.price || 0);

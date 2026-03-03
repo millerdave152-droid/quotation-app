@@ -3,7 +3,7 @@
  * Manager view of commission payroll for a period
  */
 
-import React, { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   ArrowLeftIcon,

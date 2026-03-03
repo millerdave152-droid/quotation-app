@@ -493,7 +493,7 @@ class DraftService {
               results.push({ id: op.id, success: true });
               break;
 
-            default:
+            default: {
               // Queue unknown operations for manual processing
               const queued = await this.queueSyncOperation({
                 operationType: op.type,
@@ -504,6 +504,7 @@ class DraftService {
                 payload: op.payload,
               });
               results.push({ id: op.id, success: true, queued: queued.id });
+            }
           }
         } catch (error) {
           results.push({

@@ -244,7 +244,7 @@ async function lookupCustomer({ search_term, search_type = 'auto' }) {
       search_type = 'id';
     } else if (/@/.test(search_term)) {
       search_type = 'email';
-    } else if (/^[\d\-\(\)\s\+]+$/.test(search_term) && search_term.replace(/\D/g, '').length >= 7) {
+    } else if (/^[\d\-()\s+]+$/.test(search_term) && search_term.replace(/\D/g, '').length >= 7) {
       search_type = 'phone';
     } else {
       search_type = 'name';
@@ -261,12 +261,13 @@ async function lookupCustomer({ search_term, search_type = 'auto' }) {
       query += ' AND LOWER(email) = LOWER($1)';
       params.push(search_term);
       break;
-    case 'phone':
+    case 'phone': {
       // Normalize phone number for comparison
       const normalizedPhone = search_term.replace(/\D/g, '');
       query += ' AND REPLACE(REPLACE(REPLACE(REPLACE(phone, \'-\', \'\'), \'(\', \'\'), \')\', \'\'), \' \', \'\') LIKE $1';
       params.push(`%${normalizedPhone}%`);
       break;
+    }
     case 'name':
     default:
       query += ' AND LOWER(name) LIKE LOWER($1)';

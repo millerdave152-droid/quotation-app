@@ -3,7 +3,7 @@
  * Sales rep view of their commission earnings
  */
 
-import React, { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   ArrowLeftIcon,
@@ -19,7 +19,7 @@ import {
   TargetProgressCard,
 } from '../components/Commission/CommissionSummaryCards';
 import CommissionTable from '../components/Commission/CommissionTable';
-import { DailyCommissionWidget, CommissionLeaderboard } from '../components/Commission';
+import { CommissionLeaderboard } from '../components/Commission';
 
 /**
  * Date range presets

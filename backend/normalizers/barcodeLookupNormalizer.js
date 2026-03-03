@@ -26,7 +26,7 @@
  */
 function toNumber(val) {
   if (val == null || val === '') return null;
-  const n = Number(String(val).replace(/[^0-9.\-]/g, ''));
+  const n = Number(String(val).replace(/[^0-9.-]/g, ''));
   return Number.isFinite(n) && n >= 0 ? n : null;
 }
 
@@ -194,7 +194,7 @@ function extractModelFromTitle(title, mpn, rawModel) {
   // Strip surrounding parentheses/brackets from each token.
   const tokens = title
     .split(/[\s,|]+/)
-    .map(t => t.replace(/^[(\[{]+|[)\]}]+$/g, '').trim())
+    .map(t => t.replace(/^[([{]+|[)\]}]+$/g, '').trim())
     .filter(Boolean);
 
   const mpnUpper = mpn ? mpn.toUpperCase() : null;

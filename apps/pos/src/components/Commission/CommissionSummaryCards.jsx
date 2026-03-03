@@ -3,7 +3,6 @@
  * Reusable summary statistics cards for commission views
  */
 
-import React from 'react';
 import {
   CurrencyDollarIcon,
   ShoppingCartIcon,

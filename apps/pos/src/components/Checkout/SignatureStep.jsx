@@ -232,7 +232,7 @@ export default function SignatureStep({
 
       {/* Requirements List */}
       <div className="flex-1 overflow-y-auto space-y-4">
-        {requirements.map((requirement, index) => (
+        {requirements.map((requirement, _index) => (
           <SignatureRequirementCard
             key={requirement.type}
             requirement={requirement}

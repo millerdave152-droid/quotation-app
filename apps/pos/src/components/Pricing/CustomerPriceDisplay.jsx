@@ -7,9 +7,7 @@
  * - Volume discount preview
  */
 
-import { useState, useEffect, useCallback } from 'react';
 import {
-  TagIcon,
   SparklesIcon,
   TrophyIcon,
   BuildingStorefrontIcon,

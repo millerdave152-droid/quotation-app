@@ -3,7 +3,7 @@
  * Manager view of all sales reps' commission earnings
  */
 
-import React, { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   ArrowLeftIcon,
@@ -229,7 +229,7 @@ function RepDetailPanel({ rep, dateRange, onClose }) {
  */
 export default function TeamCommissionsPage() {
   const navigate = useNavigate();
-  const { user, isAdminOrManager } = useAuth();
+  const { isAdminOrManager } = useAuth();
 
   const [report, setReport] = useState(null);
   const [loading, setLoading] = useState(true);

@@ -4,7 +4,7 @@
  * Uses modular step components for each phase
  */
 
-import React, { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect } from 'react';
 import {
   Box,
   Modal,
@@ -21,7 +21,6 @@ import {
   Close as CloseIcon,
   ArrowBack as ArrowBackIcon,
   ArrowForward as ArrowForwardIcon,
-  CheckCircle as CheckCircleIcon,
   SwapHoriz as TradeInIcon,
   Calculate as CalculateIcon,
 } from '@mui/icons-material';
@@ -165,7 +164,7 @@ export function TradeInModal({
         }
         return true;
 
-      case 2: // Details
+      case 2: { // Details
         const product = isManualEntry ? null : selectedProduct;
         if (product?.requires_serial && !serialNumber) {
           setError('Serial number is required for this product');
@@ -180,6 +179,7 @@ export function TradeInModal({
           return false;
         }
         return true;
+      }
 
       default:
         return true;

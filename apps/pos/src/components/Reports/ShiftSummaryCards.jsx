@@ -111,7 +111,7 @@ export function ShiftSummaryCards({ summary, payments, comparison }) {
     );
   }
 
-  const { transactions, revenue, averages, itemsSold } = summary;
+  const { transactions, revenue, averages } = summary;
   const cashInDrawer = payments?.cashDrawer?.expectedInDrawer || 0;
 
   // Calculate trends if comparison data exists

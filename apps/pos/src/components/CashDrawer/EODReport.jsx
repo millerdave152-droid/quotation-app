@@ -150,7 +150,7 @@ function PaymentSummary({ payments }) {
  * @param {string} props.date - Date for the report (YYYY-MM-DD)
  * @param {function} props.onClose - Close callback
  */
-export function EODReport({ date: initialDate, onClose }) {
+export function EODReport({ date: initialDate, _onClose }) {
   const [date, setDate] = useState(initialDate || new Date().toISOString().split('T')[0]);
   const [report, setReport] = useState(null);
   const [loading, setLoading] = useState(true);

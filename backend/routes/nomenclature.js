@@ -12,14 +12,14 @@ const { authenticate } = require('../middleware/auth');
 // Module-level dependencies
 let nomenclatureService = null;
 let pool = null;
-let cache = null;
+let _cache = null;
 
 /**
  * Initialize the router with dependencies
  */
 const init = (deps) => {
   pool = deps.pool;
-  cache = deps.cache;
+  _cache = deps.cache;
   nomenclatureService = new NomenclatureService(deps.pool, deps.cache);
   return router;
 };

@@ -83,7 +83,7 @@ orderRouter.get('/:id/balance', asyncHandler(async (req, res) => {
   }));
 
   // Separate completed from pending for balance calculation
-  const completedPaid = payments
+  const _completedPaid = payments
     .filter(p => p.status === 'completed' && p.amountCents > 0)
     .reduce((sum, p) => sum + p.amountCents, 0);
 

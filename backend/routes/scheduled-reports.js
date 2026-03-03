@@ -30,7 +30,7 @@ function init({ pool }) {
   // ---------- Report data generators ----------
 
   async function generateReportData(reportType, filters = {}) {
-    const { location_id, category_id, category, brand, date_from, date_to, days_threshold } = filters;
+    const { location_id, category_id, category, brand, date_from, date_to, days_threshold: _days_threshold } = filters;
 
     switch (reportType) {
       case 'stock_levels': {
@@ -263,7 +263,7 @@ function init({ pool }) {
   // ---------- Email sending ----------
 
   async function sendReportEmail(recipientEmails, reportName, filePath, filename, title) {
-    const sesClient = new SESv2Client({
+    const _sesClient = new SESv2Client({
       region: process.env.AWS_REGION || 'us-east-1',
       credentials: {
         accessKeyId: process.env.AWS_ACCESS_KEY_ID,

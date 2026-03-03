@@ -32,7 +32,7 @@ const RATE_LIMIT_DELAY_MS = 300;
  * @returns {{ gtin: string, upcA: string }}
  */
 function normalizeUPC(raw) {
-  const cleaned = String(raw).replace(/[\s\-]/g, '');
+  const cleaned = String(raw).replace(/[\s-]/g, '');
 
   let gtin;
   let upcA;

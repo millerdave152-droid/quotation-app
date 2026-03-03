@@ -3,7 +3,7 @@
  * Address input with customer address selection and postal code validation
  */
 
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import {
   MapPinIcon,
   PlusIcon,

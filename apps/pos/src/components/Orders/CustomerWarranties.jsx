@@ -6,14 +6,11 @@
 import { useState, useEffect, useCallback } from 'react';
 import {
   ShieldCheckIcon,
-  MagnifyingGlassIcon,
   XMarkIcon,
   ClockIcon,
   CheckCircleIcon,
   ExclamationTriangleIcon,
   ArrowTopRightOnSquareIcon,
-  PhoneIcon,
-  EnvelopeIcon,
 } from '@heroicons/react/24/outline';
 import { ShieldCheckIcon as ShieldCheckSolid } from '@heroicons/react/24/solid';
 import { formatCurrency } from '../../utils/formatters';
@@ -84,7 +81,7 @@ function WarrantyStatusBadge({ status, daysRemaining }) {
 /**
  * Individual warranty card
  */
-function WarrantyCard({ warranty, onViewDetails }) {
+function WarrantyCard({ warranty, _onViewDetails }) {
   const formatDate = (dateStr) => {
     if (!dateStr) return 'N/A';
     return new Date(dateStr).toLocaleDateString('en-CA', {

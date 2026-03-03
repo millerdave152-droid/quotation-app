@@ -44,7 +44,7 @@ export const DiscountSlider = memo(function DiscountSlider({
   const hasCost = cost > 0;
 
   // Determine max discount allowed by tier + cost floor
-  const { maxPct, costFloorPrice, isUnrestricted } = useMemo(() => {
+  const { maxPct, isUnrestricted } = useMemo(() => {
     if (!tier) return { maxPct: 0, costFloorPrice: 0, isUnrestricted: false };
     if (tier.is_unrestricted) return { maxPct: 50, costFloorPrice: 0, isUnrestricted: true };
 

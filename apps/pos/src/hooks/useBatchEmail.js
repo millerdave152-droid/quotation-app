@@ -251,7 +251,7 @@ export function useBatchEmail() {
         }
 
         // Continue polling with cancellation check
-        await new Promise((resolve, reject) => {
+        await new Promise((resolve, _reject) => {
           const timeoutId = setTimeout(resolve, intervalMs);
           // Allow cancellation during wait
           const checkCancelled = setInterval(() => {

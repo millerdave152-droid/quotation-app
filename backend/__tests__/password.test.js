@@ -590,7 +590,7 @@ describe('generateRandomPassword', () => {
   it('should include at least one special character', () => {
     for (let i = 0; i < 10; i++) {
       const pw = generateRandomPassword(16);
-      expect(/[!@#$%^&*()_+\-=\[\]{}|;:,.<>?]/.test(pw)).toBe(true);
+      expect(/[!@#$%^&*()_+\-=[\]{}|;:,.<>?]/.test(pw)).toBe(true);
     }
   });
 

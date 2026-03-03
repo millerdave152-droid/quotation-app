@@ -1409,7 +1409,7 @@ router.post('/products/batch-sync', authenticate, asyncHandler(async (req, res) 
   for (let i = 0; i < products.length; i += batchSize) {
     const batch = products.slice(i, i + batchSize);
     const batchNum = Math.floor(i / batchSize) + 1;
-    const totalBatches = Math.ceil(products.length / batchSize);
+    const _totalBatches = Math.ceil(products.length / batchSize);
 
     const result = await miraklService.batchImportOffers(batch);
 
@@ -1517,7 +1517,7 @@ router.post('/products/sync-all-unsynced', authenticate, asyncHandler(async (req
   let rateLimited = 0;
   const errors = [];
   const batchSize = 50;
-  let processed = 0;
+  let _processed = 0;
 
   // Helper to delay
   const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
@@ -1563,7 +1563,7 @@ router.post('/products/sync-all-unsynced', authenticate, asyncHandler(async (req
       await delay(requestDelayMs);
     }
 
-    processed += batch.length;
+    _processed += batch.length;
 
     // Extra delay between batches
     if (i + batchSize < products.length) {
@@ -3484,10 +3484,10 @@ router.post('/pull-offers-from-bestbuy', authenticate, asyncHandler(async (req, 
       );
 
       // Extract UPC from product_references
-      let upc = null;
+      let _upc = null;
       if (offer.product_references && offer.product_references.length > 0) {
         const upcRef = offer.product_references.find(r => r.reference_type === 'UPC-A' || r.reference_type === 'EAN');
-        if (upcRef) upc = upcRef.reference;
+        if (upcRef) _upc = upcRef.reference;
       }
 
       // Convert price to cents
@@ -3875,7 +3875,7 @@ router.get('/inventory-products', authenticate, asyncHandler(async (req, res) =>
 
 // Trigger immediate batch inventory sync — supports ?channelId
 router.post('/inventory/sync-now', authenticate, asyncHandler(async (req, res) => {
-  const { manager, adapter, channelId } = await resolveChannel(req);
+  const { manager: _manager, adapter, channelId } = await resolveChannel(req);
 
   if (adapter && channelId) {
     const result = await adapter.processInventoryBatch();
@@ -5074,7 +5074,7 @@ router.get('/reports/export/:type', authenticate, asyncHandler(async (req, res) 
   let filename = '';
 
   switch (type) {
-    case 'sales':
+    case 'sales': {
       const salesResult = await pool.query(`
         SELECT
           DATE(mo.order_date) as date,
@@ -5090,8 +5090,9 @@ router.get('/reports/export/:type', authenticate, asyncHandler(async (req, res) 
       data = salesResult.rows;
       filename = `sales_report_${startDate}_to_${endDate}.csv`;
       break;
+    }
 
-    case 'inventory':
+    case 'inventory': {
       const inventoryResult = await pool.query(`
         SELECT
           p.id,
@@ -5112,8 +5113,9 @@ router.get('/reports/export/:type', authenticate, asyncHandler(async (req, res) 
       data = inventoryResult.rows;
       filename = `inventory_report_${new Date().toISOString().split('T')[0]}.csv`;
       break;
+    }
 
-    case 'profit':
+    case 'profit': {
       const profitResult = await pool.query(`
         SELECT
           DATE(mo.order_date) as date,
@@ -5137,6 +5139,7 @@ router.get('/reports/export/:type', authenticate, asyncHandler(async (req, res) 
       data = profitResult.rows;
       filename = `profit_report_${startDate}_to_${endDate}.csv`;
       break;
+    }
 
     default:
       throw ApiError.badRequest('Invalid report type');
@@ -7491,13 +7494,12 @@ router.post('/channels/:channelId/go-live', authenticate, asyncHandler(async (re
     throw ApiError.badRequest('No products mapped to this channel. Map products before going live.');
   }
 
-  // 3. Get or create adapter
+  // 3. Get or create adapter (side effect: registers adapter with manager)
   const manager = await getChannelManager();
-  let adapter;
   try {
-    adapter = manager.hasAdapter(channelId)
-      ? manager.getAdapter(channelId)
-      : manager._createAdapter(channel);
+    if (!manager.hasAdapter(channelId)) {
+      manager._createAdapter(channel);
+    }
   } catch (err) {
     throw ApiError.badRequest(`Cannot create adapter: ${err.message}`);
   }

@@ -3,7 +3,7 @@
  * Shows sales rep their commission on the current cart
  */
 
-import React, { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import {
   CurrencyDollarIcon,
   ChevronDownIcon,

@@ -30,7 +30,7 @@ module.exports = (pool, cache, deliveryService) => {
    * Create a delivery zone
    */
   router.post('/zones', authenticate, asyncHandler(async (req, res) => {
-    const { name, postalCodes } = req.body;
+    const { name, postalCodes: _postalCodes } = req.body;
 
     if (!name) {
       throw ApiError.badRequest('Zone name is required');

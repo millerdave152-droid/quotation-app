@@ -45,7 +45,7 @@ function saveToStorage(key, data) {
 }
 
 export function RegisterProvider({ children }) {
-  const { isAuthenticated, user } = useAuth();
+  const { isAuthenticated } = useAuth();
 
   // State
   const [registers, setRegisters] = useState([]);

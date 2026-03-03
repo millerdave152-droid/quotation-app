@@ -14,7 +14,6 @@ import {
   ClockIcon,
   DocumentTextIcon,
 } from '@heroicons/react/24/outline';
-import { formatCurrency } from '../../utils/formatters';
 
 /**
  * Result item row
@@ -114,7 +113,7 @@ export default function BatchEmailResults({
   onClose,
   batchStatus,
   items = [],
-  onRetry,
+  _onRetry,
   onRetryFailed,
 }) {
   const [activeTab, setActiveTab] = useState('all');

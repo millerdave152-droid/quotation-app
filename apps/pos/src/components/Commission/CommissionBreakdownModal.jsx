@@ -3,7 +3,6 @@
  * Detailed view of commission calculation per item
  */
 
-import React from 'react';
 import { createPortal } from 'react-dom';
 import {
   XMarkIcon,
@@ -125,7 +124,7 @@ export default function CommissionBreakdownModal({
   isOpen,
   onClose,
   commission,
-  cart,
+  _cart,
 }) {
   if (!isOpen) return null;
 

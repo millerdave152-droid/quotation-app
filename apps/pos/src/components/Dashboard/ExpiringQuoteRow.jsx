@@ -3,7 +3,6 @@
  * Individual quote row with expandable actions for the expiring quotes widget
  */
 
-import React from 'react';
 import {
   ClockIcon,
   ExclamationTriangleIcon,

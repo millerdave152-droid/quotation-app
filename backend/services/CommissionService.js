@@ -435,11 +435,12 @@ class CommissionService {
                item.name?.toLowerCase().includes('installation') ||
                item.name?.toLowerCase().includes('setup');
 
-      case 'tiered':
+      case 'tiered': {
         // Tiered rules apply to the total, checked at order level
         const orderTotal = dollarsToCents(cart.total);
         return orderTotal >= rule.minThresholdCents &&
                (rule.maxThresholdCents === null || orderTotal < rule.maxThresholdCents);
+      }
 
       case 'flat':
         return true; // Flat rate is fallback

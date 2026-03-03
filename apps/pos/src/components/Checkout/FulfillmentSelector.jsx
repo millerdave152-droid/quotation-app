@@ -139,7 +139,7 @@ export function FulfillmentSelector({
   const [selectedOption, setSelectedOption] = useState(null);
   const [step, setStep] = useState('select'); // 'select', 'address', 'schedule', 'pickup'
   const [deliveryAddress, setDeliveryAddress] = useState(null);
-  const [scheduleData, setScheduleData] = useState(null);
+  const [, setScheduleData] = useState(null);
 
   // Fetch available options with abort controller to prevent memory leaks
   useEffect(() => {

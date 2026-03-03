@@ -40,7 +40,7 @@ function EmptyState({ searchActive, categoryActive }) {
 
   if (searchActive) {
     title = 'No products found';
-    message = "Try adjusting your search or check the spelling.";
+    message = 'Try adjusting your search or check the spelling.';
     icon = (
       <svg className="w-10 h-10 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
@@ -112,7 +112,7 @@ export function ProductGrid({
   const [internalLoading, setInternalLoading] = useState(false);
   const [page, setPage] = useState(1);
   const [hasMorePages, setHasMorePages] = useState(true);
-  const [totalCount, setTotalCount] = useState(0);
+  const [, setTotalCount] = useState(0);
 
   const observerRef = useRef(null);
   const loadMoreRef = useRef(null);

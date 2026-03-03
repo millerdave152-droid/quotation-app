@@ -8,7 +8,7 @@ import api from '../api/axios';
 
 // Storage keys
 const DECLINED_KEY = 'pos_declined_suggestions';
-const SHOWN_KEY = 'pos_shown_suggestions_session';
+const _SHOWN_KEY = 'pos_shown_suggestions_session';
 const SESSION_TOUCHPOINT_KEY = 'pos_suggestion_touchpoint';
 
 // Config

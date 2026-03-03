@@ -111,7 +111,7 @@ class LeadImportService {
           }
           break;
 
-        case 'contact_email':
+        case 'contact_email': {
           const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
           if (value && !emailRegex.test(value)) {
             errors.push(`Invalid email: "${value}"`);
@@ -119,8 +119,9 @@ class LeadImportService {
             lead.contact_email = value.trim().toLowerCase();
           }
           break;
+        }
 
-        case 'contact_phone':
+        case 'contact_phone': {
           // Normalize phone number
           const phone = value.replace(/[^\d+]/g, '');
           if (phone.length >= 10) {
@@ -129,8 +130,9 @@ class LeadImportService {
             errors.push(`Invalid phone: "${value}"`);
           }
           break;
+        }
 
-        case 'priority':
+        case 'priority': {
           const normalizedPriority = value.toLowerCase().trim();
           if (['hot', 'warm', 'cold'].includes(normalizedPriority)) {
             lead.priority = normalizedPriority;
@@ -142,8 +144,9 @@ class LeadImportService {
             lead.priority = 'cold';
           }
           break;
+        }
 
-        case 'timeline':
+        case 'timeline': {
           const normalizedTimeline = value.toLowerCase().trim();
           if (['asap', 'immediate', 'now', 'urgent'].includes(normalizedTimeline)) {
             lead.timeline = 'asap';
@@ -157,6 +160,7 @@ class LeadImportService {
             lead.timeline = 'just_researching';
           }
           break;
+        }
 
         case 'follow_up_date':
           try {

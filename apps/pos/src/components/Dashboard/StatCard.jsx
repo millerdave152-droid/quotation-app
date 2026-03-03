@@ -3,7 +3,6 @@
  * Displays a single metric with optional comparison
  */
 
-import React from 'react';
 import {
   ArrowTrendingUpIcon,
   ArrowTrendingDownIcon,

@@ -212,7 +212,7 @@ function PaymentRow({ payment }) {
 /**
  * Payoff modal component
  */
-function PayoffModal({ agreement, payoffData, onConfirm, onClose, processing }) {
+function PayoffModal({ _agreement, payoffData, onConfirm, onClose, processing }) {
   if (!payoffData) return null;
 
   return (

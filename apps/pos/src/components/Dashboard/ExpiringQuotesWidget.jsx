@@ -12,7 +12,7 @@
  * - Collapses if no quotes expiring this week
  */
 
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import {
   ClockIcon,
   ExclamationTriangleIcon,

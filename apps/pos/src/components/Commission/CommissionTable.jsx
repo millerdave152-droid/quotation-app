@@ -3,13 +3,12 @@
  * Displays commission earnings in a sortable, filterable table
  */
 
-import React, { useState, useMemo } from 'react';
+import { useState, useMemo } from 'react';
 import {
   ChevronUpIcon,
   ChevronDownIcon,
   SparklesIcon,
   ExclamationTriangleIcon,
-  FunnelIcon,
   MagnifyingGlassIcon,
 } from '@heroicons/react/24/outline';
 

@@ -3,7 +3,6 @@
  * Step 4: Final review and confirmation before adding to cart
  */
 
-import React from 'react';
 import {
   Box,
   Paper,
@@ -22,11 +21,9 @@ import {
 } from '@mui/material';
 import {
   CheckCircle as CheckCircleIcon,
-  Warning as WarningIcon,
   Info as InfoIcon,
   Smartphone as DeviceIcon,
   Star as StarIcon,
-  AttachMoney as MoneyIcon,
   Receipt as SerialIcon,
   SimCard as ImeiIcon,
   Note as NoteIcon,

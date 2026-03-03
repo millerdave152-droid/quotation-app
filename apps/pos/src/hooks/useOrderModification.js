@@ -464,7 +464,7 @@ export function useOrderModification(orderId) {
   const markBackordered = useCallback(
     async (items) => {
       try {
-        const result = await apiRequest(`/order-modifications/${orderId}/backorder`, {
+        const _result = await apiRequest(`/order-modifications/${orderId}/backorder`, {
           method: 'POST',
           body: JSON.stringify({ items }),
         });

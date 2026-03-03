@@ -343,7 +343,7 @@ export function CheckoutModal({
         coversItemId: itemId,
       });
     },
-    onComplete: ({ warranties, skipped }) => {
+    onComplete: ({ _warranties, _skipped }) => {
       // Warranties flow complete, proceed to payment
       setStep('methods');
     },
@@ -367,9 +367,6 @@ export function CheckoutModal({
   const remainingBalance = useMemo(() => {
     return Math.max(0, cart.total - paidAmount);
   }, [cart.total, paidAmount]);
-
-  // Check if fully paid
-  const isFullyPaid = remainingBalance <= 0.01;
 
   // Reset state only when modal transitions from closed to open
   useEffect(() => {

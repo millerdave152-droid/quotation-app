@@ -99,7 +99,7 @@ const DB_USER_ROW = {
   role_display_name: null,
 };
 
-const DB_ADMIN_ROW = {
+const _DB_ADMIN_ROW = {
   ...DB_USER_ROW,
   role: 'admin',
   role_id: 1,

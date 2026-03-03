@@ -57,10 +57,9 @@ function init({ pool }) {
           // Remove age_bucket condition for summary
           return !(age_bucket && conditions[i].includes('age_bucket'));
         });
-        const bucketWhere = bucketConditions.length > 0 ? `WHERE ${bucketConditions.join(' AND ')}` : '';
-        const bucketParams = age_bucket
-          ? params.filter((_, i) => i !== conditions.indexOf(`a.age_bucket = $${params.indexOf(age_bucket) + 1}`))
-          : [...params];
+        // Original approach replaced by simpler summary query below
+        // const bucketWhere = bucketConditions.length > 0 ? `WHERE ${bucketConditions.join(' AND ')}` : '';
+        // const bucketParams = age_bucket ? params.filter(...) : [...params];
 
         // Simpler approach: run summary without age_bucket filter
         const summaryParams = [];

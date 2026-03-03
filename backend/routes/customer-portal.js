@@ -13,14 +13,14 @@ const { ApiError, asyncHandler } = require('../middleware/errorHandler');
 const { authenticate, requireRole } = require('../middleware/auth');
 
 let pool = null;
-let cache = null;
+let _cache = null;
 
 /**
  * Initialize the router with dependencies
  */
 const init = (deps) => {
   pool = deps.pool;
-  cache = deps.cache;
+  _cache = deps.cache;
   return router;
 };
 

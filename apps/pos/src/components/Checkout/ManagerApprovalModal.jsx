@@ -5,7 +5,7 @@
  * Features touch-friendly numeric keypad for POS screen.
  */
 
-import { useState, useCallback, useEffect, useRef } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import {
   XMarkIcon,
   LockClosedIcon,

@@ -668,10 +668,11 @@ class TemplateService {
     const type = transformation.type || transformation;
 
     switch (type) {
-      case 'multiply_100':
+      case 'multiply_100': {
         // Strip currency symbols and convert to cents
         const numValue = parseFloat(strValue.replace(/[$,]/g, ''));
         return isNaN(numValue) ? 0 : Math.round(numValue * 100);
+      }
 
       case 'uppercase':
         return strValue.toUpperCase();

@@ -231,7 +231,7 @@ class ColumnDetectionEngine {
     // Normalize headers
     const normalizedHeaders = headers.map((h, idx) => ({
       original: h,
-      normalized: (h || '').toString().toLowerCase().trim().replace(/[_\-\.]/g, ' '),
+      normalized: (h || '').toString().toLowerCase().trim().replace(/[_\-.]/g, ' '),
       index: idx
     }));
 

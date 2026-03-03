@@ -12,7 +12,6 @@ import {
   CheckCircleIcon,
   ExclamationTriangleIcon,
   PrinterIcon,
-  DocumentTextIcon,
 } from '@heroicons/react/24/outline';
 import { useRegister } from '../../context/RegisterContext';
 import { formatCurrency } from '../../utils/formatters';

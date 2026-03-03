@@ -3,7 +3,7 @@
  * Shows current shift statistics in a compact or expanded view
  */
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect } from 'react';
 import {
   ChartBarIcon,
   BanknotesIcon,
@@ -12,11 +12,10 @@ import {
   ClockIcon,
   ArrowPathIcon,
   ChevronDownIcon,
-  ChevronUpIcon,
   XMarkIcon,
 } from '@heroicons/react/24/outline';
 import { useRegister } from '../../context/RegisterContext';
-import { formatCurrency, formatTime, formatDateTime } from '../../utils/formatters';
+import { formatCurrency, formatDateTime } from '../../utils/formatters';
 
 /**
  * Stat card component

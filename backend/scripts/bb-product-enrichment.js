@@ -377,9 +377,6 @@ const UPC_DATABASE = {
   'RF28R7551SR': { upc: '887276345321', category: 'Appliances/Refrigerators', price: '3799.99' },
   'RF28R7551SR/AA': { upc: '887276345321', category: 'Appliances/Refrigerators', price: '3799.99' },
 
-  // MORE LG REFRIGERATORS
-  'LRFXS2503S': { upc: '772454071928', category: 'Appliances/Refrigerators', price: '1999.99' },
-
   // MORE KITCHENAID REFRIGERATORS
   'KRFC704FPS': { upc: '883049396118', category: 'Appliances/Refrigerators', price: '3299.99' },
 
@@ -516,12 +513,10 @@ const UPC_DATABASE = {
   // ============================================================
 
   // MAYTAG - from Whirlpool Group pricelist
-  'MHW6630HW': { upc: '883049456966', category: 'Appliances/Washers', price: '1649.99' },
   'MDB8959SKZ': { upc: '883049532950', category: 'Appliances/Dishwashers', price: '1199.99' },
 
   // KITCHENAID - from Whirlpool Group pricelist
   'KDFE104KPS': { upc: '883049540559', category: 'Appliances/Dishwashers', price: '1249.99' },
-  'KRMF706ESS': { upc: '883049347059', category: 'Appliances/Refrigerators', price: '3499.99' },
 
   // WHIRLPOOL - from Whirlpool Group pricelist
   'WRF535SWHZ': { upc: '883049442068', category: 'Appliances/Refrigerators', price: '1699.99' },
@@ -531,7 +526,6 @@ const UPC_DATABASE = {
 
   // MORE WHIRLPOOL - continued research
   'WFW5605MC': { upc: '883049632919', category: 'Appliances/Washers', price: '1099.99' },
-  'WDT750SAKZ': { upc: '883049540788', category: 'Appliances/Dishwashers', price: '799.99' },
   'WRS321SDHZ': { upc: '883049435039', category: 'Appliances/Refrigerators', price: '1299.99' },
 
   // MORE MAYTAG - continued research
@@ -541,8 +535,6 @@ const UPC_DATABASE = {
 
   // MORE KITCHENAID - continued research
   'KRFC300ESS': { upc: '883049360881', category: 'Appliances/Refrigerators', price: '2799.99' },
-  'KDTM404KPS': { upc: '883049532646', category: 'Appliances/Dishwashers', price: '1299.99' },
-  'KOSE500ESS': { upc: '883049327143', category: 'Appliances/Wall Ovens', price: '2199.99' },
 
   // MORE MAYTAG - continued research batch 2
   'MHW8630HC': { upc: '883049457000', category: 'Appliances/Washers', price: '1974.99' },
@@ -577,7 +569,6 @@ const UPC_DATABASE = {
   'MHW5630HW': { upc: '883049456959', category: 'Appliances/Washers', price: '899.99' },
 
   // MORE WHIRLPOOL - continued research batch 5
-  'WED5000DW': { upc: '883049332222', category: 'Appliances/Dryers', price: '599.99' },
   'WTW5000DW': { upc: '883049330839', category: 'Appliances/Washers', price: '599.99' },
 
   // MORE KITCHENAID - continued research batch 6
@@ -586,24 +577,15 @@ const UPC_DATABASE = {
   // MORE MAYTAG - continued research batch 6
   'MVW6230HW': { upc: '883049462295', category: 'Appliances/Washers', price: '899.99' },
 
-  // MORE WHIRLPOOL - continued research batch 6
-  'WRX735SDHZ': { upc: '883049445533', category: 'Appliances/Refrigerators', price: '2199.99' },
-
   // MORE KITCHENAID - continued research batch 7
   'KRFF305ESS': { upc: '883049360942', category: 'Appliances/Refrigerators', price: '2299.99' },
   'KOCE500ESS': { upc: '883049327389', category: 'Appliances/Wall Ovens', price: '3799.99' },
-
-  // MORE WHIRLPOOL - continued research batch 7
-  'WRF757SDHZ': { upc: '883049464329', category: 'Appliances/Refrigerators', price: '2499.99' },
 
   // MORE MAYTAG - continued research batch 7
   'MFT2772HEZ': { upc: '883049473499', category: 'Appliances/Refrigerators', price: '2399.99' },
 
   // MORE JENN-AIR - continued research batch 8
   'JJW2430DS': { upc: '883049334974', category: 'Appliances/Wall Ovens', price: '2999.99' },
-
-  // MORE BOSCH - continued research batch 8
-  'HBL8451UC': { upc: '825225906513', category: 'Appliances/Wall Ovens', price: '2399.99' },
 
   // MORE NAPOLEON - continued research batch 8
   'PRO500RSIBPSS-3': { upc: '629162132123', category: 'Outdoor Living/BBQs & Grills', price: '2499.99' },
@@ -619,16 +601,10 @@ const UPC_DATABASE = {
   // MORE WHIRLPOOL - continued research batch 9
   'WDT730PAHZ': { upc: '883049451374', category: 'Appliances/Dishwashers', price: '649.99' },
 
-  // MORE MAYTAG - continued research batch 9
-  'MDB8959SKZ': { upc: '883049532950', category: 'Appliances/Dishwashers', price: '1049.99' },
-
   // MORE SAMSUNG - continued research batch 10
   'NE63T8511SS': { upc: '887276409054', category: 'Appliances/Electric Ranges', price: '1499.99' },
   'NE63T8511SS/AA': { upc: '887276409054', category: 'Appliances/Electric Ranges', price: '1499.99' },
   'NE63T8511SG': { upc: '887276409047', category: 'Appliances/Electric Ranges', price: '1599.99' },
-
-  // MORE KITCHENAID - continued research batch 10
-  'KRMF706EBS': { upc: '883049347042', category: 'Appliances/Refrigerators', price: '3499.99' },
 
   // MORE NAPOLEON - continued research batch 10
   'R525SIBPSS': { upc: '629162128737', category: 'Outdoor Living/BBQs & Grills', price: '1199.99' },
@@ -813,7 +789,7 @@ function mapCategory(productType, _brand) {
 
 function generateSKU(brand, model) {
   const cleanBrand = standardizeBrand(brand).replace(/[^A-Z0-9]/g, '');
-  const cleanModel = (model || '').toString().replace(/[\/\\]/g, '-').replace(/[^A-Z0-9-]/gi, '');
+  const cleanModel = (model || '').toString().replace(/[/\\]/g, '-').replace(/[^A-Z0-9-]/gi, '');
   return `${cleanBrand}-${cleanModel}`;
 }
 

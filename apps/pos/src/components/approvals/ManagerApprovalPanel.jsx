@@ -12,7 +12,7 @@
  * and counter-offer responses.  Falls back to polling GET /pending every 15 s.
  */
 
-import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import {
   XMarkIcon,
@@ -251,7 +251,7 @@ function ProductHistory({ requestId, defaultExpanded }) {
 // ---------------------------------------------------------------------------
 // Pricing Intelligence (collapsible)
 // ---------------------------------------------------------------------------
-function PricingIntelligence({ requestId, cost, retail, requested, customerId }) {
+function PricingIntelligence({ requestId, _cost, _retail, requested, customerId }) {
   const [expanded, setExpanded] = useState(false);
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(false);

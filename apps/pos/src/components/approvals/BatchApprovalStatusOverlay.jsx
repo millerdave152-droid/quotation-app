@@ -11,7 +11,6 @@ import {
   XCircleIcon,
   ExclamationTriangleIcon,
   ShieldCheckIcon,
-  ClockIcon,
 } from '@heroicons/react/24/outline';
 import { formatCurrency } from '../../utils/formatters';
 

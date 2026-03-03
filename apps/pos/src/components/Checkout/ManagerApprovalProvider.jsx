@@ -164,7 +164,6 @@ export function ManagerApprovalProvider({ children }) {
       reason = '',
       product = null,
       quantity = 1,
-      cost = null,
     } = options;
 
     const discountPercent = originalPrice > 0

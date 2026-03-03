@@ -4,7 +4,7 @@
  * Grouped at the bottom of the cart items list
  */
 
-import React, { useState } from 'react';
+import { useState } from 'react';
 import {
   ArrowsRightLeftIcon,
   TrashIcon,
@@ -13,7 +13,6 @@ import {
   ClockIcon,
   ChevronDownIcon,
   ChevronUpIcon,
-  DevicePhoneMobileIcon,
 } from '@heroicons/react/24/outline';
 import { formatCurrency } from '../../utils/formatters';
 
@@ -56,7 +55,6 @@ function TradeInLineItem({ tradeIn, onRemove, disabled = false }) {
     : 'approved';
 
   const config = statusConfig[status] || statusConfig.approved;
-  const StatusIcon = config.icon;
 
   return (
     <div
@@ -187,7 +185,7 @@ function TradeInLineItem({ tradeIn, onRemove, disabled = false }) {
 export function TradeInCartSection({
   tradeIns = [],
   onRemoveTradeIn,
-  onAddTradeIn,
+  _onAddTradeIn,
   disabled = false,
 }) {
   if (!tradeIns || tradeIns.length === 0) {

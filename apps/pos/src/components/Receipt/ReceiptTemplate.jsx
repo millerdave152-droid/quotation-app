@@ -329,7 +329,7 @@ export const ReceiptTemplate = forwardRef(function ReceiptTemplate(
         <tbody>
           {items.map((item, index) => {
             const itemRebates = getProductRebates(item.productId || item.id);
-            const itemRebateTotal = itemRebates.reduce((sum, r) => sum + r.amount, 0);
+            const _itemRebateTotal = itemRebates.reduce((sum, r) => sum + r.amount, 0);
             return (
             <Fragment key={`item-group-${index}`}>
               <tr

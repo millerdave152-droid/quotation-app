@@ -100,7 +100,7 @@ export function Cart({
   const [isProcessing, setIsProcessing] = useState(false);
 
   // Trade-in values from cart context
-  const { tradeIns, tradeInTotal, hasPendingTradeIns, amountToPay } = cart;
+  const { tradeIns, tradeInTotal, hasPendingTradeIns } = cart;
 
   // Handle quantity update
   const handleUpdateQuantity = useCallback(
@@ -185,7 +185,7 @@ export function Cart({
 
   // Handle salesperson selection
   const handleSalespersonSelect = useCallback(
-    (salespersonId, rep) => {
+    (salespersonId, _rep) => {
       cart.setSalespersonId(salespersonId);
     },
     [cart]

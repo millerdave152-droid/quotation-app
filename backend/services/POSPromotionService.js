@@ -519,7 +519,7 @@ class POSPromotionService {
         break;
 
       case 'percent_product':
-      case 'category_percent':
+      case 'category_percent': {
         const matchingItems = await this._getMatchingItems(promotionId, items);
         for (const item of matchingItems) {
           const itemDiscount = Math.round(
@@ -536,9 +536,10 @@ class POSPromotionService {
           discountCents = Math.min(discountCents, promo.maxDiscountCents);
         }
         break;
+      }
 
       case 'fixed_product':
-      case 'category_fixed':
+      case 'category_fixed': {
         const fixedMatchingItems = await this._getMatchingItems(promotionId, items);
         for (const item of fixedMatchingItems) {
           const itemDiscount = item.quantity * promo.discountAmountCents;
@@ -550,8 +551,9 @@ class POSPromotionService {
           });
         }
         break;
+      }
 
-      case 'buy_x_get_y':
+      case 'buy_x_get_y': {
         const totalQty = items.reduce((sum, item) => sum + item.quantity, 0);
         const setSize = promo.buyQuantity + promo.getQuantity;
         const fullSets = Math.floor(totalQty / setSize);
@@ -581,8 +583,9 @@ class POSPromotionService {
           }
         }
         break;
+      }
 
-      case 'bundle':
+      case 'bundle': {
         // Check if all bundle items are present
         const bundleItems = promo.bundleItems || [];
         let bundleComplete = true;
@@ -605,6 +608,7 @@ class POSPromotionService {
           discountCents = Math.max(0, regularPrice - promo.bundlePriceCents);
         }
         break;
+      }
 
       case 'free_item_threshold':
         if (subtotalCents >= promo.thresholdAmountCents) {

@@ -4,7 +4,7 @@
  * Only visible to users with view_commission permission
  */
 
-import React, { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import {
   CurrencyDollarIcon,
   ChevronRightIcon,
@@ -88,7 +88,6 @@ export default function CartCommissionFooter({
   }
 
   const hasBonus = commission?.summary?.bonusCommission > 0;
-  const hasReduced = commission?.summary?.reducedItems > 0;
 
   return (
     <>

@@ -102,7 +102,7 @@ async function fetchByUPC(upc, options = {}) {
   }
 
   // Clean the UPC (strip whitespace/dashes)
-  const cleaned = String(upc).replace(/[\s\-]/g, '');
+  const cleaned = String(upc).replace(/[\s-]/g, '');
 
   const url = `${BARCODE_LOOKUP_BASE}?barcode=${encodeURIComponent(cleaned)}&geo=ca&formatted=y&key=${encodeURIComponent(apiKey)}`;
 

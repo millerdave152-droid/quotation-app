@@ -3,7 +3,7 @@
  * Shows customer purchase history and top customers
  */
 
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { getCustomerPurchaseHistory, getAOVComparison } from '../../api/reports';
 import {
   UserIcon,

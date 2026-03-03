@@ -19,7 +19,6 @@ import { FinancingComparison } from './FinancingComparison';
 import { FinancingApplicationForm } from './FinancingApplicationForm';
 import { FinancingApprovalResult } from './FinancingApprovalResult';
 import { FinancingTermsAcceptance } from './FinancingTermsAcceptance';
-import { FinancingSchedulePreview } from './FinancingSchedulePreview';
 
 /**
  * Step indicator component

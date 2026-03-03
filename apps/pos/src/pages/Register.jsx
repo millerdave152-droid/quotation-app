@@ -11,13 +11,11 @@ import {
   DocumentTextIcon,
   ClockIcon,
   Squares2X2Icon,
-  ArrowPathIcon,
-  Cog6ToothIcon,
 } from '@heroicons/react/24/outline';
 import { useAuth } from '../context/AuthContext';
 import { useCart } from '../hooks/useCart';
 import { useRegister } from '../hooks/useRegister';
-import { formatCurrency, formatTime } from '../utils/formatters';
+import { formatCurrency } from '../utils/formatters';
 
 // Product Components
 import {
@@ -50,7 +48,7 @@ import { CustomerLookup } from '../components/Customer';
  */
 function Register() {
   const navigate = useNavigate();
-  const { user, logout } = useAuth();
+  const { user } = useAuth();
   const cart = useCart();
   const {
     currentShift,

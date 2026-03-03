@@ -30,7 +30,7 @@ export function CartTotals({
   cartDiscount = 0,
   discountTotal = 0,
   taxLabel = '',
-  hstAmount = 0,
+  _hstAmount = 0,
   gstAmount = 0,
   pstAmount = 0,
   taxAmount = 0,

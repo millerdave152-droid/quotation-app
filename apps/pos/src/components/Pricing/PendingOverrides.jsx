@@ -9,10 +9,8 @@ import {
   CheckCircleIcon,
   XCircleIcon,
   ClockIcon,
-  ExclamationTriangleIcon,
   ArrowPathIcon,
   UserIcon,
-  TagIcon,
   BanknotesIcon,
 } from '@heroicons/react/24/outline';
 import { formatCurrency } from '../../utils/formatters';
@@ -287,7 +285,7 @@ function OverrideCard({ override, onApprove, onReject, isProcessing }) {
 /**
  * Panel showing pending price overrides for manager approval
  */
-export function PendingOverridesPanel({ onClose, className = '' }) {
+export function PendingOverridesPanel({ _onClose, className = '' }) {
   const { getPendingOverrides, approveOverride, rejectOverride } =
     useCustomerPricing({});
 

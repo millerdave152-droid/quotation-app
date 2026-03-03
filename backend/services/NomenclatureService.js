@@ -1118,19 +1118,20 @@ class NomenclatureService {
 
         case 'capacity':
         case 'size':
-        case 'width':
+        case 'width': {
           attributes.capacity = meaning;
           // Try to extract numeric value
-          const capacityMatch = meaning.match(/(\d+(?:\.\d+)?)\s*(cu\.?\s*ft|liters?|L|inches?|\")/i);
+          const capacityMatch = meaning.match(/(\d+(?:\.\d+)?)\s*(cu\.?\s*ft|liters?|L|inches?|")/i);
           if (capacityMatch) {
             attributes.capacityValue = parseFloat(capacityMatch[1]);
             attributes.capacityUnit = capacityMatch[2].toLowerCase();
           }
           break;
+        }
 
         case 'color':
         case 'finish':
-        case 'color_finish':
+        case 'color_finish': {
           attributes.color = meaning;
           // Normalize color names
           const colorLower = meaning.toLowerCase();
@@ -1144,6 +1145,7 @@ class NomenclatureService {
             attributes.colorFamily = 'Slate';
           }
           break;
+        }
 
         case 'features':
         case 'special_features':
@@ -1167,13 +1169,14 @@ class NomenclatureService {
           break;
 
         case 'year':
-        case 'model_year':
+        case 'model_year': {
           attributes.modelYear = meaning;
           const yearMatch = meaning.match(/20\d{2}/);
           if (yearMatch) {
             attributes.year = parseInt(yearMatch[0]);
           }
           break;
+        }
 
         case 'voltage':
         case 'power':

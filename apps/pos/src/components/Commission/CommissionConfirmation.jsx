@@ -4,13 +4,12 @@
  * Subtle but motivating for sales rep
  */
 
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import {
   CheckCircleIcon,
   CurrencyDollarIcon,
   SparklesIcon,
-  ArrowTrendingUpIcon,
 } from '@heroicons/react/24/outline';
 import { CheckCircleIcon as CheckCircleSolid } from '@heroicons/react/24/solid';
 

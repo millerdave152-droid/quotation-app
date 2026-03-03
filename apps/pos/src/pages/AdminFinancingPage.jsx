@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   DollarSign,
@@ -7,15 +7,12 @@ import {
   XCircle,
   AlertTriangle,
   FileText,
-  Users,
   TrendingUp,
-  Filter,
   Search,
   ChevronDown,
   ChevronUp,
   Phone,
   Mail,
-  Calendar,
   Eye,
   ThumbsUp,
   ThumbsDown,

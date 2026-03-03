@@ -17,7 +17,7 @@ let pool = null;
 const customerRouter = express.Router();
 customerRouter.use(authenticate);
 
-const PREFERENCE_FIELDS = ['email_transactional', 'email_marketing', 'sms_transactional', 'sms_marketing'];
+const _PREFERENCE_FIELDS = ['email_transactional', 'email_marketing', 'sms_transactional', 'sms_marketing'];
 
 /**
  * GET /api/customers/:id/preferences

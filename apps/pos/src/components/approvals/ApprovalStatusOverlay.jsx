@@ -7,8 +7,6 @@
 
 import { useState, useEffect, useRef } from 'react';
 import {
-  XMarkIcon,
-  ClockIcon,
   CheckCircleIcon,
   XCircleIcon,
   ArrowPathIcon,
@@ -69,7 +67,7 @@ export default function ApprovalStatusOverlay({
   onCancel,
   onClose,
 }) {
-  const [closing, setClosing] = useState(false);
+  const [, setClosing] = useState(false);
 
   // Auto-close after "done" (approved + consumed) with a brief success display
   useEffect(() => {

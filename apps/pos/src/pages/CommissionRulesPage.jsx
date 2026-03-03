@@ -3,7 +3,7 @@
  * Admin/Manager view to manage commission rules (CRUD)
  */
 
-import React, { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   ArrowLeftIcon,

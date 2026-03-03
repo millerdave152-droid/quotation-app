@@ -47,7 +47,7 @@ import { QuoteLookup } from '../components/Quotes/QuoteLookup';
 import { QuoteConversionBanner } from '../components/Quotes/QuoteConversionBanner';
 import { CheckoutModal } from '../components/Checkout/CheckoutModal';
 import { PriceOverrideModal } from '../components/Pricing/PriceOverrideModal';
-import { ShiftSummaryCompact, ShiftSummaryPanel } from '../components/Register/ShiftSummary';
+import { ShiftSummaryPanel } from '../components/Register/ShiftSummary';
 import ShiftCommissionSummary from '../components/Commission/ShiftCommissionSummary';
 import { ManagerApprovalQueue } from '../components/Discount/ManagerApprovalQueue';
 import { DiscountEscalationModal } from '../components/Discount/DiscountEscalationModal';
@@ -88,7 +88,7 @@ import { formatCurrency } from '../utils/formatters';
 // KEYBOARD SHORTCUTS
 // ============================================================================
 
-const KEYBOARD_SHORTCUTS = {
+const _KEYBOARD_SHORTCUTS = {
   F2: 'search',       // Focus product search
   F4: 'customer',     // Customer lookup
   F5: 'quote',        // Quote lookup
@@ -198,7 +198,7 @@ function QuickActionsBar({
 function Header({
   onMenuClick,
   onShiftSummaryClick,
-  onUserMenuClick,
+  _onUserMenuClick,
   onCloseShift,
   onDiscountApprovals,
   onDelegateAuthority,
@@ -561,7 +561,7 @@ function MobileViewToggle({ view, onViewChange, cartItemCount }) {
 // ============================================================================
 
 function PriceCheckModal({ isOpen, onClose }) {
-  const [query, setQuery] = useState('');
+  const [_query, setQuery] = useState('');
   const [product, setProduct] = useState(null);
   const inputRef = useRef(null);
 
@@ -752,8 +752,8 @@ function OfflinePinModal({ onClose, onSubmitPin, error, productName, requestedPr
 
 export function POSMain() {
   const navigate = useNavigate();
-  const { user, isAdminOrManager } = useAuth();
-  const { hasActiveShift, currentShift, shiftSummary } = useRegister();
+  const { isAdminOrManager } = useAuth();
+  const { hasActiveShift } = useRegister();
   const cart = useCart();
 
   // UI State
@@ -776,7 +776,7 @@ export function POSMain() {
 
   // Connection status + offline support
   const { status: connectionStatus, isOffline } = useConnectionStatus();
-  const { verifyPinOffline, clearCache: clearPinCache } = useManagerPinCache();
+  const { verifyPinOffline, clearCache: _clearPinCache } = useManagerPinCache();
   const { pendingCount: offlinePendingCount, isSyncing: offlineSyncing } = useOfflineTransaction();
 
   // Discount Authority State

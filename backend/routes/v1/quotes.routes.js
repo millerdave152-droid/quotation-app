@@ -27,7 +27,7 @@ const router = express.Router();
 const {
   asyncHandler,
   authenticate,
-  requireRole,
+  requireRole: _requireRole,
   parsePagination,
   parseDateRange,
   normalizeMoneyFields,
@@ -40,15 +40,15 @@ const {
   updateQuoteSchema,
   quoteStatusUpdateSchema,
   quoteQuerySchema,
-  createLineItemSchema,
-  updateLineItemSchema
+  createLineItemSchema: _createLineItemSchema,
+  updateLineItemSchema: _updateLineItemSchema
 } = require('../../shared/validation/schemas');
 
 const { buildQuoteSnapshot, SnapshotBuildError } = require('../../services/skulytics/SkulyticsSnapshotService');
 
 // Module state - initialized via init()
 let pool = null;
-let quoteService = null;
+let _quoteService = null;
 
 // ============================================================================
 // DRAFT PERSISTENCE (must be before /:id routes)
@@ -301,7 +301,7 @@ router.post('/',
         throw new Error('Customer not found');
       }
 
-      const customer = customerResult.rows[0];
+      const _customer = customerResult.rows[0];
 
       // Generate quotation number (tenant-scoped)
       const tenantId = req.user?.tenantId || null;
@@ -856,7 +856,7 @@ router.patch('/:id/status',
     // Build update
     const updates = ['status = $1', 'updated_at = NOW()'];
     const params = [newStatus, quoteId];
-    let paramIdx = 3;
+    let _paramIdx = 3;
 
     if (newStatus === 'WON' || newStatus === 'APPROVED') {
       updates.push('accepted_at = NOW()');
@@ -1298,7 +1298,7 @@ async function checkApprovalRequired(_client, _items) {
 
 const init = (deps) => {
   pool = deps.pool || deps.db?.pool;
-  quoteService = deps.quoteService;
+  _quoteService = deps.quoteService;
   return router;
 };
 

@@ -12,7 +12,7 @@ function init({ pool }) {
 
   // ---- POST / — driver login with employee_id + PIN ----
   router.post('/', asyncHandler(async (req, res) => {
-    const { employee_id, pin, remember } = req.body;
+    const { employee_id, pin, remember: _remember } = req.body;
 
     if (!employee_id || !pin) {
       throw ApiError.badRequest('employee_id and pin are required');

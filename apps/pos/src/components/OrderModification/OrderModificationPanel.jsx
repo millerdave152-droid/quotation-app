@@ -4,7 +4,7 @@
  * Main panel for modifying orders that originated from quotes
  */
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect } from 'react';
 import {
   XMarkIcon,
   PlusIcon,
@@ -134,7 +134,7 @@ function PriceLockToggle({ locked, lockUntil, onToggle, disabled = false }) {
 
 function OrderItemRow({
   item,
-  isFromQuote,
+  _isFromQuote,
   onModify,
   onRemove,
   canModify = true,
@@ -514,7 +514,6 @@ export function OrderModificationPanel({ orderId, onClose }) {
     loading,
     error,
     pendingChanges,
-    hasPendingChanges,
     isFromQuote,
     canApprove,
     priceChangeItems,

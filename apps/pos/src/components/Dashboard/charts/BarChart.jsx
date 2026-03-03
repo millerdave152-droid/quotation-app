@@ -3,7 +3,6 @@
  * Lightweight chart without external dependencies
  */
 
-import React from 'react';
 
 const BarChart = ({
   data = [],

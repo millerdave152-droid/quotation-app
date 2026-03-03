@@ -63,7 +63,7 @@ function HeldCartsButton({ count, onClick }) {
 /**
  * Volume pricing indicator (shows when any item has volume discount)
  */
-function VolumePricingIndicator({ hasVolumeDiscount, totalSavings }) {
+function VolumePricingIndicator({ hasVolumeDiscount, _totalSavings }) {
   if (!hasVolumeDiscount) return null;
 
   return (

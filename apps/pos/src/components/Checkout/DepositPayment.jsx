@@ -13,7 +13,7 @@ const DEPOSIT_PRESETS = [
   { label: '75%', factor: 0.75 },
 ];
 
-export function DepositPayment({ amountDue, onComplete, onBack, onSelectMethod }) {
+export function DepositPayment({ amountDue, onComplete, onBack, _onSelectMethod }) {
   const [selectedPreset, setSelectedPreset] = useState(null);
   const [customAmount, setCustomAmount] = useState('');
   const [useCustom, setUseCustom] = useState(false);

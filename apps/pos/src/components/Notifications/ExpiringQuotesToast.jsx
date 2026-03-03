@@ -3,13 +3,11 @@
  * Shows toast notification for quotes expiring today on page load
  */
 
-import React, { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import {
   ExclamationTriangleIcon,
   XMarkIcon,
-  ClockIcon,
-  CurrencyDollarIcon,
   ChevronRightIcon,
 } from '@heroicons/react/24/outline';
 import { ExclamationCircleIcon } from '@heroicons/react/24/solid';
@@ -183,11 +181,6 @@ export default function ExpiringQuotesToast({
 
   const removeToast = useCallback((id) => {
     setToasts((prev) => prev.filter((t) => t.id !== id));
-  }, []);
-
-  const dismissAll = useCallback(() => {
-    markDismissed();
-    setToasts([]);
   }, []);
 
   // Check for expiring quotes on mount

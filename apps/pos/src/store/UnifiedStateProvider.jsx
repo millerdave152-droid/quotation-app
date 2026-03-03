@@ -3,9 +3,9 @@
  * Wraps the application with state management and offline sync
  */
 
-import React, { createContext, useContext, useEffect, useRef, useState } from 'react';
+import { createContext, useContext, useEffect, useRef, useState } from 'react';
 import { useUnifiedStore } from './unifiedStore';
-import { useOfflineSync, getSyncManager } from './offlineSync';
+import { useOfflineSync } from './offlineSync';
 import { getDeviceId, generateDraftKey } from './draftApi';
 
 // ============================================================================
@@ -29,7 +29,7 @@ export const UnifiedStateProvider = ({
   onOffline,
 }) => {
   const [initialized, setInitialized] = useState(false);
-  const store = useUnifiedStore();
+  const _store = useUnifiedStore();
   const deviceIdRef = useRef(getDeviceId());
 
   // Initialize offline sync

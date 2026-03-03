@@ -469,7 +469,7 @@ router.post('/', authenticate, fraudCheck('transaction.create'), asyncHandler(as
 
     // Fetch product details and calculate line items
     let subtotal = 0;
-    let totalTaxAmount = 0;
+    let _totalTaxAmount = 0;
     const processedItems = [];
 
     for (const item of items) {
@@ -490,7 +490,7 @@ router.post('/', authenticate, fraudCheck('transaction.create'), asyncHandler(as
 
       const baseAmount = item.unitPrice * item.quantity;
       subtotal += baseAmount - lineCalc.discountAmount;
-      totalTaxAmount += lineCalc.taxAmount;
+      _totalTaxAmount += lineCalc.taxAmount;
 
       processedItems.push({
         ...item,
@@ -832,7 +832,7 @@ router.post('/', authenticate, fraudCheck('transaction.create'), asyncHandler(as
           throw ApiError.badRequest(`Trade-in assessment ${tradeIn.assessmentId} not found or not in valid state`);
         }
 
-        const assessment = assessmentResult.rows[0];
+        // assessmentResult.rows[0] verified to exist above
         totalTradeInCredit += tradeIn.creditAmount;
 
         // Link trade-in to transaction and update status to 'applied'
@@ -1015,18 +1015,20 @@ router.get('/', authenticate, asyncHandler(async (req, res) => {
         effectiveStartDate = new Date(today.getTime() - 24 * 60 * 60 * 1000);
         effectiveEndDate = new Date(today.getTime() - 1);
         break;
-      case 'this_week':
+      case 'this_week': {
         const dayOfWeek = today.getDay();
         const startOfWeek = new Date(today.getTime() - dayOfWeek * 24 * 60 * 60 * 1000);
         effectiveStartDate = startOfWeek;
         effectiveEndDate = new Date(today.getTime() + 24 * 60 * 60 * 1000 - 1);
         break;
-      case 'last_week':
+      }
+      case 'last_week': {
         const lastWeekStart = new Date(today.getTime() - (today.getDay() + 7) * 24 * 60 * 60 * 1000);
         const lastWeekEnd = new Date(lastWeekStart.getTime() + 7 * 24 * 60 * 60 * 1000 - 1);
         effectiveStartDate = lastWeekStart;
         effectiveEndDate = lastWeekEnd;
         break;
+      }
       case 'this_month':
         effectiveStartDate = new Date(now.getFullYear(), now.getMonth(), 1);
         effectiveEndDate = new Date(today.getTime() + 24 * 60 * 60 * 1000 - 1);
@@ -1586,7 +1588,7 @@ router.post('/:id/void', authenticate, requirePermission('pos.checkout.void'), f
  */
 router.post('/:id/collect-balance', authenticate, asyncHandler(async (req, res) => {
   const { id } = req.params;
-  const { paymentMethod, amount, cardLastFour, cardBrand, authorizationCode, processorReference, etransferReference } = req.body;
+  const { paymentMethod, amount, cardLastFour, cardBrand, authorizationCode, processorReference, etransferReference: _etransferReference } = req.body;
 
   if (!paymentMethod || !amount || amount <= 0) {
     throw ApiError.badRequest('paymentMethod and positive amount are required');

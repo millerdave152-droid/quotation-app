@@ -3,7 +3,7 @@
  * Shows combined Quote + POS sales with charts
  */
 
-import React, { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import LineChart from './charts/LineChart';
 import BarChart from './charts/BarChart';
 import { getSalesSummary, getMonthlySalesTrend } from '../../api/reports';

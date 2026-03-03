@@ -3,7 +3,7 @@
  * Side-by-side comparison for product upgrades
  */
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { formatCurrency } from '../../utils/formatters';
 
 /**

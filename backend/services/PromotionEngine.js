@@ -71,11 +71,11 @@ class PromotionEngine {
    */
   async findApplicablePromotions(cart) {
     try {
-      const { items: rawItems, customer = null, subtotalCents = 0, appliedPromotions = [] } = cart || {};
+      const { items: rawItems, customer: _customer = null, subtotalCents: _subtotalCents = 0, appliedPromotions = [] } = cart || {};
       const items = rawItems || [];
 
-      // Calculate subtotal if not provided
-      const calculatedSubtotal = subtotalCents || this._calculateSubtotal(items);
+      // Calculate subtotal if not provided (used in sub-calls via cart passthrough)
+      const _calculatedSubtotal = _subtotalCents || this._calculateSubtotal(items);
 
       // Get all active auto-apply promotions
       const autoApplyPromos = await this._getAutoApplyPromotions();
@@ -336,7 +336,7 @@ class PromotionEngine {
           break;
 
         case 'percent_product':
-        case 'category_percent':
+        case 'category_percent': {
           const matchingItemsPercent = await this._getMatchingItems(promotion.id, items);
           for (const item of matchingItemsPercent) {
             const itemDiscount = Math.round(
@@ -358,9 +358,10 @@ class PromotionEngine {
           }
           description = `${promotion.discount_percent || promotion.discountPercent}% off select items`;
           break;
+        }
 
         case 'fixed_product':
-        case 'category_fixed':
+        case 'category_fixed': {
           const matchingItemsFixed = await this._getMatchingItems(promotion.id, items);
           for (const item of matchingItemsFixed) {
             const itemDiscount = item.quantity *
@@ -374,8 +375,9 @@ class PromotionEngine {
           }
           description = `$${((promotion.discount_amount_cents || promotion.discountAmountCents) / 100).toFixed(2)} off each qualifying item`;
           break;
+        }
 
-        case 'buy_x_get_y':
+        case 'buy_x_get_y': {
           const buyQty = promotion.buy_quantity || promotion.buyQuantity;
           const getQty = promotion.get_quantity || promotion.getQuantity;
           const getDiscountPct = promotion.get_discount_percent || promotion.getDiscountPercent || 100;
@@ -409,8 +411,9 @@ class PromotionEngine {
             ? `Buy ${buyQty} Get ${getQty} Free`
             : `Buy ${buyQty} Get ${getQty} at ${getDiscountPct}% off`;
           break;
+        }
 
-        case 'bundle':
+        case 'bundle': {
           const bundleItems = promotion.bundle_items || promotion.bundleItems || [];
           const bundlePrice = promotion.bundle_price_cents || promotion.bundlePriceCents;
           let bundleComplete = true;
@@ -430,8 +433,9 @@ class PromotionEngine {
             description = `Bundle deal: Save $${(discountCents / 100).toFixed(2)}`;
           }
           break;
+        }
 
-        case 'free_item_threshold':
+        case 'free_item_threshold': {
           const threshold = promotion.threshold_amount_cents || promotion.thresholdAmountCents;
 
           if (calculatedSubtotal >= threshold) {
@@ -466,6 +470,7 @@ class PromotionEngine {
             }
           }
           break;
+        }
 
         default:
           console.warn(`[PromotionEngine] Unknown promotion type: ${promotion.promo_type || promotion.promoType}`);
@@ -821,7 +826,7 @@ class PromotionEngine {
         return applicableResult;
       }
 
-      const { autoApplyPromotions, bestPromotion, stackablePromotions } = applicableResult.data;
+      const { autoApplyPromotions: _autoApplyPromotions, bestPromotion, stackablePromotions } = applicableResult.data;
 
       // Calculate total discount based on stacking rules
       let totalDiscount = codeDiscount;
@@ -1049,7 +1054,7 @@ class PromotionEngine {
         }
         return { valid: true };
 
-      case 'customer_tier':
+      case 'customer_tier': {
         if (!customer) return { valid: false, message: 'Customer required for this promotion' };
         const customerTier = customer.pricingTier || customer.pricing_tier;
         const allowedTiers = rule.value_array || [rule.value_text];
@@ -1057,22 +1062,25 @@ class PromotionEngine {
           valid: allowedTiers.includes(customerTier),
           message: `Only available for ${allowedTiers.join(', ')} customers`,
         };
+      }
 
-      case 'first_purchase':
+      case 'first_purchase': {
         if (!customer?.id) return { valid: true }; // Guest checkout allowed
         const purchaseCount = await this._getCustomerPurchaseCount(customer.id);
         return {
           valid: purchaseCount === 0,
           message: 'Only valid for first-time customers',
         };
+      }
 
-      case 'day_of_week':
+      case 'day_of_week': {
         const today = new Date().getDay();
         const validDays = rule.value_array || [];
         return {
           valid: validDays.includes(today),
           message: 'Not valid today',
         };
+      }
 
       case 'time_of_day':
         if (rule.value_range) {
@@ -1184,7 +1192,7 @@ class PromotionEngine {
    * Check if code promotion can stack with auto-apply promotions
    */
   async _checkCodeStacking(codePromotion, cart) {
-    const { appliedPromotions = [] } = cart;
+    const { appliedPromotions: _appliedPromotions = [] } = cart;
 
     // Get all auto-apply promotions that are currently applied or could be applied
     const applicableResult = await this.findApplicablePromotions({

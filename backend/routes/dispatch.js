@@ -23,7 +23,7 @@ function init({ pool }) {
         const targetDate = req.query.date || new Date().toISOString().split('T')[0];
         const locationId = req.query.location_id ? parseInt(req.query.location_id, 10) : null;
 
-        const locFilter = locationId ? 'AND db.zone_id IN (SELECT id FROM delivery_zones WHERE TRUE)' : '';
+        const _locFilter = locationId ? 'AND db.zone_id IN (SELECT id FROM delivery_zones WHERE TRUE)' : '';
 
         // ---- Delivery summary from delivery_bookings ----
         const bookingSummary = await pool.query(

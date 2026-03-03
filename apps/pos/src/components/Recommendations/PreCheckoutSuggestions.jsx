@@ -144,7 +144,7 @@ export function PreCheckoutSuggestions({
   }, [onClose]);
 
   // Calculate potential savings from adding suggestions
-  const potentialSavings = suggestions.reduce((sum, s) => {
+  const _potentialSavings = suggestions.reduce((sum, s) => {
     const margin = s.marginPercent || 0;
     const price = parseFloat(s.price || s.unitPrice || 0);
     return sum + price * (margin / 100);

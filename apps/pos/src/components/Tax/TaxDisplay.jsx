@@ -5,7 +5,6 @@
  * Shows individual tax lines (HST, GST, PST/QST) with amounts.
  */
 
-import React from 'react';
 import { useTax } from '../../hooks/useTax';
 import { formatCurrency } from '../../utils/formatters';
 
@@ -20,7 +19,7 @@ export function TaxBreakdown({
   showTotal = true,
   className = '',
 }) {
-  const { calculateTax, formatTaxBreakdown, currentRates } = useTax({
+  const { calculateTax, formatTaxBreakdown } = useTax({
     defaultProvince: province,
     autoFetch: false,
   });
@@ -88,7 +87,7 @@ export function TaxSummaryLine({
   showLabel = true,
   className = '',
 }) {
-  const { calculateTax, currentRates } = useTax({
+  const { calculateTax } = useTax({
     defaultProvince: province,
     autoFetch: false,
   });
@@ -287,7 +286,7 @@ export function InvoiceTaxTable({
   isTaxExempt = false,
   className = '',
 }) {
-  const { calculateTax, currentRates, getProvinceInfo } = useTax({
+  const { calculateTax, getProvinceInfo } = useTax({
     defaultProvince: province,
     autoFetch: false,
   });

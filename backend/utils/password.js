@@ -129,7 +129,7 @@ const validatePasswordStrength = (password) => {
     }
 
     // Check for special character (recommended but not required)
-    const hasSpecialChar = /[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(password);
+    const hasSpecialChar = /[!@#$%^&*()_+\-=[\]{};':"\\|,.<>/?]/.test(password);
 
     // Check for common weak passwords
     const weakPasswords = [

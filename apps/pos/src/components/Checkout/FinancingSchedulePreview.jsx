@@ -173,7 +173,7 @@ export function FinancingSchedulePreview({ paymentPlan, compact = false }) {
             </div>
 
             {/* Payment Rows */}
-            {visibleSchedule.map((payment, idx) => {
+            {visibleSchedule.map((payment, _idx) => {
               if (payment.isPlaceholder) {
                 return (
                   <div key="placeholder" className="px-4 py-3 text-center">

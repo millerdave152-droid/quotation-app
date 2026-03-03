@@ -58,7 +58,7 @@ const skuRefreshLimiter = rateLimit({
 
 // ── Validation ──────────────────────────────────────────────
 
-const SKU_PATTERN = /^[A-Za-z0-9\-]+$/;
+const SKU_PATTERN = /^[A-Za-z0-9-]+$/;
 const SKU_MAX_LENGTH = 100;
 
 function validateSku(sku) {
