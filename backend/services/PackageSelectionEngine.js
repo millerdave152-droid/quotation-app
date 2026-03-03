@@ -2618,7 +2618,7 @@ class PackageSelectionEngine {
   /**
    * Find alternative products for swapping within same category and tier
    */
-  async findAlternatives(productId, category, tier, answers, flowType = 'kitchen') {
+  async findAlternatives(productId, category, tier, answers, _flowType = 'kitchen') {
     const { requirements, preferences } = this.parseAnswerModes(answers);
 
     // Determine the slot type from category

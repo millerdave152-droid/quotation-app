@@ -758,7 +758,7 @@ class UnifiedReportingService {
   /**
    * Get dashboard summary with key metrics
    */
-  async getDashboardSummary(options = {}) {
+  async getDashboardSummary(_options = {}) {
     const today = new Date().toISOString().split('T')[0];
     const startOfWeek = new Date();
     startOfWeek.setDate(startOfWeek.getDate() - startOfWeek.getDay());

@@ -1235,7 +1235,7 @@ class ApprovalService {
   // BATCH APPROVAL — CONSUME TOKENS
   // ==========================================================================
 
-  async consumeBatchTokens({ parentRequestId, cartId = null }) {
+  async consumeBatchTokens({ parentRequestId, _cartId = null }) {
     const client = await this.pool.connect();
     try {
       await client.query('BEGIN');

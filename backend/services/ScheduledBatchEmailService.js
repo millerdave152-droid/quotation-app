@@ -177,7 +177,7 @@ class ScheduledBatchEmailService {
   /**
    * Run batch for a specific shift
    */
-  async runShiftBatch(shiftId, triggeredByUserId = null) {
+  async runShiftBatch(shiftId, _triggeredByUserId = null) {
     const settings = await this.getSettings();
 
     // Create schedule log entry

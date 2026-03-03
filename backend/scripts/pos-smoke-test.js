@@ -29,7 +29,7 @@ const colors = {
 /**
  * Make HTTP request with timeout
  */
-async function request(method, path, body = null, expectedStatus = [200, 201]) {
+async function request(method, path, body = null, _expectedStatus = [200, 201]) {
   const url = `${API_BASE}${path}`;
   const headers = {
     'Content-Type': 'application/json',

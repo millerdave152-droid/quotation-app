@@ -238,7 +238,7 @@ class PromotionImportService {
   /**
    * Detect promotion type and details from file name
    */
-  detectPromotionFromFileName(fileName, context = {}) {
+  detectPromotionFromFileName(fileName, _context = {}) {
     const upper = fileName.toUpperCase();
     const brand = this.detectBrandFromFileName(fileName);
 

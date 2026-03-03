@@ -454,7 +454,7 @@ class InventorySyncService {
   /**
    * Extend reservation expiry
    */
-  async extendReservation(reservationId, additionalHours, userId = null) {
+  async extendReservation(reservationId, additionalHours, _userId = null) {
     const result = await this.pool.query(`
       UPDATE inventory_reservations
       SET
@@ -1070,7 +1070,7 @@ class InventorySyncService {
   /**
    * Get inventory valuation
    */
-  async getInventoryValuation(locationId = null) {
+  async getInventoryValuation(_locationId = null) {
     const result = await this.pool.query(`
       SELECT
         SUM(qty_on_hand) as total_units,

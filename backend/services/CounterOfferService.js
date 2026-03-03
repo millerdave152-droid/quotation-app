@@ -558,7 +558,7 @@ class CounterOfferService {
    * @param {number} supervisorId - Supervisor user ID (optional, for filtering)
    * @returns {Promise<Array>}
    */
-  async getPendingCounterOffers(supervisorId = null) {
+  async getPendingCounterOffers(_supervisorId = null) {
     let query = `
       SELECT
         co.*,

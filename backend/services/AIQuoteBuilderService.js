@@ -17,7 +17,7 @@ class AIQuoteBuilderService {
   /**
    * Get comprehensive AI suggestions for current quote
    */
-  async getQuoteSuggestions(quoteItems = [], customerId = null, options = {}) {
+  async getQuoteSuggestions(quoteItems = [], customerId = null, _options = {}) {
     const [
       bundles,
       crossSells,

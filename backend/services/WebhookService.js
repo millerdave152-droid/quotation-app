@@ -160,7 +160,7 @@ class WebhookService {
   /**
    * Fire a webhook event
    */
-  async fire(eventType, payload, options = {}) {
+  async fire(eventType, payload, _options = {}) {
     try {
       // Get active webhooks subscribed to this event
       const webhooks = await this.getActiveWebhooksForEvent(eventType);

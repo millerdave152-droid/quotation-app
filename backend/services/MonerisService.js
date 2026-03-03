@@ -235,7 +235,7 @@ class MonerisService {
    * @param {object} metadata - Additional data
    * @returns {Promise<object>} Purchase result
    */
-  async processPurchase(amountCents, cardDetails = {}, metadata = {}) {
+  async processPurchase(amountCents, cardDetails = {}, _metadata = {}) {
     if (!this.isConfigured()) {
       throw new Error('Moneris is not configured');
     }
@@ -354,7 +354,7 @@ class MonerisService {
    * @param {string} reason - Refund reason
    * @returns {Promise<object>} Refund details
    */
-  async refundPayment(orderId, transId, amountCents = null, reason = '') {
+  async refundPayment(orderId, transId, amountCents = null, _reason = '') {
     if (!this.isConfigured()) {
       throw new Error('Moneris is not configured');
     }

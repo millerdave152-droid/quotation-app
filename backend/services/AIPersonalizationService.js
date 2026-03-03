@@ -391,7 +391,7 @@ class AIPersonalizationService {
   /**
    * Get smart suggestions for the entire quote
    */
-  async getSmartQuoteSuggestions(quoteItems, customerId = null) {
+  async getSmartQuoteSuggestions(quoteItems, _customerId = null) {
     const suggestions = [];
 
     if (quoteItems.length === 0) {

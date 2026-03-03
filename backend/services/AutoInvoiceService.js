@@ -104,7 +104,7 @@ class AutoInvoiceService {
    * Handle quote won trigger
    * Called when a quote status changes to WON
    */
-  async onQuoteWon(quoteId, options = {}) {
+  async onQuoteWon(quoteId, _options = {}) {
     const settings = await this.getSettings();
 
     if (!settings.enabled || !settings.triggerOnQuoteWon) {
@@ -179,7 +179,7 @@ class AutoInvoiceService {
   /**
    * Handle order created trigger
    */
-  async onOrderCreated(orderId, options = {}) {
+  async onOrderCreated(orderId, _options = {}) {
     const settings = await this.getSettings();
 
     if (!settings.enabled || !settings.triggerOnOrderCreated) {

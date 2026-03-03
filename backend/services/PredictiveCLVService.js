@@ -375,7 +375,7 @@ class PredictiveCLVService {
    * @param {string} cohortType - 'acquisition_month' or 'first_purchase_month'
    * @returns {Promise<Array>} - Cohort retention data
    */
-  async getCohortAnalysis(cohortType = 'acquisition_month') {
+  async getCohortAnalysis(_cohortType = 'acquisition_month') {
     const result = await pool.query(`
       WITH customer_cohorts AS (
         SELECT

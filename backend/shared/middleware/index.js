@@ -123,7 +123,7 @@ const parseDateRange = (req, res, next) => {
  * Normalizes monetary values to cents
  * Accepts both 'amount' (dollars) and 'amountCents' fields
  */
-const normalizeMoneyFields = (fields = []) => {
+const normalizeMoneyFields = (_fields = []) => {
   return (req, res, next) => {
     if (!req.body) return next();
 

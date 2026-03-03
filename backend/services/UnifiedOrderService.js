@@ -69,7 +69,7 @@ class UnifiedOrderService {
    * @param {Object} options - Creation options
    * @returns {Promise<Object>} Created order
    */
-  async create(data, options = {}) {
+  async create(data, _options = {}) {
     const client = await this.pool.connect();
 
     try {

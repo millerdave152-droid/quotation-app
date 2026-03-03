@@ -171,7 +171,7 @@ class CategoryMappingService {
    * @param {string} manufacturer - Optional manufacturer name for context
    * @returns {Object} { categoryId, subcategoryId, confidence }
    */
-  async mapCategory(rawCategory, manufacturer = null) {
+  async mapCategory(rawCategory, _manufacturer = null) {
     if (!rawCategory) {
       return { categoryId: null, subcategoryId: null, confidence: 0 };
     }

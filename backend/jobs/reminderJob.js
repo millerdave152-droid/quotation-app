@@ -42,7 +42,7 @@ function initServices() {
  * @param {object} options - Job options
  * @returns {Promise<object>} - Job results
  */
-async function runJob(options = {}) {
+async function runJob(_options = {}) {
   const startTime = new Date();
   console.log(`[${startTime.toISOString()}] Starting automated reminder job...`);
 

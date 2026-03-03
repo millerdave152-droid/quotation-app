@@ -26,7 +26,7 @@ async function getConversationHistory(conversationId, maxMessages = 20) {
  * Assemble context based on query type
  * Returns relevant data to include in the prompt
  */
-async function assembleContext(query, queryType, locationId = null) {
+async function assembleContext(query, queryType, _locationId = null) {
   const context = {
     customer: null,
     products: [],

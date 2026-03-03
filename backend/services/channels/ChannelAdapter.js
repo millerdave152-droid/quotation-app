@@ -36,7 +36,7 @@ class ChannelAdapter {
     throw new Error(`pushSingleOffer not implemented for ${this.channelCode}`);
   }
 
-  async getRemoteOffers(options = {}) {
+  async getRemoteOffers(_options = {}) {
     // Fetch current offers/listings from the channel
     // Return: [{ sku, price, quantity, status, ... }]
     throw new Error(`getRemoteOffers not implemented for ${this.channelCode}`);
@@ -50,7 +50,7 @@ class ChannelAdapter {
 
   // === ORDERS ===
 
-  async pollOrders(options = {}) {
+  async pollOrders(_options = {}) {
     // Fetch orders from channel, upsert into marketplace_orders
     // Return: { newOrders, updatedOrders, totalPolled }
     throw new Error(`pollOrders not implemented for ${this.channelCode}`);
@@ -82,7 +82,7 @@ class ChannelAdapter {
 
   // === RETURNS ===
 
-  async pollReturns(options = {}) {
+  async pollReturns(_options = {}) {
     // Fetch return requests from channel
     // Return: [{ returnId, orderId, items, reason, status }]
     throw new Error(`pollReturns not implemented for ${this.channelCode}`);
@@ -90,7 +90,7 @@ class ChannelAdapter {
 
   // === MESSAGES ===
 
-  async pollMessages(options = {}) {
+  async pollMessages(_options = {}) {
     // Fetch customer messages
     throw new Error(`pollMessages not implemented for ${this.channelCode}`);
   }
