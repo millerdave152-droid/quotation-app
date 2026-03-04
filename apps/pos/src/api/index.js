@@ -99,26 +99,6 @@ export {
   exportProductsCSV,
 } from './reports';
 
-// Recommendation services
-export {
-  getProductRecommendations,
-  getCartRecommendations,
-  getCrossSellSuggestions,
-  trackRecommendationEvent,
-  getBundleSuggestions,
-  getRecommendationStats,
-  getProductRelationships,
-  saveProductRelationship,
-  deleteProductRelationship,
-  toggleRelationshipStatus,
-  getCategoryRules,
-  saveCategoryRule,
-  deleteCategoryRule,
-  refreshRecommendations,
-  testProductRecommendations,
-  testCartRecommendations,
-} from './recommendations';
-
 // Namespace exports for organized access
 import * as productsApi from './products';
 import * as customersApi from './customers';
@@ -126,10 +106,7 @@ import * as transactionsApi from './transactions';
 import * as registerApi from './register';
 import * as quotesApi from './quotes';
 import * as reportsApi from './reports';
-import * as recommendationsApi from './recommendations';
-import * as upsellApi from './upsell';
 import * as financingApi from './financing';
-import * as quoteExpiryApi from './quoteExpiry';
 
 export {
   productsApi,
@@ -138,33 +115,8 @@ export {
   registerApi,
   quotesApi,
   reportsApi,
-  recommendationsApi,
-  upsellApi,
   financingApi,
-  quoteExpiryApi,
 };
-
-// Upsell services
-export {
-  getUpsellOffers,
-  calculateUpgradeValue,
-  recordUpsellResult,
-  getServiceRecommendations,
-  getMembershipOffers,
-  getFinancingOptions,
-  getUpsellAnalytics,
-  getUpsellStrategies,
-  getUpsellStrategy,
-  createUpsellStrategy,
-  updateUpsellStrategy,
-  deleteUpsellStrategy,
-  createUpsellOffer,
-  updateUpsellOffer,
-  deleteUpsellOffer,
-  getServices,
-  createService,
-  clearUpsellCache,
-} from './upsell';
 
 // Financing services
 export {
@@ -181,15 +133,6 @@ export {
   approveApplication as approveFinancingApplication,
   declineApplication as declineFinancingApplication,
 } from './financing';
-
-// Quote Expiry services
-export {
-  getExpiringQuotes,
-  getExpiryStats,
-  getExpiryDashboard,
-  logFollowUp,
-  getFollowUpHistory,
-} from './quoteExpiry';
 
 // Returns services
 export {

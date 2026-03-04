@@ -12,8 +12,6 @@ export { HeldTransactions } from './HeldTransactions';
 
 // Volume pricing components
 export { CartItemWithVolume } from './CartItemWithVolume';
-export { CartTotalsWithVolume } from './CartTotalsWithVolume';
-export { CartWithVolume } from './CartWithVolume';
 export { VolumeDiscountBadge, VolumePriceDisplay } from './VolumeDiscountBadge';
 export { VolumeTierTooltip, NextTierPrompt } from './VolumeTierTooltip';
 
@@ -25,8 +23,6 @@ import { CartActions } from './CartActions';
 import { CustomerBadge } from './CustomerBadge';
 import { HeldTransactions } from './HeldTransactions';
 import { CartItemWithVolume } from './CartItemWithVolume';
-import { CartTotalsWithVolume } from './CartTotalsWithVolume';
-import { CartWithVolume } from './CartWithVolume';
 import { VolumeDiscountBadge, VolumePriceDisplay } from './VolumeDiscountBadge';
 import { VolumeTierTooltip, NextTierPrompt } from './VolumeTierTooltip';
 
@@ -39,8 +35,6 @@ export default {
   HeldTransactions,
   // Volume pricing
   CartItemWithVolume,
-  CartTotalsWithVolume,
-  CartWithVolume,
   VolumeDiscountBadge,
   VolumePriceDisplay,
   VolumeTierTooltip,

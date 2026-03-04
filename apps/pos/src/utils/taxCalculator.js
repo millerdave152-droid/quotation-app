@@ -31,22 +31,13 @@ export const TAX_RATES = {
 };
 
 /**
- * Get tax rates for a province
- * @param {string} province - Province code (e.g., 'ON', 'BC')
- * @returns {object} Tax rates object
- */
-export function getTaxRates(province = 'ON') {
-  return TAX_RATES[province.toUpperCase()] || TAX_RATES.ON;
-}
-
-/**
  * Calculate taxes for a given amount
  * @param {number} amount - Taxable amount
  * @param {string} province - Province code
  * @returns {object} Tax breakdown
  */
 export function calculateTaxes(amount, province = 'ON') {
-  const rates = getTaxRates(province);
+  const rates = TAX_RATES[province.toUpperCase()] || TAX_RATES.ON;
   const taxableAmount = parseFloat(amount) || 0;
 
   const hstAmount = taxableAmount * rates.hst;

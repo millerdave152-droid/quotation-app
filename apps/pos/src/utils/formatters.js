@@ -98,31 +98,6 @@ export function formatDateTime(date) {
 }
 
 /**
- * Format relative time (e.g., "2 hours ago")
- * @param {Date|string} date - Date to format
- * @returns {string} Relative time string
- */
-export function formatRelativeTime(date) {
-  if (!date) return '';
-
-  const d = typeof date === 'string' ? new Date(date) : date;
-  const now = new Date();
-  const diff = now - d;
-
-  const seconds = Math.floor(diff / 1000);
-  const minutes = Math.floor(seconds / 60);
-  const hours = Math.floor(minutes / 60);
-  const days = Math.floor(hours / 24);
-
-  if (seconds < 60) return 'Just now';
-  if (minutes < 60) return `${minutes}m ago`;
-  if (hours < 24) return `${hours}h ago`;
-  if (days < 7) return `${days}d ago`;
-
-  return formatDate(d);
-}
-
-/**
  * Format phone number
  * @param {string} phone - Phone number
  * @returns {string} Formatted phone number
@@ -147,16 +122,6 @@ export function formatPhone(phone) {
 }
 
 /**
- * Format transaction number for display
- * @param {string} txnNumber - Transaction number
- * @returns {string} Formatted transaction number
- */
-export function formatTransactionNumber(txnNumber) {
-  if (!txnNumber) return '';
-  return txnNumber;
-}
-
-/**
  * Format payment method for display
  * @param {string} method - Payment method code
  * @returns {string} Human-readable payment method
@@ -173,37 +138,6 @@ export function formatPaymentMethod(method) {
 }
 
 /**
- * Format card brand for display
- * @param {string} brand - Card brand code
- * @returns {string} Formatted card brand
- */
-export function formatCardBrand(brand) {
-  if (!brand) return '';
-
-  const brands = {
-    visa: 'Visa',
-    mastercard: 'Mastercard',
-    amex: 'American Express',
-    discover: 'Discover',
-  };
-
-  return brands[brand.toLowerCase()] || brand;
-}
-
-/**
- * Format masked card number
- * @param {string} lastFour - Last four digits
- * @param {string} brand - Card brand
- * @returns {string} Masked card display
- */
-export function formatMaskedCard(lastFour, brand) {
-  if (!lastFour) return '';
-
-  const brandDisplay = brand ? `${formatCardBrand(brand)} ` : '';
-  return `${brandDisplay}****${lastFour}`;
-}
-
-/**
  * Format percentage
  * @param {number} value - Percentage value (0-100)
  * @param {number} decimals - Decimal places
@@ -214,43 +148,13 @@ export function formatPercent(value, decimals = 0) {
   return `${formatNumber(value, decimals)}%`;
 }
 
-/**
- * Format quantity with unit
- * @param {number} quantity - Quantity
- * @param {string} unit - Unit name
- * @returns {string} Formatted quantity
- */
-export function formatQuantity(quantity, unit = '') {
-  if (!quantity) return '0';
-
-  const formatted = formatNumber(quantity);
-  return unit ? `${formatted} ${unit}` : formatted;
-}
-
-/**
- * Truncate text with ellipsis
- * @param {string} text - Text to truncate
- * @param {number} maxLength - Maximum length
- * @returns {string} Truncated text
- */
-export function truncateText(text, maxLength = 50) {
-  if (!text || text.length <= maxLength) return text || '';
-  return `${text.slice(0, maxLength - 3)}...`;
-}
-
 export default {
   formatCurrency,
   formatNumber,
   formatDate,
   formatTime,
   formatDateTime,
-  formatRelativeTime,
   formatPhone,
-  formatTransactionNumber,
   formatPaymentMethod,
-  formatCardBrand,
-  formatMaskedCard,
   formatPercent,
-  formatQuantity,
-  truncateText,
 };

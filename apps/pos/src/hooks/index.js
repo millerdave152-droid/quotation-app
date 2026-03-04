@@ -8,7 +8,6 @@ export { useCart } from './useCart';
 export { useRegister } from './useRegister';
 export { useTax } from './useTax';
 export { useCustomerPricing } from './useCustomerPricing';
-export { useOrderModification } from './useOrderModification';
 export { useVolumePricing } from './useVolumePricing';
 export { useAutoPromotions } from './useAutoPromotions';
 export { useManagerApproval } from './useManagerApproval';
