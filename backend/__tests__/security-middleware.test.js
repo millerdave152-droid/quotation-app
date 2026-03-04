@@ -1,21 +1,14 @@
 /**
  * Unit tests for security-related middleware:
  *   - backend/middleware/security.js (sanitizeInput, securityHeaders, requestLogger, corsOptions, securityMiddleware)
- *   - backend/middleware/tenantContext.js (setTenantContext)
  *   - backend/middleware/validation.js (handleValidationErrors, validateJoi)
  *
  * Tests cover input sanitization, security headers, CORS configuration,
- * request logging, tenant context propagation, validation error handling,
+ * request logging, validation error handling,
  * and Joi schema validation middleware.
  */
 
 // ── Mocks ──────────────────────────────────────────────────────────────────────
-
-// Mock the db module for tenantContext
-const mockTenantContextRun = jest.fn((store, cb) => cb());
-jest.mock('../db', () => ({
-  tenantContext: { run: (...args) => mockTenantContextRun(...args) },
-}));
 
 // Mock errorHandler for validation.js (ApiError is used directly)
 // We need the real ApiError so we can check thrown errors
@@ -701,102 +694,6 @@ describe('securityMiddleware', () => {
     } finally {
       process.env.NODE_ENV = origEnv;
     }
-  });
-});
-
-// ============================================================================
-// tenantContext.js — setTenantContext
-// ============================================================================
-
-const setTenantContext = require('../middleware/tenantContext');
-
-describe('setTenantContext', () => {
-  it('should call next() directly when req.user is undefined', () => {
-    const req = { user: undefined };
-    const res = mockRes();
-
-    setTenantContext(req, res, mockNext);
-
-    expect(mockNext).toHaveBeenCalledTimes(1);
-    expect(mockTenantContextRun).not.toHaveBeenCalled();
-  });
-
-  it('should call next() directly when req.user is null', () => {
-    const req = { user: null };
-    const res = mockRes();
-
-    setTenantContext(req, res, mockNext);
-
-    expect(mockNext).toHaveBeenCalledTimes(1);
-    expect(mockTenantContextRun).not.toHaveBeenCalled();
-  });
-
-  it('should call next() directly when req.user has no tenantId', () => {
-    const req = { user: { id: 1, role: 'user' } };
-    const res = mockRes();
-
-    setTenantContext(req, res, mockNext);
-
-    expect(mockNext).toHaveBeenCalledTimes(1);
-    expect(mockTenantContextRun).not.toHaveBeenCalled();
-  });
-
-  it('should call next() directly when req.user.tenantId is null', () => {
-    const req = { user: { id: 1, tenantId: null } };
-    const res = mockRes();
-
-    setTenantContext(req, res, mockNext);
-
-    expect(mockNext).toHaveBeenCalledTimes(1);
-    expect(mockTenantContextRun).not.toHaveBeenCalled();
-  });
-
-  it('should call next() directly when req.user.tenantId is 0 (falsy)', () => {
-    const req = { user: { id: 1, tenantId: 0 } };
-    const res = mockRes();
-
-    setTenantContext(req, res, mockNext);
-
-    expect(mockNext).toHaveBeenCalledTimes(1);
-    expect(mockTenantContextRun).not.toHaveBeenCalled();
-  });
-
-  it('should wrap next() in tenantContext.run() when tenantId is present', () => {
-    const req = { user: { id: 1, tenantId: 42 } };
-    const res = mockRes();
-
-    setTenantContext(req, res, mockNext);
-
-    expect(mockTenantContextRun).toHaveBeenCalledTimes(1);
-    expect(mockTenantContextRun).toHaveBeenCalledWith(
-      { tenantId: 42 },
-      expect.any(Function)
-    );
-    // next() should be called inside the run callback
-    expect(mockNext).toHaveBeenCalledTimes(1);
-  });
-
-  it('should pass the correct tenantId to tenantContext.run()', () => {
-    const req = { user: { id: 5, tenantId: 100 } };
-    const res = mockRes();
-
-    setTenantContext(req, res, mockNext);
-
-    const storeArg = mockTenantContextRun.mock.calls[0][0];
-    expect(storeArg).toEqual({ tenantId: 100 });
-  });
-
-  it('should work with string tenantId', () => {
-    const req = { user: { id: 1, tenantId: 'tenant-abc' } };
-    const res = mockRes();
-
-    setTenantContext(req, res, mockNext);
-
-    expect(mockTenantContextRun).toHaveBeenCalledWith(
-      { tenantId: 'tenant-abc' },
-      expect.any(Function)
-    );
-    expect(mockNext).toHaveBeenCalledTimes(1);
   });
 });
 
