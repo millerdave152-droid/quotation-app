@@ -64,74 +64,6 @@ export function calculateTaxes(amount, province = 'ON') {
 }
 
 /**
- * Calculate total with taxes
- * @param {number} amount - Pre-tax amount
- * @param {string} province - Province code
- * @returns {object} Total with tax breakdown
- */
-export function calculateTotalWithTax(amount, province = 'ON') {
-  const taxes = calculateTaxes(amount, province);
-
-  return {
-    subtotal: parseFloat(amount.toFixed(2)),
-    ...taxes,
-    total: parseFloat((amount + taxes.totalTax).toFixed(2)),
-  };
-}
-
-/**
- * Calculate pre-tax amount from tax-inclusive total
- * @param {number} totalWithTax - Tax-inclusive amount
- * @param {string} province - Province code
- * @returns {object} Pre-tax amount and tax breakdown
- */
-export function calculatePreTaxAmount(totalWithTax, province = 'ON') {
-  const rates = getTaxRates(province);
-  const totalRate = 1 + rates.hst + rates.gst + rates.pst;
-  const preTaxAmount = totalWithTax / totalRate;
-
-  return {
-    preTaxAmount: parseFloat(preTaxAmount.toFixed(2)),
-    ...calculateTaxes(preTaxAmount, province),
-    total: parseFloat(totalWithTax.toFixed(2)),
-  };
-}
-
-/**
- * Get tax display label
- * @param {string} province - Province code
- * @returns {string} Tax label for display
- */
-export function getTaxLabel(province = 'ON') {
-  const rates = getTaxRates(province);
-
-  if (rates.hst > 0) {
-    return `HST (${(rates.hst * 100).toFixed(0)}%)`;
-  }
-
-  const labels = [];
-  if (rates.gst > 0) {
-    labels.push(`GST (${(rates.gst * 100).toFixed(0)}%)`);
-  }
-  if (rates.pst > 0) {
-    const pstLabel = province === 'QC' ? 'QST' : 'PST';
-    labels.push(`${pstLabel} (${(rates.pst * 100).toFixed(2)}%)`);
-  }
-
-  return labels.join(' + ');
-}
-
-/**
- * Get total tax rate as percentage
- * @param {string} province - Province code
- * @returns {number} Total tax rate as percentage
- */
-export function getTotalTaxRate(province = 'ON') {
-  const rates = getTaxRates(province);
-  return (rates.hst + rates.gst + rates.pst) * 100;
-}
-
-/**
  * Format tax breakdown for receipt
  * @param {object} taxes - Tax calculation result
  * @returns {Array} Array of tax line items for display
@@ -167,27 +99,8 @@ export function formatTaxBreakdown(taxes) {
   return lines;
 }
 
-/**
- * Get list of all provinces with their tax info
- * @returns {Array} Province list with tax info
- */
-export function getProvinceList() {
-  return Object.entries(TAX_RATES).map(([code, info]) => ({
-    code,
-    name: info.name,
-    totalRate: getTotalTaxRate(code),
-    label: getTaxLabel(code),
-  }));
-}
-
 export default {
   TAX_RATES,
-  getTaxRates,
   calculateTaxes,
-  calculateTotalWithTax,
-  calculatePreTaxAmount,
-  getTaxLabel,
-  getTotalTaxRate,
   formatTaxBreakdown,
-  getProvinceList,
 };

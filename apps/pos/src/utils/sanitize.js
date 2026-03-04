@@ -144,40 +144,7 @@ export function sanitizeSvg(svgContent) {
   }
 }
 
-/**
- * Sanitize HTML content - removes all HTML tags, keeps text only
- * Use this for user-provided text that should never contain HTML
- * @param {string} html - HTML string to sanitize
- * @returns {string} Plain text with HTML removed
- */
-export function stripHtml(html) {
-  if (typeof html !== 'string') {
-    return html === null || html === undefined ? '' : String(html);
-  }
-
-  // Create a temporary element to parse HTML
-  const temp = document.createElement('div');
-  temp.innerHTML = html;
-  return temp.textContent || temp.innerText || '';
-}
-
-/**
- * Safe template literal tag for HTML strings
- * Automatically escapes interpolated values
- * @example
- * const name = userInput;
- * const html = safeHtml`<div>Hello, ${name}!</div>`;
- */
-export function safeHtml(strings, ...values) {
-  return strings.reduce((result, str, i) => {
-    const value = i < values.length ? escapeHtml(values[i]) : '';
-    return result + str + value;
-  }, '');
-}
-
 export default {
   escapeHtml,
   sanitizeSvg,
-  stripHtml,
-  safeHtml,
 };
