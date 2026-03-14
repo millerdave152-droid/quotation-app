@@ -37,7 +37,6 @@ class AutomatedReminderService {
       runAt: new Date().toISOString()
     };
 
-    console.log('Automated reminders check completed:', summary);
     return summary;
   }
 
@@ -233,7 +232,6 @@ class AutomatedReminderService {
         c.total_transactions
       FROM customers c
       WHERE c.churn_risk = 'high'
-        AND (c.active = true OR c.active IS NULL)
         AND c.clv_score > 0
         AND NOT EXISTS (
           SELECT 1 FROM tasks t

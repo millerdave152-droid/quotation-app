@@ -8,7 +8,9 @@ const express = require('express');
 const router = express.Router();
 const { ApiError, asyncHandler } = require('../middleware/errorHandler');
 const { authenticate } = require('../middleware/auth');
+const { auditLogMiddleware } = require('../middleware/auditLog');
 const ReportBuilderService = require('../services/ReportBuilderService');
+const logger = require('../utils/logger');
 
 // Module-level dependencies (injected via init)
 let pool = null;
@@ -25,7 +27,7 @@ const init = (deps) => {
 
   // Ensure tables exist
   reportService.ensureTables().catch(err => {
-    console.error('Failed to ensure report tables:', err);
+    logger.error({ err }, 'Failed to ensure report tables');
   });
 
   return router;
@@ -165,7 +167,7 @@ router.delete('/templates/:id', authenticate, asyncHandler(async (req, res) => {
  * POST /api/reports/execute
  * Execute a report with given configuration
  */
-router.post('/execute', authenticate, asyncHandler(async (req, res) => {
+router.post('/execute', authenticate, auditLogMiddleware('report_access', 'report'), asyncHandler(async (req, res) => {
   const { config, templateId } = req.body;
 
   if (!config && !templateId) {
@@ -180,9 +182,13 @@ router.post('/execute', authenticate, asyncHandler(async (req, res) => {
     if (!template) {
       throw ApiError.notFound('Template');
     }
-    reportConfig = typeof template.config === 'string'
-      ? JSON.parse(template.config)
-      : template.config;
+    try {
+      reportConfig = typeof template.config === 'string'
+        ? JSON.parse(template.config)
+        : template.config;
+    } catch (parseErr) {
+      throw ApiError.badRequest('Template has invalid configuration data');
+    }
   }
 
   if (!reportConfig.metrics || !Array.isArray(reportConfig.metrics)) {
@@ -197,7 +203,7 @@ router.post('/execute', authenticate, asyncHandler(async (req, res) => {
  * POST /api/reports/templates/:id/execute
  * Execute a report template
  */
-router.post('/templates/:id/execute', authenticate, asyncHandler(async (req, res) => {
+router.post('/templates/:id/execute', authenticate, auditLogMiddleware('report_access', 'report'), asyncHandler(async (req, res) => {
   const templateId = parseInt(req.params.id);
 
   if (isNaN(templateId)) {
@@ -210,9 +216,14 @@ router.post('/templates/:id/execute', authenticate, asyncHandler(async (req, res
     throw ApiError.notFound('Template');
   }
 
-  const config = typeof template.config === 'string'
-    ? JSON.parse(template.config)
-    : template.config;
+  let config;
+  try {
+    config = typeof template.config === 'string'
+      ? JSON.parse(template.config)
+      : template.config;
+  } catch (parseErr) {
+    throw ApiError.badRequest('Template has invalid configuration data');
+  }
 
   // Allow overriding date range and filters
   if (req.body.dateRange) {

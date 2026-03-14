@@ -5,20 +5,13 @@
 
 const express = require('express');
 const router = express.Router();
-const { Pool } = require('pg');
 const { authenticate } = require('../middleware/auth');
 const { ApiError, asyncHandler } = require('../middleware/errorHandler');
 const FilterCountService = require('../services/FilterCountService');
 const PackageSelectionEngine = require('../services/PackageSelectionEngine');
 
-const pool = new Pool({
-  user: process.env.DB_USER,
-  host: process.env.DB_HOST,
-  database: process.env.DB_NAME,
-  password: process.env.DB_PASSWORD,
-  port: process.env.DB_PORT || 5432,
-  ssl: { rejectUnauthorized: false }
-});
+// Use the shared db module (respects SSL config and tenant context)
+const pool = require('../db');
 
 const filterService = new FilterCountService(pool);
 const packageEngine = new PackageSelectionEngine(pool);
@@ -157,7 +150,6 @@ router.get('/brands/:packageType', authenticate, asyncHandler(async (req, res) =
   const query = `
     SELECT DISTINCT p.manufacturer, COUNT(*) as count
     FROM products p
-    WHERE p.active = true
     GROUP BY p.manufacturer
     ORDER BY count DESC
   `;

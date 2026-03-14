@@ -495,7 +495,6 @@ class VolumeDiscountService {
         (SELECT COUNT(*) FROM product_volume_tiers pvt WHERE pvt.product_id = p.id AND pvt.is_active) as tier_count
       FROM products p
       WHERE p.has_volume_pricing = TRUE
-        AND ($1 = FALSE OR p.active = TRUE)
       ORDER BY p.name ASC
       LIMIT $2 OFFSET $3`,
       [onlyActive, limit, offset]

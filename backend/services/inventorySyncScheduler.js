@@ -94,7 +94,6 @@ class InventorySyncScheduler {
           p.updated_at
         FROM products p
         WHERE p.bestbuy_category_code IS NOT NULL
-          AND p.active = true
       `;
 
       if (onlyChanged) {
@@ -188,7 +187,6 @@ class InventorySyncScheduler {
         FROM products p
         LEFT JOIN bestbuy_categories c ON p.bestbuy_category_code = c.code
         WHERE p.bestbuy_category_code IS NOT NULL
-          AND p.active = true
       `;
 
       const params = [];

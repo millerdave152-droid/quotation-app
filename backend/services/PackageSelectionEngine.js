@@ -280,18 +280,14 @@ class PackageSelectionEngine {
 
       // Debug logging for laundry slots
       if (flowType === 'laundry' && (slotType === 'washer' || slotType === 'dryer')) {
-        console.log(`[PackageBuilder] Slot "${slotKey}" (${slotType}): Loaded ${products.length} products`);
         if (products.length > 0 && products.length <= 5) {
           products.forEach(p => {
             const detected = this.detectLaundryApplianceType(p);
-            console.log(`  - ${p.model} (${p.manufacturer}): detected as ${detected || 'unknown'}`);
           });
         } else if (products.length > 5) {
           products.slice(0, 3).forEach(p => {
             const detected = this.detectLaundryApplianceType(p);
-            console.log(`  - ${p.model} (${p.manufacturer}): detected as ${detected || 'unknown'}`);
           });
-          console.log(`  ... and ${products.length - 3} more`);
         }
       }
 
@@ -473,7 +469,6 @@ class PackageSelectionEngine {
       });
 
       if (products.length !== originalCount) {
-        console.log(`[PackageBuilder] Laundry validation: Filtered ${originalCount - products.length} mismatched products from ${slotType} slot`);
       }
     }
 
@@ -488,7 +483,7 @@ class PackageSelectionEngine {
       SELECT
         p.id, p.model, p.manufacturer, p.name, p.description, p.category,
         p.category_id, p.subcategory_id,
-        p.msrp_cents, p.cost_cents, p.active, p.color,
+        p.msrp_cents, p.cost_cents, p.color,
         p.paired_product_id,
         pea.width_inches_x10, pea.height_inches_x10, pea.depth_inches_x10,
         pea.depth_type, pea.subtype, pea.capacity_cubic_ft_x10, pea.capacity_band,
@@ -498,8 +493,7 @@ class PackageSelectionEngine {
         pea.quiet_tier, pea.package_tier, pea.bundle_sku, pea.bundle_discount_percent
       FROM products p
       LEFT JOIN product_extended_attributes pea ON p.id = pea.product_id
-      WHERE (p.active = true OR p.active IS NULL)
-        AND p.msrp_cents > 0
+      WHERE p.msrp_cents > 0
         AND (p.category_id = $1 OR p.subcategory_id IN (
           SELECT id FROM categories WHERE parent_id = $1
         ))
@@ -550,7 +544,7 @@ class PackageSelectionEngine {
       SELECT
         p.id, p.model, p.manufacturer, p.name, p.description, p.category,
         p.category_id, p.subcategory_id,
-        p.msrp_cents, p.cost_cents, p.active, p.color,
+        p.msrp_cents, p.cost_cents, p.color,
         p.paired_product_id,
         pea.width_inches_x10, pea.height_inches_x10, pea.depth_inches_x10,
         pea.depth_type, pea.subtype, pea.capacity_cubic_ft_x10, pea.capacity_band,
@@ -560,8 +554,7 @@ class PackageSelectionEngine {
         pea.quiet_tier, pea.package_tier, pea.bundle_sku, pea.bundle_discount_percent
       FROM products p
       LEFT JOIN product_extended_attributes pea ON p.id = pea.product_id
-      WHERE (p.active = true OR p.active IS NULL)
-        AND p.msrp_cents > 0
+      WHERE p.msrp_cents > 0
         AND (${patternConditions})
         ${exclusionConditions}
       ORDER BY p.msrp_cents ASC

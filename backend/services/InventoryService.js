@@ -477,8 +477,7 @@ class InventoryService {
         p.next_po_date,
         p.next_po_qty
       FROM products p
-      WHERE p.active = true
-        AND (COALESCE(p.qty_on_hand, 0) - COALESCE(p.qty_reserved, 0)) < $1
+      WHERE (COALESCE(p.qty_on_hand, 0) - COALESCE(p.qty_reserved, 0)) < $1
       ORDER BY (COALESCE(p.qty_on_hand, 0) - COALESCE(p.qty_reserved, 0)) ASC
     `, [threshold]);
 

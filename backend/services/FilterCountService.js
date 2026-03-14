@@ -552,8 +552,7 @@ class FilterCountService {
           SELECT
             p.id, p.model, p.manufacturer, p.category, p.name, p.msrp_cents
           FROM products p
-          WHERE (p.active = true OR p.active IS NULL)
-            AND p.msrp_cents > 0
+          WHERE p.msrp_cents > 0
             AND (p.category_id = $1 OR p.subcategory_id IN (
               SELECT id FROM categories WHERE parent_id = $1
             ))
@@ -752,7 +751,7 @@ class FilterCountService {
       let query = `
         SELECT p.id, p.model, p.manufacturer, p.category, p.name, p.msrp_cents, p.cost_cents
         FROM products p
-        WHERE p.active = true
+        WHERE p.msrp_cents > 0
       `;
 
       if (globalFilters.brand && globalFilters.brand.length > 0) {

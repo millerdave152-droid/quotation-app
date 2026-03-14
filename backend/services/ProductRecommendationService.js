@@ -43,7 +43,6 @@ class ProductRecommendationService {
         JOIN products p ON qi.product_id = p.id
         WHERE qi.quotation_id IN (SELECT quotation_id FROM product_quotes)
           AND qi.product_id != $1
-          AND p.active = true
         GROUP BY qi.product_id, p.name, p.sku, p.base_price_cents, p.category, p.image_url
         HAVING COUNT(DISTINCT qi.quotation_id) >= 2
       )
@@ -98,7 +97,6 @@ class ProductRecommendationService {
         WHERE q.customer_id IN (SELECT customer_id FROM customers_who_bought)
           AND q.status = 'WON'
           AND qi.product_id != $1
-          AND p.active = true
         GROUP BY qi.product_id, p.name, p.sku, p.base_price_cents, p.category, p.image_url
       )
       SELECT
@@ -169,7 +167,6 @@ class ProductRecommendationService {
         CASE WHEN p.category = ANY($3) THEN 2 ELSE 1 END as category_match
       FROM products p
       WHERE p.id != $1
-        AND p.active = true
         AND (
           p.category = ANY($3)
           OR (p.brand = $2 AND p.category != $4)
@@ -261,8 +258,7 @@ class ProductRecommendationService {
         CASE WHEN p.brand = ANY($3) THEN 2 ELSE 0 END +
         CASE WHEN p.category = ANY($2) THEN 1 ELSE 0 END as relevance_score
       FROM products p
-      WHERE p.active = true
-        AND p.id NOT IN (
+      WHERE p.id NOT IN (
           SELECT DISTINCT qi.product_id
           FROM quotations q
           JOIN quote_items qi ON q.id = qi.quotation_id
@@ -292,7 +288,7 @@ class ProductRecommendationService {
         FROM quotations q
         JOIN quote_items qi ON q.id = qi.quotation_id
         WHERE q.status = 'WON'
-          AND q.won_at > NOW() - INTERVAL '${days} days'
+          AND q.won_at > NOW() - ($1 * INTERVAL '1 day')
         GROUP BY qi.product_id
       ),
       previous_period AS (
@@ -302,8 +298,8 @@ class ProductRecommendationService {
         FROM quotations q
         JOIN quote_items qi ON q.id = qi.quotation_id
         WHERE q.status = 'WON'
-          AND q.won_at > NOW() - INTERVAL '${days * 2} days'
-          AND q.won_at <= NOW() - INTERVAL '${days} days'
+          AND q.won_at > NOW() - ($2 * INTERVAL '1 day')
+          AND q.won_at <= NOW() - ($1 * INTERVAL '1 day')
         GROUP BY qi.product_id
       )
       SELECT
@@ -325,10 +321,9 @@ class ProductRecommendationService {
       FROM recent_sales rs
       JOIN products p ON rs.product_id = p.id
       LEFT JOIN previous_period pp ON rs.product_id = pp.product_id
-      WHERE p.active = true
       ORDER BY rs.sale_count DESC, growth_percentage DESC
-      LIMIT $1
-    `, [limit]);
+      LIMIT $3
+    `, [days, days * 2, limit]);
 
     return result.rows.map(row => ({
       ...row,
@@ -374,7 +369,6 @@ class ProductRecommendationService {
       WHERE p.id != $1
         AND p.category = $2
         AND p.brand != $4
-        AND p.active = true
         AND p.base_price_cents BETWEEN ($3 - $5) AND ($3 + $5)
       ORDER BY price_diff ASC
       LIMIT $6

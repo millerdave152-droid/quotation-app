@@ -35,7 +35,10 @@ class ProductService {
       priceField = 'cost',     // 'cost' or 'msrp'
       recent = '',             // 'true' for last 7 days
       favorites = '',          // 'true' for favorites only
+      requirePrice = '',       // 'true' to exclude products with no price (for POS)
+      specFilters = '',        // JSON string e.g. '{"width_inches":"30\""}' — filter by ce_specs JSONB
       includeSubcategories = 'true', // Include subcategories when filtering by categoryId
+      locationId = '',         // Include per-location inventory data when set
       userId = 1,
       page = 1,
       limit = 50,
@@ -43,7 +46,7 @@ class ProductService {
       sortOrder = 'ASC'
     } = options;
 
-    const cacheKey = `products:${search}:${category}:${categoryId}:${subcategoryId}:${categorySlug}:${manufacturer}:${status}:${tags}:${minPrice}:${maxPrice}:${priceField}:${recent}:${favorites}:${page}:${limit}:${sortBy}:${sortOrder}`;
+    const cacheKey = `products:${search}:${category}:${categoryId}:${subcategoryId}:${categorySlug}:${manufacturer}:${status}:${tags}:${minPrice}:${maxPrice}:${priceField}:${recent}:${favorites}:${requirePrice}:${specFilters}:${locationId}:${page}:${limit}:${sortBy}:${sortOrder}`;
 
     return await this.cache.cacheQuery(cacheKey, 'medium', async () => {
       const offset = (page - 1) * limit;
@@ -122,12 +125,8 @@ class ProductService {
       }
 
       if (status) {
-        if (status === 'active') {
-          whereConditions.push('p.active = true');
-        } else if (status === 'discontinued') {
+        if (status === 'discontinued') {
           whereConditions.push('p.discontinued = true');
-        } else if (status === 'inactive') {
-          whereConditions.push('p.active = false');
         }
       }
 
@@ -157,6 +156,11 @@ class ProductService {
         paramIndex++;
       }
 
+      // Require price filter — exclude products with no sellable price (for POS)
+      if (requirePrice === 'true') {
+        whereConditions.push('(p.price IS NOT NULL AND p.price > 0)');
+      }
+
       // Recent filter - products added/updated in last 7 days
       if (recent === 'true') {
         whereConditions.push('(p.created_at >= NOW() - INTERVAL \'7 days\' OR p.updated_at >= NOW() - INTERVAL \'7 days\')');
@@ -169,6 +173,22 @@ class ProductService {
         paramIndex++;
       }
 
+      // Spec filters — filter by ce_specs JSONB fields
+      if (specFilters) {
+        try {
+          const parsed = typeof specFilters === 'string' ? JSON.parse(specFilters) : specFilters;
+          for (const [specKey, specValue] of Object.entries(parsed)) {
+            if (specKey && specValue) {
+              whereConditions.push(`p.ce_specs ->> $${paramIndex} ILIKE $${paramIndex + 1}`);
+              queryParams.push(specKey, specValue);
+              paramIndex += 2;
+            }
+          }
+        } catch {
+          // Invalid JSON — ignore specFilters
+        }
+      }
+
       const joinClause = joinClauses.join(' ');
       const whereClause = whereConditions.length > 0
         ? `WHERE ${whereConditions.join(' AND ')}`
@@ -179,7 +199,21 @@ class ProductService {
       const countResult = await this.pool.query(countQuery, queryParams);
       const totalCount = parseInt(countResult.rows[0].count);
 
-      // Get paginated results with category info
+      // Get paginated results with category info (+ optional location inventory)
+      const locationInventorySelect = locationId ? `,
+          (SELECT json_agg(json_build_object(
+            'location_id', li.location_id,
+            'location_name', l.name,
+            'location_code', l.code,
+            'quantity_on_hand', li.quantity_on_hand,
+            'quantity_reserved', COALESCE(li.quantity_reserved, 0),
+            'quantity_available', li.quantity_on_hand - COALESCE(li.quantity_reserved, 0)
+          ) ORDER BY l.name)
+          FROM location_inventory li
+          JOIN locations l ON li.location_id = l.id
+          WHERE li.product_id = p.id
+          ) AS location_stock` : '';
+
       const dataQuery = `
         SELECT DISTINCT
           p.*,
@@ -188,6 +222,7 @@ class ProductService {
           cat.display_name as category_display_name,
           subcat.name as subcategory_name,
           subcat.slug as subcategory_slug
+          ${locationInventorySelect}
         FROM products p
         LEFT JOIN categories cat ON p.category_id = cat.id
         LEFT JOIN categories subcat ON p.subcategory_id = subcat.id
@@ -200,8 +235,8 @@ class ProductService {
 
       // Transform results to include category_info object
       const products = result.rows.map(row => {
-        const { category_name, category_slug, category_display_name, subcategory_name, subcategory_slug, ...product } = row;
-        return {
+        const { category_name, category_slug, category_display_name, subcategory_name, subcategory_slug, location_stock, ...product } = row;
+        const transformed = {
           ...product,
           category_info: row.category_id ? {
             id: row.category_id,
@@ -215,6 +250,15 @@ class ProductService {
             slug: subcategory_slug
           } : null
         };
+        // Attach location stock data when requested
+        if (locationId && location_stock) {
+          transformed.location_stock = location_stock;
+          // Compute aggregate stock status
+          const totalAvail = location_stock.reduce((sum, ls) => sum + ls.quantity_available, 0);
+          transformed.total_available = totalAvail;
+          transformed.stock_status = totalAvail <= 0 ? 'out_of_stock' : totalAvail <= 5 ? 'low_stock' : 'in_stock';
+        }
+        return transformed;
       });
 
       return {
@@ -326,6 +370,13 @@ class ProductService {
     );
 
     this.invalidateCache();
+
+    // Generate search embedding (fire-and-forget)
+    const { embedNewRecord } = require('./embeddingService');
+    embedNewRecord('products', result.rows[0]).catch(err => {
+      console.warn('[ProductService] Embedding error:', err.message);
+    });
+
     return result.rows[0];
   }
 
@@ -344,8 +395,30 @@ class ProductService {
       description,
       cost_cents,
       msrp_cents,
-      active
+      active,
+      color,
+      discontinued,
+      in_stock,
+      stock_quantity,
+      lead_time_days,
+      promo_cost_cents,
+      retail_price_cents,
+      map_price_cents,
     } = productData;
+
+    // Check for model conflicts (case-insensitive) excluding the current product
+    if (model) {
+      const conflict = await this.pool.query(
+        `SELECT id, model FROM products WHERE LOWER(model) = LOWER($1) AND id != $2 LIMIT 1`,
+        [model, id]
+      );
+      if (conflict.rows.length > 0) {
+        const err = new Error(`Model already exists. Product #${conflict.rows[0].id} already uses model "${conflict.rows[0].model}".`);
+        err.code = '23505';
+        err.constraint = 'products_model_key';
+        throw err;
+      }
+    }
 
     const result = await this.pool.query(
       `UPDATE products SET
@@ -357,9 +430,19 @@ class ProductService {
         cost_cents = COALESCE($6, cost_cents),
         msrp_cents = COALESCE($7, msrp_cents),
         active = COALESCE($8, active),
+        color = COALESCE($9, color),
+        discontinued = COALESCE($10, discontinued),
+        in_stock = COALESCE($11, in_stock),
+        stock_quantity = COALESCE($12, stock_quantity),
+        lead_time_days = COALESCE($13, lead_time_days),
+        promo_cost_cents = COALESCE($14, promo_cost_cents),
+        retail_price_cents = COALESCE($15, retail_price_cents),
+        map_price_cents = COALESCE($16, map_price_cents),
         updated_at = CURRENT_TIMESTAMP
-      WHERE id = $9 RETURNING *`,
-      [model, manufacturer, category, name, description, cost_cents, msrp_cents, active, id]
+      WHERE id = $17 RETURNING *`,
+      [model, manufacturer, category, name, description, cost_cents, msrp_cents, active,
+       color, discontinued, in_stock, stock_quantity, lead_time_days,
+       promo_cost_cents, retail_price_cents, map_price_cents, id]
     );
 
     if (result.rows.length === 0) {
@@ -376,17 +459,33 @@ class ProductService {
    * @returns {Promise<object|null>}
    */
   async deleteProduct(id) {
-    const result = await this.pool.query(
-      'DELETE FROM products WHERE id = $1 RETURNING *',
-      [id]
-    );
+    const client = await this.pool.connect();
+    try {
+      await client.query('BEGIN');
 
-    if (result.rows.length === 0) {
-      return null;
+      // Remove dependent records that are safe to cascade
+      await client.query('DELETE FROM location_inventory WHERE product_id = $1', [id]);
+      await client.query('DELETE FROM product_favorites WHERE product_id = $1', [id]);
+
+      const result = await client.query(
+        'DELETE FROM products WHERE id = $1 RETURNING *',
+        [id]
+      );
+
+      if (result.rows.length === 0) {
+        await client.query('ROLLBACK');
+        return null;
+      }
+
+      await client.query('COMMIT');
+      this.invalidateCache();
+      return result.rows[0];
+    } catch (error) {
+      await client.query('ROLLBACK');
+      throw error;
+    } finally {
+      client.release();
     }
-
-    this.invalidateCache();
-    return result.rows[0];
   }
 
   /**
@@ -693,7 +792,8 @@ class ProductService {
    * @param {number} limit - Max results
    * @returns {Promise<Array>}
    */
-  async searchForAutocomplete(query, limit = 10) {
+  async searchForAutocomplete(query, limit = 10, opts = {}) {
+    const priceFilter = opts.requirePrice ? 'AND price IS NOT NULL AND price > 0' : '';
     const result = await this.pool.query(`
       SELECT id, model, manufacturer, name, description, msrp_cents, cost_cents,
              price, cost, stock_quantity, qty_on_hand, category
@@ -705,6 +805,7 @@ class ProductService {
           name ILIKE $1 OR
           description ILIKE $1
         )
+        ${priceFilter}
       ORDER BY
         CASE WHEN model ILIKE $2 THEN 0 ELSE 1 END,
         model

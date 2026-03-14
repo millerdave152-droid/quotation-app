@@ -112,7 +112,7 @@ class InventoryOptimizationService {
         JOIN quotations q ON qi.quotation_id = q.id
         WHERE qi.product_id = $1
           AND q.status = 'WON'
-          AND q.won_at > NOW() - INTERVAL '${this.config.demandPeriodDays} days'
+          AND q.won_at > NOW() - ($2 * INTERVAL '1 day')
         GROUP BY date_trunc('week', q.won_at)
         ORDER BY week_start
       )
@@ -123,7 +123,7 @@ class InventoryOptimizationService {
         AVG(units_sold) as avg_weekly_units,
         STDDEV(units_sold) as stddev_weekly_units
       FROM weekly_sales
-    `, [productId]);
+    `, [productId, this.config.demandPeriodDays]);
 
     const data = result.rows[0];
 
@@ -308,8 +308,7 @@ class InventoryOptimizationService {
         (p.reorder_level - p.stock_quantity) as units_needed,
         ((p.reorder_level - p.stock_quantity) * COALESCE(p.cost_price_cents, p.base_price_cents * 0.6)) as reorder_cost_cents
       FROM products p
-      WHERE p.active = true
-        AND p.stock_quantity <= p.reorder_level
+      WHERE p.stock_quantity <= p.reorder_level
         AND p.reorder_level > 0
       ORDER BY
         CASE WHEN p.stock_quantity <= 0 THEN 0 ELSE 1 END,
@@ -349,15 +348,14 @@ class InventoryOptimizationService {
         EXTRACT(days FROM NOW() - ls.last_sold_at) as days_since_last_sale
       FROM products p
       LEFT JOIN last_sale ls ON p.id = ls.product_id
-      WHERE p.active = true
-        AND p.stock_quantity > 0
+      WHERE p.stock_quantity > 0
         AND (
           ls.last_sold_at IS NULL
-          OR ls.last_sold_at < NOW() - INTERVAL '${this.config.deadStockThresholdDays} days'
+          OR ls.last_sold_at < NOW() - ($2 * INTERVAL '1 day')
         )
       ORDER BY inventory_value_cents DESC
       LIMIT $1
-    `, [limit]);
+    `, [limit, this.config.deadStockThresholdDays]);
 
     return result.rows.map(row => ({
       ...row,
@@ -388,7 +386,6 @@ class InventoryOptimizationService {
       JOIN quotations q ON qi.quotation_id = q.id
       WHERE q.status = 'WON'
         AND q.won_at > NOW() - INTERVAL '30 days'
-        AND p.active = true
       GROUP BY p.id, p.name, p.sku, p.stock_quantity, p.reorder_level, p.category
       ORDER BY total_units_sold DESC
       LIMIT $1
@@ -417,8 +414,7 @@ class InventoryOptimizationService {
         LEFT JOIN quote_items qi ON p.id = qi.product_id
         LEFT JOIN quotations q ON qi.quotation_id = q.id
           AND q.status = 'WON'
-          AND q.won_at > NOW() - INTERVAL '${days} days'
-        WHERE p.active = true
+          AND q.won_at > NOW() - ($1 * INTERVAL '1 day')
         GROUP BY p.category
       )
       SELECT
@@ -430,13 +426,13 @@ class InventoryOptimizationService {
           ELSE 0
         END as turnover_ratio,
         CASE
-          WHEN cogs_cents > 0 THEN ROUND((avg_inventory_cents / (cogs_cents / ${days}))::numeric, 0)
+          WHEN cogs_cents > 0 THEN ROUND((avg_inventory_cents / (cogs_cents / $1))::numeric, 0)
           ELSE 0
         END as days_inventory
       FROM sales_data
       WHERE category IS NOT NULL
       ORDER BY turnover_ratio DESC
-    `);
+    `, [days]);
 
     return result.rows;
   }
@@ -459,7 +455,6 @@ class InventoryOptimizationService {
         LEFT JOIN quotations q ON qi.quotation_id = q.id
           AND q.status = 'WON'
           AND q.won_at > NOW() - INTERVAL '365 days'
-        WHERE p.active = true
         GROUP BY p.id, p.name, p.sku, p.category, p.stock_quantity
       ),
       ranked AS (

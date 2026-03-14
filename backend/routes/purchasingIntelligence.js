@@ -17,6 +17,7 @@ const router = express.Router();
 const { ApiError, asyncHandler } = require('../middleware/errorHandler');
 const purchasingService = require('../services/PurchasingIntelligenceService');
 const { authenticate } = require('../middleware/auth');
+const logger = require('../utils/logger');
 
 /**
  * GET /api/purchasing-intelligence/dashboard
@@ -176,13 +177,20 @@ router.post('/analyze', authenticate, asyncHandler(async (req, res) => {
     throw ApiError.conflict('An analysis is already running');
   }
 
-  // Start analysis in background
-  const analysisPromise = purchasingService.runFullAnalysis('manual');
+  // Start analysis in background with 5-minute timeout
+  const ANALYSIS_TIMEOUT_MS = 5 * 60 * 1000;
+  const timeoutPromise = new Promise((_, reject) =>
+    setTimeout(() => reject(new Error('Analysis timed out after 5 minutes')), ANALYSIS_TIMEOUT_MS)
+  );
+  const analysisPromise = Promise.race([
+    purchasingService.runFullAnalysis('manual'),
+    timeoutPromise
+  ]);
 
   // Don't await - let it run in background
   analysisPromise
-    .then(result => console.log(`Manual analysis completed: ${result.productsAnalyzed} products analyzed`))
-    .catch(err => console.error('Manual analysis failed:', err.message));
+    .then(() => logger.info('Manual analysis completed successfully'))
+    .catch(err => logger.error({ err }, 'Manual analysis failed'));
 
   res.json({
     success: true,

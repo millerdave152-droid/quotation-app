@@ -29,7 +29,8 @@ class PurchasingIntelligenceService {
         });
         this.aiModel = process.env.AI_MODEL || 'gpt-4o-mini';
       } catch (err) {
-        console.log('OpenAI client not available, AI summaries will be disabled');
+        const logger = require('../utils/logger');
+        logger.warn({ err }, 'Failed to initialize AI client for purchasing intelligence — AI summaries will be unavailable');
       }
     }
   }
@@ -54,11 +55,11 @@ class PurchasingIntelligenceService {
         FROM order_items oi
         JOIN orders o ON oi.order_id = o.id
         WHERE oi.product_id = $1
-          AND o.created_at >= NOW() - INTERVAL '${days} days'
+          AND o.created_at >= NOW() - ($3 * INTERVAL '1 day')
           AND o.status NOT IN ('cancelled', 'refunded')
       `;
 
-      const result = await pool.query(query, [productId, days]);
+      const result = await pool.query(query, [productId, days, days]);
       const row = result.rows[0];
 
       results[`ma_${days}d`] = parseFloat(row.avg_daily_sales) || 0;
@@ -199,8 +200,8 @@ class PurchasingIntelligenceService {
     await pool.query(`
       INSERT INTO purchasing_forecasts
         (product_id, forecast_date, predicted_demand, confidence_score, trend_direction, seasonality_factor)
-      VALUES ($1, NOW() + INTERVAL '${daysAhead} days', $2, $3, $4, $5)
-    `, [productId, forecast.predicted_demand, confidence, growth.trend_direction, seasonalityMultiplier]);
+      VALUES ($1, NOW() + ($6 * INTERVAL '1 day'), $2, $3, $4, $5)
+    `, [productId, forecast.predicted_demand, confidence, growth.trend_direction, seasonalityMultiplier, daysAhead]);
 
     return forecast;
   }
@@ -286,8 +287,7 @@ class PurchasingIntelligenceService {
       FROM products p
       JOIN order_items oi ON p.id = oi.product_id
       JOIN orders o ON oi.order_id = o.id
-      WHERE p.active = true
-        AND o.created_at >= NOW() - INTERVAL '90 days'
+      WHERE o.created_at >= NOW() - INTERVAL '90 days'
         AND o.status NOT IN ('cancelled', 'refunded')
     `);
 

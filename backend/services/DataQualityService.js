@@ -91,7 +91,6 @@ class DataQualityService {
       FROM customers c
       WHERE c.days_since_last_activity > 365
         AND c.total_transactions > 0
-        AND (c.active = true OR c.active IS NULL)
       ORDER BY c.clv_score DESC NULLS LAST
       LIMIT 20
     `);

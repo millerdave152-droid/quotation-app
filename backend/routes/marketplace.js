@@ -15,6 +15,7 @@ const tenantManager = require('../services/TenantManager');
 const shippingService = require('../services/ShippingService');
 const reportGenerator = require('../services/ReportGenerator');
 const marketplaceAI = require('../services/MarketplaceAI');
+const logger = require('../utils/logger');
 
 /**
  * Resolve a channel adapter from the request.
@@ -480,26 +481,27 @@ router.get('/orders/unified/:orderId', authenticate, asyncHandler(async (req, re
 // Dashboard stats for orders — supports ?channelId filter or cross-channel
 router.get('/orders/dashboard-stats', authenticate, asyncHandler(async (req, res) => {
   const channelFilter = req.query.channelId ? parseInt(req.query.channelId, 10) : null;
-  const channelWhere = channelFilter ? ` AND channel_id = ${channelFilter}` : '';
+  const channelWhere = channelFilter ? ' AND channel_id = $1' : '';
+  const channelParams = channelFilter ? [channelFilter] : [];
 
   const [pending, urgent, shipping, shippedToday, revenue, byState] = await Promise.all([
-    pool.query(`SELECT COUNT(*) as cnt FROM marketplace_orders WHERE mirakl_order_state = 'WAITING_ACCEPTANCE'${channelWhere}`),
-    pool.query(`SELECT COUNT(*) as cnt FROM marketplace_orders WHERE mirakl_order_state = 'WAITING_ACCEPTANCE' AND acceptance_deadline < NOW() + INTERVAL '4 hours'${channelWhere}`),
-    pool.query(`SELECT COUNT(*) as cnt FROM marketplace_orders WHERE mirakl_order_state = 'SHIPPING'${channelWhere}`),
-    pool.query(`SELECT COUNT(*) as cnt FROM marketplace_orders WHERE mirakl_order_state = 'SHIPPED' AND shipped_date >= CURRENT_DATE${channelWhere}`),
+    pool.query(`SELECT COUNT(*) as cnt FROM marketplace_orders WHERE mirakl_order_state = 'WAITING_ACCEPTANCE'${channelWhere}`, channelParams),
+    pool.query(`SELECT COUNT(*) as cnt FROM marketplace_orders WHERE mirakl_order_state = 'WAITING_ACCEPTANCE' AND acceptance_deadline < NOW() + INTERVAL '4 hours'${channelWhere}`, channelParams),
+    pool.query(`SELECT COUNT(*) as cnt FROM marketplace_orders WHERE mirakl_order_state = 'SHIPPING'${channelWhere}`, channelParams),
+    pool.query(`SELECT COUNT(*) as cnt FROM marketplace_orders WHERE mirakl_order_state = 'SHIPPED' AND shipped_date >= CURRENT_DATE${channelWhere}`, channelParams),
     pool.query(`
       SELECT
         COALESCE(SUM(total_price_cents / 100.0), 0) as total_revenue,
         COALESCE(SUM(commission_amount), 0) as total_commission
       FROM marketplace_orders
       WHERE created_at >= NOW() - INTERVAL '30 days'${channelWhere}
-    `),
+    `, channelParams),
     pool.query(`
       SELECT mirakl_order_state as state, COUNT(*) as cnt
       FROM marketplace_orders
       WHERE mirakl_order_state IS NOT NULL${channelWhere}
       GROUP BY mirakl_order_state
-    `),
+    `, channelParams),
   ]);
 
   const ordersByState = {};
@@ -511,7 +513,7 @@ router.get('/orders/dashboard-stats', authenticate, asyncHandler(async (req, res
     try {
       const manager = await getChannelManager();
       channelBreakdown = await manager.getDashboardStats();
-    } catch (e) { console.error('Channel breakdown fetch error:', e.message); }
+    } catch (e) { req.log.error({ err: e }, 'Channel breakdown fetch error'); }
   }
 
   res.json({
@@ -777,7 +779,7 @@ router.post('/orders/:id/accept', authenticate, asyncHandler(async (req, res) =>
     if (miraklMsg.includes('not in state WAITING_ACCEPTANCE') || miraklErr.response?.status === 400) {
       try {
         await miraklService.pollOrders({ states: 'WAITING_ACCEPTANCE,WAITING_DEBIT,WAITING_DEBIT_PAYMENT,SHIPPING,SHIPPED,RECEIVED' });
-      } catch (e) { console.error('Order re-poll error:', e.message); }
+      } catch (e) { req.log.error({ err: e }, 'Order re-poll error'); }
     }
     throw ApiError.badRequest('Mirakl rejected the request: ' + miraklMsg);
   }
@@ -804,7 +806,7 @@ router.post('/orders/:id/accept', authenticate, asyncHandler(async (req, res) =>
           await miraklService.queueInventoryChange(item.product_id, _stockRes.rows[0].sku, _newQty + item.quantity, _newQty, 'ORDER_ACCEPT');
         }
       } catch (queueErr) {
-        console.error('[MarketplaceQueue] ORDER_ACCEPT queue error:', queueErr.message);
+        req.log.error({ err: queueErr }, '[MarketplaceQueue] ORDER_ACCEPT queue error');
       }
     }
   }
@@ -876,7 +878,7 @@ router.post('/orders/:id/ship', authenticate, asyncHandler(async (req, res) => {
   try {
     await miraklService.updateTracking(order.mirakl_order_id, trackingNumber, carrierCode, carrierName, carrierUrl);
   } catch (err) {
-    console.error(`[Ship] Mirakl updateTracking failed for order ${id}:`, err.response?.data || err.message);
+    req.log.error({ err, orderId: id, miraklData: err.response?.data }, '[Ship] Mirakl updateTracking failed');
     miraklError = err.response?.data?.message || err.message;
   }
 
@@ -884,7 +886,7 @@ router.post('/orders/:id/ship', authenticate, asyncHandler(async (req, res) => {
   try {
     await miraklService.confirmShipment(order.mirakl_order_id);
   } catch (err) {
-    console.error(`[Ship] Mirakl confirmShipment failed for order ${id}:`, err.response?.data || err.message);
+    req.log.error({ err, orderId: id, miraklData: err.response?.data }, '[Ship] Mirakl confirmShipment failed');
     if (!miraklError) miraklError = err.response?.data?.message || err.message;
   }
 
@@ -1473,7 +1475,7 @@ router.post('/products/set-default-stock', authenticate, asyncHandler(async (req
     try {
       await miraklService.queueInventoryChange(row.id, row.sku, 0, default_stock, 'MANUAL_ADJUST');
     } catch (queueErr) {
-      console.error('[MarketplaceQueue] MANUAL_ADJUST (set-default-stock) queue error:', queueErr.message);
+      req.log.error({ err: queueErr }, '[MarketplaceQueue] MANUAL_ADJUST (set-default-stock) queue error');
     }
   }
 
@@ -1637,7 +1639,7 @@ router.get('/sync-stats', authenticate, asyncHandler(async (req, res) => {
 // ============================================
 
 // Webhook receiver for Mirakl events
-router.post('/webhooks/mirakl', authenticate, async (req, res) => {
+router.post('/webhooks/mirakl', authenticate, asyncHandler(async (req, res) => {
   try {
     const webhookData = req.body;
 
@@ -1672,11 +1674,11 @@ router.post('/webhooks/mirakl', authenticate, async (req, res) => {
     // Always respond with 200 to acknowledge receipt
     res.json({ received: true });
   } catch (error) {
-    console.error('❌ Error processing webhook:', error);
+    req.log.error({ err: error }, '[Marketplace] Error processing webhook');
     // Still return 200 to prevent retries
     res.json({ received: true, error: error.message });
   }
-});
+}));
 
 // ============================================
 // MARKETPLACE CREDENTIALS
@@ -2011,7 +2013,7 @@ router.get('/products/mapped', authenticate, asyncHandler(async (req, res) => {
   const { category_code, search, limit = 50, offset = 0 } = req.query;
 
   let query = `
-    SELECT p.id, p.model, p.name, p.manufacturer, p.msrp_cents, p.active,
+    SELECT p.id, p.model, p.name, p.manufacturer, p.msrp_cents,
            p.bestbuy_category_code, bc.name as category_name, bc.category_group
     FROM products p
     LEFT JOIN bestbuy_categories bc ON p.bestbuy_category_code = bc.code
@@ -2034,7 +2036,7 @@ router.get('/products/mapped', authenticate, asyncHandler(async (req, res) => {
 
   // Get count
   const countQuery = query.replace(
-    'SELECT p.id, p.model, p.name, p.manufacturer, p.msrp_cents, p.active, p.bestbuy_category_code, bc.name as category_name, bc.category_group',
+    'SELECT p.id, p.model, p.name, p.manufacturer, p.msrp_cents, p.bestbuy_category_code, bc.name as category_name, bc.category_group',
     'SELECT COUNT(*)'
   );
   const countResult = await pool.query(countQuery, params);
@@ -2617,7 +2619,7 @@ async function createNotification(type, title, message, orderId = null, miraklOr
     `, [type, title, message, orderId, miraklOrderId, priority, JSON.stringify(metadata)]);
     return result.rows[0];
   } catch (error) {
-    console.error('❌ Error creating notification:', error);
+    logger.error({ err: error }, '[Marketplace] Error creating notification');
     return null;
   }
 }
@@ -3177,7 +3179,7 @@ async function evaluateRulesForOrder(order, orderItems) {
 
     return results;
   } catch (error) {
-    console.error('❌ Error evaluating rules:', error);
+    logger.error({ err: error }, '[Marketplace] Error evaluating rules');
     return [];
   }
 }
@@ -3309,7 +3311,7 @@ async function checkForNewOrders() {
               'normal'
             );
           } catch (err) {
-            console.error('❌ Auto-accept failed:', err);
+            logger.error({ err }, '[Marketplace] Auto-accept failed');
           }
         } else if (triggered.action === 'reject') {
           // Auto-reject the order
@@ -3331,7 +3333,7 @@ async function checkForNewOrders() {
               'normal'
             );
           } catch (err) {
-            console.error('❌ Auto-reject failed:', err);
+            logger.error({ err }, '[Marketplace] Auto-reject failed');
           }
         } else if (triggered.action === 'notify') {
           // Create alert notification
@@ -3356,7 +3358,7 @@ async function checkForNewOrders() {
 
     return { checked: newOrders.rows.length };
   } catch (error) {
-    console.error('❌ Error checking for new orders:', error);
+    logger.error({ err: error }, '[Marketplace] Error checking for new orders');
     return { error: error.message };
   }
 }
@@ -3552,7 +3554,7 @@ router.post('/pull-offers-from-bestbuy', authenticate, asyncHandler(async (req, 
         imported++;
       }
     } catch (err) {
-      console.error(`❌ Failed to import offer ${offer.shop_sku}:`, err.message);
+      req.log.error({ err, sku: offer.shop_sku }, '[Marketplace] Failed to import offer');
       failed++;
       errors.push({ sku: offer.shop_sku, error: err.message });
     }
@@ -3814,7 +3816,6 @@ router.get('/inventory-products', authenticate, asyncHandler(async (req, res) =>
       p.marketplace_price,
       p.marketplace_last_synced,
       p.bestbuy_category_code,
-      p.active,
       c.name as category_name
     FROM products p
     LEFT JOIN bestbuy_categories c ON p.bestbuy_category_code = c.code
@@ -4615,7 +4616,7 @@ router.get('/reports/inventory', authenticate, asyncHandler(async (req, res) => 
       SUM(CASE WHEN COALESCE(p.stock_quantity, 0) > 0 AND COALESCE(p.stock_quantity, 0) <= 5 THEN 1 ELSE 0 END) as low_stock_count
     FROM products p
     LEFT JOIN bestbuy_categories c ON p.bestbuy_category_code = c.code
-    WHERE p.bestbuy_category_code IS NOT NULL AND p.active = true
+    WHERE p.bestbuy_category_code IS NOT NULL
     GROUP BY c.name, p.bestbuy_category_code
     ORDER BY total_stock DESC
   `);
@@ -5106,7 +5107,7 @@ router.get('/reports/export/:type', authenticate, asyncHandler(async (req, res) 
           p.marketplace_last_synced as last_synced
         FROM products p
         LEFT JOIN bestbuy_categories c ON p.bestbuy_category_code = c.code
-        WHERE p.bestbuy_category_code IS NOT NULL AND p.active = true
+        WHERE p.bestbuy_category_code IS NOT NULL
         ORDER BY p.name
       `);
       data = inventoryResult.rows;
@@ -6820,7 +6821,7 @@ router.post('/bulk/shipments', authenticate, validateJoi(marketplaceSchemas.bulk
             carrier_name: shipment.carrier_name
           });
         } catch (miraklError) {
-          console.warn(`⚠️ Mirakl shipment sync failed for order ${shipment.order_id}:`, miraklError.message);
+          req.log.warn({ err: miraklError, orderId: shipment.order_id }, '[Marketplace] Mirakl shipment sync failed');
         }
 
         // Save shipment to database
@@ -7517,7 +7518,7 @@ router.post('/channels/:channelId/go-live', authenticate, asyncHandler(async (re
   try {
     offerResult = await manager.pushOffers(channelId);
   } catch (err) {
-    console.error(`[go-live] pushOffers error for channel ${channelId}:`, err.message);
+    req.log.error({ err, channelId }, '[go-live] pushOffers error');
     offerResult = { submitted: 0, error: err.message };
   }
 
@@ -7526,7 +7527,7 @@ router.post('/channels/:channelId/go-live', authenticate, asyncHandler(async (re
   try {
     inventoryResult = await manager.pushInventory(channelId);
   } catch (err) {
-    console.error(`[go-live] pushInventory error for channel ${channelId}:`, err.message);
+    req.log.error({ err, channelId }, '[go-live] pushInventory error');
     inventoryResult = { submitted: 0, error: err.message };
   }
 
@@ -8173,7 +8174,7 @@ router.put('/onboarding/:id/step/:stepNumber', authenticate, asyncHandler(async 
           ON CONFLICT (product_id, channel_id) DO UPDATE SET updated_at = NOW()
         `, [p.id, channelId, p.sku, p.price]);
         listed++;
-      } catch (e) { console.error('Product listing error:', e.message); skipped++; }
+      } catch (e) { req.log.error({ err: e }, '[Marketplace] Product listing error'); skipped++; }
     }
 
     stepData.step5 = { productCount: listed };
