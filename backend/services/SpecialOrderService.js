@@ -113,7 +113,7 @@ class SpecialOrderService {
         COUNT(*) FILTER (WHERE status NOT IN ('picked_up', 'delivered', 'cancelled'))::int as active_count,
         COUNT(*) FILTER (WHERE status = 'arrived')::int as arrived_pending,
         COUNT(*) FILTER (WHERE status = 'in_transit')::int as in_transit,
-        COUNT(*) FILTER (WHERE status = 'customer_notified' AND pickup_deadline < CURRENT_DATE)::int as overdue_pickup
+        COUNT(*) FILTER (WHERE status = 'customer_notified' AND pickup_deadline IS NOT NULL AND pickup_deadline < CURRENT_DATE)::int as overdue_pickup
       FROM special_orders
     `);
     return stats;
