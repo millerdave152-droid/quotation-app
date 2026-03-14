@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   Box,
   Paper,
@@ -33,38 +33,18 @@ import {
   Divider,
   InputAdornment
 } from '@mui/material';
-import {
-  Receipt,
-  Send,
-  Payment,
-  Visibility,
-  Edit,
-  Delete,
-  Add,
-  Refresh,
-  Search,
-  FilterList,
-  Download,
-  Email,
-  CheckCircle,
-  Warning,
-  Cancel,
-  AttachMoney,
-  CreditCard,
-  AutoMode,
-  AccountBalance
-} from '@mui/icons-material';
 import { createAuthorizedClient } from '../../services/apiClient';
 import AutoInvoicePanel from './AutoInvoicePanel';
 import ARDashboard from './ARDashboard';
 
-const API_BASE = (process.env.REACT_APP_API_URL || 'http://localhost:3001') + '/api';
+const API_BASE = (process.env.REACT_APP_API_URL || '') + '/api';
 
 // Create axios instance with auth headers
 const api = createAuthorizedClient({
   baseURL: API_BASE
 });
 
+import { AlertTriangle, CheckCircle, CreditCard, Download, Eye, Landmark, Plus, Receipt, RefreshCw, Search, Send, XCircle } from 'lucide-react';
 const formatCurrency = (cents) => {
   if (!cents && cents !== 0) return '$0.00';
   return `$${(cents / 100).toLocaleString('en-CA', { minimumFractionDigits: 2 })}`;
@@ -133,7 +113,8 @@ const PaymentDialog = ({ open, onClose, invoice, onPaymentRecorded }) => {
       onPaymentRecorded();
       onClose();
     } catch (err) {
-      setError(err.response?.data?.error || 'Failed to record payment');
+      const errData = err.response?.data?.error;
+      setError(typeof errData === 'object' ? errData?.message || JSON.stringify(errData) : errData || err.message || 'Failed to record payment');
     } finally {
       setSubmitting(false);
     }
@@ -142,7 +123,7 @@ const PaymentDialog = ({ open, onClose, invoice, onPaymentRecorded }) => {
   return (
     <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth>
       <DialogTitle>
-        <Payment sx={{ mr: 1, verticalAlign: 'middle' }} />
+        <CreditCard sx={{ mr: 1, verticalAlign: 'middle' }} />
         Record Payment
       </DialogTitle>
       <DialogContent>
@@ -164,7 +145,7 @@ const PaymentDialog = ({ open, onClose, invoice, onPaymentRecorded }) => {
           </Box>
         )}
 
-        {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
+        {error && <Alert severity="error" sx={{ mb: 2 }}>{typeof error === 'object' ? error.message || JSON.stringify(error) : error}</Alert>}
 
         <TextField
           fullWidth
@@ -262,7 +243,12 @@ const CreateInvoiceDialog = ({ open, onClose, onCreated }) => {
     setError(null);
     try {
       const url = sourceType === 'quote' ? '/quotations' : '/orders';
-      const res = await api.get(url, { params: { search: searchTerm, limit: 10 } });
+      const params = { search: searchTerm, limit: 10 };
+      // Only show approved quotes — backend rejects invoices from Draft quotes
+      if (sourceType === 'quote') {
+        params.status = 'approved';
+      }
+      const res = await api.get(url, { params });
       const data = res.data;
       const list = data?.quotations || data?.orders || data?.data || [];
       setSearchResults(Array.isArray(list) ? list : []);
@@ -293,7 +279,11 @@ const CreateInvoiceDialog = ({ open, onClose, onCreated }) => {
       onCreated();
       onClose();
     } catch (err) {
-      const msg = err.response?.data?.error || err.response?.data?.message || 'Failed to create invoice';
+      const rawErr = err.response?.data?.error;
+      const rawMsg = err.response?.data?.message;
+      const msg = (typeof rawErr === 'object' ? rawErr?.message || JSON.stringify(rawErr) : rawErr)
+        || (typeof rawMsg === 'object' ? rawMsg?.message || JSON.stringify(rawMsg) : rawMsg)
+        || err.message || 'Failed to create invoice';
       setError(msg);
     } finally {
       setSubmitting(false);
@@ -307,7 +297,7 @@ const CreateInvoiceDialog = ({ open, onClose, onCreated }) => {
       <DialogTitle>Create Invoice</DialogTitle>
       <DialogContent dividers>
         {error && (
-          <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError(null)}>{error}</Alert>
+          <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError(null)}>{typeof error === 'object' ? error.message || JSON.stringify(error) : error}</Alert>
         )}
 
         {step === 'search' && (
@@ -492,11 +482,7 @@ const InvoiceManager = () => {
   const [viewDialogOpen, setViewDialogOpen] = useState(false);
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
 
-  useEffect(() => {
-    fetchInvoices();
-  }, [filters, page, rowsPerPage]);
-
-  const fetchInvoices = async () => {
+  const fetchInvoices = useCallback(async () => {
     try {
       setLoading(true);
       const params = {
@@ -522,7 +508,11 @@ const InvoiceManager = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [filters, page, rowsPerPage]);
+
+  useEffect(() => {
+    fetchInvoices();
+  }, [fetchInvoices]);
 
   const handleSendInvoice = async (invoiceId) => {
     try {
@@ -581,7 +571,7 @@ const InvoiceManager = () => {
           </Button>
           <Button
             variant={viewMode === 'automation' ? 'contained' : 'outlined'}
-            startIcon={<AutoMode />}
+            startIcon={<RefreshCw />}
             onClick={() => setViewMode('automation')}
             size="small"
           >
@@ -589,14 +579,14 @@ const InvoiceManager = () => {
           </Button>
           <Button
             variant={viewMode === 'ar' ? 'contained' : 'outlined'}
-            startIcon={<AccountBalance />}
+            startIcon={<Landmark />}
             onClick={() => setViewMode('ar')}
             size="small"
           >
             A/R
           </Button>
           {viewMode === 'invoices' && (
-            <Button variant="contained" startIcon={<Add />} size="small" onClick={() => setCreateDialogOpen(true)}>
+            <Button variant="contained" startIcon={<Plus />} size="small" onClick={() => setCreateDialogOpen(true)}>
               Create Invoice
             </Button>
           )}
@@ -605,7 +595,7 @@ const InvoiceManager = () => {
 
       {error && (
         <Alert severity="error" sx={{ mb: 3 }} onClose={() => setError(null)}>
-          {error}
+          {typeof error === 'object' ? error.message || JSON.stringify(error) : error}
         </Alert>
       )}
 
@@ -632,7 +622,7 @@ const InvoiceManager = () => {
           <InvoiceSummaryCard
             title="Pending"
             value={summary.pending}
-            icon={<Warning />}
+            icon={<AlertTriangle />}
             color="warning"
           />
         </Grid>
@@ -648,7 +638,7 @@ const InvoiceManager = () => {
           <InvoiceSummaryCard
             title="Overdue"
             value={summary.overdue}
-            icon={<Cancel />}
+            icon={<XCircle />}
             color="error"
           />
         </Grid>
@@ -710,7 +700,7 @@ const InvoiceManager = () => {
             />
           </Grid>
           <Grid item xs={6} sm={2}>
-            <Button fullWidth variant="outlined" startIcon={<Refresh />} onClick={fetchInvoices}>
+            <Button fullWidth variant="outlined" startIcon={<RefreshCw />} onClick={fetchInvoices}>
               Refresh
             </Button>
           </Grid>
@@ -718,7 +708,7 @@ const InvoiceManager = () => {
       </Paper>
 
       {/* Tabs */}
-      <Tabs value={tabValue} onChange={(e, v) => setTabValue(v)} sx={{ mb: 2 }}>
+      <Tabs value={tabValue} onChange={(_e, v) => setTabValue(v)} sx={{ mb: 2 }}>
         <Tab label={`All (${invoices.length})`} />
         <Tab label={`Pending (${summary.pending})`} />
         <Tab label="Partial" />
@@ -779,14 +769,14 @@ const InvoiceManager = () => {
                           <Box sx={{ display: 'flex', justifyContent: 'center', gap: 0.5 }}>
                             <Tooltip title="View">
                               <IconButton size="small" onClick={() => { setSelectedInvoice(invoice); setViewDialogOpen(true); }}>
-                                <Visibility fontSize="small" />
+                                <Eye fontSize="small" />
                               </IconButton>
                             </Tooltip>
                             {invoice.status !== 'void' && invoice.status !== 'paid' && (
                               <>
                                 <Tooltip title="Record Payment">
                                   <IconButton size="small" color="success" onClick={() => handleOpenPayment(invoice)}>
-                                    <Payment fontSize="small" />
+                                    <CreditCard fontSize="small" />
                                   </IconButton>
                                 </Tooltip>
                                 {invoice.status === 'draft' && (
@@ -796,15 +786,20 @@ const InvoiceManager = () => {
                                     </IconButton>
                                   </Tooltip>
                                 )}
-                                <Tooltip title="Void Invoice">
-                                  <IconButton size="small" color="error" onClick={() => handleVoidInvoice(invoice.id)}>
-                                    <Cancel fontSize="small" />
-                                  </IconButton>
-                                </Tooltip>
+                                {invoice.status !== 'draft' && (
+                                  <Tooltip title="Void Invoice">
+                                    <IconButton size="small" color="error" onClick={() => handleVoidInvoice(invoice.id)}>
+                                      <XCircle fontSize="small" />
+                                    </IconButton>
+                                  </Tooltip>
+                                )}
                               </>
                             )}
                             <Tooltip title="Download PDF">
-                              <IconButton size="small">
+                              <IconButton size="small" onClick={() => {
+                                const token = localStorage.getItem('auth_token');
+                                window.open(`${API_BASE}/pos-invoices/${invoice.id}/pdf?token=${token}`, '_blank');
+                              }}>
                                 <Download fontSize="small" />
                               </IconButton>
                             </Tooltip>
@@ -820,7 +815,7 @@ const InvoiceManager = () => {
               component="div"
               count={invoices.length}
               page={page}
-              onPageChange={(e, p) => setPage(p)}
+              onPageChange={(_e, p) => setPage(p)}
               rowsPerPage={rowsPerPage}
               onRowsPerPageChange={(e) => { setRowsPerPage(parseInt(e.target.value)); setPage(0); }}
             />
@@ -912,7 +907,7 @@ const InvoiceManager = () => {
         <DialogActions>
           <Button onClick={() => setViewDialogOpen(false)}>Close</Button>
           {selectedInvoice && selectedInvoice.status !== 'void' && selectedInvoice.status !== 'paid' && (
-            <Button variant="contained" startIcon={<Payment />} onClick={() => { setViewDialogOpen(false); handleOpenPayment(selectedInvoice); }}>
+            <Button variant="contained" startIcon={<CreditCard />} onClick={() => { setViewDialogOpen(false); handleOpenPayment(selectedInvoice); }}>
               Record Payment
             </Button>
           )}
