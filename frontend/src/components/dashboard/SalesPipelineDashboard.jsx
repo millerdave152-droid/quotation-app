@@ -7,12 +7,13 @@ import { authFetch } from '../../services/authFetch';
  */
 
 import React, { useState, useEffect, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
-  AreaChart, Area, BarChart, Bar, LineChart, Line, PieChart, Pie, Cell,
-  XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend, FunnelChart, Funnel, LabelList
+  AreaChart, Area, BarChart, Bar, Cell,
+  XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer
 } from 'recharts';
 
-const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:3001';
+const API_URL = process.env.REACT_APP_API_URL || '';
 
 // Color palette
 const COLORS = {
@@ -26,37 +27,11 @@ const COLORS = {
   gray: '#6b7280'
 };
 
-const STAGE_COLORS = {
-  new: '#6366f1',
-  contacted: '#8b5cf6',
-  qualified: '#a855f7',
-  draft: '#3b82f6',
-  sent: '#0ea5e9',
-  pending: '#f59e0b',
-  won: '#22c55e',
-  lost: '#ef4444'
-};
-
 /**
  * Format currency from cents
  */
 const formatCurrency = (cents) => {
   return `$${((cents || 0) / 100).toLocaleString('en-CA', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
-};
-
-/**
- * Format relative time
- */
-const formatRelativeTime = (date) => {
-  const now = new Date();
-  const d = new Date(date);
-  const diffMs = now - d;
-  const diffDays = Math.floor(diffMs / 86400000);
-
-  if (diffDays === 0) return 'Today';
-  if (diffDays === 1) return 'Yesterday';
-  if (diffDays < 7) return `${diffDays} days ago`;
-  return d.toLocaleDateString('en-CA', { month: 'short', day: 'numeric' });
 };
 
 /**
@@ -317,19 +292,35 @@ const PerformanceRow = ({ data, rank }) => (
 /**
  * Main Sales Pipeline Dashboard
  */
-const SalesPipelineDashboard = ({ onNavigate, onViewLead, onViewQuote, onViewCustomer }) => {
+const periodToDays = (period) => {
+  switch (period) {
+    case '7d': return 7;
+    case '30d': return 30;
+    case '90d': return 90;
+    case 'ytd': {
+      const now = new Date();
+      const start = new Date(now.getFullYear(), 0, 1);
+      return Math.ceil((now - start) / (1000 * 60 * 60 * 24));
+    }
+    default: return 30;
+  }
+};
+
+const SalesPipelineDashboard = () => {
+  const navigate = useNavigate();
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [selectedPeriod, setSelectedPeriod] = useState('30d');
   const [refreshing, setRefreshing] = useState(false);
 
-  const fetchData = useCallback(async () => {
+  const fetchData = useCallback(async (period) => {
     try {
       setRefreshing(true);
+      const days = periodToDays(period || selectedPeriod);
       const [summaryRes, teamRes, sourceRes] = await Promise.all([
         authFetch(`${API_URL}/api/dashboard/summary`),
-        authFetch(`${API_URL}/api/dashboard/performance/team?days=30`),
+        authFetch(`${API_URL}/api/dashboard/performance/team?days=${days}`),
         authFetch(`${API_URL}/api/dashboard/performance/by-source`)
       ]);
 
@@ -345,31 +336,36 @@ const SalesPipelineDashboard = ({ onNavigate, onViewLead, onViewQuote, onViewCus
         sourcePerformance: sourceData.data
       });
     } catch (err) {
-      console.error('Dashboard error:', err);
       setError(err.message);
     } finally {
       setLoading(false);
       setRefreshing(false);
     }
-  }, []);
+  }, [selectedPeriod]);
 
   useEffect(() => {
     fetchData();
-    const interval = setInterval(fetchData, 60000);
+    const interval = setInterval(() => fetchData(), 60000);
     return () => clearInterval(interval);
   }, [fetchData]);
+
+  const handlePeriodChange = (e) => {
+    const newPeriod = e.target.value;
+    setSelectedPeriod(newPeriod);
+    fetchData(newPeriod);
+  };
 
   const handleActionItemClick = (type, item) => {
     switch (type) {
       case 'overdueFollowUps':
       case 'hotLeads':
-        onViewLead?.(item.id);
+        if (item.id) navigate(`/leads`);
         break;
       case 'stalledQuotes':
-        onViewQuote?.(item.id);
+        if (item.id) navigate(`/quotes/${item.id}`);
         break;
       case 'atRiskCustomers':
-        onViewCustomer?.(item.customerId);
+        if (item.customerId) navigate(`/customers`);
         break;
       default:
         break;
@@ -438,7 +434,7 @@ const SalesPipelineDashboard = ({ onNavigate, onViewLead, onViewQuote, onViewCus
         <div style={{ display: 'flex', gap: '12px' }}>
           <select
             value={selectedPeriod}
-            onChange={(e) => setSelectedPeriod(e.target.value)}
+            onChange={handlePeriodChange}
             style={{
               padding: '10px 16px',
               border: '1px solid #e5e7eb',
@@ -487,7 +483,7 @@ const SalesPipelineDashboard = ({ onNavigate, onViewLead, onViewQuote, onViewCus
           subtitle={`${overview?.leads?.thisWeek || 0} this week`}
           icon="&#128101;"
           color={COLORS.primary}
-          onClick={() => onNavigate?.('leads')}
+          onClick={() => navigate('/leads')}
         />
         <MetricCard
           title="Lead to Quote"

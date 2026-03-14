@@ -1,9 +1,6 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { BrowserRouter, Routes, Route, NavLink, Navigate, useNavigate } from 'react-router-dom';
-import { cachedFetch } from './services/apiCache';
 import { ToastProvider, useToast, setToastRef } from './components/ui';
-import { SkeletonStats, SkeletonTable } from './components/ui';
-import { handleApiError } from './utils/errorHandler';
 import ErrorBoundary from './components/ErrorBoundary';
 import { MainLayout } from './components/layout';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
@@ -13,7 +10,7 @@ import { ThemeProvider, useTheme } from './contexts/ThemeContext';
 import ProtectedRoute from './components/auth/ProtectedRoute';
 import CommandPalette from './components/ui/CommandPalette';
 import GlobalSearch from './components/ui/GlobalSearch';
-import AIAssistant from './components/AIAssistant';
+import AssistantWidget from './components/AIAssistant/AssistantWidget';
 import './services/authGuards';
 
 import { authFetch } from './services/authFetch';
@@ -100,12 +97,107 @@ const AudienceSyncManager = React.lazy(() => import('./components/marketing/Audi
 // Team Commissions (Rules, Payroll, Export)
 const TeamCommissions = React.lazy(() => import('./components/commissions/TeamCommissions'));
 
+// Institutional Buyer Workflow
+const AccountsReceivableView = React.lazy(() => import('./components/institutional/AccountsReceivableView'));
+const InstitutionalAccountPage = React.lazy(() => import('./components/institutional/InstitutionalAccountPage'));
+
+// Real-Time Retail Dashboards
+const StoreManagerDashboard = React.lazy(() => import('./components/dashboard/StoreManagerDashboard'));
+const SalesRepDashboard = React.lazy(() => import('./components/dashboard/SalesRepDashboard'));
+
 // Sales Leaderboard loaded via SalesPerformanceHub
 
 // Customer Quote Acceptance (public)
 const CustomerQuoteAcceptance = React.lazy(() => import('./pages/CustomerQuoteAcceptance'));
 
 // Quick Search removed — use Ctrl+K command palette
+
+// TEMPORARY: Lunaris preview
+const QuotationEditorNew = React.lazy(() => import('./components/quotes/QuotationEditorNew'));
+const QuotationsListNew = React.lazy(() => import('./components/quotes/QuotationsListNew'));
+const LeadsMainNew = React.lazy(() => import('./components/leads/LeadsMainNew'));
+const LeadDetailNew = React.lazy(() => import('./components/leads/LeadDetailNew'));
+const LeadFormNew = React.lazy(() => import('./components/leads/LeadFormNew'));
+const CustomerManagementNew = React.lazy(() => import('./components/customers/CustomerManagementNew'));
+const LeadsAnalyticsNew = React.lazy(() => import('./components/leads/LeadsAnalyticsNew'));
+const SalesPipelineDashboardNew = React.lazy(() => import('./components/pipeline/SalesPipelineDashboardNew'));
+const POSAnalyticsNew = React.lazy(() => import('./components/analytics/POSAnalyticsNew'));
+const Customer360ViewNew = React.lazy(() => import('./components/customers/Customer360ViewNew'));
+const QuotationsDashboardNew = React.lazy(() => import('./components/quotes/QuotationsDashboardNew'));
+const InventoryDashboardNew = React.lazy(() => import('./components/inventory/InventoryDashboardNew'));
+const ProductCatalogNew = React.lazy(() => import('./components/inventory/ProductCatalogNew'));
+const PurchaseOrderDashboardNew = React.lazy(() => import('./components/orders/PurchaseOrderDashboardNew'));
+const InvoiceManagerNew = React.lazy(() => import('./components/invoices/InvoiceManagerNew'));
+const ProductDetailNew = React.lazy(() => import('./components/inventory/ProductDetailNew'));
+const DeliverySchedulerNew = React.lazy(() => import('./components/orders/DeliverySchedulerNew'));
+const UserManagementNew = React.lazy(() => import('./components/admin/UserManagementNew'));
+const NomenclatureAdminNew = React.lazy(() => import('./components/admin/NomenclatureAdminNew'));
+const MonitoringHubNew = React.lazy(() => import('./components/admin/MonitoringHubNew'));
+const SerialNumberRegistryNew = React.lazy(() => import('./components/inventory/SerialNumberRegistryNew'));
+const CustomerFinancingNew = React.lazy(() => import('./components/customers/CustomerFinancingNew'));
+const DataImportHubNew = React.lazy(() => import('./components/admin/DataImportHubNew'));
+const OrderEditModalNew = React.lazy(() => import('./components/orders/OrderEditModalNew'));
+const OrdersNew = React.lazy(() => import('./components/orders/OrdersNew'));
+const OrderDetailNew = React.lazy(() => import('./components/orders/OrderDetailNew'));
+const ConvertToQuoteNew = React.lazy(() => import('./components/leads/ConvertToQuoteNew'));
+const FraudRuleManagerNew = React.lazy(() => import('./components/admin/FraudRuleManagerNew'));
+const OrderAnalyticsNew = React.lazy(() => import('./components/orders/OrderAnalyticsNew'));
+const CustomerAnalyticsNew = React.lazy(() => import('./components/analytics/CustomerAnalyticsNew'));
+const ApprovalAnalyticsNew = React.lazy(() => import('./components/analytics/ApprovalAnalyticsNew'));
+const SpecialOrderTrackerNew = React.lazy(() => import('./components/orders/SpecialOrderTrackerNew'));
+const PreOrderManagerNew = React.lazy(() => import('./components/orders/PreOrderManagerNew'));
+const WorkOrderDashboardNew = React.lazy(() => import('./components/orders/WorkOrderDashboardNew'));
+const CustomerActivityTimelineNew = React.lazy(() => import('./components/customers/CustomerActivityTimelineNew'));
+const PendingAmendmentsNew = React.lazy(() => import('./components/orders/PendingAmendmentsNew'));
+const FulfillmentTrackerNew = React.lazy(() => import('./components/orders/FulfillmentTrackerNew'));
+const LeadQuickCaptureNew = React.lazy(() => import('./components/leads/LeadQuickCaptureNew'));
+const QuickActionCallNew = React.lazy(() => import('./components/leads/QuickActionCallNew'));
+const QuickActionEmailNew = React.lazy(() => import('./components/leads/QuickActionEmailNew'));
+const QuickActionNoteNew = React.lazy(() => import('./components/leads/QuickActionNoteNew'));
+const QuickActionStatusNew = React.lazy(() => import('./components/leads/QuickActionStatusNew'));
+const QuickActionFollowUpNew = React.lazy(() => import('./components/leads/QuickActionFollowUpNew'));
+const LostReasonModalNew = React.lazy(() => import('./components/leads/LostReasonModalNew'));
+const LeadImportStep1New = React.lazy(() => import('./components/leads/LeadImportStep1New'));
+const InvoiceDetailNew = React.lazy(() => import('./components/invoices/InvoiceDetailNew'));
+const ARDashboardNew = React.lazy(() => import('./components/invoices/ARDashboardNew'));
+const AutoInvoicePanelNew = React.lazy(() => import('./components/invoices/AutoInvoicePanelNew'));
+const CreditMemosNew = React.lazy(() => import('./components/invoices/CreditMemosNew'));
+const ReceivingWorkflowNew = React.lazy(() => import('./components/inventory/ReceivingWorkflowNew'));
+const CRMDashboardNew = React.lazy(() => import('./components/crm/CRMDashboardNew'));
+const CLVDashboardNew = React.lazy(() => import('./components/customers/CLVDashboardNew'));
+const ReportBuilderNew = React.lazy(() => import('./components/analytics/ReportBuilderNew'));
+const RevenueAnalyticsNew = React.lazy(() => import('./components/analytics/RevenueAnalyticsNew'));
+const SalesForecastNew = React.lazy(() => import('./components/analytics/SalesForecastNew'));
+const PipelineAnalyticsNew = React.lazy(() => import('./components/analytics/PipelineAnalyticsNew'));
+const SalesLeaderboardNew = React.lazy(() => import('./components/analytics/SalesLeaderboardNew'));
+const DiscountAnalyticsNew = React.lazy(() => import('./components/analytics/DiscountAnalyticsNew'));
+const LeadAnalyticsNew = React.lazy(() => import('./components/analytics/LeadAnalyticsNew'));
+const LeadSourceROINew = React.lazy(() => import('./components/analytics/LeadSourceROINew'));
+const ProductPerformanceNew = React.lazy(() => import('./components/analytics/ProductPerformanceNew'));
+const SalesOverviewNew = React.lazy(() => import('./components/analytics/SalesOverviewNew'));
+const CategoryInsightsNew = React.lazy(() => import('./components/analytics/CategoryInsightsNew'));
+const LeadsWidgetNew = React.lazy(() => import('./components/dashboard/LeadsWidgetNew'));
+const FraudDetectionDialogNew = React.lazy(() => import('./components/admin/FraudDetectionDialogNew'));
+const FraudDashboardNew = React.lazy(() => import('./components/admin/FraudDashboardNew'));
+const FraudAlertPanelNew = React.lazy(() => import('./components/admin/FraudAlertPanelNew'));
+const TransactionReviewQueueNew = React.lazy(() => import('./components/admin/TransactionReviewQueueNew'));
+const EmployeeFraudDashboardNew = React.lazy(() => import('./components/admin/EmployeeFraudDashboardNew'));
+const EmployeeRiskDetailNew = React.lazy(() => import('./components/admin/EmployeeRiskDetailNew'));
+const AdvancedPricingManagerNew = React.lazy(() => import('./components/pricing/AdvancedPricingManagerNew'));
+const ProductIntelligenceNew = React.lazy(() => import('./components/analytics/ProductIntelligenceNew'));
+const RecommendationRulesNew = React.lazy(() => import('./components/pricing/RecommendationRulesNew'));
+const ProductComparisonNew = React.lazy(() => import('./components/pricing/ProductComparisonNew'));
+const BulkPriceUpdateNew = React.lazy(() => import('./components/pricing/BulkPriceUpdateNew'));
+const CEProductImportNew = React.lazy(() => import('./components/inventory/CEProductImportNew'));
+const CommissionSplitModalNew = React.lazy(() => import('./components/commission/CommissionSplitModalNew'));
+const MarketplaceOverviewNew = React.lazy(() => import('./components/marketplace/MarketplaceOverviewNew'));
+const SellerPerformanceNew = React.lazy(() => import('./components/marketplace/SellerPerformanceNew'));
+const CommissionReportNew = React.lazy(() => import('./components/marketplace/CommissionReportNew'));
+const RuleAuditLogNew = React.lazy(() => import('./components/admin/RuleAuditLogNew'));
+const POSRuleAuditLogNew = React.lazy(() => import('./components/admin/POSRuleAuditLogNew'));
+const EditUserModalNew = React.lazy(() => import('./components/admin/EditUserModalNew'));
+const ErrorDetailDrawerNew = React.lazy(() => import('./components/admin/ErrorDetailDrawerNew'));
+const RuleEditorDrawerNew = React.lazy(() => import('./components/admin/RuleEditorDrawerNew'));
 
 // Leads / Inquiry Capture
 const LeadCapture = React.lazy(() => import('./components/leads/LeadCapture'));
@@ -121,287 +213,6 @@ const CompetitorPricingDev = process.env.NODE_ENV === 'development'
   ? React.lazy(() => import('./components/quotes/CompetitorPricingDev'))
   : null;
 
-// Dashboard component with real data and anti-flickering
-const Dashboard = () => {
-  const [stats, setStats] = React.useState(null);
-  const [leadStats, setLeadStats] = React.useState(null);
-  const [loading, setLoading] = React.useState(true);
-
-  // Anti-flickering refs - CRITICAL for preventing remount loops
-  const isMounted = React.useRef(true);
-  const loadedOnce = React.useRef(false);
-
-  React.useEffect(() => {
-    isMounted.current = true;
-
-    // Only fetch ONCE per component lifetime
-    if (!loadedOnce.current) {
-      loadedOnce.current = true;
-      fetchDashboardStats();
-      fetchLeadStats();
-    }
-
-    return () => {
-      isMounted.current = false;
-    };
-  }, []);
-
-  const fetchLeadStats = async () => {
-    try {
-      const token = localStorage.getItem('auth_token');
-      const response = await authFetch('/api/leads/stats', {
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
-      });
-      if (response.ok) {
-        const data = await response.json();
-        if (isMounted.current) {
-          setLeadStats(data.data || data);
-        }
-      }
-    } catch (error) {
-      console.error('Error fetching lead stats:', error);
-    }
-  };
-
-  const fetchDashboardStats = async () => {
-    if (!isMounted.current) return;
-
-    try {
-      const data = await cachedFetch('/api/dashboard/stats');
-
-      if (!isMounted.current) return;
-      setStats(data);
-    } catch (error) {
-      handleApiError(error, { context: 'Loading dashboard' });
-    } finally {
-      if (isMounted.current) {
-        setLoading(false);
-      }
-    }
-  };
-
-  const formatCurrency = (cents) => {
-    if (!cents) return '$0.00';
-    return `$${(cents / 100).toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',')}`;
-  };
-
-  const formatDate = (dateString) => {
-    if (!dateString) return 'N/A';
-    try {
-      const date = new Date(dateString);
-      if (isNaN(date.getTime())) return 'N/A';
-      return date.toLocaleDateString('en-CA', { month: 'short', day: 'numeric' });
-    } catch {
-      return 'N/A';
-    }
-  };
-
-  if (loading) {
-    return (
-      <div style={{ padding: '30px', fontFamily: 'system-ui, -apple-system, sans-serif', background: '#f9fafb', minHeight: 'calc(100vh - 140px)' }}>
-        <div style={{ maxWidth: '1400px', margin: '0 auto' }}>
-          {/* Header skeleton */}
-          <div style={{ marginBottom: '30px' }}>
-            <div style={{ background: '#e5e7eb', width: '200px', height: '32px', borderRadius: '8px', marginBottom: '8px' }} />
-            <div style={{ background: '#e5e7eb', width: '300px', height: '16px', borderRadius: '4px' }} />
-          </div>
-          {/* Stats skeleton */}
-          <div style={{ marginBottom: '30px' }}>
-            <SkeletonStats count={4} />
-          </div>
-          {/* Table skeleton */}
-          <div style={{ background: 'white', borderRadius: '12px', overflow: 'hidden', boxShadow: '0 1px 3px rgba(0,0,0,0.1)' }}>
-            <SkeletonTable rows={5} columns={4} />
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  return (
-    <div style={{ padding: '30px', fontFamily: 'system-ui, -apple-system, sans-serif', background: '#f9fafb', minHeight: 'calc(100vh - 140px)' }}>
-      <div style={{ maxWidth: '1400px', margin: '0 auto' }}>
-        <div style={{ marginBottom: '30px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <div>
-            <h1 style={{ margin: '0 0 8px 0', fontSize: '32px', fontWeight: 'bold', background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
-              📊 Dashboard
-            </h1>
-            <p style={{ margin: 0, color: '#6b7280', fontSize: '14px' }}>Real-time business overview and insights</p>
-          </div>
-          <button onClick={fetchDashboardStats} style={{ padding: '12px 24px', background: '#667eea', color: 'white', border: 'none', borderRadius: '8px', fontSize: '14px', fontWeight: '600', cursor: 'pointer' }}>
-            🔄 Refresh
-          </button>
-        </div>
-
-        {/* Key Metrics */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '20px', marginBottom: '30px' }}>
-          <div style={{ background: 'white', padding: '24px', borderRadius: '12px', boxShadow: '0 1px 3px rgba(0,0,0,0.1)', borderLeft: '4px solid #667eea' }}>
-            <div style={{ fontSize: '14px', color: '#6b7280', marginBottom: '8px', fontWeight: '500' }}>Total Quotes</div>
-            <div style={{ fontSize: '32px', fontWeight: 'bold', color: '#111827', marginBottom: '8px' }}>{stats?.quotes?.total_quotes || 0}</div>
-            <div style={{ fontSize: '12px', color: '#10b981' }}>+{stats?.quotes?.quotes_this_month || 0} this month</div>
-          </div>
-          <div style={{ background: 'white', padding: '24px', borderRadius: '12px', boxShadow: '0 1px 3px rgba(0,0,0,0.1)', borderLeft: '4px solid #10b981' }}>
-            <div style={{ fontSize: '14px', color: '#6b7280', marginBottom: '8px', fontWeight: '500' }}>Total Revenue</div>
-            <div style={{ fontSize: '32px', fontWeight: 'bold', color: '#111827', marginBottom: '8px' }}>{formatCurrency(stats?.quotes?.total_value)}</div>
-            <div style={{ fontSize: '12px', color: '#10b981' }}>{formatCurrency(stats?.quotes?.revenue_this_month)} this month</div>
-          </div>
-          <div style={{ background: 'white', padding: '24px', borderRadius: '12px', boxShadow: '0 1px 3px rgba(0,0,0,0.1)', borderLeft: '4px solid #f59e0b' }}>
-            <div style={{ fontSize: '14px', color: '#6b7280', marginBottom: '8px', fontWeight: '500' }}>Total Customers</div>
-            <div style={{ fontSize: '32px', fontWeight: 'bold', color: '#111827', marginBottom: '8px' }}>{stats?.customers?.total_customers || 0}</div>
-            <div style={{ fontSize: '12px', color: '#10b981' }}>+{stats?.customers?.new_this_month || 0} this month</div>
-          </div>
-          <div style={{ background: 'white', padding: '24px', borderRadius: '12px', boxShadow: '0 1px 3px rgba(0,0,0,0.1)', borderLeft: '4px solid #8b5cf6' }}>
-            <div style={{ fontSize: '14px', color: '#6b7280', marginBottom: '8px', fontWeight: '500' }}>Total Products</div>
-            <div style={{ fontSize: '32px', fontWeight: 'bold', color: '#111827', marginBottom: '8px' }}>{stats?.products?.total_products || 0}</div>
-            <div style={{ fontSize: '12px', color: '#6b7280' }}>In database</div>
-          </div>
-        </div>
-
-        {/* Quote Status Distribution */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: '16px', marginBottom: '30px' }}>
-          <div style={{ background: 'white', padding: '20px', borderRadius: '12px', boxShadow: '0 1px 3px rgba(0,0,0,0.1)', textAlign: 'center' }}>
-            <div style={{ fontSize: '28px', fontWeight: 'bold', color: '#6b7280', marginBottom: '4px' }}>{stats?.quotes?.draft_count || 0}</div>
-            <div style={{ fontSize: '13px', color: '#6b7280', fontWeight: '500' }}>Draft</div>
-          </div>
-          <div style={{ background: 'white', padding: '20px', borderRadius: '12px', boxShadow: '0 1px 3px rgba(0,0,0,0.1)', textAlign: 'center' }}>
-            <div style={{ fontSize: '28px', fontWeight: 'bold', color: '#3b82f6', marginBottom: '4px' }}>{stats?.quotes?.sent_count || 0}</div>
-            <div style={{ fontSize: '13px', color: '#6b7280', fontWeight: '500' }}>Sent</div>
-          </div>
-          <div style={{ background: 'white', padding: '20px', borderRadius: '12px', boxShadow: '0 1px 3px rgba(0,0,0,0.1)', textAlign: 'center' }}>
-            <div style={{ fontSize: '28px', fontWeight: 'bold', color: '#10b981', marginBottom: '4px' }}>{stats?.quotes?.won_count || 0}</div>
-            <div style={{ fontSize: '13px', color: '#6b7280', fontWeight: '500' }}>Won</div>
-          </div>
-          <div style={{ background: 'white', padding: '20px', borderRadius: '12px', boxShadow: '0 1px 3px rgba(0,0,0,0.1)', textAlign: 'center' }}>
-            <div style={{ fontSize: '28px', fontWeight: 'bold', color: '#ef4444', marginBottom: '4px' }}>{stats?.quotes?.lost_count || 0}</div>
-            <div style={{ fontSize: '13px', color: '#6b7280', fontWeight: '500' }}>Lost</div>
-          </div>
-        </div>
-
-        {/* Leads Overview */}
-        {leadStats && (
-          <div style={{ background: 'white', borderRadius: '12px', boxShadow: '0 1px 3px rgba(0,0,0,0.1)', padding: '24px', marginBottom: '30px' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-              <h3 style={{ margin: 0, fontSize: '18px', fontWeight: '600', color: '#111827' }}>📝 Leads Pipeline</h3>
-              <a href="/leads" style={{ fontSize: '14px', color: '#667eea', textDecoration: 'none', fontWeight: '500' }}>View All →</a>
-            </div>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(100px, 1fr))', gap: '16px' }}>
-              <div style={{ textAlign: 'center', padding: '12px', background: '#f0f9ff', borderRadius: '8px' }}>
-                <div style={{ fontSize: '24px', fontWeight: 'bold', color: '#0284c7' }}>{leadStats.total || 0}</div>
-                <div style={{ fontSize: '12px', color: '#6b7280', marginTop: '4px' }}>Total</div>
-              </div>
-              <div style={{ textAlign: 'center', padding: '12px', background: '#dbeafe', borderRadius: '8px' }}>
-                <div style={{ fontSize: '24px', fontWeight: 'bold', color: '#1d4ed8' }}>{leadStats.new_count || 0}</div>
-                <div style={{ fontSize: '12px', color: '#6b7280', marginTop: '4px' }}>New</div>
-              </div>
-              <div style={{ textAlign: 'center', padding: '12px', background: '#fef3c7', borderRadius: '8px' }}>
-                <div style={{ fontSize: '24px', fontWeight: 'bold', color: '#d97706' }}>{leadStats.hot_count || 0}</div>
-                <div style={{ fontSize: '12px', color: '#6b7280', marginTop: '4px' }}>Hot</div>
-              </div>
-              <div style={{ textAlign: 'center', padding: '12px', background: '#dcfce7', borderRadius: '8px' }}>
-                <div style={{ fontSize: '24px', fontWeight: 'bold', color: '#15803d' }}>{leadStats.qualified_count || 0}</div>
-                <div style={{ fontSize: '12px', color: '#6b7280', marginTop: '4px' }}>Qualified</div>
-              </div>
-              <div style={{ textAlign: 'center', padding: '12px', background: '#fef2f2', borderRadius: '8px' }}>
-                <div style={{ fontSize: '24px', fontWeight: 'bold', color: '#dc2626' }}>{(leadStats.follow_up_today || 0) + (leadStats.overdue_follow_ups || 0)}</div>
-                <div style={{ fontSize: '12px', color: '#6b7280', marginTop: '4px' }}>Follow-ups</div>
-              </div>
-              {leadStats.avg_response_hours != null && (
-                <div style={{ textAlign: 'center', padding: '12px', background: '#f0fdf4', borderRadius: '8px' }}>
-                  <div style={{ fontSize: '24px', fontWeight: 'bold', color: '#15803d' }}>
-                    {Number(leadStats.avg_response_hours) < 1
-                      ? `${Math.round(Number(leadStats.avg_response_hours) * 60)}m`
-                      : `${Number(leadStats.avg_response_hours).toFixed(1)}h`}
-                  </div>
-                  <div style={{ fontSize: '12px', color: '#6b7280', marginTop: '4px' }}>Avg Response</div>
-                </div>
-              )}
-            </div>
-          </div>
-        )}
-
-        <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '30px', marginBottom: '30px' }}>
-          {/* Recent Quotes */}
-          <div style={{ background: 'white', borderRadius: '12px', boxShadow: '0 1px 3px rgba(0,0,0,0.1)', overflow: 'hidden' }}>
-            <div style={{ padding: '20px', borderBottom: '1px solid #e5e7eb' }}>
-              <h3 style={{ margin: 0, fontSize: '18px', fontWeight: '600', color: '#111827' }}>📋 Recent Quotes</h3>
-            </div>
-            <div style={{ maxHeight: '400px', overflow: 'auto' }}>
-              {stats?.recentQuotes && stats.recentQuotes.length > 0 ? (
-                <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-                  <tbody>
-                    {stats.recentQuotes.map(quote => (
-                      <tr key={quote.id} style={{ borderBottom: '1px solid #f3f4f6' }}>
-                        <td style={{ padding: '16px' }}>
-                          <div style={{ fontWeight: '600', color: '#667eea', fontSize: '14px' }}>{quote.quotation_number}</div>
-                          <div style={{ fontSize: '12px', color: '#6b7280', marginTop: '4px' }}>{quote.customer_name || 'No customer'}</div>
-                        </td>
-                        <td style={{ padding: '16px', textAlign: 'right' }}>
-                          <div style={{ fontWeight: '600', color: '#111827', fontSize: '14px' }}>{formatCurrency(quote.total_amount)}</div>
-                          <div style={{ fontSize: '12px', color: '#6b7280', marginTop: '4px' }}>{formatDate(quote.created_at)}</div>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              ) : (
-                <div style={{ padding: '40px', textAlign: 'center', color: '#9ca3af' }}>No quotes yet</div>
-              )}
-            </div>
-          </div>
-
-          {/* Top Customers */}
-          <div style={{ background: 'white', borderRadius: '12px', boxShadow: '0 1px 3px rgba(0,0,0,0.1)', overflow: 'hidden' }}>
-            <div style={{ padding: '20px', borderBottom: '1px solid #e5e7eb' }}>
-              <h3 style={{ margin: 0, fontSize: '18px', fontWeight: '600', color: '#111827' }}>🏆 Top Customers</h3>
-            </div>
-            <div style={{ padding: '16px' }}>
-              {stats?.topCustomers && stats.topCustomers.length > 0 ? (
-                stats.topCustomers.map((customer, index) => (
-                  <div key={customer.id} style={{ padding: '12px', marginBottom: '8px', background: '#f9fafb', borderRadius: '8px' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start' }}>
-                      <div style={{ flex: 1 }}>
-                        <div style={{ fontWeight: '600', color: '#111827', fontSize: '14px' }}>#{index + 1} {customer.name}</div>
-                        <div style={{ fontSize: '12px', color: '#6b7280', marginTop: '4px' }}>{customer.quote_count} quotes</div>
-                      </div>
-                      <div style={{ textAlign: 'right' }}>
-                        <div style={{ fontWeight: '600', color: '#10b981', fontSize: '14px' }}>{formatCurrency(customer.total_spent)}</div>
-                      </div>
-                    </div>
-                  </div>
-                ))
-              ) : (
-                <div style={{ padding: '20px', textAlign: 'center', color: '#9ca3af', fontSize: '14px' }}>No data yet</div>
-              )}
-            </div>
-          </div>
-        </div>
-
-        {/* Revenue Trend */}
-        {stats?.revenueTrend && stats.revenueTrend.length > 0 && (
-          <div style={{ background: 'white', borderRadius: '12px', boxShadow: '0 1px 3px rgba(0,0,0,0.1)', padding: '24px' }}>
-            <h3 style={{ margin: '0 0 20px 0', fontSize: '18px', fontWeight: '600', color: '#111827' }}>📈 Revenue Trend (Last 6 Months)</h3>
-            <div style={{ display: 'flex', alignItems: 'flex-end', gap: '16px', height: '200px' }}>
-              {stats.revenueTrend.map((month, index) => {
-                const maxRevenue = Math.max(...stats.revenueTrend.map(m => parseFloat(m.revenue)));
-                const heightPercent = maxRevenue > 0 ? (parseFloat(month.revenue) / maxRevenue) * 100 : 0;
-                return (
-                  <div key={index} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'flex-end' }}>
-                    <div style={{ width: '100%', background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)', borderRadius: '8px 8px 0 0', height: `${heightPercent}%`, minHeight: '20px', position: 'relative', display: 'flex', alignItems: 'flex-start', justifyContent: 'center', padding: '8px 0' }}>
-                      <div style={{ fontSize: '11px', color: 'white', fontWeight: '600', textAlign: 'center' }}>{formatCurrency(month.revenue)}</div>
-                    </div>
-                    <div style={{ fontSize: '11px', color: '#6b7280', marginTop: '8px', textAlign: 'center', fontWeight: '500' }}>{month.month}</div>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        )}
-      </div>
-    </div>
-  );
-};
 
 // Main App with protected routes
 function App() {
@@ -527,8 +338,8 @@ function App() {
         onClose={() => setGlobalSearchOpen(false)}
       />
 
-      {/* AI Assistant Chat - Only show when authenticated */}
-      {isAuthenticated && <AIAssistant />}
+      {/* AI Business Assistant — surface-aware with tool use */}
+      {isAuthenticated && <AssistantWidget surface="quotation" />}
 
       <React.Suspense fallback={
       <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh', flexDirection: 'column', background: '#f9fafb' }}>
@@ -549,10 +360,100 @@ function App() {
         <Route path="/customer-portal/:token" element={<EnhancedCustomerPortal />} />
         <Route path="/quote/accept/:token" element={<CustomerQuoteAcceptance />} />
 
+        {/* TEMPORARY: Lunaris preview (no auth) */}
+        <Route path="/preview/quote-editor" element={<QuotationEditorNew />} />
+        <Route path="/preview/quotes-list" element={<QuotationsListNew />} />
+        <Route path="/preview/leads" element={<LeadsMainNew />} />
+        <Route path="/preview/lead-detail" element={<LeadDetailNew />} />
+        <Route path="/preview/lead-form" element={<LeadFormNew />} />
+        <Route path="/preview/customers" element={<CustomerManagementNew />} />
+        <Route path="/preview/leads-analytics" element={<LeadsAnalyticsNew />} />
+        <Route path="/preview/pipeline" element={<SalesPipelineDashboardNew />} />
+        <Route path="/preview/pos-analytics" element={<POSAnalyticsNew />} />
+        <Route path="/preview/customer-360" element={<Customer360ViewNew />} />
+        <Route path="/preview/quotations-dashboard" element={<QuotationsDashboardNew />} />
+        <Route path="/preview/inventory" element={<InventoryDashboardNew />} />
+        <Route path="/preview/product-catalog" element={<ProductCatalogNew />} />
+        <Route path="/preview/purchase-orders" element={<PurchaseOrderDashboardNew />} />
+        <Route path="/preview/invoices" element={<InvoiceManagerNew />} />
+        <Route path="/preview/invoice-detail" element={<InvoiceDetailNew invoiceId={1} onClose={() => {}} />} />
+        <Route path="/preview/product-detail" element={<ProductDetailNew productId={1} onClose={() => {}} />} />
+        <Route path="/preview/delivery-scheduler" element={<DeliverySchedulerNew />} />
+        <Route path="/preview/user-management" element={<UserManagementNew />} />
+        <Route path="/preview/nomenclature" element={<NomenclatureAdminNew />} />
+        <Route path="/preview/monitoring" element={<MonitoringHubNew />} />
+        <Route path="/preview/serial-registry" element={<SerialNumberRegistryNew />} />
+        <Route path="/preview/financing" element={<CustomerFinancingNew />} />
+        <Route path="/preview/data-import" element={<DataImportHubNew />} />
+        <Route path="/preview/orders" element={<OrdersNew />} />
+        <Route path="/preview/order-detail" element={<OrderDetailNew orderId={1} onClose={() => {}} />} />
+        <Route path="/preview/order-edit" element={<OrderEditModalNew />} />
+        <Route path="/preview/convert-quote" element={<ConvertToQuoteNew />} />
+        <Route path="/preview/fraud-rules" element={<FraudRuleManagerNew />} />
+        <Route path="/preview/order-analytics" element={<OrderAnalyticsNew />} />
+        <Route path="/preview/customer-analytics" element={<CustomerAnalyticsNew />} />
+        <Route path="/preview/approval-analytics" element={<ApprovalAnalyticsNew />} />
+        <Route path="/preview/special-orders" element={<SpecialOrderTrackerNew />} />
+        <Route path="/preview/pre-orders" element={<PreOrderManagerNew />} />
+        <Route path="/preview/work-orders" element={<WorkOrderDashboardNew />} />
+        <Route path="/preview/activity-timeline" element={<CustomerActivityTimelineNew />} />
+        <Route path="/preview/pending-amendments" element={<PendingAmendmentsNew />} />
+        <Route path="/preview/fulfillment-tracker" element={<FulfillmentTrackerNew />} />
+        <Route path="/preview/lead-quick-capture" element={<LeadQuickCaptureNew />} />
+        <Route path="/preview/call-log" element={<QuickActionCallNew />} />
+        <Route path="/preview/email-log" element={<QuickActionEmailNew />} />
+        <Route path="/preview/add-note" element={<QuickActionNoteNew />} />
+        <Route path="/preview/status-change" element={<QuickActionStatusNew />} />
+        <Route path="/preview/follow-up" element={<QuickActionFollowUpNew />} />
+        <Route path="/preview/lost-reason" element={<LostReasonModalNew />} />
+        <Route path="/preview/lead-import" element={<LeadImportStep1New />} />
+        <Route path="/preview/ar-dashboard" element={<ARDashboardNew />} />
+        <Route path="/preview/auto-invoice" element={<AutoInvoicePanelNew />} />
+        <Route path="/preview/credit-memos" element={<CreditMemosNew />} />
+        <Route path="/preview/receiving" element={<ReceivingWorkflowNew />} />
+        <Route path="/preview/crm-dashboard" element={<CRMDashboardNew />} />
+        <Route path="/preview/clv-dashboard" element={<CLVDashboardNew />} />
+        <Route path="/preview/report-builder" element={<ReportBuilderNew />} />
+        <Route path="/preview/revenue-analytics" element={<RevenueAnalyticsNew />} />
+        <Route path="/preview/sales-forecast" element={<SalesForecastNew />} />
+        <Route path="/preview/pipeline-analytics" element={<PipelineAnalyticsNew />} />
+        <Route path="/preview/sales-pipeline-dashboard" element={<SalesPipelineDashboardNew />} />
+        <Route path="/preview/leaderboard" element={<SalesLeaderboardNew />} />
+        <Route path="/preview/discount-analytics" element={<DiscountAnalyticsNew />} />
+        <Route path="/preview/lead-analytics" element={<LeadAnalyticsNew />} />
+        <Route path="/preview/lead-source-roi" element={<LeadSourceROINew />} />
+        <Route path="/preview/product-performance" element={<ProductPerformanceNew />} />
+        <Route path="/preview/sales-overview" element={<SalesOverviewNew />} />
+        <Route path="/preview/category-insights" element={<CategoryInsightsNew />} />
+        <Route path="/preview/leads-widget" element={<LeadsWidgetNew />} />
+        <Route path="/preview/fraud-detection" element={<FraudDetectionDialogNew />} />
+        <Route path="/preview/fraud-dashboard" element={<FraudDashboardNew />} />
+        <Route path="/preview/fraud-alerts" element={<FraudAlertPanelNew />} />
+        <Route path="/preview/review-queue" element={<TransactionReviewQueueNew />} />
+        <Route path="/preview/employee-fraud" element={<EmployeeFraudDashboardNew />} />
+        <Route path="/preview/employee-risk" element={<EmployeeRiskDetailNew />} />
+        <Route path="/preview/advanced-pricing" element={<AdvancedPricingManagerNew />} />
+        <Route path="/preview/product-intelligence" element={<ProductIntelligenceNew />} />
+        <Route path="/preview/recommendation-rules" element={<RecommendationRulesNew />} />
+        <Route path="/preview/product-comparison" element={<ProductComparisonNew />} />
+        <Route path="/preview/bulk-price-update" element={<BulkPriceUpdateNew />} />
+        <Route path="/preview/ce-import" element={<CEProductImportNew />} />
+        <Route path="/preview/commission-split" element={<CommissionSplitModalNew />} />
+        <Route path="/preview/marketplace-overview" element={<MarketplaceOverviewNew />} />
+        <Route path="/preview/seller-performance" element={<SellerPerformanceNew />} />
+        <Route path="/preview/commission-report" element={<CommissionReportNew />} />
+        <Route path="/preview/rule-audit-log" element={<RuleAuditLogNew />} />
+        <Route path="/preview/pos-rule-audit" element={<POSRuleAuditLogNew />} />
+        <Route path="/preview/edit-user" element={<EditUserModalNew />} />
+        <Route path="/preview/error-detail" element={<ErrorDetailDrawerNew />} />
+        <Route path="/preview/rule-editor" element={<RuleEditorDrawerNew />} />
+
         {/* Protected routes - wrapped in MainLayout */}
         <Route element={<ProtectedRoute><MainLayout /></ProtectedRoute>}>
           <Route path="/" element={<Navigate to="/quotes" replace />} />
-          <Route path="/dashboard" element={<Dashboard />} />
+          <Route path="/dashboard" element={<ExecutiveDashboard />} />
+          <Route path="/retail-dashboard" element={<ProtectedRoute requiredRoles={['admin', 'manager']}><StoreManagerDashboard /></ProtectedRoute>} />
+          <Route path="/my-dashboard" element={<SalesRepDashboard />} />
           <Route path="/customers" element={<CustomerManagement />} />
           <Route path="/customers/:id" element={<CustomerManagement />} />
           <Route path="/products" element={<ProductManagement />} />
@@ -565,7 +466,6 @@ function App() {
           <Route path="/purchasing-intelligence" element={<PurchasingIntelligence />} />
           <Route path="/sales-performance" element={<SalesPerformanceHub />} />
           <Route path="/report-builder" element={<ReportBuilder />} />
-          <Route path="/executive-dashboard" element={<ExecutiveDashboard />} />
           <Route path="/training-center" element={<TrainingCenter />} />
           <Route path="/marketplace/*" element={
             <ProtectedRoute requiredRoles={['admin', 'manager']}>
@@ -585,7 +485,10 @@ function App() {
           <Route path="/features/*" element={<PowerFeatures2026 />} />
           <Route path="/search" element={<SearchResults />} />
           {/* Enterprise Phase 2 Routes */}
+          <Route path="/orders" element={<OrdersNew />} />
+          <Route path="/orders/:id" element={<OrdersNew />} />
           <Route path="/invoices" element={<InvoiceManager />} />
+          <Route path="/invoices/ar" element={<ARDashboardNew />} />
           <Route path="/inventory" element={<InventoryDashboard />} />
           <Route path="/quote-expiry" element={<QuoteExpiryManager />} />
           {/* Advanced Pricing */}
@@ -668,6 +571,14 @@ function App() {
           <Route path="/surveys" element={<SurveyDashboard />} />
           <Route path="/catalog-exports" element={<CatalogExportManager />} />
           <Route path="/audience-sync" element={<AudienceSyncManager />} />
+
+          {/* Institutional Buyer Workflow */}
+          <Route path="/institutional/ar" element={
+            <ProtectedRoute requiredRoles={['admin', 'manager']}>
+              <AccountsReceivableView />
+            </ProtectedRoute>
+          } />
+          <Route path="/institutional/:profileId" element={<InstitutionalAccountPage />} />
 
           {/* Dev-only routes */}
           {process.env.NODE_ENV === 'development' && CompetitorPricingDev && (

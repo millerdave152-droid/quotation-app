@@ -1,13 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { authFetch } from '../../services/authFetch';
 import {
-  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
-  LineChart, Line, AreaChart, Area, PieChart, Pie, Cell
+  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
+  AreaChart, Area, PieChart, Pie, Cell
 } from 'recharts';
 
-const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:3001';
+const API_URL = process.env.REACT_APP_API_URL || '';
 
-// Helper for API calls
 const api = {
   get: async (url) => {
     const response = await authFetch(`${API_URL}${url}`);
@@ -16,6 +15,16 @@ const api = {
 };
 
 const COLORS = ['#4CAF50', '#2196F3', '#FF9800', '#9C27B0', '#F44336', '#00BCD4'];
+
+// Shared styles
+const card = {
+  background: 'white',
+  borderRadius: '12px',
+  padding: '24px',
+  boxShadow: '0 1px 3px rgba(0,0,0,0.08)'
+};
+const sectionTitle = { margin: '0 0 16px', fontSize: '16px', fontWeight: '600', color: '#1f2937' };
+const emptyState = { display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#9ca3af', padding: '40px 0' };
 
 const ExecutiveDashboard = () => {
   const [loading, setLoading] = useState(true);
@@ -63,7 +72,7 @@ const ExecutiveDashboard = () => {
   };
 
   const formatCurrency = (value) => {
-    if (value === null || value === undefined) return '-';
+    if (value === null || value === undefined || isNaN(value)) return '-';
     return new Intl.NumberFormat('en-US', {
       style: 'currency',
       currency: 'USD',
@@ -72,42 +81,61 @@ const ExecutiveDashboard = () => {
     }).format(value);
   };
 
-  const formatPercent = (value) => {
-    if (value === null || value === undefined) return '-';
-    return `${value.toFixed(1)}%`;
-  };
-
-  // KPI Card Component
-  const KPICard = ({ title, value, change, changeLabel, target, icon, color = 'blue' }) => {
-    const colors = {
-      blue: 'bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800',
-      green: 'bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-800',
-      yellow: 'bg-yellow-50 dark:bg-yellow-900/20 border-yellow-200 dark:border-yellow-800',
-      red: 'bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800',
-      purple: 'bg-purple-50 dark:bg-purple-900/20 border-purple-200 dark:border-purple-800'
-    };
-
+  // KPI Card
+  const KPICard = ({ title, value, change, changeLabel, target, icon, color = '#3b82f6' }) => {
     const isPositive = change >= 0;
-
     return (
-      <div className={`rounded-xl border p-6 ${colors[color]}`}>
-        <div className="flex items-center justify-between">
-          <span className="text-sm font-medium text-gray-600 dark:text-gray-400">{title}</span>
-          {icon && <span className="text-2xl">{icon}</span>}
+      <div style={{
+        background: 'white',
+        borderRadius: '12px',
+        padding: '20px',
+        borderLeft: `4px solid ${color}`,
+        boxShadow: '0 1px 3px rgba(0,0,0,0.08)',
+        position: 'relative'
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <span style={{ fontSize: '13px', fontWeight: '500', color: '#6b7280' }}>{title}</span>
+          {icon && (
+            <div style={{
+              width: '36px',
+              height: '36px',
+              borderRadius: '10px',
+              background: `${color}14`,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              flexShrink: 0
+            }}>
+              {icon}
+            </div>
+          )}
         </div>
-        <div className="mt-2 flex items-end justify-between">
+        <div style={{ marginTop: '8px', display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between' }}>
           <div>
-            <div className="text-3xl font-bold text-gray-900 dark:text-white">{value}</div>
+            <div style={{ fontSize: '28px', fontWeight: '700', color: '#1f2937' }}>{value}</div>
             {change !== undefined && (
-              <div className={`text-sm mt-1 ${isPositive ? 'text-green-600' : 'text-red-600'}`}>
-                {isPositive ? '↑' : '↓'} {Math.abs(change).toFixed(1)}% {changeLabel}
+              <div style={{
+                fontSize: '12px',
+                marginTop: '4px',
+                fontWeight: '600',
+                color: isPositive ? '#22c55e' : '#ef4444',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '4px'
+              }}>
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                  {isPositive
+                    ? <polyline points="18 15 12 9 6 15"/>
+                    : <polyline points="6 9 12 15 18 9"/>}
+                </svg>
+                {Math.abs(change).toFixed(1)}% {changeLabel}
               </div>
             )}
           </div>
           {target && (
-            <div className="text-right">
-              <div className="text-xs text-gray-500 dark:text-gray-400">Target</div>
-              <div className="text-sm font-medium text-gray-700 dark:text-gray-300">{target}</div>
+            <div style={{ textAlign: 'right' }}>
+              <div style={{ fontSize: '11px', color: '#9ca3af' }}>Target</div>
+              <div style={{ fontSize: '13px', fontWeight: '600', color: '#374151' }}>{target}</div>
             </div>
           )}
         </div>
@@ -115,39 +143,27 @@ const ExecutiveDashboard = () => {
     );
   };
 
-  // Progress Ring Component
+  // Progress Ring
   const ProgressRing = ({ value, max, label, color = '#4CAF50' }) => {
     const percentage = max > 0 ? (value / max) * 100 : 0;
     const circumference = 2 * Math.PI * 45;
     const strokeDashoffset = circumference - (percentage / 100) * circumference;
 
     return (
-      <div className="flex flex-col items-center">
-        <svg className="w-28 h-28 transform -rotate-90">
+      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+        <svg width="112" height="112" style={{ transform: 'rotate(-90deg)' }}>
+          <circle cx="56" cy="56" r="45" stroke="#e5e7eb" strokeWidth="10" fill="none" />
           <circle
-            cx="56"
-            cy="56"
-            r="45"
-            stroke="#e5e7eb"
-            strokeWidth="10"
-            fill="none"
-            className="dark:stroke-gray-700"
-          />
-          <circle
-            cx="56"
-            cy="56"
-            r="45"
-            stroke={color}
-            strokeWidth="10"
-            fill="none"
+            cx="56" cy="56" r="45"
+            stroke={color} strokeWidth="10" fill="none"
             strokeDasharray={circumference}
             strokeDashoffset={strokeDashoffset}
             strokeLinecap="round"
           />
         </svg>
-        <div className="text-center -mt-16 mb-4">
-          <div className="text-2xl font-bold text-gray-900 dark:text-white">{percentage.toFixed(0)}%</div>
-          <div className="text-xs text-gray-500 dark:text-gray-400">{label}</div>
+        <div style={{ textAlign: 'center', marginTop: '-64px', marginBottom: '16px' }}>
+          <div style={{ fontSize: '22px', fontWeight: '700', color: '#1f2937' }}>{percentage.toFixed(0)}%</div>
+          <div style={{ fontSize: '11px', color: '#9ca3af' }}>{label}</div>
         </div>
       </div>
     );
@@ -155,36 +171,70 @@ const ExecutiveDashboard = () => {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-screen">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '400px', color: '#6b7280' }}>
+        <div style={{ textAlign: 'center' }}>
+          <div style={{
+            width: '40px', height: '40px',
+            border: '3px solid #e5e7eb', borderTopColor: '#3b82f6',
+            borderRadius: '50%', animation: 'spin 1s linear infinite',
+            margin: '0 auto 16px'
+          }} />
+          Loading executive dashboard...
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="p-6 space-y-6 bg-gray-50 dark:bg-gray-900 min-h-screen">
+    <div style={{ padding: '24px', maxWidth: '1600px', margin: '0 auto' }}>
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div>
-          <h1 className="text-3xl font-bold text-gray-900 dark:text-white">Executive Dashboard</h1>
-          <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-            Real-time business performance metrics
-          </p>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
+          <div style={{
+            width: '38px', height: '38px', borderRadius: '10px',
+            background: 'linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            boxShadow: '0 3px 10px rgba(59, 130, 246, 0.25)', flexShrink: 0
+          }}>
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M18 20V10"/><path d="M12 20V4"/><path d="M6 20v-6"/>
+            </svg>
+          </div>
+          <div>
+            <h1 style={{ margin: 0, fontSize: '24px', fontWeight: '700', color: '#1f2937' }}>Dashboard</h1>
+            <p style={{ margin: '2px 0 0', color: '#6b7280', fontSize: '13px' }}>
+              Real-time business performance metrics
+            </p>
+          </div>
         </div>
         <button
           onClick={refreshData}
           disabled={refreshing}
-          className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors flex items-center gap-2"
+          style={{
+            padding: '8px 14px',
+            background: '#3b82f6',
+            color: 'white',
+            border: 'none',
+            borderRadius: '6px',
+            fontSize: '13px',
+            fontWeight: '500',
+            cursor: refreshing ? 'wait' : 'pointer',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '6px',
+            opacity: refreshing ? 0.7 : 1
+          }}
         >
-          <svg className={`w-4 h-4 ${refreshing ? 'animate-spin' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={refreshing ? { animation: 'spin 1s linear infinite' } : {}}>
+            <polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/>
+            <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/>
           </svg>
           {refreshing ? 'Refreshing...' : 'Refresh'}
         </button>
       </div>
 
       {/* Revenue KPIs */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '16px', marginBottom: '24px' }}>
         <KPICard
           title="Revenue (30-Day Forecast)"
           value={forecastData?.forecast?.forecast30
@@ -192,8 +242,8 @@ const ExecutiveDashboard = () => {
             : '-'}
           change={forecastData?.forecast?.forecast30?.growthRate}
           changeLabel="vs last period"
-          icon="💰"
-          color="green"
+          icon={<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#22c55e" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>}
+          color="#22c55e"
         />
         <KPICard
           title="Pipeline Value"
@@ -203,34 +253,32 @@ const ExecutiveDashboard = () => {
           target={forecastData?.pipeline?.totalValue
             ? formatCurrency(forecastData.pipeline.totalValue)
             : undefined}
-          icon="📊"
-          color="blue"
+          icon={<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#3b82f6" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>}
+          color="#3b82f6"
         />
         <KPICard
           title="Win Rate"
           value={pipelineData?.stages?.find(s => s.stage === 'WON')?.actualWinRate
             ? `${pipelineData.stages.find(s => s.stage === 'WON').actualWinRate}%`
             : '-'}
-          icon="🎯"
-          color="purple"
+          icon={<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#8b5cf6" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></svg>}
+          color="#8b5cf6"
         />
         <KPICard
           title="Active Quotes"
           value={pipelineData?.stages
             ?.filter(s => !['WON', 'LOST', 'EXPIRED'].includes(s.stage))
             .reduce((sum, s) => sum + s.count, 0) || '-'}
-          icon="📝"
-          color="yellow"
+          icon={<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#f59e0b" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>}
+          color="#f59e0b"
         />
       </div>
 
       {/* Main Charts Row */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '24px', marginBottom: '24px' }}>
         {/* Revenue Forecast Chart */}
-        <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
-          <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
-            Revenue Forecast
-          </h3>
+        <div style={card}>
+          <h3 style={sectionTitle}>Revenue Forecast</h3>
           {forecastData?.forecast?.historicalData?.length > 0 ? (
             <ResponsiveContainer width="100%" height={250}>
               <AreaChart data={forecastData.forecast.historicalData.slice(-30)}>
@@ -240,35 +288,30 @@ const ExecutiveDashboard = () => {
                     <stop offset="95%" stopColor="#4CAF50" stopOpacity={0.1}/>
                   </linearGradient>
                 </defs>
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="date" tickFormatter={(d) => new Date(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} />
-                <YAxis tickFormatter={(v) => `$${(v / 1000).toFixed(0)}k`} />
-                <Tooltip formatter={(v) => formatCurrency(v)} />
+                <CartesianGrid strokeDasharray="3 3" stroke="#f3f4f6" />
+                <XAxis dataKey="date" tickFormatter={(d) => new Date(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} stroke="#9ca3af" fontSize={12} />
+                <YAxis tickFormatter={(v) => `$${(v / 1000).toFixed(0)}k`} stroke="#9ca3af" fontSize={12} />
+                <Tooltip formatter={(v) => formatCurrency(v)} contentStyle={{ borderRadius: '8px', border: '1px solid #e5e7eb' }} />
                 <Area type="monotone" dataKey="revenue" stroke="#4CAF50" fillOpacity={1} fill="url(#colorRevenue)" />
               </AreaChart>
             </ResponsiveContainer>
           ) : (
-            <div className="h-64 flex items-center justify-center text-gray-500 dark:text-gray-400">
-              No forecast data available
-            </div>
+            <div style={{ ...emptyState, height: '250px' }}>No forecast data available</div>
           )}
         </div>
 
         {/* Pipeline Stage Distribution */}
-        <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
-          <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
-            Pipeline by Stage
-          </h3>
+        <div style={card}>
+          <h3 style={sectionTitle}>Pipeline by Stage</h3>
           {pipelineData?.stages?.length > 0 ? (
-            <div className="flex items-center">
+            <div style={{ display: 'flex', alignItems: 'center' }}>
               <ResponsiveContainer width="50%" height={250}>
                 <PieChart>
                   <Pie
                     data={pipelineData.stages.filter(s => !['WON', 'LOST', 'EXPIRED'].includes(s.stage))}
                     dataKey="value"
                     nameKey="stage"
-                    cx="50%"
-                    cy="50%"
+                    cx="50%" cy="50%"
                     outerRadius={80}
                     label={({ stage }) => stage}
                   >
@@ -276,19 +319,19 @@ const ExecutiveDashboard = () => {
                       <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                     ))}
                   </Pie>
-                  <Tooltip formatter={(v) => formatCurrency(v)} />
+                  <Tooltip formatter={(v) => formatCurrency(v)} contentStyle={{ borderRadius: '8px', border: '1px solid #e5e7eb' }} />
                 </PieChart>
               </ResponsiveContainer>
-              <div className="w-1/2 space-y-2">
+              <div style={{ width: '50%', display: 'flex', flexDirection: 'column', gap: '8px' }}>
                 {pipelineData.stages
                   .filter(s => !['WON', 'LOST', 'EXPIRED'].includes(s.stage))
                   .map((stage, idx) => (
-                    <div key={stage.stage} className="flex items-center justify-between text-sm">
-                      <div className="flex items-center gap-2">
-                        <div className="w-3 h-3 rounded-full" style={{ backgroundColor: COLORS[idx % COLORS.length] }} />
-                        <span className="text-gray-600 dark:text-gray-400">{stage.stage}</span>
+                    <div key={stage.stage} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: '13px' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <div style={{ width: '10px', height: '10px', borderRadius: '50%', background: COLORS[idx % COLORS.length] }} />
+                        <span style={{ color: '#6b7280' }}>{stage.stage}</span>
                       </div>
-                      <span className="font-medium text-gray-900 dark:text-white">
+                      <span style={{ fontWeight: '600', color: '#1f2937' }}>
                         {formatCurrency(stage.value / 100)}
                       </span>
                     </div>
@@ -296,82 +339,71 @@ const ExecutiveDashboard = () => {
               </div>
             </div>
           ) : (
-            <div className="h-64 flex items-center justify-center text-gray-500 dark:text-gray-400">
-              No pipeline data available
-            </div>
+            <div style={{ ...emptyState, height: '250px' }}>No pipeline data available</div>
           )}
         </div>
       </div>
 
       {/* Second Row */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '24px', marginBottom: '24px' }}>
         {/* Top Customers by CLV */}
-        <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
-          <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
-            Top Customers by CLV
-          </h3>
+        <div style={card}>
+          <h3 style={sectionTitle}>Top Customers by CLV</h3>
           {topCustomers.length > 0 ? (
-            <div className="space-y-4">
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
               {topCustomers.map((customer, idx) => (
-                <div key={customer.id || idx} className="flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <div className={`w-8 h-8 rounded-full flex items-center justify-center text-white text-sm font-bold ${
-                      idx === 0 ? 'bg-yellow-500' : idx === 1 ? 'bg-gray-400' : idx === 2 ? 'bg-amber-700' : 'bg-gray-300'
-                    }`}>
+                <div key={customer.id || idx} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                    <div style={{
+                      width: '28px', height: '28px', borderRadius: '50%',
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      color: 'white', fontSize: '12px', fontWeight: '700',
+                      background: idx === 0 ? '#f59e0b' : idx === 1 ? '#9ca3af' : idx === 2 ? '#cd7f32' : '#e5e7eb'
+                    }}>
                       {idx + 1}
                     </div>
                     <div>
-                      <div className="font-medium text-gray-900 dark:text-white text-sm">{customer.name}</div>
-                      <div className="text-xs text-gray-500 dark:text-gray-400">
+                      <div style={{ fontWeight: '600', color: '#1f2937', fontSize: '13px' }}>{customer.name}</div>
+                      <div style={{ fontSize: '11px', color: '#9ca3af' }}>
                         {customer.clv_segment || 'Standard'} tier
                       </div>
                     </div>
                   </div>
-                  <div className="text-right">
-                    <div className="font-medium text-gray-900 dark:text-white">
-                      {formatCurrency(customer.clv_score || customer.total_spent_cents / 100)}
-                    </div>
+                  <div style={{ fontWeight: '600', color: '#1f2937', fontSize: '13px' }}>
+                    {formatCurrency(customer.clv_score || (customer.total_spent_cents ? customer.total_spent_cents / 100 : 0))}
                   </div>
                 </div>
               ))}
             </div>
           ) : (
-            <div className="h-48 flex items-center justify-center text-gray-500 dark:text-gray-400">
-              No customer data available
-            </div>
+            <div style={{ ...emptyState, height: '200px' }}>No customer data available</div>
           )}
         </div>
 
         {/* Sales Team Performance */}
-        <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
-          <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
-            Sales Team Performance
-          </h3>
+        <div style={card}>
+          <h3 style={sectionTitle}>Sales Team Performance</h3>
           {salesVelocity?.salespeople?.length > 0 ? (
             <ResponsiveContainer width="100%" height={200}>
               <BarChart data={salesVelocity.salespeople.slice(0, 5)} layout="vertical">
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis type="number" tickFormatter={(v) => `$${(v / 1000).toFixed(0)}k`} />
-                <YAxis type="category" dataKey="salesperson" width={80} />
-                <Tooltip formatter={(v) => formatCurrency(v)} />
+                <CartesianGrid strokeDasharray="3 3" stroke="#f3f4f6" />
+                <XAxis type="number" tickFormatter={(v) => `$${(v / 1000).toFixed(0)}k`} stroke="#9ca3af" fontSize={12} />
+                <YAxis type="category" dataKey="salesperson" width={80} stroke="#9ca3af" fontSize={12} />
+                <Tooltip formatter={(v) => formatCurrency(v)} contentStyle={{ borderRadius: '8px', border: '1px solid #e5e7eb' }} />
                 <Bar dataKey="totalRevenue" fill="#4CAF50" radius={[0, 4, 4, 0]} />
               </BarChart>
             </ResponsiveContainer>
           ) : (
-            <div className="h-48 flex items-center justify-center text-gray-500 dark:text-gray-400">
-              No sales data available
-            </div>
+            <div style={{ ...emptyState, height: '200px' }}>No sales data available</div>
           )}
         </div>
 
         {/* Inventory & AR Health */}
-        <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
-          <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
-            Health Indicators
-          </h3>
-          <div className="grid grid-cols-2 gap-4">
+        <div style={card}>
+          <h3 style={sectionTitle}>Health Indicators</h3>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
             <ProgressRing
-              value={inventoryHealth?.inStock || 85}
+              value={inventoryHealth?.healthy?.percentage || 85}
               max={100}
               label="In Stock"
               color="#4CAF50"
@@ -383,60 +415,65 @@ const ExecutiveDashboard = () => {
               color="#2196F3"
             />
           </div>
-          <div className="mt-4 space-y-2">
-            <div className="flex justify-between text-sm">
-              <span className="text-gray-500 dark:text-gray-400">Low Stock Items</span>
-              <span className="font-medium text-yellow-600">{inventoryHealth?.lowStock || 0}</span>
-            </div>
-            <div className="flex justify-between text-sm">
-              <span className="text-gray-500 dark:text-gray-400">Out of Stock</span>
-              <span className="font-medium text-red-600">{inventoryHealth?.outOfStock || 0}</span>
-            </div>
-            <div className="flex justify-between text-sm">
-              <span className="text-gray-500 dark:text-gray-400">Overdue Invoices</span>
-              <span className="font-medium text-red-600">{arAging?.summary?.overdueCount || 0}</span>
-            </div>
+          <div style={{ marginTop: '16px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
+            {[
+              { label: 'Low Stock Items', value: inventoryHealth?.low?.count || 0, color: '#f59e0b' },
+              { label: 'Out of Stock', value: inventoryHealth?.outOfStock?.count || 0, color: '#ef4444' },
+              { label: 'Overdue Invoices', value: arAging?.summary?.overdueCount || 0, color: '#ef4444' }
+            ].map(item => (
+              <div key={item.label} style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px' }}>
+                <span style={{ color: '#9ca3af' }}>{item.label}</span>
+                <span style={{ fontWeight: '600', color: item.color }}>{item.value}</span>
+              </div>
+            ))}
           </div>
         </div>
       </div>
 
       {/* Alerts Section */}
-      <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
-        <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
-          Action Required
-        </h3>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <div className="p-4 bg-red-50 dark:bg-red-900/20 rounded-lg border border-red-200 dark:border-red-800">
-            <div className="flex items-center gap-2 text-red-700 dark:text-red-400 font-medium">
-              <span className="text-lg">⚠️</span>
+      <div style={card}>
+        <h3 style={sectionTitle}>Action Required</h3>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '16px' }}>
+          {/* Expiring Quotes */}
+          <div style={{ padding: '16px', background: '#fef2f2', borderRadius: '8px', border: '1px solid #fecaca' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#991b1b', fontWeight: '600', fontSize: '13px' }}>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#ef4444" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>
+              </svg>
               <span>Expiring Quotes</span>
             </div>
-            <div className="mt-2 text-2xl font-bold text-red-600">
+            <div style={{ marginTop: '8px', fontSize: '24px', fontWeight: '700', color: '#ef4444' }}>
               {pipelineData?.stages?.find(s => s.stage === 'SENT')?.count || 0}
             </div>
-            <div className="text-sm text-red-600 dark:text-red-400">quotes need follow-up</div>
+            <div style={{ fontSize: '12px', color: '#ef4444' }}>quotes need follow-up</div>
           </div>
 
-          <div className="p-4 bg-yellow-50 dark:bg-yellow-900/20 rounded-lg border border-yellow-200 dark:border-yellow-800">
-            <div className="flex items-center gap-2 text-yellow-700 dark:text-yellow-400 font-medium">
-              <span className="text-lg">📦</span>
+          {/* Low Inventory */}
+          <div style={{ padding: '16px', background: '#fefce8', borderRadius: '8px', border: '1px solid #fef08a' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#a16207', fontWeight: '600', fontSize: '13px' }}>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#f59e0b" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <line x1="16.5" y1="9.4" x2="7.5" y2="4.21"/><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/>
+              </svg>
               <span>Low Inventory</span>
             </div>
-            <div className="mt-2 text-2xl font-bold text-yellow-600">
+            <div style={{ marginTop: '8px', fontSize: '24px', fontWeight: '700', color: '#f59e0b' }}>
               {inventoryHealth?.lowStock || 0}
             </div>
-            <div className="text-sm text-yellow-600 dark:text-yellow-400">products need reorder</div>
+            <div style={{ fontSize: '12px', color: '#a16207' }}>products need reorder</div>
           </div>
 
-          <div className="p-4 bg-orange-50 dark:bg-orange-900/20 rounded-lg border border-orange-200 dark:border-orange-800">
-            <div className="flex items-center gap-2 text-orange-700 dark:text-orange-400 font-medium">
-              <span className="text-lg">💳</span>
+          {/* Overdue Payments */}
+          <div style={{ padding: '16px', background: '#fff7ed', borderRadius: '8px', border: '1px solid #fed7aa' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#c2410c', fontWeight: '600', fontSize: '13px' }}>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#f97316" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <rect x="1" y="4" width="22" height="16" rx="2" ry="2"/><line x1="1" y1="10" x2="23" y2="10"/>
+              </svg>
               <span>Overdue Payments</span>
             </div>
-            <div className="mt-2 text-2xl font-bold text-orange-600">
+            <div style={{ marginTop: '8px', fontSize: '24px', fontWeight: '700', color: '#f97316' }}>
               {formatCurrency(arAging?.summary?.overdueAmount || 0)}
             </div>
-            <div className="text-sm text-orange-600 dark:text-orange-400">needs collection</div>
+            <div style={{ fontSize: '12px', color: '#c2410c' }}>needs collection</div>
           </div>
         </div>
       </div>

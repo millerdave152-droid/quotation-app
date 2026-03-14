@@ -27,7 +27,6 @@ import {
   Settings,
   TrendingUp,
   FileBarChart,
-  PieChart,
   Tag,
   ClipboardCheck,
   Truck,
@@ -37,7 +36,7 @@ import {
   ListChecks
 } from 'lucide-react';
 
-const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:3001';
+const API_URL = process.env.REACT_APP_API_URL || '';
 
 // Navigation items with Lucide icons
 const navItems = {
@@ -55,7 +54,6 @@ const navItems = {
   insights: { path: '/insights', icon: BarChart3, label: 'Insights' },
   'purchasing-intelligence': { path: '/purchasing-intelligence', icon: Brain, label: 'Purchasing AI' },
   'report-builder': { path: '/report-builder', icon: FileBarChart, label: 'Report Builder' },
-  'executive-dashboard': { path: '/executive-dashboard', icon: PieChart, label: 'Executive Dashboard' },
   'training-center': { path: '/training-center', icon: GraduationCap, label: 'Training Center' },
   marketplace: { path: '/marketplace', icon: ShoppingCart, label: 'Marketplace' },
   reports: { path: '/reports', icon: ClipboardList, label: 'Reports' },
@@ -64,7 +62,7 @@ const navItems = {
   'admin-deliveries': { path: '/admin/deliveries', icon: Truck, label: 'Delivery Management', isAdmin: true },
   'admin-users': { path: '/admin/users', icon: UserCog, label: 'User Management', isAdmin: true },
   'admin-nomenclature': { path: '/admin/nomenclature', icon: Wrench, label: 'Nomenclature Admin', isAdmin: true },
-  'admin-fraud': { path: '/admin/fraud', icon: Shield, label: 'Fraud & Audit', isAdmin: true },
+  'admin-fraud': { path: '/admin/fraud', icon: Shield, label: 'Fraud & Audit', isAdmin: true, hasFraudBadge: true },
   'admin-monitoring': { path: '/admin/monitoring', icon: Activity, label: 'Monitoring', isAdmin: true },
   'admin-data-import': { path: '/admin/data-import', icon: Database, label: 'Data Import', isAdmin: true },
   'admin-serial-numbers': { path: '/admin/serial-numbers', icon: Tag, label: 'Serial Numbers', isAdmin: true },
@@ -91,7 +89,7 @@ const navSections = [
     id: 'analytics',
     title: 'Analytics',
     icon: BarChart3,
-    items: ['dashboard', 'insights', 'purchasing-intelligence', 'report-builder', 'executive-dashboard']
+    items: ['dashboard', 'insights', 'purchasing-intelligence', 'report-builder']
   },
   {
     id: 'sales',
@@ -135,6 +133,7 @@ const Sidebar = ({ children, isLayoutMode = false }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [isMobile, setIsMobile] = useState(window.innerWidth < 1024);
   const [pendingApprovalsCount, setPendingApprovalsCount] = useState(0);
+  const [fraudAlertCount, setFraudAlertCount] = useState(0);
   const [expandedSections, setExpandedSections] = useState(() => {
     // Load from localStorage or default all expanded
     const saved = localStorage.getItem('sidebar_sections');
@@ -171,6 +170,59 @@ const Sidebar = ({ children, isLayoutMode = false }) => {
     const interval = setInterval(fetchPendingApprovals, 60000);
     return () => clearInterval(interval);
   }, [fetchPendingApprovals]);
+
+  // Fetch unreviewed fraud alert count + WebSocket listener
+  useEffect(() => {
+    if (!isAdmin) return;
+
+    const fetchFraudCount = async () => {
+      try {
+        const res = await authFetch(`${API_URL}/api/fraud/scores/unreviewed-count`);
+        const data = await res.json();
+        if (data.success) {
+          setFraudAlertCount(data.data?.count || 0);
+        }
+      } catch { /* ignore */ }
+    };
+
+    fetchFraudCount();
+    const interval = setInterval(fetchFraudCount, 120000);
+
+    // WebSocket for real-time fraud alert badge updates
+    const wsUrl = API_URL.replace(/^http/, 'ws');
+    const token = localStorage.getItem('auth_token');
+    let ws = null;
+    let reconnectTimer = null;
+
+    const connectWs = () => {
+      if (!token) return;
+      try {
+        ws = new WebSocket(`${wsUrl}/ws?token=${token}`);
+        ws.onmessage = (event) => {
+          try {
+            const msg = JSON.parse(event.data);
+            if (msg.event === 'fraud:alert') {
+              setFraudAlertCount(prev => prev + 1);
+            }
+          } catch { /* ignore */ }
+        };
+        ws.onclose = () => {
+          reconnectTimer = setTimeout(connectWs, 10000);
+        };
+        ws.onerror = () => ws.close();
+      } catch {
+        reconnectTimer = setTimeout(connectWs, 10000);
+      }
+    };
+
+    connectWs();
+
+    return () => {
+      clearInterval(interval);
+      if (reconnectTimer) clearTimeout(reconnectTimer);
+      if (ws) ws.close();
+    };
+  }, [isAdmin]);
 
   // Close sidebar on route change (mobile)
   useEffect(() => {
@@ -236,7 +288,7 @@ const Sidebar = ({ children, isLayoutMode = false }) => {
       background: 'rgba(102, 126, 234, 0.08)',
       transform: 'translateX(4px)',
     },
-    sectionHeader: (isExpanded) => ({
+    sectionHeader: () => ({
       display: 'flex',
       alignItems: 'center',
       gap: '10px',
@@ -270,7 +322,7 @@ const Sidebar = ({ children, isLayoutMode = false }) => {
       boxShadow: '0 2px 4px rgba(239, 68, 68, 0.3)',
       animation: 'pulse 2s infinite',
     },
-    icon: (isActive) => ({
+    icon: () => ({
       width: '18px',
       height: '18px',
       strokeWidth: 2,
@@ -292,6 +344,8 @@ const Sidebar = ({ children, isLayoutMode = false }) => {
           role="menuitem"
           aria-label={item.hasBadge && canApproveQuotes && pendingApprovalsCount > 0
             ? `${item.label}, ${pendingApprovalsCount} pending approvals`
+            : item.hasFraudBadge && isAdmin && fraudAlertCount > 0
+            ? `${item.label}, ${fraudAlertCount} unreviewed alerts`
             : item.label}
           style={({ isActive }) => styles.navLink(isActive, item.isSpecial)}
           onMouseEnter={(e) => {
@@ -311,6 +365,9 @@ const Sidebar = ({ children, isLayoutMode = false }) => {
           <span style={{ flex: 1 }}>{item.label}</span>
           {item.hasBadge && canApproveQuotes && pendingApprovalsCount > 0 && (
             <span style={styles.badge}>{pendingApprovalsCount}</span>
+          )}
+          {item.hasFraudBadge && isAdmin && fraudAlertCount > 0 && (
+            <span style={styles.badge}>{fraudAlertCount > 99 ? '99+' : fraudAlertCount}</span>
           )}
         </NavLink>
       </li>
