@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { authFetch } from '../../services/authFetch';
 
-const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:3001';
+const API_URL = process.env.REACT_APP_API_URL || '';
 
 const formatCurrency = (dollars) => {
   if (dollars == null || isNaN(dollars)) return '$0.00';
@@ -96,6 +96,7 @@ function CommissionRulesTab() {
 
       const res = await authFetch(url, {
         method,
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
       });
       const data = await res.json();
@@ -122,8 +123,26 @@ function CommissionRulesTab() {
     }
   };
 
-  if (loading) return <div style={{ padding: 40, textAlign: 'center', color: '#6b7280' }}>Loading rules...</div>;
-  if (error) return <div style={{ padding: 40, textAlign: 'center', color: '#ef4444' }}>{error}</div>;
+  if (loading) return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+      {[1, 2, 3].map(i => (
+        <div key={i} style={{ background: 'white', borderRadius: 12, padding: 20, boxShadow: '0 1px 3px rgba(0,0,0,0.06)' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+            <div style={{ width: '40%', height: 16, background: '#e5e7eb', borderRadius: 4, animation: 'pulse 1.5s infinite' }} />
+            <div style={{ width: '15%', height: 16, background: '#e5e7eb', borderRadius: 4, animation: 'pulse 1.5s infinite' }} />
+          </div>
+          <div style={{ width: '25%', height: 12, background: '#f3f4f6', borderRadius: 4, marginTop: 8, animation: 'pulse 1.5s infinite' }} />
+        </div>
+      ))}
+      <style>{`@keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }`}</style>
+    </div>
+  );
+  if (error) return (
+    <div style={{ padding: 60, textAlign: 'center' }}>
+      <p style={{ color: '#ef4444', fontWeight: 500, marginBottom: 12 }}>{error}</p>
+      <button onClick={fetchRules} style={{ padding: '8px 20px', background: '#667eea', color: 'white', border: 'none', borderRadius: 8, cursor: 'pointer', fontSize: 14, fontWeight: 500 }}>Retry</button>
+    </div>
+  );
 
   return (
     <div>
@@ -329,9 +348,21 @@ function PayrollSummaryTab() {
       )}
 
       {loading ? (
-        <div style={{ padding: 40, textAlign: 'center', color: '#6b7280' }}>Loading payroll summary...</div>
+        <div style={{ background: 'white', borderRadius: 12, overflow: 'hidden', boxShadow: '0 1px 3px rgba(0,0,0,0.1)' }}>
+          {[1, 2, 3, 4].map(i => (
+            <div key={i} style={{ display: 'flex', justifyContent: 'space-between', padding: '16px 20px', borderBottom: '1px solid #f3f4f6' }}>
+              <div style={{ width: '30%', height: 14, background: '#e5e7eb', borderRadius: 4, animation: 'pulse 1.5s infinite' }} />
+              <div style={{ width: '15%', height: 14, background: '#e5e7eb', borderRadius: 4, animation: 'pulse 1.5s infinite' }} />
+              <div style={{ width: '15%', height: 14, background: '#e5e7eb', borderRadius: 4, animation: 'pulse 1.5s infinite' }} />
+            </div>
+          ))}
+          <style>{`@keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }`}</style>
+        </div>
       ) : error ? (
-        <div style={{ padding: 40, textAlign: 'center', color: '#ef4444' }}>{error}</div>
+        <div style={{ padding: 60, textAlign: 'center' }}>
+          <p style={{ color: '#ef4444', fontWeight: 500, marginBottom: 12 }}>{error}</p>
+          <button onClick={fetchPayroll} style={{ padding: '8px 20px', background: '#667eea', color: 'white', border: 'none', borderRadius: 8, cursor: 'pointer', fontSize: 14, fontWeight: 500 }}>Retry</button>
+        </div>
       ) : (
         <div style={{ background: 'white', borderRadius: 12, overflow: 'hidden', boxShadow: '0 1px 3px rgba(0,0,0,0.1)' }}>
           <table style={{ width: '100%', borderCollapse: 'collapse' }}>
@@ -555,10 +586,24 @@ export default function TeamCommissions() {
   return (
     <div style={{ padding: 30, fontFamily: 'system-ui, -apple-system, sans-serif', background: '#f9fafb', minHeight: 'calc(100vh - 140px)' }}>
       <div style={{ maxWidth: 1400, margin: '0 auto' }}>
-        <h1 style={{ fontSize: 24, fontWeight: 700, color: '#111827', margin: '0 0 4px' }}>Team Commissions</h1>
-        <p style={{ color: '#6b7280', margin: '0 0 20px', fontSize: 14 }}>
-          Manage commission rules, view payroll summaries, and export reports.
-        </p>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginBottom: 20 }}>
+          <div style={{
+            width: 42, height: 42, borderRadius: 12,
+            background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            boxShadow: '0 4px 12px rgba(102, 126, 234, 0.3)', flexShrink: 0
+          }}>
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/>
+            </svg>
+          </div>
+          <div>
+            <h1 style={{ fontSize: 24, fontWeight: 700, color: '#111827', margin: 0 }}>Team Commissions</h1>
+            <p style={{ color: '#6b7280', margin: '2px 0 0', fontSize: 13 }}>
+              Manage commission rules, view payroll summaries, and export reports
+            </p>
+          </div>
+        </div>
 
         <div style={{ display: 'flex', gap: 8, marginBottom: 24, background: '#f3f4f6', padding: 4, borderRadius: 10, width: 'fit-content' }}>
           {tabs.map(tab => (
