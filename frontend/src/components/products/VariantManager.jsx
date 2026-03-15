@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { authFetch } from '../../services/authFetch';
 
-const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:3001';
+const API_URL = process.env.REACT_APP_API_URL || '';
 
 // ============================================================================
 // MAIN COMPONENT
@@ -66,6 +66,7 @@ export default function VariantManager() {
     setLoading(true);
     try {
       const res = await authFetch(`${API_URL}/api/product-variants/attributes`);
+      if (!res.ok) throw new Error('Request failed');
       const data = await res.json();
       if (data.success !== false) setAttributes(data.data || []);
     } catch (err) { setError(err.message); }
@@ -75,6 +76,7 @@ export default function VariantManager() {
   const fetchAttributeDetail = async (id) => {
     try {
       const res = await authFetch(`${API_URL}/api/product-variants/attributes/${id}`);
+      if (!res.ok) throw new Error('Request failed');
       const data = await res.json();
       if (data.success !== false) setSelectedAttr(data.data);
     } catch (err) { setError(err.message); }
@@ -109,13 +111,15 @@ export default function VariantManager() {
 
   const loadVariantMatrix = async () => {
     if (!parentProductId) return;
-    setError('');
+    setError(''); setLoading(true);
     try {
       const res = await authFetch(`${API_URL}/api/product-variants/products/${parentProductId}/variants`);
+      if (!res.ok) throw new Error('Request failed');
       const data = await res.json();
       if (data.success !== false) setVariantMatrix(data.data);
       else setError(data.message || 'Failed to load');
     } catch (err) { setError(err.message); }
+    finally { setLoading(false); }
   };
 
   const convertToParent = async () => {
@@ -132,7 +136,7 @@ export default function VariantManager() {
 
   const generateVariants = async () => {
     if (!parentProductId) return;
-    setError(''); setSuccess('');
+    setError(''); setSuccess(''); setLoading(true);
     const combinations = combos.filter(c => Object.keys(c.attributes).length > 0).map(c => ({
       attributes: c.attributes,
       sku: c.sku || undefined,
@@ -148,6 +152,7 @@ export default function VariantManager() {
       if (res.ok) { setSuccess(`${combinations.length} variant(s) generated`); loadVariantMatrix(); setCombos([{ attributes: {}, sku: '', price: '', cost: '' }]); }
       else { const d = await res.json(); setError(d.message || 'Failed'); }
     } catch (err) { setError(err.message); }
+    finally { setLoading(false); }
   };
 
   const mergeVariants = async () => {
@@ -168,15 +173,17 @@ export default function VariantManager() {
   // Category mapping
   const loadCategoryAttributes = async () => {
     if (!categoryId) return;
-    setError('');
+    setError(''); setLoading(true);
     try {
       const res = await authFetch(`${API_URL}/api/product-variants/categories/${categoryId}/attributes`);
+      if (!res.ok) throw new Error('Request failed');
       const data = await res.json();
       if (data.success !== false) {
         setCategoryAttrs(data.data || []);
         setSelectedAttrIds((data.data || []).map(a => a.id));
       }
     } catch (err) { setError(err.message); }
+    finally { setLoading(false); }
   };
 
   const saveCategoryAttributes = async () => {
@@ -199,8 +206,22 @@ export default function VariantManager() {
 
   return (
     <div style={styles.container}>
+      <div style={{ marginBottom: 24, padding: '24px 28px', borderRadius: 16, background: 'linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%)', color: '#fff', display: 'flex', alignItems: 'center', gap: 16 }}>
+        <div style={{ width: 48, height: 48, borderRadius: 12, background: 'rgba(255,255,255,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+          <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <polygon points="12 2 2 7 12 12 22 7 12 2" />
+            <polyline points="2 17 12 22 22 17" />
+            <polyline points="2 12 12 17 22 12" />
+          </svg>
+        </div>
+        <div>
+          <h1 style={{ fontSize: 24, fontWeight: 700, margin: 0 }}>Product Variants</h1>
+          <p style={{ fontSize: 14, margin: '4px 0 0', opacity: 0.85 }}>Manage product attributes, variants, and combinations</p>
+        </div>
+      </div>
+
       <div style={styles.header}>
-        <h1 style={styles.title}>Product Variants</h1>
+        <div />
         <div style={styles.tabs}>
           {['attributes', 'categories', 'builder', 'merge'].map(t => (
             <button key={t} style={styles.tab(tab === t)} onClick={() => setTab(t)}>
@@ -323,8 +344,8 @@ export default function VariantManager() {
             <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
               <input style={{ ...styles.input, width: 200 }} type="number" placeholder="Parent Product ID"
                 value={parentProductId} onChange={e => setParentProductId(e.target.value)} />
-              <button style={styles.btn} onClick={loadVariantMatrix}>Load</button>
-              <button style={{ ...styles.btnSm, background: '#d1fae5', color: '#059669' }} onClick={convertToParent}>Convert to Parent</button>
+              <button style={{ ...styles.btn, opacity: loading ? 0.6 : 1 }} onClick={loadVariantMatrix} disabled={loading}>{loading ? 'Loading...' : 'Load'}</button>
+              <button style={{ ...styles.btnSm, background: '#d1fae5', color: '#059669', opacity: loading ? 0.6 : 1 }} onClick={convertToParent} disabled={loading}>Convert to Parent</button>
             </div>
 
             {variantMatrix && (
@@ -360,7 +381,7 @@ export default function VariantManager() {
                               <span key={k} style={styles.badge}>{k}: {val}</span>
                             ))}
                           </td>
-                          <td style={styles.td}>${parseFloat(v.price || 0).toFixed(2)}</td>
+                          <td style={styles.td}>${((v.price || 0) / 100).toFixed(2)}</td>
                           <td style={styles.td}>{v.qty_on_hand || 0}</td>
                         </tr>
                       ))}
@@ -391,7 +412,7 @@ export default function VariantManager() {
             ))}
             <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
               <button style={styles.btnSm} onClick={() => setCombos([...combos, { attributes: {}, sku: '', price: '', cost: '' }])}>+ Add Row</button>
-              <button style={styles.btn} onClick={generateVariants}>Generate Variants</button>
+              <button style={{ ...styles.btn, opacity: loading ? 0.6 : 1 }} onClick={generateVariants} disabled={loading}>{loading ? 'Generating...' : 'Generate Variants'}</button>
             </div>
           </div>
         </>

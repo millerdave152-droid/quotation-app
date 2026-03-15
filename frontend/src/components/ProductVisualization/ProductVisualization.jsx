@@ -24,6 +24,7 @@ function ProductVisualization() {
   const [selectedProductId, setSelectedProductId] = useState(null);
   const [stats, setStats] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [statsError, setStatsError] = useState(null);
 
   useEffect(() => {
     fetchStats();
@@ -31,6 +32,7 @@ function ProductVisualization() {
 
   const fetchStats = async () => {
     try {
+      setStatsError(null);
       const response = await authFetch(`${API_BASE}/vendor-products/stats`, {
         headers: getAuthHeaders()
       });
@@ -39,7 +41,7 @@ function ProductVisualization() {
         setStats(data);
       }
     } catch (error) {
-      console.error('Failed to fetch stats:', error);
+      setStatsError('Failed to load product statistics. Please try again.');
     } finally {
       setLoading(false);
     }
@@ -73,8 +75,31 @@ function ProductVisualization() {
           <p className="pv-subtitle">Browse and manage vendor product data</p>
         </div>
 
+        {/* Error Banner */}
+        {statsError && (
+          <div className="pv-error-banner">
+            <span>{statsError}</span>
+            <button
+              className="pv-error-dismiss"
+              onClick={() => setStatsError(null)}
+              aria-label="Dismiss error"
+            >
+              &times;
+            </button>
+          </div>
+        )}
+
         {/* Stats Cards */}
-        {stats && (
+        {loading && !stats ? (
+          <div className="pv-stats">
+            {['Vendors', 'Products', 'Images', 'Active Jobs'].map((label) => (
+              <div className="pv-stat-card" key={label}>
+                <span className="pv-stat-value pv-skeleton">&nbsp;</span>
+                <span className="pv-stat-label">{label}</span>
+              </div>
+            ))}
+          </div>
+        ) : stats && (
           <div className="pv-stats">
             <div className="pv-stat-card">
               <span className="pv-stat-value">{stats.vendor_count || 0}</span>
@@ -215,6 +240,48 @@ function ProductVisualization() {
           border: 1px solid #e0e0e0;
           border-radius: 8px;
           min-height: 500px;
+        }
+
+        .pv-error-banner {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          background: #fef2f2;
+          border: 1px solid #fca5a5;
+          border-radius: 8px;
+          padding: 12px 16px;
+          margin-top: 16px;
+          color: #991b1b;
+          font-size: 14px;
+        }
+
+        .pv-error-dismiss {
+          background: none;
+          border: none;
+          color: #991b1b;
+          font-size: 20px;
+          cursor: pointer;
+          padding: 0 4px;
+          line-height: 1;
+        }
+
+        .pv-error-dismiss:hover {
+          color: #7f1d1d;
+        }
+
+        .pv-skeleton {
+          display: inline-block;
+          width: 48px;
+          height: 24px;
+          background: linear-gradient(90deg, #e0e0e0 25%, #f0f0f0 50%, #e0e0e0 75%);
+          background-size: 200% 100%;
+          animation: pv-shimmer 1.5s infinite;
+          border-radius: 4px;
+        }
+
+        @keyframes pv-shimmer {
+          0% { background-position: 200% 0; }
+          100% { background-position: -200% 0; }
         }
       `}</style>
     </div>

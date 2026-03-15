@@ -11,7 +11,8 @@ import { ModelTooltip } from './nomenclature';
 import { authFetch } from '../services/authFetch';
 import BarcodeDisplay from './product/BarcodeDisplay';
 import OnlineStoresPanel from './product/OnlineStoresPanel';
-const API_BASE = `${process.env.REACT_APP_API_URL || 'http://localhost:3001'}/api`;
+import UnmappedProductsPanel from './UnmappedProductsPanel';
+const API_BASE = `${process.env.REACT_APP_API_URL || ''}/api`;
 
 const ProductManagement = () => {
   // State Management
@@ -80,6 +81,10 @@ const ProductManagement = () => {
   const [editingProduct, setEditingProduct] = useState(null);
   const [formData, setFormData] = useState({});
 
+  // AI Suggest States
+  const [suggesting, setSuggesting] = useState(false);
+  const [suggestion, setSuggestion] = useState(null);
+
   // CSV Import States
   const [importFile, setImportFile] = useState(null);
   const [importing, setImporting] = useState(false);
@@ -88,6 +93,7 @@ const ProductManagement = () => {
 
   const isMounted = useRef(true);
   const loadedOnce = useRef(false);
+  const keyboardHandlerRef = useRef(null);
 
   // Load initial data ONCE
   useEffect(() => {
@@ -108,7 +114,113 @@ const ProductManagement = () => {
     if (products.length > 0) {
       setFiltering(true);
       const timer = setTimeout(() => {
-        filterProducts();
+        const doFilter = () => {
+          let filtered = [...products];
+
+          if (searchTerm) {
+            const search = searchTerm.toLowerCase();
+            filtered = filtered.filter(p =>
+              p.model?.toLowerCase().includes(search) ||
+              p.name?.toLowerCase().includes(search) ||
+              p.manufacturer?.toLowerCase().includes(search) ||
+              p.description?.toLowerCase().includes(search)
+            );
+          }
+
+          if (filterManufacturer !== 'all') {
+            filtered = filtered.filter(p =>
+              (p.manufacturer || '').toUpperCase() === filterManufacturer.toUpperCase()
+            );
+          }
+
+          if (filterCategorySlug) {
+            filtered = filtered.filter(p =>
+              p.category_info?.slug === filterCategorySlug ||
+              p.subcategory_info?.slug === filterCategorySlug
+            );
+          } else if (filterCategory !== 'all') {
+            filtered = filtered.filter(p => p.category === filterCategory);
+          }
+
+          if (minPrice) {
+            const minCents = parseFloat(minPrice) * 100;
+            const field = priceField === 'msrp' ? 'msrp_cents' : 'cost_cents';
+            filtered = filtered.filter(p => (p[field] || 0) >= minCents);
+          }
+          if (maxPrice) {
+            const maxCents = parseFloat(maxPrice) * 100;
+            const field = priceField === 'msrp' ? 'msrp_cents' : 'cost_cents';
+            filtered = filtered.filter(p => (p[field] || 0) <= maxCents);
+          }
+
+          if (showRecent) {
+            const sevenDaysAgo = new Date();
+            sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+            filtered = filtered.filter(p => {
+              const createdAt = p.created_at ? new Date(p.created_at) : null;
+              const updatedAt = p.updated_at ? new Date(p.updated_at) : null;
+              return (createdAt && createdAt >= sevenDaysAgo) || (updatedAt && updatedAt >= sevenDaysAgo);
+            });
+          }
+
+          if (showFavorites) {
+            filtered = filtered.filter(p => favorites.includes(p.id));
+          }
+
+          if (selectedTags.length > 0) {
+            filtered = filtered.filter(p => {
+              const productTags = p.tags || [];
+              return selectedTags.every(tag => productTags.includes(tag));
+            });
+          }
+
+          switch (sortBy) {
+            case 'name_asc':
+              filtered.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+              break;
+            case 'name_desc':
+              filtered.sort((a, b) => (b.name || '').localeCompare(a.name || ''));
+              break;
+            case 'price_asc':
+              filtered.sort((a, b) => (a.cost_cents || 0) - (b.cost_cents || 0));
+              break;
+            case 'price_desc':
+              filtered.sort((a, b) => (b.cost_cents || 0) - (a.cost_cents || 0));
+              break;
+            case 'msrp_asc':
+              filtered.sort((a, b) => (a.msrp_cents || 0) - (b.msrp_cents || 0));
+              break;
+            case 'msrp_desc':
+              filtered.sort((a, b) => (b.msrp_cents || 0) - (a.msrp_cents || 0));
+              break;
+            case 'margin_asc':
+              filtered.sort((a, b) => {
+                const marginA = a.cost_cents && a.msrp_cents ? ((a.msrp_cents - a.cost_cents) / a.msrp_cents) : 0;
+                const marginB = b.cost_cents && b.msrp_cents ? ((b.msrp_cents - b.cost_cents) / b.msrp_cents) : 0;
+                return marginA - marginB;
+              });
+              break;
+            case 'margin_desc':
+              filtered.sort((a, b) => {
+                const marginA = a.cost_cents && a.msrp_cents ? ((a.msrp_cents - a.cost_cents) / a.msrp_cents) : 0;
+                const marginB = b.cost_cents && b.msrp_cents ? ((b.msrp_cents - b.cost_cents) / b.msrp_cents) : 0;
+                return marginB - marginA;
+              });
+              break;
+            case 'updated_desc':
+              filtered.sort((a, b) => new Date(b.updated_at || 0) - new Date(a.updated_at || 0));
+              break;
+            case 'manufacturer_asc':
+              filtered.sort((a, b) => (a.manufacturer || '').localeCompare(b.manufacturer || ''));
+              break;
+            default:
+              break;
+          }
+
+          setFilteredProducts(filtered);
+        };
+
+        doFilter();
         setCurrentPage(1); // Reset to first page on filter change
         setFiltering(false);
       }, searchTerm ? 300 : 0); // Debounce search by 300ms
@@ -116,182 +228,182 @@ const ProductManagement = () => {
     }
   }, [products, searchTerm, filterManufacturer, filterCategory, filterCategorySlug, sortBy, minPrice, maxPrice, priceField, showRecent, showFavorites, selectedTags, favorites]);
 
-  // Keyboard shortcuts handler
-  useEffect(() => {
-    const handleKeyDown = (e) => {
-      // Don't trigger shortcuts when typing in inputs
-      const isInputActive = ['INPUT', 'TEXTAREA', 'SELECT'].includes(document.activeElement?.tagName);
-      const isModalOpen = showBulkPriceModal || showCompareModal || showShortcutsModal || showImportWizard;
+  // Keyboard shortcuts handler - uses ref to always access latest closures
+  keyboardHandlerRef.current = (e) => {
+    // Don't trigger shortcuts when typing in inputs
+    const isInputActive = ['INPUT', 'TEXTAREA', 'SELECT'].includes(document.activeElement?.tagName);
+    const isModalOpen = showBulkPriceModal || showCompareModal || showShortcutsModal || showImportWizard;
 
-      // Escape key - close modals or clear selection
-      if (e.key === 'Escape') {
-        if (showShortcutsModal) {
-          setShowShortcutsModal(false);
-          return;
-        }
-        if (showCompareModal) {
-          setShowCompareModal(false);
-          return;
-        }
-        if (showBulkPriceModal) {
-          closeBulkPriceModal();
-          return;
-        }
-        if (inlineEdit) {
-          cancelInlineEdit();
-          return;
-        }
-        if (isInputActive && document.activeElement) {
-          document.activeElement.blur();
-          return;
-        }
-        if (selectedIds.size > 0) {
-          setSelectedIds(new Set());
-          setSelectAll(false);
-          return;
-        }
-      }
-
-      // Don't process other shortcuts if in input or modal is open
-      if (isInputActive || isModalOpen) return;
-
-      // Only process shortcuts when in browser view
-      if (view !== 'browser') return;
-
-      // ? or Ctrl+/ - Show keyboard shortcuts help
-      if (e.key === '?' || (e.ctrlKey && e.key === '/')) {
-        e.preventDefault();
-        setShowShortcutsModal(true);
+    // Escape key - close modals or clear selection
+    if (e.key === 'Escape') {
+      if (showShortcutsModal) {
+        setShowShortcutsModal(false);
         return;
       }
-
-      // / or Ctrl+F - Focus search
-      if (e.key === '/' || (e.ctrlKey && e.key === 'f')) {
-        e.preventDefault();
-        searchInputRef.current?.focus();
+      if (showCompareModal) {
+        setShowCompareModal(false);
         return;
       }
-
-      // Ctrl+N - New product
-      if (e.ctrlKey && e.key === 'n') {
-        e.preventDefault();
-        setFormData({});
-        setView('add');
+      if (showBulkPriceModal) {
+        closeBulkPriceModal();
         return;
       }
-
-      // Ctrl+E - Export (selected or all)
-      if (e.ctrlKey && e.key === 'e') {
-        e.preventDefault();
-        exportToCSV();
+      if (inlineEdit) {
+        cancelInlineEdit();
         return;
       }
-
-      // Ctrl+A - Select all on current page
-      if (e.ctrlKey && e.key === 'a') {
-        e.preventDefault();
-        const pageProducts = getCurrentPageProducts();
-        setSelectedIds(new Set(pageProducts.map(p => p.id)));
-        setSelectAll(true);
+      if (isInputActive && document.activeElement) {
+        document.activeElement.blur();
         return;
       }
-
-      // Ctrl+D - Deselect all
-      if (e.ctrlKey && e.key === 'd') {
-        e.preventDefault();
+      if (selectedIds.size > 0) {
         setSelectedIds(new Set());
         setSelectAll(false);
         return;
       }
+    }
 
-      // Ctrl+K - Compare selected (if 2+ selected)
-      if (e.ctrlKey && e.key === 'k') {
-        e.preventDefault();
-        if (selectedIds.size >= 2) {
-          openCompareModal();
-        } else {
-          showNotification('Select at least 2 products to compare', 'info');
-        }
-        return;
-      }
+    // Don't process other shortcuts if in input or modal is open
+    if (isInputActive || isModalOpen) return;
 
-      // Ctrl+P - Bulk price update (if selected)
-      if (e.ctrlKey && e.key === 'p') {
-        e.preventDefault();
-        if (selectedIds.size > 0) {
-          openBulkPriceModal();
-        } else {
-          showNotification('Select products to update prices', 'info');
-        }
-        return;
-      }
+    // Only process shortcuts when in browser view
+    if (view !== 'browser') return;
 
-      // Ctrl+R or F5 - Refresh
-      if ((e.ctrlKey && e.key === 'r') || e.key === 'F5') {
-        e.preventDefault();
-        loadAllData();
-        return;
-      }
+    // ? or Ctrl+/ - Show keyboard shortcuts help
+    if (e.key === '?' || (e.ctrlKey && e.key === '/')) {
+      e.preventDefault();
+      setShowShortcutsModal(true);
+      return;
+    }
 
-      // Delete or Backspace - Delete selected (with confirmation)
-      if ((e.key === 'Delete' || e.key === 'Backspace') && selectedIds.size > 0) {
-        e.preventDefault();
-        executeBulkDelete();
-        return;
-      }
+    // / or Ctrl+F - Focus search
+    if (e.key === '/' || (e.ctrlKey && e.key === 'f')) {
+      e.preventDefault();
+      searchInputRef.current?.focus();
+      return;
+    }
 
-      // Arrow keys for pagination
-      if (e.key === 'ArrowLeft' && currentPage > 1) {
-        e.preventDefault();
-        setCurrentPage(p => p - 1);
-        return;
-      }
-      if (e.key === 'ArrowRight' && currentPage < getTotalPages()) {
-        e.preventDefault();
-        setCurrentPage(p => p + 1);
-        return;
-      }
+    // Ctrl+N - New product
+    if (e.ctrlKey && e.key === 'n') {
+      e.preventDefault();
+      setFormData({});
+      setView('add');
+      return;
+    }
 
-      // Home - First page
-      if (e.key === 'Home' && !e.ctrlKey) {
-        e.preventDefault();
-        setCurrentPage(1);
-        return;
-      }
+    // Ctrl+E - Export (selected or all)
+    if (e.ctrlKey && e.key === 'e') {
+      e.preventDefault();
+      exportToCSV();
+      return;
+    }
 
-      // End - Last page
-      if (e.key === 'End' && !e.ctrlKey) {
-        e.preventDefault();
-        setCurrentPage(getTotalPages());
-        return;
-      }
+    // Ctrl+A - Select all on current page
+    if (e.ctrlKey && e.key === 'a') {
+      e.preventDefault();
+      const pageProducts = getCurrentPageProducts();
+      setSelectedIds(new Set(pageProducts.map(p => p.id)));
+      setSelectAll(true);
+      return;
+    }
 
-      // F - Toggle favorites filter
-      if (e.key === 'f' && !e.ctrlKey) {
-        e.preventDefault();
-        setShowFavorites(!showFavorites);
-        return;
-      }
+    // Ctrl+D - Deselect all
+    if (e.ctrlKey && e.key === 'd') {
+      e.preventDefault();
+      setSelectedIds(new Set());
+      setSelectAll(false);
+      return;
+    }
 
-      // R - Toggle recent filter
-      if (e.key === 'r' && !e.ctrlKey) {
-        e.preventDefault();
-        setShowRecent(!showRecent);
-        return;
+    // Ctrl+K - Compare selected (if 2+ selected)
+    if (e.ctrlKey && e.key === 'k') {
+      e.preventDefault();
+      if (selectedIds.size >= 2) {
+        openCompareModal();
+      } else {
+        showNotification('Select at least 2 products to compare', 'info');
       }
+      return;
+    }
 
-      // C - Clear all filters
-      if (e.key === 'c' && !e.ctrlKey) {
-        e.preventDefault();
-        clearAllFilters();
-        return;
+    // Ctrl+P - Bulk price update (if selected)
+    if (e.ctrlKey && e.key === 'p') {
+      e.preventDefault();
+      if (selectedIds.size > 0) {
+        openBulkPriceModal();
+      } else {
+        showNotification('Select products to update prices', 'info');
       }
-    };
+      return;
+    }
 
+    // Ctrl+R or F5 - Refresh
+    if ((e.ctrlKey && e.key === 'r') || e.key === 'F5') {
+      e.preventDefault();
+      loadAllData();
+      return;
+    }
+
+    // Delete or Backspace - Delete selected (with confirmation)
+    if ((e.key === 'Delete' || e.key === 'Backspace') && selectedIds.size > 0) {
+      e.preventDefault();
+      executeBulkDelete();
+      return;
+    }
+
+    // Arrow keys for pagination
+    if (e.key === 'ArrowLeft' && currentPage > 1) {
+      e.preventDefault();
+      setCurrentPage(p => p - 1);
+      return;
+    }
+    if (e.key === 'ArrowRight' && currentPage < getTotalPages()) {
+      e.preventDefault();
+      setCurrentPage(p => p + 1);
+      return;
+    }
+
+    // Home - First page
+    if (e.key === 'Home' && !e.ctrlKey) {
+      e.preventDefault();
+      setCurrentPage(1);
+      return;
+    }
+
+    // End - Last page
+    if (e.key === 'End' && !e.ctrlKey) {
+      e.preventDefault();
+      setCurrentPage(getTotalPages());
+      return;
+    }
+
+    // F - Toggle favorites filter
+    if (e.key === 'f' && !e.ctrlKey) {
+      e.preventDefault();
+      setShowFavorites(!showFavorites);
+      return;
+    }
+
+    // R - Toggle recent filter
+    if (e.key === 'r' && !e.ctrlKey) {
+      e.preventDefault();
+      setShowRecent(!showRecent);
+      return;
+    }
+
+    // C - Clear all filters
+    if (e.key === 'c' && !e.ctrlKey) {
+      e.preventDefault();
+      clearAllFilters();
+      return;
+    }
+  };
+
+  useEffect(() => {
+    const handleKeyDown = (e) => keyboardHandlerRef.current?.(e);
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [view, selectedIds, showBulkPriceModal, showCompareModal, showShortcutsModal, showImportWizard,
-      inlineEdit, currentPage, showFavorites, showRecent]);
+  }, []);
 
   const loadAllData = async () => {
     try {
@@ -318,7 +430,11 @@ const ProductManagement = () => {
       ]);
 
       if (isMounted.current) {
-        setProducts(Array.isArray(productsData) ? productsData : []);
+        const productsArray = Array.isArray(productsData) ? productsData
+          : Array.isArray(productsData?.products) ? productsData.products
+          : Array.isArray(productsData?.data) ? productsData.data
+          : [];
+        setProducts(productsArray);
         setStats(statsData);
         setTags(tagsData || {});
         setFavorites(Array.isArray(favoritesData) ? favoritesData.map(f => f.id) : []);
@@ -342,113 +458,7 @@ const ProductManagement = () => {
     }, 4000);
   };
 
-  const filterProducts = () => {
-    let filtered = [...products];
 
-    // Search
-    if (searchTerm) {
-      const search = searchTerm.toLowerCase();
-      filtered = filtered.filter(p =>
-        p.model?.toLowerCase().includes(search) ||
-        p.name?.toLowerCase().includes(search) ||
-        p.manufacturer?.toLowerCase().includes(search) ||
-        p.description?.toLowerCase().includes(search)
-      );
-    }
-
-    // Manufacturer filter (case-insensitive)
-    if (filterManufacturer !== 'all') {
-      filtered = filtered.filter(p =>
-        (p.manufacturer || '').toUpperCase() === filterManufacturer.toUpperCase()
-      );
-    }
-
-    // Category filter (dual-mode: supports both legacy raw text and normalized slug)
-    if (filterCategorySlug) {
-      // New: filter by normalized category slug (from CategoryPicker)
-      filtered = filtered.filter(p =>
-        p.category_info?.slug === filterCategorySlug ||
-        p.subcategory_info?.slug === filterCategorySlug
-      );
-    } else if (filterCategory !== 'all') {
-      // Legacy: filter by raw category text
-      filtered = filtered.filter(p => p.category === filterCategory);
-    }
-
-    // Price range filter
-    if (minPrice) {
-      const minCents = parseFloat(minPrice) * 100;
-      const field = priceField === 'msrp' ? 'msrp_cents' : 'cost_cents';
-      filtered = filtered.filter(p => (p[field] || 0) >= minCents);
-    }
-    if (maxPrice) {
-      const maxCents = parseFloat(maxPrice) * 100;
-      const field = priceField === 'msrp' ? 'msrp_cents' : 'cost_cents';
-      filtered = filtered.filter(p => (p[field] || 0) <= maxCents);
-    }
-
-    // Recent filter (last 7 days)
-    if (showRecent) {
-      const sevenDaysAgo = new Date();
-      sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
-      filtered = filtered.filter(p => {
-        const createdAt = p.created_at ? new Date(p.created_at) : null;
-        const updatedAt = p.updated_at ? new Date(p.updated_at) : null;
-        return (createdAt && createdAt >= sevenDaysAgo) || (updatedAt && updatedAt >= sevenDaysAgo);
-      });
-    }
-
-    // Favorites filter
-    if (showFavorites) {
-      filtered = filtered.filter(p => favorites.includes(p.id));
-    }
-
-    // Sort
-    switch (sortBy) {
-      case 'name_asc':
-        filtered.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
-        break;
-      case 'name_desc':
-        filtered.sort((a, b) => (b.name || '').localeCompare(a.name || ''));
-        break;
-      case 'price_asc':
-        filtered.sort((a, b) => (a.cost_cents || 0) - (b.cost_cents || 0));
-        break;
-      case 'price_desc':
-        filtered.sort((a, b) => (b.cost_cents || 0) - (a.cost_cents || 0));
-        break;
-      case 'msrp_asc':
-        filtered.sort((a, b) => (a.msrp_cents || 0) - (b.msrp_cents || 0));
-        break;
-      case 'msrp_desc':
-        filtered.sort((a, b) => (b.msrp_cents || 0) - (a.msrp_cents || 0));
-        break;
-      case 'margin_asc':
-        filtered.sort((a, b) => {
-          const marginA = a.cost_cents && a.msrp_cents ? ((a.msrp_cents - a.cost_cents) / a.msrp_cents) : 0;
-          const marginB = b.cost_cents && b.msrp_cents ? ((b.msrp_cents - b.cost_cents) / b.msrp_cents) : 0;
-          return marginA - marginB;
-        });
-        break;
-      case 'margin_desc':
-        filtered.sort((a, b) => {
-          const marginA = a.cost_cents && a.msrp_cents ? ((a.msrp_cents - a.cost_cents) / a.msrp_cents) : 0;
-          const marginB = b.cost_cents && b.msrp_cents ? ((b.msrp_cents - b.cost_cents) / b.msrp_cents) : 0;
-          return marginB - marginA;
-        });
-        break;
-      case 'updated_desc':
-        filtered.sort((a, b) => new Date(b.updated_at || 0) - new Date(a.updated_at || 0));
-        break;
-      case 'manufacturer_asc':
-        filtered.sort((a, b) => (a.manufacturer || '').localeCompare(b.manufacturer || ''));
-        break;
-      default:
-        break;
-    }
-
-    setFilteredProducts(filtered);
-  };
 
   // Check if any filters are active
   const hasActiveFilters = () => {
@@ -1117,92 +1127,6 @@ Whirlpool,WRS325SDHZ,Side-by-Side Refrigerator 25 cu ft,Refrigerators,749.99,129
     return manufacturers.sort();
   };
 
-  const getCategories = () => {
-    const categories = [...new Set(products.map(p => p.category).filter(Boolean))];
-    return categories.sort();
-  };
-
-  // Dashboard View
-  const renderDashboard = () => {
-    // Get recent products sorted by updated_at
-    const recentProducts = [...products]
-      .sort((a, b) => {
-        const dateA = new Date(a.updated_at || a.created_at || 0);
-        const dateB = new Date(b.updated_at || b.created_at || 0);
-        return dateB - dateA; // Most recent first
-      })
-      .slice(0, 10);
-
-    return (
-      <div>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '20px', marginBottom: '30px' }}>
-          <div style={{ background: 'white', borderRadius: '12px', padding: '24px', boxShadow: '0 1px 3px rgba(0,0,0,0.1)', borderLeft: '4px solid #667eea' }}>
-            <div style={{ fontSize: '14px', color: '#6b7280', marginBottom: '8px', fontWeight: '500' }}>Total Products</div>
-            <div style={{ fontSize: '32px', fontWeight: 'bold', color: '#111827' }}>{stats.total_products || products.length}</div>
-          </div>
-          <div style={{ background: 'white', borderRadius: '12px', padding: '24px', boxShadow: '0 1px 3px rgba(0,0,0,0.1)', borderLeft: '4px solid #10b981' }}>
-            <div style={{ fontSize: '14px', color: '#6b7280', marginBottom: '8px', fontWeight: '500' }}>Manufacturers</div>
-            <div style={{ fontSize: '32px', fontWeight: 'bold', color: '#111827' }}>{stats.manufacturers || getManufacturers().length}</div>
-          </div>
-          <div style={{ background: 'white', borderRadius: '12px', padding: '24px', boxShadow: '0 1px 3px rgba(0,0,0,0.1)', borderLeft: '4px solid #f59e0b' }}>
-            <div style={{ fontSize: '14px', color: '#6b7280', marginBottom: '8px', fontWeight: '500' }}>Categories</div>
-            <div style={{ fontSize: '32px', fontWeight: 'bold', color: '#111827' }}>{stats.categories || getCategories().length}</div>
-          </div>
-        </div>
-
-        <div style={{ background: 'white', borderRadius: '12px', padding: '24px', boxShadow: '0 1px 3px rgba(0,0,0,0.1)' }}>
-          <h3 style={{ margin: '0 0 20px 0', fontSize: '18px', fontWeight: '600' }}>Recently Updated Products</h3>
-          {recentProducts.length === 0 ? (
-            <div style={{ padding: '40px', textAlign: 'center', color: '#9ca3af' }}>
-              <div style={{ fontSize: '48px', marginBottom: '16px' }}>📦</div>
-              <div style={{ fontSize: '16px' }}>No products yet. Add your first product!</div>
-            </div>
-          ) : (
-            <div style={{ overflowX: 'auto' }}>
-              <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-                <thead>
-                  <tr style={{ background: '#f9fafb', borderBottom: '2px solid #e5e7eb' }}>
-                    <th style={{ padding: '12px', textAlign: 'left', fontSize: '12px', fontWeight: '600', color: '#6b7280', textTransform: 'uppercase' }}>Model</th>
-                    <th style={{ padding: '12px', textAlign: 'left', fontSize: '12px', fontWeight: '600', color: '#6b7280', textTransform: 'uppercase' }}>Name</th>
-                    <th style={{ padding: '12px', textAlign: 'left', fontSize: '12px', fontWeight: '600', color: '#6b7280', textTransform: 'uppercase' }}>Manufacturer</th>
-                    <th style={{ padding: '12px', textAlign: 'right', fontSize: '12px', fontWeight: '600', color: '#6b7280', textTransform: 'uppercase' }}>Cost</th>
-                    <th style={{ padding: '12px', textAlign: 'right', fontSize: '12px', fontWeight: '600', color: '#6b7280', textTransform: 'uppercase' }}>MSRP</th>
-                    <th style={{ padding: '12px', textAlign: 'left', fontSize: '12px', fontWeight: '600', color: '#6b7280', textTransform: 'uppercase' }}>Updated</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {recentProducts.map(product => (
-                    <tr key={product.id} style={{ borderBottom: '1px solid #f3f4f6' }}>
-                      <td style={{ padding: '12px', fontFamily: 'monospace', fontSize: '13px' }}>
-                        {product.model ? (
-                          <ModelTooltip
-                            modelNumber={product.model}
-                            manufacturer={product.manufacturer}
-                            productName={product.name}
-                            category={product.category}
-                          >
-                            {product.model}
-                          </ModelTooltip>
-                        ) : '-'}
-                      </td>
-                      <td style={{ padding: '12px', fontWeight: '500' }}>{product.name || '-'}</td>
-                      <td style={{ padding: '12px' }}>{product.manufacturer || '-'}</td>
-                      <td style={{ padding: '12px', textAlign: 'right' }}>{formatPrice(product.cost_cents)}</td>
-                      <td style={{ padding: '12px', textAlign: 'right', fontWeight: '600' }}>{formatPrice(product.msrp_cents)}</td>
-                      <td style={{ padding: '12px', fontSize: '12px', color: '#6b7280' }}>
-                        {product.updated_at ? new Date(product.updated_at).toLocaleDateString() : '-'}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </div>
-      </div>
-    );
-  };
-
   // Browser View
   const renderBrowser = () => (
     <div>
@@ -1451,7 +1375,7 @@ Whirlpool,WRS325SDHZ,Side-by-Side Refrigerator 25 cu ft,Refrigerators,749.99,129
             <label style={{ display: 'block', marginBottom: '8px', fontSize: '14px', fontWeight: '500' }}>Category</label>
             <CategoryPicker
               value={filterCategorySlug}
-              onChange={(slug, category) => {
+              onChange={(slug) => {
                 setFilterCategorySlug(slug);
                 setFilterCategory('all'); // Reset legacy filter when using new picker
               }}
@@ -2521,6 +2445,40 @@ Whirlpool,WRS325SDHZ,Side-by-Side Refrigerator 25 cu ft,Refrigerators,749.99,129
     );
   };
 
+  // AI Category Suggest Handler
+  const handleAISuggest = async (sourceProduct = null) => {
+    const product = sourceProduct || formData;
+    const name = product.name || '';
+    const brand = product.manufacturer || '';
+    const model = product.model || '';
+    const description = product.description || '';
+
+    if (!name && !brand && !model) {
+      setNotification({ type: 'error', message: 'Enter at least a name, manufacturer, or model first' });
+      return;
+    }
+
+    setSuggesting(true);
+    setSuggestion(null);
+    try {
+      const res = await authFetch('/api/categories/suggest', {
+        method: 'POST',
+        body: JSON.stringify({ name, brand, model, description }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        setSuggestion(data);
+        setFormData(prev => ({ ...prev, category: data.category_name || prev.category }));
+      } else {
+        setNotification({ type: 'error', message: data.error || 'AI suggestion failed' });
+      }
+    } catch (err) {
+      setNotification({ type: 'error', message: 'AI suggestion request failed' });
+    } finally {
+      setSuggesting(false);
+    }
+  };
+
   // Add View
   const renderAdd = () => (
     <div>
@@ -2573,13 +2531,39 @@ Whirlpool,WRS325SDHZ,Side-by-Side Refrigerator 25 cu ft,Refrigerators,749.99,129
 
           <div>
             <label style={{ display: 'block', marginBottom: '8px', fontSize: '14px', fontWeight: '600' }}>Category</label>
-            <input
-              type="text"
-              value={formData.category || ''}
-              onChange={(e) => setFormData({ ...formData, category: e.target.value })}
-              placeholder="Enter category"
-              style={{ width: '100%', padding: '10px', border: '2px solid #e5e7eb', borderRadius: '8px', fontSize: '14px' }}
-            />
+            <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+              <input
+                type="text"
+                value={formData.category || ''}
+                onChange={(e) => { setFormData({ ...formData, category: e.target.value }); setSuggestion(null); }}
+                placeholder="Enter category"
+                style={{ flex: 1, padding: '10px', border: '2px solid #e5e7eb', borderRadius: '8px', fontSize: '14px' }}
+              />
+              <button
+                onClick={() => handleAISuggest()}
+                disabled={suggesting}
+                style={{
+                  padding: '10px 16px', background: suggesting ? '#9ca3af' : '#8b5cf6', color: 'white',
+                  border: 'none', borderRadius: '8px', cursor: suggesting ? 'not-allowed' : 'pointer',
+                  fontSize: '13px', fontWeight: '600', whiteSpace: 'nowrap',
+                }}
+              >
+                {suggesting ? 'Suggesting...' : '\u2728 Suggest'}
+              </button>
+            </div>
+            {suggestion && (
+              <div style={{ marginTop: '6px', padding: '8px 12px', borderRadius: '6px', fontSize: '13px',
+                background: suggestion.confidence === 'high' ? '#ecfdf5' : suggestion.confidence === 'medium' ? '#fffbeb' : '#fef2f2',
+                border: `1px solid ${suggestion.confidence === 'high' ? '#86efac' : suggestion.confidence === 'medium' ? '#fde68a' : '#fca5a5'}`,
+              }}>
+                <span style={{
+                  display: 'inline-block', width: '8px', height: '8px', borderRadius: '50%', marginRight: '6px',
+                  background: suggestion.confidence === 'high' ? '#22c55e' : suggestion.confidence === 'medium' ? '#f59e0b' : '#ef4444',
+                }} />
+                <strong>{suggestion.category_name}</strong>
+                {suggestion.reasoning && <span style={{ color: '#6b7280', marginLeft: '8px' }}>— {suggestion.reasoning}</span>}
+              </div>
+            )}
           </div>
 
           <div>
@@ -2694,12 +2678,43 @@ Whirlpool,WRS325SDHZ,Side-by-Side Refrigerator 25 cu ft,Refrigerators,749.99,129
 
             <div>
               <label style={{ display: 'block', marginBottom: '8px', fontSize: '14px', fontWeight: '600' }}>Category</label>
-              <input
-                type="text"
-                defaultValue={editingProduct.category}
-                onChange={(e) => setFormData({ ...formData, category: e.target.value })}
-                style={{ width: '100%', padding: '10px', border: '2px solid #e5e7eb', borderRadius: '8px', fontSize: '14px' }}
-              />
+              <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                <input
+                  type="text"
+                  value={formData.category !== undefined ? formData.category : (editingProduct.category || '')}
+                  onChange={(e) => { setFormData({ ...formData, category: e.target.value }); setSuggestion(null); }}
+                  style={{ flex: 1, padding: '10px', border: '2px solid #e5e7eb', borderRadius: '8px', fontSize: '14px' }}
+                />
+                <button
+                  onClick={() => handleAISuggest({
+                    name: formData.name || editingProduct.name,
+                    manufacturer: formData.manufacturer || editingProduct.manufacturer,
+                    model: formData.model || editingProduct.model,
+                    description: formData.description || editingProduct.description,
+                  })}
+                  disabled={suggesting}
+                  style={{
+                    padding: '10px 16px', background: suggesting ? '#9ca3af' : '#8b5cf6', color: 'white',
+                    border: 'none', borderRadius: '8px', cursor: suggesting ? 'not-allowed' : 'pointer',
+                    fontSize: '13px', fontWeight: '600', whiteSpace: 'nowrap',
+                  }}
+                >
+                  {suggesting ? 'Suggesting...' : '\u2728 Suggest'}
+                </button>
+              </div>
+              {suggestion && (
+                <div style={{ marginTop: '6px', padding: '8px 12px', borderRadius: '6px', fontSize: '13px',
+                  background: suggestion.confidence === 'high' ? '#ecfdf5' : suggestion.confidence === 'medium' ? '#fffbeb' : '#fef2f2',
+                  border: `1px solid ${suggestion.confidence === 'high' ? '#86efac' : suggestion.confidence === 'medium' ? '#fde68a' : '#fca5a5'}`,
+                }}>
+                  <span style={{
+                    display: 'inline-block', width: '8px', height: '8px', borderRadius: '50%', marginRight: '6px',
+                    background: suggestion.confidence === 'high' ? '#22c55e' : suggestion.confidence === 'medium' ? '#f59e0b' : '#ef4444',
+                  }} />
+                  <strong>{suggestion.category_name}</strong>
+                  {suggestion.reasoning && <span style={{ color: '#6b7280', marginLeft: '8px' }}>— {suggestion.reasoning}</span>}
+                </div>
+              )}
             </div>
 
             <div>
@@ -3010,6 +3025,7 @@ Whirlpool,WRS325SDHZ,Side-by-Side Refrigerator 25 cu ft,Refrigerators,749.99,129
             { id: 'add', label: '➕ Add Product' },
             { id: 'import', label: '📤 Import' },
             { id: 'templates', label: '📋 Templates' },
+            { id: 'unmapped', label: '🏷️ Unmapped' },
           ].map(tab => (
             <button
               key={tab.id}
@@ -3041,6 +3057,7 @@ Whirlpool,WRS325SDHZ,Side-by-Side Refrigerator 25 cu ft,Refrigerators,749.99,129
         {view === 'add' && renderAdd()}
         {view === 'import' && renderImport()}
         {view === 'templates' && <ManufacturerTemplateManager />}
+        {view === 'unmapped' && <UnmappedProductsPanel />}
         {view === 'details' && renderDetails()}
         {view === 'edit' && renderEdit()}
       </div>
@@ -3422,7 +3439,6 @@ Whirlpool,WRS325SDHZ,Side-by-Side Refrigerator 25 cu ft,Refrigerators,749.99,129
                   onClick={() => {
                     // Export comparison to CSV
                     const compProducts = getComparisonProducts();
-                    const fields = ['Model', 'Name', 'Manufacturer', 'Category', 'Cost', 'MSRP', 'Profit', 'Margin', 'Color', 'Stock', 'Updated'];
                     let csv = 'Attribute,' + compProducts.map(p => `"${p.model}"`).join(',') + '\n';
 
                     const rows = [
@@ -3708,7 +3724,7 @@ Whirlpool,WRS325SDHZ,Side-by-Side Refrigerator 25 cu ft,Refrigerators,749.99,129
                       </tr>
                     </thead>
                     <tbody>
-                      {getPreviewPrices().map((p, idx) => (
+                      {getPreviewPrices().map((p) => (
                         <tr key={p.id} style={{ borderTop: '1px solid #e5e7eb' }}>
                           <td style={{ padding: '8px', fontFamily: 'monospace' }}>
                             {p.model ? (
