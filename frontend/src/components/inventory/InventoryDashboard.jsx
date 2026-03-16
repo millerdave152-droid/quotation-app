@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   Box,
   Paper,
@@ -21,10 +21,6 @@ import {
   TableRow,
   TablePagination,
   IconButton,
-  Dialog,
-  DialogTitle,
-  DialogContent,
-  DialogActions,
   Tooltip,
   Tabs,
   Tab,
@@ -33,26 +29,11 @@ import {
   LinearProgress,
   Badge
 } from '@mui/material';
-import {
-  Inventory2,
-  Warning,
-  CheckCircle,
-  LocalShipping,
-  Sync,
-  Refresh,
-  Search,
-  FilterList,
-  Delete,
-  Visibility,
-  Assignment,
-  TrendingUp,
-  TrendingDown,
-  Schedule
-} from '@mui/icons-material';
+import { AlertTriangle, CheckCircle, ClipboardList, Clock, Package, RefreshCw, Search, Trash2, TrendingDown, TrendingUp } from 'lucide-react';
 import apiClient from '../../services/apiClient';
 import { Link as RouterLink } from 'react-router-dom';
 
-const API_BASE = (process.env.REACT_APP_API_URL || 'http://localhost:3001') + '/api';
+const API_BASE = (process.env.REACT_APP_API_URL || '') + '/api';
 
 const getAuthHeaders = () => {
   const token = localStorage.getItem('auth_token');
@@ -72,17 +53,14 @@ const formatDateTime = (dateStr) => {
   return new Date(dateStr).toLocaleString('en-CA');
 };
 
-const StockStatusBadge = ({ available, reserved, onHand }) => {
-  let status = 'in_stock';
+const StockStatusBadge = ({ available }) => {
   let color = 'success';
   let label = 'In Stock';
 
   if (available <= 0) {
-    status = 'out_of_stock';
     color = 'error';
     label = 'Out of Stock';
   } else if (available <= 3) {
-    status = 'low_stock';
     color = 'warning';
     label = 'Low Stock';
   }
@@ -174,24 +152,7 @@ const InventoryDashboard = () => {
   const [categories, setCategories] = useState([]);
   const [stockLoading, setStockLoading] = useState(false);
 
-  useEffect(() => {
-    fetchDashboardData();
-  }, []);
-
-  useEffect(() => {
-    if (tabValue === 1) {
-      fetchReservations();
-    }
-  }, [tabValue, reservationFilters]);
-
-  // Fetch stock products when Stock Browser tab is active or filters change
-  useEffect(() => {
-    if (tabValue === 2) {
-      fetchStockProducts();
-    }
-  }, [tabValue, stockFilters, stockPage, stockRowsPerPage]);
-
-  const fetchStockProducts = async () => {
+  const fetchStockProducts = useCallback(async () => {
     try {
       setStockLoading(true);
       const params = new URLSearchParams({
@@ -216,7 +177,19 @@ const InventoryDashboard = () => {
     } finally {
       setStockLoading(false);
     }
-  };
+  }, [stockFilters, stockPage, stockRowsPerPage]);
+
+  const fetchReservations = useCallback(async () => {
+    try {
+      const response = await apiClient.get(`${API_BASE}/inventory/reservations`, {
+        params: reservationFilters,
+        headers: getAuthHeaders()
+      });
+      setReservations(response.data?.reservations || response.data?.data || []);
+    } catch (err) {
+      console.error('Error fetching reservations:', err);
+    }
+  }, [reservationFilters]);
 
   const fetchDashboardData = async () => {
     try {
@@ -241,17 +214,22 @@ const InventoryDashboard = () => {
     }
   };
 
-  const fetchReservations = async () => {
-    try {
-      const response = await apiClient.get(`${API_BASE}/inventory/reservations`, {
-        params: reservationFilters,
-        headers: getAuthHeaders()
-      });
-      setReservations(response.data?.reservations || response.data?.data || []);
-    } catch (err) {
-      console.error('Error fetching reservations:', err);
+  useEffect(() => {
+    fetchDashboardData();
+  }, []);
+
+  useEffect(() => {
+    if (tabValue === 1) {
+      fetchReservations();
     }
-  };
+  }, [tabValue, fetchReservations]);
+
+  // Fetch stock products when Stock Browser tab is active or filters change
+  useEffect(() => {
+    if (tabValue === 2) {
+      fetchStockProducts();
+    }
+  }, [tabValue, fetchStockProducts]);
 
   const handleSync = async () => {
     try {
@@ -299,19 +277,19 @@ const InventoryDashboard = () => {
       {/* Header */}
       <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
         <Typography variant="h4" sx={{ fontWeight: 'bold', display: 'flex', alignItems: 'center' }}>
-          <Inventory2 sx={{ mr: 1, fontSize: 32 }} /> Inventory Dashboard
+          <Package sx={{ mr: 1, fontSize: 32 }} /> Inventory Dashboard
         </Typography>
         <Box sx={{ display: 'flex', gap: 1 }}>
           <Button
             variant="outlined"
-            startIcon={<Refresh />}
+            startIcon={<RefreshCw />}
             onClick={fetchDashboardData}
           >
             Refresh
           </Button>
           <Button
             variant="contained"
-            startIcon={syncing ? <CircularProgress size={20} color="inherit" /> : <Sync />}
+            startIcon={syncing ? <CircularProgress size={20} color="inherit" /> : <RefreshCw />}
             onClick={handleSync}
             disabled={syncing}
           >
@@ -342,7 +320,7 @@ const InventoryDashboard = () => {
           <SummaryCard
             title="Total Products"
             value={summary.totalProducts || 0}
-            icon={<Inventory2 />}
+            icon={<Package />}
             color="primary"
           />
         </Grid>
@@ -358,7 +336,7 @@ const InventoryDashboard = () => {
           <SummaryCard
             title="Low Stock"
             value={summary.lowStock || 0}
-            icon={<Warning />}
+            icon={<AlertTriangle />}
             color="warning"
           />
         </Grid>
@@ -366,7 +344,7 @@ const InventoryDashboard = () => {
           <SummaryCard
             title="Out of Stock"
             value={summary.outOfStock || 0}
-            icon={<Warning />}
+            icon={<AlertTriangle />}
             color="error"
           />
         </Grid>
@@ -374,7 +352,7 @@ const InventoryDashboard = () => {
           <SummaryCard
             title="Reserved"
             value={summary.totalReserved || 0}
-            icon={<Assignment />}
+            icon={<ClipboardList />}
             color="info"
           />
         </Grid>
@@ -384,7 +362,7 @@ const InventoryDashboard = () => {
       {summary.lastSync && (
         <Paper variant="outlined" sx={{ p: 2, mb: 3, bgcolor: 'grey.50' }}>
           <Box sx={{ display: 'flex', alignItems: 'center' }}>
-            <Schedule sx={{ mr: 1, color: 'text.secondary' }} />
+            <Clock sx={{ mr: 1, color: 'text.secondary' }} />
             <Typography variant="body2" color="text.secondary">
               Last synced: {formatDateTime(summary.lastSync)}
             </Typography>
@@ -393,7 +371,7 @@ const InventoryDashboard = () => {
       )}
 
       {/* Tabs */}
-      <Tabs value={tabValue} onChange={(e, v) => setTabValue(v)} sx={{ mb: 2 }}>
+      <Tabs value={tabValue} onChange={(_e, v) => setTabValue(v)} sx={{ mb: 2 }}>
         <Tab
           label={
             <Badge badgeContent={lowStockProducts.length} color="warning">
@@ -530,7 +508,7 @@ const InventoryDashboard = () => {
                 <Button
                   fullWidth
                   variant="outlined"
-                  startIcon={<Refresh />}
+                  startIcon={<RefreshCw />}
                   onClick={fetchReservations}
                   sx={{ height: 48 }}
                 >
@@ -606,7 +584,7 @@ const InventoryDashboard = () => {
                                 color="error"
                                 onClick={() => handleReleaseReservation(reservation.id)}
                               >
-                                <Delete fontSize="small" />
+                                <Trash2 fontSize="small" />
                               </IconButton>
                             </Tooltip>
                           )}
@@ -621,7 +599,7 @@ const InventoryDashboard = () => {
               component="div"
               count={reservations.length}
               page={page}
-              onPageChange={(e, p) => setPage(p)}
+              onPageChange={(_e, p) => setPage(p)}
               rowsPerPage={rowsPerPage}
               onRowsPerPageChange={(e) => { setRowsPerPage(parseInt(e.target.value)); setPage(0); }}
             />
@@ -730,7 +708,7 @@ const InventoryDashboard = () => {
                 <Button
                   fullWidth
                   variant="outlined"
-                  startIcon={<Refresh />}
+                  startIcon={<RefreshCw />}
                   sx={{ height: 48 }}
                   onClick={fetchStockProducts}
                 >
@@ -792,7 +770,7 @@ const InventoryDashboard = () => {
                           <Typography color="text.secondary">Loading...</Typography>
                         ) : (
                           <>
-                            <Inventory2 sx={{ fontSize: 48, color: 'text.disabled', mb: 1 }} />
+                            <Package sx={{ fontSize: 48, color: 'text.disabled', mb: 1 }} />
                             <Typography color="text.secondary">
                               No products found matching your filters
                             </Typography>
@@ -853,7 +831,7 @@ const InventoryDashboard = () => {
               component="div"
               count={stockTotal}
               page={stockPage}
-              onPageChange={(e, p) => setStockPage(p)}
+              onPageChange={(_e, p) => setStockPage(p)}
               rowsPerPage={stockRowsPerPage}
               onRowsPerPageChange={(e) => { setStockRowsPerPage(parseInt(e.target.value)); setStockPage(0); }}
               rowsPerPageOptions={[10, 25, 50, 100]}
