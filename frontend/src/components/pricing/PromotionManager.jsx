@@ -71,7 +71,7 @@ const PromotionManager = ({ promotions, onEdit, onDelete, onAdd }) => {
 
       {promotions.length === 0 ? (
         <div style={{ padding: '60px', textAlign: 'center', color: '#6b7280' }}>
-          <div style={{ fontSize: '48px', marginBottom: '16px' }}>tag</div>
+          <div style={{ fontSize: '48px', marginBottom: '16px' }}>&#x1F3F7;&#xFE0F;</div>
           <div style={{ fontSize: '16px', marginBottom: '8px' }}>No promotions yet</div>
           <div style={{ fontSize: '14px' }}>Create promotions and promo codes to offer discounts</div>
         </div>

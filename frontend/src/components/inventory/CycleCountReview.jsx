@@ -32,25 +32,10 @@ import {
   DialogContent,
   DialogActions
 } from '@mui/material';
-import {
-  CheckCircle,
-  Warning,
-  Refresh,
-  Print,
-  ExpandMore,
-  ExpandLess,
-  ThumbUp,
-  ThumbDown,
-  Replay,
-  Inventory2,
-  TrendingUp,
-  TrendingDown,
-  AttachMoney,
-  FactCheck
-} from '@mui/icons-material';
+import { AlertTriangle, CheckCircle, ChevronDown, ChevronUp, ClipboardCheck, DollarSign, Package, Printer, RefreshCw, RotateCcw, ThumbsDown, ThumbsUp, TrendingDown, TrendingUp } from 'lucide-react';
 import apiClient from '../../services/apiClient';
 
-const API_BASE = (process.env.REACT_APP_API_URL || 'http://localhost:3001') + '/api';
+const API_BASE = (process.env.REACT_APP_API_URL || '') + '/api';
 
 const getAuthHeaders = () => {
   const token = localStorage.getItem('auth_token');
@@ -172,7 +157,7 @@ const CountDetailPanel = ({ count, onAction, actionLoading }) => {
   if (!count) {
     return (
       <Paper variant="outlined" sx={{ p: 6, textAlign: 'center', height: '100%', display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center' }}>
-        <FactCheck sx={{ fontSize: 64, color: 'text.disabled', mb: 2 }} />
+        <ClipboardCheck sx={{ fontSize: 64, color: 'text.disabled', mb: 2 }} />
         <Typography variant="h6" color="text.secondary">Select a count to review</Typography>
         <Typography variant="body2" color="text.secondary">Choose from the list on the left</Typography>
       </Paper>
@@ -262,8 +247,8 @@ const CountDetailPanel = ({ count, onAction, actionLoading }) => {
           </Box>
           <Box sx={{ display: 'flex', gap: 1, alignItems: 'center' }}>
             <Chip label={statusLabels[count.status] || count.status} color={statusColors[count.status] || 'default'} />
-            <Tooltip title="Print variance report">
-              <IconButton onClick={handlePrint}><Print /></IconButton>
+            <Tooltip title="Printer variance report">
+              <IconButton onClick={handlePrint}><Printer /></IconButton>
             </Tooltip>
           </Box>
         </Box>
@@ -272,10 +257,10 @@ const CountDetailPanel = ({ count, onAction, actionLoading }) => {
       {/* Summary Cards */}
       <Grid container spacing={2} sx={{ mb: 2 }}>
         <Grid item xs={6} sm={4} md={2.4}>
-          <SummaryCard title="Items Counted" value={varianceSummary.total_items || allItems.length} icon={<Inventory2 />} color="primary" />
+          <SummaryCard title="Items Counted" value={varianceSummary.total_items || allItems.length} icon={<Package />} color="primary" />
         </Grid>
         <Grid item xs={6} sm={4} md={2.4}>
-          <SummaryCard title="With Variance" value={itemsWithVariance.length} icon={<Warning />} color={itemsWithVariance.length > 0 ? 'warning' : 'success'} />
+          <SummaryCard title="With Variance" value={itemsWithVariance.length} icon={<AlertTriangle />} color={itemsWithVariance.length > 0 ? 'warning' : 'success'} />
         </Grid>
         <Grid item xs={6} sm={4} md={2.4}>
           <SummaryCard title="Units Over" value={`+${varianceSummary.positive_variance || 0}`} icon={<TrendingUp />} color="info" />
@@ -284,7 +269,7 @@ const CountDetailPanel = ({ count, onAction, actionLoading }) => {
           <SummaryCard title="Units Short" value={varianceSummary.negative_variance || 0} icon={<TrendingDown />} color="error" />
         </Grid>
         <Grid item xs={6} sm={4} md={2.4}>
-          <SummaryCard title="Cost Impact" value={formatCurrency(varianceSummary.total_cost_impact)} icon={<AttachMoney />} color="error" subtitle="Estimated" />
+          <SummaryCard title="Cost Impact" value={formatCurrency(varianceSummary.total_cost_impact)} icon={<DollarSign />} color="error" subtitle="Estimated" />
         </Grid>
       </Grid>
 
@@ -404,7 +389,7 @@ const CountDetailPanel = ({ count, onAction, actionLoading }) => {
                 Zero Variance Items ({zeroVarianceItems.length})
               </Typography>
             </Box>
-            {showZeroVariance ? <ExpandLess /> : <ExpandMore />}
+            {showZeroVariance ? <ChevronUp /> : <ChevronDown />}
           </Box>
           <Collapse in={showZeroVariance}>
             <Divider />
@@ -437,7 +422,7 @@ const CountDetailPanel = ({ count, onAction, actionLoading }) => {
       {/* No variance items at all */}
       {varianceItems.length === 0 && zeroVarianceItems.length === 0 && allItems.length === 0 && (
         <Paper variant="outlined" sx={{ p: 4, textAlign: 'center' }}>
-          <Inventory2 sx={{ fontSize: 48, color: 'text.disabled', mb: 1 }} />
+          <Package sx={{ fontSize: 48, color: 'text.disabled', mb: 1 }} />
           <Typography color="text.secondary">No items in this count</Typography>
         </Paper>
       )}
@@ -450,7 +435,7 @@ const CountDetailPanel = ({ count, onAction, actionLoading }) => {
               <Button
                 variant="outlined"
                 color="warning"
-                startIcon={<Replay />}
+                startIcon={<RotateCcw />}
                 disabled={actionLoading}
                 onClick={() => onAction(count.id, 'recount')}
               >
@@ -461,7 +446,7 @@ const CountDetailPanel = ({ count, onAction, actionLoading }) => {
               <Button
                 variant="outlined"
                 color="error"
-                startIcon={<ThumbDown />}
+                startIcon={<ThumbsDown />}
                 disabled={actionLoading}
                 onClick={() => onAction(count.id, 'reject')}
               >
@@ -474,7 +459,7 @@ const CountDetailPanel = ({ count, onAction, actionLoading }) => {
                   <Button
                     variant="contained"
                     color="info"
-                    startIcon={actionLoading ? <CircularProgress size={18} color="inherit" /> : <ThumbUp />}
+                    startIcon={actionLoading ? <CircularProgress size={18} color="inherit" /> : <ThumbsUp />}
                     disabled={actionLoading || !checkedHaveReasons}
                     onClick={() => onAction(count.id, 'approve')}
                   >
@@ -489,7 +474,7 @@ const CountDetailPanel = ({ count, onAction, actionLoading }) => {
                   variant="contained"
                   color="success"
                   size="large"
-                  startIcon={actionLoading ? <CircularProgress size={18} color="inherit" /> : <ThumbUp />}
+                  startIcon={actionLoading ? <CircularProgress size={18} color="inherit" /> : <ThumbsUp />}
                   disabled={actionLoading || !allHaveReasons}
                   onClick={() => onAction(count.id, 'approve')}
                 >
@@ -611,7 +596,7 @@ const CycleCountReview = () => {
       {/* Header */}
       <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
         <Box sx={{ display: 'flex', alignItems: 'center' }}>
-          <FactCheck sx={{ mr: 1.5, fontSize: 32, color: 'primary.main' }} />
+          <ClipboardCheck sx={{ mr: 1.5, fontSize: 32, color: 'primary.main' }} />
           <Box>
             <Typography variant="h4" sx={{ fontWeight: 'bold' }}>Count Review</Typography>
             <Typography variant="body2" color="text.secondary">
@@ -619,7 +604,7 @@ const CycleCountReview = () => {
             </Typography>
           </Box>
         </Box>
-        <Button variant="outlined" startIcon={<Refresh />} onClick={() => { fetchCounts(); setSelectedCount(null); }}>
+        <Button variant="outlined" startIcon={<RefreshCw />} onClick={() => { fetchCounts(); setSelectedCount(null); }}>
           Refresh
         </Button>
       </Box>

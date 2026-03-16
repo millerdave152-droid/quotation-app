@@ -21,10 +21,6 @@ import {
   TableRow,
   TablePagination,
   IconButton,
-  Dialog,
-  DialogTitle,
-  DialogContent,
-  DialogActions,
   Tooltip,
   Tabs,
   Tab,
@@ -32,26 +28,10 @@ import {
   Collapse,
   Autocomplete
 } from '@mui/material';
-import {
-  LocalShipping,
-  CheckCircle,
-  Refresh,
-  Search,
-  Delete,
-  Add,
-  Send,
-  ThumbUp,
-  ThumbDown,
-  ExpandMore,
-  ExpandLess,
-  Cancel,
-  Inventory2,
-  Schedule,
-  SwapHoriz
-} from '@mui/icons-material';
+import { ArrowLeftRight, CheckCircle, ChevronDown, ChevronUp, Package, Plus, RefreshCw, Search, Send, ThumbsDown, ThumbsUp, Trash2, Truck, XCircle } from 'lucide-react';
 import apiClient from '../../services/apiClient';
 
-const API_BASE = (process.env.REACT_APP_API_URL || 'http://localhost:3001') + '/api';
+const API_BASE = (process.env.REACT_APP_API_URL || '') + '/api';
 
 const getAuthHeaders = () => {
   const token = localStorage.getItem('auth_token');
@@ -112,7 +92,7 @@ const TransferDetailRow = ({ transfer, onAction, actionLoading }) => {
     <>
       <TableRow hover sx={{ cursor: 'pointer', '& > *': { borderBottom: open ? 'none' : undefined } }} onClick={loadDetail}>
         <TableCell sx={{ width: 32, pr: 0 }}>
-          {loading ? <CircularProgress size={16} /> : open ? <ExpandLess fontSize="small" /> : <ExpandMore fontSize="small" />}
+          {loading ? <CircularProgress size={16} /> : open ? <ChevronUp fontSize="small" /> : <ChevronDown fontSize="small" />}
         </TableCell>
         <TableCell>
           <Typography variant="body2" sx={{ fontWeight: 'bold', color: 'primary.main' }}>
@@ -142,12 +122,12 @@ const TransferDetailRow = ({ transfer, onAction, actionLoading }) => {
             <>
               <Tooltip title="Approve">
                 <IconButton size="small" color="success" disabled={actionLoading} onClick={() => onAction(transfer.id, 'approve')}>
-                  <ThumbUp fontSize="small" />
+                  <ThumbsUp fontSize="small" />
                 </IconButton>
               </Tooltip>
               <Tooltip title="Reject">
                 <IconButton size="small" color="error" disabled={actionLoading} onClick={() => onAction(transfer.id, 'cancel', { reason: 'Rejected' })}>
-                  <ThumbDown fontSize="small" />
+                  <ThumbsDown fontSize="small" />
                 </IconButton>
               </Tooltip>
             </>
@@ -155,7 +135,7 @@ const TransferDetailRow = ({ transfer, onAction, actionLoading }) => {
           {transfer.status === 'approved' && (
             <Tooltip title="Mark Shipped">
               <IconButton size="small" color="warning" disabled={actionLoading} onClick={() => onAction(transfer.id, 'ship')}>
-                <LocalShipping fontSize="small" />
+                <Truck fontSize="small" />
               </IconButton>
             </Tooltip>
           )}
@@ -167,9 +147,9 @@ const TransferDetailRow = ({ transfer, onAction, actionLoading }) => {
             </Tooltip>
           )}
           {!['completed', 'cancelled'].includes(transfer.status) && (
-            <Tooltip title="Cancel">
+            <Tooltip title="Cancel Transfer">
               <IconButton size="small" color="error" disabled={actionLoading} onClick={() => onAction(transfer.id, 'cancel', { reason: 'Cancelled by user' })}>
-                <Cancel fontSize="small" />
+                <XCircle fontSize="small" />
               </IconButton>
             </Tooltip>
           )}
@@ -345,7 +325,7 @@ const CreateTransferForm = ({ locations, onCreated }) => {
             </FormControl>
           </Grid>
           <Grid item xs={12} sm={2} sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            <SwapHoriz sx={{ fontSize: 32, color: 'text.secondary' }} />
+            <ArrowLeftRight sx={{ fontSize: 32, color: 'text.secondary' }} />
           </Grid>
           <Grid item xs={12} sm={5}>
             <FormControl fullWidth>
@@ -444,7 +424,7 @@ const CreateTransferForm = ({ locations, onCreated }) => {
                     </TableCell>
                     <TableCell align="center">
                       <IconButton size="small" color="error" onClick={() => removeItem(item.product_id)}>
-                        <Delete fontSize="small" />
+                        <Trash2 fontSize="small" />
                       </IconButton>
                     </TableCell>
                   </TableRow>
@@ -609,7 +589,7 @@ const TransferManagement = () => {
                     <CircularProgress size={28} />
                   ) : (
                     <>
-                      <Inventory2 sx={{ fontSize: 48, color: 'text.disabled', mb: 1 }} />
+                      <Package sx={{ fontSize: 48, color: 'text.disabled', mb: 1 }} />
                       <Typography color="text.secondary">No transfers found</Typography>
                     </>
                   )}
@@ -638,14 +618,14 @@ const TransferManagement = () => {
       {/* Header */}
       <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
         <Typography variant="h4" sx={{ fontWeight: 'bold', display: 'flex', alignItems: 'center' }}>
-          <LocalShipping sx={{ mr: 1, fontSize: 32 }} />
+          <Truck sx={{ mr: 1, fontSize: 32 }} />
           Inventory Transfers
         </Typography>
         <Box sx={{ display: 'flex', gap: 1 }}>
-          <Button variant="outlined" startIcon={<Refresh />} onClick={() => { fetchActive(); if (tabValue === 2) fetchHistory(); }}>
+          <Button variant="outlined" startIcon={<RefreshCw />} onClick={() => { fetchActive(); if (tabValue === 2) fetchHistory(); }}>
             Refresh
           </Button>
-          <Button variant="contained" startIcon={<Add />} onClick={() => setTabValue(1)}>
+          <Button variant="contained" startIcon={<Plus />} onClick={() => setTabValue(1)}>
             New Transfer
           </Button>
         </Box>

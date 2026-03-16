@@ -3,7 +3,7 @@ import VolumeDiscountEditor from './VolumeDiscountEditor';
 import PromotionManager from './PromotionManager';
 
 import { authFetch } from '../../services/authFetch';
-const API_URL = `${process.env.REACT_APP_API_URL || 'http://localhost:3001'}/api`;
+const API_URL = `${process.env.REACT_APP_API_URL || ''}/api`;
 
 // Helper to get auth headers
 const getAuthHeaders = () => {
@@ -276,7 +276,7 @@ const AdvancedPricingManager = () => {
       {stackingPolicy && (
         <div style={policyCardStyle}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '12px' }}>
-            <span style={{ fontSize: '20px' }}>shield</span>
+            <span style={{ fontSize: '20px' }}>&#x1F6E1;&#xFE0F;</span>
             <span style={{ fontWeight: '600', color: '#166534' }}>Stacking Policy: {stackingPolicy.policy_name}</span>
           </div>
           <div style={{ display: 'flex', gap: '32px', fontSize: '14px', color: '#166534' }}>

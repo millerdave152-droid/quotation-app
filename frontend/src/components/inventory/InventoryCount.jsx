@@ -118,7 +118,24 @@ export default function InventoryCount() {
 
   return (
     <div style={{ padding: '24px', maxWidth: 1200 }}>
-      <h2 style={{ marginBottom: 16 }}>Inventory Counts</h2>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginBottom: 24 }}>
+        <div style={{
+          width: 48, height: 48, borderRadius: 12,
+          background: 'linear-gradient(135deg, #14b8a6, #0d9488)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          boxShadow: '0 4px 12px rgba(20, 184, 166, 0.3)'
+        }}>
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2" />
+            <rect x="8" y="2" width="8" height="4" rx="1" ry="1" />
+            <path d="M9 14l2 2 4-4" />
+          </svg>
+        </div>
+        <div>
+          <h2 style={{ margin: 0, fontSize: 24, fontWeight: 700, color: '#111827' }}>Inventory Counts</h2>
+          <p style={{ margin: 0, fontSize: 14, color: '#6b7280' }}>Physical inventory counting and reconciliation</p>
+        </div>
+      </div>
       {error && <div style={{ background: '#fef2f2', color: '#dc2626', padding: 12, borderRadius: 8, marginBottom: 16 }}>{error} <button onClick={() => setError('')}>×</button></div>}
 
       <div style={{ display: 'flex', gap: 8, marginBottom: 24 }}>
@@ -137,7 +154,25 @@ export default function InventoryCount() {
 
       {tab === 'list' && (
         <div>
-          {loading ? <p>Loading...</p> : (
+          {loading ? (
+            <div>
+              {[1, 2, 3, 4].map(i => (
+                <div key={i} style={{
+                  display: 'flex', gap: 16, padding: '12px 8px',
+                  borderBottom: '1px solid #f3f4f6'
+                }}>
+                  <div style={{ width: '12%', height: 16, borderRadius: 6, background: '#e5e7eb', animation: 'pulse 1.5s ease-in-out infinite', opacity: 1 - (i * 0.15) }} />
+                  <div style={{ width: '20%', height: 16, borderRadius: 6, background: '#e5e7eb', animation: 'pulse 1.5s ease-in-out infinite', animationDelay: `${i * 0.1}s` }} />
+                  <div style={{ width: '10%', height: 16, borderRadius: 6, background: '#e5e7eb', animation: 'pulse 1.5s ease-in-out infinite', animationDelay: `${i * 0.15}s` }} />
+                  <div style={{ width: '10%', height: 16, borderRadius: 6, background: '#e5e7eb', animation: 'pulse 1.5s ease-in-out infinite', animationDelay: `${i * 0.2}s` }} />
+                  <div style={{ width: '8%', height: 16, borderRadius: 6, background: '#e5e7eb', animation: 'pulse 1.5s ease-in-out infinite', animationDelay: `${i * 0.25}s` }} />
+                  <div style={{ width: '8%', height: 16, borderRadius: 6, background: '#e5e7eb', animation: 'pulse 1.5s ease-in-out infinite', animationDelay: `${i * 0.3}s` }} />
+                  <div style={{ width: '15%', height: 16, borderRadius: 6, background: '#e5e7eb', animation: 'pulse 1.5s ease-in-out infinite', animationDelay: `${i * 0.35}s` }} />
+                </div>
+              ))}
+              <style>{`@keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }`}</style>
+            </div>
+          ) : (
             <table style={{ width: '100%', borderCollapse: 'collapse' }}>
               <thead>
                 <tr style={{ borderBottom: '2px solid #e5e7eb', textAlign: 'left' }}>
