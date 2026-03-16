@@ -188,16 +188,21 @@ const Sidebar = ({ children, isLayoutMode = false }) => {
     fetchFraudCount();
     const interval = setInterval(fetchFraudCount, 120000);
 
-    // WebSocket for real-time fraud alert badge updates
+    // WebSocket for real-time fraud alert badge updates (with exponential backoff)
     const wsUrl = API_URL.replace(/^http/, 'ws');
     const token = localStorage.getItem('auth_token');
     let ws = null;
     let reconnectTimer = null;
+    let reconnectDelay = 5000;
+    const MAX_RECONNECT_DELAY = 120000; // cap at 2 minutes
 
     const connectWs = () => {
       if (!token) return;
       try {
         ws = new WebSocket(`${wsUrl}/ws?token=${token}`);
+        ws.onopen = () => {
+          reconnectDelay = 5000; // reset backoff on successful connection
+        };
         ws.onmessage = (event) => {
           try {
             const msg = JSON.parse(event.data);
@@ -207,11 +212,13 @@ const Sidebar = ({ children, isLayoutMode = false }) => {
           } catch { /* ignore */ }
         };
         ws.onclose = () => {
-          reconnectTimer = setTimeout(connectWs, 10000);
+          reconnectTimer = setTimeout(connectWs, reconnectDelay);
+          reconnectDelay = Math.min(reconnectDelay * 2, MAX_RECONNECT_DELAY);
         };
-        ws.onerror = () => ws.close();
+        ws.onerror = () => { /* onclose will fire after this */ };
       } catch {
-        reconnectTimer = setTimeout(connectWs, 10000);
+        reconnectTimer = setTimeout(connectWs, reconnectDelay);
+        reconnectDelay = Math.min(reconnectDelay * 2, MAX_RECONNECT_DELAY);
       }
     };
 
