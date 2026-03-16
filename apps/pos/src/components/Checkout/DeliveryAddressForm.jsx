@@ -4,22 +4,8 @@
  */
 
 import { useState, useEffect, useCallback, useMemo } from 'react';
-import {
-  MapPinIcon,
-  PlusIcon,
-  CheckCircleIcon,
-  ExclamationCircleIcon,
-  ArrowLeftIcon,
-  ArrowRightIcon,
-  HomeIcon,
-  BuildingOfficeIcon,
-  BuildingOffice2Icon,
-  ArrowRightOnRectangleIcon,
-  ClockIcon,
-  CalendarDaysIcon,
-} from '@heroicons/react/24/outline';
-
-const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:3001/api';
+import { AlertCircle, ArrowLeft, ArrowRight, Building, CalendarDays, CheckCircle, Clock, Home, LogIn, MapPin, Plus } from 'lucide-react';
+const API_BASE = import.meta.env.VITE_API_URL || '/api';
 
 const parseStreetParts = (street) => {
   if (!street) return { streetNumber: '', streetName: '' };
@@ -69,7 +55,7 @@ function SavedAddressCard({ address, isSelected, onSelect }) {
       `}
     >
       <div className="flex items-start gap-3">
-        <MapPinIcon className={`w-5 h-5 flex-shrink-0 mt-0.5 ${isSelected ? 'text-blue-600' : 'text-gray-400'}`} />
+        <MapPin className={`w-5 h-5 flex-shrink-0 mt-0.5 ${isSelected ? 'text-blue-600' : 'text-gray-400'}`} />
         <div className="flex-1 min-w-0">
           {address.label && (
             <p className="text-sm font-medium text-gray-900 mb-1">{address.label}</p>
@@ -86,7 +72,7 @@ function SavedAddressCard({ address, isSelected, onSelect }) {
           )}
         </div>
         {isSelected && (
-          <CheckCircleIcon className="w-5 h-5 text-blue-600 flex-shrink-0" />
+          <CheckCircle className="w-5 h-5 text-blue-600 flex-shrink-0" />
         )}
       </div>
     </button>
@@ -118,7 +104,7 @@ function AddressInput({ label, name, value, onChange, placeholder, error, requir
       />
       {error && (
         <p className="mt-1 text-xs text-red-600 flex items-center gap-1">
-          <ExclamationCircleIcon className="w-3 h-3" />
+          <AlertCircle className="w-3 h-3" />
           {error}
         </p>
       )}
@@ -252,11 +238,11 @@ export function DeliveryAddressForm({ customer, onComplete, onBack, fulfillmentT
 
   // Dwelling types for delivery
   const dwellingTypes = [
-    { value: 'house', label: 'House', Icon: HomeIcon },
-    { value: 'townhouse', label: 'Townhouse', Icon: HomeIcon },
-    { value: 'condo', label: 'Condo', Icon: BuildingOffice2Icon },
-    { value: 'apartment', label: 'Apartment', Icon: BuildingOfficeIcon },
-    { value: 'commercial', label: 'Commercial', Icon: BuildingOfficeIcon },
+    { value: 'house', label: 'House', Icon: Home },
+    { value: 'townhouse', label: 'Townhouse', Icon: Home },
+    { value: 'condo', label: 'Condo', Icon: Building },
+    { value: 'apartment', label: 'Apartment', Icon: Building },
+    { value: 'commercial', label: 'Commercial', Icon: Building },
   ];
 
   // Entry point options for delivery
@@ -589,7 +575,7 @@ export function DeliveryAddressForm({ customer, onComplete, onBack, fulfillmentT
           onClick={onBack}
           className="flex items-center gap-1 text-sm text-gray-500 hover:text-gray-700 mb-2"
         >
-          <ArrowLeftIcon className="w-4 h-4" />
+          <ArrowLeft className="w-4 h-4" />
           Back
         </button>
         <h2 className="text-xl font-bold text-gray-900">Delivery Address</h2>
@@ -623,7 +609,7 @@ export function DeliveryAddressForm({ customer, onComplete, onBack, fulfillmentT
                 transition-colors duration-150
               "
             >
-              <PlusIcon className="w-5 h-5" />
+              <Plus className="w-5 h-5" />
               Use a different address
             </button>
           </>
@@ -738,7 +724,7 @@ export function DeliveryAddressForm({ customer, onComplete, onBack, fulfillmentT
         {/* Delivery Window Selector - shown in both modes */}
         <div className="mt-4 p-4 rounded-lg bg-emerald-50 border border-emerald-200">
           <h3 className="text-sm font-medium text-gray-800 mb-1 flex items-center gap-2">
-            <CalendarDaysIcon className="w-4 h-4 text-emerald-600" />
+            <CalendarDays className="w-4 h-4 text-emerald-600" />
             Delivery Window
             <span className="text-red-500">*</span>
           </h3>
@@ -770,7 +756,7 @@ export function DeliveryAddressForm({ customer, onComplete, onBack, fulfillmentT
               />
               {errors.deliveryDate && (
                 <p className="mt-1 text-xs text-red-600 flex items-center gap-1">
-                  <ExclamationCircleIcon className="w-3 h-3" />
+                  <AlertCircle className="w-3 h-3" />
                   {errors.deliveryDate}
                 </p>
               )}
@@ -818,7 +804,7 @@ export function DeliveryAddressForm({ customer, onComplete, onBack, fulfillmentT
                         `}
                       >
                         <div className="flex items-center gap-2">
-                          <ClockIcon className="w-4 h-4 flex-shrink-0" />
+                          <Clock className="w-4 h-4 flex-shrink-0" />
                           <span className="text-sm font-medium">{window.label}</span>
                         </div>
                         <span className={`text-xs px-2 py-0.5 rounded-full ${
@@ -835,7 +821,7 @@ export function DeliveryAddressForm({ customer, onComplete, onBack, fulfillmentT
 
                 {errors.deliveryWindow && (
                   <p className="mt-1 text-xs text-red-600 flex items-center gap-1">
-                    <ExclamationCircleIcon className="w-3 h-3" />
+                    <AlertCircle className="w-3 h-3" />
                     {errors.deliveryWindow}
                   </p>
                 )}
@@ -874,7 +860,7 @@ export function DeliveryAddressForm({ customer, onComplete, onBack, fulfillmentT
           </div>
           {errors.dwellingType && (
             <p className="mt-1 text-xs text-red-600 flex items-center gap-1">
-              <ExclamationCircleIcon className="w-3 h-3" />
+              <AlertCircle className="w-3 h-3" />
               {errors.dwellingType}
             </p>
           )}
@@ -929,7 +915,7 @@ export function DeliveryAddressForm({ customer, onComplete, onBack, fulfillmentT
               </div>
               {errors.floorNumber && (
                 <p className="mt-1 text-xs text-red-600 flex items-center gap-1">
-                  <ExclamationCircleIcon className="w-3 h-3" />
+                  <AlertCircle className="w-3 h-3" />
                   {errors.floorNumber}
                 </p>
               )}
@@ -965,14 +951,14 @@ export function DeliveryAddressForm({ customer, onComplete, onBack, fulfillmentT
                   }
                 `}
               >
-                <ArrowRightOnRectangleIcon className="w-4 h-4 flex-shrink-0" />
+                <LogIn className="w-4 h-4 flex-shrink-0" />
                 <span className="text-xs font-medium">{label}</span>
               </button>
             ))}
           </div>
           {errors.entryPoint && (
             <p className="mt-1 text-xs text-red-600 flex items-center gap-1">
-              <ExclamationCircleIcon className="w-3 h-3" />
+              <AlertCircle className="w-3 h-3" />
               {errors.entryPoint}
             </p>
           )}
@@ -1242,7 +1228,7 @@ export function DeliveryAddressForm({ customer, onComplete, onBack, fulfillmentT
                     />
                     {errors.elevatorDate && (
                       <p className="mt-1 text-xs text-red-600 flex items-center gap-1">
-                        <ExclamationCircleIcon className="w-3 h-3" />
+                        <AlertCircle className="w-3 h-3" />
                         {errors.elevatorDate}
                       </p>
                     )}
@@ -1272,7 +1258,7 @@ export function DeliveryAddressForm({ customer, onComplete, onBack, fulfillmentT
                     </select>
                     {errors.elevatorTime && (
                       <p className="mt-1 text-xs text-red-600 flex items-center gap-1">
-                        <ExclamationCircleIcon className="w-3 h-3" />
+                        <AlertCircle className="w-3 h-3" />
                         {errors.elevatorTime}
                       </p>
                     )}
@@ -1327,7 +1313,7 @@ export function DeliveryAddressForm({ customer, onComplete, onBack, fulfillmentT
           </div>
           {errors.pathwayConfirmed && (
             <p className="mt-2 text-xs text-red-600 flex items-center gap-1">
-              <ExclamationCircleIcon className="w-3 h-3" />
+              <AlertCircle className="w-3 h-3" />
               {errors.pathwayConfirmed}
             </p>
           )}
@@ -1362,7 +1348,7 @@ export function DeliveryAddressForm({ customer, onComplete, onBack, fulfillmentT
           >
             {validationResult.valid || validationResult.deliverable ? (
               <>
-                <CheckCircleIcon className="w-5 h-5 text-green-600 flex-shrink-0 mt-0.5" />
+                <CheckCircle className="w-5 h-5 text-green-600 flex-shrink-0 mt-0.5" />
                 <div>
                   <p className="text-sm font-medium text-green-800">
                     {validationResult.zoneName
@@ -1383,7 +1369,7 @@ export function DeliveryAddressForm({ customer, onComplete, onBack, fulfillmentT
               </>
             ) : (
               <>
-                <ExclamationCircleIcon className="w-5 h-5 text-amber-500 flex-shrink-0 mt-0.5" />
+                <AlertCircle className="w-5 h-5 text-amber-500 flex-shrink-0 mt-0.5" />
                 <div>
                   <p className="text-sm font-medium text-amber-800">
                     {validationResult.message || 'This address is outside our standard delivery area'}
@@ -1425,7 +1411,7 @@ export function DeliveryAddressForm({ customer, onComplete, onBack, fulfillmentT
           ) : (
             <>
               Continue
-              <ArrowRightIcon className="w-4 h-4" />
+              <ArrowRight className="w-4 h-4" />
             </>
           )}
         </button>
