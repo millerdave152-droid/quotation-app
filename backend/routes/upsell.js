@@ -8,6 +8,7 @@ const router = express.Router();
 const UpsellService = require('../services/UpsellService');
 const db = require('../db');
 const { ApiError, asyncHandler } = require('../middleware/errorHandler');
+const { authenticate, requireRole } = require('../middleware/auth');
 
 // ============================================================================
 // CUSTOMER-FACING ENDPOINTS
@@ -17,7 +18,7 @@ const { ApiError, asyncHandler } = require('../middleware/errorHandler');
  * POST /api/upsell/offers
  * Get upsell offers for a cart/customer context
  */
-router.post('/offers', asyncHandler(async (req, res) => {
+router.post('/offers', authenticate, asyncHandler(async (req, res) => {
   const {
     cart,
     customer,
@@ -50,7 +51,7 @@ router.post('/offers', asyncHandler(async (req, res) => {
  * POST /api/upsell/evaluate
  * Evaluate triggers without getting full offers (for debugging/preview)
  */
-router.post('/evaluate', asyncHandler(async (req, res) => {
+router.post('/evaluate', authenticate, asyncHandler(async (req, res) => {
   const { cart, customer, location = 'checkout' } = req.body;
 
   if (!cart) {
@@ -99,7 +100,7 @@ router.get('/upgrade/:currentProductId/:upgradeProductId', asyncHandler(async (r
  * POST /api/upsell/result
  * Record upsell result (accepted/declined/ignored)
  */
-router.post('/result', asyncHandler(async (req, res) => {
+router.post('/result', authenticate, asyncHandler(async (req, res) => {
   const {
     offerId,
     orderId,
@@ -154,7 +155,7 @@ router.get('/services', asyncHandler(async (req, res) => {
  * POST /api/upsell/services
  * Get service recommendations (POST for larger payloads)
  */
-router.post('/services', asyncHandler(async (req, res) => {
+router.post('/services', authenticate, asyncHandler(async (req, res) => {
   const { cartItems } = req.body;
 
   const services = await UpsellService.getServiceRecommendations(cartItems || []);
@@ -169,7 +170,7 @@ router.post('/services', asyncHandler(async (req, res) => {
  * POST /api/upsell/membership-offers
  * Get membership offers for customer
  */
-router.post('/membership-offers', asyncHandler(async (req, res) => {
+router.post('/membership-offers', authenticate, asyncHandler(async (req, res) => {
   const { customer, cartValueCents } = req.body;
 
   const offers = await UpsellService.getMembershipOffers(customer, cartValueCents || 0);
@@ -397,7 +398,7 @@ router.get('/admin/strategies/:id', asyncHandler(async (req, res) => {
  * POST /api/upsell/admin/strategies
  * Create new upsell strategy
  */
-router.post('/admin/strategies', asyncHandler(async (req, res) => {
+router.post('/admin/strategies', authenticate, requireRole('admin', 'manager'), asyncHandler(async (req, res) => {
   const {
     name,
     description,
@@ -445,7 +446,7 @@ router.post('/admin/strategies', asyncHandler(async (req, res) => {
  * PUT /api/upsell/admin/strategies/:id
  * Update upsell strategy
  */
-router.put('/admin/strategies/:id', asyncHandler(async (req, res) => {
+router.put('/admin/strategies/:id', authenticate, requireRole('admin', 'manager'), asyncHandler(async (req, res) => {
   const { id } = req.params;
   const {
     name,
@@ -505,7 +506,7 @@ router.put('/admin/strategies/:id', asyncHandler(async (req, res) => {
  * DELETE /api/upsell/admin/strategies/:id
  * Delete upsell strategy
  */
-router.delete('/admin/strategies/:id', asyncHandler(async (req, res) => {
+router.delete('/admin/strategies/:id', authenticate, requireRole('admin', 'manager'), asyncHandler(async (req, res) => {
   const { id } = req.params;
 
   const result = await db.query(
@@ -530,7 +531,7 @@ router.delete('/admin/strategies/:id', asyncHandler(async (req, res) => {
  * POST /api/upsell/admin/offers
  * Create new upsell offer
  */
-router.post('/admin/offers', asyncHandler(async (req, res) => {
+router.post('/admin/offers', authenticate, requireRole('admin', 'manager'), asyncHandler(async (req, res) => {
   const {
     strategyId,
     offerTitle,
@@ -593,7 +594,7 @@ router.post('/admin/offers', asyncHandler(async (req, res) => {
  * PUT /api/upsell/admin/offers/:id
  * Update upsell offer
  */
-router.put('/admin/offers/:id', asyncHandler(async (req, res) => {
+router.put('/admin/offers/:id', authenticate, requireRole('admin', 'manager'), asyncHandler(async (req, res) => {
   const { id } = req.params;
   const updates = req.body;
 
@@ -669,7 +670,7 @@ router.put('/admin/offers/:id', asyncHandler(async (req, res) => {
  * DELETE /api/upsell/admin/offers/:id
  * Delete upsell offer
  */
-router.delete('/admin/offers/:id', asyncHandler(async (req, res) => {
+router.delete('/admin/offers/:id', authenticate, requireRole('admin', 'manager'), asyncHandler(async (req, res) => {
   const { id } = req.params;
 
   const result = await db.query(
@@ -744,7 +745,7 @@ router.get('/admin/services', asyncHandler(async (req, res) => {
  * POST /api/upsell/admin/services
  * Create new service
  */
-router.post('/admin/services', asyncHandler(async (req, res) => {
+router.post('/admin/services', authenticate, requireRole('admin', 'manager'), asyncHandler(async (req, res) => {
   const {
     serviceCode,
     name,
@@ -793,7 +794,7 @@ router.post('/admin/services', asyncHandler(async (req, res) => {
 /**
  * Clear strategy cache
  */
-router.post('/admin/clear-cache', asyncHandler(async (req, res) => {
+router.post('/admin/clear-cache', authenticate, requireRole('admin', 'manager'), asyncHandler(async (req, res) => {
   UpsellService.clearCache();
 
   res.json({
