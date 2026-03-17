@@ -75,3 +75,31 @@ server/
 # Temporary data files
 bestbuy_categories*.json
 migration_output.txt
+
+# Marketplace credentials
+.env.marketplace
+
+# Backend scratch/debug files (one-off scripts, editor artifacts)
+backend/test-*.js
+backend/tmp-*.js
+backend/write-test.js
+backend/check-*.js
+backend/setup-*.js
+backend/reset-*.js
+backend/add-*.js
+backend/fix-*.js
+backend/analyze-*.js
+backend/convert-*.js
+backend/run-migration.js
+backend/customers.js
+backend/quotations.js
+backend/create-*.js
+backend/New Text Document*.txt
+backend/services/New Text Document*.txt
+backend/test-*.csv
+backend/test-*.pdf
+backend/Quote_*.pdf
+backend/_api_audit*.json
+backend/audit-*.json
+backend/*.sql
+!backend/migrations/**/*.sql
