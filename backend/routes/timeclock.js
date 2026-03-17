@@ -1,6 +1,7 @@
 const express = require('express');
 const TimeClockService = require('../services/TimeClockService');
 const { ApiError, asyncHandler } = require('../middleware/errorHandler');
+const { authenticate, requireRole } = require('../middleware/auth');
 
 function init({ pool }) {
   TimeClockService.init({ pool });
@@ -10,7 +11,7 @@ function init({ pool }) {
   // -- Employee endpoints ----
 
   // POST /api/timeclock/clock-in
-  router.post('/clock-in', asyncHandler(async (req, res) => {
+  router.post('/clock-in', authenticate, asyncHandler(async (req, res) => {
     const entry = await TimeClockService.clockIn(req.user.id, {
       location_id: req.body.location_id,
       notes: req.body.notes,
@@ -19,7 +20,7 @@ function init({ pool }) {
   }));
 
   // POST /api/timeclock/clock-out
-  router.post('/clock-out', asyncHandler(async (req, res) => {
+  router.post('/clock-out', authenticate, asyncHandler(async (req, res) => {
     const entry = await TimeClockService.clockOut(req.user.id, {
       notes: req.body.notes,
     });
@@ -63,7 +64,7 @@ function init({ pool }) {
   }));
 
   // PUT /api/timeclock/entries/:id/adjust
-  router.put('/entries/:id/adjust', asyncHandler(async (req, res) => {
+  router.put('/entries/:id/adjust', authenticate, requireRole('admin', 'manager'), asyncHandler(async (req, res) => {
     const entry = await TimeClockService.adjustEntry(
       req.params.id,
       req.body,
@@ -73,7 +74,7 @@ function init({ pool }) {
   }));
 
   // POST /api/timeclock/entries/:id/approve
-  router.post('/entries/:id/approve', asyncHandler(async (req, res) => {
+  router.post('/entries/:id/approve', authenticate, requireRole('admin', 'manager'), asyncHandler(async (req, res) => {
     const entry = await TimeClockService.approveEntry(req.params.id, req.user.id);
     if (!entry) {
       throw ApiError.notFound('Entry not found or already approved');
@@ -82,7 +83,7 @@ function init({ pool }) {
   }));
 
   // POST /api/timeclock/entries/bulk-approve
-  router.post('/entries/bulk-approve', asyncHandler(async (req, res) => {
+  router.post('/entries/bulk-approve', authenticate, requireRole('admin', 'manager'), asyncHandler(async (req, res) => {
     const { entry_ids } = req.body;
     if (!Array.isArray(entry_ids) || entry_ids.length === 0) {
       throw ApiError.badRequest('entry_ids array required');
