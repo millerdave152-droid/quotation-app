@@ -2,6 +2,7 @@ const express = require('express');
 const multer = require('multer');
 const ProductImageService = require('../services/ProductImageService');
 const { ApiError, asyncHandler } = require('../middleware/errorHandler');
+const { authenticate } = require('../middleware/auth');
 
 const upload = multer({
   storage: multer.memoryStorage(),
@@ -27,7 +28,7 @@ function init({ pool }) {
   }));
 
   // POST /api/products/:id/images
-  router.post('/:id/images', upload.single('file'), asyncHandler(async (req, res) => {
+  router.post('/:id/images', authenticate, upload.single('file'), asyncHandler(async (req, res) => {
     if (!req.file) {
       throw ApiError.badRequest('No image file provided');
     }
@@ -43,7 +44,7 @@ function init({ pool }) {
   }));
 
   // PUT /api/products/:id/images/:imageId
-  router.put('/:id/images/:imageId', asyncHandler(async (req, res) => {
+  router.put('/:id/images/:imageId', authenticate, asyncHandler(async (req, res) => {
     const image = await ProductImageService.updateImage(
       req.params.id,
       req.params.imageId,
@@ -54,14 +55,14 @@ function init({ pool }) {
   }));
 
   // DELETE /api/products/:id/images/:imageId
-  router.delete('/:id/images/:imageId', asyncHandler(async (req, res) => {
+  router.delete('/:id/images/:imageId', authenticate, asyncHandler(async (req, res) => {
     const deleted = await ProductImageService.deleteImage(req.params.id, req.params.imageId);
     if (!deleted) throw ApiError.notFound('Image');
     res.json({ success: true });
   }));
 
   // PUT /api/products/:id/images/reorder
-  router.put('/:id/images/reorder', asyncHandler(async (req, res) => {
+  router.put('/:id/images/reorder', authenticate, asyncHandler(async (req, res) => {
     const { image_ids } = req.body;
     if (!Array.isArray(image_ids) || image_ids.length === 0) {
       throw ApiError.badRequest('image_ids array required');
