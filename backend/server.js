@@ -46,6 +46,7 @@ const OrderService = require('./services/OrderService');
 const InvoiceService = require('./services/InvoiceService');
 const MonerisService = require('./services/MonerisService');
 const MonerisVaultService = require('./services/MonerisVaultService');
+const StripeService = require('./services/StripeService');
 const DeliveryService = require('./services/DeliveryService');
 const PricingService = require('./services/PricingService');
 const ProductMetricsService = require('./services/ProductMetricsService');
@@ -120,6 +121,7 @@ const approvalRoutes = require('./routes/approvalRoutes');
 const deliveryFulfillmentRoutes = require('./routes/delivery-fulfillment');
 const warrantyRoutes = require('./routes/warranty');
 const monerisRoutes = require('./routes/moneris');
+const stripeRoutes = require('./routes/stripe');
 const productMetricsRoutes = require('./routes/product-metrics');
 
 // Advanced Pricing (Volume Discounts, Promotions, Stacking)
@@ -253,6 +255,7 @@ const notificationService = new NotificationService(pool);
 const orderService = new OrderService(pool, cache, inventoryService);
 const invoiceService = new InvoiceService(pool, cache, emailService);
 const monerisService = new MonerisService(pool, cache);
+const stripeService = new StripeService(pool, cache);
 const deliveryService = new DeliveryService(pool, cache);
 const pricingService = new PricingService(pool, cache);
 const productMetricsService = new ProductMetricsService(pool, cache);
@@ -3127,6 +3130,10 @@ logger.info('Product metrics routes loaded');
 // Moneris payment routes
 app.use('/api/moneris', monerisRoutes(pool, cache, monerisService));
 logger.info('Moneris payment routes loaded');
+
+// Stripe payment routes
+app.use('/api/stripe', stripeRoutes(pool, cache, stripeService));
+logger.info('Stripe payment routes loaded');
 
 // ============================================
 // ADVANCED PRICING (Volume Discounts, Promotions, Stacking)
