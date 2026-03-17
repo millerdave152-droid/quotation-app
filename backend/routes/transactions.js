@@ -1,25 +1,19 @@
 /**
  * TeleTime POS - Transaction Routes
  * Handles sales transactions, payments, voids, and refunds
- * Updated: 2026-02-04 - Fixed $15 parameter type issue
  */
 
 const express = require('express');
 const router = express.Router();
 const Joi = require('joi');
-const fs = require('fs');
-const path = require('path');
-
-// File-based logging for debugging $15 issue
-const LOG_FILE = path.join(__dirname, '..', 'transaction-debug.log');
-function logToFile(message) {
-  const timestamp = new Date().toISOString();
-  fs.appendFileSync(LOG_FILE, `[${timestamp}] ${message}\n`);
-}
 const { roundDollars, dollarsToCents, parseDollars } = require('../utils/money');
 const { ApiError, asyncHandler } = require('../middleware/errorHandler');
 const { authenticate, requireRole, requirePermission } = require('../middleware/auth');
 const { fraudCheck } = require('../middleware/fraudCheck');
+const { auditLogMiddleware } = require('../middleware/auditLog');
+const { paymentLimiter } = require('../middleware/security');
+const { validateBody, schemas } = require('../middleware/zodValidation');
+const logger = require('../utils/logger');
 const miraklService = require('../services/miraklService');
 
 // ============================================================================
@@ -133,6 +127,8 @@ async function resolveLocationId(client, shiftId) {
 
 const transactionItemSchema = Joi.object({
   productId: Joi.number().integer().required(),
+  productName: Joi.string().max(500).optional().allow('', null),
+  sku: Joi.string().max(200).optional().allow('', null),
   quantity: Joi.number().integer().min(1).required(),
   unitPrice: Joi.number().precision(2).required(),
   unitCost: Joi.number().precision(2).optional().allow(null),
@@ -155,6 +151,9 @@ const paymentSchema = Joi.object({
   cardBrand: Joi.string().max(20).optional().allow('', null),
   authorizationCode: Joi.string().max(50).optional().allow('', null),
   processorReference: Joi.string().max(100).optional().allow('', null),
+  cardEntryMethod: Joi.string().max(50).optional().allow('', null),
+  cardPresent: Joi.boolean().optional().allow(null),
+  cardBin: Joi.string().max(12).optional().allow('', null),
   cashTendered: Joi.number().precision(2).optional().allow(null),
   changeGiven: Joi.number().precision(2).optional().allow(null),
   etransferReference: Joi.string().max(50).optional().allow('', null),
@@ -334,13 +333,13 @@ function calculateLineItem(item, taxRates) {
  * POST /api/transactions
  * Create a new transaction
  */
-router.post('/', authenticate, fraudCheck('transaction.create'), asyncHandler(async (req, res) => {
-  console.log('========================================');
-  console.log('[Transaction] POST /api/transactions - START');
-  console.log('[Transaction] User:', req.user?.id, req.user?.username);
-  console.log('[Transaction] Fulfillment:', JSON.stringify(req.body?.fulfillment, null, 2));
-  console.log('[Transaction] Payments count:', req.body?.payments?.length);
-  console.log('========================================');
+router.post('/', authenticate, paymentLimiter, validateBody(schemas.transactionCreate), fraudCheck('transaction.create'), auditLogMiddleware('sale', 'transaction'), asyncHandler(async (req, res) => {
+  req.log.info({
+    userId: req.user?.id,
+    username: req.user?.username,
+    fulfillment: req.body?.fulfillment,
+    paymentsCount: req.body?.payments?.length,
+  }, '[Transaction] POST /api/transactions - START');
   const { error, value } = createTransactionSchema.validate(req.body, {
     abortEarly: false,
     stripUnknown: true
@@ -348,11 +347,7 @@ router.post('/', authenticate, fraudCheck('transaction.create'), asyncHandler(as
 
   if (error) {
     const validationDetails = error.details.map(d => `${d.path.join('.')}: ${d.message}`);
-    logToFile('========== VALIDATION ERROR ==========');
-    logToFile('ERRORS: ' + validationDetails.join('; '));
-    logToFile('BODY FULFILLMENT: ' + JSON.stringify(req.body?.fulfillment, null, 2));
-    logToFile('=========================================');
-    console.error('[Transaction] Validation errors:', validationDetails.join('; '));
+    req.log.error({ validationDetails }, '[Transaction] Validation errors');
     throw ApiError.badRequest('Validation failed: ' + validationDetails.join('; '), validationDetails);
   }
 
@@ -473,17 +468,50 @@ router.post('/', authenticate, fraudCheck('transaction.create'), asyncHandler(as
     const processedItems = [];
 
     for (const item of items) {
-      // Fetch product details
+      // Fetch product details - try by ID first, then fall back to SKU/model
+      let product = null;
+
       const productResult = await client.query(
         'SELECT id AS product_id, name, model AS sku, price, cost FROM products WHERE id = $1',
         [item.productId]
       );
 
-      if (productResult.rows.length === 0) {
-        throw ApiError.badRequest(`Product with ID ${item.productId} not found`);
+      if (productResult.rows.length > 0) {
+        product = productResult.rows[0];
+      } else if (item.sku) {
+        // Fallback: look up by SKU/model (handles ID mismatches from RLS, cache, or data sync)
+        const skuResult = await client.query(
+          'SELECT id AS product_id, name, model AS sku, price, cost FROM products WHERE model = $1 LIMIT 1',
+          [item.sku]
+        );
+        if (skuResult.rows.length > 0) {
+          product = skuResult.rows[0];
+          req.log.warn({
+            originalProductId: item.productId,
+            resolvedProductId: product.product_id,
+            sku: item.sku,
+          }, '[Transaction] Product not found by ID, resolved by SKU');
+        }
       }
 
-      const product = productResult.rows[0];
+      if (!product) {
+        // Product not in DB (stale cache, deleted, or data-sync gap).
+        // Use cart-provided data so the sale can still complete.
+        req.log.warn({
+          productId: item.productId,
+          sku: item.sku || '(not provided)',
+          productName: item.productName || '(not provided)',
+        }, '[Transaction] Product not found by ID or SKU — using cart data');
+
+        product = {
+          product_id: item.productId,
+          name: item.productName || `Unknown Product (${item.productId})`,
+          sku: item.sku || `UNKNOWN-${item.productId}`,
+          price: item.unitPrice || 0,
+          cost: item.unitCost || 0,
+          _fromCart: true, // flag to skip inventory adjustment
+        };
+      }
 
       // Calculate line item totals
       const lineCalc = calculateLineItem(item, taxRates);
@@ -494,9 +522,11 @@ router.post('/', authenticate, fraudCheck('transaction.create'), asyncHandler(as
 
       processedItems.push({
         ...item,
+        productId: product.product_id,
         productName: product.name,
         productSku: product.sku,
         unitCost: item.unitCost || product.cost,
+        _fromCart: product._fromCart || false,
         ...lineCalc
       });
     }
@@ -593,14 +623,22 @@ router.post('/', authenticate, fraudCheck('transaction.create'), asyncHandler(as
         depositAmount != null ? dollarsToCents(depositAmount) : null,
         balanceDue != null ? dollarsToCents(balanceDue) : null
       ];
-    logToFile('========== TRANSACTION INSERT ==========');
-    logToFile('QUERY: ' + txQuery);
-    logToFile('PARAMS: ' + JSON.stringify(txParams, null, 2));
-    logToFile('PARAM TYPES:\n' + txParams.map((p, i) => `  $${i+1}: ${typeof p} = ${JSON.stringify(p)}`).join('\n'));
-    logToFile('=========================================');
-
     const transactionResult = await client.query(txQuery, txParams);
     const transaction = transactionResult.rows[0];
+
+    // TODO [Tax Engine Integration]: After transaction INSERT, call taxEngineService
+    // to persist a province-aware breakdown in transaction_tax_breakdown:
+    //
+    //   await taxEngineService.calculateTax({
+    //     subtotalCents: dollarsToCents(finalSubtotal),
+    //     provinceCode: taxProvince,
+    //     customerId: customerId || null,
+    //     transactionId: transaction.transaction_id,
+    //     transactionType: 'pos_sale',
+    //   });
+    //
+    // This replaces the hardcoded TAX_RATES object above with DB-driven rates
+    // and adds exemption certificate support. Wire up once migration 168 is live.
 
     // Insert transaction items
     const _inventoryQueue = [];
@@ -615,7 +653,7 @@ router.post('/', authenticate, fraudCheck('transaction.create'), asyncHandler(as
         ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18)`,
         [
           transaction.transaction_id,
-          item.productId,
+          item._fromCart ? null : item.productId,
           item.productName,
           item.productSku,
           item.quantity,
@@ -635,17 +673,19 @@ router.post('/', authenticate, fraudCheck('transaction.create'), asyncHandler(as
         ]
       );
 
-      // Update inventory (global + location + audit)
-      const { oldQty: _oldQty, newQty: _newQty } = await adjustInventoryInline(client, {
-        productId: item.productId,
-        quantity: item.quantity,
-        type: 'sale',
-        locationId: _saleLocationId,
-        transactionId: transaction.transaction_id,
-        transactionNumber: transaction.transaction_number,
-        userId: req.user.id,
-      });
-      _inventoryQueue.push({ productId: item.productId, sku: item.productSku, oldQty: _oldQty, newQty: _newQty, source: 'POS_SALE' });
+      // Update inventory (global + location + audit) — skip for cart-only items
+      if (!item._fromCart) {
+        const { oldQty: _oldQty, newQty: _newQty } = await adjustInventoryInline(client, {
+          productId: item.productId,
+          quantity: item.quantity,
+          type: 'sale',
+          locationId: _saleLocationId,
+          transactionId: transaction.transaction_id,
+          transactionNumber: transaction.transaction_number,
+          userId: req.user.id,
+        });
+        _inventoryQueue.push({ productId: item.productId, sku: item.productSku, oldQty: _oldQty, newQty: _newQty, source: 'POS_SALE' });
+      }
     }
 
     // Insert payments
@@ -656,8 +696,9 @@ router.post('/', authenticate, fraudCheck('transaction.create'), asyncHandler(as
           transaction_id, payment_method, amount,
           card_last_four, card_brand, authorization_code, processor_reference,
           cash_tendered, change_given, status,
-          amount_cents, cash_tendered_cents, change_given_cents
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)`,
+          amount_cents, cash_tendered_cents, change_given_cents,
+          card_entry_method, card_present, card_bin
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)`,
         [
           transaction.transaction_id,
           payment.paymentMethod,
@@ -671,7 +712,10 @@ router.post('/', authenticate, fraudCheck('transaction.create'), asyncHandler(as
           paymentStatus,
           dollarsToCents(payment.amount),
           payment.cashTendered != null ? dollarsToCents(payment.cashTendered) : null,
-          payment.changeGiven != null ? dollarsToCents(payment.changeGiven) : null
+          payment.changeGiven != null ? dollarsToCents(payment.changeGiven) : null,
+          payment.cardEntryMethod || null,
+          payment.cardPresent != null ? payment.cardPresent : true,
+          payment.cardBin || null
         ]
       );
     }
@@ -698,6 +742,46 @@ router.post('/', authenticate, fraudCheck('transaction.create'), asyncHandler(as
             [sc.id, transaction.transaction_id, -redeemCents, Math.max(newBalance, 0), req.user.id]
           );
         }
+      }
+    }
+
+    // Redeem loyalty points
+    for (const payment of payments) {
+      if (payment.paymentMethod === 'loyalty_points' && payment.loyaltyPointsUsed && payment.loyaltyCustomerId) {
+        const loyaltyResult = await client.query(
+          'SELECT customer_id, points_balance FROM customer_loyalty WHERE customer_id = $1 FOR UPDATE',
+          [payment.loyaltyCustomerId]
+        );
+
+        if (loyaltyResult.rows.length === 0) {
+          throw ApiError.badRequest('Customer has no loyalty account');
+        }
+
+        const loyalty = loyaltyResult.rows[0];
+        if (payment.loyaltyPointsUsed > loyalty.points_balance) {
+          throw ApiError.badRequest(`Insufficient loyalty points. Available: ${loyalty.points_balance}, Requested: ${payment.loyaltyPointsUsed}`);
+        }
+
+        const newBalance = loyalty.points_balance - payment.loyaltyPointsUsed;
+
+        await client.query(
+          'UPDATE customer_loyalty SET points_balance = $1, updated_at = NOW() WHERE customer_id = $2',
+          [newBalance, payment.loyaltyCustomerId]
+        );
+
+        await client.query(
+          `INSERT INTO loyalty_transactions (
+            customer_id, points, transaction_type, order_id, balance_after, description, performed_by
+          ) VALUES ($1, $2, 'redeem', $3, $4, $5, $6)`,
+          [
+            payment.loyaltyCustomerId,
+            -payment.loyaltyPointsUsed,
+            orderId || null,
+            newBalance,
+            `Redeemed ${payment.loyaltyPointsUsed} points on POS transaction ${transaction.transaction_number}`,
+            req.user.id,
+          ]
+        );
       }
     }
 
@@ -808,11 +892,6 @@ router.post('/', authenticate, fraudCheck('transaction.create'), asyncHandler(as
           fulfillment.notes || null,
           req.user.id,
         ];
-      logToFile('========== FULFILLMENT INSERT ==========');
-      logToFile('QUERY: ' + fulfillmentQuery);
-      logToFile('PARAMS: ' + JSON.stringify(fulfillmentParams, null, 2));
-      logToFile('PARAM TYPES:\n' + fulfillmentParams.map((p, i) => `  $${i+1}: ${typeof p} = ${JSON.stringify(p)}`).join('\n'));
-      logToFile('=========================================');
 
       await client.query(fulfillmentQuery, fulfillmentParams);
     }
@@ -891,7 +970,7 @@ router.post('/', authenticate, fraudCheck('transaction.create'), asyncHandler(as
           try {
             await discountAuthorityService.markEscalationUsed(mapping.escalationId, transaction.transaction_id);
           } catch (escErr) {
-            console.error('[Transaction] Failed to mark escalation used:', escErr.message);
+            req.log.error({ err: escErr }, '[Transaction] Failed to mark escalation used');
           }
         }
       }
@@ -902,7 +981,7 @@ router.post('/', authenticate, fraudCheck('transaction.create'), asyncHandler(as
       try {
         await miraklService.queueInventoryChange(qi.productId, qi.sku, qi.oldQty, qi.newQty, qi.source);
       } catch (queueErr) {
-        console.error('[MarketplaceQueue] POS_SALE queue error:', queueErr.message);
+        req.log.error({ err: queueErr }, '[MarketplaceQueue] POS_SALE queue error');
       }
     }
 
@@ -910,10 +989,26 @@ router.post('/', authenticate, fraudCheck('transaction.create'), asyncHandler(as
     if (transactionStatus === 'completed' && commissionService) {
       try {
         await commissionService.recordCommission(transaction.transaction_id, salespersonId);
-        console.log(`[Transaction] Commission recorded for txn ${transaction.transaction_id}, rep ${salespersonId}`);
+        req.log.info({ transactionId: transaction.transaction_id, salespersonId }, '[Transaction] Commission recorded');
       } catch (commErr) {
         // Commission failure should not break the sale
-        console.error('[Transaction] Commission recording failed (non-fatal):', commErr.message);
+        req.log.error({ err: commErr }, '[Transaction] Commission recording failed (non-fatal)');
+      }
+    }
+
+    // Capture evidence snapshot for chargeback defense (non-blocking)
+    if (transactionStatus === 'completed') {
+      const fraudService = req.app.get('fraudService');
+      if (fraudService) {
+        fraudService.captureEvidenceSnapshot(transaction.transaction_id, {
+          transaction_number: transaction.transaction_number,
+          user_id: req.user.id,
+          shift_id: shiftId,
+          customer_id: customerId,
+          payments,
+          items: processedItems,
+          total_amount: totalAmount,
+        }).catch(err => req.log.error({ err }, '[Transaction] Evidence snapshot error'));
       }
     }
 
@@ -923,6 +1018,10 @@ router.post('/', authenticate, fraudCheck('transaction.create'), asyncHandler(as
       cache.invalidatePattern('products:');
       if (quoteId) {
         cache.invalidatePattern('quotes:');
+      }
+      // Invalidate walk-in customer context card cache
+      if (customerId) {
+        cache.del('short', `customer_context:${customerId}`);
       }
     }
 
@@ -961,15 +1060,7 @@ router.post('/', authenticate, fraudCheck('transaction.create'), asyncHandler(as
 
   } catch (err) {
     await client.query('ROLLBACK');
-    logToFile('========== TRANSACTION ERROR ==========');
-    logToFile('ERROR MESSAGE: ' + err.message);
-    logToFile('ERROR CODE: ' + err.code);
-    logToFile('ERROR DETAIL: ' + err.detail);
-    logToFile('ERROR HINT: ' + err.hint);
-    logToFile('ERROR POSITION: ' + err.position);
-    logToFile('FULL ERROR: ' + JSON.stringify(err, Object.getOwnPropertyNames(err), 2));
-    logToFile('========================================');
-    console.error('[Transaction] CREATE ERROR:', err.message);
+    req.log.error({ err }, '[Transaction] CREATE ERROR');
     throw err;
   } finally {
     client.release();
@@ -1459,7 +1550,7 @@ router.get('/:id', authenticate, asyncHandler(async (req, res) => {
  * POST /api/transactions/:id/void
  * Void a completed transaction
  */
-router.post('/:id/void', authenticate, requirePermission('pos.checkout.void'), fraudCheck('transaction.void'), asyncHandler(async (req, res) => {
+router.post('/:id/void', authenticate, paymentLimiter, requirePermission('pos.checkout.void'), validateBody(schemas.void), fraudCheck('transaction.void'), auditLogMiddleware('void', 'transaction'), asyncHandler(async (req, res) => {
   const { id } = req.params;
 
   const { error, value } = voidTransactionSchema.validate(req.body, {
@@ -1551,7 +1642,7 @@ router.post('/:id/void', authenticate, requirePermission('pos.checkout.void'), f
       try {
         await miraklService.queueInventoryChange(qi.productId, qi.sku, qi.oldQty, qi.newQty, qi.source);
       } catch (queueErr) {
-        console.error('[MarketplaceQueue] RETURN (void) queue error:', queueErr.message);
+        req.log.error({ err: queueErr }, '[MarketplaceQueue] RETURN (void) queue error');
       }
     }
 
@@ -1584,7 +1675,7 @@ router.post('/:id/void', authenticate, requirePermission('pos.checkout.void'), f
  * POST /api/transactions/:id/collect-balance
  * Collect remaining balance on a deposit-paid transaction
  */
-router.post('/:id/collect-balance', authenticate, asyncHandler(async (req, res) => {
+router.post('/:id/collect-balance', authenticate, paymentLimiter, auditLogMiddleware('collect_balance', 'transaction'), asyncHandler(async (req, res) => {
   const { id } = req.params;
   const { paymentMethod, amount, cardLastFour, cardBrand, authorizationCode, processorReference, etransferReference } = req.body;
 
@@ -1597,7 +1688,7 @@ router.post('/:id/collect-balance', authenticate, asyncHandler(async (req, res) 
     await client.query('BEGIN');
 
     const txnResult = await client.query(
-      'SELECT transaction_id, status, balance_due, total_amount FROM transactions WHERE transaction_id = $1 FOR UPDATE',
+      'SELECT transaction_id, transaction_number, status, balance_due, total_amount FROM transactions WHERE transaction_id = $1 FOR UPDATE',
       [id]
     );
 
@@ -1619,8 +1710,8 @@ router.post('/:id/collect-balance', authenticate, asyncHandler(async (req, res) 
       `INSERT INTO payments (
         transaction_id, payment_method, amount,
         card_last_four, card_brand, authorization_code, processor_reference, status,
-        amount_cents
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, 'completed', $8)`,
+        amount_cents, card_entry_method, card_present, card_bin
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, 'completed', $8, $9, $10, $11)`,
       [
         id,
         paymentMethod,
@@ -1630,6 +1721,9 @@ router.post('/:id/collect-balance', authenticate, asyncHandler(async (req, res) 
         authorizationCode || null,
         processorReference || null,
         dollarsToCents(amount),
+        req.body.cardEntryMethod || null,
+        req.body.cardPresent != null ? req.body.cardPresent : true,
+        req.body.cardBin || null,
       ]
     );
 
@@ -1642,6 +1736,26 @@ router.post('/:id/collect-balance', authenticate, asyncHandler(async (req, res) 
     );
 
     await client.query('COMMIT');
+
+    // Capture evidence snapshot for chargeback defense (non-blocking)
+    const fraudService = req.app.get('fraudService');
+    if (fraudService) {
+      fraudService.captureEvidenceSnapshot(parseInt(id), {
+        transaction_number: txn.transaction_number,
+        user_id: req.user.id,
+        shift_id: null,
+        customer_id: null,
+        payments: [{
+          paymentMethod: paymentMethod,
+          amount: amount,
+          cardLastFour: cardLastFour,
+          cardBrand: cardBrand,
+          cardEntryMethod: req.body.cardEntryMethod || null,
+        }],
+        items: [],
+        total_amount: parseFloat(txn.total_amount),
+      }).catch(err => req.log.error({ err }, '[Transaction] Evidence snapshot error'));
+    }
 
     res.json({
       success: true,
@@ -1717,7 +1831,7 @@ router.get('/:id/balance', authenticate, asyncHandler(async (req, res) => {
  * POST /api/transactions/:id/refund
  * Process full or partial refund
  */
-router.post('/:id/refund', authenticate, requirePermission('pos.returns.process_refund'), fraudCheck('refund.process'), asyncHandler(async (req, res) => {
+router.post('/:id/refund', authenticate, paymentLimiter, requirePermission('pos.returns.process_refund'), validateBody(schemas.refund), fraudCheck('refund.process'), auditLogMiddleware('refund', 'transaction'), asyncHandler(async (req, res) => {
   const { id } = req.params;
 
   const { error, value } = refundSchema.validate(req.body, {
@@ -1860,7 +1974,7 @@ router.post('/:id/refund', authenticate, requirePermission('pos.returns.process_
       try {
         await miraklService.queueInventoryChange(qi.productId, qi.sku, qi.oldQty, qi.newQty, qi.source);
       } catch (queueErr) {
-        console.error('[MarketplaceQueue] RETURN (refund) queue error:', queueErr.message);
+        req.log.error({ err: queueErr }, '[MarketplaceQueue] RETURN (refund) queue error');
       }
     }
 
