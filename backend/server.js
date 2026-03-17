@@ -73,6 +73,7 @@ const QuoteExpiryDigestJob = require('./services/QuoteExpiryDigestJob');
 const emailService = require('./services/EmailService'); // singleton
 const NotificationService = require('./services/NotificationService');
 const TaxService = require('./services/TaxService');
+const InstitutionalService = require('./services/institutionalService');
 const FraudDetectionService = require('./services/FraudDetectionService');
 const FraudScoringService = require('./services/FraudScoringService');
 const VelocityService = require('./services/VelocityService');
@@ -257,6 +258,7 @@ const pricingService = new PricingService(pool, cache);
 const productMetricsService = new ProductMetricsService(pool, cache);
 const quoteExpiryService = new QuoteExpiryService(pool, cache, inventoryService, notificationService);
 const taxService = new TaxService(pool, cache);
+const institutionalService = new InstitutionalService(pool, cache);
 
 // POS Payment Services (Phase 3)
 const posPaymentService = new POSPaymentService(pool, cache, monerisService);
@@ -483,7 +485,7 @@ const emailServiceWrapper = {
 };
 
 // Initialize scheduled batch email service
-const scheduledBatchEmailService = new ScheduledBatchEmailService(pool, batchEmailService, emailServiceWrapper);
+const scheduledBatchEmailService = new ScheduledBatchEmailService(pool, batchEmailService, emailServiceWrapper, receiptService);
 scheduledBatchEmailService.initialize().catch(err => {
   logger.error({ err }, 'Failed to initialize scheduled batch email service');
 });
@@ -728,8 +730,15 @@ logger.info('Product routes loaded (modular)');
 const categoriesRoutes = require('./routes/categories');
 const ProductService = require('./services/ProductService');
 const categoryProductService = new ProductService(pool, cache);
-app.use('/api/categories', categoriesRoutes(pool, categoryProductService));
+app.use('/api/categories', categoriesRoutes(pool, categoryProductService, cache));
 logger.info('Category routes loaded');
+
+// ============================================
+// PUBLIC CATEGORY API (No Auth - Customer Portal)
+// ============================================
+const initPublicCategoryRoutes = require('./routes/public-categories');
+app.use('/api/public', initPublicCategoryRoutes({ pool, productService: categoryProductService }));
+logger.info('Public category routes loaded (no auth)');
 
 // ============================================
 // IMPORT TEMPLATES (Manufacturer Mappings)
@@ -827,7 +836,9 @@ logger.info('Inventory aging & turnover routes loaded');
 const { init: initScheduledReportRoutes } = require('./routes/scheduled-reports');
 const scheduledReportRouter = initScheduledReportRoutes({ pool });
 app.use('/api/scheduled-reports', scheduledReportRouter);
-app.use('/api/reports', scheduledReportRouter);
+// NOTE: Previously also mounted at /api/reports, but that shadowed the report-builder
+// router's GET / and forced every /api/reports/* request through /:id numeric guard.
+// The scheduled-reports endpoints are accessible at /api/scheduled-reports/* only.
 logger.info('Scheduled reports & generation routes loaded');
 
 // ============================================
@@ -858,7 +869,7 @@ notificationQueueService.startQueueProcessor();
 logger.info('Notification trigger routes loaded');
 
 const { init: initHubExchangeRoutes } = require('./routes/hub-exchanges');
-app.use('/api/exchanges', initHubExchangeRoutes({ pool }));
+app.use('/api/hub-exchanges', initHubExchangeRoutes({ pool }));
 logger.info('Hub exchange routes loaded');
 
 // Driver Auth (mobile app PIN login)
@@ -897,6 +908,27 @@ logger.info('Analytics routes loaded (modular)');
 const { init: initDashboardRoutes } = require('./routes/dashboard');
 app.use('/api/dashboard', initDashboardRoutes({ pool, cache }));
 logger.info('Unified dashboard routes loaded (sales pipeline)');
+
+// ============================================
+// RETAIL DASHBOARD (Real-Time KPIs)
+// ============================================
+const retailDashboardRoutes = require('./routes/retailDashboardRoutes');
+app.use('/api/retail-dashboard', retailDashboardRoutes);
+logger.info('Retail dashboard routes loaded');
+
+// ============================================
+// UNIVERSAL SEMANTIC SEARCH
+// ============================================
+const searchRoutes = require('./routes/searchRoutes');
+app.use('/api/search', searchRoutes);
+logger.info('Search routes loaded (hybrid FTS + vector)');
+
+// ============================================
+// AI BUSINESS ASSISTANT
+// ============================================
+const aiAssistantRoutes = require('./routes/aiAssistantRoutes');
+app.use('/api/assistant', aiAssistantRoutes);
+logger.info('AI Business Assistant routes loaded');
 
 // ============================================
 // INSIGHTS (AI-Powered Business Insights)
@@ -959,7 +991,7 @@ logger.info('POS transactions routes loaded');
 
 // POS RETURNS
 const { init: initReturnsRoutes } = require('./routes/returns');
-app.use('/api/returns', initReturnsRoutes({ pool, cache, monerisService }));
+app.use('/api/returns', initReturnsRoutes({ pool, cache, monerisService, receiptService }));
 logger.info('POS returns routes loaded');
 
 // POS STORE CREDITS
@@ -1047,6 +1079,22 @@ logger.info('Draft persistence routes loaded (offline sync support)');
 const { init: initTaxRoutes } = require('./routes/tax');
 app.use('/api/tax', initTaxRoutes({ taxService }));
 logger.info('Tax routes loaded');
+
+// ============================================
+// INSTITUTIONAL BUYERS
+// ============================================
+const { init: initInstitutionalRoutes } = require('./routes/institutionalRoutes');
+app.use('/api/institutional', initInstitutionalRoutes({ institutionalService }));
+logger.info('Institutional buyer routes loaded');
+
+// ============================================
+// VOICE NOTES (CRM interaction notes)
+// ============================================
+const VoiceNotesService = require('./services/voiceNotesService');
+const voiceNotesService = new VoiceNotesService(pool);
+const { init: initVoiceNotesRoutes } = require('./routes/voiceNotesRoutes');
+app.use('/api/notes', initVoiceNotesRoutes({ voiceNotesService }));
+logger.info('Voice notes routes loaded');
 
 // ============================================
 // FRAUD DETECTION & AUDIT
@@ -2530,80 +2578,11 @@ app.get('/api/sales-reps', async (req, res) => {
   }
 });
 
-// Get commission rules
-app.get('/api/commission-rules', async (req, res) => {
-  try {
-    const { productCategory } = req.query;
-
-    let query = 'SELECT * FROM commission_rules WHERE is_active = true';
-    const params = [];
-
-    if (productCategory) {
-      params.push(productCategory);
-      query += ` AND (product_category = $${params.length} OR product_category IS NULL)`;
-    }
-
-    query += ' ORDER BY product_category NULLS LAST';
-
-    const result = await pool.query(query, params);
-    res.json(result.rows);
-  } catch (error) {
-    logger.error({ err: error }, 'Error fetching commission rules');
-    res.status(500).json({ error: 'Failed to fetch commission rules' });
-  }
-});
-
-// Calculate commission
-app.post('/api/commission-rules/calculate', async (req, res) => {
-  try {
-    const {
-      productCategory,
-      productSaleCents,
-      warrantySaleCents,
-      deliverySaleCents
-    } = req.body;
-
-    // Find applicable rule
-    let rule = await pool.query(
-      'SELECT * FROM commission_rules WHERE product_category = $1 AND is_active = true',
-      [productCategory]
-    );
-
-    // Fallback to default rule if no category-specific rule
-    if (rule.rows.length === 0) {
-      rule = await pool.query(
-        'SELECT * FROM commission_rules WHERE product_category IS NULL AND is_active = true LIMIT 1'
-      );
-    }
-
-    if (rule.rows.length === 0) {
-      return res.status(404).json({ error: 'No commission rule found' });
-    }
-
-    const r = rule.rows[0];
-
-    const productCommission = Math.round((productSaleCents || 0) * (parseFloat(r.commission_percent) / 100));
-    const warrantyCommission = Math.round((warrantySaleCents || 0) * (parseFloat(r.warranty_commission_percent) / 100));
-    const deliveryCommission = Math.round((deliverySaleCents || 0) * (parseFloat(r.delivery_commission_percent) / 100));
-    const flatCommission = parseInt(r.flat_commission_cents) || 0;
-
-    const totalCommission = productCommission + warrantyCommission + deliveryCommission + flatCommission;
-
-    res.json({
-      rule: r,
-      calculation: {
-        productCommissionCents: productCommission,
-        warrantyCommissionCents: warrantyCommission,
-        deliveryCommissionCents: deliveryCommission,
-        flatCommissionCents: flatCommission,
-        totalCommissionCents: totalCommission
-      }
-    });
-  } catch (error) {
-    logger.error({ err: error }, 'Error calculating commission');
-    res.status(500).json({ error: 'Failed to calculate commission' });
-  }
-});
+// Removed: inline GET /api/commission-rules and POST /api/commission-rules/calculate
+// These were unauthenticated and shadowed the authenticated handlers in commission-api.js (rulesRouter).
+// Commission rules CRUD is available via:
+//   - /api/commissions/rules (commissions.js — used by POS & frontend)
+//   - /api/commission-rules (commission-api.js rulesRouter — authenticated)
 
 // Note: Quote-specific sales rep endpoints (/api/quotes/:quoteId/sales-rep) moved to /api/quotations route module
 
@@ -3114,7 +3093,7 @@ logger.info('Discount escalation routes loaded (with audit logging)');
 app.use('/api/discount-analytics', discountAnalyticsRoutes(pool));
 logger.info('Discount analytics routes loaded');
 
-app.use('/api/delivery', deliveryFulfillmentRoutes(deliveryFulfillmentService));
+app.use('/api/delivery/fulfillment', deliveryFulfillmentRoutes(deliveryFulfillmentService));
 const deliveryWindowRoutes = require('./routes/delivery-windows');
 app.use('/api/delivery-windows', deliveryWindowRoutes.init({ pool }));
 logger.info('Delivery window scheduling routes loaded');
@@ -3282,8 +3261,8 @@ const scheduler = require('./jobs/scheduler');
 // ============================================
 // AI ASSISTANT ROUTES
 // ============================================
-const aiAssistantRoutes = require('./routes/ai-assistant');
-app.use('/api/ai', aiAssistantRoutes);
+const aiChatRoutes = require('./routes/ai-assistant');
+app.use('/api/ai', aiChatRoutes);
 logger.info('AI Assistant routes loaded');
 
 // ============================================
@@ -3441,6 +3420,15 @@ const server = app.listen(PORT, () => {
   if (process.env.ENABLE_CLV_JOB !== 'false') {
     clvCalculationJob.start(process.env.CLV_JOB_SCHEDULE || '30 2 * * *');
     logger.info('CLV calculation job started (Daily 2:30 AM)');
+  }
+
+  // Start CSV auto-import watcher (watches cleaned_data folder for new price lists)
+  if (process.env.AUTO_IMPORT_ENABLED === 'true') {
+    const ProductSyncScheduler = require('./services/product-sync-scheduler');
+    const importConfig = require('./config/import-config');
+    const syncScheduler = new ProductSyncScheduler(pool, importConfig);
+    syncScheduler.start();
+    logger.info('Product CSV sync scheduler started');
   }
 
   // Initialize ChannelManager (loads active marketplace channels from DB)
