@@ -6,6 +6,7 @@
 const express = require('express');
 const router = express.Router();
 const { ApiError, asyncHandler } = require('../middleware/errorHandler');
+const { authenticate } = require('../middleware/auth');
 
 /**
  * Initialize routes with service
@@ -51,7 +52,7 @@ module.exports = function (warrantyService) {
    * POST /api/warranty/eligible
    * Get eligible warranties for multiple products (batch)
    */
-  router.post('/eligible', asyncHandler(async (req, res) => {
+  router.post('/eligible', authenticate, asyncHandler(async (req, res) => {
     const { products, saleContext } = req.body;
 
     if (!products || !Array.isArray(products)) {
@@ -123,7 +124,7 @@ module.exports = function (warrantyService) {
    * POST /api/warranty/add-to-order
    * Add warranty to a transaction/order
    */
-  router.post('/add-to-order', asyncHandler(async (req, res) => {
+  router.post('/add-to-order', authenticate, asyncHandler(async (req, res) => {
     const {
       transactionId,
       orderId,
@@ -163,7 +164,7 @@ module.exports = function (warrantyService) {
    * POST /api/warranty/upsell-script
    * Get sales script for a product
    */
-  router.post('/upsell-script', asyncHandler(async (req, res) => {
+  router.post('/upsell-script', authenticate, asyncHandler(async (req, res) => {
     const { product } = req.body;
 
     if (!product || (!product.id && !product.productId)) {
@@ -211,7 +212,7 @@ module.exports = function (warrantyService) {
    * POST /api/warranty/decline
    * Track warranty decline for analytics
    */
-  router.post('/decline', asyncHandler(async (req, res) => {
+  router.post('/decline', authenticate, asyncHandler(async (req, res) => {
     const {
       productId,
       transactionId,
@@ -396,7 +397,7 @@ module.exports = function (warrantyService) {
    * POST /api/warranty/register
    * Register a warranty purchase with Excelsior/Phoenix AMD
    */
-  router.post('/register', asyncHandler(async (req, res) => {
+  router.post('/register', authenticate, asyncHandler(async (req, res) => {
     const { warrantyPurchaseId, providerCode, providerSku } = req.body;
 
     if (!warrantyPurchaseId) {
