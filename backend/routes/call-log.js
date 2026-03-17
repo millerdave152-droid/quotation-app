@@ -1,6 +1,7 @@
 const express = require('express');
 const CallLogService = require('../services/CallLogService');
 const { ApiError, asyncHandler } = require('../middleware/errorHandler');
+const { authenticate } = require('../middleware/auth');
 
 function init({ pool }) {
   CallLogService.init({ pool });
@@ -8,7 +9,7 @@ function init({ pool }) {
   const router = express.Router();
 
   // POST /api/customers/:id/calls
-  router.post('/customers/:id/calls', asyncHandler(async (req, res) => {
+  router.post('/customers/:id/calls', authenticate, asyncHandler(async (req, res) => {
     const call = await CallLogService.createCall(req.params.id, req.body, req.user?.id);
     res.status(201).json({ call });
   }));
@@ -23,14 +24,14 @@ function init({ pool }) {
   }));
 
   // PUT /api/calls/:id
-  router.put('/calls/:id', asyncHandler(async (req, res) => {
+  router.put('/calls/:id', authenticate, asyncHandler(async (req, res) => {
     const call = await CallLogService.updateCall(req.params.id, req.body);
     if (!call) throw ApiError.notFound('Call');
     res.json({ call });
   }));
 
   // POST /api/calls/:id/complete-followup
-  router.post('/calls/:id/complete-followup', asyncHandler(async (req, res) => {
+  router.post('/calls/:id/complete-followup', authenticate, asyncHandler(async (req, res) => {
     const call = await CallLogService.completeFollowUp(req.params.id);
     if (!call) throw ApiError.notFound('Call not found or no follow-up pending');
     res.json({ call });
@@ -67,7 +68,7 @@ function init({ pool }) {
   }));
 
   // POST /api/calls/quick-log
-  router.post('/calls/quick-log', asyncHandler(async (req, res) => {
+  router.post('/calls/quick-log', authenticate, asyncHandler(async (req, res) => {
     const result = await CallLogService.quickLog(req.body, req.user?.id);
     if (result.error === 'customer_not_found') {
       throw ApiError.notFound('No customer found for phone number');
