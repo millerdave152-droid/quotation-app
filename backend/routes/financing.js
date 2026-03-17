@@ -5,6 +5,7 @@
 
 const express = require('express');
 const { ApiError, asyncHandler } = require('../middleware/errorHandler');
+const { authenticate, requireRole } = require('../middleware/auth');
 
 /**
  * Initialize financing routes
@@ -81,14 +82,14 @@ function init({ financingService }) {
    * Initiate financing application
    * Body: { orderId, planId, customerId, amountCents?, transactionId? }
    */
-  router.post('/apply', asyncHandler(async (req, res) => {
+  router.post('/apply', authenticate, asyncHandler(async (req, res) => {
     const { orderId, planId, customerId, amountCents, transactionId } = req.body;
 
     if (!planId || !customerId) {
       throw ApiError.badRequest('planId and customerId are required');
     }
 
-    const userId = req.user?.id || req.body.userId;
+    const userId = req.user.id;
 
     const result = await financingService.initiateFinancing(
       orderId ? parseInt(orderId, 10) : null,
@@ -196,7 +197,7 @@ function init({ financingService }) {
    * Manually approve application (manager override)
    * Body: { notes? }
    */
-  router.post('/applications/:id/manual-approve', asyncHandler(async (req, res) => {
+  router.post('/applications/:id/manual-approve', authenticate, requireRole('admin', 'manager'), asyncHandler(async (req, res) => {
     const { id } = req.params;
     const { notes } = req.body;
     const userId = req.user?.id;
@@ -261,7 +262,7 @@ function init({ financingService }) {
    * Manually decline application (manager override)
    * Body: { reason }
    */
-  router.post('/applications/:id/manual-decline', asyncHandler(async (req, res) => {
+  router.post('/applications/:id/manual-decline', authenticate, requireRole('admin', 'manager'), asyncHandler(async (req, res) => {
     const { id } = req.params;
     const { reason } = req.body;
     const userId = req.user?.id;
@@ -364,7 +365,7 @@ function init({ financingService }) {
    * Record a payment on a financing agreement
    * Body: { amountCents, paymentMethod?, externalPaymentId? }
    */
-  router.post('/agreements/:agreementId/payments', asyncHandler(async (req, res) => {
+  router.post('/agreements/:agreementId/payments', authenticate, asyncHandler(async (req, res) => {
     const { agreementId } = req.params;
     const { amountCents, paymentMethod, externalPaymentId } = req.body;
 
@@ -403,7 +404,7 @@ function init({ financingService }) {
    * Process early payoff
    * Body: { paymentMethod?, externalPaymentId? }
    */
-  router.post('/agreements/:agreementId/payoff', asyncHandler(async (req, res) => {
+  router.post('/agreements/:agreementId/payoff', authenticate, asyncHandler(async (req, res) => {
     const { agreementId } = req.params;
     const { paymentMethod, externalPaymentId } = req.body;
 
@@ -423,7 +424,7 @@ function init({ financingService }) {
    * Link a transaction to financing
    * Body: { transactionId, applicationId, agreementId? }
    */
-  router.post('/link-transaction', asyncHandler(async (req, res) => {
+  router.post('/link-transaction', authenticate, asyncHandler(async (req, res) => {
     const { transactionId, applicationId, agreementId } = req.body;
 
     if (!transactionId || !applicationId) {
@@ -450,7 +451,7 @@ function init({ financingService }) {
    * POST /api/financing/webhooks/affirm
    * Handle Affirm webhook callbacks
    */
-  router.post('/webhooks/affirm', async (req, res) => {
+  router.post('/webhooks/affirm', asyncHandler(async (req, res) => {
     try {
       const result = await financingService.processExternalCallback('affirm', req.body);
 
@@ -465,13 +466,13 @@ function init({ financingService }) {
         error: error.message,
       });
     }
-  });
+  }));
 
   /**
    * POST /api/financing/webhooks/klarna
    * Handle Klarna webhook callbacks
    */
-  router.post('/webhooks/klarna', async (req, res) => {
+  router.post('/webhooks/klarna', asyncHandler(async (req, res) => {
     try {
       const result = await financingService.processExternalCallback('klarna', req.body);
 
@@ -486,13 +487,13 @@ function init({ financingService }) {
         error: error.message,
       });
     }
-  });
+  }));
 
   /**
    * POST /api/financing/webhooks/synchrony
    * Handle Synchrony webhook callbacks
    */
-  router.post('/webhooks/synchrony', async (req, res) => {
+  router.post('/webhooks/synchrony', asyncHandler(async (req, res) => {
     try {
       const result = await financingService.processExternalCallback('synchrony', req.body);
 
@@ -507,7 +508,7 @@ function init({ financingService }) {
         error: error.message,
       });
     }
-  });
+  }));
 
   // ===========================================================================
   // ADMIN ENDPOINTS
@@ -676,7 +677,7 @@ function init({ financingService }) {
    * POST /api/financing/admin/applications/:id/approve
    * Manually approve a pending application (admin override)
    */
-  router.post('/admin/applications/:id/approve', asyncHandler(async (req, res) => {
+  router.post('/admin/applications/:id/approve', authenticate, requireRole('admin', 'manager'), asyncHandler(async (req, res) => {
     const { id } = req.params;
     const { approvedAmount } = req.body;
     const userId = req.user?.id;
@@ -738,7 +739,7 @@ function init({ financingService }) {
    * POST /api/financing/admin/applications/:id/decline
    * Manually decline a pending application
    */
-  router.post('/admin/applications/:id/decline', asyncHandler(async (req, res) => {
+  router.post('/admin/applications/:id/decline', authenticate, requireRole('admin', 'manager'), asyncHandler(async (req, res) => {
     const { id } = req.params;
     const { reason, declineCode } = req.body;
     const userId = req.user?.id;
