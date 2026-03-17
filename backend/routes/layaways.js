@@ -1,6 +1,7 @@
 const express = require('express');
 const LayawayService = require('../services/LayawayService');
 const { ApiError, asyncHandler } = require('../middleware/errorHandler');
+const { authenticate } = require('../middleware/auth');
 
 function init({ pool }) {
   LayawayService.init({ pool });
@@ -8,7 +9,7 @@ function init({ pool }) {
   const router = express.Router();
 
   // POST /api/layaways
-  router.post('/', asyncHandler(async (req, res) => {
+  router.post('/', authenticate, asyncHandler(async (req, res) => {
     const layaway = await LayawayService.createLayaway(req.body, req.user?.id);
     res.status(201).json({ layaway });
   }));
@@ -35,7 +36,7 @@ function init({ pool }) {
   }));
 
   // POST /api/layaways/:id/payment
-  router.post('/:id/payment', asyncHandler(async (req, res) => {
+  router.post('/:id/payment', authenticate, asyncHandler(async (req, res) => {
     const layaway = await LayawayService.makePayment(
       req.params.id,
       req.body,
@@ -45,7 +46,7 @@ function init({ pool }) {
   }));
 
   // POST /api/layaways/:id/cancel
-  router.post('/:id/cancel', asyncHandler(async (req, res) => {
+  router.post('/:id/cancel', authenticate, asyncHandler(async (req, res) => {
     const result = await LayawayService.cancelLayaway(req.params.id);
     res.json(result);
   }));
