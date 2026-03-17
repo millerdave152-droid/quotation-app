@@ -7,6 +7,7 @@
 const express = require('express');
 const router = express.Router();
 const { ApiError, asyncHandler } = require('../middleware/errorHandler');
+const { authenticate } = require('../middleware/auth');
 
 /**
  * Initialize routes with service
@@ -21,7 +22,7 @@ module.exports = function (deliveryService) {
    * POST /api/delivery/options
    * Get available fulfillment options for a cart
    */
-  router.post('/options', asyncHandler(async (req, res) => {
+  router.post('/options', authenticate, asyncHandler(async (req, res) => {
     const { cart, address } = req.body;
 
     if (!cart) {
@@ -41,7 +42,7 @@ module.exports = function (deliveryService) {
    * POST /api/delivery/calculate-fee
    * Calculate delivery fee for a specific option
    */
-  router.post('/calculate-fee', asyncHandler(async (req, res) => {
+  router.post('/calculate-fee', authenticate, asyncHandler(async (req, res) => {
     const { optionType, cart, address } = req.body;
 
     if (!optionType || !cart) {
@@ -65,7 +66,7 @@ module.exports = function (deliveryService) {
    * POST /api/delivery/validate-address
    * Check if address is within delivery zone
    */
-  router.post('/validate-address', asyncHandler(async (req, res) => {
+  router.post('/validate-address', authenticate, asyncHandler(async (req, res) => {
     const { address } = req.body;
 
     if (!address) {
@@ -119,7 +120,7 @@ module.exports = function (deliveryService) {
    * POST /api/delivery/schedule
    * Schedule delivery/pickup for an order
    */
-  router.post('/schedule', asyncHandler(async (req, res) => {
+  router.post('/schedule', authenticate, asyncHandler(async (req, res) => {
     const {
       transactionId,
       orderId,
@@ -188,7 +189,7 @@ module.exports = function (deliveryService) {
    * PUT /api/delivery/fulfillment/:id/status
    * Update fulfillment status
    */
-  router.put('/fulfillment/:id/status', asyncHandler(async (req, res) => {
+  router.put('/fulfillment/:id/status', authenticate, asyncHandler(async (req, res) => {
     const { id } = req.params;
     const { status, notes, deliveredTo, trackingNumber, trackingUrl } = req.body;
 
@@ -253,7 +254,7 @@ module.exports = function (deliveryService) {
    * POST /api/delivery/process-pickup
    * Process a customer pickup by code
    */
-  router.post('/process-pickup', asyncHandler(async (req, res) => {
+  router.post('/process-pickup', authenticate, asyncHandler(async (req, res) => {
     const { pickupCode } = req.body;
 
     if (!pickupCode) {
