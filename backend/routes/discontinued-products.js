@@ -1,6 +1,7 @@
 const express = require('express');
 const DiscontinuedProductService = require('../services/DiscontinuedProductService');
 const { ApiError, asyncHandler } = require('../middleware/errorHandler');
+const { authenticate, requireRole } = require('../middleware/auth');
 
 function init({ pool }) {
   DiscontinuedProductService.init({ pool });
@@ -8,7 +9,7 @@ function init({ pool }) {
   const router = express.Router();
 
   // POST /api/products/:id/discontinue
-  router.post('/:id/discontinue', asyncHandler(async (req, res) => {
+  router.post('/:id/discontinue', authenticate, requireRole('admin', 'manager'), asyncHandler(async (req, res) => {
     const { reason, replacement_product_id, hide_when_zero_stock, effective_date } = req.body;
     const product = await DiscontinuedProductService.discontinueProduct(req.params.id, {
       reason,
@@ -20,7 +21,7 @@ function init({ pool }) {
   }));
 
   // POST /api/products/:id/reactivate
-  router.post('/:id/reactivate', asyncHandler(async (req, res) => {
+  router.post('/:id/reactivate', authenticate, requireRole('admin', 'manager'), asyncHandler(async (req, res) => {
     const product = await DiscontinuedProductService.reactivateProduct(req.params.id);
     res.json({ product });
   }));
@@ -37,7 +38,7 @@ function init({ pool }) {
   }));
 
   // POST /api/products/bulk-discontinue
-  router.post('/bulk-discontinue', asyncHandler(async (req, res) => {
+  router.post('/bulk-discontinue', authenticate, requireRole('admin', 'manager'), asyncHandler(async (req, res) => {
     const { product_ids, reason, effective_date } = req.body;
     if (!Array.isArray(product_ids) || product_ids.length === 0) {
       throw ApiError.badRequest('product_ids array required');
