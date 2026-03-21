@@ -2,13 +2,13 @@
 # ============================================================================
 # setup-ec2-schedule.sh
 # Creates AWS EventBridge rules + Lambda functions to auto-start/stop
-# EC2 instances on a daily schedule (store hours 7am–9pm ET).
+# EC2 instances on a daily schedule (10am–9pm ET).
 #
 # Schedule (UTC, conservative EST/UTC-5):
-#   Start: 6:30 AM ET  → cron(30 11 * * ? *)
-#   Stop:  9:30 PM ET  → cron(30 2  * * ? *)
+#   Start: 10:00 AM ET → cron(0 15 * * ? *)
+#   Stop:   9:00 PM ET → cron(0 2  * * ? *)
 #
-# During EDT (Mar–Nov) this means 7:30am start / 10:30pm stop — fine as buffer.
+# During EDT (Mar–Nov) this means 11:00am start / 10:00pm stop — fine as buffer.
 #
 # Prerequisites:
 #   - AWS CLI v2 configured with admin or IAM/Lambda/Events/EC2 permissions
@@ -31,8 +31,8 @@ INSTANCE_IDS="i-XXXXXXXXXXXXXXXXX,i-YYYYYYYYYYYYYYYYY"
 ROLE_NAME="ec2-start-stop-scheduler-role"
 START_FUNCTION="ec2-scheduled-start"
 STOP_FUNCTION="ec2-scheduled-stop"
-START_RULE="ec2-daily-start-0630et"
-STOP_RULE="ec2-daily-stop-2130et"
+START_RULE="ec2-daily-start-1000et"
+STOP_RULE="ec2-daily-stop-2100et"
 
 echo "Account:      $ACCOUNT_ID"
 echo "Region:       $REGION"
@@ -124,7 +124,7 @@ aws lambda create-function \
   --timeout 30 \
   --memory-size 128 \
   --environment "Variables={INSTANCE_IDS=$INSTANCE_IDS}" \
-  --description "Start EC2 instances before store opening (6:30am ET)" \
+  --description "Start EC2 instances at store opening (10:00am ET)" \
   --region "$REGION" \
   --no-cli-pager 2>/dev/null \
   && echo "  Created function: $START_FUNCTION" \
@@ -163,7 +163,7 @@ aws lambda create-function \
   --timeout 30 \
   --memory-size 128 \
   --environment "Variables={INSTANCE_IDS=$INSTANCE_IDS}" \
-  --description "Stop EC2 instances after store closing (9:30pm ET)" \
+  --description "Stop EC2 instances at store closing (9:00pm ET)" \
   --region "$REGION" \
   --no-cli-pager 2>/dev/null \
   && echo "  Created function: $STOP_FUNCTION" \
@@ -188,25 +188,25 @@ STOP_ARN="arn:aws:lambda:${REGION}:${ACCOUNT_ID}:function:${STOP_FUNCTION}"
 echo ""
 echo "=== Step 3: Creating EventBridge scheduled rules ==="
 
-# Start rule — 6:30 AM ET (11:30 UTC)
+# Start rule — 10:00 AM ET (15:00 UTC)
 aws events put-rule \
   --name "$START_RULE" \
-  --schedule-expression "cron(30 11 * * ? *)" \
+  --schedule-expression "cron(0 15 * * ? *)" \
   --state ENABLED \
-  --description "Start EC2 instances at 6:30am ET daily (before 7am store open)" \
+  --description "Start EC2 instances at 10:00am ET daily" \
   --region "$REGION" \
   --no-cli-pager > /dev/null
-echo "  Created rule: $START_RULE — cron(30 11 * * ? *)"
+echo "  Created rule: $START_RULE — cron(0 15 * * ? *)"
 
-# Stop rule — 9:30 PM ET (02:30 UTC next day)
+# Stop rule — 9:00 PM ET (02:00 UTC next day)
 aws events put-rule \
   --name "$STOP_RULE" \
-  --schedule-expression "cron(30 2 * * ? *)" \
+  --schedule-expression "cron(0 2 * * ? *)" \
   --state ENABLED \
-  --description "Stop EC2 instances at 9:30pm ET daily (after 9pm store close)" \
+  --description "Stop EC2 instances at 9:00pm ET daily" \
   --region "$REGION" \
   --no-cli-pager > /dev/null
-echo "  Created rule: $STOP_RULE — cron(30 2 * * ? *)"
+echo "  Created rule: $STOP_RULE — cron(0 2 * * ? *)"
 
 # ── STEP 4: Connect rules to Lambda targets ───────────────────────────────
 echo ""
@@ -262,8 +262,8 @@ echo "Resources created:"
 echo "  IAM Role:    $ROLE_NAME"
 echo "  Lambda:      $START_FUNCTION  (start instances)"
 echo "  Lambda:      $STOP_FUNCTION   (stop instances)"
-echo "  Rule:        $START_RULE      cron(30 11 * * ? *)  = 6:30am ET"
-echo "  Rule:        $STOP_RULE      cron(30 2  * * ? *)  = 9:30pm ET"
+echo "  Rule:        $START_RULE      cron(0 15 * * ? *)   = 10:00am ET"
+echo "  Rule:        $STOP_RULE      cron(0 2  * * ? *)   = 9:00pm ET"
 echo "  Instances:   $INSTANCE_IDS"
 echo ""
 echo "To test the stop function manually:"
