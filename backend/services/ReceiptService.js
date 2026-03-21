@@ -11,7 +11,11 @@
  */
 
 const PDFDocument = require('pdfkit');
+const path = require('path');
+const fs = require('fs');
 const { SESv2Client, SendEmailCommand } = require('@aws-sdk/client-sesv2');
+
+const LOGO_PATH = path.join(__dirname, '..', 'assets', 'logos', 'teletime-logo-colour-400.png');
 
 // QR Code generation - will be dynamically loaded if available
 let QRCode = null;
@@ -675,21 +679,26 @@ class ReceiptService {
       doc.rect(0, 0, 612, 4).fill(COLORS.primary);
 
       // ============================================
-      // HEADER - Company Info & Receipt Badge
+      // HEADER - Logo & Company Info & Receipt Badge
       // ============================================
 
-      // Company Name
-      doc.fontSize(22)
-         .font('Helvetica-Bold')
-         .fillColor(COLORS.primary)
-         .text(this.companyName, 50, 20);
+      // Company Logo (falls back to text name if logo file missing)
+      let headerY = 44;
+      if (fs.existsSync(LOGO_PATH)) {
+        doc.image(LOGO_PATH, 50, 14, { width: 160 });
+        headerY = 50;
+      } else {
+        doc.fontSize(22)
+           .font('Helvetica-Bold')
+           .fillColor(COLORS.primary)
+           .text(this.companyName, 50, 20);
+      }
 
-      // Company contact info
+      // Company contact info (below logo/name)
       doc.fontSize(9)
          .font('Helvetica')
          .fillColor(COLORS.textMuted);
 
-      let headerY = 45;
       if (this.companyAddress) {
         doc.text(this.companyAddress, 50, headerY);
         headerY += 11;

@@ -8,6 +8,10 @@
 
 const { SESv2Client, SendEmailCommand } = require('@aws-sdk/client-sesv2');
 const PDFDocument = require('pdfkit');
+const path = require('path');
+const fs = require('fs');
+
+const LOGO_PATH = path.join(__dirname, '..', 'assets', 'logos', 'teletime-logo-colour-400.png');
 
 // ============================================================================
 // Tax Rate Constants (Canadian provinces) — mirrors OrderModificationService
@@ -932,18 +936,24 @@ class CreditMemoService {
             : 'N/A';
 
         // ============================================
-        // HEADER — ACCENT BAR & COMPANY INFO
+        // HEADER — ACCENT BAR, LOGO & COMPANY INFO
         // ============================================
         doc.rect(0, 0, 612, 4).fill(colors.primary);
 
-        doc
-          .fontSize(22)
-          .font('Helvetica-Bold')
-          .fillColor(colors.primary)
-          .text(this.companyName, 50, 20);
+        // Company Logo (falls back to text name if logo file missing)
+        let headerY = 44;
+        if (fs.existsSync(LOGO_PATH)) {
+          doc.image(LOGO_PATH, 50, 14, { width: 160 });
+          headerY = 50;
+        } else {
+          doc
+            .fontSize(22)
+            .font('Helvetica-Bold')
+            .fillColor(colors.primary)
+            .text(this.companyName, 50, 20);
+        }
 
         doc.fontSize(9).font('Helvetica').fillColor(colors.textMuted);
-        let headerY = 45;
         if (this.companyAddress) {
           doc.text(this.companyAddress, 50, headerY);
           headerY += 11;
@@ -1516,6 +1526,35 @@ class CreditMemoService {
             .lineWidth(0.5)
             .stroke();
 
+          // Footer accent line
+          doc
+            .moveTo(50, 740)
+            .lineTo(562, 740)
+            .strokeColor(colors.primary)
+            .lineWidth(1)
+            .stroke();
+
+          // HST number (left)
+          const hstNumber = process.env.TELETIME_HST_NUMBER || '';
+          if (hstNumber) {
+            doc
+              .fontSize(7)
+              .font('Helvetica')
+              .fillColor(colors.textMuted)
+              .text(`HST# ${hstNumber}`, 50, 746, { lineBreak: false });
+          }
+
+          // Page numbers (right)
+          doc
+            .fontSize(8)
+            .fillColor(colors.textLight)
+            .text(`Page ${i + 1} of ${pageCount}`, 450, 746, {
+              width: 112,
+              align: 'right',
+              lineBreak: false,
+            });
+
+          // Credit memo notice
           doc
             .fontSize(8)
             .font('Helvetica')
@@ -1523,19 +1562,11 @@ class CreditMemoService {
             .text(
               `This document is a credit memo issued by ${this.companyName}`,
               50,
-              752,
-              { lineBreak: false }
+              758,
+              { width: 512, align: 'center', lineBreak: false }
             );
 
-          doc
-            .fontSize(8)
-            .fillColor(colors.textLight)
-            .text(`Page ${i + 1} of ${pageCount}`, 450, 752, {
-              width: 112,
-              align: 'right',
-              lineBreak: false,
-            });
-
+          // Contact info line
           const contactParts = [
             this.companyWebsite,
             this.companyPhone,
@@ -1545,7 +1576,7 @@ class CreditMemoService {
             doc
               .fontSize(7)
               .fillColor(colors.textLight)
-              .text(contactParts.join('  |  '), 50, 765, {
+              .text(contactParts.join('  |  '), 50, 770, {
                 width: 512,
                 align: 'center',
                 lineBreak: false,
