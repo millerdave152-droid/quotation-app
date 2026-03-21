@@ -28,7 +28,7 @@ export function ConnectionBanner({ status, pendingCount = 0 }) {
   return (
     <div className="flex items-center justify-center gap-2 px-4 py-1.5 bg-red-600 text-white text-sm font-medium">
       <AlertTriangle className="w-4 h-4" />
-      <span>Offline mode — transactions will be saved locally and synced when connection returns</span>
+      <span>Offline — Cash payments only</span>
       {pendingCount > 0 && (
         <span className="ml-2 px-2 py-0.5 bg-white/20 rounded-full text-xs font-bold">
           {pendingCount} pending

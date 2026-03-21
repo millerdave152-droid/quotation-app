@@ -7,6 +7,8 @@ import { useState, lazy, Suspense } from 'react';
 import { Routes, Route, Navigate, useNavigate } from 'react-router-dom';
 import { useAuth } from './context/AuthContext';
 import { useRegister } from './context/RegisterContext';
+import { useConnectionStatus } from './hooks/useConnectionStatus';
+import { ConnectionBanner } from './components/ConnectionBanner';
 
 // Critical pages loaded immediately
 import Login from './pages/Login';
@@ -291,9 +293,13 @@ function CloseShiftPage() {
 
 function App() {
   const { isAuthenticated, user } = useAuth();
+  const { status: connectionStatus } = useConnectionStatus();
 
   return (
     <div className="min-h-screen bg-gray-100">
+      {/* Connection status banner — visible on every screen when offline */}
+      {isAuthenticated && <ConnectionBanner status={connectionStatus} />}
+
       {/* DEV Badge */}
       <DevBadge />
 

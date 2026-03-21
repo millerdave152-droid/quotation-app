@@ -4,7 +4,7 @@
  */
 
 import { useState, useEffect, useRef } from 'react';
-import { CheckCircle, Clock, Undo2, XCircle } from 'lucide-react';
+import { CheckCircle, Clock, LayoutGrid, Undo2, XCircle } from 'lucide-react';
 /**
  * Animated count badge
  * Provides subtle animation when count changes
@@ -143,7 +143,7 @@ export default function TransactionFilterTabs({
       key: null,
       label: 'All',
       countKey: 'all',
-      icon: Squares2X2Icon,
+      icon: LayoutGrid,
       iconColor: 'text-blue-500',
     },
     {
