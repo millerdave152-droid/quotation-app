@@ -299,7 +299,7 @@ class MiraklAdapter extends ChannelAdapter {
       try {
         const errRes = await this.client.get(`/offers/imports/${importId}/error_report`, { responseType: 'text' });
         errorReport = errRes.data || null;
-      } catch (_) { /* error report may not exist */ }
+      } catch (errReportErr) { console.error('[MiraklAdapter] Error report fetch failed:', errReportErr.message); }
     }
 
     const processed = data.lines_read || data.imported_lines || data.records_processed || 0;
@@ -523,7 +523,7 @@ class MiraklAdapter extends ChannelAdapter {
 
         // Commission rate lookup
         let expectedCommRate = null;
-        try { expectedCommRate = await this._lookupCommissionRate(categoryLabel); } catch (_) {}
+        try { expectedCommRate = await this._lookupCommissionRate(categoryLabel); } catch (commErr) { console.error('[MiraklAdapter] Commission rate lookup failed:', commErr.message); }
 
         await client.query(`
           INSERT INTO marketplace_order_items (

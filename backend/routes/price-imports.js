@@ -541,7 +541,7 @@ function init({ pool }) {
           pool.query(
             "UPDATE price_list_imports SET status = 'failed', error_message = $1, completed_at = NOW() WHERE id = $2",
             [err.message, id]
-          ).catch(() => {});
+          ).catch((dbErr) => { console.error(`[PriceImport] Failed to mark import ${id} as failed:`, dbErr.message); });
         });
       } catch (err) {
         next(err);
@@ -1135,7 +1135,7 @@ function init({ pool }) {
           pool.query(
             "UPDATE price_list_imports SET status = 'failed', error_message = $1, completed_at = NOW() WHERE id = $2",
             [err.message, id]
-          ).catch(() => {});
+          ).catch((dbErr) => { console.error(`[PriceImport] Failed to mark import ${id} as failed:`, dbErr.message); });
         });
       } catch (err) {
         next(err);

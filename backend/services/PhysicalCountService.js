@@ -169,7 +169,7 @@ class PhysicalCountService {
           `INSERT INTO inventory_transactions (product_id, location_id, transaction_type, quantity, reference_type, reference_id, notes, created_by)
            VALUES ($1, $2, CASE WHEN $3 > 0 THEN 'adjustment_in' ELSE 'adjustment_out' END, ABS($3), 'physical_count', $4, 'Physical count adjustment', $5)`,
           [item.product_id, count.location_id, adjustQty, countId, userId]
-        ).catch(() => {}); // ignore if table doesn't exist
+        ).catch((err) => { console.error('[PhysicalCount] Inventory transaction insert failed:', err.message); });
       }
 
       await client.query(

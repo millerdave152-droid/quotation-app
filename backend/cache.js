@@ -30,8 +30,11 @@ const caches = {
   })
 };
 
+// Debug logging (set CACHE_DEBUG=true in .env to enable)
+const CACHE_DEBUG = process.env.CACHE_DEBUG === 'true';
+
 // Log cache configuration on startup
-console.log(`✓ Cache initialized: TTL_SHORT=${cacheConfig.TTL_SHORT}s, TTL_MEDIUM=${cacheConfig.TTL_MEDIUM}s, TTL_LONG=${cacheConfig.TTL_LONG}s`);
+if (CACHE_DEBUG) console.log(`✓ Cache initialized: TTL_SHORT=${cacheConfig.TTL_SHORT}s, TTL_MEDIUM=${cacheConfig.TTL_MEDIUM}s, TTL_LONG=${cacheConfig.TTL_LONG}s`);
 
 /**
  * Get value from cache
@@ -90,14 +93,14 @@ const clear = (cacheType = null) => {
     const cache = caches[cacheType];
     if (cache) {
       cache.flushAll();
-      console.log(`✓ Cleared ${cacheType} cache`);
+      if (CACHE_DEBUG) console.log(`✓ Cleared ${cacheType} cache`);
     }
   } else {
     // Clear all caches
     Object.keys(caches).forEach(type => {
       caches[type].flushAll();
     });
-    console.log('✓ Cleared all caches');
+    if (CACHE_DEBUG) console.log('✓ Cleared all caches');
   }
 };
 
@@ -134,7 +137,7 @@ const invalidatePattern = (pattern) => {
   });
 
   if (deletedCount > 0) {
-    console.log(`✓ Invalidated ${deletedCount} cache entries matching '${prefix}'`);
+    if (CACHE_DEBUG) console.log(`✓ Invalidated ${deletedCount} cache entries matching '${prefix}'`);
   }
 };
 
@@ -149,12 +152,12 @@ const cacheQuery = async (key, cacheType, queryFn) => {
   // Try to get from cache first
   const cached = get(cacheType, key);
   if (cached !== undefined) {
-    console.log(`✓ Cache HIT: ${key}`);
+    if (CACHE_DEBUG) console.log(`✓ Cache HIT: ${key}`);
     return cached;
   }
 
   // Cache miss - execute query
-  console.log(`✗ Cache MISS: ${key} - Fetching from database...`);
+  if (CACHE_DEBUG) console.log(`✗ Cache MISS: ${key} - Fetching from database...`);
   try {
     const result = await queryFn();
     // Store in cache
@@ -176,14 +179,14 @@ const invalidate = {
     del('long', 'products:all');
     del('medium', 'products:active');
     del('medium', 'products:categories');
-    console.log('✓ Invalidated product caches');
+    if (CACHE_DEBUG) console.log('✓ Invalidated product caches');
   },
 
   // Clear customer-related caches
   customers: () => {
     del('medium', 'customers:all');
     del('short', 'customers:recent');
-    console.log('✓ Invalidated customer caches');
+    if (CACHE_DEBUG) console.log('✓ Invalidated customer caches');
   },
 
   // Clear quote-related caches
@@ -191,14 +194,14 @@ const invalidate = {
     del('short', 'quotes:all');
     del('short', 'quotes:stats');
     del('short', 'quotes:recent');
-    console.log('✓ Invalidated quote caches');
+    if (CACHE_DEBUG) console.log('✓ Invalidated quote caches');
   },
 
   // Clear analytics caches
   analytics: () => {
     del('short', 'analytics:revenue');
     del('short', 'analytics:summary');
-    console.log('✓ Invalidated analytics caches');
+    if (CACHE_DEBUG) console.log('✓ Invalidated analytics caches');
   },
 
   // Clear all caches (use sparingly - e.g., after bulk imports)

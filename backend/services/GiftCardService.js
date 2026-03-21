@@ -84,7 +84,7 @@ class GiftCardService {
 
       // Queue email delivery if method is email and no future send_date
       if (deliveryMethod === 'email' && recipientEmail && !sendDate) {
-        this._sendGiftCardEmail(card).catch(() => {});
+        this._sendGiftCardEmail(card).catch((err) => { console.error('[GiftCardService] Email delivery failed:', err.message); });
       }
 
       return {

@@ -487,11 +487,6 @@ async function convertMarketplaceOrder(marketplaceOrderId) {
 
     await client.query('COMMIT');
 
-    console.log(
-      `[OrderConversion] Converted marketplace order ${order.mirakl_order_id} → ${transaction.transaction_number}` +
-      ` ($${totalAmount.toFixed(2)}, ${itemsForInsert.length} items, commission $${totalCommission.toFixed(2)})`
-    );
-
     return {
       success: true,
       transactionId: transaction.transaction_id,
@@ -503,7 +498,7 @@ async function convertMarketplaceOrder(marketplaceOrderId) {
     };
 
   } catch (err) {
-    await client.query('ROLLBACK').catch(() => {});
+    await client.query('ROLLBACK').catch((rbErr) => { console.error('[OrderConversion] ROLLBACK failed:', rbErr.message); });
     console.error(`[OrderConversion] Failed to convert marketplace order ${marketplaceOrderId}:`, err.message);
     return { success: false, error: err.message };
   } finally {

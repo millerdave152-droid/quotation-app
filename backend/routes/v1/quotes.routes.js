@@ -490,7 +490,7 @@ router.post('/',
 
       // Clean up server-side draft if this was created from a local draft
       if (data.client_draft_id) {
-        pool.query('DELETE FROM quotation_drafts WHERE client_draft_id = $1', [data.client_draft_id]).catch(() => {});
+        pool.query('DELETE FROM quotation_drafts WHERE client_draft_id = $1', [data.client_draft_id]).catch((err) => { console.error('[Quotes] Draft cleanup failed:', err.message); });
       }
 
       // Fetch complete quote with items
