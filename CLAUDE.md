@@ -10,7 +10,7 @@ Websites: maifurniture.ca, teletime.ca
 
 ```
 ┌──────────────────────────────────────────────────────────┐
-│  QUOTATION FRONTEND (React 19.2 + CRA — Port 3000)      │
+│  QUOTATION FRONTEND (React 18.2 + CRA — Port 3000)      │
 │  Admin/CRM dashboard: quotes, customers, products,       │
 │  analytics, reports, leads, inventory, marketplace        │
 │  79+ lazy-loaded routes                                   │
