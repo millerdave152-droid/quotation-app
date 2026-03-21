@@ -85,7 +85,7 @@ router.get('/',
         (SELECT COUNT(*) FROM quotations q WHERE q.customer_id = c.id) as quote_count,
         (SELECT COUNT(*) FROM transactions t WHERE t.customer_id = c.id) as transaction_count
       FROM customers c
-      WHERE c.deleted_at IS NULL
+      WHERE 1=1
     `;
     const params = [];
     let paramIndex = 1;
@@ -162,7 +162,7 @@ router.post('/',
 
     // Check for duplicate phone
     const existingResult = await db.query(
-      'SELECT id FROM customers WHERE phone = $1 AND deleted_at IS NULL',
+      'SELECT id FROM customers WHERE phone = $1',
       [phone]
     );
 
@@ -173,7 +173,7 @@ router.post('/',
     // Check for duplicate email if provided
     if (email) {
       const emailResult = await db.query(
-        'SELECT id FROM customers WHERE email = $1 AND deleted_at IS NULL',
+        'SELECT id FROM customers WHERE email = $1',
         [email]
       );
 
@@ -187,18 +187,41 @@ router.post('/',
     const result = await db.query(`
       INSERT INTO customers (
         name, email, phone, company, address, city, province, postal_code,
-        customer_type, tax_number, credit_limit, available_credit, payment_terms, notes,
-        created_by
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $11, $12, $13, $14)
+        customer_type, tax_number, credit_limit, available_credit, payment_terms, notes
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $11, $12, $13)
       RETURNING *
     `, [
       name, email || null, phone, company || null, address || null,
       city || null, province || null, postalCode || null,
-      customerType, taxNumber || null, creditLimitCents, paymentTerms, notes || null,
-      req.user.id
+      customerType, taxNumber || null, creditLimitCents, paymentTerms, notes || null
     ]);
 
     res.status(201).success(result.rows[0]);
+  })
+);
+
+/**
+ * GET /api/v1/customers/stats
+ * Get customer statistics
+ */
+router.get('/stats',
+  ...standardStack,
+  asyncHandler(async (req, res) => {
+    const result = await db.query(`
+      SELECT
+        COUNT(*) as total_customers,
+        COUNT(CASE WHEN customer_type = 'Retail' THEN 1 END) as retail_count,
+        COUNT(CASE WHEN customer_type = 'Commercial' THEN 1 END) as commercial_count,
+        COUNT(CASE WHEN customer_type = 'Wholesale' THEN 1 END) as wholesale_count,
+        COUNT(CASE WHEN customer_type = 'VIP' THEN 1 END) as vip_count,
+        COUNT(CASE WHEN current_balance > 0 THEN 1 END) as with_balance_count,
+        COALESCE(SUM(current_balance), 0) as total_outstanding_balance,
+        COALESCE(SUM(credit_limit), 0) as total_credit_limit,
+        COUNT(CASE WHEN created_at >= NOW() - INTERVAL '30 days' THEN 1 END) as new_last_30_days
+      FROM customers
+    `);
+
+    res.success(result.rows[0]);
   })
 );
 
@@ -213,12 +236,9 @@ router.get('/:id',
     const { id } = req.params;
 
     const result = await db.query(`
-      SELECT
-        c.*,
-        u.username as created_by_name
+      SELECT c.*
       FROM customers c
-      LEFT JOIN users u ON c.created_by = u.id
-      WHERE c.id = $1 AND c.deleted_at IS NULL
+      WHERE c.id = $1
     `, [id]);
 
     if (result.rows.length === 0) {
@@ -283,7 +303,7 @@ router.put('/:id',
 
     // Check customer exists
     const existingResult = await db.query(
-      'SELECT * FROM customers WHERE id = $1 AND deleted_at IS NULL',
+      'SELECT * FROM customers WHERE id = $1',
       [id]
     );
 
@@ -294,7 +314,7 @@ router.put('/:id',
     // Check for duplicate phone if being changed
     if (updates.phone) {
       const phoneResult = await db.query(
-        'SELECT id FROM customers WHERE phone = $1 AND id != $2 AND deleted_at IS NULL',
+        'SELECT id FROM customers WHERE phone = $1 AND id != $2',
         [updates.phone, id]
       );
 
@@ -306,7 +326,7 @@ router.put('/:id',
     // Check for duplicate email if being changed
     if (updates.email) {
       const emailResult = await db.query(
-        'SELECT id FROM customers WHERE email = $1 AND id != $2 AND deleted_at IS NULL',
+        'SELECT id FROM customers WHERE email = $1 AND id != $2',
         [updates.email, id]
       );
 
@@ -383,7 +403,7 @@ router.delete('/:id',
 
     // Check customer exists
     const existingResult = await db.query(
-      'SELECT * FROM customers WHERE id = $1 AND deleted_at IS NULL',
+      'SELECT * FROM customers WHERE id = $1',
       [id]
     );
 
@@ -396,9 +416,9 @@ router.delete('/:id',
       throw ApiError.badRequest('Cannot delete customer with outstanding balance');
     }
 
-    // Soft delete
+    // Delete customer
     await db.query(
-      'UPDATE customers SET deleted_at = NOW() WHERE id = $1',
+      'DELETE FROM customers WHERE id = $1',
       [id]
     );
 
@@ -429,7 +449,7 @@ router.get('/:id/credit',
         available_credit,
         payment_terms
       FROM customers
-      WHERE id = $1 AND deleted_at IS NULL
+      WHERE id = $1
     `, [id]);
 
     if (result.rows.length === 0) {
@@ -456,7 +476,7 @@ router.post('/:id/credit/adjust',
     }
 
     const customerResult = await db.query(
-      'SELECT * FROM customers WHERE id = $1 AND deleted_at IS NULL',
+      'SELECT * FROM customers WHERE id = $1',
       [id]
     );
 
@@ -511,7 +531,7 @@ router.get('/:id/statement',
     const { startDate, endDate } = req.query;
 
     const customerResult = await db.query(
-      'SELECT * FROM customers WHERE id = $1 AND deleted_at IS NULL',
+      'SELECT * FROM customers WHERE id = $1',
       [id]
     );
 
@@ -562,32 +582,6 @@ router.get('/:id/statement',
       periodStart: startDate || null,
       periodEnd: endDate || null
     });
-  })
-);
-
-/**
- * GET /api/v1/customers/stats
- * Get customer statistics
- */
-router.get('/stats',
-  ...standardStack,
-  asyncHandler(async (req, res) => {
-    const result = await db.query(`
-      SELECT
-        COUNT(*) as total_customers,
-        COUNT(CASE WHEN customer_type = 'Retail' THEN 1 END) as retail_count,
-        COUNT(CASE WHEN customer_type = 'Commercial' THEN 1 END) as commercial_count,
-        COUNT(CASE WHEN customer_type = 'Wholesale' THEN 1 END) as wholesale_count,
-        COUNT(CASE WHEN customer_type = 'VIP' THEN 1 END) as vip_count,
-        COUNT(CASE WHEN current_balance > 0 THEN 1 END) as with_balance_count,
-        COALESCE(SUM(current_balance), 0) as total_outstanding_balance,
-        COALESCE(SUM(credit_limit), 0) as total_credit_limit,
-        COUNT(CASE WHEN created_at >= NOW() - INTERVAL '30 days' THEN 1 END) as new_last_30_days
-      FROM customers
-      WHERE deleted_at IS NULL
-    `);
-
-    res.success(result.rows[0]);
   })
 );
 

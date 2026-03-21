@@ -804,7 +804,6 @@ class LookupService {
         VALUES ($1, $2, 1)
       `, [normalized, type]);
 
-      console.log(`[LookupService] Saved new ${type} name: ${normalized}`);
       return true;
     } catch (err) {
       // Ignore duplicate key errors (race condition)

@@ -35,7 +35,7 @@ export function useCart() {
    * @returns {Promise<object>} Transaction result
    */
   const processTransaction = useCallback(
-    async (payments) => {
+    async (payments, options = {}) => {
       // IMPORTANT: Use cartRef.current to get the LATEST cart state
       // This avoids stale closure issues where cart.total might be outdated
       const currentCart = cartRef.current;
@@ -60,14 +60,6 @@ export function useCart() {
       const paymentTotal = payments.reduce((sum, p) => sum + (p.amount || 0), 0);
       const roundedPaymentTotal = Math.round(paymentTotal * 100) / 100;
       const roundedCartTotal = Math.round(currentCart.total * 100) / 100;
-
-      // Debug logging for cart total mismatch issues
-      console.log('[useCart] processTransaction validation:', {
-        paymentTotal: roundedPaymentTotal,
-        cartTotal: roundedCartTotal,
-        itemCount: currentCart.itemCount,
-        isDeposit,
-      });
 
       if (isDeposit) {
         if (payments.length !== 1) {
@@ -112,6 +104,11 @@ export function useCart() {
             },
             message: 'Saved offline — will sync when reconnected',
           };
+        }
+
+        // Include fraud override if manager approved bypass
+        if (options.fraudOverride) {
+          transactionData.fraudOverride = options.fraudOverride;
         }
 
         // Create transaction

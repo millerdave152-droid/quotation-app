@@ -4,23 +4,8 @@
  */
 
 import { useState, useEffect, useCallback } from 'react';
-import {
-  Cog6ToothIcon,
-  ShieldCheckIcon,
-  PlusIcon,
-  PencilIcon,
-  TrashIcon,
-  CheckIcon,
-  XMarkIcon,
-  ExclamationTriangleIcon,
-  ChevronDownIcon,
-  ChevronUpIcon,
-  ClockIcon,
-  UserGroupIcon,
-  TagIcon,
-} from '@heroicons/react/24/outline';
-
-const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:3001/api';
+import { AlertTriangle, Check, ChevronDown, ChevronUp, Clock, Pencil, Plus, Settings, ShieldCheck, Tag, Trash2, Users, X } from 'lucide-react';
+const API_BASE = import.meta.env.VITE_API_URL || '/api';
 
 const THRESHOLD_TYPES = [
   { value: 'discount_percent', label: 'Discount Percentage', unit: '%' },
@@ -134,14 +119,14 @@ function ApprovalLevelRow({ level, config, thresholdType, onUpdate, onDelete }) 
               onClick={handleSave}
               className="p-1 text-green-600 hover:bg-green-50 rounded"
             >
-              <CheckIcon className="w-4 h-4" />
+              <Check className="w-4 h-4" />
             </button>
             <button
               type="button"
               onClick={() => setEditing(false)}
               className="p-1 text-gray-500 hover:bg-gray-100 rounded"
             >
-              <XMarkIcon className="w-4 h-4" />
+              <X className="w-4 h-4" />
             </button>
           </>
         ) : (
@@ -151,7 +136,7 @@ function ApprovalLevelRow({ level, config, thresholdType, onUpdate, onDelete }) 
               onClick={() => setEditing(true)}
               className="p-1 text-gray-500 hover:bg-gray-100 rounded"
             >
-              <PencilIcon className="w-4 h-4" />
+              <Pencil className="w-4 h-4" />
             </button>
             {config && (
               <button
@@ -159,7 +144,7 @@ function ApprovalLevelRow({ level, config, thresholdType, onUpdate, onDelete }) 
                 onClick={() => onDelete(level)}
                 className="p-1 text-red-500 hover:bg-red-50 rounded"
               >
-                <TrashIcon className="w-4 h-4" />
+                <Trash2 className="w-4 h-4" />
               </button>
             )}
           </>
@@ -221,7 +206,7 @@ function ThresholdCard({ threshold, categories, onUpdate, onUpdateApprovalLevel,
       >
         <div className="flex items-center gap-3">
           <div className={`p-2 rounded-lg ${threshold.isActive ? 'bg-blue-100' : 'bg-gray-200'}`}>
-            <ShieldCheckIcon className={`w-5 h-5 ${threshold.isActive ? 'text-blue-600' : 'text-gray-500'}`} />
+            <ShieldCheck className={`w-5 h-5 ${threshold.isActive ? 'text-blue-600' : 'text-gray-500'}`} />
           </div>
           <div>
             <div className="flex items-center gap-2">
@@ -231,7 +216,7 @@ function ThresholdCard({ threshold, categories, onUpdate, onUpdateApprovalLevel,
               )}
               {threshold.categoryName && (
                 <span className="px-2 py-0.5 bg-purple-100 text-purple-700 text-xs rounded flex items-center gap-1">
-                  <TagIcon className="w-3 h-3" />
+                  <Tag className="w-3 h-3" />
                   {threshold.categoryName}
                 </span>
               )}
@@ -252,14 +237,14 @@ function ThresholdCard({ threshold, categories, onUpdate, onUpdateApprovalLevel,
         <div className="flex items-center gap-2">
           {threshold.validFrom || threshold.validTo ? (
             <span className="flex items-center gap-1 px-2 py-1 bg-amber-100 text-amber-700 text-xs rounded">
-              <ClockIcon className="w-3 h-3" />
+              <Clock className="w-3 h-3" />
               Time-limited
             </span>
           ) : null}
           {expanded ? (
-            <ChevronUpIcon className="w-5 h-5 text-gray-400" />
+            <ChevronUp className="w-5 h-5 text-gray-400" />
           ) : (
-            <ChevronDownIcon className="w-5 h-5 text-gray-400" />
+            <ChevronDown className="w-5 h-5 text-gray-400" />
           )}
         </div>
       </div>
@@ -460,7 +445,7 @@ function ThresholdCard({ threshold, categories, onUpdate, onUpdateApprovalLevel,
                 onClick={() => setEditing(true)}
                 className="flex items-center gap-1 px-3 py-1.5 text-sm text-blue-600 hover:bg-blue-50 rounded-lg"
               >
-                <PencilIcon className="w-4 h-4" />
+                <Pencil className="w-4 h-4" />
                 Edit
               </button>
             </div>
@@ -470,7 +455,7 @@ function ThresholdCard({ threshold, categories, onUpdate, onUpdateApprovalLevel,
           <div className="pt-4 border-t border-gray-200">
             <div className="flex items-center justify-between mb-3">
               <h4 className="font-medium text-gray-900 flex items-center gap-2">
-                <UserGroupIcon className="w-5 h-5 text-gray-500" />
+                <Users className="w-5 h-5 text-gray-500" />
                 Tiered Approval Levels
               </h4>
             </div>
@@ -673,7 +658,7 @@ export function ThresholdConfig() {
       <div className="flex items-center justify-between mb-6">
         <div className="flex items-center gap-3">
           <div className="p-2 bg-blue-100 rounded-lg">
-            <Cog6ToothIcon className="w-6 h-6 text-blue-600" />
+            <Settings className="w-6 h-6 text-blue-600" />
           </div>
           <div>
             <h1 className="text-xl font-bold text-gray-900">Override Thresholds</h1>
@@ -685,7 +670,7 @@ export function ThresholdConfig() {
           onClick={() => setShowCreateModal(true)}
           className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
         >
-          <PlusIcon className="w-5 h-5" />
+          <Plus className="w-5 h-5" />
           Add Threshold
         </button>
       </div>
@@ -693,14 +678,14 @@ export function ThresholdConfig() {
       {/* Error Display */}
       {error && (
         <div className="mb-4 p-4 bg-red-50 border border-red-200 rounded-lg flex items-center gap-3">
-          <ExclamationTriangleIcon className="w-5 h-5 text-red-500" />
+          <AlertTriangle className="w-5 h-5 text-red-500" />
           <p className="text-red-700">{error}</p>
           <button
             type="button"
             onClick={() => setError(null)}
             className="ml-auto text-red-500 hover:text-red-700"
           >
-            <XMarkIcon className="w-5 h-5" />
+            <X className="w-5 h-5" />
           </button>
         </div>
       )}
@@ -750,7 +735,7 @@ export function ThresholdConfig() {
 
       {filteredThresholds.length === 0 && (
         <div className="text-center py-12">
-          <ShieldCheckIcon className="w-12 h-12 text-gray-300 mx-auto mb-4" />
+          <ShieldCheck className="w-12 h-12 text-gray-300 mx-auto mb-4" />
           <p className="text-gray-500">No thresholds found</p>
         </div>
       )}

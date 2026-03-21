@@ -13,7 +13,7 @@ const DEPOSIT_PRESETS = [
   { label: '75%', factor: 0.75 },
 ];
 
-export function DepositPayment({ amountDue, onComplete, onBack, onSelectMethod }) {
+export function DepositPayment({ amountDue, onComplete, onBack }) {
   const [selectedPreset, setSelectedPreset] = useState(null);
   const [customAmount, setCustomAmount] = useState('');
   const [useCustom, setUseCustom] = useState(false);
@@ -212,7 +212,7 @@ export function DepositPayment({ amountDue, onComplete, onBack, onSelectMethod }
             </div>
           </div>
           <p className="text-xs text-amber-600 mt-3">
-            Order will be saved as "Deposit Paid" with {formatCurrency(remainingAfterDeposit)} remaining balance.
+            Order will be saved as &quot;Deposit Paid&quot; with {formatCurrency(remainingAfterDeposit)} remaining balance.
           </p>
         </div>
       )}

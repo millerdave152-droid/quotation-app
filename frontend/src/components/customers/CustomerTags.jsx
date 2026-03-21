@@ -3,7 +3,7 @@
  * Manage tags, assign to customers, and filter by tags
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import api from '../../services/api';
 import { useToast } from '../ui/Toast';
 
@@ -24,11 +24,21 @@ function CustomerTags({ customerId, mode = 'manage', onTagsChange }) {
     }
   }, [mode]);
 
+  const fetchCustomerTags = useCallback(async () => {
+    if (!customerId) return;
+    try {
+      const response = await api.get(`/customers/${customerId}/tags`);
+      setCustomerTags(response.data?.data || response.data || []);
+    } catch (error) {
+      console.error('Failed to fetch customer tags:', error);
+    }
+  }, [customerId]);
+
   useEffect(() => {
     if (customerId) {
       fetchCustomerTags();
     }
-  }, [customerId]);
+  }, [customerId, fetchCustomerTags]);
 
   const fetchTags = async () => {
     try {
@@ -38,16 +48,6 @@ function CustomerTags({ customerId, mode = 'manage', onTagsChange }) {
       console.error('Failed to fetch tags:', error);
     } finally {
       setLoading(false);
-    }
-  };
-
-  const fetchCustomerTags = async () => {
-    if (!customerId) return;
-    try {
-      const response = await api.get(`/customers/${customerId}/tags`);
-      setCustomerTags(response.data?.data || response.data || []);
-    } catch (error) {
-      console.error('Failed to fetch customer tags:', error);
     }
   };
 

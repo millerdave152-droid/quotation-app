@@ -4,14 +4,8 @@
  */
 
 import { useState, useEffect, useCallback, useMemo } from 'react';
-import {
-  UserIcon,
-  UserGroupIcon,
-  CheckCircleIcon,
-  ClockIcon,
-} from '@heroicons/react/24/outline';
-
-const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:3001/api';
+import { CheckCircle, Clock, Users } from 'lucide-react';
+const API_BASE = import.meta.env.VITE_API_URL || '/api';
 
 // ============================================================================
 // AVATAR COMPONENT
@@ -116,7 +110,7 @@ function SalesRepButton({ rep, isSelected, onSelect, showStats = false }) {
       {/* Selected indicator */}
       {isSelected && (
         <div className="absolute -top-1.5 -right-1.5">
-          <CheckCircleIcon className="w-5 h-5 text-blue-500 bg-white rounded-full" />
+          <CheckCircle className="w-5 h-5 text-blue-500 bg-white rounded-full" />
         </div>
       )}
 
@@ -142,7 +136,7 @@ function SalesRepButton({ rep, isSelected, onSelect, showStats = false }) {
         </span>
       ) : rep.isOnShift ? (
         <span className="flex items-center gap-0.5 text-[10px] text-green-600 mt-0.5">
-          <ClockIcon className="w-2.5 h-2.5" />
+          <Clock className="w-2.5 h-2.5" />
           <span>On Shift</span>
         </span>
       ) : null}
@@ -175,7 +169,7 @@ function OtherButton({ onClick }) {
       style={{ minHeight: '80px' }}
     >
       <div className="w-12 h-12 rounded-full bg-gray-200 flex items-center justify-center">
-        <UserGroupIcon className="w-6 h-6 text-gray-500" />
+        <Users className="w-6 h-6 text-gray-500" />
       </div>
       <span className="mt-1.5 text-xs font-medium text-gray-600">Change</span>
       <span className="text-[10px] text-gray-400">Sales Rep</span>
@@ -349,7 +343,7 @@ export function SalesRepQuickSelect({
     <div className={className}>
       {/* Header */}
       <div className="flex items-center gap-2 mb-2">
-        <UserGroupIcon className="w-4 h-4 text-gray-500" />
+        <Users className="w-4 h-4 text-gray-500" />
         <span className="text-xs font-medium text-gray-600 uppercase tracking-wide">
           Sales Rep
         </span>

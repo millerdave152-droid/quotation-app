@@ -30,15 +30,10 @@ let emailService = null;
  */
 async function runDailyJob() {
   const startTime = new Date();
-  console.log(`[${startTime.toISOString()}] Starting daily purchasing intelligence analysis...`);
 
   try {
     const result = await purchasingService.runFullAnalysis('daily');
 
-    console.log(`[${new Date().toISOString()}] Daily analysis completed.`);
-    console.log(`  - Products analyzed: ${result.productsAnalyzed}`);
-    console.log(`  - Recommendations generated: ${result.totalRecommendations}`);
-    console.log(`  - Critical alerts: ${result.criticalAlerts?.length || 0}`);
 
     // Send email for critical alerts only
     if (result.criticalAlerts?.length > 0) {
@@ -64,14 +59,10 @@ async function runDailyJob() {
  */
 async function runWeeklyJob() {
   const startTime = new Date();
-  console.log(`[${startTime.toISOString()}] Starting weekly purchasing intelligence analysis...`);
 
   try {
     const result = await purchasingService.runFullAnalysis('weekly');
 
-    console.log(`[${new Date().toISOString()}] Weekly analysis completed.`);
-    console.log(`  - Products analyzed: ${result.productsAnalyzed}`);
-    console.log(`  - Recommendations generated: ${result.totalRecommendations}`);
 
     // Send comprehensive weekly report
     await sendWeeklyReport(result);
@@ -105,7 +96,6 @@ async function runWeeklyJob() {
 async function sendCriticalAlertEmail(result) {
   const recipients = getRecipients();
   if (recipients.length === 0) {
-    console.log('No recipients configured for purchasing alerts');
     return;
   }
 
@@ -181,7 +171,6 @@ async function sendCriticalAlertEmail(result) {
 
   try {
     await emailService.sendEmail(recipients, subject, htmlBody);
-    console.log(`Critical alert email sent to ${recipients.length} recipients`);
   } catch (err) {
     console.error('Failed to send critical alert email:', err.message);
   }
@@ -194,7 +183,6 @@ async function sendCriticalAlertEmail(result) {
 async function sendWeeklyReport(result) {
   const recipients = getRecipients();
   if (recipients.length === 0) {
-    console.log('No recipients configured for purchasing reports');
     return;
   }
 
@@ -396,7 +384,6 @@ async function sendWeeklyReport(result) {
 
   try {
     await emailService.sendEmail(recipients, subject, htmlBody);
-    console.log(`Weekly report email sent to ${recipients.length} recipients`);
   } catch (err) {
     console.error('Failed to send weekly report email:', err.message);
   }
@@ -420,13 +407,8 @@ function getRecipients() {
 function startScheduler(options = {}) {
   const timezone = process.env.TIMEZONE || 'America/Toronto';
 
-  console.log('Starting purchasing intelligence scheduler...');
-  console.log(`  - Daily schedule: ${options.dailySchedule || DAILY_SCHEDULE}`);
-  console.log(`  - Weekly schedule: ${options.weeklySchedule || WEEKLY_SCHEDULE}`);
-  console.log(`  - Timezone: ${timezone}`);
 
   const dailyTask = cron.schedule(options.dailySchedule || DAILY_SCHEDULE, async () => {
-    console.log('[Scheduler] Running daily purchasing intelligence analysis...');
     await runDailyJob();
   }, {
     scheduled: true,
@@ -434,14 +416,12 @@ function startScheduler(options = {}) {
   });
 
   const weeklyTask = cron.schedule(options.weeklySchedule || WEEKLY_SCHEDULE, async () => {
-    console.log('[Scheduler] Running weekly purchasing intelligence analysis...');
     await runWeeklyJob();
   }, {
     scheduled: true,
     timezone
   });
 
-  console.log('Purchasing intelligence scheduler started.');
 
   return {
     dailyTask,
@@ -449,7 +429,6 @@ function startScheduler(options = {}) {
     stop: () => {
       dailyTask.stop();
       weeklyTask.stop();
-      console.log('Purchasing intelligence scheduler stopped.');
     }
   };
 }
@@ -471,11 +450,9 @@ if (require.main === module) {
   const args = process.argv.slice(2);
   const type = args[0] || 'daily';
 
-  console.log(`Running ${type} purchasing intelligence job as standalone script...`);
 
   runJob(type)
     .then(result => {
-      console.log('Job completed:', result.status);
       process.exit(result.status === 'completed' ? 0 : 1);
     })
     .catch(err => {

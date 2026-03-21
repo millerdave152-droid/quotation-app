@@ -7,7 +7,7 @@ import { authFetch } from '../services/authFetch';
 import React, { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
 
-const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:3001';
+const API_URL = process.env.REACT_APP_API_URL || '';
 
 const CustomerQuoteView = () => {
   const { token } = useParams();
@@ -26,31 +26,31 @@ const CustomerQuoteView = () => {
   const [message, setMessage] = useState('');
 
   useEffect(() => {
+    const fetchCounterOffer = async () => {
+      try {
+        setLoading(true);
+        const response = await authFetch(`${API_URL}/api/counter-offers/magic/${token}`);
+        const data = await response.json();
+
+        if (!data.success) {
+          setError(data.message || 'Invalid or expired link');
+          return;
+        }
+
+        setCounterOffer(data.data.counterOffer);
+        setQuoteItems(data.data.quoteItems || []);
+        setCustomerEmail(data.data.counterOffer.customer_email || '');
+        setCustomerName(data.data.counterOffer.customer_name || '');
+      } catch (err) {
+        console.error('Error fetching counter-offer:', err);
+        setError('Failed to load quote. Please try again later.');
+      } finally {
+        setLoading(false);
+      }
+    };
+
     fetchCounterOffer();
   }, [token]);
-
-  const fetchCounterOffer = async () => {
-    try {
-      setLoading(true);
-      const response = await authFetch(`${API_URL}/api/counter-offers/magic/${token}`);
-      const data = await response.json();
-
-      if (!data.success) {
-        setError(data.message || 'Invalid or expired link');
-        return;
-      }
-
-      setCounterOffer(data.data.counterOffer);
-      setQuoteItems(data.data.quoteItems || []);
-      setCustomerEmail(data.data.counterOffer.customer_email || '');
-      setCustomerName(data.data.counterOffer.customer_name || '');
-    } catch (err) {
-      console.error('Error fetching counter-offer:', err);
-      setError('Failed to load quote. Please try again later.');
-    } finally {
-      setLoading(false);
-    }
-  };
 
   const handleAccept = async () => {
     try {

@@ -2,7 +2,7 @@
  * PriceRangeSlider - Dual-handle range slider for price filtering
  * With quick presets and product count display
  */
-import React, { useState, useCallback, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import './PriceRangeSlider.css';
 
 const PriceRangeSlider = ({
@@ -11,10 +11,10 @@ const PriceRangeSlider = ({
   value = [0, 15000],
   onChange,
   packageType = 'kitchen',
-  productCountAtPrice = () => null
+  _productCountAtPrice = () => null
 }) => {
   const [localValue, setLocalValue] = useState(value);
-  const [isDragging, setIsDragging] = useState(false);
+  const [_isDragging, setIsDragging] = useState(false);
   const sliderRef = useRef(null);
 
   // Presets based on package type

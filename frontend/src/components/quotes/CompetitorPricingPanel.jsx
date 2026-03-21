@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect, useRef } from 'react';
+import { useState, useMemo, useEffect, useRef } from 'react';
 import { authFetch } from '../../services/authFetch';
 
 // ── Retailer display names ──────────────────────────────────
@@ -177,7 +177,7 @@ function MiniSpinner() {
 
 // ── Pricing table (shared between both sources) ─────────────
 
-function PricingTable({ retailers, ttPrice, isBestInMarket, latestUpdate, dataSource, ceSpecs }) {
+function PricingTable({ retailers, ttPrice, isBestInMarket, latestUpdate, dataSource: _dataSource, ceSpecs }) {
   return (
     <div style={{ padding: '0 14px 14px' }}>
       {/* CE spec summary */}
@@ -267,7 +267,7 @@ function PricingTable({ retailers, ttPrice, isBestInMarket, latestUpdate, dataSo
 const CompetitorPricingPanel = ({
   competitorPricing,
   teleTimePrice,
-  currency = 'CAD',
+  _currency = 'CAD',
   defaultExpanded = false,
   // CE extension props (all optional — existing callers unaffected)
   dataSource,

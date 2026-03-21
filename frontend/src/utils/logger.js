@@ -21,9 +21,8 @@ const logger = {
   /**
    * Log debug information (development only)
    */
-  log: (...args) => {
+  log: (..._args) => {
     if (isDevelopment) {
-      console.log(...args);
     }
   },
 

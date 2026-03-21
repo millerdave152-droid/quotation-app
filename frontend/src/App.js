@@ -11,6 +11,7 @@ import ProtectedRoute from './components/auth/ProtectedRoute';
 import CommandPalette from './components/ui/CommandPalette';
 import GlobalSearch from './components/ui/GlobalSearch';
 import AssistantWidget from './components/AIAssistant/AssistantWidget';
+import BugReportForm from './components/BugReportForm';
 import './services/authGuards';
 
 import { authFetch } from './services/authFetch';
@@ -68,6 +69,7 @@ const RecommendationRulesPage = React.lazy(() => import('./components/admin/reco
 
 // Fraud & Audit Dashboard
 const FraudDashboard = React.lazy(() => import('./components/admin/FraudDashboard'));
+const BugReportsDashboard = React.lazy(() => import('./components/admin/BugReportsDashboard'));
 const SerialRegistry = React.lazy(() => import('./components/inventory/SerialRegistry'));
 const PurchaseOrderDashboard = React.lazy(() => import('./components/purchasing/PurchaseOrderDashboard'));
 const VariantManager = React.lazy(() => import('./components/products/VariantManager'));
@@ -216,7 +218,7 @@ const CompetitorPricingDev = process.env.NODE_ENV === 'development'
 
 // Main App with protected routes
 function App() {
-  const { isAuthenticated, loading } = useAuth();
+  const { isAuthenticated, loading, user } = useAuth();
   const { toggleTheme, setLightTheme, setDarkTheme } = useTheme();
   const navigate = useNavigate();
   const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
@@ -340,6 +342,7 @@ function App() {
 
       {/* AI Business Assistant — surface-aware with tool use */}
       {isAuthenticated && <AssistantWidget surface="quotation" />}
+      {isAuthenticated && <BugReportForm reportedBy={user?.name || user?.email || ''} />}
 
       <React.Suspense fallback={
       <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh', flexDirection: 'column', background: '#f9fafb' }}>
@@ -525,6 +528,11 @@ function App() {
           <Route path="/admin/fraud" element={
             <ProtectedRoute requiredRoles={['admin', 'manager']}>
               <FraudDashboard />
+            </ProtectedRoute>
+          } />
+          <Route path="/admin/bugs" element={
+            <ProtectedRoute requiredRoles={['admin']}>
+              <BugReportsDashboard />
             </ProtectedRoute>
           } />
           <Route path="/admin/monitoring" element={

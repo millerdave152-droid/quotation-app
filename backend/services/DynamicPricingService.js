@@ -123,9 +123,9 @@ class DynamicPricingService {
 
     // Calculate final metrics
     const totalDiscount = basePrice - recommendedPrice;
-    const discountPercent = Math.round((totalDiscount / basePrice) * 100 * 10) / 10;
+    const discountPercent = basePrice > 0 ? Math.round((totalDiscount / basePrice) * 100 * 10) / 10 : 0;
     const margin = recommendedPrice - costPrice;
-    const marginPercent = Math.round((margin / recommendedPrice) * 100 * 10) / 10;
+    const marginPercent = recommendedPrice > 0 ? Math.round((margin / recommendedPrice) * 100 * 10) / 10 : 0;
 
     return {
       productId,

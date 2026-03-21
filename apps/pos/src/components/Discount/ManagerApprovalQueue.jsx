@@ -4,19 +4,9 @@
  */
 
 import { useState, useEffect, useCallback, useRef } from 'react';
-import {
-  XMarkIcon,
-  CheckIcon,
-  XCircleIcon,
-  ClockIcon,
-  UserIcon,
-  TagIcon,
-  ChartBarIcon,
-  ArrowPathIcon,
-  PencilIcon,
-} from '@heroicons/react/24/outline';
 import { formatCurrency } from '../../utils/formatters';
 import { getPendingEscalations, approveEscalation, denyEscalation } from '../../api/discountAuthority';
+import { Check, Clock, Pencil, RefreshCw, Tag, User, X, XCircle } from 'lucide-react';
 
 const POLL_INTERVAL = 10000; // 10 seconds
 
@@ -108,7 +98,7 @@ export function ManagerApprovalQueue({ isOpen, onClose }) {
         {/* Header */}
         <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100 bg-gradient-to-r from-blue-50 to-indigo-50 flex-shrink-0">
           <div className="flex items-center gap-2">
-            <TagIcon className="w-5 h-5 text-blue-600" />
+            <Tag className="w-5 h-5 text-blue-600" />
             <h2 className="text-base font-bold text-gray-900">Discount Approvals</h2>
             {escalations.length > 0 && (
               <span className="px-2 py-0.5 text-xs font-bold bg-red-500 text-white rounded-full">
@@ -122,10 +112,10 @@ export function ManagerApprovalQueue({ isOpen, onClose }) {
               className="p-1.5 hover:bg-blue-100 rounded-lg transition-colors"
               title="Refresh"
             >
-              <ArrowPathIcon className="w-4 h-4 text-gray-500" />
+              <RefreshCw className="w-4 h-4 text-gray-500" />
             </button>
             <button onClick={onClose} className="p-1.5 hover:bg-blue-100 rounded-lg transition-colors">
-              <XMarkIcon className="w-5 h-5 text-gray-500" />
+              <X className="w-5 h-5 text-gray-500" />
             </button>
           </div>
         </div>
@@ -138,7 +128,7 @@ export function ManagerApprovalQueue({ isOpen, onClose }) {
             </div>
           ) : escalations.length === 0 ? (
             <div className="text-center py-12">
-              <CheckIcon className="w-12 h-12 text-green-300 mx-auto mb-3" />
+              <Check className="w-12 h-12 text-green-300 mx-auto mb-3" />
               <p className="text-sm font-medium text-gray-500">No pending approvals</p>
               <p className="text-xs text-gray-400 mt-1">All discount requests have been handled</p>
             </div>
@@ -149,7 +139,7 @@ export function ManagerApprovalQueue({ isOpen, onClose }) {
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
                     <div className="w-7 h-7 rounded-full bg-blue-100 flex items-center justify-center">
-                      <UserIcon className="w-4 h-4 text-blue-600" />
+                      <User className="w-4 h-4 text-blue-600" />
                     </div>
                     <div>
                       <p className="text-sm font-semibold text-gray-900">{esc.employee_name}</p>
@@ -157,7 +147,7 @@ export function ManagerApprovalQueue({ isOpen, onClose }) {
                     </div>
                   </div>
                   <div className="flex items-center gap-1 text-[10px] text-gray-400">
-                    <ClockIcon className="w-3 h-3" />
+                    <Clock className="w-3 h-3" />
                     {timeAgo(esc.created_at)}
                   </div>
                 </div>
@@ -257,7 +247,7 @@ export function ManagerApprovalQueue({ isOpen, onClose }) {
                         transition-all disabled:opacity-50
                       "
                     >
-                      <CheckIcon className="w-4 h-4" />
+                      <Check className="w-4 h-4" />
                       {actionLoading === esc.id ? 'Approving...' : 'Approve'}
                     </button>
                     <button
@@ -272,7 +262,7 @@ export function ManagerApprovalQueue({ isOpen, onClose }) {
                         transition-all disabled:opacity-50
                       "
                     >
-                      <PencilIcon className="w-4 h-4" />
+                      <Pencil className="w-4 h-4" />
                     </button>
                     <button
                       onClick={() => { setDenyReasonId(esc.id); setApproveNotesId(null); }}
@@ -285,7 +275,7 @@ export function ManagerApprovalQueue({ isOpen, onClose }) {
                         transition-all disabled:opacity-50
                       "
                     >
-                      <XCircleIcon className="w-4 h-4" />
+                      <XCircle className="w-4 h-4" />
                       Deny
                     </button>
                   </div>
@@ -299,7 +289,7 @@ export function ManagerApprovalQueue({ isOpen, onClose }) {
             <div className="flex items-center gap-2 px-3 py-2 bg-red-50 border border-red-200 rounded-lg">
               <span className="text-xs text-red-700">{error}</span>
               <button onClick={() => setError(null)} className="ml-auto text-red-400 hover:text-red-600">
-                <XMarkIcon className="w-3 h-3" />
+                <X className="w-3 h-3" />
               </button>
             </div>
           )}

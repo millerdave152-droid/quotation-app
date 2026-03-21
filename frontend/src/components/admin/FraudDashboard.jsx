@@ -7,8 +7,15 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
 import { authFetch } from '../../services/authFetch';
+import FraudAlertPanel from './FraudAlertPanel';
+import TransactionReviewQueue from './TransactionReviewQueue';
+import EmployeeFraudDashboard from './EmployeeFraudDashboard';
+import FraudAnalyticsDashboard from './FraudAnalyticsDashboard';
+import ChargebackTracker from './ChargebackTracker';
+import FraudRuleManager from './FraudRuleManager';
+import ComplianceDashboard from './ComplianceDashboard';
 
-const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:3001';
+const API_URL = process.env.REACT_APP_API_URL || '';
 
 // ============================================================================
 // SEVERITY HELPERS
@@ -165,6 +172,12 @@ function AlertQueue({ token }) {
   }, [token, statusFilter, page]);
 
   useEffect(() => { fetchAlerts(); }, [fetchAlerts]);
+
+  // Auto-refresh alerts every 30 seconds
+  useEffect(() => {
+    const interval = setInterval(fetchAlerts, 30000);
+    return () => clearInterval(interval);
+  }, [fetchAlerts]);
 
   const handleReview = async (alertId) => {
     if (!reviewForm.resolution) return;
@@ -324,104 +337,6 @@ function AlertQueue({ token }) {
 }
 
 // ============================================================================
-// TAB 2: EMPLOYEE MONITOR
-// ============================================================================
-
-function EmployeeMonitor({ token }) {
-  const [metrics, setMetrics] = useState([]);
-  const [loading, setLoading] = useState(true);
-
-  const fetchMetrics = useCallback(async () => {
-    setLoading(true);
-    try {
-      const res = await authFetch(`${API_URL}/api/fraud/employee-metrics`, {
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
-      const data = await res.json();
-      if (data.success) setMetrics(data.data || []);
-    } catch (err) {
-      console.error('Failed to fetch metrics:', err);
-    } finally {
-      setLoading(false);
-    }
-  }, [token]);
-
-  useEffect(() => { fetchMetrics(); }, [fetchMetrics]);
-
-  const handleRefresh = async () => {
-    try {
-      await authFetch(`${API_URL}/api/fraud/employee-metrics/refresh`, {
-        method: 'POST',
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
-      fetchMetrics();
-    } catch (err) {
-      console.error('Refresh failed:', err);
-    }
-  };
-
-  const getRowBg = (m) => {
-    if (m.fraud_alert_count > 3) return '#fee2e2';
-    if (m.fraud_alert_count > 1) return '#fef3c7';
-    return 'white';
-  };
-
-  return (
-    <div>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
-        <p style={{ margin: 0, color: '#6b7280', fontSize: '14px' }}>90-day rolling metrics from materialized view</p>
-        <button onClick={handleRefresh} style={{
-          padding: '6px 14px', background: '#667eea', color: 'white',
-          border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '13px'
-        }}>
-          Refresh Metrics
-        </button>
-      </div>
-
-      {loading ? (
-        <p style={{ color: '#9ca3af', textAlign: 'center', padding: '40px' }}>Loading metrics...</p>
-      ) : (
-        <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-          <thead>
-            <tr style={{ borderBottom: '2px solid #e5e7eb' }}>
-              <th style={thStyle}>Employee</th>
-              <th style={thStyle}>Role</th>
-              <th style={thStyle}>Transactions</th>
-              <th style={thStyle}>Voids</th>
-              <th style={thStyle}>Refunds</th>
-              <th style={thStyle}>Avg Discount</th>
-              <th style={thStyle}>Total Refunds</th>
-              <th style={thStyle}>Alerts</th>
-            </tr>
-          </thead>
-          <tbody>
-            {metrics.map(m => (
-              <tr key={m.user_id} style={{ borderBottom: '1px solid #f3f4f6', background: getRowBg(m) }}>
-                <td style={tdStyle}><strong>{m.employee_name}</strong></td>
-                <td style={tdStyle}><span style={{ textTransform: 'capitalize' }}>{m.role}</span></td>
-                <td style={tdStyle}>{m.total_transactions}</td>
-                <td style={tdStyle}>{m.void_count}</td>
-                <td style={tdStyle}>{m.refund_count}</td>
-                <td style={tdStyle}>{formatCurrency(m.avg_discount)}</td>
-                <td style={tdStyle}>{formatCurrency(m.total_refund_amount)}</td>
-                <td style={tdStyle}>
-                  <span style={{
-                    fontWeight: m.fraud_alert_count > 0 ? 700 : 400,
-                    color: m.fraud_alert_count > 3 ? '#dc2626' : m.fraud_alert_count > 1 ? '#d97706' : '#374151'
-                  }}>
-                    {m.fraud_alert_count}
-                  </span>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      )}
-    </div>
-  );
-}
-
-// ============================================================================
 // TAB 3: INCIDENTS
 // ============================================================================
 
@@ -555,337 +470,6 @@ function Incidents({ token }) {
 }
 
 // ============================================================================
-// TAB 4: CHARGEBACKS
-// ============================================================================
-
-function Chargebacks({ token }) {
-  const [cases, setCases] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [showCreate, setShowCreate] = useState(false);
-  const [createForm, setCreateForm] = useState({ transaction_id: '', payment_id: '', amount: '', case_number: '', reason_code: '', deadline: '', notes: '' });
-  const [saving, setSaving] = useState(false);
-
-  const fetchCases = useCallback(async () => {
-    setLoading(true);
-    try {
-      const res = await authFetch(`${API_URL}/api/chargebacks`, {
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
-      const data = await res.json();
-      if (data.success) setCases(data.data || []);
-    } catch (err) {
-      console.error('Failed to fetch chargebacks:', err);
-    } finally {
-      setLoading(false);
-    }
-  }, [token]);
-
-  useEffect(() => { fetchCases(); }, [fetchCases]);
-
-  const handleCreate = async () => {
-    setSaving(true);
-    try {
-      await authFetch(`${API_URL}/api/chargebacks`, {
-        method: 'POST',
-        headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          transaction_id: parseInt(createForm.transaction_id),
-          payment_id: parseInt(createForm.payment_id),
-          amount: parseFloat(createForm.amount),
-          case_number: createForm.case_number || null,
-          reason_code: createForm.reason_code || null,
-          deadline: createForm.deadline || null,
-          notes: createForm.notes || null,
-        })
-      });
-      setShowCreate(false);
-      setCreateForm({ transaction_id: '', payment_id: '', amount: '', case_number: '', reason_code: '', deadline: '', notes: '' });
-      fetchCases();
-    } catch (err) {
-      console.error('Create chargeback failed:', err);
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  const getDeadlineStyle = (deadline) => {
-    if (!deadline) return {};
-    const days = Math.ceil((new Date(deadline) - new Date()) / (1000 * 60 * 60 * 24));
-    if (days < 0) return { color: '#dc2626', fontWeight: 700 };
-    if (days <= 7) return { color: '#d97706', fontWeight: 600 };
-    return { color: '#6b7280' };
-  };
-
-  return (
-    <div>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
-        <p style={{ margin: 0, color: '#6b7280', fontSize: '14px' }}>Payment disputes and chargeback tracking</p>
-        <button onClick={() => setShowCreate(!showCreate)} style={{
-          padding: '6px 14px', background: '#667eea', color: 'white',
-          border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '13px'
-        }}>
-          {showCreate ? 'Cancel' : 'New Chargeback'}
-        </button>
-      </div>
-
-      {showCreate && (
-        <div style={{ background: '#f9fafb', borderRadius: '8px', padding: '16px', marginBottom: '16px' }}>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '12px' }}>
-            <div>
-              <label style={labelStyle}>Transaction ID *</label>
-              <input type="number" value={createForm.transaction_id} onChange={e => setCreateForm(f => ({ ...f, transaction_id: e.target.value }))} style={inputStyle} />
-            </div>
-            <div>
-              <label style={labelStyle}>Payment ID *</label>
-              <input type="number" value={createForm.payment_id} onChange={e => setCreateForm(f => ({ ...f, payment_id: e.target.value }))} style={inputStyle} />
-            </div>
-            <div>
-              <label style={labelStyle}>Amount *</label>
-              <input type="number" value={createForm.amount} onChange={e => setCreateForm(f => ({ ...f, amount: e.target.value }))} style={inputStyle} placeholder="0.00" />
-            </div>
-            <div>
-              <label style={labelStyle}>Case Number</label>
-              <input value={createForm.case_number} onChange={e => setCreateForm(f => ({ ...f, case_number: e.target.value }))} style={inputStyle} />
-            </div>
-            <div>
-              <label style={labelStyle}>Reason Code</label>
-              <input value={createForm.reason_code} onChange={e => setCreateForm(f => ({ ...f, reason_code: e.target.value }))} style={inputStyle} />
-            </div>
-            <div>
-              <label style={labelStyle}>Deadline</label>
-              <input type="date" value={createForm.deadline} onChange={e => setCreateForm(f => ({ ...f, deadline: e.target.value }))} style={inputStyle} />
-            </div>
-          </div>
-          <div style={{ marginTop: '12px' }}>
-            <label style={labelStyle}>Notes</label>
-            <textarea value={createForm.notes} onChange={e => setCreateForm(f => ({ ...f, notes: e.target.value }))}
-              style={{ ...inputStyle, resize: 'vertical' }} rows={2} />
-          </div>
-          <button onClick={handleCreate} disabled={!createForm.transaction_id || !createForm.payment_id || !createForm.amount || saving}
-            style={{ marginTop: '12px', padding: '8px 20px', background: '#667eea', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer' }}>
-            {saving ? 'Creating...' : 'Create Case'}
-          </button>
-        </div>
-      )}
-
-      {loading ? (
-        <p style={{ color: '#9ca3af', textAlign: 'center', padding: '40px' }}>Loading chargebacks...</p>
-      ) : cases.length === 0 ? (
-        <p style={{ color: '#9ca3af', textAlign: 'center', padding: '40px' }}>No chargeback cases</p>
-      ) : (
-        <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-          <thead>
-            <tr style={{ borderBottom: '2px solid #e5e7eb' }}>
-              <th style={thStyle}>Case #</th>
-              <th style={thStyle}>Transaction</th>
-              <th style={thStyle}>Customer</th>
-              <th style={thStyle}>Amount</th>
-              <th style={thStyle}>Reason</th>
-              <th style={thStyle}>Deadline</th>
-              <th style={thStyle}>Status</th>
-            </tr>
-          </thead>
-          <tbody>
-            {cases.map(c => (
-              <tr key={c.id} style={{ borderBottom: '1px solid #f3f4f6' }}>
-                <td style={tdStyle}><strong>{c.case_number || `#${c.id}`}</strong></td>
-                <td style={tdStyle}>{c.transaction_number}</td>
-                <td style={tdStyle}>{c.customer_name || '-'}</td>
-                <td style={tdStyle}>{formatCurrency(c.amount)}</td>
-                <td style={tdStyle}>{c.reason_code || '-'}</td>
-                <td style={tdStyle}>
-                  <span style={{ fontSize: '12px', ...getDeadlineStyle(c.deadline) }}>
-                    {c.deadline ? new Date(c.deadline).toLocaleDateString('en-CA') : '-'}
-                  </span>
-                </td>
-                <td style={tdStyle}><StatusBadge status={c.status} /></td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      )}
-    </div>
-  );
-}
-
-// ============================================================================
-// TAB 5: RULES CONFIG
-// ============================================================================
-
-function RulesConfig({ token }) {
-  const [rules, setRules] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [editingId, setEditingId] = useState(null);
-  const [editForm, setEditForm] = useState({});
-  const [saving, setSaving] = useState(false);
-
-  const fetchRules = useCallback(async () => {
-    setLoading(true);
-    try {
-      const res = await authFetch(`${API_URL}/api/fraud/rules`, {
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
-      const data = await res.json();
-      if (data.success) setRules(data.data || []);
-    } catch (err) {
-      console.error('Failed to fetch rules:', err);
-    } finally {
-      setLoading(false);
-    }
-  }, [token]);
-
-  useEffect(() => { fetchRules(); }, [fetchRules]);
-
-  const startEdit = (rule) => {
-    setEditingId(rule.id);
-    setEditForm({
-      risk_points: rule.risk_points,
-      severity: rule.severity,
-      action: rule.action,
-      is_active: rule.is_active,
-      conditions: JSON.stringify(rule.conditions, null, 2),
-    });
-  };
-
-  const handleSave = async (ruleId) => {
-    setSaving(true);
-    try {
-      let conditions;
-      try {
-        conditions = JSON.parse(editForm.conditions);
-      } catch {
-        alert('Invalid JSON in conditions');
-        setSaving(false);
-        return;
-      }
-      await authFetch(`${API_URL}/api/fraud/rules/${ruleId}`, {
-        method: 'PUT',
-        headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          risk_points: parseInt(editForm.risk_points),
-          severity: editForm.severity,
-          action: editForm.action,
-          is_active: editForm.is_active,
-          conditions,
-        })
-      });
-      setEditingId(null);
-      fetchRules();
-    } catch (err) {
-      console.error('Update rule failed:', err);
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  const handleToggle = async (rule) => {
-    try {
-      await authFetch(`${API_URL}/api/fraud/rules/${rule.id}`, {
-        method: 'PUT',
-        headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ is_active: !rule.is_active })
-      });
-      fetchRules();
-    } catch (err) {
-      console.error('Toggle failed:', err);
-    }
-  };
-
-  return (
-    <div>
-      {loading ? (
-        <p style={{ color: '#9ca3af', textAlign: 'center', padding: '40px' }}>Loading rules...</p>
-      ) : (
-        <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-          <thead>
-            <tr style={{ borderBottom: '2px solid #e5e7eb' }}>
-              <th style={thStyle}>Active</th>
-              <th style={thStyle}>Rule</th>
-              <th style={thStyle}>Type</th>
-              <th style={thStyle}>Points</th>
-              <th style={thStyle}>Severity</th>
-              <th style={thStyle}>Action</th>
-              <th style={thStyle}>Conditions</th>
-              <th style={thStyle}></th>
-            </tr>
-          </thead>
-          <tbody>
-            {rules.map(rule => (
-              <tr key={rule.id} style={{ borderBottom: '1px solid #f3f4f6', background: !rule.is_active ? '#f9fafb' : 'white' }}>
-                <td style={tdStyle}>
-                  <button onClick={() => handleToggle(rule)}
-                    style={{ width: '36px', height: '20px', borderRadius: '10px', border: 'none', cursor: 'pointer',
-                      background: rule.is_active ? '#667eea' : '#d1d5db', position: 'relative', transition: 'background 0.2s' }}>
-                    <span style={{
-                      display: 'block', width: '16px', height: '16px', borderRadius: '50%', background: 'white',
-                      position: 'absolute', top: '2px', left: rule.is_active ? '18px' : '2px', transition: 'left 0.2s'
-                    }} />
-                  </button>
-                </td>
-                <td style={tdStyle}>
-                  <div>
-                    <strong style={{ fontSize: '13px' }}>{rule.rule_name}</strong>
-                    <p style={{ margin: '2px 0 0', fontSize: '11px', color: '#9ca3af' }}>{rule.rule_code}</p>
-                  </div>
-                </td>
-                <td style={tdStyle}><span style={{ textTransform: 'capitalize', fontSize: '13px' }}>{rule.rule_type}</span></td>
-                {editingId === rule.id ? (
-                  <>
-                    <td style={tdStyle}>
-                      <input type="number" value={editForm.risk_points} onChange={e => setEditForm(f => ({ ...f, risk_points: e.target.value }))}
-                        style={{ ...inputStyle, width: '60px' }} />
-                    </td>
-                    <td style={tdStyle}>
-                      <select value={editForm.severity} onChange={e => setEditForm(f => ({ ...f, severity: e.target.value }))} style={{ ...inputStyle, width: '100px' }}>
-                        {['low', 'medium', 'high', 'critical'].map(s => <option key={s} value={s}>{s}</option>)}
-                      </select>
-                    </td>
-                    <td style={tdStyle}>
-                      <select value={editForm.action} onChange={e => setEditForm(f => ({ ...f, action: e.target.value }))} style={{ ...inputStyle, width: '130px' }}>
-                        {['alert', 'block', 'require_approval'].map(a => <option key={a} value={a}>{a.replace(/_/g, ' ')}</option>)}
-                      </select>
-                    </td>
-                    <td style={tdStyle}>
-                      <textarea value={editForm.conditions} onChange={e => setEditForm(f => ({ ...f, conditions: e.target.value }))}
-                        style={{ ...inputStyle, width: '200px', fontFamily: 'monospace', fontSize: '11px', resize: 'vertical' }} rows={3} />
-                    </td>
-                    <td style={tdStyle}>
-                      <div style={{ display: 'flex', gap: '4px' }}>
-                        <button onClick={() => handleSave(rule.id)} disabled={saving}
-                          style={{ padding: '4px 10px', background: '#16a34a', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '12px' }}>
-                          Save
-                        </button>
-                        <button onClick={() => setEditingId(null)}
-                          style={{ padding: '4px 10px', background: '#d1d5db', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '12px' }}>
-                          Cancel
-                        </button>
-                      </div>
-                    </td>
-                  </>
-                ) : (
-                  <>
-                    <td style={tdStyle}><strong>{rule.risk_points}</strong></td>
-                    <td style={tdStyle}><SeverityBadge severity={rule.severity} /></td>
-                    <td style={tdStyle}><span style={{ fontSize: '12px', textTransform: 'capitalize' }}>{(rule.action || '').replace(/_/g, ' ')}</span></td>
-                    <td style={tdStyle}><code style={{ fontSize: '11px', color: '#6b7280' }}>{JSON.stringify(rule.conditions)}</code></td>
-                    <td style={tdStyle}>
-                      <button onClick={() => startEdit(rule)}
-                        style={{ padding: '4px 10px', background: '#f3f4f6', border: '1px solid #d1d5db', borderRadius: '4px', cursor: 'pointer', fontSize: '12px' }}>
-                        Edit
-                      </button>
-                    </td>
-                  </>
-                )}
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      )}
-    </div>
-  );
-}
-
-// ============================================================================
 // SHARED STYLES
 // ============================================================================
 
@@ -916,14 +500,20 @@ export default function FraudDashboard() {
       }
     };
     fetchStats();
+    const interval = setInterval(fetchStats, 30000);
+    return () => clearInterval(interval);
   }, [token]);
 
   const tabs = [
     { id: 'alerts', label: 'Alert Queue', badge: stats?.new_alerts },
+    { id: 'livefeed', label: 'Live Feed' },
+    { id: 'reviewqueue', label: 'Review Queue' },
     { id: 'employees', label: 'Employee Monitor' },
     { id: 'incidents', label: 'Incidents', badge: stats?.active_incidents },
     { id: 'chargebacks', label: 'Chargebacks', badge: stats?.active_chargebacks },
     { id: 'rules', label: 'Rules Config' },
+    { id: 'analytics', label: 'Analytics' },
+    { id: 'compliance', label: 'Compliance' },
   ];
 
   return (
@@ -992,10 +582,14 @@ export default function FraudDashboard() {
       {/* Tab Content */}
       <div style={{ background: 'white', borderRadius: '12px', padding: '24px', boxShadow: '0 1px 3px rgba(0,0,0,0.1)' }}>
         {activeTab === 'alerts' && <AlertQueue token={token} />}
-        {activeTab === 'employees' && <EmployeeMonitor token={token} />}
+        {activeTab === 'livefeed' && <FraudAlertPanel token={token} />}
+        {activeTab === 'reviewqueue' && <TransactionReviewQueue token={token} />}
+        {activeTab === 'employees' && <EmployeeFraudDashboard />}
         {activeTab === 'incidents' && <Incidents token={token} />}
-        {activeTab === 'chargebacks' && <Chargebacks token={token} />}
-        {activeTab === 'rules' && <RulesConfig token={token} />}
+        {activeTab === 'chargebacks' && <ChargebackTracker />}
+        {activeTab === 'rules' && <FraudRuleManager />}
+        {activeTab === 'analytics' && <FraudAnalyticsDashboard />}
+        {activeTab === 'compliance' && <ComplianceDashboard />}
       </div>
     </div>
   );

@@ -6,14 +6,8 @@
  */
 
 import { useEffect, useRef, useState } from 'react';
-import {
-  CheckCircleIcon,
-  XCircleIcon,
-  ExclamationTriangleIcon,
-  ShieldCheckIcon,
-  ClockIcon,
-} from '@heroicons/react/24/outline';
 import { formatCurrency } from '../../utils/formatters';
+import { AlertTriangle, CheckCircle, ShieldCheck, XCircle } from 'lucide-react';
 
 // ---------------------------------------------------------------------------
 // Live Timer
@@ -89,7 +83,7 @@ export default function BatchApprovalStatusOverlay({
           <div className="p-5 bg-blue-50 border-b border-blue-100">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
-                <ShieldCheckIcon className="w-5 h-5 text-blue-600" />
+                <ShieldCheck className="w-5 h-5 text-blue-600" />
                 <h2 className="text-lg font-bold text-gray-900">Awaiting Batch Approval</h2>
               </div>
               <LiveTimer createdAt={parent?.created_at} />
@@ -150,7 +144,7 @@ export default function BatchApprovalStatusOverlay({
         <div className="bg-white rounded-2xl shadow-xl max-w-md w-full mx-4 overflow-hidden">
           <div className="p-5 bg-green-50 border-b border-green-100">
             <div className="flex items-center gap-2">
-              <CheckCircleIcon className="w-6 h-6 text-green-600" />
+              <CheckCircle className="w-6 h-6 text-green-600" />
               <h2 className="text-lg font-bold text-green-800">
                 {flowState === 'done' ? 'Batch Prices Applied!' : 'Batch Approved!'}
               </h2>
@@ -236,7 +230,7 @@ export default function BatchApprovalStatusOverlay({
         <div className="bg-white rounded-2xl shadow-xl max-w-md w-full mx-4 overflow-hidden">
           <div className="p-5 bg-red-50 border-b border-red-100">
             <div className="flex items-center gap-2">
-              <XCircleIcon className="w-6 h-6 text-red-600" />
+              <XCircle className="w-6 h-6 text-red-600" />
               <h2 className="text-lg font-bold text-red-800">Batch Request Denied</h2>
             </div>
           </div>
@@ -285,7 +279,7 @@ export default function BatchApprovalStatusOverlay({
         <div className="bg-white rounded-2xl shadow-xl max-w-md w-full mx-4 overflow-hidden">
           <div className="p-5 bg-amber-50 border-b border-amber-100">
             <div className="flex items-center gap-2">
-              <ExclamationTriangleIcon className="w-6 h-6 text-amber-600" />
+              <AlertTriangle className="w-6 h-6 text-amber-600" />
               <h2 className="text-lg font-bold text-amber-800">Batch Request Timed Out</h2>
             </div>
           </div>
@@ -318,7 +312,7 @@ export default function BatchApprovalStatusOverlay({
         <div className="bg-white rounded-2xl shadow-xl max-w-md w-full mx-4 overflow-hidden">
           <div className="p-5 bg-red-50 border-b border-red-100">
             <div className="flex items-center gap-2">
-              <ExclamationTriangleIcon className="w-6 h-6 text-red-600" />
+              <AlertTriangle className="w-6 h-6 text-red-600" />
               <h2 className="text-lg font-bold text-red-800">Error</h2>
             </div>
           </div>

@@ -6,10 +6,11 @@
 const cron = require('node-cron');
 
 class ScheduledBatchEmailService {
-  constructor(pool, batchEmailService, emailService) {
+  constructor(pool, batchEmailService, emailService, receiptService = null) {
     this.pool = pool;
     this.batchEmailService = batchEmailService;
     this.emailService = emailService;
+    this.receiptService = receiptService;
     this.scheduledJob = null;
     this.isInitialized = false;
   }
@@ -31,7 +32,6 @@ class ScheduledBatchEmailService {
       }
 
       this.isInitialized = true;
-      console.log('[ScheduledBatchEmail] Service initialized');
     } catch (error) {
       console.error('[ScheduledBatchEmail] Initialization error:', error);
     }
@@ -56,11 +56,9 @@ class ScheduledBatchEmailService {
     const cronExpression = `${minutes} ${hours} * * *`;
 
     this.scheduledJob = cron.schedule(cronExpression, async () => {
-      console.log('[ScheduledBatchEmail] Running scheduled batch at', new Date().toISOString());
       await this.runScheduledBatch();
     });
 
-    console.log(`[ScheduledBatchEmail] Scheduled job set for ${hours}:${minutes.toString().padStart(2, '0')}`);
   }
 
   // ============================================================================
@@ -156,16 +154,13 @@ class ScheduledBatchEmailService {
       const settings = await this.getSettings();
 
       if (!settings.auto_send_enabled) {
-        console.log('[ScheduledBatchEmail] Auto-send disabled, skipping');
         return null;
       }
 
       if (settings.send_trigger !== 'shift_end') {
-        console.log('[ScheduledBatchEmail] Trigger is not shift_end, skipping');
         return null;
       }
 
-      console.log(`[ScheduledBatchEmail] Shift ${shiftId} ended, triggering batch email`);
 
       return this.runShiftBatch(shiftId, closedByUserId);
     } catch (error) {
@@ -193,9 +188,9 @@ class ScheduledBatchEmailService {
 
     try {
       // Create batch for the shift
-      const batch = await this.batchEmailService.createShiftReceiptBatch(shiftId);
+      const batchResult = await this.batchEmailService.createShiftReceiptBatch(shiftId, triggeredByUserId);
 
-      if (!batch || batch.total_count === 0) {
+      if (!batchResult?.batch) {
         await this.pool.query(
           `UPDATE batch_email_schedule_log
            SET status = 'completed',
@@ -205,7 +200,7 @@ class ScheduledBatchEmailService {
           [logId]
         );
 
-        return { success: true, message: 'No unsent receipts found', logId };
+        return { success: true, message: batchResult?.message || 'No unsent receipts found', logId };
       }
 
       // Update log with batch reference
@@ -213,11 +208,13 @@ class ScheduledBatchEmailService {
         `UPDATE batch_email_schedule_log
          SET batch_id = $1, total_receipts = $2
          WHERE id = $3`,
-        [batch.id, batch.total_count, logId]
+        [batchResult.batch.id, batchResult.queuedCount, logId]
       );
 
       // Process the batch
-      const result = await this.batchEmailService.processBatch(batch.id);
+      const result = await this.batchEmailService.processBatch(batchResult.batch.id, {
+        receiptService: this.receiptService,
+      });
 
       // Update log with results
       await this.pool.query(
@@ -228,17 +225,17 @@ class ScheduledBatchEmailService {
              skipped_count = $3,
              completed_at = NOW()
          WHERE id = $4`,
-        [result.sent_count, result.failed_count, result.skipped_count || 0, logId]
+        [result.sent, result.failed, result.skipped || 0, logId]
       );
 
       // Send manager notification if enabled
       if (settings.send_manager_summary && settings.manager_email) {
         await this.sendManagerSummary(settings.manager_email, {
           shiftId,
-          total: batch.total_count,
-          sent: result.sent_count,
-          failed: result.failed_count,
-          skipped: result.skipped_count || 0,
+          total: batchResult.queuedCount,
+          sent: result.sent,
+          failed: result.failed,
+          skipped: result.skipped || 0,
         });
 
         await this.pool.query(
@@ -253,10 +250,10 @@ class ScheduledBatchEmailService {
       return {
         success: true,
         logId,
-        batchId: batch.id,
-        total: batch.total_count,
-        sent: result.sent_count,
-        failed: result.failed_count,
+        batchId: batchResult.batch.id,
+        total: batchResult.queuedCount,
+        sent: result.sent,
+        failed: result.failed,
       };
     } catch (error) {
       console.error('[ScheduledBatchEmail] runShiftBatch error:', error);
@@ -310,9 +307,9 @@ class ScheduledBatchEmailService {
       // Find all unsent receipts from completed shifts today
       const unsentResult = await this.pool.query(
         `SELECT t.transaction_id, t.transaction_number, t.total_amount,
-                c.customer_id, c.name as customer_name, c.email as customer_email
+                c.id as customer_id, c.name as customer_name, c.email as customer_email
          FROM transactions t
-         LEFT JOIN customers c ON t.customer_id = c.customer_id
+         LEFT JOIN customers c ON t.customer_id = c.id
          LEFT JOIN pos_shifts s ON t.shift_id = s.id
          LEFT JOIN receipt_email_tracking ret ON t.transaction_id = ret.transaction_id
          WHERE t.created_at BETWEEN $1 AND $2
@@ -341,9 +338,9 @@ class ScheduledBatchEmailService {
       const transactionIds = unsentResult.rows.map(r => r.transaction_id);
 
       // Create manual batch with these transactions
-      const batch = await this.batchEmailService.createManualBatch(transactionIds);
+      const batchResult = await this.batchEmailService.createManualBatch(transactionIds, null);
 
-      if (!batch) {
+      if (!batchResult?.batch) {
         throw new Error('Failed to create batch');
       }
 
@@ -352,11 +349,13 @@ class ScheduledBatchEmailService {
         `UPDATE batch_email_schedule_log
          SET batch_id = $1, total_receipts = $2
          WHERE id = $3`,
-        [batch.id, batch.total_count, logId]
+        [batchResult.batch.id, batchResult.queuedCount, logId]
       );
 
       // Process the batch
-      const result = await this.batchEmailService.processBatch(batch.id);
+      const result = await this.batchEmailService.processBatch(batchResult.batch.id, {
+        receiptService: this.receiptService,
+      });
 
       // Update log with results
       await this.pool.query(
@@ -367,17 +366,17 @@ class ScheduledBatchEmailService {
              skipped_count = $3,
              completed_at = NOW()
          WHERE id = $4`,
-        [result.sent_count, result.failed_count, result.skipped_count || 0, logId]
+        [result.sent, result.failed, result.skipped || 0, logId]
       );
 
       // Send manager notification if enabled
       if (settings.send_manager_summary && settings.manager_email) {
         await this.sendManagerSummary(settings.manager_email, {
           scheduled: true,
-          total: batch.total_count,
-          sent: result.sent_count,
-          failed: result.failed_count,
-          skipped: result.skipped_count || 0,
+          total: batchResult.queuedCount,
+          sent: result.sent,
+          failed: result.failed,
+          skipped: result.skipped || 0,
         });
 
         await this.pool.query(
@@ -392,10 +391,10 @@ class ScheduledBatchEmailService {
       return {
         success: true,
         logId,
-        batchId: batch.id,
-        total: batch.total_count,
-        sent: result.sent_count,
-        failed: result.failed_count,
+        batchId: batchResult.batch.id,
+        total: batchResult.queuedCount,
+        sent: result.sent,
+        failed: result.failed,
       };
     } catch (error) {
       console.error('[ScheduledBatchEmail] runScheduledBatch error:', error);
@@ -483,7 +482,6 @@ class ScheduledBatchEmailService {
         html,
       });
 
-      console.log(`[ScheduledBatchEmail] Manager summary sent to ${managerEmail}`);
     } catch (error) {
       console.error('[ScheduledBatchEmail] Failed to send manager summary:', error);
     }
@@ -615,7 +613,6 @@ class ScheduledBatchEmailService {
       this.scheduledJob.stop();
       this.scheduledJob = null;
     }
-    console.log('[ScheduledBatchEmail] Service stopped');
   }
 }
 

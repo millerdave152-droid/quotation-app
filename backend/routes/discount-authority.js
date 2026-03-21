@@ -10,6 +10,7 @@ const express = require('express');
 const router = express.Router();
 const { authenticate, requireRole } = require('../middleware/auth');
 const { ApiError, asyncHandler } = require('../middleware/errorHandler');
+const { auditLogMiddleware } = require('../middleware/auditLog');
 
 /**
  * Initialize routes with services
@@ -57,7 +58,7 @@ module.exports = function (discountAuthorityService, fraudService) {
    * PUT /api/discount-authority/tiers/:role
    * Update a tier configuration (admin only)
    */
-  router.put('/tiers/:role', requireRole('admin'), asyncHandler(async (req, res) => {
+  router.put('/tiers/:role', requireRole('admin'), auditLogMiddleware('discount_tier_update', 'config'), asyncHandler(async (req, res) => {
     const { role } = req.params;
     const updated = await discountAuthorityService.updateTier(role, req.body);
 
@@ -132,7 +133,7 @@ module.exports = function (discountAuthorityService, fraudService) {
    * Apply a discount: validate, record transaction, debit budget.
    * Includes fraud risk assessment and audit logging.
    */
-  router.post('/apply', asyncHandler(async (req, res) => {
+  router.post('/apply', auditLogMiddleware('discount_apply', 'discount'), asyncHandler(async (req, res) => {
     const { productId, originalPrice, cost, discountPct, saleId, saleItemId, reason, approvedBy } = req.body;
 
     if (originalPrice == null || cost == null || discountPct == null) {

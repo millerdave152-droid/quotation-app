@@ -6,14 +6,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
-import {
-  CheckCircleIcon,
-  CurrencyDollarIcon,
-  SparklesIcon,
-  ArrowTrendingUpIcon,
-} from '@heroicons/react/24/outline';
-import { CheckCircleIcon as CheckCircleSolid } from '@heroicons/react/24/solid';
-
+import { CheckCircle, DollarSign, Sparkles } from 'lucide-react';
 /**
  * Format currency
  */
@@ -126,7 +119,7 @@ export function CommissionToast({
             </span>
             {hasBonus && (
               <span className="flex items-center gap-0.5 text-xs text-amber-600">
-                <SparklesIcon className="w-3 h-3" />
+                <Sparkles className="w-3 h-3" />
                 includes bonus
               </span>
             )}
@@ -194,7 +187,7 @@ export default function CommissionConfirmation({
           {/* Success header */}
           <div className="bg-gradient-to-r from-green-500 to-emerald-500 px-6 py-8 text-center">
             <div className="inline-flex items-center justify-center w-16 h-16 bg-white/20 rounded-full mb-4">
-              <CheckCircleIcon className="w-10 h-10 text-white" />
+              <CheckCircle className="w-10 h-10 text-white" />
             </div>
             <h2 className="text-xl font-bold text-white">Sale Complete!</h2>
             {orderNumber && (
@@ -215,7 +208,7 @@ export default function CommissionConfirmation({
             {/* Commission earned */}
             <div className="py-6 text-center">
               <div className="flex items-center justify-center gap-2 mb-2">
-                <CurrencyDollarIcon className="w-5 h-5 text-green-500" />
+                <DollarSign className="w-5 h-5 text-green-500" />
                 <span className="text-sm font-medium text-slate-500 uppercase tracking-wider">
                   Commission Earned
                 </span>
@@ -227,7 +220,7 @@ export default function CommissionConfirmation({
               {/* Bonus indicator */}
               {hasBonus && (
                 <div className="inline-flex items-center gap-1 px-3 py-1 bg-amber-50 text-amber-700 rounded-full text-sm">
-                  <SparklesIcon className="w-4 h-4" />
+                  <Sparkles className="w-4 h-4" />
                   <span>+{formatCurrency(bonusAmount)} bonus included</span>
                 </div>
               )}

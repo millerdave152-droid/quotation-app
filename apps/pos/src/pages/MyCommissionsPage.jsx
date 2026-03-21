@@ -5,13 +5,6 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import {
-  ArrowLeftIcon,
-  ArrowPathIcon,
-  CalendarIcon,
-  ArrowDownTrayIcon,
-  ChartBarIcon,
-} from '@heroicons/react/24/outline';
 import { useAuth } from '../context/AuthContext';
 import { getMyCommissions, exportCommissionsCSV } from '../api/commissions';
 import {
@@ -20,6 +13,7 @@ import {
 } from '../components/Commission/CommissionSummaryCards';
 import CommissionTable from '../components/Commission/CommissionTable';
 import { DailyCommissionWidget, CommissionLeaderboard } from '../components/Commission';
+import { ArrowLeft, BarChart3, Calendar, Download, RefreshCw } from 'lucide-react';
 
 /**
  * Date range presets
@@ -152,7 +146,7 @@ export default function MyCommissionsPage() {
                 onClick={() => navigate(-1)}
                 className="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg transition-colors"
               >
-                <ArrowLeftIcon className="w-5 h-5" />
+                <ArrowLeft className="w-5 h-5" />
               </button>
               <div>
                 <h1 className="text-xl font-bold text-slate-900">My Commissions</h1>
@@ -168,7 +162,7 @@ export default function MyCommissionsPage() {
                 disabled={loading}
                 className="flex items-center gap-2 px-4 py-2 text-slate-600 hover:text-slate-900 hover:bg-slate-100 rounded-lg transition-colors"
               >
-                <ArrowPathIcon className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
+                <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
                 Refresh
               </button>
               <button
@@ -176,7 +170,7 @@ export default function MyCommissionsPage() {
                 disabled={exporting || loading}
                 className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors disabled:opacity-50"
               >
-                <ArrowDownTrayIcon className="w-4 h-4" />
+                <Download className="w-4 h-4" />
                 {exporting ? 'Exporting...' : 'Export CSV'}
               </button>
             </div>
@@ -188,7 +182,7 @@ export default function MyCommissionsPage() {
       <div className="bg-white border-b border-slate-200">
         <div className="max-w-7xl mx-auto px-4 py-3">
           <div className="flex items-center gap-4 flex-wrap">
-            <CalendarIcon className="w-5 h-5 text-slate-400" />
+            <Calendar className="w-5 h-5 text-slate-400" />
 
             {/* Presets */}
             <div className="flex items-center gap-1 p-1 bg-slate-100 rounded-lg">
@@ -278,7 +272,7 @@ export default function MyCommissionsPage() {
                 {report?.dailyBreakdown?.length > 0 && (
                   <div className="bg-white rounded-xl border border-slate-200 p-4">
                     <h3 className="font-semibold text-slate-900 mb-4 flex items-center gap-2">
-                      <ChartBarIcon className="w-5 h-5 text-slate-400" />
+                      <BarChart3 className="w-5 h-5 text-slate-400" />
                       Daily Breakdown
                     </h3>
                     <div className="space-y-2 max-h-64 overflow-y-auto">

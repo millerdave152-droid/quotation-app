@@ -4,6 +4,8 @@
 
 'use strict';
 
+require('dotenv').config();
+
 /**
  * Skulytics Sync Pipeline — Integration Tests
  *
@@ -122,8 +124,8 @@ describe('Skulytics Sync Pipeline (integration)', () => {
       // Fall back to individual env vars used by the project
       host: process.env.DATABASE_URL ? undefined : process.env.DB_HOST,
       port: process.env.DATABASE_URL ? undefined : (parseInt(process.env.DB_PORT) || 5432),
-      user: process.env.DATABASE_URL ? undefined : process.env.DB_USER,
-      password: process.env.DATABASE_URL ? undefined : process.env.DB_PASSWORD,
+      user: process.env.DATABASE_URL ? undefined : (process.env.DB_ADMIN_USER || process.env.DB_USER),
+      password: process.env.DATABASE_URL ? undefined : (process.env.DB_ADMIN_PASSWORD || process.env.DB_PASSWORD),
       database: process.env.DATABASE_URL ? undefined : process.env.DB_NAME,
       ssl: { rejectUnauthorized: false },
       max: 5,

@@ -96,7 +96,7 @@ eventEmitter.on('order.confirmed', async (data) => {
       order_number: order.transaction_number || order.order_number || `#${order.transaction_id}`,
       order_total: formatCurrency(order.total_amount),
       order_items: orderItems,
-      store_phone: process.env.STORE_PHONE || '416-555-1234'
+      store_phone: process.env.STORE_PHONE || '(905) 273-5550'
     }, {
       related_type: 'order',
       related_id: order.transaction_id || order.id,
@@ -229,7 +229,6 @@ eventEmitter.on('delivery.completed', async (data) => {
 function startReminderCron() {
   cron.schedule('0 18 * * *', async () => {
     try {
-      console.log('[NotificationCron] Checking for tomorrow deliveries...');
       const tomorrow = new Date();
       tomorrow.setDate(tomorrow.getDate() + 1);
       const tomorrowStr = tomorrow.toISOString().split('T')[0];
@@ -241,7 +240,6 @@ function startReminderCron() {
         [tomorrowStr]
       );
 
-      console.log(`[NotificationCron] Found ${rows.length} deliveries for tomorrow (${tomorrowStr})`);
       for (const delivery of rows) {
         eventEmitter.emit('delivery.reminder_due', { delivery });
       }
@@ -250,7 +248,6 @@ function startReminderCron() {
     }
   }, { timezone: 'America/Toronto' });
 
-  console.log('✅ Delivery reminder cron scheduled (daily 6 PM ET)');
 }
 
 // ---- Module Exports ----

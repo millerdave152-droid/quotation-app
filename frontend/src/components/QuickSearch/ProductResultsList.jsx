@@ -37,7 +37,7 @@ const EmptyState = ({ searchQuery, hasFilters }) => (
 
 // Pagination component
 const Pagination = ({ pagination, onPageChange }) => {
-  const { page, totalPages, totalCount } = pagination;
+  const { page, totalPages } = pagination;
 
   if (totalPages <= 1) return null;
 

@@ -4,15 +4,14 @@
  */
 
 import { useEffect, useState } from 'react';
-import {
-  CheckCircleIcon,
-  PrinterIcon,
-  EnvelopeIcon,
-  XMarkIcon,
-  ArrowPathIcon,
-  CloudArrowUpIcon,
-} from '@heroicons/react/24/outline';
 import { formatCurrency, formatDateTime } from '../../utils/formatters';
+import { CheckCircle, CloudUpload, CreditCard, Mail, Printer, RefreshCw, X } from 'lucide-react';
+
+const API_BASE = import.meta.env.VITE_API_URL || '/api';
+
+function getToken() {
+  return localStorage.getItem('pos_token') || localStorage.getItem('auth_token') || '';
+}
 
 /**
  * Success animation component
@@ -38,7 +37,7 @@ function SuccessAnimation() {
         `}
       >
         {/* Checkmark */}
-        <CheckCircleIcon
+        <CheckCircle
           className={`
             w-20 h-20 text-green-600
             transition-all duration-500 delay-200
@@ -122,17 +121,53 @@ export function PaymentComplete({
   onEmailReceipt,
   customerEmail,
   signatureWarning,
+  customerId,
 }) {
   const [receiptOption, setReceiptOption] = useState(null);
   const [emailAddress, setEmailAddress] = useState(customerEmail || '');
   const [isSending, setIsSending] = useState(false);
   const [sent, setSent] = useState(false);
+  const [saveCardState, setSaveCardState] = useState('idle'); // idle | saving | saved | error | dismissed
+
+  // Determine if card save is available
+  const payments = paymentsProp || transaction?.payments || [];
+  const cardPayment = payments.find(p =>
+    ['credit', 'debit'].includes(p.paymentMethod) && p.cardLastFour
+  );
+  const canSaveCard = !!(customerId && cardPayment && saveCardState === 'idle');
+
+  const handleSaveCard = async () => {
+    if (!cardPayment || !customerId) return;
+    setSaveCardState('saving');
+    try {
+      const res = await fetch(`${API_BASE}/customers/${customerId}/payment-methods`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${getToken()}` },
+        body: JSON.stringify({
+          dataKey: cardPayment.monerisDataKey || cardPayment.dataKey,
+          lastFour: cardPayment.cardLastFour,
+          cardBin: cardPayment.cardBin,
+          cardType: cardPayment.paymentMethod === 'debit' ? 'debit' : 'credit',
+          cardBrand: cardPayment.cardBrand,
+          expDate: cardPayment.expDate,
+          isDefault: true,
+        }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        setSaveCardState('saved');
+      } else {
+        setSaveCardState('error');
+      }
+    } catch {
+      setSaveCardState('error');
+    }
+  };
 
   // Extract transaction details
   const transactionNumber = transaction?.transactionNumber || transaction?.transaction_number || 'N/A';
   const totalAmount = transaction?.totalAmount || transaction?.total_amount
     || transaction?.totals?.totalAmount || transaction?.totals?.amountDue || 0;
-  const payments = paymentsProp || transaction?.payments || [];
 
   // Handle receipt action
   const handleReceiptAction = async () => {
@@ -166,7 +201,7 @@ export function PaymentComplete({
         <div className="flex-shrink-0 mt-auto" />
         {/* Offline Icon */}
         <div className="w-32 h-32 rounded-full bg-amber-100 flex items-center justify-center">
-          <CloudArrowUpIcon className="w-20 h-20 text-amber-600" />
+          <CloudUpload className="w-20 h-20 text-amber-600" />
         </div>
 
         <h2 className="text-2xl font-bold text-gray-900 mt-8 mb-2">
@@ -205,7 +240,7 @@ export function PaymentComplete({
             transition-colors duration-150
           "
         >
-          <ArrowPathIcon className="w-6 h-6" />
+          <RefreshCw className="w-6 h-6" />
           New Transaction
         </button>
         <div className="flex-shrink-0 mb-auto" />
@@ -277,13 +312,54 @@ export function PaymentComplete({
         </div>
       )}
 
+      {/* Save Card Prompt */}
+      {canSaveCard && (
+        <div className="w-full max-w-md mb-6 p-4 bg-blue-50 border-2 border-blue-200 rounded-xl">
+          <div className="flex items-start gap-3">
+            <CreditCard className="w-6 h-6 text-blue-600 flex-shrink-0 mt-0.5" />
+            <div className="flex-1">
+              <p className="text-sm font-medium text-blue-900">Save this card for future purchases?</p>
+              <p className="text-xs text-blue-700 mt-0.5">
+                {cardPayment.cardBrand?.toUpperCase()} ending in {cardPayment.cardLastFour}
+              </p>
+              <div className="flex gap-2 mt-3">
+                <button onClick={handleSaveCard}
+                  className="px-4 py-1.5 bg-blue-600 text-white text-sm font-semibold rounded-lg hover:bg-blue-700">
+                  Save Card
+                </button>
+                <button onClick={() => setSaveCardState('dismissed')}
+                  className="px-4 py-1.5 text-blue-700 text-sm font-medium hover:text-blue-900">
+                  No Thanks
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+      {saveCardState === 'saving' && (
+        <div className="w-full max-w-md mb-6 p-4 bg-blue-50 border border-blue-200 rounded-xl text-center text-sm text-blue-700">
+          Saving card securely...
+        </div>
+      )}
+      {saveCardState === 'saved' && (
+        <div className="w-full max-w-md mb-6 p-4 bg-green-50 border border-green-200 rounded-xl text-center">
+          <CheckCircle className="w-6 h-6 text-green-600 mx-auto mb-1" />
+          <p className="text-sm text-green-700 font-medium">Card saved for future purchases</p>
+        </div>
+      )}
+      {saveCardState === 'error' && (
+        <div className="w-full max-w-md mb-6 p-4 bg-amber-50 border border-amber-200 rounded-xl text-center text-sm text-amber-700">
+          Could not save card. You can add it later from the customer profile.
+        </div>
+      )}
+
       {/* Receipt Options */}
       {!sent && (
         <div className="w-full max-w-md space-y-3 mb-6">
           <h3 className="text-sm font-medium text-gray-700">Receipt Options</h3>
 
           <ReceiptOption
-            icon={PrinterIcon}
+            icon={Printer}
             label="Print Receipt"
             description="Print to thermal printer"
             onClick={() => setReceiptOption('print')}
@@ -291,7 +367,7 @@ export function PaymentComplete({
           />
 
           <ReceiptOption
-            icon={EnvelopeIcon}
+            icon={Mail}
             label="Email Receipt"
             description="Send to customer's email"
             onClick={() => setReceiptOption('email')}
@@ -301,9 +377,9 @@ export function PaymentComplete({
           <ReceiptOption
             icon={() => (
               <div className="flex">
-                <PrinterIcon className="w-4 h-4" />
+                <Printer className="w-4 h-4" />
                 <span className="mx-0.5">+</span>
-                <EnvelopeIcon className="w-4 h-4" />
+                <Mail className="w-4 h-4" />
               </div>
             )}
             label="Both"
@@ -313,7 +389,7 @@ export function PaymentComplete({
           />
 
           <ReceiptOption
-            icon={XMarkIcon}
+            icon={X}
             label="No Receipt"
             description="Skip receipt"
             onClick={() => setReceiptOption('none')}
@@ -370,7 +446,7 @@ export function PaymentComplete({
       {/* Receipt Sent Confirmation */}
       {sent && (
         <div className="w-full max-w-md mb-6 p-4 bg-green-50 border border-green-200 rounded-xl text-center">
-          <CheckCircleIcon className="w-8 h-8 text-green-600 mx-auto mb-2" />
+          <CheckCircle className="w-8 h-8 text-green-600 mx-auto mb-2" />
           <p className="text-green-700 font-medium">Receipt sent successfully!</p>
         </div>
       )}
@@ -388,7 +464,7 @@ export function PaymentComplete({
           transition-colors duration-150
         "
       >
-        <ArrowPathIcon className="w-6 h-6" />
+        <RefreshCw className="w-6 h-6" />
         New Transaction
       </button>
       <div className="flex-shrink-0 mb-auto" />

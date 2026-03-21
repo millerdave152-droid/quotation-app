@@ -5,18 +5,9 @@
  */
 
 import { useState, useEffect, useCallback } from 'react';
-import {
-  CheckCircleIcon,
-  XCircleIcon,
-  ClockIcon,
-  ExclamationTriangleIcon,
-  ArrowPathIcon,
-  UserIcon,
-  TagIcon,
-  BanknotesIcon,
-} from '@heroicons/react/24/outline';
 import { formatCurrency } from '../../utils/formatters';
 import { useCustomerPricing } from '../../hooks/useCustomerPricing';
+import { Banknote, CheckCircle, Clock, RefreshCw, User, XCircle } from 'lucide-react';
 
 // ============================================================================
 // STATUS BADGE
@@ -26,22 +17,22 @@ const STATUS_CONFIG = {
   pending: {
     label: 'Pending',
     color: 'bg-amber-100 text-amber-700',
-    icon: ClockIcon,
+    icon: Clock,
   },
   approved: {
     label: 'Approved',
     color: 'bg-green-100 text-green-700',
-    icon: CheckCircleIcon,
+    icon: CheckCircle,
   },
   rejected: {
     label: 'Rejected',
     color: 'bg-red-100 text-red-700',
-    icon: XCircleIcon,
+    icon: XCircle,
   },
   auto_approved: {
     label: 'Auto-Approved',
     color: 'bg-blue-100 text-blue-700',
-    icon: CheckCircleIcon,
+    icon: CheckCircle,
   },
 };
 
@@ -106,7 +97,7 @@ function OverrideCard({ override, onApprove, onReject, isProcessing }) {
       {/* Customer Info */}
       {override.customerName && (
         <div className="flex items-center gap-2 mb-3 text-sm text-gray-600">
-          <UserIcon className="w-4 h-4" />
+          <User className="w-4 h-4" />
           <span>{override.customerName}</span>
           {override.pricingTier && (
             <span className="px-1.5 py-0.5 bg-gray-100 text-gray-600 text-xs rounded">
@@ -239,7 +230,7 @@ function OverrideCard({ override, onApprove, onReject, isProcessing }) {
               transition-colors
             "
           >
-            <CheckCircleIcon className="w-4 h-4" />
+            <CheckCircle className="w-4 h-4" />
             Approve
           </button>
           <button
@@ -255,7 +246,7 @@ function OverrideCard({ override, onApprove, onReject, isProcessing }) {
               transition-colors
             "
           >
-            <XCircleIcon className="w-4 h-4" />
+            <XCircle className="w-4 h-4" />
             Reject
           </button>
         </div>
@@ -367,7 +358,7 @@ export function PendingOverridesPanel({ onClose, className = '' }) {
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-3">
           <div className="w-10 h-10 bg-amber-100 rounded-full flex items-center justify-center">
-            <BanknotesIcon className="w-5 h-5 text-amber-600" />
+            <Banknote className="w-5 h-5 text-amber-600" />
           </div>
           <div>
             <h2 className="text-lg font-bold text-gray-900">
@@ -391,7 +382,7 @@ export function PendingOverridesPanel({ onClose, className = '' }) {
             transition-colors
           "
         >
-          <ArrowPathIcon
+          <RefreshCw
             className={`w-5 h-5 ${loading ? 'animate-spin' : ''}`}
           />
         </button>
@@ -415,7 +406,7 @@ export function PendingOverridesPanel({ onClose, className = '' }) {
       {/* Empty State */}
       {!loading && overrides.length === 0 && (
         <div className="py-8 text-center">
-          <CheckCircleIcon className="w-12 h-12 text-green-500 mx-auto mb-2" />
+          <CheckCircle className="w-12 h-12 text-green-500 mx-auto mb-2" />
           <p className="text-lg font-medium text-gray-900">All Caught Up!</p>
           <p className="text-sm text-gray-500">
             No pending price overrides to review.
@@ -481,7 +472,7 @@ export function PendingOverridesBadge({ onClick }) {
         transition-colors
       "
     >
-      <ClockIcon className="w-4 h-4" />
+      <Clock className="w-4 h-4" />
       <span>{count} Pending</span>
       <span className="absolute -top-1 -right-1 w-3 h-3 bg-red-500 rounded-full animate-pulse" />
     </button>

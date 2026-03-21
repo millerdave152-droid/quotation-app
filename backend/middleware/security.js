@@ -6,6 +6,8 @@
 
 const helmet = require('helmet');
 const rateLimit = require('express-rate-limit');
+const { ipKeyGenerator } = require('express-rate-limit');
+const logger = require('../utils/logger');
 
 /**
  * Configure Helmet Security Headers
@@ -96,12 +98,12 @@ const corsOptions = (req, callback) => {
 
   // SECURITY: Log rejected origins in production for monitoring
   if (isProduction && origin && !isAllowed) {
-    console.warn(`CORS: Rejected origin: ${origin}`);
+    (req.log || logger).warn({ origin }, `CORS: Rejected origin: ${origin}`);
   }
 
   const options = {
     origin: isAllowed,
-    methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
     allowedHeaders: [
       'Content-Type',
       'Authorization',
@@ -146,7 +148,7 @@ const generalLimiter = rateLimit({
   },
   // Using default keyGenerator (handles IPv6 properly)
   handler: (req, res) => {
-    console.warn(`Rate limit exceeded for IP: ${req.ip}, Path: ${req.path}`);
+    (req.log || logger).warn({ ip: req.ip, path: req.path }, `Rate limit exceeded for IP: ${req.ip}, Path: ${req.path}`);
     res.status(429).json({
       success: false,
       message: 'Too many requests. Please try again later.',
@@ -170,7 +172,7 @@ const authLimiter = rateLimit({
   legacyHeaders: false,
   skipSuccessfulRequests: false, // Count successful requests
   handler: (req, res) => {
-    console.warn(`Auth rate limit exceeded for IP: ${req.ip}, Path: ${req.path}`);
+    (req.log || logger).warn({ ip: req.ip, path: req.path }, `Auth rate limit exceeded for IP: ${req.ip}, Path: ${req.path}`);
     res.status(429).json({
       success: false,
       message: 'Too many authentication attempts. Please try again after 15 minutes.',
@@ -193,7 +195,7 @@ const passwordResetLimiter = rateLimit({
   standardHeaders: true,
   legacyHeaders: false,
   handler: (req, res) => {
-    console.warn(`Password reset rate limit exceeded for IP: ${req.ip}`);
+    (req.log || logger).warn({ ip: req.ip }, `Password reset rate limit exceeded for IP: ${req.ip}`);
     res.status(429).json({
       success: false,
       message: 'Too many password reset attempts. Please try again after 1 hour.',
@@ -225,6 +227,62 @@ const createLimiter = rateLimit({
 });
 
 /**
+ * Payment Rate Limiter
+ * Stricter limit for payment-related endpoints to prevent fraud
+ */
+const IS_PROD = process.env.NODE_ENV === 'production';
+const paymentLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: IS_PROD ? 30 : 1000,
+  message: {
+    success: false,
+    message: 'Too many payment attempts. Try again later.',
+  },
+  standardHeaders: true,
+  legacyHeaders: false,
+  handler: (req, res) => {
+    (req.log || logger).warn({ ip: req.ip, path: req.path }, `Payment rate limit exceeded for IP: ${req.ip}, Path: ${req.path}`);
+    res.status(429).json({
+      success: false,
+      message: 'Too many payment attempts. Try again later.',
+      retryAfter: req.rateLimit.resetTime,
+    });
+  },
+});
+
+/**
+ * MOTO Rate Limiter
+ * Keyed by authenticated employee ID (not IP) because all POS
+ * terminals typically share the same network/IP address.
+ * 10 MOTO transactions per 15 minutes per employee.
+ */
+const motoLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: IS_PROD ? 10 : 1000,
+  keyGenerator: (req) => {
+    // Key by employee user ID, fallback to IP if unauthenticated
+    return req.user?.id ? `moto:employee:${req.user.id}` : ipKeyGenerator(req);
+  },
+  message: {
+    success: false,
+    message: 'Too many MOTO transactions. Try again later.',
+  },
+  standardHeaders: true,
+  legacyHeaders: false,
+  handler: (req, res) => {
+    (req.log || logger).warn(
+      { employeeId: req.user?.id, ip: req.ip, path: req.path },
+      `MOTO rate limit exceeded for employee: ${req.user?.id}, Path: ${req.path}`
+    );
+    res.status(429).json({
+      success: false,
+      message: 'Too many MOTO transactions. Please try again later.',
+      retryAfter: req.rateLimit.resetTime,
+    });
+  },
+});
+
+/**
  * Request Logger Middleware
  * Logs incoming requests for security monitoring
  * @param {Object} req - Express request object
@@ -235,14 +293,14 @@ const requestLogger = (req, res, next) => {
   const start = Date.now();
 
   // Log request
-  console.log(`[${new Date().toISOString()}] ${req.method} ${req.path} - IP: ${req.ip}`);
+  (req.log || logger).info({ method: req.method, path: req.path, ip: req.ip }, `${req.method} ${req.path} - IP: ${req.ip}`);
 
   // Log response when finished
   res.on('finish', () => {
     const duration = Date.now() - start;
-    console.log(
-      `[${new Date().toISOString()}] ${req.method} ${req.path} - ` +
-      `Status: ${res.statusCode} - Duration: ${duration}ms`
+    (req.log || logger).info(
+      { method: req.method, path: req.path, statusCode: res.statusCode, durationMs: duration },
+      `${req.method} ${req.path} - Status: ${res.statusCode} - Duration: ${duration}ms`
     );
   });
 
@@ -352,7 +410,7 @@ const securityMiddleware = (app) => {
   // Trust proxy (needed when behind reverse proxy like Nginx)
   app.set('trust proxy', 1);
 
-  console.log('Security middleware configured successfully');
+  logger.info('Security middleware configured successfully');
 };
 
 module.exports = {
@@ -362,6 +420,8 @@ module.exports = {
   authLimiter,
   passwordResetLimiter,
   createLimiter,
+  paymentLimiter,
+  motoLimiter,
   helmetConfig,
   requestLogger,
   securityHeaders,

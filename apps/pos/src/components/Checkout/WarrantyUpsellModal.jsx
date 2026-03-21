@@ -4,17 +4,9 @@
  */
 
 import { useState, useEffect, useCallback, useMemo } from 'react';
-import {
-  XMarkIcon,
-  ShieldCheckIcon,
-  ChevronLeftIcon,
-  ChevronRightIcon,
-  CheckIcon,
-  SparklesIcon,
-} from '@heroicons/react/24/outline';
-import { ShieldCheckIcon as ShieldCheckSolid } from '@heroicons/react/24/solid';
 import { formatCurrency } from '../../utils/formatters';
 import WarrantyOptionCard from './WarrantyOptionCard';
+import { ChevronLeft, ChevronRight, ShieldCheck, Sparkles, X } from 'lucide-react';
 
 /**
  * Progress indicator dots
@@ -204,7 +196,7 @@ export function WarrantyUpsellModal({
                 onClick={onGoBack}
                 className="p-2 -ml-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
               >
-                <ChevronLeftIcon className="w-5 h-5" />
+                <ChevronLeft className="w-5 h-5" />
               </button>
             )}
             <div>
@@ -219,7 +211,7 @@ export function WarrantyUpsellModal({
             onClick={onClose}
             className="p-2 -mr-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
           >
-            <XMarkIcon className="w-5 h-5" />
+            <X className="w-5 h-5" />
           </button>
         </div>
 
@@ -261,7 +253,7 @@ export function WarrantyUpsellModal({
             return (
               <div className="text-center mb-6">
                 <div className={`inline-flex items-center justify-center w-16 h-16 bg-gradient-to-br ${gradientFrom} ${gradientTo} rounded-full mb-4`}>
-                  <ShieldCheckIcon className={`w-8 h-8 ${iconColor}`} />
+                  <ShieldCheck className={`w-8 h-8 ${iconColor}`} />
                 </div>
                 <h2 className="text-2xl font-bold text-gray-900 mb-2">
                   {brandName}
@@ -297,7 +289,7 @@ export function WarrantyUpsellModal({
           {recommendedWarranty && !localSelectedWarranty && (
             <div className="mt-6 p-4 bg-blue-50 rounded-xl border border-blue-100">
               <div className="flex items-start gap-3">
-                <SparklesIcon className="w-5 h-5 text-blue-500 flex-shrink-0 mt-0.5" />
+                <Sparkles className="w-5 h-5 text-blue-500 flex-shrink-0 mt-0.5" />
                 <div>
                   <p className="text-sm font-medium text-blue-800">
                     Most customers choose the {recommendedWarranty.name}
@@ -355,7 +347,7 @@ export function WarrantyUpsellModal({
               {localSelectedWarranty ? (
                 <>
                   Add for {formatCurrency(localSelectedWarranty.price)}
-                  <ChevronRightIcon className="w-4 h-4" />
+                  <ChevronRight className="w-4 h-4" />
                 </>
               ) : (
                 'Select a plan'

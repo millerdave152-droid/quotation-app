@@ -4,8 +4,8 @@
  */
 
 import { useEffect, useCallback } from 'react';
-import { XMarkIcon } from '@heroicons/react/24/outline';
 import SignaturePad from './SignaturePad';
+import { X } from 'lucide-react';
 
 /**
  * Signature Modal Component
@@ -100,7 +100,7 @@ export default function SignatureModal({
           onClick={onClose}
           className="absolute top-4 right-4 z-10 p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
         >
-          <XMarkIcon className="w-6 h-6" />
+          <X className="w-6 h-6" />
         </button>
 
         {/* Order Info Banner */}

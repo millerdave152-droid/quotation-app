@@ -5,21 +5,12 @@ import { authFetch } from '../../../services/authFetch';
  */
 
 import { useState, useCallback } from 'react';
-import {
-  SparklesIcon,
-  LinkIcon,
-  Square3Stack3DIcon,
-  BeakerIcon,
-  ArrowPathIcon,
-  CheckCircleIcon,
-  ExclamationCircleIcon,
-} from '@heroicons/react/24/outline';
 import AutoRelationshipsTable from './AutoRelationshipsTable';
 import CuratedRelationshipEditor from './CuratedRelationshipEditor';
 import CategoryRulesEditor from './CategoryRulesEditor';
 import RecommendationTester from './RecommendationTester';
 
-const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+const API_BASE = process.env.REACT_APP_API_URL || '';
 
 /**
  * Tab configuration
@@ -28,29 +19,30 @@ const TABS = [
   {
     id: 'auto',
     name: 'Auto-Generated',
-    icon: SparklesIcon,
+    icon: Sparkles,
     description: 'Frequently bought together (data-driven)',
   },
   {
     id: 'curated',
     name: 'Curated',
-    icon: LinkIcon,
+    icon: Link,
     description: 'Manually linked products',
   },
   {
     id: 'rules',
     name: 'Category Rules',
-    icon: Square3Stack3DIcon,
+    icon: Layers,
     description: 'Category-based suggestions',
   },
   {
     id: 'tester',
     name: 'Test Tool',
-    icon: BeakerIcon,
+    icon: FlaskConical,
     description: 'Debug recommendations',
   },
 ];
 
+import { AlertCircle, CheckCircle, FlaskConical, Layers, Link, RefreshCw, Sparkles } from 'lucide-react';
 /**
  * Stats card component
  */
@@ -248,9 +240,9 @@ export default function RecommendationRulesPage() {
                   }`}
                 >
                   {refreshResult.type === 'success' ? (
-                    <CheckCircleIcon className="w-4 h-4" />
+                    <CheckCircle className="w-4 h-4" />
                   ) : (
-                    <ExclamationCircleIcon className="w-4 h-4" />
+                    <AlertCircle className="w-4 h-4" />
                   )}
                   {refreshResult.message}
                 </div>
@@ -262,7 +254,7 @@ export default function RecommendationRulesPage() {
                 disabled={isRefreshing}
                 className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
               >
-                <ArrowPathIcon
+                <RefreshCw
                   className={`w-5 h-5 ${isRefreshing ? 'animate-spin' : ''}`}
                 />
                 {isRefreshing ? 'Refreshing...' : 'Refresh Data'}
@@ -275,25 +267,25 @@ export default function RecommendationRulesPage() {
             <StatCard
               label="Auto Relationships"
               value={stats.autoRelationships.toLocaleString()}
-              icon={SparklesIcon}
+              icon={Sparkles}
               color="blue"
             />
             <StatCard
               label="Curated Links"
               value={stats.curatedRelationships.toLocaleString()}
-              icon={LinkIcon}
+              icon={Link}
               color="green"
             />
             <StatCard
               label="Active Rules"
               value={stats.activeRules.toLocaleString()}
-              icon={Square3Stack3DIcon}
+              icon={Layers}
               color="purple"
             />
             <StatCard
               label="Total Impressions"
               value={stats.totalImpressions.toLocaleString()}
-              icon={BeakerIcon}
+              icon={FlaskConical}
               color="orange"
             />
           </div>

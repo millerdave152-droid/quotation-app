@@ -5,23 +5,9 @@
  */
 
 import { useState, useEffect, useCallback } from 'react';
-import {
-  XMarkIcon,
-  PlusIcon,
-  MinusIcon,
-  PencilIcon,
-  LockClosedIcon,
-  LockOpenIcon,
-  ClockIcon,
-  CheckCircleIcon,
-  ExclamationTriangleIcon,
-  ArrowPathIcon,
-  TagIcon,
-  TruckIcon,
-  DocumentDuplicateIcon,
-} from '@heroicons/react/24/outline';
 import { formatCurrency } from '../../utils/formatters';
 import { useOrderModification } from '../../hooks/useOrderModification';
+import { AlertTriangle, CheckCircle, Clock, Copy, Lock, Minus, Pencil, Plus, RefreshCw, Tag, Truck, Unlock, X } from 'lucide-react';
 
 // ============================================================================
 // PRICE LOCK TOGGLE
@@ -71,12 +57,12 @@ function PriceLockToggle({ locked, lockUntil, onToggle, disabled = false }) {
       >
         {locked ? (
           <>
-            <LockClosedIcon className="w-4 h-4" />
+            <Lock className="w-4 h-4" />
             Quote Prices Locked
           </>
         ) : (
           <>
-            <LockOpenIcon className="w-4 h-4" />
+            <Unlock className="w-4 h-4" />
             Lock Quote Prices
           </>
         )}
@@ -216,7 +202,7 @@ function OrderItemRow({
                 onClick={() => handleQuantityChange(quantity - 1)}
                 className="w-8 h-8 flex items-center justify-center text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded"
               >
-                <MinusIcon className="w-4 h-4" />
+                <Minus className="w-4 h-4" />
               </button>
               <input
                 type="number"
@@ -229,7 +215,7 @@ function OrderItemRow({
                 onClick={() => handleQuantityChange(quantity + 1)}
                 className="w-8 h-8 flex items-center justify-center text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded"
               >
-                <PlusIcon className="w-4 h-4" />
+                <Plus className="w-4 h-4" />
               </button>
               <button
                 onClick={handleSaveQuantity}
@@ -259,14 +245,14 @@ function OrderItemRow({
                     className="w-8 h-8 flex items-center justify-center text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded"
                     title="Edit quantity"
                   >
-                    <PencilIcon className="w-4 h-4" />
+                    <Pencil className="w-4 h-4" />
                   </button>
                   <button
                     onClick={() => onRemove(item.productId)}
                     className="w-8 h-8 flex items-center justify-center text-gray-400 hover:text-red-600 hover:bg-red-50 rounded"
                     title="Remove item"
                   >
-                    <XMarkIcon className="w-4 h-4" />
+                    <X className="w-4 h-4" />
                   </button>
                 </div>
               )}
@@ -321,7 +307,7 @@ function PendingChangesSummary({ changes, onRemove, onSubmit, onClear }) {
               onClick={() => onRemove('addItems', i)}
               className="text-gray-400 hover:text-red-600"
             >
-              <XMarkIcon className="w-4 h-4" />
+              <X className="w-4 h-4" />
             </button>
           </div>
         ))}
@@ -333,7 +319,7 @@ function PendingChangesSummary({ changes, onRemove, onSubmit, onClear }) {
               onClick={() => onRemove('removeItems', i)}
               className="text-gray-400 hover:text-red-600"
             >
-              <XMarkIcon className="w-4 h-4" />
+              <X className="w-4 h-4" />
             </button>
           </div>
         ))}
@@ -347,7 +333,7 @@ function PendingChangesSummary({ changes, onRemove, onSubmit, onClear }) {
               onClick={() => onRemove('modifyItems', i)}
               className="text-gray-400 hover:text-red-600"
             >
-              <XMarkIcon className="w-4 h-4" />
+              <X className="w-4 h-4" />
             </button>
           </div>
         ))}
@@ -357,7 +343,7 @@ function PendingChangesSummary({ changes, onRemove, onSubmit, onClear }) {
         onClick={onSubmit}
         className="w-full mt-4 h-10 flex items-center justify-center gap-2 text-sm font-medium text-white bg-amber-600 hover:bg-amber-700 rounded-lg"
       >
-        <CheckCircleIcon className="w-4 h-4" />
+        <CheckCircle className="w-4 h-4" />
         Submit Changes for Review
       </button>
     </div>
@@ -444,14 +430,14 @@ function AmendmentCard({ amendment, onApprove, onReject, onApply, canApprove }) 
                 onClick={() => onApprove(amendment.id)}
                 className="flex-1 h-9 flex items-center justify-center gap-1 text-sm font-medium text-white bg-green-600 hover:bg-green-700 rounded-lg"
               >
-                <CheckCircleIcon className="w-4 h-4" />
+                <CheckCircle className="w-4 h-4" />
                 Approve
               </button>
               <button
                 onClick={() => setShowReject(true)}
                 className="flex-1 h-9 flex items-center justify-center gap-1 text-sm font-medium text-white bg-red-600 hover:bg-red-700 rounded-lg"
               >
-                <XMarkIcon className="w-4 h-4" />
+                <X className="w-4 h-4" />
                 Reject
               </button>
             </>
@@ -493,7 +479,7 @@ function AmendmentCard({ amendment, onApprove, onReject, onApply, canApprove }) 
           onClick={() => onApply(amendment.id)}
           className="w-full h-9 flex items-center justify-center gap-1 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-lg"
         >
-          <ArrowPathIcon className="w-4 h-4" />
+          <RefreshCw className="w-4 h-4" />
           Apply Changes
         </button>
       )}
@@ -668,7 +654,7 @@ export function OrderModificationPanel({ orderId, onClose }) {
   if (error) {
     return (
       <div className="p-6 text-center">
-        <ExclamationTriangleIcon className="w-12 h-12 text-red-500 mx-auto mb-2" />
+        <AlertTriangle className="w-12 h-12 text-red-500 mx-auto mb-2" />
         <p className="text-red-700">{error}</p>
         <button onClick={loadAll} className="mt-4 text-blue-600 hover:text-blue-800">
           Try Again
@@ -706,7 +692,7 @@ export function OrderModificationPanel({ orderId, onClose }) {
               onClick={onClose}
               className="w-10 h-10 flex items-center justify-center text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg"
             >
-              <XMarkIcon className="w-6 h-6" />
+              <X className="w-6 h-6" />
             </button>
           )}
         </div>
@@ -716,7 +702,7 @@ export function OrderModificationPanel({ orderId, onClose }) {
       {priceChangeItems.length > 0 && (
         <div className="mx-4 mt-4 p-3 bg-amber-50 border border-amber-200 rounded-lg">
           <div className="flex items-start gap-2">
-            <ExclamationTriangleIcon className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" />
+            <AlertTriangle className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" />
             <div>
               <p className="text-sm font-medium text-amber-800">
                 {priceChangeItems.length} item(s) have price changes since the quote
@@ -734,10 +720,10 @@ export function OrderModificationPanel({ orderId, onClose }) {
       {/* Tabs */}
       <div className="flex gap-1 p-4 border-b border-gray-200">
         {[
-          { id: 'items', label: 'Items', icon: TagIcon },
-          { id: 'amendments', label: 'Amendments', icon: DocumentDuplicateIcon, count: amendments.length },
-          { id: 'versions', label: 'History', icon: ClockIcon, count: versions.length },
-          { id: 'fulfillment', label: 'Fulfillment', icon: TruckIcon },
+          { id: 'items', label: 'Items', icon: Tag },
+          { id: 'amendments', label: 'Amendments', icon: Copy, count: amendments.length },
+          { id: 'versions', label: 'History', icon: Clock, count: versions.length },
+          { id: 'fulfillment', label: 'Fulfillment', icon: Truck },
         ].map((tab) => (
           <button
             key={tab.id}
@@ -818,7 +804,7 @@ export function OrderModificationPanel({ orderId, onClose }) {
             {/* Quick Amendment Success Banner */}
             {quickAmendSuccess && (
               <div className="p-3 bg-green-50 border border-green-200 rounded-lg flex items-center gap-2">
-                <CheckCircleIcon className="w-5 h-5 text-green-600 flex-shrink-0" />
+                <CheckCircle className="w-5 h-5 text-green-600 flex-shrink-0" />
                 <span className="text-sm font-medium text-green-800">
                   Amendment submitted successfully
                 </span>
@@ -846,13 +832,13 @@ export function OrderModificationPanel({ orderId, onClose }) {
                   `}
                 >
                   <span className="flex items-center gap-2">
-                    <PencilIcon className="w-4 h-4" />
+                    <Pencil className="w-4 h-4" />
                     {quickAmendMode ? 'Cancel Quick Amendment' : 'Create Quick Amendment'}
                   </span>
                   {quickAmendMode ? (
-                    <XMarkIcon className="w-4 h-4" />
+                    <X className="w-4 h-4" />
                   ) : (
-                    <PlusIcon className="w-4 h-4" />
+                    <Plus className="w-4 h-4" />
                   )}
                 </button>
 
@@ -900,7 +886,7 @@ export function OrderModificationPanel({ orderId, onClose }) {
                                   disabled={currentQty <= 1}
                                   className="w-7 h-7 flex items-center justify-center text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded disabled:opacity-30 disabled:cursor-not-allowed"
                                 >
-                                  <MinusIcon className="w-3.5 h-3.5" />
+                                  <Minus className="w-3.5 h-3.5" />
                                 </button>
                                 <input
                                   type="number"
@@ -916,7 +902,7 @@ export function OrderModificationPanel({ orderId, onClose }) {
                                   onClick={() => handleQuickAmendQtyChange(item.id, currentQty + 1)}
                                   className="w-7 h-7 flex items-center justify-center text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded"
                                 >
-                                  <PlusIcon className="w-3.5 h-3.5" />
+                                  <Plus className="w-3.5 h-3.5" />
                                 </button>
                               </div>
                             )}
@@ -976,7 +962,7 @@ export function OrderModificationPanel({ orderId, onClose }) {
                           </>
                         ) : (
                           <>
-                            <CheckCircleIcon className="w-4 h-4" />
+                            <CheckCircle className="w-4 h-4" />
                             Submit Amendment
                           </>
                         )}

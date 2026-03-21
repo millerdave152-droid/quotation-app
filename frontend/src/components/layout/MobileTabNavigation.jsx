@@ -21,18 +21,18 @@ const MobileTabNavigation = () => {
     { path: '/quotes', icon: '📋', label: 'Quotes' },
   ];
 
-  const moreTabs = [
+  // Memoize isMoreActive to prevent recalculation on every render
+  const moreTabs = useMemo(() => [
     { path: '/analytics', icon: '📊', label: 'Analytics' },
     { path: '/marketplace', icon: '🛒', label: 'Marketplace' },
     { path: '/reports', icon: '📑', label: 'Reports' },
     { path: '/bulk-ops', icon: '⚡', label: 'Bulk Ops' },
     { path: '/features', icon: '🚀', label: '2026 Features' },
-  ];
+  ], []);
 
-  // Memoize isMoreActive to prevent recalculation on every render
   const isMoreActive = useMemo(() =>
     moreTabs.some(tab => location.pathname.startsWith(tab.path)),
-    [location.pathname]
+    [location.pathname, moreTabs]
   );
 
   // Memoize tab style function

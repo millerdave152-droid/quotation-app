@@ -37,6 +37,7 @@ let testProductPlainId;        // product WITHOUT skulytics_id
 const SKULYTICS_ID = 'SKU-QE-TEST-001';
 const SKULYTICS_ID_DISC = 'SKU-QE-TEST-DISC';
 let testProductDiscontinuedId; // product linked to discontinued skulytics item
+let testTenantId;              // tenant_id (required NOT NULL on quotations)
 
 // ── Migration helpers ───────────────────────────────────────
 
@@ -54,13 +55,23 @@ beforeAll(async () => {
   quoteService = new QuoteService(testPool);
 
   // Ensure Skulytics tables + enrichment columns exist (idempotent).
-  // NOTE: 20_tenant_product_overrides.sql is skipped — it depends on a
-  //       `tenants` table that may not exist. Tests use tenant_id = null.
+  // NOTE: 15_tenants_bootstrap.sql seeds the tenants table so we can
+  //       supply a valid tenant_id (quotations.tenant_id is NOT NULL).
   await runSQL(testPool, '00_skulytics_extensions.sql');
   await runSQL(testPool, '10_global_skulytics_products.sql');
+  await runSQL(testPool, '15_tenants_bootstrap.sql');
   await runSQL(testPool, '40_skulytics_sync_runs.sql');
   await runSQL(testPool, '50_products_skulytics_enrichment.sql');
   await runSQL(testPool, '60_quote_items_snapshot.sql');
+
+  // Resolve the default tenant ID (seeded by 15_tenants_bootstrap or 124_multi_tenancy_rls)
+  const { rows: tenantRows } = await testPool.query(
+    `SELECT id FROM tenants WHERE slug = 'teletime' LIMIT 1`
+  );
+  if (tenantRows.length === 0) {
+    throw new Error('Test setup failed: no tenant found. Run 15_tenants_bootstrap.sql or 124_multi_tenancy_rls.sql first.');
+  }
+  testTenantId = tenantRows[0].id;
 });
 
 afterAll(async () => {
@@ -184,7 +195,7 @@ function makeQuoteData(itemOverrides = {}) {
     ],
     notes: `${TEST_PREFIX} integration test`,
     created_by: `${TEST_PREFIX}_admin`,
-    tenant_id: null,
+    tenant_id: testTenantId,
   };
 }
 
@@ -281,7 +292,7 @@ describe('Quotation Engine — Skulytics Snapshot Integration', () => {
       ],
       notes: `${TEST_PREFIX} plain product test`,
       created_by: `${TEST_PREFIX}_admin`,
-      tenant_id: null,
+      tenant_id: testTenantId,
     };
 
     const quote = await quoteService.createQuote(quoteData);
@@ -317,7 +328,7 @@ describe('Quotation Engine — Skulytics Snapshot Integration', () => {
       ],
       notes: `${TEST_PREFIX} discontinued test`,
       created_by: `${TEST_PREFIX}_admin`,
-      tenant_id: null,
+      tenant_id: testTenantId,
     };
 
     const quote = await quoteService.createQuote(quoteData);
@@ -363,7 +374,7 @@ describe('Quotation Engine — Skulytics Snapshot Integration', () => {
       ],
       notes: `${TEST_PREFIX} ack test`,
       created_by: `${TEST_PREFIX}_admin`,
-      tenant_id: null,
+      tenant_id: testTenantId,
     };
 
     const quote = await quoteService.createQuote(quoteData);
@@ -413,7 +424,7 @@ describe('Quotation Engine — Skulytics Snapshot Integration', () => {
       ],
       notes: `${TEST_PREFIX} non-manager test`,
       created_by: `${TEST_PREFIX}_sales`,
-      tenant_id: null,
+      tenant_id: testTenantId,
     };
 
     const quote = await quoteService.createQuote(quoteData);
@@ -466,7 +477,7 @@ describe('Quotation Engine — Skulytics Snapshot Integration', () => {
       ],
       notes: `${TEST_PREFIX} margin test`,
       created_by: `${TEST_PREFIX}_admin`,
-      tenant_id: null,
+      tenant_id: testTenantId,
     };
 
     const quote = await quoteService.createQuote(quoteData);

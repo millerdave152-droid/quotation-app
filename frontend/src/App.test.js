@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen } from '@testing-library/react';
 
 Object.defineProperty(window, 'matchMedia', {
   writable: true,

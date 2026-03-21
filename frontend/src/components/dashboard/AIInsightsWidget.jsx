@@ -12,26 +12,26 @@ import { authFetch } from '../../services/authFetch';
 
 import React, { useState, useEffect, useCallback } from 'react';
 
-const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:3001';
+const API_URL = process.env.REACT_APP_API_URL || '';
 
 // Priority colors and icons
 const PRIORITY_CONFIG = {
-  critical: { bg: '#fef2f2', border: '#fecaca', text: '#991b1b', icon: '🚨', label: 'Critical' },
-  high: { bg: '#fff7ed', border: '#fed7aa', text: '#c2410c', icon: '⚡', label: 'High' },
-  medium: { bg: '#fefce8', border: '#fef08a', text: '#a16207', icon: '💡', label: 'Medium' },
-  low: { bg: '#f0fdf4', border: '#bbf7d0', text: '#166534', icon: '💬', label: 'Info' }
+  critical: { bg: '#fef2f2', border: '#fecaca', text: '#991b1b', icon: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#991b1b" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>, label: 'Critical' },
+  high: { bg: '#fff7ed', border: '#fed7aa', text: '#c2410c', icon: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#c2410c" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>, label: 'High' },
+  medium: { bg: '#fefce8', border: '#fef08a', text: '#a16207', icon: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#a16207" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="9" y1="18" x2="15" y2="18"/><line x1="10" y1="22" x2="14" y2="22"/><path d="M15.09 14c.18-.98.65-1.74 1.41-2.5A4.65 4.65 0 0 0 18 8 6 6 0 0 0 6 8c0 1 .23 2.23 1.5 3.5A4.61 4.61 0 0 1 8.91 14"/></svg>, label: 'Medium' },
+  low: { bg: '#f0fdf4', border: '#bbf7d0', text: '#166534', icon: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#166534" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>, label: 'Info' }
 };
 
 // Type icons
 const TYPE_ICONS = {
-  stale_quote: '📋',
-  quote_expiring: '⏰',
-  churn_risk: '⚠️',
-  inventory_low: '📦',
-  invoice_overdue: '💰',
-  customer_milestone: '🎉',
-  sales_opportunity: '🎯',
-  reorder_needed: '🔄'
+  stale_quote: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><rect x="8" y="2" width="8" height="4" rx="1" ry="1"/></svg>,
+  quote_expiring: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>,
+  churn_risk: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>,
+  inventory_low: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="16.5" y1="9.4" x2="7.5" y2="4.21"/><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg>,
+  invoice_overdue: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>,
+  customer_milestone: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="8" r="7"/><polyline points="8.21 13.89 7 23 12 20 17 23 15.79 13.88"/></svg>,
+  sales_opportunity: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></svg>,
+  reorder_needed: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
 };
 
 const AIInsightsWidget = ({ onNavigate, onAction, limit = 5 }) => {
@@ -156,22 +156,6 @@ const AIInsightsWidget = ({ onNavigate, onAction, limit = 5 }) => {
     }
   };
 
-  // Format relative time
-  const formatRelativeTime = (date) => {
-    if (!date) return '';
-    const now = new Date();
-    const d = new Date(date);
-    const diffMs = now - d;
-    const diffMins = Math.floor(diffMs / 60000);
-    const diffHours = Math.floor(diffMs / 3600000);
-    const diffDays = Math.floor(diffMs / 86400000);
-
-    if (diffMins < 1) return 'Just now';
-    if (diffMins < 60) return `${diffMins}m ago`;
-    if (diffHours < 24) return `${diffHours}h ago`;
-    if (diffDays < 7) return `${diffDays}d ago`;
-    return d.toLocaleDateString('en-CA', { month: 'short', day: 'numeric' });
-  };
 
   if (loading) {
     return (
@@ -182,7 +166,7 @@ const AIInsightsWidget = ({ onNavigate, onAction, limit = 5 }) => {
         boxShadow: '0 1px 3px rgba(0,0,0,0.1)'
       }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '16px' }}>
-          <span style={{ fontSize: '20px' }}>🤖</span>
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#6366f1" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/><circle cx="12" cy="16" r="1"/></svg>
           <h3 style={{ margin: 0, fontSize: '16px', fontWeight: '600', color: '#1f2937' }}>
             AI Insights
           </h3>
@@ -216,7 +200,9 @@ const AIInsightsWidget = ({ onNavigate, onAction, limit = 5 }) => {
         boxShadow: '0 1px 3px rgba(0,0,0,0.1)'
       }}>
         <div style={{ textAlign: 'center', color: '#6b7280', padding: '20px' }}>
-          <div style={{ fontSize: '24px', marginBottom: '8px' }}>⚠️</div>
+          <div style={{ marginBottom: '8px' }}>
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#ef4444" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+          </div>
           <p style={{ margin: 0 }}>Unable to load insights</p>
         </div>
       </div>
@@ -242,7 +228,7 @@ const AIInsightsWidget = ({ onNavigate, onAction, limit = 5 }) => {
         borderBottom: '1px solid #f3f4f6'
       }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-          <span style={{ fontSize: '20px' }}>🤖</span>
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#6366f1" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/><circle cx="12" cy="16" r="1"/></svg>
           <h3 style={{ margin: 0, fontSize: '16px', fontWeight: '600', color: '#1f2937' }}>
             AI Insights
           </h3>
@@ -280,14 +266,16 @@ const AIInsightsWidget = ({ onNavigate, onAction, limit = 5 }) => {
       <div style={{ maxHeight: expanded ? '500px' : '400px', overflowY: 'auto' }}>
         {displayedInsights.length === 0 ? (
           <div style={{ textAlign: 'center', padding: '40px 20px', color: '#6b7280' }}>
-            <div style={{ fontSize: '36px', marginBottom: '12px' }}>✨</div>
+            <div style={{ marginBottom: '12px' }}>
+              <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="#9ca3af" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+            </div>
             <p style={{ margin: 0, fontWeight: '500' }}>All caught up!</p>
             <p style={{ margin: '4px 0 0', fontSize: '13px' }}>No actionable insights right now</p>
           </div>
         ) : (
           displayedInsights.map((insight) => {
             const priorityConfig = PRIORITY_CONFIG[insight.priority] || PRIORITY_CONFIG.medium;
-            const typeIcon = TYPE_ICONS[insight.type] || '📌';
+            const typeIcon = TYPE_ICONS[insight.type] || <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>;
 
             return (
               <div

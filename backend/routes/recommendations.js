@@ -178,7 +178,6 @@ router.post(
     recommendationService
       .recordPurchasePattern(orderId)
       .then((result) => {
-        console.log('[Recommendations] Purchase pattern recorded:', result);
       })
       .catch((error) => {
         console.error('[Recommendations] Purchase pattern error:', error);

@@ -23,25 +23,7 @@ import {
   LinearProgress,
   Alert,
 } from '@mui/material';
-import {
-  CheckCircle as CheckCircleIcon,
-  Star as StarIcon,
-  StarHalf as StarHalfIcon,
-  StarBorder as StarBorderIcon,
-  ThumbUp as ThumbUpIcon,
-  ThumbDown as ThumbDownIcon,
-  Warning as WarningIcon,
-  Info as InfoIcon,
-  ExpandMore as ExpandIcon,
-  ExpandLess as CollapseIcon,
-  BatteryFull as BatteryIcon,
-  ScreenRotation as ScreenIcon,
-  Camera as CameraIcon,
-  Power as PowerIcon,
-  Cable as CableIcon,
-  Memory as MemoryIcon,
-} from '@mui/icons-material';
-
+import { AlertTriangle, Battery, Cable, Camera, CheckCircle, ChevronDown, ChevronUp, Cpu, Info, Monitor, Power, Star } from 'lucide-react';
 // ============================================================================
 // CONSTANTS
 // ============================================================================
@@ -92,12 +74,12 @@ const CONDITION_THEMES = {
 
 // Default condition checklist items
 const DEFAULT_CHECKLIST = [
-  { id: 'powers_on', label: 'Powers On', icon: PowerIcon, required: true },
-  { id: 'screen_intact', label: 'Screen Intact (No Cracks)', icon: ScreenIcon, required: true },
-  { id: 'battery_health', label: 'Battery Holds Charge', icon: BatteryIcon, required: false },
-  { id: 'buttons_work', label: 'All Buttons Work', icon: MemoryIcon, required: false },
-  { id: 'camera_works', label: 'Camera Functions', icon: CameraIcon, required: false },
-  { id: 'accessories', label: 'Original Accessories Included', icon: CableIcon, required: false },
+  { id: 'powers_on', label: 'Powers On', icon: Power, required: true },
+  { id: 'screen_intact', label: 'Screen Intact (No Cracks)', icon: Monitor, required: true },
+  { id: 'battery_health', label: 'Battery Holds Charge', icon: Battery, required: false },
+  { id: 'buttons_work', label: 'All Buttons Work', icon: Cpu, required: false },
+  { id: 'camera_works', label: 'Camera Functions', icon: Camera, required: false },
+  { id: 'accessories', label: 'Original Accessories Included', icon: Cable, required: false },
 ];
 
 // ============================================================================
@@ -145,11 +127,11 @@ export function ConditionSelector({
     for (let i = 0; i < 5; i++) {
       if (i < count) {
         stars.push(
-          <StarIcon key={i} sx={{ fontSize: 20, color: '#ffc107' }} />
+          <Star key={i} sx={{ fontSize: 20, color: '#ffc107' }} />
         );
       } else {
         stars.push(
-          <StarBorderIcon key={i} sx={{ fontSize: 20, color: '#e0e0e0' }} />
+          <Star key={i} sx={{ fontSize: 20, color: '#e0e0e0' }} />
         );
       }
     }
@@ -178,7 +160,7 @@ export function ConditionSelector({
       return condition.checklist.map((item, idx) => ({
         id: `custom_${idx}`,
         label: item,
-        icon: InfoIcon,
+        icon: Info,
         required: false,
       }));
     }
@@ -216,7 +198,7 @@ export function ConditionSelector({
         </Typography>
         <Tooltip title="Tap a condition card to select, then verify the checklist">
           <IconButton size="small" sx={{ ml: 1 }}>
-            <InfoIcon fontSize="small" />
+            <Info fontSize="small" />
           </IconButton>
         </Tooltip>
       </Box>
@@ -265,7 +247,7 @@ export function ConditionSelector({
                       boxShadow: 2,
                     }}
                   >
-                    <CheckCircleIcon sx={{ fontSize: 28, color: 'white' }} />
+                    <CheckCircle sx={{ fontSize: 28, color: 'white' }} />
                   </Box>
                 )}
 
@@ -344,7 +326,7 @@ export function ConditionSelector({
                     <Chip
                       label={isExpanded ? 'Hide Checklist' : 'View Checklist'}
                       size="small"
-                      icon={isExpanded ? <CollapseIcon /> : <ExpandIcon />}
+                      icon={isExpanded ? <ChevronUp /> : <ChevronDown />}
                       onClick={(e) => {
                         e.stopPropagation();
                         setExpandedCard(isExpanded ? null : condition.id);
@@ -433,7 +415,7 @@ export function ConditionSelector({
         <Collapse in={!localChecklist.powers_on || !localChecklist.screen_intact}>
           <Alert
             severity="warning"
-            icon={<WarningIcon />}
+            icon={<AlertTriangle />}
             sx={{ mt: 2 }}
           >
             <Typography variant="body2">

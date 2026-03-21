@@ -14,23 +14,10 @@
 
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { createPortal } from 'react-dom';
-import {
-  XMarkIcon,
-  CheckIcon,
-  XCircleIcon,
-  ClockIcon,
-  ChevronDownIcon,
-  ChevronUpIcon,
-  ArrowPathIcon,
-  HandThumbDownIcon,
-  CurrencyDollarIcon,
-  ShieldCheckIcon,
-  ExclamationTriangleIcon,
-  ChatBubbleLeftEllipsisIcon,
-} from '@heroicons/react/24/outline';
 import api from '../../api/axios';
 import { getApprovalIntelligence } from '../../api/approvals';
 import { formatCurrency } from '../../utils/formatters';
+import { AlertTriangle, Check, ChevronDown, ChevronUp, Clock, DollarSign, MessageSquareMore, RefreshCw, ShieldCheck, ThumbsDown, X, XCircle } from 'lucide-react';
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -148,7 +135,7 @@ function LiveTimer({ createdAt }) {
 
   return (
     <span className={`inline-flex items-center gap-1 text-xs font-medium tabular-nums ${isUrgent ? 'text-red-600' : 'text-gray-500'}`}>
-      <ClockIcon className={`w-3.5 h-3.5 ${isUrgent ? 'text-red-500 animate-pulse' : ''}`} />
+      <Clock className={`w-3.5 h-3.5 ${isUrgent ? 'text-red-500 animate-pulse' : ''}`} />
       {mins}:{secs.toString().padStart(2, '0')}
     </span>
   );
@@ -174,7 +161,7 @@ function ToastContainer({ toasts, onDismiss }) {
         >
           <span className="flex-1">{t.message}</span>
           <button onClick={() => onDismiss(t.id)} className="opacity-70 hover:opacity-100">
-            <XMarkIcon className="w-4 h-4" />
+            <X className="w-4 h-4" />
           </button>
         </div>
       ))}
@@ -215,8 +202,8 @@ function ProductHistory({ requestId, defaultExpanded }) {
       >
         <span>Previous overrides</span>
         {expanded
-          ? <ChevronUpIcon className="w-4 h-4" />
-          : <ChevronDownIcon className="w-4 h-4" />
+          ? <ChevronUp className="w-4 h-4" />
+          : <ChevronDown className="w-4 h-4" />
         }
       </button>
 
@@ -292,8 +279,8 @@ function PricingIntelligence({ requestId, cost, retail, requested, customerId })
           Pricing Intelligence
         </span>
         {expanded
-          ? <ChevronUpIcon className="w-4 h-4" />
-          : <ChevronDownIcon className="w-4 h-4" />
+          ? <ChevronUp className="w-4 h-4" />
+          : <ChevronDown className="w-4 h-4" />
         }
       </button>
 
@@ -378,7 +365,7 @@ function PricingIntelligence({ requestId, cost, retail, requested, customerId })
                       </div>
                       {ph.isLowestEver && (
                         <div className="flex items-start gap-1.5 mt-1 p-2 bg-amber-50 border border-amber-200 rounded-md">
-                          <ExclamationTriangleIcon className="w-3.5 h-3.5 text-amber-500 flex-shrink-0 mt-0.5" />
+                          <AlertTriangle className="w-3.5 h-3.5 text-amber-500 flex-shrink-0 mt-0.5" />
                           <p className="text-[11px] text-amber-700 font-medium">
                             This would be the lowest price ever approved for this product
                           </p>
@@ -564,7 +551,7 @@ function RequestCard({ req: r, onAction, actionLoading, isMobile }) {
                 <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
               ) : (
                 <>
-                  <CheckIcon className="w-5 h-5" />
+                  <Check className="w-5 h-5" />
                   Approve {formatCurrency(requested)}
                 </>
               )}
@@ -585,7 +572,7 @@ function RequestCard({ req: r, onAction, actionLoading, isMobile }) {
                   rounded-xl transition-colors
                 "
               >
-                <CurrencyDollarIcon className="w-5 h-5" />
+                <DollarSign className="w-5 h-5" />
                 Counter
               </button>
               <button
@@ -601,7 +588,7 @@ function RequestCard({ req: r, onAction, actionLoading, isMobile }) {
                   rounded-xl transition-colors
                 "
               >
-                <HandThumbDownIcon className="w-5 h-5" />
+                <ThumbsDown className="w-5 h-5" />
                 Deny
               </button>
             </div>
@@ -664,7 +651,7 @@ function RequestCard({ req: r, onAction, actionLoading, isMobile }) {
                   <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
                 ) : (
                   <>
-                    <ChatBubbleLeftEllipsisIcon className="w-4 h-4" />
+                    <MessageSquareMore className="w-4 h-4" />
                     Send Counter
                   </>
                 )}
@@ -726,7 +713,7 @@ function RequestCard({ req: r, onAction, actionLoading, isMobile }) {
                   <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
                 ) : (
                   <>
-                    <XCircleIcon className="w-4 h-4" />
+                    <XCircle className="w-4 h-4" />
                     Confirm Deny
                   </>
                 )}
@@ -914,7 +901,7 @@ export default function ManagerApprovalPanel({ isOpen, onClose }) {
         {/* ---- HEADER BAR ---- */}
         <div className="flex-shrink-0 flex items-center justify-between px-4 h-14 bg-white border-b border-gray-200 shadow-sm">
           <div className="flex items-center gap-2">
-            <ShieldCheckIcon className="w-5 h-5 text-blue-600" />
+            <ShieldCheck className="w-5 h-5 text-blue-600" />
             <h1 className="text-base font-bold text-gray-900">Price Override Approvals</h1>
             {requests.length > 0 && (
               <span className="min-w-[20px] h-5 px-1.5 text-[11px] font-bold bg-red-500 text-white rounded-full flex items-center justify-center">
@@ -928,13 +915,13 @@ export default function ManagerApprovalPanel({ isOpen, onClose }) {
               className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
               title="Refresh"
             >
-              <ArrowPathIcon className="w-5 h-5 text-gray-500" />
+              <RefreshCw className="w-5 h-5 text-gray-500" />
             </button>
             <button
               onClick={onClose}
               className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
             >
-              <XMarkIcon className="w-5 h-5 text-gray-500" />
+              <X className="w-5 h-5 text-gray-500" />
             </button>
           </div>
         </div>
@@ -953,14 +940,14 @@ export default function ManagerApprovalPanel({ isOpen, onClose }) {
             {/* Error */}
             {error && !loading && (
               <div className="p-3 bg-red-50 border border-red-200 rounded-xl flex items-start gap-2">
-                <ExclamationTriangleIcon className="w-5 h-5 text-red-500 flex-shrink-0 mt-0.5" />
+                <AlertTriangle className="w-5 h-5 text-red-500 flex-shrink-0 mt-0.5" />
                 <div className="flex-1">
                   <p className="text-sm text-red-700">{error}</p>
                   <button
                     onClick={() => { setLoading(true); fetchPending(); }}
                     className="mt-2 text-sm font-medium text-red-600 hover:text-red-800 flex items-center gap-1"
                   >
-                    <ArrowPathIcon className="w-4 h-4" /> Retry
+                    <RefreshCw className="w-4 h-4" /> Retry
                   </button>
                 </div>
               </div>
@@ -970,7 +957,7 @@ export default function ManagerApprovalPanel({ isOpen, onClose }) {
             {!loading && !error && requests.length === 0 && (
               <div className="text-center py-20 space-y-3">
                 <div className="w-16 h-16 mx-auto bg-green-50 rounded-full flex items-center justify-center">
-                  <CheckIcon className="w-8 h-8 text-green-400" />
+                  <Check className="w-8 h-8 text-green-400" />
                 </div>
                 <p className="text-sm font-medium text-gray-600">No pending requests</p>
                 <p className="text-xs text-gray-400">

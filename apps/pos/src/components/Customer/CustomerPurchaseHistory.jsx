@@ -4,15 +4,9 @@
  */
 
 import { useState, useEffect, useCallback } from 'react';
-import {
-  ChevronDownIcon,
-  ChevronRightIcon,
-  ClockIcon,
-  ShoppingBagIcon,
-  ArrowPathIcon,
-} from '@heroicons/react/24/outline';
 import { getCustomerTransactions } from '../../api/customers';
 import { formatCurrency } from '../../utils/formatters';
+import { ChevronDown, ChevronRight, Clock, RefreshCw, ShoppingBag } from 'lucide-react';
 
 const STATUS_COLORS = {
   completed: 'bg-green-100 text-green-700',
@@ -48,9 +42,9 @@ function TransactionRow({ transaction }) {
         className="w-full p-3 flex items-center gap-3 text-left hover:bg-gray-50 transition-colors"
       >
         {expanded ? (
-          <ChevronDownIcon className="w-4 h-4 text-gray-400 flex-shrink-0" />
+          <ChevronDown className="w-4 h-4 text-gray-400 flex-shrink-0" />
         ) : (
-          <ChevronRightIcon className="w-4 h-4 text-gray-400 flex-shrink-0" />
+          <ChevronRight className="w-4 h-4 text-gray-400 flex-shrink-0" />
         )}
 
         <div className="flex-1 min-w-0">
@@ -141,7 +135,7 @@ export function CustomerPurchaseHistory({ customer }) {
       {/* Header with date filter */}
       <div className="flex items-center justify-between px-4 py-2 bg-gray-50 border-b border-gray-200">
         <div className="flex items-center gap-2">
-          <ClockIcon className="w-4 h-4 text-gray-500" />
+          <Clock className="w-4 h-4 text-gray-500" />
           <span className="text-xs font-medium text-gray-600">
             {transactions.length} transaction{transactions.length !== 1 ? 's' : ''}
           </span>
@@ -171,13 +165,13 @@ export function CustomerPurchaseHistory({ customer }) {
               onClick={loadHistory}
               className="text-sm text-blue-600 hover:text-blue-700 flex items-center gap-1 mx-auto"
             >
-              <ArrowPathIcon className="w-4 h-4" />
+              <RefreshCw className="w-4 h-4" />
               Retry
             </button>
           </div>
         ) : transactions.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-12 text-center px-4">
-            <ShoppingBagIcon className="w-10 h-10 text-gray-300 mb-3" />
+            <ShoppingBag className="w-10 h-10 text-gray-300 mb-3" />
             <p className="text-sm text-gray-500">No purchase history found</p>
             <p className="text-xs text-gray-400 mt-1">for the selected period</p>
           </div>

@@ -5,13 +5,9 @@
  */
 
 import React, { useState, useEffect, useCallback } from 'react';
-import {
-  CurrencyDollarIcon,
-  ChevronRightIcon,
-  SparklesIcon,
-} from '@heroicons/react/24/outline';
 import { calculateCartCommission } from '../../api/commissions';
 import CommissionBreakdownModal from './CommissionBreakdownModal';
+import { ChevronRight, DollarSign, Sparkles } from 'lucide-react';
 
 /**
  * Format currency compactly
@@ -108,10 +104,10 @@ export default function CartCommissionFooter({
         `}
       >
         <div className="flex items-center gap-2">
-          <CurrencyDollarIcon className="w-4 h-4 text-slate-400 group-hover:text-green-500 transition-colors" />
+          <DollarSign className="w-4 h-4 text-slate-400 group-hover:text-green-500 transition-colors" />
           <span className="text-sm text-slate-500">Est. Commission</span>
           {hasBonus && (
-            <SparklesIcon className="w-3.5 h-3.5 text-amber-500" title="Includes bonus" />
+            <Sparkles className="w-3.5 h-3.5 text-amber-500" title="Includes bonus" />
           )}
         </div>
 
@@ -128,7 +124,7 @@ export default function CartCommissionFooter({
           ) : (
             <span className="text-sm text-slate-400">—</span>
           )}
-          <ChevronRightIcon className="w-4 h-4 text-slate-400 group-hover:text-slate-600 transition-colors" />
+          <ChevronRight className="w-4 h-4 text-slate-400 group-hover:text-slate-600 transition-colors" />
         </div>
       </button>
 

@@ -31,6 +31,32 @@ const SignaturePad = forwardRef(({
   const [currentStroke, setCurrentStroke] = useState([]); // Current stroke points
   const [isEmpty, setIsEmpty] = useState(true);
 
+  // Redraw all strokes on the canvas
+  const redrawStrokes = useCallback(() => {
+    const ctx = contextRef.current;
+    if (!ctx) return;
+
+    // Clear and redraw background
+    ctx.fillStyle = backgroundColor;
+    ctx.fillRect(0, 0, width, height);
+
+    // Redraw all strokes
+    ctx.strokeStyle = strokeColor;
+    ctx.lineWidth = strokeWidth;
+
+    strokes.forEach(stroke => {
+      if (stroke.length < 2) return;
+
+      ctx.beginPath();
+      ctx.moveTo(stroke[0].x, stroke[0].y);
+
+      for (let i = 1; i < stroke.length; i++) {
+        ctx.lineTo(stroke[i].x, stroke[i].y);
+      }
+      ctx.stroke();
+    });
+  }, [strokes, backgroundColor, strokeColor, strokeWidth, width, height]);
+
   // Initialize canvas with high-DPI support
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -63,33 +89,7 @@ const SignaturePad = forwardRef(({
 
     // Redraw existing strokes
     redrawStrokes();
-  }, [width, height, strokeColor, strokeWidth, backgroundColor]);
-
-  // Redraw all strokes on the canvas
-  const redrawStrokes = useCallback(() => {
-    const ctx = contextRef.current;
-    if (!ctx) return;
-
-    // Clear and redraw background
-    ctx.fillStyle = backgroundColor;
-    ctx.fillRect(0, 0, width, height);
-
-    // Redraw all strokes
-    ctx.strokeStyle = strokeColor;
-    ctx.lineWidth = strokeWidth;
-
-    strokes.forEach(stroke => {
-      if (stroke.length < 2) return;
-
-      ctx.beginPath();
-      ctx.moveTo(stroke[0].x, stroke[0].y);
-
-      for (let i = 1; i < stroke.length; i++) {
-        ctx.lineTo(stroke[i].x, stroke[i].y);
-      }
-      ctx.stroke();
-    });
-  }, [strokes, backgroundColor, strokeColor, strokeWidth, width, height]);
+  }, [width, height, strokeColor, strokeWidth, backgroundColor, redrawStrokes]);
 
   // Redraw when strokes change
   useEffect(() => {

@@ -92,7 +92,7 @@ export const getFormattedAddress = () => {
 
 // Helper function to get single line address
 export const getAddressLine = () => {
-  const { street, city, province, postalCode } = companyConfig.address;
+  const { city, province, postalCode } = companyConfig.address;
   return `${city}, ${province} ${postalCode}`;
 };
 

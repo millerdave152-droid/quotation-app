@@ -33,8 +33,7 @@ export function useOfflineTransaction() {
     setIsSyncing(true);
 
     try {
-      const result = await replayPendingTransactions();
-      console.log('[useOfflineTransaction] Sync result:', result);
+      await replayPendingTransactions();
 
       // Clean up synced entries
       await clearSyncedTransactions();

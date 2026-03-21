@@ -5,6 +5,7 @@
 
 const express = require('express');
 const rateLimit = require('express-rate-limit');
+const { ipKeyGenerator } = require('express-rate-limit');
 const router = express.Router();
 const { authenticate, requireRole } = require('../middleware/auth');
 const { ApiError, asyncHandler } = require('../middleware/errorHandler');
@@ -20,7 +21,7 @@ const aiChatLimiter = rateLimit({
   standardHeaders: true,   // RateLimit-* headers (draft-6)
   legacyHeaders: false,
   // Key by authenticated user ID so limits are per-user, not per-IP
-  keyGenerator: (req) => `ai-chat:${req.user?.id || req.ip}`,
+  keyGenerator: (req) => `ai-chat:${req.user?.id || ipKeyGenerator(req)}`,
   handler: (req, res) => {
     const retryAfterSec = Math.ceil((req.rateLimit.resetTime - Date.now()) / 1000);
     // Log via the existing AI structured logger
@@ -426,7 +427,6 @@ router.post('/admin/toggle', authenticate, requireRole(['admin']), asyncHandler(
   const newStatus = await featureFlags.getStatus();
 
   // Log the action
-  console.log(`[AI Admin] AI Assistant ${enabled ? 'ENABLED' : 'DISABLED'} by ${changedBy} (persist: ${persist})`);
 
   res.json({
     success: true,
@@ -473,7 +473,6 @@ router.post('/admin/clear-override', authenticate, requireRole(['admin']), async
 
   const newStatus = await featureFlags.getStatus();
 
-  console.log(`[AI Admin] Runtime override cleared by ${req.user.email || req.user.id}`);
 
   res.json({
     success: true,

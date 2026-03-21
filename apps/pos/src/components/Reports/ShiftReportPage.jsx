@@ -4,21 +4,14 @@
  */
 
 import { useState, useEffect, useCallback } from 'react';
-import {
-  CalendarIcon,
-  ClockIcon,
-  ArrowPathIcon,
-  ChevronLeftIcon,
-  ChevronRightIcon,
-  ExclamationCircleIcon,
-} from '@heroicons/react/24/outline';
 import { ShiftSummaryCards, ExtendedSummaryCards } from './ShiftSummaryCards';
 import { ShiftReportTabs } from './ShiftReportTabs';
 import { CashReconciliation } from './CashReconciliation';
 import { ExportButtons } from './ExportButtons';
 import { EmailShiftReceiptsButton } from '../Email';
+import { AlertCircle, Calendar, ChevronLeft, ChevronRight, Clock, RefreshCw } from 'lucide-react';
 
-const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:3001/api';
+const API_BASE = import.meta.env.VITE_API_URL || '/api';
 
 /**
  * Format date for display
@@ -106,7 +99,7 @@ function ShiftSelector({ shifts, selectedShift, onSelect, isLoading }) {
           `}
         >
           <span className="flex items-center gap-2">
-            <ClockIcon className="w-4 h-4" />
+            <Clock className="w-4 h-4" />
             <span>
               {formatTime(shift.startedAt)} - {shift.endedAt ? formatTime(shift.endedAt) : 'Open'}
             </span>
@@ -149,7 +142,7 @@ function DateNavigation({ date, onDateChange }) {
         className="p-2 text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
         title="Previous day"
       >
-        <ChevronLeftIcon className="w-5 h-5" />
+        <ChevronLeft className="w-5 h-5" />
       </button>
 
       <div className="relative">
@@ -175,7 +168,7 @@ function DateNavigation({ date, onDateChange }) {
         `}
         title="Next day"
       >
-        <ChevronRightIcon className="w-5 h-5" />
+        <ChevronRight className="w-5 h-5" />
       </button>
 
       {!isToday && (
@@ -198,7 +191,7 @@ function ErrorMessage({ message, onRetry }) {
   return (
     <div className="flex flex-col items-center justify-center py-12">
       <div className="p-3 bg-red-100 rounded-full mb-4">
-        <ExclamationCircleIcon className="w-8 h-8 text-red-600" />
+        <AlertCircle className="w-8 h-8 text-red-600" />
       </div>
       <p className="text-gray-700 font-medium mb-2">Failed to load report</p>
       <p className="text-sm text-gray-500 mb-4">{message}</p>
@@ -207,7 +200,7 @@ function ErrorMessage({ message, onRetry }) {
         onClick={onRetry}
         className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
       >
-        <ArrowPathIcon className="w-4 h-4" />
+        <RefreshCw className="w-4 h-4" />
         Try Again
       </button>
     </div>
@@ -388,7 +381,7 @@ export function ShiftReportPage({ onBack }) {
                   onClick={onBack}
                   className="p-2 text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
                 >
-                  <ChevronLeftIcon className="w-5 h-5" />
+                  <ChevronLeft className="w-5 h-5" />
                 </button>
               )}
               <div>
@@ -407,7 +400,7 @@ export function ShiftReportPage({ onBack }) {
         {/* Shift Selector */}
         <div className="bg-white rounded-xl border border-gray-200 p-4 mb-6 print:hidden">
           <div className="flex items-center gap-3 mb-3">
-            <CalendarIcon className="w-5 h-5 text-gray-500" />
+            <Calendar className="w-5 h-5 text-gray-500" />
             <span className="font-medium text-gray-700">Select Shift</span>
           </div>
           <ShiftSelector
@@ -520,7 +513,7 @@ export function ShiftReportPage({ onBack }) {
         {!isLoading && !error && !reportData && (
           <div className="bg-white rounded-xl border border-gray-200 p-12 text-center">
             <div className="p-3 bg-gray-100 rounded-full inline-block mb-4">
-              <CalendarIcon className="w-8 h-8 text-gray-400" />
+              <Calendar className="w-8 h-8 text-gray-400" />
             </div>
             <p className="text-gray-700 font-medium mb-2">No data available</p>
             <p className="text-sm text-gray-500">

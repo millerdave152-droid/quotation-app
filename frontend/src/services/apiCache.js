@@ -13,7 +13,7 @@
 
 import { buildAuthHeaders } from './authFetch';
 
-const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:3001';
+const API_URL = process.env.REACT_APP_API_URL || '';
 
 // Default request timeout in milliseconds
 const DEFAULT_TIMEOUT = 30000;
@@ -79,7 +79,6 @@ class APICache {
     if (!skipCache) {
       const cached = this.cache.get(cacheKey);
       if (cached && this.isValid(cached, url)) {
-        console.log(`[API Cache] HIT: ${url}`);
         return cached.data;
       }
     }
@@ -87,7 +86,6 @@ class APICache {
     // Check if there's already a pending request for this URL
     const pendingRequest = this.pendingRequests.get(cacheKey);
     if (pendingRequest && !skipCache) {
-      console.log(`[API Cache] WAITING: ${url}`);
       return pendingRequest.promise;
     }
 
@@ -119,7 +117,6 @@ class APICache {
     };
 
     // Make the request
-    console.log(`[API Cache] MISS: ${url}`);
     const requestPromise = fetch(fullUrl, fetchOptions)
       .then(async (response) => {
         clearTimeout(timeoutId);
@@ -211,7 +208,6 @@ class APICache {
       }
     }
     if (count > 0) {
-      console.log(`[API Cache] Cancelled ${count} requests matching: ${urlPattern}`);
     }
   }
 
@@ -219,14 +215,11 @@ class APICache {
    * Invalidate cache for a specific URL or pattern
    */
   invalidate(urlPattern) {
-    let count = 0;
     for (const key of this.cache.keys()) {
       if (key.includes(urlPattern)) {
         this.cache.delete(key);
-        count++;
       }
     }
-    console.log(`[API Cache] Invalidated ${count} entries matching: ${urlPattern}`);
   }
 
   /**
@@ -235,7 +228,6 @@ class APICache {
   clear() {
     this.cache.clear();
     this.pendingRequests.clear();
-    console.log('[API Cache] Cleared all cache');
   }
 
   /**
@@ -305,7 +297,6 @@ class APICache {
 
         if (attempt < retries) {
           const delay = retryDelay * Math.pow(2, attempt); // Exponential backoff
-          console.log(`[API Cache] Retry ${attempt + 1}/${retries} for ${url} after ${delay}ms`);
           await new Promise(resolve => setTimeout(resolve, delay));
         }
       }

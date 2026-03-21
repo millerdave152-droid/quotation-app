@@ -19,14 +19,7 @@ import {
   LineChart,
   Line,
 } from 'recharts';
-import {
-  ChartBarIcon,
-  CreditCardIcon,
-  UsersIcon,
-  ShieldCheckIcon,
-  ClockIcon,
-} from '@heroicons/react/24/outline';
-
+import { BarChart3, Clock, CreditCard, ShieldCheck, Users } from 'lucide-react';
 /**
  * Format currency
  */
@@ -88,7 +81,7 @@ function SalesTab({ hourlyData, productData }) {
       {/* Hourly Sales Chart */}
       <div className="bg-white rounded-xl border border-gray-200 p-4">
         <h4 className="text-sm font-semibold text-gray-900 mb-4 flex items-center gap-2">
-          <ClockIcon className="w-4 h-4" />
+          <Clock className="w-4 h-4" />
           Hourly Sales
         </h4>
         {hourlyChartData.length > 0 ? (
@@ -486,10 +479,10 @@ export function ShiftReportTabs({ report }) {
   const [activeTab, setActiveTab] = useState('sales');
 
   const tabs = [
-    { id: 'sales', label: 'Sales', icon: ChartBarIcon },
-    { id: 'payments', label: 'Payments', icon: CreditCardIcon },
-    { id: 'staff', label: 'Staff', icon: UsersIcon },
-    { id: 'overrides', label: 'Overrides', icon: ShieldCheckIcon },
+    { id: 'sales', label: 'Sales', icon: BarChart3 },
+    { id: 'payments', label: 'Payments', icon: CreditCard },
+    { id: 'staff', label: 'Staff', icon: Users },
+    { id: 'overrides', label: 'Overrides', icon: ShieldCheck },
   ];
 
   return (

@@ -92,12 +92,35 @@ const asyncHandler = (fn) => (req, res, next) => {
 
 /**
  * 404 Not Found handler - for undefined routes
+ *
+ * Distinguishes between:
+ * 1. API requests (path starts with /api/) — gives actionable "No endpoint" message
+ * 2. Non-API requests — gives generic "Route not found" message
  */
 const notFoundHandler = (req, res, next) => {
-  const err = new ApiError(
-    ErrorCodes.NOT_FOUND,
-    `Route not found: ${req.method} ${req.originalUrl}`
-  );
+  const reqPath = req.path;
+
+  let message;
+  let details = null;
+
+  if (reqPath.startsWith('/api/')) {
+    // Extract the route group: /api/commissions/calculate → /api/commissions
+    const segments = reqPath.split('/').filter(Boolean); // ['api', 'commissions', 'calculate']
+    const routeGroup = segments.length >= 2
+      ? '/' + segments.slice(0, 2).join('/')
+      : '/api';
+
+    message = `No endpoint for ${req.method} ${req.originalUrl}`;
+    details = {
+      hint: `The API does not have a handler for '${req.method} ${reqPath}'. Check the HTTP method and path spelling.`,
+      routeGroup
+    };
+  } else {
+    message = `Route not found: ${req.method} ${req.originalUrl}`;
+  }
+
+  const err = new ApiError(ErrorCodes.NOT_FOUND, message);
+  err.details = details;
   next(err);
 };
 

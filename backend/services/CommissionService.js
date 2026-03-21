@@ -487,7 +487,6 @@ class CommissionService {
     `, [orderId, salesRepId]);
 
     if (parseInt(existingCheck.rows[0].count) > 0) {
-      console.log(`[CommissionService] Commission already recorded for order ${orderId}`);
       return this.getOrderCommissions(orderId);
     }
 
@@ -561,7 +560,6 @@ class CommissionService {
       }
     }
 
-    console.log(`[CommissionService] Recorded ${earnings.length} commission entries for order ${orderId}`);
 
     return {
       orderId,

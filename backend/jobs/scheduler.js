@@ -13,11 +13,19 @@
  */
 
 const skulyticsSyncJob = require('./skulyticsSync.job');
+const overdueInvoicesJob = require('./overdueInvoices.job');
+const quoteAlertsJob = require('./quoteAlerts.job');
+const mvRefreshJob = require('./mvRefresh.job');
+const nightlyEmbeddingsJob = require('./nightlyEmbeddings.job');
 
 // ── Job Registry ────────────────────────────────────────────
 
 const JOBS = [
   { name: 'skulytics-sync', job: skulyticsSyncJob },
+  { name: 'overdue-invoices', job: overdueInvoicesJob },
+  { name: 'quote-alerts',    job: quoteAlertsJob },
+  { name: 'mv-refresh',     job: mvRefreshJob },
+  { name: 'nightly-embeddings', job: nightlyEmbeddingsJob },
 ];
 
 // ── Lifecycle ───────────────────────────────────────────────
@@ -30,7 +38,6 @@ function startAll() {
   for (const { name, job } of JOBS) {
     try {
       job.start();
-      console.log(`[SCHEDULER] Started: ${name}`);
     } catch (err) {
       console.error(`[SCHEDULER] Failed to start ${name}: ${err.message}`);
     }
@@ -45,7 +52,6 @@ function stopAll() {
   for (const { name, job } of JOBS) {
     try {
       job.stop();
-      console.log(`[SCHEDULER] Stopped: ${name}`);
     } catch (err) {
       console.error(`[SCHEDULER] Failed to stop ${name}: ${err.message}`);
     }
@@ -57,4 +63,8 @@ module.exports = {
   stopAll,
   // Direct job references for ad-hoc access (health checks, manual triggers)
   skulyticsSyncJob,
+  overdueInvoicesJob,
+  quoteAlertsJob,
+  mvRefreshJob,
+  nightlyEmbeddingsJob,
 };

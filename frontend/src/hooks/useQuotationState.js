@@ -8,7 +8,7 @@ import { useState, useRef, useEffect, useCallback } from 'react';
 import { cachedFetch, invalidateCache } from '../services/apiCache';
 import logger from '../utils/logger';
 
-const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:3001';
+const API_URL = process.env.REACT_APP_API_URL || '';
 
 export const useQuotationState = () => {
   // ============================================
@@ -341,14 +341,23 @@ export const useQuotationState = () => {
 
     try {
       const res = await authFetch(`${API_URL}/api/quotations/${quote.id}`);
+      if (!res.ok) {
+        logger.error(`Failed to load quote ${quote.id}: ${res.status} ${res.statusText}`);
+        return;
+      }
       const fullQuote = await res.json();
+
+      if (!fullQuote || fullQuote.error) {
+        logger.error('Invalid quote response:', fullQuote?.error || 'empty response');
+        return;
+      }
 
       setSelectedCustomer(customers.find(c => c.id === fullQuote.customer_id) || null);
       setQuoteItems((fullQuote.items || []).map(item => ({
         ...item,
-        cost: item.cost_cents / 100,
-        msrp: item.msrp_cents / 100,
-        sell: item.sell_cents / 100,
+        cost: (item.cost_cents != null ? item.cost_cents / 100 : item.cost) || 0,
+        msrp: (item.msrp_cents != null ? item.msrp_cents / 100 : item.msrp) || 0,
+        sell: (item.sell_cents != null ? item.sell_cents / 100 : (item.unit_price != null ? item.unit_price : item.sell)) || 0,
       })));
       setDiscountPercent(parseFloat(fullQuote.discount_percent) || 0);
       setNotes(fullQuote.notes || '');

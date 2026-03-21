@@ -79,7 +79,7 @@ module.exports = (pool, scheduledBatchEmailService) => {
       query = `
         SELECT COUNT(*) as count
         FROM transactions t
-        LEFT JOIN customers c ON t.customer_id = c.customer_id
+        LEFT JOIN customers c ON t.customer_id = c.id
         LEFT JOIN receipt_email_tracking ret ON t.transaction_id = ret.transaction_id
         WHERE t.shift_id = $1
           AND t.status = 'completed'
@@ -94,7 +94,7 @@ module.exports = (pool, scheduledBatchEmailService) => {
       query = `
         SELECT COUNT(*) as count
         FROM transactions t
-        LEFT JOIN customers c ON t.customer_id = c.customer_id
+        LEFT JOIN customers c ON t.customer_id = c.id
         LEFT JOIN receipt_email_tracking ret ON t.transaction_id = ret.transaction_id
         WHERE t.created_at BETWEEN $1 AND $2
           AND t.status = 'completed'
@@ -112,7 +112,7 @@ module.exports = (pool, scheduledBatchEmailService) => {
       query = `
         SELECT COUNT(*) as count
         FROM transactions t
-        LEFT JOIN customers c ON t.customer_id = c.customer_id
+        LEFT JOIN customers c ON t.customer_id = c.id
         LEFT JOIN receipt_email_tracking ret ON t.transaction_id = ret.transaction_id
         WHERE t.created_at BETWEEN $1 AND $2
           AND t.status = 'completed'

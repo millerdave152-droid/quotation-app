@@ -4,14 +4,7 @@
  */
 
 import { useState, useEffect, useRef } from 'react';
-import {
-  CreditCardIcon,
-  PauseCircleIcon,
-  TrashIcon,
-  UserPlusIcon,
-  ExclamationTriangleIcon,
-} from '@heroicons/react/24/outline';
-
+import { AlertTriangle, CirclePause, CreditCard, Trash2, UserPlus } from 'lucide-react';
 /**
  * Confirmation dialog component
  */
@@ -30,7 +23,7 @@ function ConfirmDialog({ isOpen, title, message, onConfirm, onCancel }) {
       <div className="relative bg-white rounded-xl shadow-xl max-w-sm w-full p-6">
         <div className="flex items-center gap-3 mb-4">
           <div className="w-10 h-10 bg-red-100 rounded-full flex items-center justify-center">
-            <ExclamationTriangleIcon className="w-6 h-6 text-red-600" />
+            <AlertTriangle className="w-6 h-6 text-red-600" />
           </div>
           <h3 className="text-lg font-semibold text-gray-900">{title}</h3>
         </div>
@@ -151,7 +144,7 @@ export function CartActions({
             </>
           ) : (
             <>
-              <CreditCardIcon className="w-6 h-6" />
+              <CreditCard className="w-6 h-6" />
               <span>Checkout{!canCheckout && !isEmpty ? ' (F9)' : ''}</span>
             </>
           )}
@@ -183,7 +176,7 @@ export function CartActions({
             transition-colors duration-150
           "
         >
-          <UserPlusIcon className="w-5 h-5" />
+          <UserPlus className="w-5 h-5" />
           <span className="text-xs mt-0.5">
             {hasCustomer ? 'Change' : 'Customer'}
           </span>
@@ -204,7 +197,7 @@ export function CartActions({
             transition-colors duration-150
           "
         >
-          <PauseCircleIcon className="w-5 h-5" />
+          <CirclePause className="w-5 h-5" />
           <span className="text-xs mt-0.5">Hold</span>
         </button>
 
@@ -223,7 +216,7 @@ export function CartActions({
             transition-colors duration-150
           "
         >
-          <TrashIcon className="w-5 h-5" />
+          <Trash2 className="w-5 h-5" />
           <span className="text-xs mt-0.5">Clear</span>
         </button>
       </div>

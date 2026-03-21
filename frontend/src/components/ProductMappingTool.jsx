@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import apiClient from '../services/apiClient';
 
 /**
@@ -36,53 +36,18 @@ const ProductMappingTool = () => {
   const isMounted = useRef(true);
   const loadedOnce = useRef(false);
 
-  const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:3001';
-
-  // Initial load
-  useEffect(() => {
-    isMounted.current = true;
-
-    if (!loadedOnce.current) {
-      loadedOnce.current = true;
-      loadInitialData();
-    }
-
-    return () => {
-      isMounted.current = false;
-    };
-  }, []);
-
-  // Load all initial data
-  const loadInitialData = async () => {
-    try {
-      setLoading(true);
-      await Promise.all([
-        fetchCategories(),
-        fetchUnmappedProducts(),
-        fetchMappedProducts(),
-        fetchMappingStats()
-      ]);
-    } catch (err) {
-      if (isMounted.current) {
-        setError('Failed to load data: ' + err.message);
-      }
-    } finally {
-      if (isMounted.current) {
-        setLoading(false);
-      }
-    }
-  };
+  const API_BASE_URL = process.env.REACT_APP_API_URL || '';
 
   // Fetch categories
-  const fetchCategories = async () => {
+  const fetchCategories = useCallback(async () => {
     const response = await apiClient.get(`${API_BASE_URL}/api/marketplace/bestbuy-categories`);
     if (isMounted.current) {
       setCategories(response.data.grouped || {});
     }
-  };
+  }, [API_BASE_URL]);
 
   // Fetch unmapped products
-  const fetchUnmappedProducts = async (page = 0, search = '') => {
+  const fetchUnmappedProducts = useCallback(async (page = 0, search = '') => {
     const params = {
       limit: ITEMS_PER_PAGE,
       offset: page * ITEMS_PER_PAGE
@@ -94,10 +59,10 @@ const ProductMappingTool = () => {
       setUnmappedProducts(response.data.products || []);
       setUnmappedTotal(response.data.total || 0);
     }
-  };
+  }, [API_BASE_URL]);
 
   // Fetch mapped products
-  const fetchMappedProducts = async (page = 0, search = '', categoryCode = '') => {
+  const fetchMappedProducts = useCallback(async (page = 0, search = '', categoryCode = '') => {
     const params = {
       limit: ITEMS_PER_PAGE,
       offset: page * ITEMS_PER_PAGE
@@ -110,15 +75,50 @@ const ProductMappingTool = () => {
       setMappedProducts(response.data.products || []);
       setMappedTotal(response.data.total || 0);
     }
-  };
+  }, [API_BASE_URL]);
 
   // Fetch mapping stats
-  const fetchMappingStats = async () => {
+  const fetchMappingStats = useCallback(async () => {
     const response = await apiClient.get(`${API_BASE_URL}/api/marketplace/mapping-stats`);
     if (isMounted.current) {
       setMappingStats(response.data);
     }
-  };
+  }, [API_BASE_URL]);
+
+  // Initial load
+  useEffect(() => {
+    isMounted.current = true;
+
+    if (!loadedOnce.current) {
+      loadedOnce.current = true;
+
+      const loadInitialData = async () => {
+        try {
+          setLoading(true);
+          await Promise.all([
+            fetchCategories(),
+            fetchUnmappedProducts(),
+            fetchMappedProducts(),
+            fetchMappingStats()
+          ]);
+        } catch (err) {
+          if (isMounted.current) {
+            setError('Failed to load data: ' + err.message);
+          }
+        } finally {
+          if (isMounted.current) {
+            setLoading(false);
+          }
+        }
+      };
+
+      loadInitialData();
+    }
+
+    return () => {
+      isMounted.current = false;
+    };
+  }, [fetchCategories, fetchUnmappedProducts, fetchMappedProducts, fetchMappingStats]);
 
   // Handle search
   const handleSearch = () => {

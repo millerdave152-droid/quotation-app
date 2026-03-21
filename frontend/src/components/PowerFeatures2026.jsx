@@ -3,7 +3,7 @@ import { handleApiError } from '../utils/errorHandler';
 import { toast } from './ui/Toast';
 
 import { authFetch } from '../services/authFetch';
-const API_BASE = `${process.env.REACT_APP_API_URL || 'http://localhost:3001'}/api`;
+const API_BASE = `${process.env.REACT_APP_API_URL || ''}/api`;
 
 // Get auth headers for API calls
 const getAuthHeaders = () => {
@@ -43,44 +43,10 @@ const PowerFeatures2026 = () => {
 
   const isMounted = useRef(true);
 
-  useEffect(() => {
-    isMounted.current = true;
-    loadDataForTab(activeTab);
-    return () => { isMounted.current = false; };
-  }, [activeTab]);
-
-  const loadDataForTab = async (tab) => {
-    if (!isMounted.current) return;
-    setLoading(true);
-
-    try {
-      switch (tab) {
-        case 'special-orders':
-          await loadStockProducts();
-          break;
-        case 'templates':
-          await loadTemplates();
-          break;
-        case 'follow-ups':
-          await loadFollowUps();
-          break;
-        case 'price-book':
-          await loadPriceBooks();
-          break;
-        default:
-          break;
-      }
-    } catch (error) {
-      handleApiError(error, { context: 'Loading data' });
-    } finally {
-      if (isMounted.current) setLoading(false);
-    }
-  };
-
   // =====================================================
   // SPECIAL ORDERS
   // =====================================================
-  const loadStockProducts = async () => {
+  const loadStockProducts = useCallback(async () => {
     try {
       let url = `${API_BASE}/features/products/stock-status`;
       if (stockFilter === 'out') url += '?in_stock=false';
@@ -96,7 +62,7 @@ const PowerFeatures2026 = () => {
       handleApiError(error, { context: 'Loading stock products' });
       if (isMounted.current) setStockProducts([]);
     }
-  };
+  }, [stockFilter]);
 
   const updateProductStock = async (productId, updates) => {
     try {
@@ -115,7 +81,7 @@ const PowerFeatures2026 = () => {
   // =====================================================
   // TEMPLATES
   // =====================================================
-  const loadTemplates = async () => {
+  const loadTemplates = useCallback(async () => {
     try {
       const response = await authFetch(`${API_BASE}/features/quote-templates`, { headers: getAuthHeaders() });
       if (!response.ok) {
@@ -127,7 +93,7 @@ const PowerFeatures2026 = () => {
       handleApiError(error, { context: 'Loading templates' });
       if (isMounted.current) setTemplates([]);
     }
-  };
+  }, []);
 
   const createTemplate = async () => {
     try {
@@ -148,7 +114,7 @@ const PowerFeatures2026 = () => {
   // =====================================================
   // FOLLOW-UPS
   // =====================================================
-  const loadFollowUps = async () => {
+  const loadFollowUps = useCallback(async () => {
     try {
       const [rulesRes, pendingRes] = await Promise.all([
         authFetch(`${API_BASE}/features/follow-up-rules`, { headers: getAuthHeaders() }),
@@ -170,7 +136,7 @@ const PowerFeatures2026 = () => {
         setPendingFollowUps([]);
       }
     }
-  };
+  }, []);
 
   const markFollowUpSent = async (id) => {
     try {
@@ -185,7 +151,7 @@ const PowerFeatures2026 = () => {
   // =====================================================
   // PRICE BOOK
   // =====================================================
-  const loadPriceBooks = async () => {
+  const loadPriceBooks = useCallback(async () => {
     try {
       const [booksRes, notificationsRes] = await Promise.all([
         authFetch(`${API_BASE}/features/price-books`, { headers: getAuthHeaders() }),
@@ -207,7 +173,42 @@ const PowerFeatures2026 = () => {
         setPriceNotifications([]);
       }
     }
-  };
+  }, []);
+
+  useEffect(() => {
+    isMounted.current = true;
+
+    const loadDataForTab = async (tab) => {
+      if (!isMounted.current) return;
+      setLoading(true);
+
+      try {
+        switch (tab) {
+          case 'special-orders':
+            await loadStockProducts();
+            break;
+          case 'templates':
+            await loadTemplates();
+            break;
+          case 'follow-ups':
+            await loadFollowUps();
+            break;
+          case 'price-book':
+            await loadPriceBooks();
+            break;
+          default:
+            break;
+        }
+      } catch (error) {
+        handleApiError(error, { context: 'Loading data' });
+      } finally {
+        if (isMounted.current) setLoading(false);
+      }
+    };
+
+    loadDataForTab(activeTab);
+    return () => { isMounted.current = false; };
+  }, [activeTab, loadStockProducts, loadTemplates, loadFollowUps, loadPriceBooks]);
 
   const acknowledgeNotification = async (id) => {
     try {
@@ -238,8 +239,6 @@ const PowerFeatures2026 = () => {
     { id: 'attachments', label: '📎 Attachments', description: 'Spec sheets & documents' },
     { id: 'price-book', label: '📊 Price Book', description: 'Manufacturer pricing' }
   ];
-
-  const formatCurrency = (cents) => cents ? `$${(cents / 100).toFixed(2)}` : '$0.00';
 
   return (
     <div style={{ padding: '30px', fontFamily: 'system-ui, -apple-system, sans-serif', background: '#f9fafb', minHeight: 'calc(100vh - 140px)' }}>

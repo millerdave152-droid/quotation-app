@@ -1575,12 +1575,12 @@ class ManagerOverrideService {
        SET failed_attempts = failed_attempts + 1,
            locked_until = CASE
              WHEN failed_attempts + 1 >= $2
-             THEN NOW() + INTERVAL '${lockoutMinutes} minutes'
+             THEN NOW() + ($3 * INTERVAL '1 minute')
              ELSE NULL
            END,
            updated_at = NOW()
        WHERE id = $1`,
-      [pinId, maxAttempts]
+      [pinId, maxAttempts, lockoutMinutes]
     );
   }
 

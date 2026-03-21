@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 
-const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:3001';
+const API_URL = process.env.REACT_APP_API_URL || '';
 
 const OfflineIndicator = () => {
   const [isOnline, setIsOnline] = useState(true);
@@ -24,7 +24,7 @@ const OfflineIndicator = () => {
   useEffect(() => {
     let intervalId;
 
-    const updateStatus = async (source) => {
+    const updateStatus = async () => {
       const online = await checkConnectivity();
 
       if (online && !isOnline) {

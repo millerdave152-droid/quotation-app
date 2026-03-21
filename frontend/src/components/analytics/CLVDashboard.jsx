@@ -1,13 +1,13 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Users, TrendingUp, DollarSign, Crown, Award, Medal, Star, Filter, RefreshCw, PlayCircle, Clock, Activity } from 'lucide-react';
 import { cachedFetch } from '../../services/apiCache';
 import {
-  PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, CartesianGrid,
-  Tooltip, ResponsiveContainer, Legend, LineChart, Line
+  PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid,
+  Tooltip, ResponsiveContainer, LineChart, Line
 } from 'recharts';
 import ChurnRiskPanel from './ChurnRiskPanel';
 
-const API_BASE = `${process.env.REACT_APP_API_URL || 'http://localhost:3001'}/api`;
+const API_BASE = `${process.env.REACT_APP_API_URL || ''}/api`;
 
 // Chart colors for segments
 const SEGMENT_CHART_COLORS = {
@@ -36,26 +36,7 @@ const CLVDashboard = () => {
   const isMounted = useRef(true);
   const loadedOnce = useRef(false);
 
-  useEffect(() => {
-    isMounted.current = true;
-
-    if (!loadedOnce.current) {
-      loadedOnce.current = true;
-      fetchCLVData();
-    }
-
-    return () => {
-      isMounted.current = false;
-    };
-  }, []);
-
-  useEffect(() => {
-    if (loadedOnce.current && isMounted.current) {
-      fetchCLVData();
-    }
-  }, [selectedSegment, sortBy, sortOrder, limit]);
-
-  const fetchCLVData = async () => {
+  const fetchCLVData = useCallback(async () => {
     if (!isMounted.current) return;
 
     setLoading(true);
@@ -85,7 +66,26 @@ const CLVDashboard = () => {
         setLoading(false);
       }
     }
-  };
+  }, [selectedSegment, sortBy, sortOrder, limit]);
+
+  useEffect(() => {
+    isMounted.current = true;
+
+    if (!loadedOnce.current) {
+      loadedOnce.current = true;
+      fetchCLVData();
+    }
+
+    return () => {
+      isMounted.current = false;
+    };
+  }, [fetchCLVData]);
+
+  useEffect(() => {
+    if (loadedOnce.current && isMounted.current) {
+      fetchCLVData();
+    }
+  }, [fetchCLVData]);
 
   const fetchJobStatus = async () => {
     try {
@@ -170,7 +170,9 @@ const CLVDashboard = () => {
   if (error) {
     return (
       <div style={{ padding: '40px', textAlign: 'center' }}>
-        <div style={{ fontSize: '48px', marginBottom: '16px' }}>⚠️</div>
+        <div style={{ marginBottom: '16px' }}>
+          <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#ef4444" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+        </div>
         <div style={{ fontSize: '18px', color: '#ef4444', marginBottom: '16px' }}>Error: {error}</div>
         <button
           onClick={fetchCLVData}
@@ -194,15 +196,6 @@ const CLVDashboard = () => {
   const summary = data?.summary || {};
   const customers = data?.customers || [];
   const segmentBreakdown = summary?.segmentBreakdown || {};
-
-  // Calculate max for chart scaling
-  const maxSegmentCount = Math.max(
-    segmentBreakdown.platinum || 0,
-    segmentBreakdown.gold || 0,
-    segmentBreakdown.silver || 0,
-    segmentBreakdown.bronze || 0,
-    1
-  );
 
   return (
     <div style={{ padding: '20px', maxWidth: '1400px', margin: '0 auto' }}>
@@ -234,7 +227,7 @@ const CLVDashboard = () => {
             gap: '8px'
           }}
         >
-          <RefreshCw size={16} className={loading ? 'animate-spin' : ''} />
+          <RefreshCw size={16} style={loading ? { animation: 'spin 1s linear infinite' } : {}} />
           Refresh
         </button>
       </div>
@@ -581,10 +574,10 @@ const CLVDashboard = () => {
       {/* Churn Risk Analysis Panel */}
       <div style={{ marginBottom: '30px' }}>
         <ChurnRiskPanel
-          onNavigate={(view, params) => {
+          onNavigate={() => {
             // Navigation callback - integrate with your router
           }}
-          onContact={(type, customer) => {
+          onContact={() => {
             // Contact callback - integrate with your email/phone system
           }}
         />
@@ -610,7 +603,9 @@ const CLVDashboard = () => {
 
         {customers.length === 0 ? (
           <div style={{ padding: '40px', textAlign: 'center', color: '#6b7280' }}>
-            <div style={{ fontSize: '48px', marginBottom: '12px' }}>📊</div>
+            <div style={{ marginBottom: '12px' }}>
+              <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#9ca3af" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
+            </div>
             <div style={{ fontSize: '16px' }}>No customer data available</div>
           </div>
         ) : (

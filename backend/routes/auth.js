@@ -18,6 +18,7 @@ const {
 } = require('../middleware/validation');
 const { authLimiter } = require('../middleware/security');
 const { ApiError, asyncHandler } = require('../middleware/errorHandler');
+const { auditLogMiddleware } = require('../middleware/auditLog');
 const crypto = require('crypto');
 
 // ── Helpers ─────────────────────────────────────────────────────────────
@@ -60,7 +61,7 @@ const LOCK_TIME = 15 * 60 * 1000; // 15 minutes in milliseconds
  * @desc    Register a new user
  * @access  Public
  */
-router.post('/register', authLimiter, validateRegister, asyncHandler(async (req, res) => {
+router.post('/register', authLimiter, validateRegister, auditLogMiddleware('user_registered', 'auth'), asyncHandler(async (req, res) => {
   const client = await db.connect();
 
   try {
@@ -163,7 +164,7 @@ router.post('/register', authLimiter, validateRegister, asyncHandler(async (req,
  * @desc    Login user and return JWT tokens
  * @access  Public
  */
-router.post('/login', authLimiter, validateLogin, asyncHandler(async (req, res) => {
+router.post('/login', authLimiter, validateLogin, auditLogMiddleware('login', 'auth'), asyncHandler(async (req, res) => {
   const { email, password } = req.body;
 
   // Fetch user from database
@@ -388,7 +389,7 @@ router.post('/refresh', validateRefreshToken, asyncHandler(async (req, res) => {
  * @desc    Logout user and revoke refresh token
  * @access  Private
  */
-router.post('/logout', authenticate, asyncHandler(async (req, res) => {
+router.post('/logout', authenticate, auditLogMiddleware('logout', 'auth'), asyncHandler(async (req, res) => {
   const { refreshToken } = req.body;
 
   if (refreshToken) {
@@ -475,7 +476,7 @@ router.get('/me', authenticate, asyncHandler(async (req, res) => {
  * @desc    Change user password
  * @access  Private
  */
-router.put('/change-password', authenticate, validateChangePassword, asyncHandler(async (req, res) => {
+router.put('/change-password', authenticate, validateChangePassword, auditLogMiddleware('password_changed', 'auth'), asyncHandler(async (req, res) => {
   const client = await db.connect();
 
   try {

@@ -4,15 +4,10 @@
  */
 
 import { useState, useCallback, useRef, useEffect } from 'react';
-import {
-  TagIcon,
-  XMarkIcon,
-  CheckCircleIcon,
-  ExclamationTriangleIcon,
-} from '@heroicons/react/24/outline';
 import { formatCurrency } from '../../utils/formatters';
+import { AlertTriangle, CheckCircle, Tag, X } from 'lucide-react';
 
-const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:3001/api';
+const API_BASE = import.meta.env.VITE_API_URL || '/api';
 
 /**
  * Promo code input and display component
@@ -170,7 +165,7 @@ export function PromoCodeInput({
       <div className="p-3 bg-green-50 border border-green-200 rounded-lg">
         <div className="flex items-start justify-between gap-3">
           <div className="flex items-start gap-2 flex-1 min-w-0">
-            <CheckCircleIcon className="w-5 h-5 text-green-600 flex-shrink-0 mt-0.5" />
+            <CheckCircle className="w-5 h-5 text-green-600 flex-shrink-0 mt-0.5" />
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-2 flex-wrap">
                 <span className="text-sm font-semibold text-green-800">
@@ -201,7 +196,7 @@ export function PromoCodeInput({
             "
             title="Remove promo code"
           >
-            <XMarkIcon className="w-4 h-4" />
+            <X className="w-4 h-4" />
           </button>
         </div>
       </div>
@@ -214,7 +209,7 @@ export function PromoCodeInput({
       <div className="flex gap-2">
         <div className="relative flex-1">
           <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-            <TagIcon className="w-4 h-4 text-gray-400" />
+            <Tag className="w-4 h-4 text-gray-400" />
           </div>
           <input
             ref={inputRef}
@@ -267,7 +262,7 @@ export function PromoCodeInput({
       {/* Error Message */}
       {error && (
         <div className="flex items-start gap-2 p-2 bg-red-50 border border-red-200 rounded-lg">
-          <ExclamationTriangleIcon className="w-4 h-4 text-red-500 flex-shrink-0 mt-0.5" />
+          <AlertTriangle className="w-4 h-4 text-red-500 flex-shrink-0 mt-0.5" />
           <p className="text-xs text-red-700">{error}</p>
         </div>
       )}
@@ -275,7 +270,7 @@ export function PromoCodeInput({
       {/* Success Message (temporary) */}
       {showSuccess && !appliedPromotion && (
         <div className="flex items-center gap-2 p-2 bg-green-50 border border-green-200 rounded-lg">
-          <CheckCircleIcon className="w-4 h-4 text-green-600" />
+          <CheckCircle className="w-4 h-4 text-green-600" />
           <p className="text-xs text-green-700">Promo code applied successfully!</p>
         </div>
       )}

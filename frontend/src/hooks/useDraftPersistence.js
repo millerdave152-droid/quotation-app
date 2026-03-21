@@ -9,7 +9,7 @@ import db from '../db/localDb';
 import { getDraftSyncService } from '../services/draftSyncService';
 import { authFetch } from '../services/authFetch';
 
-const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:3001';
+const API_URL = process.env.REACT_APP_API_URL || '';
 const DEBOUNCE_MS = 500;
 
 export default function useDraftPersistence({

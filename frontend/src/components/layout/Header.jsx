@@ -828,12 +828,11 @@ const Header = ({ isMobile }) => {
           src="/teletime-logo.png"
           alt="TELETIME"
           style={{
-            height: '40px',
+            height: '38px',
             width: 'auto',
             objectFit: 'contain',
           }}
           onError={(e) => {
-            // Fallback to icon if logo not found
             e.target.style.display = 'none';
             e.target.nextSibling.style.display = 'flex';
           }}
@@ -858,17 +857,8 @@ const Header = ({ isMobile }) => {
         {!isMobile && (
           <div>
             <div style={{
-              fontSize: '18px',
-              fontWeight: '700',
-              color: '#0066b2',
-              letterSpacing: '-0.02em',
-            }}>
-              {companyConfig.name || 'TELETIME'}
-            </div>
-            <div style={{
               fontSize: '12px',
               color: '#6b7280',
-              marginTop: '-2px',
               fontWeight: '500',
             }}>
               Quotation System

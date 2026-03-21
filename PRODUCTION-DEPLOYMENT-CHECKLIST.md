@@ -29,10 +29,15 @@
 
 - [ ] **Environment Variables**
   - All production `.env` variables set
+  - `NODE_ENV=production` is set (CRITICAL — enforces SSL cert verification, secure defaults)
+  - `DB_SSL=true` and `DB_SSL_MODE=require` are set
+  - `DB_SSL_REJECT_UNAUTHORIZED` does NOT matter when `NODE_ENV=production` (db.js forces `true`)
   - Sensitive keys rotated from development
   - Email service credentials configured (AWS SES)
   - Database connection string updated
-  - JWT secrets generated
+  - JWT secrets generated (use `node -e "console.log(require('crypto').randomBytes(64).toString('hex'))"`)
+  - `FRAUD_SALT` generated (changing invalidates velocity tracking history)
+  - `MONERIS_WEBHOOK_SECRET` matches value in Moneris merchant portal
   - API keys secured
 
 ### Code & Dependencies
@@ -141,6 +146,9 @@
    ```bash
    # Edit .env file with production values
    nano .env
+   # CRITICAL: Verify NODE_ENV=production is set.
+   # This enforces SSL cert verification and other security defaults.
+   grep NODE_ENV .env  # Should show: NODE_ENV=production
    ```
 
 6. **Start Backend**
@@ -374,7 +382,8 @@ In case of critical issues, follow this rollback procedure:
 - [ ] **Data Protection**
   - Passwords hashed with bcrypt
   - Sensitive data encrypted at rest
-  - SSL/TLS for data in transit
+  - SSL/TLS for data in transit (db.js enforces `rejectUnauthorized: true` when `NODE_ENV=production`)
+  - Database SSL certificate verified (no self-signed certs in production)
   - Database backups encrypted
 
 - [ ] **Application Security**

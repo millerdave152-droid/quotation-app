@@ -5,19 +5,8 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import {
-  ArrowLeftIcon,
-  BanknotesIcon,
-  CalendarDaysIcon,
-  CheckCircleIcon,
-  ClockIcon,
-  CreditCardIcon,
-  DocumentTextIcon,
-  ExclamationTriangleIcon,
-  CurrencyDollarIcon,
-} from '@heroicons/react/24/outline';
-
-const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:3001/api';
+import { AlertTriangle, ArrowLeft, Banknote, CalendarDays, CheckCircle, Clock, CreditCard, DollarSign, FileText } from 'lucide-react';
+const API_BASE = import.meta.env.VITE_API_URL || '/api';
 
 /**
  * Format currency
@@ -185,9 +174,9 @@ function PaymentRow({ payment }) {
           ${payment.status === 'paid' ? 'bg-green-100' : 'bg-gray-100'}
         `}>
           {payment.status === 'paid' ? (
-            <CheckCircleIcon className="w-5 h-5 text-green-600" />
+            <CheckCircle className="w-5 h-5 text-green-600" />
           ) : (
-            <ClockIcon className="w-5 h-5 text-gray-500" />
+            <Clock className="w-5 h-5 text-gray-500" />
           )}
         </div>
         <div>
@@ -280,7 +269,7 @@ function PayoffModal({ agreement, payoffData, onConfirm, onClose, processing }) 
               </>
             ) : (
               <>
-                <CheckCircleIcon className="w-5 h-5" />
+                <CheckCircle className="w-5 h-5" />
                 Pay {formatCurrency(payoffData.payoffAmount)}
               </>
             )}
@@ -415,7 +404,7 @@ export function CustomerFinancingPage() {
       <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
         <div className="text-center">
           <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
-            <ExclamationTriangleIcon className="w-8 h-8 text-red-600" />
+            <AlertTriangle className="w-8 h-8 text-red-600" />
           </div>
           <h2 className="text-xl font-bold text-gray-900 mb-2">Error</h2>
           <p className="text-gray-600 mb-4">{error}</p>
@@ -444,7 +433,7 @@ export function CustomerFinancingPage() {
               to={`/customers/${customerId}`}
               className="p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-lg"
             >
-              <ArrowLeftIcon className="w-5 h-5" />
+              <ArrowLeft className="w-5 h-5" />
             </Link>
             <div>
               <h1 className="text-xl font-bold text-gray-900">Financing</h1>
@@ -458,24 +447,24 @@ export function CustomerFinancingPage() {
         {/* Summary Cards */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           <SummaryCard
-            icon={DocumentTextIcon}
+            icon={FileText}
             label="Active Agreements"
             value={summary?.activeAgreements || 0}
             color="blue"
           />
           <SummaryCard
-            icon={CurrencyDollarIcon}
+            icon={DollarSign}
             label="Total Balance"
             value={formatCurrency(summary?.totalBalance || 0)}
             color={summary?.totalBalance > 0 ? 'gray' : 'green'}
           />
           <SummaryCard
-            icon={BanknotesIcon}
+            icon={Banknote}
             label="Monthly Payments"
             value={formatCurrency(summary?.totalMonthlyPayment || 0)}
           />
           <SummaryCard
-            icon={CalendarDaysIcon}
+            icon={CalendarDays}
             label="Next Payment"
             value={summary?.nextPaymentDate ? formatDate(summary.nextPaymentDate) : 'None'}
             subValue={summary?.nextPaymentAmountCents ? formatCurrency(summary.nextPaymentAmountCents / 100) : undefined}
@@ -544,7 +533,7 @@ export function CustomerFinancingPage() {
         {/* Empty State */}
         {(!agreements || agreements.length === 0) && (
           <div className="text-center py-12">
-            <CreditCardIcon className="w-16 h-16 text-gray-300 mx-auto mb-4" />
+            <CreditCard className="w-16 h-16 text-gray-300 mx-auto mb-4" />
             <h3 className="text-lg font-medium text-gray-900 mb-2">No Financing Agreements</h3>
             <p className="text-gray-500">This customer doesn't have any financing agreements yet.</p>
           </div>

@@ -5,12 +5,11 @@ import { authFetch } from '../../services/authFetch';
 
 import React, { useState, useEffect, useCallback } from 'react';
 
-const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:3001';
+const API_URL = process.env.REACT_APP_API_URL || '';
 const POLL_INTERVAL = 30000; // 30 seconds
 
 const NotificationBadge = ({ onClick, isOpen }) => {
   const [unreadCount, setUnreadCount] = useState(0);
-  const [loading, setLoading] = useState(false);
 
   const fetchUnreadCount = useCallback(async () => {
     try {

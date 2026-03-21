@@ -62,7 +62,8 @@ function onTokenRefreshed(newToken) {
   refreshSubscribers = [];
 }
 
-function onTokenRefreshFailed() {
+function onTokenRefreshFailed(error) {
+  refreshSubscribers.forEach((cb) => cb(null, error));
   refreshSubscribers = [];
 }
 
@@ -85,18 +86,24 @@ api.interceptors.response.use(
     if (response) {
       const { status, data } = response;
 
-      // 401 Unauthorized - Attempt token refresh before giving up
-      if (status === 401 && !originalRequest._retry) {
+      // 401 Unauthorized - Attempt token refresh before giving up.
+      // Skip refresh/session-expiry logic for login requests — a 401 from
+      // /auth/login simply means bad credentials, not an expired session.
+      const isLoginRequest = originalRequest?.url?.endsWith('/auth/login');
+      if (status === 401 && !originalRequest._retry && !isLoginRequest) {
         const refreshToken = localStorage.getItem(REFRESH_TOKEN_KEY);
 
         if (refreshToken) {
           if (isRefreshing) {
             // Another request is already refreshing — queue this one
             return new Promise((resolve, reject) => {
-              subscribeTokenRefresh((newToken) => {
+              subscribeTokenRefresh((newToken, err) => {
+                if (err || !newToken) {
+                  return reject(err || { status: 401, message: 'Token refresh failed', code: 'UNAUTHORIZED' });
+                }
                 originalRequest.headers.Authorization = `Bearer ${newToken}`;
                 originalRequest._retry = true;
-                resolve(axios(originalRequest).then(r => r.data));
+                resolve(api(originalRequest));
               });
             });
           }
@@ -120,7 +127,6 @@ api.interceptors.response.use(
                 localStorage.setItem(REFRESH_TOKEN_KEY, result.data.refreshToken);
               }
 
-              console.log('[API] Token refreshed successfully');
               onTokenRefreshed(newToken);
               isRefreshing = false;
 
@@ -129,11 +135,11 @@ api.interceptors.response.use(
 
               // Retry the original request with new token
               originalRequest.headers.Authorization = `Bearer ${newToken}`;
-              return axios(originalRequest).then(r => r.data);
+              return api(originalRequest);
             }
           } catch (refreshError) {
             console.warn('[API] Token refresh failed:', refreshError?.message);
-            onTokenRefreshFailed();
+            onTokenRefreshFailed({ status: 401, message: 'Token refresh failed', code: 'UNAUTHORIZED' });
           }
 
           isRefreshing = false;
@@ -178,7 +184,7 @@ api.interceptors.response.use(
               }
               window.dispatchEvent(new CustomEvent('pos:token-refreshed'));
               originalRequest.headers.Authorization = `Bearer ${newToken}`;
-              return axios(originalRequest).then(r => r.data);
+              return api(originalRequest);
             }
           } catch (refreshErr) {
             // Refresh failed — fall through to 403 rejection
@@ -227,12 +233,12 @@ api.interceptors.response.use(
         });
       }
 
-      // Other errors
+      // Other errors (including 401 from login with bad credentials)
       return Promise.reject({
         status,
-        message: data?.message || data?.error || 'An error occurred.',
-        code: data?.code || 'API_ERROR',
-        details: data?.details || null,
+        message: data?.error?.message || data?.message || (typeof data?.error === 'string' ? data.error : 'An error occurred.'),
+        code: data?.error?.code || data?.code || 'API_ERROR',
+        details: data?.error?.details || data?.details || null,
       });
     }
 
@@ -426,7 +432,6 @@ export const requestWithRetry = async (method, url, data = null, options = {}) =
 
       if (attempt < retries) {
         const delay = retryDelay * Math.pow(2, attempt); // Exponential backoff
-        console.log(`[API] Retry ${attempt + 1}/${retries} for ${url} after ${delay}ms`);
         await new Promise(resolve => setTimeout(resolve, delay));
       }
     }

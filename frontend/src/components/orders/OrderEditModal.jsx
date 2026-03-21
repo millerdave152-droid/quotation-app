@@ -11,7 +11,7 @@ import { useAuth } from '../../contexts/AuthContext';
 import { authFetch } from '../../services/authFetch';
 import AmendmentTimeline from './AmendmentTimeline';
 
-const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:3001';
+const API_URL = process.env.REACT_APP_API_URL || '';
 
 // ============================================================================
 // TAX RATES (simplified combined provincial rates for client-side estimates)

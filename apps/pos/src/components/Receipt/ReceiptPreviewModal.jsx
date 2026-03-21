@@ -4,19 +4,13 @@
  * Modal for previewing and printing receipts
  */
 
-import { useState, useRef, useCallback } from 'react';
-import {
-  XMarkIcon,
-  PrinterIcon,
-  EnvelopeIcon,
-  ArrowDownTrayIcon,
-  ArrowPathIcon,
-  DocumentTextIcon,
-  ReceiptRefundIcon,
-} from '@heroicons/react/24/outline';
+import { useState, useRef, useCallback, useEffect } from 'react';
 import { ReceiptTemplate } from './ReceiptTemplate';
+import { ReceiptEmailModal } from './ReceiptEmailModal';
+import { Download, FileText, Mail, Printer, Receipt, RefreshCw, X } from 'lucide-react';
 
-const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:3001/api';
+const API_BASE = import.meta.env.VITE_API_URL || '/api';
+const getToken = () => localStorage.getItem('pos_token') || localStorage.getItem('auth_token') || '';
 
 /**
  * Receipt Preview Modal
@@ -32,8 +26,6 @@ export function ReceiptPreviewModal({ isOpen, onClose, transactionId }) {
   const [variant, setVariant] = useState('full'); // 'full' or 'thermal'
   const [emailModalOpen, setEmailModalOpen] = useState(false);
   const [email, setEmail] = useState('');
-  const [emailSending, setEmailSending] = useState(false);
-  const [emailSuccess, setEmailSuccess] = useState(false);
   const receiptRef = useRef(null);
 
   // Load receipt data
@@ -46,7 +38,7 @@ export function ReceiptPreviewModal({ isOpen, onClose, transactionId }) {
     try {
       const response = await fetch(`${API_BASE}/receipts/${transactionId}/data`, {
         headers: {
-          Authorization: `Bearer ${localStorage.getItem('pos_token')}`
+          Authorization: `Bearer ${getToken()}`
         }
       });
 
@@ -71,7 +63,7 @@ export function ReceiptPreviewModal({ isOpen, onClose, transactionId }) {
   }, [transactionId]);
 
   // Load on open
-  useState(() => {
+  useEffect(() => {
     if (isOpen && transactionId) {
       loadReceipt();
     }
@@ -83,7 +75,7 @@ export function ReceiptPreviewModal({ isOpen, onClose, transactionId }) {
       // Option 1: Use PDF from API for proper printing
       const response = await fetch(`${API_BASE}/receipts/${transactionId}/pdf`, {
         headers: {
-          Authorization: `Bearer ${localStorage.getItem('pos_token')}`
+          Authorization: `Bearer ${getToken()}`
         }
       });
 
@@ -138,7 +130,7 @@ export function ReceiptPreviewModal({ isOpen, onClose, transactionId }) {
     try {
       const response = await fetch(`${API_BASE}/receipts/${transactionId}/pdf`, {
         headers: {
-          Authorization: `Bearer ${localStorage.getItem('pos_token')}`
+          Authorization: `Bearer ${getToken()}`
         }
       });
 
@@ -167,15 +159,12 @@ export function ReceiptPreviewModal({ isOpen, onClose, transactionId }) {
   const handleSendEmail = async () => {
     if (!email) return;
 
-    setEmailSending(true);
-    setEmailSuccess(false);
-
     try {
       const response = await fetch(`${API_BASE}/receipts/${transactionId}/email`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          Authorization: `Bearer ${localStorage.getItem('pos_token')}`
+          Authorization: `Bearer ${getToken()}`
         },
         body: JSON.stringify({ email })
       });
@@ -185,17 +174,10 @@ export function ReceiptPreviewModal({ isOpen, onClose, transactionId }) {
       if (!response.ok || !result.success) {
         throw new Error(result.error || 'Failed to send email');
       }
-
-      setEmailSuccess(true);
-      setTimeout(() => {
-        setEmailModalOpen(false);
-        setEmailSuccess(false);
-      }, 2000);
     } catch (err) {
       console.error('[ReceiptPreview] Email error:', err);
       setError(err.message);
-    } finally {
-      setEmailSending(false);
+      throw err;
     }
   };
 
@@ -215,7 +197,7 @@ export function ReceiptPreviewModal({ isOpen, onClose, transactionId }) {
         <div className="flex items-center justify-between p-4 border-b border-gray-200 bg-gray-50">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center">
-              <ReceiptRefundIcon className="w-5 h-5 text-blue-600" />
+              <Receipt className="w-5 h-5 text-blue-600" />
             </div>
             <div>
               <h2 className="text-lg font-bold text-gray-900">Receipt Preview</h2>
@@ -254,7 +236,7 @@ export function ReceiptPreviewModal({ isOpen, onClose, transactionId }) {
               onClick={onClose}
               className="w-10 h-10 flex items-center justify-center hover:bg-gray-200 rounded-lg transition-colors"
             >
-              <XMarkIcon className="w-6 h-6 text-gray-500" />
+              <X className="w-6 h-6 text-gray-500" />
             </button>
           </div>
         </div>
@@ -269,7 +251,7 @@ export function ReceiptPreviewModal({ isOpen, onClose, transactionId }) {
           ) : error ? (
             <div className="flex flex-col items-center justify-center h-64">
               <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mb-4">
-                <DocumentTextIcon className="w-8 h-8 text-red-600" />
+                <FileText className="w-8 h-8 text-red-600" />
               </div>
               <h3 className="text-lg font-semibold text-gray-900 mb-2">Error Loading Receipt</h3>
               <p className="text-gray-500 mb-4">{error}</p>
@@ -277,7 +259,7 @@ export function ReceiptPreviewModal({ isOpen, onClose, transactionId }) {
                 onClick={loadReceipt}
                 className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-2"
               >
-                <ArrowPathIcon className="w-4 h-4" />
+                <RefreshCw className="w-4 h-4" />
                 Try Again
               </button>
             </div>
@@ -288,6 +270,8 @@ export function ReceiptPreviewModal({ isOpen, onClose, transactionId }) {
                   ref={receiptRef}
                   receipt={receipt}
                   variant={variant}
+                  rebates={receipt.rebates}
+                  tradeIns={receipt.tradeIns?.items}
                 />
               </div>
             </div>
@@ -302,7 +286,7 @@ export function ReceiptPreviewModal({ isOpen, onClose, transactionId }) {
               disabled={loading}
               className="px-4 py-2 text-gray-600 hover:text-gray-800 hover:bg-gray-100 rounded-lg transition-colors flex items-center gap-2"
             >
-              <ArrowPathIcon className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
+              <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
               Refresh
             </button>
 
@@ -312,7 +296,7 @@ export function ReceiptPreviewModal({ isOpen, onClose, transactionId }) {
                 disabled={loading || !receipt}
                 className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors flex items-center gap-2 disabled:opacity-50"
               >
-                <EnvelopeIcon className="w-4 h-4" />
+                <Mail className="w-4 h-4" />
                 Email
               </button>
 
@@ -321,7 +305,7 @@ export function ReceiptPreviewModal({ isOpen, onClose, transactionId }) {
                 disabled={loading || !receipt}
                 className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors flex items-center gap-2 disabled:opacity-50"
               >
-                <ArrowDownTrayIcon className="w-4 h-4" />
+                <Download className="w-4 h-4" />
                 Download
               </button>
 
@@ -330,73 +314,23 @@ export function ReceiptPreviewModal({ isOpen, onClose, transactionId }) {
                 disabled={loading || !receipt}
                 className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-2 disabled:opacity-50"
               >
-                <PrinterIcon className="w-4 h-4" />
+                <Printer className="w-4 h-4" />
                 Print Receipt
               </button>
             </div>
           </div>
         </div>
 
-        {/* Email Modal */}
-        {emailModalOpen && (
-          <div className="absolute inset-0 bg-black/50 flex items-center justify-center">
-            <div className="bg-white rounded-xl shadow-2xl w-full max-w-md p-6">
-              <h3 className="text-lg font-bold text-gray-900 mb-4">Email Receipt</h3>
-
-              {emailSuccess ? (
-                <div className="text-center py-6">
-                  <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                    <EnvelopeIcon className="w-8 h-8 text-green-600" />
-                  </div>
-                  <p className="text-lg font-semibold text-gray-900">Email Sent!</p>
-                  <p className="text-gray-500">Receipt sent to {email}</p>
-                </div>
-              ) : (
-                <>
-                  <div className="mb-4">
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Email Address
-                    </label>
-                    <input
-                      type="email"
-                      value={email}
-                      onChange={(e) => setEmail(e.target.value)}
-                      placeholder="customer@example.com"
-                      className="w-full h-12 px-4 border-2 border-gray-200 rounded-lg focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
-                    />
-                  </div>
-
-                  <div className="flex gap-3">
-                    <button
-                      onClick={() => setEmailModalOpen(false)}
-                      className="flex-1 py-3 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition-colors"
-                    >
-                      Cancel
-                    </button>
-                    <button
-                      onClick={handleSendEmail}
-                      disabled={!email || emailSending}
-                      className="flex-1 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
-                    >
-                      {emailSending ? (
-                        <>
-                          <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                          Sending...
-                        </>
-                      ) : (
-                        <>
-                          <EnvelopeIcon className="w-4 h-4" />
-                          Send Receipt
-                        </>
-                      )}
-                    </button>
-                  </div>
-                </>
-              )}
-            </div>
-          </div>
-        )}
       </div>
+      <ReceiptEmailModal
+        isOpen={emailModalOpen}
+        onClose={() => setEmailModalOpen(false)}
+        initialEmail={email}
+        title="Email Receipt"
+        successLabel="Receipt sent"
+        sendLabel="Send Receipt"
+        onSend={handleSendEmail}
+      />
     </div>
   );
 }

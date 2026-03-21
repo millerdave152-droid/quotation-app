@@ -4,14 +4,7 @@
  */
 
 import { useState, useEffect, useMemo } from 'react';
-import {
-  BanknotesIcon,
-  ExclamationTriangleIcon,
-  CheckCircleIcon,
-  XCircleIcon,
-  CalculatorIcon,
-} from '@heroicons/react/24/outline';
-
+import { AlertTriangle, Banknote, Calculator, CheckCircle, XCircle } from 'lucide-react';
 /**
  * Format currency
  */
@@ -143,10 +136,10 @@ export function CashReconciliation({
   const status = getStatus();
 
   const statusConfig = {
-    pending: { color: 'gray', icon: CalculatorIcon, label: 'Enter actual cash' },
-    balanced: { color: 'green', icon: CheckCircleIcon, label: 'Balanced' },
-    over: { color: 'blue', icon: ExclamationTriangleIcon, label: 'Over' },
-    short: { color: 'red', icon: XCircleIcon, label: 'Short' },
+    pending: { color: 'gray', icon: Calculator, label: 'Enter actual cash' },
+    balanced: { color: 'green', icon: CheckCircle, label: 'Balanced' },
+    over: { color: 'blue', icon: AlertTriangle, label: 'Over' },
+    short: { color: 'red', icon: XCircle, label: 'Short' },
   };
 
   const config = statusConfig[status];
@@ -176,7 +169,7 @@ export function CashReconciliation({
       {/* Header */}
       <div className="flex items-center gap-3 p-4 border-b border-gray-200 bg-gray-50">
         <div className="p-2 bg-orange-100 rounded-lg">
-          <BanknotesIcon className="w-5 h-5 text-orange-600" />
+          <Banknote className="w-5 h-5 text-orange-600" />
         </div>
         <div>
           <h3 className="font-semibold text-gray-900">Cash Reconciliation</h3>
@@ -355,7 +348,7 @@ export function CashReconciliation({
               <p className={`mt-2 text-sm ${
                 status === 'over' ? 'text-blue-600' : 'text-red-600'
               }`}>
-                <ExclamationTriangleIcon className="inline w-4 h-4 mr-1" />
+                <AlertTriangle className="inline w-4 h-4 mr-1" />
                 Variance exceeds $5. Notes required.
               </p>
             )}

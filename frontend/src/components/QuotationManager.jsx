@@ -1,19 +1,11 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { useLocation } from 'react-router-dom';
-import { previewQuotePDF, downloadQuotePDF } from '../services/pdfService';
 import { authFetch } from '../services/authFetch';
-import {
-  FinancingCalculator,
-  WarrantySelector,
-  DeliverySelector,
-  RebatesDisplay,
-  TradeInEstimator
-} from './RevenueFeatures';
-import { getSmartSuggestions, getSuggestionsSummary } from '../utils/smartSuggestions';
+import { getSmartSuggestions } from '../utils/smartSuggestions';
 import { useAuth } from '../contexts/AuthContext';
 import { useQuoteOptional } from '../contexts/QuoteContext';
 import logger from '../utils/logger';
-import { cachedFetch, invalidateCache } from '../services/apiCache';
+import { cachedFetch } from '../services/apiCache';
 import { QuoteList, QuoteBuilder, QuoteViewer, CloneQuoteDialog, QuoteKanban } from './quotes';
 import Dashboard from './Dashboard';
 import { toast } from './ui/Toast';
@@ -21,7 +13,7 @@ import companyConfig from '../config/companyConfig';
 import useDraftPersistence from '../hooks/useDraftPersistence';
 import db from '../db/localDb';
 
-const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:3001';
+const API_URL = process.env.REACT_APP_API_URL || '';
 
 const QuotationManager = () => {
   // ============================================
@@ -55,9 +47,8 @@ const QuotationManager = () => {
   // Advanced filters
   const [customerFilter, setCustomerFilter] = useState('all'); // Filter by specific customer
   const [productFilter, setProductFilter] = useState(''); // Filter by product name/model
-  const [createdByFilter, setCreatedByFilter] = useState('all'); // Filter by creator
+  const [createdByFilter, _setCreatedByFilter] = useState('all'); // Filter by creator
   const [showAdvancedFilters, setShowAdvancedFilters] = useState(false); // Toggle advanced panel
-  const [filterPresets, setFilterPresets] = useState([]); // Saved filter combinations
   const [filterRefreshTrigger, setFilterRefreshTrigger] = useState(0); // Trigger to refresh filter counts
   const [activeQuickFilter, setActiveQuickFilter] = useState('all'); // Active quick filter chip
 
@@ -68,11 +59,11 @@ const QuotationManager = () => {
   const [notes, setNotes] = useState('');
   const [internalNotes, setInternalNotes] = useState('');
   const [terms, setTerms] = useState('Payment due within 30 days. All prices in CAD.');
-  const [productSearchTerm, setProductSearchTerm] = useState('');
+  const [_productSearchTerm, setProductSearchTerm] = useState('');
   const [editingQuoteId, setEditingQuoteId] = useState(null); // Track if editing
   const [editingQuoteNumber, setEditingQuoteNumber] = useState(null); // Track quote number for display
-  const [customerSearchTerm, setCustomerSearchTerm] = useState('');
-  const [showCustomerDropdown, setShowCustomerDropdown] = useState(false);
+  const [_customerSearchTerm, setCustomerSearchTerm] = useState('');
+  const [_showCustomerDropdown, setShowCustomerDropdown] = useState(false);
 
   // Viewer state
   const [selectedQuote, setSelectedQuote] = useState(null);
@@ -85,12 +76,11 @@ const QuotationManager = () => {
   const [templateDescription, setTemplateDescription] = useState('');
 
   // Customer history state
-  const [customerQuotes, setCustomerQuotes] = useState([]);
+  const [customerQuotes, _setCustomerQuotes] = useState([]);
 
   // Product favorites & recent state
   const [favoriteProducts, setFavoriteProducts] = useState([]);
   const [recentProducts, setRecentProducts] = useState([]);
-  const [productTab, setProductTab] = useState('search'); // 'search', 'favorites', 'recent'
 
   // Payment terms state
   const [paymentTermsTemplates, setPaymentTermsTemplates] = useState([]);
@@ -108,9 +98,6 @@ const QuotationManager = () => {
   // Activity timeline state
   const [showAddEventDialog, setShowAddEventDialog] = useState(false);
   const [newEventDescription, setNewEventDescription] = useState('');
-
-  // Analytics state
-  const [analyticsData, setAnalyticsData] = useState(null);
 
   // Approval workflow state
   const [showApprovalDialog, setShowApprovalDialog] = useState(false);
@@ -135,8 +122,7 @@ const QuotationManager = () => {
   const [quoteRebates, setQuoteRebates] = useState([]);
   const [quoteTradeIns, setQuoteTradeIns] = useState([]);
   const [showRevenueFeatures, setShowRevenueFeatures] = useState(false);
-  const [smartSuggestions, setSmartSuggestions] = useState(null);
-  const [showSuggestions, setShowSuggestions] = useState(true);
+  const [_smartSuggestions, setSmartSuggestions] = useState(null);
   const [availableFinancing, setAvailableFinancing] = useState([]);
   const [availableWarranties, setAvailableWarranties] = useState([]);
   const [availableRebates, setAvailableRebates] = useState([]);
@@ -150,6 +136,11 @@ const QuotationManager = () => {
   const [quoteExpiryDate, setQuoteExpiryDate] = useState('');
   const [emailTemplates, setEmailTemplates] = useState([]);
   const [selectedEmailTemplate, setSelectedEmailTemplate] = useState(null);
+
+  // ============================================
+  // INSTITUTIONAL BUYER STATE
+  // ============================================
+  const [institutionalFields, setInstitutionalFields] = useState({});
 
   // ============================================
   // DELIVERY & INSTALLATION STATE
@@ -172,7 +163,6 @@ const QuotationManager = () => {
   const [commissionPercent, setCommissionPercent] = useState(5);
   const [referralSource, setReferralSource] = useState('');
   const [referralName, setReferralName] = useState('');
-  const [referralSources, setReferralSources] = useState([]);
 
   // ============================================
   // CUSTOMER EXPERIENCE STATE
@@ -278,67 +268,6 @@ const QuotationManager = () => {
   });
 
   // ============================================
-  // SERVICE ITEMS (Quick Add)
-  // ============================================
-  const SERVICE_ITEMS = [
-    {
-      name: 'Standard Delivery',
-      description: 'Delivery within 5-7 business days',
-      sku: 'SRV-DEL-STD',
-      cost: 30.00,
-      msrp: 150.00,
-      sell: 99.00,
-      is_service: true,
-      manufacturer: 'Service',
-      category: 'Service'
-    },
-    {
-      name: 'Express Delivery',
-      description: 'Next day delivery',
-      sku: 'SRV-DEL-EXP',
-      cost: 50.00,
-      msrp: 200.00,
-      sell: 149.00,
-      is_service: true,
-      manufacturer: 'Service',
-      category: 'Service'
-    },
-    {
-      name: 'Basic Installation',
-      description: 'Standard product installation',
-      sku: 'SRV-INS-BAS',
-      cost: 50.00,
-      msrp: 200.00,
-      sell: 129.00,
-      is_service: true,
-      manufacturer: 'Service',
-      category: 'Service'
-    },
-    {
-      name: 'Premium Installation',
-      description: 'Full setup and configuration',
-      sku: 'SRV-INS-PRE',
-      cost: 80.00,
-      msrp: 300.00,
-      sell: 199.00,
-      is_service: true,
-      manufacturer: 'Service',
-      category: 'Service'
-    },
-    {
-      name: 'Haul Away',
-      description: 'Remove and dispose of old appliance',
-      sku: 'SRV-HAL-AWY',
-      cost: 20.00,
-      msrp: 120.00,
-      sell: 79.00,
-      is_service: true,
-      manufacturer: 'Service',
-      category: 'Service'
-    }
-  ];
-
-  // ============================================
   // ANTI-FLICKERING REFS
   // ============================================
   const isMounted = useRef(true);
@@ -348,19 +277,15 @@ const QuotationManager = () => {
   // DATA FETCHING
   // ============================================
   useEffect(() => {
-    console.log('[QuotationManager] Component mounted');
     isMounted.current = true;
 
     if (!loadedOnce.current) {
-      console.log('[QuotationManager] First mount - fetching initial data');
       loadedOnce.current = true;
       fetchInitialData();
     } else {
-      console.log('[QuotationManager] Already loaded once, skipping fetch');
     }
 
     return () => {
-      console.log('[QuotationManager] Component unmounting');
       isMounted.current = false;
     };
   }, []);
@@ -373,13 +298,6 @@ const QuotationManager = () => {
       setView('kanban');
     }
   }, []);
-
-  // Auto-open builder when navigating from Quick Search with items in context
-  useEffect(() => {
-    if (quoteContext?.hasItems && location.pathname === '/quotes/new') {
-      createNewQuote();
-    }
-  }, [location.pathname]);
 
   // Smart suggestions calculation - FIXED to prevent infinite loops
   // Uses primitive values and lengths in dependencies to avoid reference changes
@@ -479,17 +397,6 @@ const QuotationManager = () => {
     }
   };
 
-  const fetchCustomerQuotes = async (customerId) => {
-    try {
-      const res = await authFetch(`${API_URL}/api/quotes?customer_id=${customerId}&limit=5`);
-      const data = await res.json();
-      setCustomerQuotes(Array.isArray(data) ? data : []);
-    } catch (err) {
-      logger.error('Error fetching customer quotes:', err);
-      setCustomerQuotes([]);
-    }
-  };
-
   const fetchFavoriteProducts = async () => {
     try {
       const res = await authFetch(`${API_URL}/api/products/favorites`);
@@ -498,17 +405,6 @@ const QuotationManager = () => {
     } catch (err) {
       logger.error('Error fetching favorite products:', err);
       setFavoriteProducts([]);
-    }
-  };
-
-  const fetchRecentProducts = async () => {
-    try {
-      const res = await authFetch(`${API_URL}/api/products/recent?limit=10`);
-      const data = await res.json();
-      setRecentProducts(Array.isArray(data) ? data : []);
-    } catch (err) {
-      logger.error('Error fetching recent products:', err);
-      setRecentProducts([]);
     }
   };
 
@@ -530,61 +426,6 @@ const QuotationManager = () => {
       fetchFavoriteProducts(); // Refresh favorites list
     } catch (err) {
       logger.error('Error toggling favorite:', err);
-    }
-  };
-
-  const fetchPaymentTerms = async () => {
-    try {
-      const res = await authFetch(`${API_URL}/api/payment-terms`);
-      const data = await res.json();
-      setPaymentTermsTemplates(Array.isArray(data) ? data : []);
-    } catch (err) {
-      logger.error('Error fetching payment terms:', err);
-      setPaymentTermsTemplates([]);
-    }
-  };
-
-  const fetchFinancingPlans = async () => {
-    try {
-      const res = await authFetch(`${API_URL}/api/financing-plans`);
-      const data = await res.json();
-      setAvailableFinancing(Array.isArray(data) ? data : []);
-    } catch (err) {
-      logger.error('Error fetching financing plans:', err);
-      setAvailableFinancing([]);
-    }
-  };
-
-  const fetchWarrantyPlans = async () => {
-    try {
-      const res = await authFetch(`${API_URL}/api/warranty-plans`);
-      const data = await res.json();
-      setAvailableWarranties(Array.isArray(data) ? data : []);
-    } catch (err) {
-      logger.error('Error fetching warranty plans:', err);
-      setAvailableWarranties([]);
-    }
-  };
-
-  const fetchRebates = async () => {
-    try {
-      const res = await authFetch(`${API_URL}/api/rebates`);
-      const data = await res.json();
-      setAvailableRebates(Array.isArray(data) ? data : []);
-    } catch (err) {
-      logger.error('Error fetching rebates:', err);
-      setAvailableRebates([]);
-    }
-  };
-
-  const fetchEmailTemplates = async () => {
-    try {
-      const res = await authFetch(`${API_URL}/api/email-templates`);
-      const data = await res.json();
-      setEmailTemplates(Array.isArray(data) ? data : []);
-    } catch (err) {
-      logger.error('Error fetching email templates:', err);
-      setEmailTemplates([]);
     }
   };
 
@@ -611,18 +452,6 @@ const QuotationManager = () => {
       setFilterRefreshTrigger(prev => prev + 1);
     } catch (err) {
       logger.error('Error refreshing quotes:', err);
-    }
-  };
-
-  const refreshCustomersOnly = async () => {
-    if (!isMounted.current) return;
-    try {
-      const res = await authFetch(`${API_URL}/api/customers`);
-      const data = await res.json();
-      const customersArray = data.customers || data;
-      setCustomers(Array.isArray(customersArray) ? customersArray : []);
-    } catch (err) {
-      logger.error('Error refreshing customers:', err);
     }
   };
 
@@ -700,15 +529,12 @@ const QuotationManager = () => {
   };
 
   const fetchInitialData = async () => {
-    console.log('[QuotationManager] fetchInitialData called');
     if (!isMounted.current) {
-      console.log('[QuotationManager] Component unmounted, aborting fetch');
       return;
     }
 
     try {
       // Set loading FIRST to prevent flickering
-      console.log('[QuotationManager] Setting loading=true, starting data fetch');
       setLoading(true);
 
       // Fetch ALL data in parallel with CACHING - prevents rate limit issues
@@ -734,7 +560,11 @@ const QuotationManager = () => {
       if (!isMounted.current) return;
 
       // Ensure productsData is an array before filtering
-      const productsArray = Array.isArray(productsData) ? productsData : [];
+      // Backend returns { products: [...], pagination: {...} } or a plain array (legacy)
+      const productsArray = Array.isArray(productsData) ? productsData
+        : Array.isArray(productsData?.products) ? productsData.products
+        : Array.isArray(productsData?.data) ? productsData.data
+        : [];
 
       // Filter out products without model names and with valid data
       const validProducts = productsArray.filter(p =>
@@ -772,7 +602,6 @@ const QuotationManager = () => {
       }
     } finally {
       if (isMounted.current) {
-        console.log('[QuotationManager] Data fetch complete, setting loading=false');
         setLoading(false);
       }
     }
@@ -967,7 +796,7 @@ const QuotationManager = () => {
   }, []);
 
   // MEMOIZED: Filtered and sorted quotations list - prevents recalculation on every render
-  const { filteredQuotes, sortedQuotes, expiringSoonCount } = useMemo(() => {
+  const { filteredQuotes: _filteredQuotes, sortedQuotes, expiringSoonCount: _expiringSoonCount } = useMemo(() => {
     // Use server-side search results when available (searchTerm >= 2 chars)
     const useServerSearch = searchTerm && searchTerm.trim().length >= 2 && searchResults?.quotations;
     const sourceQuotes = useServerSearch ? searchResults.quotations : quotations;
@@ -1064,26 +893,6 @@ const QuotationManager = () => {
   }, [quotations, searchTerm, searchResults, statusFilter, dateFilter, valueFilter, expiringFilter,
       customerFilter, productFilter, createdByFilter, sortBy, sortOrder, isExpiringSoon]);
 
-  // MEMOIZED: Filtered products for search in builder view
-  const filteredProducts = useMemo(() => {
-    return products.filter(p =>
-      p.sku?.toLowerCase().includes(productSearchTerm.toLowerCase()) ||
-      p.model?.toLowerCase().includes(productSearchTerm.toLowerCase()) ||
-      p.manufacturer?.toLowerCase().includes(productSearchTerm.toLowerCase())
-    );
-  }, [products, productSearchTerm]);
-
-  // MEMOIZED: Filtered customers for dropdown
-  const filteredCustomers = useMemo(() => {
-    if (!customerSearchTerm.trim()) return customers.slice(0, 10);
-    const searchLower = customerSearchTerm.toLowerCase();
-    return customers.filter(c =>
-      c.name?.toLowerCase().includes(searchLower) ||
-      c.company?.toLowerCase().includes(searchLower) ||
-      c.email?.toLowerCase().includes(searchLower)
-    ).slice(0, 10);
-  }, [customers, customerSearchTerm]);
-
   const saveQuote = async () => {
     if (!selectedCustomer) {
       toast.warning('Please select a customer before saving', 'Missing Customer');
@@ -1142,7 +951,18 @@ const QuotationManager = () => {
           delivery: quoteDelivery,
           rebates: quoteRebates,
           tradeIns: quoteTradeIns
-        }
+        },
+        // Institutional buyer fields (only included when profile exists)
+        ...(institutionalFields.institutional_profile_id ? {
+          institutional_profile_id: institutionalFields.institutional_profile_id,
+          po_number: institutionalFields.po_number || null,
+          budget_code: institutionalFields.budget_code || null,
+          department_reference: institutionalFields.department_reference || null,
+          payment_terms: institutionalFields.payment_terms || null,
+          delivery_address_id: institutionalFields.delivery_address_id || null,
+          tax_exempt_cert_id: institutionalFields.tax_exempt_cert_id || null,
+          consolidated_invoice_group: institutionalFields.consolidated_invoice_group || null,
+        } : {}),
       };
 
       // Note: We no longer pre-check navigator.onLine here because it is
@@ -1402,22 +1222,14 @@ const QuotationManager = () => {
     setQuoteDelivery(null);
     setQuoteRebates([]);
     setQuoteTradeIns([]);
+
+    // Reset institutional fields
+    setInstitutionalFields({});
   };
 
   // ============================================
   // FILTER OPERATIONS
   // ============================================
-
-  const clearAllFilters = () => {
-    setSearchTerm('');
-    setStatusFilter('all');
-    setDateFilter('all');
-    setValueFilter('all');
-    setExpiringFilter(false);
-    setCustomerFilter('all');
-    setProductFilter('');
-    setCreatedByFilter('all');
-  };
 
   const getActiveFilterCount = () => {
     let count = 0;
@@ -1492,41 +1304,6 @@ const QuotationManager = () => {
     setTerms(template.terms || 'Payment due within 30 days. All prices in CAD.');
 
     alert(`Template "${template.name}" loaded!`);
-  };
-
-  const deleteTemplate = async (templateId, templateName) => {
-    if (!window.confirm(`Delete template "${templateName}"?`)) {
-      return;
-    }
-
-    try {
-      const res = await authFetch(`${API_URL}/api/quote-templates/${templateId}`, {
-        method: 'DELETE'
-      });
-
-      if (!res.ok) throw new Error('Failed to delete template');
-
-      alert(`Template "${templateName}" deleted successfully!`);
-      fetchTemplates(); // Refresh templates list
-    } catch (err) {
-      logger.error('Error deleting template:', err);
-      alert('Error deleting template. Please try again.');
-    }
-  };
-
-  // ============================================
-  // EMAIL QUOTE
-  // ============================================
-  const openEmailDialog = (quote) => {
-    const quoteTotal = ((quote.total_cents || 0) / 100).toLocaleString('en-CA', {
-      style: 'currency',
-      currency: 'CAD'
-    });
-    setEmailTo(quote.customer_email || '');
-    setEmailSubject(`Quote #${quote.quote_number || quote.id} from ${companyConfig.name}`);
-    setEmailMessage(`Dear ${quote.customer_name || 'Valued Customer'},\n\nThank you for the opportunity to provide you with a quote!\n\nQuote Details:\n• Quote Number: #${quote.quote_number || quote.id}\n• Total: ${quoteTotal}\n\nPlease find the attached PDF with full details.\n\nBest regards,\n${companyConfig.name}\n${companyConfig.contact?.phone || ''}`);
-    setSelectedEmailTemplate('');
-    setShowEmailDialog(true);
   };
 
   const sendQuoteEmail = async () => {
@@ -1935,6 +1712,18 @@ const QuotationManager = () => {
       setDepositRequired(data.deposit_required || false);
       setDepositAmount((data.deposit_amount_cents || 0) / 100);
 
+      // Load institutional fields
+      setInstitutionalFields({
+        institutional_profile_id: data.institutional_profile_id || null,
+        po_number: data.po_number || '',
+        budget_code: data.budget_code || '',
+        department_reference: data.department_reference || '',
+        payment_terms: data.payment_terms || '',
+        delivery_address_id: data.delivery_address_id || '',
+        tax_exempt_cert_id: data.tax_exempt_cert_id || null,
+        consolidated_invoice_group: data.consolidated_invoice_group || '',
+      });
+
       // Transform items back to builder format
       const items = data.items.map(item => ({
         product_id: item.product_id,
@@ -1964,86 +1753,6 @@ const QuotationManager = () => {
     }
   };
 
-  const duplicateQuote = async (quoteId) => {
-    try {
-      const res = await authFetch(`${API_URL}/api/quotes/${quoteId}`);
-      const data = await res.json();
-
-      // Find the customer in the customers list
-      const customer = customers.find(c => c.id === data.customer_id);
-
-      // Populate builder with quote data (but DON'T set editingQuoteId - this creates a new quote)
-      setSelectedCustomer(customer);
-      setDiscountPercent(data.discount_percent || 0);
-      setNotes(data.notes || '');
-      setInternalNotes(data.internal_notes || '');
-      setTerms(data.terms || 'Payment due within 30 days. All prices in CAD.');
-      setEditingQuoteId(null); // Important: null = create new quote
-      setEditingQuoteNumber(null);
-
-      // Load quote protection settings
-      setHideModelNumbers(data.hide_model_numbers || false);
-      setWatermarkText(data.watermark_text || 'CONFIDENTIAL - FOR CUSTOMER USE ONLY');
-      setWatermarkEnabled(data.watermark_enabled !== false);
-      // Don't copy expiry date - set fresh 30-day expiry
-      const newExpiryDate = new Date();
-      newExpiryDate.setDate(newExpiryDate.getDate() + 30);
-      setQuoteExpiryDate(newExpiryDate.toISOString().split('T')[0]);
-
-      // Copy delivery & installation fields
-      setDeliveryAddress(data.delivery_address || '');
-      setDeliveryCity(data.delivery_city || '');
-      setDeliveryPostalCode(data.delivery_postal_code || '');
-      setDeliveryDate(''); // Clear delivery date for new quote
-      setDeliveryTimeSlot(data.delivery_time_slot || '');
-      setDeliveryInstructions(data.delivery_instructions || '');
-      setInstallationRequired(data.installation_required || false);
-      setInstallationType(data.installation_type || '');
-      setHaulAwayRequired(data.haul_away_required || false);
-      setHaulAwayItems(data.haul_away_items || '');
-
-      // Copy sales & commission fields
-      setSalesRepName(data.sales_rep_name || '');
-      setCommissionPercent(data.commission_percent || 5);
-      setReferralSource(data.referral_source || '');
-      setReferralName(data.referral_name || '');
-
-      // Copy customer experience fields
-      setPriorityLevel(data.priority_level || 'standard');
-      setSpecialInstructions(data.special_instructions || '');
-      setPaymentMethod(data.payment_method || '');
-      setDepositRequired(data.deposit_required || false);
-      setDepositAmount((data.deposit_amount_cents || 0) / 100);
-
-      // Transform items back to builder format
-      const items = data.items.map(item => ({
-        product_id: item.product_id,
-        manufacturer: item.manufacturer || '',
-        model: item.model || item.description,
-        description: item.description,
-        category: item.category || '',
-        sku: item.sku || '',
-        upc: item.upc || null,
-        data_source: item.data_source || null,
-        ce_specs: item.ce_specs || null,
-        quantity: item.quantity,
-        cost: (item.cost_cents || 0) / 100,
-        msrp: (item.msrp_cents || 0) / 100,
-        sell: (item.sell_cents || 0) / 100,
-        notes: item.item_notes || '',
-        skulytics_snapshot: item.skulytics_snapshot || null,
-      }));
-
-      setQuoteItems(items);
-      setView('builder');
-
-      toast.success(`Quote duplicated from ${data.quote_number}. Click "Save Quote" to create your new quote.`, 'info');
-    } catch (err) {
-      logger.error('Error duplicating quote:', err);
-      toast.error('Error duplicating quote');
-    }
-  };
-
   const cancelEdit = () => {
     // Return to list without saving
     setEditingQuoteId(null);
@@ -2052,7 +1761,7 @@ const QuotationManager = () => {
     toast.info('Edit cancelled - no changes saved');
   };
 
-  const createNewQuote = () => {
+  const createNewQuote = useCallback(() => {
     // Generate a new draft UUID for this builder session
     setActiveDraftId(crypto.randomUUID());
     setView('builder');
@@ -2139,7 +1848,14 @@ const QuotationManager = () => {
     setQuoteRebates([]);
     setQuoteTradeIns([]);
     setShowRevenueFeatures(false);
-  };
+  }, [quoteContext]);
+
+  // Auto-open builder when navigating from Quick Search with items in context
+  useEffect(() => {
+    if (quoteContext?.hasItems && location.pathname === '/quotes/new') {
+      createNewQuote();
+    }
+  }, [location.pathname, quoteContext?.hasItems, createNewQuote]);
 
   const updateQuoteStatus = async (quoteId, newStatus, options = {}) => {
     try {
@@ -3130,29 +2846,6 @@ const QuotationManager = () => {
   // HELPER FUNCTIONS
   // ============================================
 
-  // Calculate quote expiry status and return appropriate styling
-  const getExpiryInfo = (expiryDate) => {
-    if (!expiryDate) return null;
-
-    const today = new Date();
-    const expiry = new Date(expiryDate);
-    const daysUntilExpiry = Math.ceil((expiry - today) / (1000 * 60 * 60 * 24));
-
-    if (daysUntilExpiry < 0) {
-      return { text: 'EXPIRED', color: '#dc2626', bg: '#fee2e2', urgent: true };
-    } else if (daysUntilExpiry === 0) {
-      return { text: 'Expires Today!', color: '#dc2626', bg: '#fee2e2', urgent: true };
-    } else if (daysUntilExpiry <= 3) {
-      return { text: `Expires in ${daysUntilExpiry} day${daysUntilExpiry === 1 ? '' : 's'}`, color: '#dc2626', bg: '#fee2e2', urgent: true };
-    } else if (daysUntilExpiry <= 7) {
-      return { text: `Expires in ${daysUntilExpiry} days`, color: '#ea580c', bg: '#ffedd5', urgent: false };
-    } else if (daysUntilExpiry <= 14) {
-      return { text: `Expires in ${daysUntilExpiry} days`, color: '#ca8a04', bg: '#fef3c7', urgent: false };
-    }
-
-    return null;
-  };
-
   // ============================================
   // MAIN RENDER
   // ============================================
@@ -3394,6 +3087,9 @@ const QuotationManager = () => {
           depositAmount={depositAmount}
           setDepositAmount={setDepositAmount}
           editingQuoteNumber={editingQuoteNumber}
+          // Institutional buyer
+          institutionalFields={institutionalFields}
+          setInstitutionalFields={setInstitutionalFields}
           lastSavedAt={draftPersistence.lastSavedAt}
           isSaving={draftPersistence.isSaving}
           onSave={saveQuote}

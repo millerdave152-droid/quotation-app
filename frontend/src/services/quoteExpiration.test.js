@@ -420,7 +420,7 @@ describe('Quote Expiration Service', () => {
   describe('Expiration Date Picker', () => {
     test('should generate date options for quick selection', () => {
       const generateQuickDateOptions = () => {
-        const today = new Date();
+        const _today = new Date();
         return [
           { label: '7 days', days: 7 },
           { label: '14 days', days: 14 },

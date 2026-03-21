@@ -4,14 +4,8 @@
  */
 
 import { useState, useCallback, useMemo } from 'react';
-import {
-  TagIcon,
-  XMarkIcon,
-  PercentBadgeIcon,
-  CurrencyDollarIcon,
-  CheckIcon,
-} from '@heroicons/react/24/outline';
 import { formatCurrency } from '../../utils/formatters';
+import { Check, DollarSign, Percent, Tag, X } from 'lucide-react';
 
 /**
  * Common discount reasons
@@ -101,7 +95,7 @@ export function DiscountInput({
       {/* Header */}
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-2">
-          <TagIcon className="w-5 h-5 text-blue-600" />
+          <Tag className="w-5 h-5 text-blue-600" />
           <h3 className="text-lg font-semibold text-gray-900">Apply Discount</h3>
         </div>
         <button
@@ -109,7 +103,7 @@ export function DiscountInput({
           onClick={onClose}
           className="w-8 h-8 flex items-center justify-center text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
         >
-          <XMarkIcon className="w-5 h-5" />
+          <X className="w-5 h-5" />
         </button>
       </div>
 
@@ -150,7 +144,7 @@ export function DiscountInput({
             }
           `}
         >
-          <CurrencyDollarIcon className="w-4 h-4" />
+          <DollarSign className="w-4 h-4" />
           Dollar Amount
         </button>
         <button
@@ -167,7 +161,7 @@ export function DiscountInput({
             }
           `}
         >
-          <PercentBadgeIcon className="w-4 h-4" />
+          <Percent className="w-4 h-4" />
           Percentage
         </button>
       </div>
@@ -320,7 +314,7 @@ export function DiscountInput({
           transition-colors duration-150
         "
       >
-        <CheckIcon className="w-5 h-5" />
+        <Check className="w-5 h-5" />
         Apply Discount {calculatedDiscount > 0 && `(${formatCurrency(calculatedDiscount)})`}
       </button>
     </div>

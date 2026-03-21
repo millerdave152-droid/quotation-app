@@ -6,15 +6,9 @@
 
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import {
-  ArrowLeftIcon,
-  ArrowPathIcon,
-  ExclamationTriangleIcon,
-  CheckCircleIcon,
-  ShieldExclamationIcon,
-} from '@heroicons/react/24/outline';
 import { useAuth } from '../../context/AuthContext';
 import api from '../../api/axios';
+import { AlertTriangle, ArrowLeft, CheckCircle, RefreshCw, ShieldAlert } from 'lucide-react';
 
 // ---- Constants ----
 
@@ -137,7 +131,7 @@ function TierMap({ tiers }) {
             if (gap > 0.01) {
               return (
                 <div key={t.tier} className="flex items-center gap-1.5 text-[11px] text-amber-600">
-                  <ExclamationTriangleIcon className="w-3.5 h-3.5" />
+                  <AlertTriangle className="w-3.5 h-3.5" />
                   Gap: {prevMax}% to {curMin}% between Tier {tiers[i].tier} and Tier {t.tier}
                 </div>
               );
@@ -145,7 +139,7 @@ function TierMap({ tiers }) {
             if (gap < -0.01) {
               return (
                 <div key={t.tier} className="flex items-center gap-1.5 text-[11px] text-red-600">
-                  <ExclamationTriangleIcon className="w-3.5 h-3.5" />
+                  <AlertTriangle className="w-3.5 h-3.5" />
                   Overlap: Tier {tiers[i].tier} max ({prevMax}%) &gt; Tier {t.tier} min ({curMin}%)
                 </div>
               );
@@ -285,7 +279,7 @@ function TierCard({ tier, index, onChange, warnings }) {
           <div className="space-y-1 pt-2 border-t border-gray-100">
             {warnings.map((w, i) => (
               <div key={i} className={`flex items-start gap-1.5 text-[11px] ${w.level === 'error' ? 'text-red-600' : 'text-amber-600'}`}>
-                <ExclamationTriangleIcon className="w-3.5 h-3.5 flex-shrink-0 mt-0.5" />
+                <AlertTriangle className="w-3.5 h-3.5 flex-shrink-0 mt-0.5" />
                 <span>{w.message}</span>
               </div>
             ))}
@@ -429,7 +423,7 @@ export function TierSettingsAdmin() {
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <div className="text-center space-y-4 max-w-sm">
           <div className="w-16 h-16 mx-auto bg-red-50 rounded-full flex items-center justify-center">
-            <ShieldExclamationIcon className="w-8 h-8 text-red-400" />
+            <ShieldAlert className="w-8 h-8 text-red-400" />
           </div>
           <h2 className="text-lg font-bold text-gray-900">Access Denied</h2>
           <p className="text-sm text-gray-500">Only administrators can configure approval tier settings.</p>
@@ -458,7 +452,7 @@ export function TierSettingsAdmin() {
                 onClick={() => navigate(-1)}
                 className="w-10 h-10 flex items-center justify-center text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
               >
-                <ArrowLeftIcon className="w-5 h-5" />
+                <ArrowLeft className="w-5 h-5" />
               </button>
               <div>
                 <h1 className="text-xl font-bold text-gray-900">Approval Tier Settings</h1>
@@ -483,7 +477,7 @@ export function TierSettingsAdmin() {
                 {saving ? (
                   <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
                 ) : (
-                  <CheckCircleIcon className="w-4 h-4" />
+                  <CheckCircle className="w-4 h-4" />
                 )}
                 Save Changes
               </button>
@@ -501,8 +495,8 @@ export function TierSettingsAdmin() {
               : 'bg-red-50 border-red-200 text-red-700'
           }`}>
             {saveResult.type === 'success'
-              ? <CheckCircleIcon className="w-5 h-5" />
-              : <ExclamationTriangleIcon className="w-5 h-5" />
+              ? <CheckCircle className="w-5 h-5" />
+              : <AlertTriangle className="w-5 h-5" />
             }
             {saveResult.message}
           </div>
@@ -513,7 +507,7 @@ export function TierSettingsAdmin() {
           <div className="p-4 bg-red-50 border border-red-200 rounded-xl text-sm text-red-700 flex items-center justify-between">
             <span>{error}</span>
             <button onClick={fetchTiers} className="flex items-center gap-1 text-red-600 font-medium hover:text-red-800">
-              <ArrowPathIcon className="w-4 h-4" /> Retry
+              <RefreshCw className="w-4 h-4" /> Retry
             </button>
           </div>
         )}
@@ -531,7 +525,7 @@ export function TierSettingsAdmin() {
             {/* Validation summary */}
             {hasErrors && (
               <div className="p-3 bg-red-50 border border-red-200 rounded-xl flex items-start gap-2">
-                <ExclamationTriangleIcon className="w-5 h-5 text-red-500 flex-shrink-0 mt-0.5" />
+                <AlertTriangle className="w-5 h-5 text-red-500 flex-shrink-0 mt-0.5" />
                 <p className="text-sm text-red-700">Fix validation errors before saving.</p>
               </div>
             )}

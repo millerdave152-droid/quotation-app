@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 
 import { authFetch } from '../../services/authFetch';
-const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:3001';
+const API_URL = process.env.REACT_APP_API_URL || '';
 
 const STATUSES = [
   { key: 'pending', label: 'Pending' },
@@ -25,36 +25,37 @@ function FulfillmentTracker({ quoteId, token, convertedToOrderId }) {
       setLoading(false);
       return;
     }
+
+    const fetchFulfillment = async () => {
+      try {
+        setLoading(true);
+        const url = token
+          ? `${API_URL}/api/customer-portal/quotes/${token}/${quoteId}/fulfillment`
+          : `${API_URL}/api/customer-portal/internal/quotes/${quoteId}/fulfillment`;
+
+        const headers = {};
+        if (!token) {
+          const authToken = localStorage.getItem('auth_token');
+          if (authToken) headers['Authorization'] = `Bearer ${authToken}`;
+        }
+
+        const response = await authFetch(url, { headers });
+        const result = await response.json();
+
+        if (result.success) {
+          setFulfillment(result.data);
+        } else {
+          setError(result.error || 'Failed to load fulfillment');
+        }
+      } catch (err) {
+        setError(err.message);
+      } finally {
+        setLoading(false);
+      }
+    };
+
     fetchFulfillment();
   }, [quoteId, token, convertedToOrderId]);
-
-  const fetchFulfillment = async () => {
-    try {
-      setLoading(true);
-      const url = token
-        ? `${API_URL}/api/customer-portal/quotes/${token}/${quoteId}/fulfillment`
-        : `${API_URL}/api/customer-portal/internal/quotes/${quoteId}/fulfillment`;
-
-      const headers = {};
-      if (!token) {
-        const authToken = localStorage.getItem('auth_token');
-        if (authToken) headers['Authorization'] = `Bearer ${authToken}`;
-      }
-
-      const response = await authFetch(url, { headers });
-      const result = await response.json();
-
-      if (result.success) {
-        setFulfillment(result.data);
-      } else {
-        setError(result.error || 'Failed to load fulfillment');
-      }
-    } catch (err) {
-      setError(err.message);
-    } finally {
-      setLoading(false);
-    }
-  };
 
   const formatDate = (dateStr) => {
     if (!dateStr) return 'N/A';

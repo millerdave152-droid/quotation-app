@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { authFetch } from '../../services/authFetch';
 
-const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:3001';
+const API_URL = process.env.REACT_APP_API_URL || '';
 
 /**
  * VariantSelector — Reusable component for selecting a product variant

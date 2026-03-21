@@ -6,7 +6,7 @@ import { authFetch } from '../../services/authFetch';
 
 import React, { useState, useEffect, useCallback } from 'react';
 
-const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:3001';
+const API_URL = process.env.REACT_APP_API_URL || '';
 
 // Activity type configurations
 const ACTIVITY_TYPES = {
@@ -45,7 +45,7 @@ const formatRelativeTime = (date) => {
 /**
  * Activity Item Component
  */
-const ActivityItem = ({ activity, onEdit, onDelete }) => {
+const ActivityItem = ({ activity }) => {
   const config = ACTIVITY_TYPES[activity.activity_type] || {
     icon: '📌',
     color: '#6b7280',

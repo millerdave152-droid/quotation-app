@@ -72,7 +72,6 @@ class EmailQueueService {
       createdBy
     ]);
 
-    console.log(`[EmailQueue] Job ${result.rows[0].id} enqueued for ${recipientEmail}`);
     return result.rows[0];
   }
 
@@ -110,7 +109,6 @@ class EmailQueueService {
    */
   async processQueue(batchSize = 10) {
     if (this.isProcessing) {
-      console.log('[EmailQueue] Already processing, skipping...');
       return { skipped: true };
     }
 
@@ -135,7 +133,6 @@ class EmailQueueService {
         return results;
       }
 
-      console.log(`[EmailQueue] Processing ${jobs.length} jobs...`);
 
       for (const job of jobs) {
         try {
@@ -148,7 +145,6 @@ class EmailQueueService {
         results.processed++;
       }
 
-      console.log(`[EmailQueue] Batch complete: ${results.sent} sent, ${results.failed} failed`);
 
     } catch (err) {
       console.error('[EmailQueue] Queue processing error:', err.message);
@@ -194,7 +190,6 @@ class EmailQueueService {
 
       if (sendResult.success) {
         await this.markComplete(job.id);
-        console.log(`[EmailQueue] Job ${job.id} sent successfully in ${Date.now() - startTime}ms`);
       } else {
         throw new Error(sendResult.error || 'Email send failed');
       }
@@ -210,7 +205,6 @@ class EmailQueueService {
         // Schedule retry with exponential backoff
         const backoffMinutes = Math.pow(2, updatedJob.attempts) * 5; // 5, 10, 20 min
         await this.scheduleRetry(job.id, backoffMinutes);
-        console.log(`[EmailQueue] Job ${job.id} scheduled for retry in ${backoffMinutes} minutes`);
       }
 
       throw err;
@@ -352,7 +346,6 @@ class EmailQueueService {
       WHERE id = $1
     `, [jobId]);
 
-    console.log(`[EmailQueue] Job ${jobId} reset for retry`);
     return this.getJob(jobId);
   }
 
@@ -371,7 +364,6 @@ class EmailQueueService {
       throw new Error('Job not found or cannot be cancelled');
     }
 
-    console.log(`[EmailQueue] Job ${jobId} cancelled`);
     return result.rows[0];
   }
 
@@ -497,7 +489,6 @@ class EmailQueueService {
    */
   start(schedule = '*/2 * * * *') {
     if (this.cronJob) {
-      console.log('[EmailQueue] Already running');
       return;
     }
 
@@ -505,7 +496,6 @@ class EmailQueueService {
       await this.processQueue();
     }, { timezone: 'America/Toronto' });
 
-    console.log(`[EmailQueue] Started with schedule: ${schedule}`);
   }
 
   /**
@@ -515,7 +505,6 @@ class EmailQueueService {
     if (this.cronJob) {
       this.cronJob.stop();
       this.cronJob = null;
-      console.log('[EmailQueue] Stopped');
     }
   }
 
@@ -531,7 +520,6 @@ class EmailQueueService {
       RETURNING id
     `, [daysOld]);
 
-    console.log(`[EmailQueue] Cleaned up ${result.rows.length} old jobs`);
     return result.rows.length;
   }
 }

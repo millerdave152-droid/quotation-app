@@ -38,9 +38,27 @@ class MonerisService {
     this.webhookSecret = config.webhookSecret || process.env.MONERIS_WEBHOOK_SECRET;
     this.currency = config.currency || 'CAD';
 
+    // Billing descriptor config: { default: 'TELETIME*MAIN TORONTO', locations: { 1: 'TELETIME*DT TORONTO', ... } }
+    this.billingDescriptors = config.billingDescriptors || {
+      default: process.env.MONERIS_BILLING_DESCRIPTOR || 'TeleTime',
+    };
+
     if (!this.storeId || !this.apiToken) {
       console.warn('Moneris credentials not configured. Payment features will be disabled.');
     }
+  }
+
+  /**
+   * Get billing descriptor for a location.
+   * Format: STORENAME*LOCATION CITY (max 22 chars per Visa/MC rules)
+   * @param {number|null} locationId
+   * @returns {string}
+   */
+  getBillingDescriptor(locationId = null) {
+    if (locationId && this.billingDescriptors.locations?.[locationId]) {
+      return this.billingDescriptors.locations[locationId].substring(0, 22);
+    }
+    return (this.billingDescriptors.default || 'TeleTime').substring(0, 22);
   }
 
   /**
@@ -177,6 +195,10 @@ class MonerisService {
       throw new Error('Moneris is not configured');
     }
 
+    if (!amountCents || amountCents <= 0 || !Number.isFinite(amountCents)) {
+      throw new Error('Payment amount must be a positive number');
+    }
+
     const orderId = this._generateOrderId('PI');
     const amount = (amountCents / 100).toFixed(2);
 
@@ -187,6 +209,7 @@ class MonerisService {
       pan: metadata.cardNumber || '',
       expdate: metadata.expDate || '',
       crypt_type: '7', // SSL-enabled merchant
+      dynamic_descriptor: this.getBillingDescriptor(metadata.locationId || null),
     });
 
     const response = await this._sendGatewayRequest(xml);
@@ -249,6 +272,7 @@ class MonerisService {
       pan: cardDetails.cardNumber || '',
       expdate: cardDetails.expDate || '',
       crypt_type: '7',
+      dynamic_descriptor: this.getBillingDescriptor(metadata.locationId || null),
     });
 
     const response = await this._sendGatewayRequest(xml);

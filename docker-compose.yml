@@ -18,27 +18,40 @@ services:
       timeout: 10s
       retries: 3
       start_period: 15s
+    logging:
+      driver: json-file
+      options:
+        max-size: "50m"
+        max-file: "5"
 
   frontend:
     build:
       context: ./frontend
       dockerfile: Dockerfile
     ports:
-      - "80:80"
+      - "3000:80"
     depends_on:
       backend:
         condition: service_healthy
     restart: unless-stopped
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
 
   pos:
     build:
       context: ./apps/pos
       dockerfile: Dockerfile
     ports:
-      - "5173:80"
+      - "5000:80"
     depends_on:
       backend:
         condition: service_healthy
     restart: unless-stopped
-    profiles:
-      - full
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"

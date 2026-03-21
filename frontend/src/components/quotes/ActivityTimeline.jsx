@@ -13,33 +13,38 @@ import { authFetch } from '../../services/authFetch';
 
 import React, { useState, useCallback } from 'react';
 
-const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:3001';
+const API_URL = process.env.REACT_APP_API_URL || '';
+
+// SVG icon helper
+const SvgIcon = ({ d, color = 'currentColor', size = 14 }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" dangerouslySetInnerHTML={{ __html: d }} />
+);
 
 // Activity type configurations
 const ACTIVITY_CONFIG = {
-  CREATED: { icon: '✨', color: '#3b82f6', bgColor: '#dbeafe', label: 'Created' },
-  UPDATED: { icon: '✏️', color: '#f59e0b', bgColor: '#fef3c7', label: 'Updated' },
-  STATUS_CHANGED: { icon: '🔄', color: '#6366f1', bgColor: '#e0e7ff', label: 'Status Changed' },
-  SENT: { icon: '📤', color: '#10b981', bgColor: '#d1fae5', label: 'Sent' },
-  WON: { icon: '🏆', color: '#22c55e', bgColor: '#dcfce7', label: 'Won' },
-  LOST: { icon: '❌', color: '#ef4444', bgColor: '#fee2e2', label: 'Lost' },
-  EMAIL_SENT: { icon: '📧', color: '#10b981', bgColor: '#d1fae5', label: 'Email Sent' },
-  CUSTOMER_VIEWED: { icon: '👀', color: '#8b5cf6', bgColor: '#ede9fe', label: 'Viewed' },
-  FOLLOW_UP_SCHEDULED: { icon: '📅', color: '#f97316', bgColor: '#ffedd5', label: 'Follow-up' },
-  CUSTOMER_CONTACTED: { icon: '📞', color: '#06b6d4', bgColor: '#cffafe', label: 'Contacted' },
-  PRICE_ADJUSTED: { icon: '💰', color: '#eab308', bgColor: '#fef9c3', label: 'Price Adjusted' },
-  APPROVAL_REQUESTED: { icon: '⏳', color: '#f59e0b', bgColor: '#fef3c7', label: 'Approval Requested' },
-  APPROVED: { icon: '✅', color: '#22c55e', bgColor: '#dcfce7', label: 'Approved' },
-  REJECTED: { icon: '❌', color: '#ef4444', bgColor: '#fee2e2', label: 'Rejected' },
-  NOTE_ADDED: { icon: '📝', color: '#6b7280', bgColor: '#f3f4f6', label: 'Note' },
-  INTERNAL_NOTE: { icon: '🔒', color: '#374151', bgColor: '#e5e7eb', label: 'Internal Note' },
-  PDF_GENERATED: { icon: '📄', color: '#3b82f6', bgColor: '#dbeafe', label: 'PDF Generated' },
-  PDF_DOWNLOADED: { icon: '⬇️', color: '#3b82f6', bgColor: '#dbeafe', label: 'PDF Downloaded' },
+  CREATED: { icon: <SvgIcon d='<circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/>' color="#3b82f6" />, color: '#3b82f6', bgColor: '#dbeafe', label: 'Created' },
+  UPDATED: { icon: <SvgIcon d='<path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>' color="#f59e0b" />, color: '#f59e0b', bgColor: '#fef3c7', label: 'Updated' },
+  STATUS_CHANGED: { icon: <SvgIcon d='<polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/>' color="#6366f1" />, color: '#6366f1', bgColor: '#e0e7ff', label: 'Status Changed' },
+  SENT: { icon: <SvgIcon d='<line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/>' color="#10b981" />, color: '#10b981', bgColor: '#d1fae5', label: 'Sent' },
+  WON: { icon: <SvgIcon d='<path d="M6 9H4.5a2.5 2.5 0 0 1 0-5C7 4 9 7 12 7s5-3 7.5-3a2.5 2.5 0 0 1 0 5H18"/><path d="M18 9v11a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2V9"/>' color="#22c55e" />, color: '#22c55e', bgColor: '#dcfce7', label: 'Won' },
+  LOST: { icon: <SvgIcon d='<circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/>' color="#ef4444" />, color: '#ef4444', bgColor: '#fee2e2', label: 'Lost' },
+  EMAIL_SENT: { icon: <SvgIcon d='<line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/>' color="#10b981" />, color: '#10b981', bgColor: '#d1fae5', label: 'Email Sent' },
+  CUSTOMER_VIEWED: { icon: <SvgIcon d='<path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>' color="#8b5cf6" />, color: '#8b5cf6', bgColor: '#ede9fe', label: 'Viewed' },
+  FOLLOW_UP_SCHEDULED: { icon: <SvgIcon d='<rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/>' color="#f97316" />, color: '#f97316', bgColor: '#ffedd5', label: 'Follow-up' },
+  CUSTOMER_CONTACTED: { icon: <SvgIcon d='<path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/>' color="#06b6d4" />, color: '#06b6d4', bgColor: '#cffafe', label: 'Contacted' },
+  PRICE_ADJUSTED: { icon: <SvgIcon d='<line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/>' color="#eab308" />, color: '#eab308', bgColor: '#fef9c3', label: 'Price Adjusted' },
+  APPROVAL_REQUESTED: { icon: <SvgIcon d='<circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>' color="#f59e0b" />, color: '#f59e0b', bgColor: '#fef3c7', label: 'Approval Requested' },
+  APPROVED: { icon: <SvgIcon d='<path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/>' color="#22c55e" />, color: '#22c55e', bgColor: '#dcfce7', label: 'Approved' },
+  REJECTED: { icon: <SvgIcon d='<circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/>' color="#ef4444" />, color: '#ef4444', bgColor: '#fee2e2', label: 'Rejected' },
+  NOTE_ADDED: { icon: <SvgIcon d='<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/>' color="#6b7280" />, color: '#6b7280', bgColor: '#f3f4f6', label: 'Note' },
+  INTERNAL_NOTE: { icon: <SvgIcon d='<rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>' color="#374151" />, color: '#374151', bgColor: '#e5e7eb', label: 'Internal Note' },
+  PDF_GENERATED: { icon: <SvgIcon d='<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/>' color="#3b82f6" />, color: '#3b82f6', bgColor: '#dbeafe', label: 'PDF Generated' },
+  PDF_DOWNLOADED: { icon: <SvgIcon d='<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>' color="#3b82f6" />, color: '#3b82f6', bgColor: '#dbeafe', label: 'PDF Downloaded' },
   // Signature events
-  SIGNATURE_ADDED: { icon: '✍️', color: '#10b981', bgColor: '#d1fae5', label: 'Signed' },
-  CUSTOMER_SIGNED: { icon: '✍️', color: '#22c55e', bgColor: '#dcfce7', label: 'Customer Signed' },
-  STAFF_SIGNED: { icon: '✍️', color: '#3b82f6', bgColor: '#dbeafe', label: 'Staff Signed' },
-  SIGNATURE_REMOVED: { icon: '❌', color: '#ef4444', bgColor: '#fee2e2', label: 'Signature Removed' }
+  SIGNATURE_ADDED: { icon: <SvgIcon d='<path d="M20 12v6a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h6"/><polyline points="22 4 12 14.01 9 11.01"/>' color="#10b981" />, color: '#10b981', bgColor: '#d1fae5', label: 'Signed' },
+  CUSTOMER_SIGNED: { icon: <SvgIcon d='<path d="M20 12v6a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h6"/><polyline points="22 4 12 14.01 9 11.01"/>' color="#22c55e" />, color: '#22c55e', bgColor: '#dcfce7', label: 'Customer Signed' },
+  STAFF_SIGNED: { icon: <SvgIcon d='<path d="M20 12v6a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h6"/><polyline points="22 4 12 14.01 9 11.01"/>' color="#3b82f6" />, color: '#3b82f6', bgColor: '#dbeafe', label: 'Staff Signed' },
+  SIGNATURE_REMOVED: { icon: <SvgIcon d='<circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/>' color="#ef4444" />, color: '#ef4444', bgColor: '#fee2e2', label: 'Signature Removed' }
 };
 
 // Category filters
@@ -56,11 +61,11 @@ const CATEGORIES = [
 
 // Contact methods
 const CONTACT_METHODS = [
-  { id: 'phone', label: 'Phone Call', icon: '📞' },
-  { id: 'email', label: 'Email', icon: '📧' },
-  { id: 'in-person', label: 'In Person', icon: '🤝' },
-  { id: 'video-call', label: 'Video Call', icon: '🎥' },
-  { id: 'text', label: 'Text/SMS', icon: '💬' }
+  { id: 'phone', label: 'Phone Call', icon: <SvgIcon d='<path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/>' color="#6b7280" /> },
+  { id: 'email', label: 'Email', icon: <SvgIcon d='<path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/>' color="#6b7280" /> },
+  { id: 'in-person', label: 'In Person', icon: <SvgIcon d='<path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>' color="#6b7280" /> },
+  { id: 'video-call', label: 'Video Call', icon: <SvgIcon d='<polygon points="23 7 16 12 23 17 23 7"/><rect x="1" y="5" width="15" height="14" rx="2" ry="2"/>' color="#6b7280" /> },
+  { id: 'text', label: 'Text/SMS', icon: <SvgIcon d='<path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>' color="#6b7280" /> }
 ];
 
 const ActivityTimeline = ({
@@ -198,7 +203,7 @@ const ActivityTimeline = ({
   // Get config for activity type
   const getActivityConfig = (type) => {
     return ACTIVITY_CONFIG[type] || {
-      icon: '📌',
+      icon: <SvgIcon d='<circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>' color="#6b7280" />,
       color: '#6b7280',
       bgColor: '#f3f4f6',
       label: type
@@ -243,7 +248,7 @@ const ActivityTimeline = ({
               gap: '6px'
             }}
           >
-            <span>📝</span> Add Note
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="12" y1="18" x2="12" y2="12"/><line x1="9" y1="15" x2="15" y2="15"/></svg> Add Note
           </button>
 
           <button
@@ -262,7 +267,7 @@ const ActivityTimeline = ({
               gap: '6px'
             }}
           >
-            <span>📞</span> Log Contact
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg> Log Contact
           </button>
 
           <button
@@ -281,7 +286,7 @@ const ActivityTimeline = ({
               gap: '6px'
             }}
           >
-            <span>📅</span> Follow-up
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg> Follow-up
           </button>
         </div>
       </div>
@@ -329,7 +334,7 @@ const ActivityTimeline = ({
             textAlign: 'center',
             color: '#6b7280'
           }}>
-            <div style={{ fontSize: '48px', marginBottom: '12px' }}>📋</div>
+            <div style={{ marginBottom: '12px', display: 'flex', justifyContent: 'center' }}><svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#d1d5db" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg></div>
             <p style={{ margin: 0 }}>No activities recorded yet.</p>
             <p style={{ margin: '8px 0 0', fontSize: '14px' }}>Add notes to start tracking interactions!</p>
           </div>
@@ -440,7 +445,7 @@ const ActivityTimeline = ({
                         fontSize: '10px',
                         fontWeight: '500'
                       }}>
-                        🔒 Internal
+                        <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg> Internal
                       </span>
                     )}
                   </div>

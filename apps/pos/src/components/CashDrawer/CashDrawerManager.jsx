@@ -4,21 +4,11 @@
  */
 
 import { useState, useEffect, useCallback } from 'react';
-import {
-  BanknotesIcon,
-  ArrowDownTrayIcon,
-  ArrowUpTrayIcon,
-  MinusCircleIcon,
-  PlusCircleIcon,
-  ClockIcon,
-  ChartBarIcon,
-  LockClosedIcon,
-  ArrowPathIcon,
-} from '@heroicons/react/24/outline';
 import { formatCurrency, formatDateTime } from '../../utils/formatters';
 import { CashMovementModal } from './CashMovementModal';
+import { Banknote, BarChart3, Clock, Download, Lock, MinusCircle, PlusCircle, RefreshCw, Upload } from 'lucide-react';
 
-const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:3001/api';
+const API_BASE = import.meta.env.VITE_API_URL || '/api';
 
 /**
  * Movement history row
@@ -27,16 +17,16 @@ function MovementRow({ movement }) {
   const isOut = movement.direction === 'out';
 
   const typeIcons = {
-    paid_out: MinusCircleIcon,
-    drop: ArrowDownTrayIcon,
-    pickup: ArrowUpTrayIcon,
-    add: PlusCircleIcon,
-    float_adjust: PlusCircleIcon,
-    refund: MinusCircleIcon,
-    correction: ArrowPathIcon
+    paid_out: MinusCircle,
+    drop: Download,
+    pickup: Upload,
+    add: PlusCircle,
+    float_adjust: PlusCircle,
+    refund: MinusCircle,
+    correction: RefreshCw
   };
 
-  const Icon = typeIcons[movement.movementType] || BanknotesIcon;
+  const Icon = typeIcons[movement.movementType] || Banknote;
 
   return (
     <div className="flex items-center gap-3 py-3 border-b border-gray-100 last:border-0">
@@ -170,7 +160,7 @@ export function CashDrawerManager({ shiftId, onClose }) {
     return (
       <div className="p-6 text-center">
         <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
-          <BanknotesIcon className="w-8 h-8 text-red-600" />
+          <Banknote className="w-8 h-8 text-red-600" />
         </div>
         <h3 className="text-lg font-semibold text-gray-900 mb-2">Error Loading Drawer</h3>
         <p className="text-gray-500 mb-4">{error}</p>
@@ -201,7 +191,7 @@ export function CashDrawerManager({ shiftId, onClose }) {
             onClick={loadData}
             className="w-10 h-10 flex items-center justify-center hover:bg-slate-600 rounded-lg transition-colors"
           >
-            <ArrowPathIcon className="w-5 h-5" />
+            <RefreshCw className="w-5 h-5" />
           </button>
         </div>
 
@@ -237,7 +227,7 @@ export function CashDrawerManager({ shiftId, onClose }) {
             onClick={() => handleOpenMovement('paid_out')}
             className="flex flex-col items-center gap-1 p-3 bg-red-50 hover:bg-red-100 rounded-xl transition-colors"
           >
-            <MinusCircleIcon className="w-6 h-6 text-red-600" />
+            <MinusCircle className="w-6 h-6 text-red-600" />
             <span className="text-xs font-medium text-red-700">Paid Out</span>
           </button>
 
@@ -245,7 +235,7 @@ export function CashDrawerManager({ shiftId, onClose }) {
             onClick={() => handleOpenMovement('drop')}
             className="flex flex-col items-center gap-1 p-3 bg-orange-50 hover:bg-orange-100 rounded-xl transition-colors"
           >
-            <ArrowDownTrayIcon className="w-6 h-6 text-orange-600" />
+            <Download className="w-6 h-6 text-orange-600" />
             <span className="text-xs font-medium text-orange-700">Safe Drop</span>
           </button>
 
@@ -253,7 +243,7 @@ export function CashDrawerManager({ shiftId, onClose }) {
             onClick={() => handleOpenMovement('add')}
             className="flex flex-col items-center gap-1 p-3 bg-green-50 hover:bg-green-100 rounded-xl transition-colors"
           >
-            <PlusCircleIcon className="w-6 h-6 text-green-600" />
+            <PlusCircle className="w-6 h-6 text-green-600" />
             <span className="text-xs font-medium text-green-700">Add Cash</span>
           </button>
 
@@ -261,7 +251,7 @@ export function CashDrawerManager({ shiftId, onClose }) {
             onClick={handleNoSale}
             className="flex flex-col items-center gap-1 p-3 bg-gray-50 hover:bg-gray-100 rounded-xl transition-colors"
           >
-            <LockClosedIcon className="w-6 h-6 text-gray-600" />
+            <Lock className="w-6 h-6 text-gray-600" />
             <span className="text-xs font-medium text-gray-700">No Sale</span>
           </button>
         </div>
@@ -272,7 +262,7 @@ export function CashDrawerManager({ shiftId, onClose }) {
         <div className="grid grid-cols-2 gap-4">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center">
-              <ChartBarIcon className="w-5 h-5 text-blue-600" />
+              <BarChart3 className="w-5 h-5 text-blue-600" />
             </div>
             <div>
               <p className="text-xs text-gray-500">Transactions</p>
@@ -282,7 +272,7 @@ export function CashDrawerManager({ shiftId, onClose }) {
 
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 bg-green-100 rounded-lg flex items-center justify-center">
-              <BanknotesIcon className="w-5 h-5 text-green-600" />
+              <Banknote className="w-5 h-5 text-green-600" />
             </div>
             <div>
               <p className="text-xs text-gray-500">Total Sales</p>
@@ -292,7 +282,7 @@ export function CashDrawerManager({ shiftId, onClose }) {
 
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 bg-purple-100 rounded-lg flex items-center justify-center">
-              <ClockIcon className="w-5 h-5 text-purple-600" />
+              <Clock className="w-5 h-5 text-purple-600" />
             </div>
             <div>
               <p className="text-xs text-gray-500">Shift Started</p>
@@ -307,7 +297,7 @@ export function CashDrawerManager({ shiftId, onClose }) {
 
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 bg-orange-100 rounded-lg flex items-center justify-center">
-              <ArrowDownTrayIcon className="w-5 h-5 text-orange-600" />
+              <Download className="w-5 h-5 text-orange-600" />
             </div>
             <div>
               <p className="text-xs text-gray-500">Drops Today</p>
@@ -332,7 +322,7 @@ export function CashDrawerManager({ shiftId, onClose }) {
 
           {movements.length === 0 ? (
             <div className="text-center py-8 text-gray-500">
-              <BanknotesIcon className="w-12 h-12 mx-auto mb-3 text-gray-300" />
+              <Banknote className="w-12 h-12 mx-auto mb-3 text-gray-300" />
               <p>No cash movements recorded</p>
               <p className="text-sm">Use the buttons above to record paid-outs, drops, or additions</p>
             </div>

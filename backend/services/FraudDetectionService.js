@@ -4,12 +4,21 @@
  * real-time risk assessment, alert generation, and audit logging.
  */
 
+const wsService = require('./WebSocketService');
+
 class FraudDetectionService {
   /**
    * @param {Pool} pool - PostgreSQL connection pool
+   * @param {object} options - Optional service dependencies
+   * @param {VelocityService} options.velocityService - Velocity tracking
+   * @param {BINValidationService} options.binService - BIN lookup
+   * @param {AuditLogService} options.auditLogService - Hash-chain audit logging
    */
-  constructor(pool) {
+  constructor(pool, options = {}) {
     this.pool = pool;
+    this.velocityService = options.velocityService || null;
+    this.binService = options.binService || null;
+    this.auditLogService = options.auditLogService || null;
     this._rulesCache = null;
     this._rulesCacheTime = 0;
     this.RULES_CACHE_TTL = 300000; // 5 minutes
@@ -65,8 +74,145 @@ class FraudDetectionService {
       }
     }
 
+    // Card-not-present on in-store transaction
+    const cnpRule = rules.find(r => r.rule_code === 'card_not_present' && r.is_active);
+    if (cnpRule && txnData.payments) {
+      const payments = Array.isArray(txnData.payments) ? txnData.payments : [];
+      const hasManualEntry = payments.some(p =>
+        ['manual', 'keyed', 'online'].includes(p.cardEntryMethod || p.card_entry_method) ||
+        p.cardPresent === false || p.card_present === false
+      );
+      if (hasManualEntry) {
+        triggeredRules.push({
+          triggered: true,
+          rule: cnpRule,
+          details: { pattern: 'card_not_present' }
+        });
+      }
+    }
+
+    // Split tender across 3+ payment methods
+    const splitRule = rules.find(r => r.rule_code === 'split_tender_many' && r.is_active);
+    if (splitRule && txnData.payments) {
+      const payments = Array.isArray(txnData.payments) ? txnData.payments : [];
+      const uniqueMethods = new Set(payments.map(p => p.paymentMethod || p.payment_method));
+      const minMethods = splitRule.conditions?.min_methods || 3;
+      if (uniqueMethods.size >= minMethods) {
+        triggeredRules.push({
+          triggered: true,
+          rule: splitRule,
+          details: { payment_method_count: uniqueMethods.size, limit: minMethods }
+        });
+      }
+    }
+
+    // Transaction outside business hours
+    const hoursRule = rules.find(r => r.rule_code === 'outside_business_hours' && r.is_active);
+    if (hoursRule) {
+      const hour = new Date().getHours();
+      const startHour = hoursRule.conditions?.start_hour || 8;
+      const endHour = hoursRule.conditions?.end_hour || 22;
+      if (hour < startHour || hour >= endHour) {
+        triggeredRules.push({
+          triggered: true,
+          rule: hoursRule,
+          details: { current_hour: hour, allowed_range: `${startHour}:00-${endHour}:00` }
+        });
+      }
+    }
+
+    // BIN checks (prepaid / foreign card)
+    if (this.binService && txnData.payments) {
+      const payments = Array.isArray(txnData.payments) ? txnData.payments : [];
+      for (const payment of payments) {
+        const cardBin = payment.card_bin || payment.cardBin;
+        if (!cardBin) continue;
+
+        try {
+          const binData = await this.binService.lookup(cardBin);
+          if (!binData) continue;
+
+          const prepaidRule = rules.find(r => r.rule_code === 'bin_prepaid_card' && r.is_active);
+          if (prepaidRule && binData.isPrepaid) {
+            triggeredRules.push({
+              triggered: true,
+              rule: prepaidRule,
+              details: { card_bin: cardBin, card_type: binData.cardType, issuer: binData.issuerName }
+            });
+          }
+
+          const foreignRule = rules.find(r => r.rule_code === 'bin_foreign_card' && r.is_active);
+          if (foreignRule && binData.issuerCountry && !['CA', 'US'].includes(binData.issuerCountry)) {
+            triggeredRules.push({
+              triggered: true,
+              rule: foreignRule,
+              details: { card_bin: cardBin, issuer_country: binData.issuerCountry, issuer: binData.issuerName }
+            });
+          }
+        } catch (binErr) {
+          // Non-fatal: BIN lookup failure should not block transactions
+        }
+      }
+    }
+
+    // Record velocity event if service available
+    if (this.velocityService) {
+      try {
+        const amount = Math.round(parseFloat(txnData.total_amount || txnData.totalAmount || 0) * 100);
+        await this.velocityService.recordEvent('employee_txn', String(userId), amount, {
+          shift_id: shiftId,
+          transaction_id: txnData.transaction_id || null
+        });
+
+        // Also record card velocity for pattern detection
+        const payments = Array.isArray(txnData.payments) ? txnData.payments : [];
+        for (const payment of payments) {
+          const cardId = payment.card_bin || payment.cardBin;
+          const lastFour = payment.card_last_four || payment.cardLastFour;
+          if (cardId) {
+            const cardHash = `${cardId}_${lastFour || ''}`;
+            await this.velocityService.recordEvent('card_use', cardHash, amount, {
+              transaction_id: txnData.transaction_id || null,
+              location_id: txnData.location_id || txnData.locationId || null,
+            });
+          }
+        }
+      } catch (velErr) {
+        // Non-fatal
+      }
+    }
+
+    // Phase 3: Pattern detection checks
+    const splitResult = await this._checkSplitTransaction(txnData, userId);
+    if (splitResult) triggeredRules.push(splitResult);
+
+    const payments = Array.isArray(txnData.payments) ? txnData.payments : [];
+    for (const payment of payments) {
+      const cardId = payment.card_bin || payment.cardBin;
+      const lastFour = payment.card_last_four || payment.cardLastFour;
+      if (cardId) {
+        const cardHash = `${cardId}_${lastFour || ''}`;
+        const cardTestResult = await this._checkCardTesting(cardHash);
+        if (cardTestResult) triggeredRules.push(cardTestResult);
+
+        const geoResult = await this._checkGeographicAnomaly(
+          txnData.location_id || txnData.locationId || null, cardHash
+        );
+        if (geoResult) triggeredRules.push(geoResult);
+      }
+    }
+
     const riskScore = this._calculateRiskScore(triggeredRules);
     const action = this._determineAction(riskScore, triggeredRules);
+
+    // Phase 3: Record fraud score with signal breakdown
+    const signals = {};
+    for (const tr of triggeredRules) {
+      if (tr.triggered) {
+        signals[tr.rule.rule_code] = { risk_points: tr.rule.risk_points, details: tr.details };
+      }
+    }
+    await this._recordFraudScore(txnData, riskScore, signals, action, { userId, customerId });
 
     let alertId = null;
     if (triggeredRules.length > 0) {
@@ -140,6 +286,20 @@ class FraudDetectionService {
         rule: noReceiptRule,
         details: { pattern: 'no_receipt_return' }
       });
+    }
+
+    // Record velocity event if service available
+    if (this.velocityService) {
+      try {
+        const amount = Math.round(parseFloat(returnData.total_refund_amount || returnData.refundAmount || 0) * 100);
+        await this.velocityService.recordEvent('employee_txn', String(userId), amount, {
+          shift_id: shiftId,
+          type: 'refund',
+          return_id: returnData.return_id || returnData.id || null
+        });
+      } catch (velErr) {
+        // Non-fatal
+      }
     }
 
     const riskScore = this._calculateRiskScore(triggeredRules);
@@ -278,6 +438,78 @@ class FraudDetectionService {
     return { riskScore, triggeredRules, action, alertId };
   }
 
+  /**
+   * Assess a quote-to-sale conversion for fraud risk.
+   * NEVER blocks — quotes are flagged for review only.
+   * @param {object} quoteData - { id, total_cents, customer_id, created_by, item_count, age_days }
+   * @param {number} userId - Employee performing the conversion
+   * @param {number|null} shiftId
+   * @returns {Promise<object>} { riskScore, triggeredRules[], action, alertId? }
+   */
+  async assessQuoteConversion(quoteData, userId, shiftId = null) {
+    const triggeredRules = [];
+    const rules = await this._getActiveRules();
+
+    // Check high transaction amount
+    const amountRule = rules.find(r => r.rule_code === 'amount_high_txn' && r.is_active);
+    if (amountRule) {
+      const totalDollars = (quoteData.total_cents || 0) / 100;
+      const threshold = amountRule.conditions?.threshold || 5000;
+      if (totalDollars >= threshold) {
+        triggeredRules.push({
+          triggered: true,
+          rule: amountRule,
+          details: { amount: totalDollars, threshold }
+        });
+      }
+    }
+
+    // Check customer chargeback history
+    if (quoteData.customer_id) {
+      const cbRule = rules.find(r => r.rule_code === 'chargeback_history' && r.is_active);
+      if (cbRule) {
+        const { rows } = await this.pool.query(
+          `SELECT COUNT(*) as cb_count FROM chargeback_cases
+           WHERE customer_id = $1 AND status IN ('received', 'responding', 'lost')`,
+          [quoteData.customer_id]
+        );
+        const cbCount = parseInt(rows[0].cb_count);
+        if (cbCount > 0) {
+          triggeredRules.push({
+            triggered: true,
+            rule: cbRule,
+            details: { chargeback_count: cbCount }
+          });
+        }
+      }
+    }
+
+    // Calculate risk score
+    const riskScore = triggeredRules.reduce((sum, tr) => sum + (tr.rule.risk_points || 0), 0);
+
+    // CRITICAL: Never block or require approval for quote conversions
+    const action = riskScore > 0 ? 'alert' : 'allow';
+
+    let alertId = null;
+    if (triggeredRules.length > 0) {
+      const severity = riskScore >= 40 ? 'high' : riskScore >= 20 ? 'medium' : 'low';
+      const alert = await this.createAlert({
+        riskScore,
+        triggeredRules,
+        action,
+        alertType: 'quote_conversion',
+        severity
+      }, {
+        userId,
+        shiftId,
+        customerId: quoteData.customer_id || null
+      });
+      alertId = alert?.id;
+    }
+
+    return { riskScore, triggeredRules, action, alertId };
+  }
+
   // ============================================================================
   // PUBLIC API — Alerts
   // ============================================================================
@@ -329,6 +561,45 @@ class FraudDetectionService {
          ON CONFLICT (alert_id) DO NOTHING`,
         [alert.id, assessment.riskScore]
       );
+    }
+
+    // Upsert employee risk profile
+    if (context.userId) {
+      try {
+        await this.pool.query(
+          `INSERT INTO employee_risk_profiles (user_id, total_alerts, last_alert_at, updated_at)
+           VALUES ($1, 1, NOW(), NOW())
+           ON CONFLICT (user_id) DO UPDATE SET
+             total_alerts = employee_risk_profiles.total_alerts + 1,
+             last_alert_at = NOW(),
+             updated_at = NOW()`,
+          [context.userId]
+        );
+      } catch (profileErr) {
+        // Non-fatal
+        console.error('[FraudDetection] Employee risk profile upsert error (non-fatal):', profileErr.message);
+      }
+    }
+
+    // Emit real-time WebSocket event to managers/admins
+    try {
+      wsService.broadcastToRoles(
+        ['manager', 'senior_manager', 'admin'],
+        'fraud:alert',
+        {
+          alertId: alert.id,
+          riskScore: assessment.riskScore,
+          action: assessment.action,
+          alertType: assessment.alertType,
+          severity: assessment.severity,
+          transactionId: context.transactionId || null,
+          userId: context.userId,
+          timestamp: alert.created_at,
+        }
+      );
+    } catch (wsErr) {
+      // Non-fatal: WS may not be initialized during tests/startup
+      console.error('[FraudDetection] WebSocket emit error (non-fatal):', wsErr.message);
     }
 
     return alert;
@@ -641,14 +912,14 @@ class FraudDetectionService {
   async getEmployeeMetrics(userId = null) {
     if (userId) {
       const { rows } = await this.pool.query(
-        'SELECT * FROM employee_fraud_metrics WHERE user_id = $1',
+        'SELECT * FROM mv_employee_fraud_metrics WHERE user_id = $1',
         [userId]
       );
       return rows[0] || null;
     }
 
     const { rows } = await this.pool.query(
-      'SELECT * FROM employee_fraud_metrics ORDER BY fraud_alert_count DESC, void_count DESC'
+      'SELECT * FROM mv_employee_fraud_metrics ORDER BY void_rate_zscore DESC, refund_rate_zscore DESC'
     );
     return rows;
   }
@@ -657,7 +928,7 @@ class FraudDetectionService {
    * Refresh the materialized view
    */
   async refreshEmployeeMetrics() {
-    await this.pool.query('REFRESH MATERIALIZED VIEW CONCURRENTLY employee_fraud_metrics');
+    await this.pool.query('REFRESH MATERIALIZED VIEW CONCURRENTLY mv_employee_fraud_metrics');
   }
 
   // ============================================================================
@@ -665,9 +936,15 @@ class FraudDetectionService {
   // ============================================================================
 
   /**
-   * Log an audit entry for a sensitive action
+   * Log an audit entry for a sensitive action.
+   * Delegates to AuditLogService (hash-chain) when available, falls back to direct INSERT.
    */
   async logAuditEntry(userId, action, entityType, entityId, details = {}, req = null) {
+    if (this.auditLogService) {
+      return this.auditLogService.log(userId, action, entityType, entityId, details, req);
+    }
+
+    // Fallback: direct INSERT (no hash chain)
     const ipAddress = req
       ? (req.headers['x-forwarded-for'] || req.connection?.remoteAddress || null)
       : null;
@@ -687,6 +964,49 @@ class FraudDetectionService {
         details.risk_score || null
       ]
     );
+  }
+
+  /**
+   * Capture evidence snapshot at transaction completion for chargeback defense.
+   * @param {number} transactionId
+   * @param {object} txnData - { transaction_number, user_id, shift_id, customer_id, payments, items, total_amount }
+   * @returns {Promise<object>} The snapshot object
+   */
+  async captureEvidenceSnapshot(transactionId, txnData) {
+    const snapshot = {
+      captured_at: new Date().toISOString(),
+      receipt_number: txnData.transaction_number || txnData.receipt_number || null,
+      employee_id: txnData.user_id || txnData.employee_id || null,
+      shift_id: txnData.shift_id || null,
+      customer_id: txnData.customer_id || null,
+      payment_methods: (txnData.payments || []).map(p => ({
+        method: p.paymentMethod || p.payment_method,
+        amount: p.amount,
+        card_last_four: p.cardLastFour || p.card_last_four || null,
+        card_brand: p.cardBrand || p.card_brand || null,
+        card_entry_method: p.cardEntryMethod || p.card_entry_method || null,
+        authorization_code: p.authorizationCode || p.authorization_code || null,
+      })),
+      serial_numbers: (txnData.items || [])
+        .filter(i => i.serialNumber || i.serial_number)
+        .map(i => ({
+          product: i.productName || i.product_name || i.productSku || i.product_sku,
+          serial: i.serialNumber || i.serial_number,
+        })),
+      total_amount: txnData.total_amount || txnData.totalAmount || null,
+      item_count: (txnData.items || []).length,
+    };
+
+    try {
+      await this.pool.query(
+        'UPDATE transactions SET evidence_snapshot = $1 WHERE transaction_id = $2',
+        [JSON.stringify(snapshot), transactionId]
+      );
+    } catch (err) {
+      console.error('[FraudDetection] Evidence snapshot capture error (non-fatal):', err.message);
+    }
+
+    return snapshot;
   }
 
   // ============================================================================
@@ -872,6 +1192,29 @@ class FraudDetectionService {
           transactionId: data.transaction_id,
           customerId: data.customer_id
         });
+      }
+    }
+
+    // Auto-pull evidence snapshot from the transaction for chargeback defense
+    if (data.transaction_id) {
+      try {
+        const txnResult = await this.pool.query(
+          'SELECT evidence_snapshot FROM transactions WHERE transaction_id = $1',
+          [data.transaction_id]
+        );
+        if (txnResult.rows[0]?.evidence_snapshot) {
+          await this.pool.query(
+            `INSERT INTO chargeback_evidence (chargeback_id, evidence_type, description, uploaded_by)
+             VALUES ($1, 'transaction_snapshot', $2, $3)`,
+            [
+              rows[0].id,
+              JSON.stringify(txnResult.rows[0].evidence_snapshot),
+              data.created_by || null
+            ]
+          );
+        }
+      } catch (evErr) {
+        console.error('[FraudDetection] Chargeback evidence auto-pull error (non-fatal):', evErr.message);
       }
     }
 
@@ -1227,6 +1570,184 @@ class FraudDetectionService {
   // ============================================================================
   // PRIVATE — Scoring
   // ============================================================================
+
+  // ============================================================================
+  // PHASE 3 — Pattern Detection
+  // ============================================================================
+
+  /**
+   * Detect split transactions: multiple small txns by same employee in a window
+   * to avoid manager-approval thresholds.
+   * @param {object} txnData - Transaction data with employee info
+   * @param {number} userId - Employee ID
+   * @returns {Promise<object|null>} Triggered rule result or null
+   */
+  async _checkSplitTransaction(txnData, userId) {
+    if (!this.velocityService) return null;
+    const rules = await this._loadRules();
+    const rule = rules.find(r => r.rule_code === 'split_transaction' && r.is_active);
+    if (!rule) return null;
+
+    const params = rule.parameters || {};
+    const windowSeconds = (params.window_minutes || 30) * 60;
+    const maxSplits = params.max_splits || 3;
+
+    try {
+      const count = await this.velocityService.getCount('employee_txn', String(userId), windowSeconds);
+      if (count >= maxSplits) {
+        return {
+          triggered: true,
+          rule,
+          details: { count, window_minutes: params.window_minutes || 30, threshold: maxSplits }
+        };
+      }
+    } catch (err) {
+      // Non-fatal
+    }
+    return null;
+  }
+
+  /**
+   * Detect card testing: multiple small-amount attempts in a short window.
+   * @param {string} cardHash - Card identifier (BIN + last4 or token hash)
+   * @returns {Promise<object|null>} Triggered rule result or null
+   */
+  async _checkCardTesting(cardHash) {
+    if (!this.velocityService || !cardHash) return null;
+    const rules = await this._loadRules();
+    const rule = rules.find(r => r.rule_code === 'card_testing' && r.is_active);
+    if (!rule) return null;
+
+    const params = rule.parameters || {};
+    const windowSeconds = params.window_seconds || 300;
+    const minAttempts = params.min_attempts || 3;
+    const smallAmountThreshold = params.small_amount_threshold || 5;
+
+    try {
+      const count = await this.velocityService.getCount('card_use', cardHash, windowSeconds);
+      if (count >= minAttempts) {
+        const sumCents = await this.velocityService.getSum('card_use', cardHash, windowSeconds);
+        const avgAmount = count > 0 ? (sumCents / 100) / count : 0;
+        if (avgAmount < smallAmountThreshold) {
+          return {
+            triggered: true,
+            rule,
+            details: { attempts: count, avg_amount: parseFloat(avgAmount.toFixed(2)), window_seconds: windowSeconds }
+          };
+        }
+      }
+    } catch (err) {
+      // Non-fatal
+    }
+    return null;
+  }
+
+  /**
+   * Detect geographic anomaly: same card at different locations within impossible travel time.
+   * @param {number|null} locationId - Current transaction location
+   * @param {string} cardHash - Card identifier
+   * @returns {Promise<object|null>} Triggered rule result or null
+   */
+  async _checkGeographicAnomaly(locationId, cardHash) {
+    if (!locationId || !cardHash) return null;
+    const rules = await this._loadRules();
+    const rule = rules.find(r => r.rule_code === 'geographic_anomaly' && r.is_active);
+    if (!rule) return null;
+
+    const params = rule.parameters || {};
+    const windowMinutes = params.impossible_travel_minutes || 30;
+
+    try {
+      const { rows } = await this.pool.query(`
+        SELECT DISTINCT location_id, created_at
+        FROM velocity_events
+        WHERE event_type = 'card_use'
+          AND entity_id = $1
+          AND location_id IS NOT NULL
+          AND location_id != $2
+          AND created_at >= NOW() - ($3 * INTERVAL '1 minute')
+        ORDER BY created_at DESC
+        LIMIT 5
+      `, [cardHash, locationId, windowMinutes]);
+
+      if (rows.length > 0) {
+        const locations = [locationId, ...rows.map(r => r.location_id)];
+        const timeGap = rows[0] ? Math.round((Date.now() - new Date(rows[0].created_at).getTime()) / 60000) : 0;
+        return {
+          triggered: true,
+          rule,
+          details: { locations: [...new Set(locations)], time_gap_minutes: timeGap }
+        };
+      }
+    } catch (err) {
+      // Non-fatal
+    }
+    return null;
+  }
+
+  /**
+   * Record a fraud score after assessment.
+   * Persists all signals and metadata to the fraud_scores table.
+   * @param {object} txnData - Transaction/context data
+   * @param {number} riskScore - Computed risk score (0-100)
+   * @param {object} signals - Signal breakdown JSONB
+   * @param {string} action - Action taken (allow/alert/require_approval/block)
+   * @param {object} context - Additional context (userId, customerId, etc.)
+   */
+  async _recordFraudScore(txnData, riskScore, signals, action, context = {}) {
+    const riskLevel = riskScore >= 80 ? 'critical'
+      : riskScore >= 60 ? 'high'
+      : riskScore >= 30 ? 'medium'
+      : 'low';
+
+    const payments = Array.isArray(txnData.payments) ? txnData.payments : [];
+    const firstPayment = payments[0] || {};
+    const cardBin = firstPayment.card_bin || firstPayment.cardBin || null;
+    const cardLastFour = firstPayment.card_last_four || firstPayment.cardLastFour || null;
+
+    try {
+      await this.pool.query(`
+        INSERT INTO fraud_scores (
+          transaction_id, order_id, score, risk_level, signals, action_taken,
+          moneris_token, card_bin, card_last_four, card_type, card_brand,
+          entry_method, terminal_id, employee_id, location_id,
+          customer_id, amount, currency, ip_address, device_fingerprint,
+          avs_result, cvv_result
+        ) VALUES (
+          $1, $2, $3, $4, $5, $6,
+          $7, $8, $9, $10, $11,
+          $12, $13, $14, $15,
+          $16, $17, $18, $19, $20,
+          $21, $22
+        )
+      `, [
+        txnData.transaction_id || null,
+        txnData.order_id || null,
+        riskScore,
+        riskLevel,
+        JSON.stringify(signals),
+        action,
+        firstPayment.moneris_token || firstPayment.token || null,
+        cardBin,
+        cardLastFour,
+        firstPayment.card_type || firstPayment.cardType || null,
+        firstPayment.card_brand || firstPayment.cardBrand || null,
+        firstPayment.entry_method || firstPayment.cardEntryMethod || null,
+        txnData.terminal_id || txnData.terminalId || null,
+        context.userId || null,
+        txnData.location_id || txnData.locationId || null,
+        context.customerId || null,
+        parseFloat(txnData.total_amount || txnData.totalAmount || 0),
+        txnData.currency || 'CAD',
+        txnData.ip_address || null,
+        txnData.device_fingerprint || null,
+        firstPayment.avs_result || null,
+        firstPayment.cvv_result || null,
+      ]);
+    } catch (err) {
+      // Non-fatal: don't block transactions if fraud_scores insert fails
+    }
+  }
 
   /**
    * Calculate risk score from triggered rules (0-100)

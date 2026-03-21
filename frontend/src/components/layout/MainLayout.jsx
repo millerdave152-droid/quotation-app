@@ -27,7 +27,7 @@ const MainLayout = ({ children }) => {
   }, []);
 
   useEffect(() => {
-    const handleAuthExpired = (event) => {
+    const handleAuthExpired = (_event) => {
       if (authExpiredHandledRef.current) return;
       authExpiredHandledRef.current = true;
 

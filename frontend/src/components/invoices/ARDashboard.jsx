@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Box,
   Paper,
@@ -33,23 +33,6 @@ import {
   Divider
 } from '@mui/material';
 import {
-  AccountBalance,
-  TrendingUp,
-  TrendingDown,
-  Warning,
-  CheckCircle,
-  Schedule,
-  Send,
-  Phone,
-  Email,
-  Refresh,
-  FilterList,
-  Download,
-  Assessment,
-  PriorityHigh,
-  AttachMoney
-} from '@mui/icons-material';
-import {
   BarChart,
   Bar,
   XAxis,
@@ -59,15 +42,15 @@ import {
   ResponsiveContainer,
   PieChart,
   Pie,
-  Cell,
-  Legend
+  Cell
 } from 'recharts';
 import { createAuthorizedClient } from '../../services/apiClient';
 
-const API_BASE = (process.env.REACT_APP_API_URL || 'http://localhost:3001') + '/api';
+const API_BASE = (process.env.REACT_APP_API_URL || '') + '/api';
 
 const api = createAuthorizedClient({ baseURL: API_BASE });
 
+import { AlertTriangle, BarChart3, CheckCircle, Clock, DollarSign, Download, Landmark, Phone, RefreshCw, Send, TrendingDown, TrendingUp } from 'lucide-react';
 const formatCurrency = (cents) => {
   if (!cents && cents !== 0) return '$0.00';
   return `$${(cents / 100).toLocaleString('en-CA', { minimumFractionDigits: 2 })}`;
@@ -333,7 +316,7 @@ const ARDashboard = () => {
       await api.post(`/invoices/${invoiceId}/send`, {
         customMessage: `${data.customMessage}\n\nTemplate: ${data.template}`
       });
-      // Refresh data
+      // RefreshCw data
       loadData();
     } catch (err) {
       throw err;
@@ -372,14 +355,14 @@ const ARDashboard = () => {
     <Box>
       {error && (
         <Alert severity="error" sx={{ mb: 3 }} onClose={() => setError(null)}>
-          {error}
+          {typeof error === 'object' ? error.message || JSON.stringify(error) : error}
         </Alert>
       )}
 
       {/* Header */}
       <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-          <AccountBalance color="primary" sx={{ fontSize: 32 }} />
+          <Landmark color="primary" sx={{ fontSize: 32 }} />
           <Typography variant="h5" sx={{ fontWeight: 'bold' }}>
             Accounts Receivable
           </Typography>
@@ -388,8 +371,8 @@ const ARDashboard = () => {
           <Button startIcon={<Download />} variant="outlined" size="small">
             Export Report
           </Button>
-          <Button startIcon={<Refresh />} onClick={loadData} size="small">
-            Refresh
+          <Button startIcon={<RefreshCw />} onClick={loadData} size="small">
+            RefreshCw
           </Button>
         </Box>
       </Box>
@@ -400,7 +383,7 @@ const ARDashboard = () => {
           <StatCard
             title="Total Receivables"
             value={formatCurrency(summary.totalReceivables)}
-            icon={<AttachMoney fontSize="large" />}
+            icon={<DollarSign fontSize="large" />}
             color="primary"
           />
         </Grid>
@@ -409,7 +392,7 @@ const ARDashboard = () => {
             title="Overdue Amount"
             value={formatCurrency(summary.overdueAmount)}
             subtitle={`${summary.overdueCount} invoices`}
-            icon={<Warning fontSize="large" />}
+            icon={<AlertTriangle fontSize="large" />}
             color="error"
           />
         </Grid>
@@ -435,7 +418,7 @@ const ARDashboard = () => {
             title="Collection Rate"
             value={`${collectionRate}%`}
             subtitle="This month"
-            icon={<Assessment fontSize="large" />}
+            icon={<BarChart3 fontSize="large" />}
             color={collectionRate >= 80 ? 'success' : collectionRate >= 60 ? 'warning' : 'error'}
           />
         </Grid>
@@ -501,7 +484,7 @@ const ARDashboard = () => {
       <Tabs value={tabValue} onChange={(e, v) => setTabValue(v)} sx={{ mb: 2 }}>
         <Tab label={`Overdue Invoices (${overdueInvoices.length})`} />
         <Tab label="Collection Priority" />
-        <Tab label="Reminder Schedule" />
+        <Tab label="Reminder Clock" />
       </Tabs>
 
       {/* Overdue Invoices Table */}
@@ -542,7 +525,7 @@ const ARDashboard = () => {
                       <TableCell>{formatDate(invoice.due_date)}</TableCell>
                       <TableCell>
                         <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                          <Schedule fontSize="small" color="error" />
+                          <Clock fontSize="small" color="error" />
                           {invoice.daysOverdue} days
                         </Box>
                       </TableCell>
@@ -614,7 +597,7 @@ const ARDashboard = () => {
                           label={`#${index + 1}`}
                           color={index < 3 ? 'error' : index < 10 ? 'warning' : 'default'}
                           size="small"
-                          icon={index < 3 ? <PriorityHigh /> : undefined}
+                          icon={index < 3 ? <AlertTriangle /> : undefined}
                         />
                       </TableCell>
                       <TableCell sx={{ fontWeight: 'bold' }}>
@@ -658,11 +641,11 @@ const ARDashboard = () => {
         </Paper>
       )}
 
-      {/* Reminder Schedule */}
+      {/* Reminder Clock */}
       {tabValue === 2 && (
         <Paper variant="outlined" sx={{ p: 3 }}>
           <Typography variant="subtitle1" sx={{ fontWeight: 'bold', mb: 2 }}>
-            Automated Reminder Schedule
+            Automated Reminder Clock
           </Typography>
           <Grid container spacing={2}>
             <Grid item xs={12} md={4}>

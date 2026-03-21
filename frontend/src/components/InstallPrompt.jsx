@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { isStandalone, isIOS, canInstallPWA } from '../serviceWorkerRegistration';
+import { isStandalone, isIOS } from '../serviceWorkerRegistration';
 
 const InstallPrompt = () => {
   const [deferredPrompt, setDeferredPrompt] = useState(null);

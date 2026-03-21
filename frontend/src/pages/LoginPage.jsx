@@ -2,29 +2,9 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import companyConfig from '../config/companyConfig';
-import teletimeLogo from '../assets/teletime-logo.png';
+import teletimeLogoWhite from '../assets/logos/teletime-logo-white-400.png';
 
-// Feature highlights for the left panel
-const FEATURES = [
-  {
-    title: 'Professional Quotes',
-    description: 'Generate branded quotes in seconds'
-  },
-  {
-    title: 'Customer Analytics',
-    description: 'Track CLV and engagement metrics'
-  },
-  {
-    title: 'Smart Pricing',
-    description: 'AI-powered pricing recommendations'
-  },
-  {
-    title: 'Team Collaboration',
-    description: 'Approval workflows built-in'
-  }
-];
-
-// SVG Icons as components
+// SVG Icons
 const MailIcon = () => (
   <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
     <rect x="2" y="4" width="20" height="16" rx="2" />
@@ -55,14 +35,8 @@ const EyeOffIcon = () => (
   </svg>
 );
 
-const CheckIcon = () => (
-  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-    <polyline points="20 6 9 17 4 12" />
-  </svg>
-);
-
 const ShieldIcon = () => (
-  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
     <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
   </svg>
 );
@@ -81,10 +55,8 @@ const LoginPage = () => {
   const location = useLocation();
   const sessionExpired = location.state?.reason === 'expired';
 
-  // Get the page user was trying to access, default to /quotes
   const from = location.state?.from?.pathname || '/quotes';
 
-  // Load remembered email on mount
   useEffect(() => {
     const savedEmail = localStorage.getItem('remembered_email');
     if (savedEmail) {
@@ -108,7 +80,6 @@ const LoginPage = () => {
     const result = await login(email, password);
 
     if (result.success) {
-      // Save or clear remembered email
       if (rememberMe) {
         localStorage.setItem('remembered_email', email);
       } else {
@@ -129,533 +100,425 @@ const LoginPage = () => {
   };
 
   const handleForgotPassword = () => {
-    alert('Please contact your administrator to reset your password.\n\nEmail: support@' + (companyConfig.name?.toLowerCase().replace(/\s/g, '') || 'company') + '.com');
+    alert('Please contact your administrator to reset your password.\n\nEmail: support@teletime.ca');
   };
 
-  // Styles
-  const styles = {
-    container: {
-      minHeight: '100vh',
-      display: 'flex',
-      flexDirection: 'row',
-      background: '#f8fafc'
-    },
-    leftPanel: {
-      flex: '0 0 45%',
-      background: 'linear-gradient(135deg, #0f172a 0%, #1e293b 100%)',
-      display: 'flex',
-      flexDirection: 'column',
-      justifyContent: 'center',
-      alignItems: 'center',
-      padding: '60px 40px',
-      position: 'relative',
-      overflow: 'hidden'
-    },
-    leftPanelContent: {
-      position: 'relative',
-      zIndex: 1,
-      maxWidth: '100%',
-      width: '100%',
-      display: 'flex',
-      flexDirection: 'column',
-      alignItems: 'center',
-      padding: '0 20px'
-    },
-    logoContainer: {
-      marginBottom: '40px',
-      textAlign: 'center',
-      display: 'flex',
-      flexDirection: 'column',
-      alignItems: 'center',
-      justifyContent: 'center'
-    },
-    logo: {
-      width: '1120px',
-      maxWidth: '100%',
-      height: 'auto',
-      objectFit: 'contain',
-      filter: 'drop-shadow(0 12px 48px rgba(59, 130, 246, 0.5))'
-    },
-    logoFallback: {
-      color: 'white',
-      fontSize: '48px',
-      fontWeight: '700'
-    },
-    featuresContainer: {
-      marginTop: '48px',
-      width: '100%',
-      maxWidth: '400px'
-    },
-    featureItem: {
-      display: 'flex',
-      alignItems: 'flex-start',
-      gap: '16px',
-      marginBottom: '24px'
-    },
-    featureIcon: {
-      width: '24px',
-      height: '24px',
-      background: '#3b82f6',
-      borderRadius: '50%',
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'center',
-      flexShrink: 0,
-      color: 'white'
-    },
-    featureTitle: {
-      color: 'white',
-      fontSize: '16px',
-      fontWeight: '600',
-      margin: '0 0 4px 0'
-    },
-    featureDescription: {
-      color: 'rgba(255, 255, 255, 0.5)',
-      fontSize: '14px',
-      margin: 0
-    },
-    copyright: {
-      position: 'absolute',
-      bottom: '24px',
-      left: '40px',
-      color: 'rgba(255, 255, 255, 0.4)',
-      fontSize: '13px'
-    },
-    rightPanel: {
-      flex: '1',
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'center',
-      padding: '40px'
-    },
-    formContainer: {
-      width: '100%',
-      maxWidth: '400px',
-      animation: shake ? 'shake 0.5s ease-in-out' : 'none'
-    },
-    formHeader: {
-      marginBottom: '32px'
-    },
-    welcomeText: {
-      fontSize: '28px',
-      fontWeight: '700',
-      color: '#111827',
-      margin: '0 0 8px 0'
-    },
-    subtitleText: {
-      fontSize: '15px',
-      color: '#6b7280',
-      margin: 0
-    },
-    errorBox: {
-      background: '#fef2f2',
-      border: '1px solid #fecaca',
-      borderRadius: '10px',
-      padding: '14px 16px',
-      marginBottom: '24px',
-      color: '#dc2626',
-      fontSize: '14px',
-      display: 'flex',
-      alignItems: 'center',
-      gap: '10px'
-    },
-    inputGroup: {
-      marginBottom: '20px'
-    },
-    label: {
-      display: 'block',
-      fontSize: '14px',
-      fontWeight: '500',
-      color: '#374151',
-      marginBottom: '8px'
-    },
-    inputWrapper: {
-      position: 'relative',
-      display: 'flex',
-      alignItems: 'center'
-    },
-    inputIcon: {
-      position: 'absolute',
-      left: '14px',
-      color: '#9ca3af',
-      pointerEvents: 'none',
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'center'
-    },
-    input: {
-      width: '100%',
-      padding: '14px 14px 14px 48px',
-      border: '2px solid #e5e7eb',
-      borderRadius: '10px',
-      fontSize: '15px',
-      boxSizing: 'border-box',
-      transition: 'border-color 0.2s, box-shadow 0.2s',
-      outline: 'none',
-      height: '52px'
-    },
-    passwordInput: {
-      width: '100%',
-      padding: '14px 52px 14px 48px',
-      border: '2px solid #e5e7eb',
-      borderRadius: '10px',
-      fontSize: '15px',
-      boxSizing: 'border-box',
-      transition: 'border-color 0.2s, box-shadow 0.2s',
-      outline: 'none',
-      height: '52px'
-    },
-    eyeButton: {
-      position: 'absolute',
-      right: '14px',
-      background: 'none',
-      border: 'none',
-      cursor: 'pointer',
-      padding: '4px',
-      color: '#9ca3af',
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'center',
-      transition: 'color 0.2s'
-    },
-    checkboxRow: {
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'space-between',
-      marginBottom: '24px'
-    },
-    checkboxLabel: {
-      display: 'flex',
-      alignItems: 'center',
-      gap: '10px',
-      cursor: 'pointer',
-      fontSize: '14px',
-      color: '#374151'
-    },
-    checkbox: {
-      width: '20px',
-      height: '20px',
-      accentColor: '#3b82f6',
-      cursor: 'pointer'
-    },
-    submitButton: {
-      width: '100%',
-      padding: '16px',
-      background: '#3b82f6',
-      color: 'white',
-      border: 'none',
-      borderRadius: '10px',
-      fontSize: '16px',
-      fontWeight: '600',
-      cursor: 'pointer',
-      transition: 'all 0.2s',
-      boxShadow: '0 4px 14px rgba(59, 130, 246, 0.4)',
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'center',
-      gap: '10px',
-      height: '54px'
-    },
-    submitButtonDisabled: {
-      background: '#9ca3af',
-      cursor: 'not-allowed',
-      boxShadow: 'none'
-    },
-    spinner: {
-      width: '20px',
-      height: '20px',
-      border: '2px solid rgba(255, 255, 255, 0.3)',
-      borderTopColor: 'white',
-      borderRadius: '50%',
-      animation: 'spin 0.8s linear infinite'
-    },
-    forgotPassword: {
-      textAlign: 'center',
-      marginTop: '20px'
-    },
-    forgotLink: {
-      background: 'none',
-      border: 'none',
-      color: '#3b82f6',
-      fontSize: '14px',
-      cursor: 'pointer',
-      padding: 0,
-      textDecoration: 'none',
-      transition: 'color 0.2s'
-    },
-    secureLogin: {
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'center',
-      gap: '6px',
-      marginTop: '32px',
-      color: '#9ca3af',
-      fontSize: '13px'
-    },
-    // Background decoration
-    bgCircle1: {
-      position: 'absolute',
-      width: '400px',
-      height: '400px',
-      borderRadius: '50%',
-      background: 'radial-gradient(circle, rgba(59, 130, 246, 0.15) 0%, transparent 70%)',
-      top: '-100px',
-      right: '-100px'
-    },
-    bgCircle2: {
-      position: 'absolute',
-      width: '300px',
-      height: '300px',
-      borderRadius: '50%',
-      background: 'radial-gradient(circle, rgba(6, 182, 212, 0.1) 0%, transparent 70%)',
-      bottom: '-50px',
-      left: '-50px'
-    }
-  };
-
-  // Mobile styles (will be applied via media query CSS)
-  const mobileStyles = `
-    @media (max-width: 900px) {
-      .login-container {
-        flex-direction: column !important;
-      }
-      .login-left-panel {
-        flex: 0 0 auto !important;
-        padding: 40px 24px !important;
-        min-height: auto !important;
-      }
-      .login-logo {
-        width: 400px !important;
-        max-width: 95% !important;
-      }
-      .login-features {
-        display: none !important;
-      }
-      .login-copyright {
-        display: none !important;
-      }
-      .login-right-panel {
-        padding: 24px !important;
-      }
-    }
-
-    @media (max-width: 600px) {
-      .login-logo {
-        width: 320px !important;
-        max-width: 95% !important;
-      }
-    }
-
+  const cssStyles = `
     @keyframes shake {
       0%, 100% { transform: translateX(0); }
       10%, 30%, 50%, 70%, 90% { transform: translateX(-5px); }
       20%, 40%, 60%, 80% { transform: translateX(5px); }
     }
-
     @keyframes spin {
       0% { transform: rotate(0deg); }
       100% { transform: rotate(360deg); }
+    }
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(12px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    .login-page {
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      background: linear-gradient(145deg, #0a1628 0%, #0f2341 40%, #132f52 70%, #0a1628 100%);
+      padding: 24px;
+      position: relative;
+      overflow: hidden;
+    }
+    .login-page::before {
+      content: '';
+      position: absolute;
+      top: -30%;
+      right: -20%;
+      width: 600px;
+      height: 600px;
+      border-radius: 50%;
+      background: radial-gradient(circle, rgba(37, 99, 235, 0.08) 0%, transparent 70%);
+      pointer-events: none;
+    }
+    .login-page::after {
+      content: '';
+      position: absolute;
+      bottom: -20%;
+      left: -15%;
+      width: 500px;
+      height: 500px;
+      border-radius: 50%;
+      background: radial-gradient(circle, rgba(6, 182, 212, 0.06) 0%, transparent 70%);
+      pointer-events: none;
+    }
+    .login-brand {
+      text-align: center;
+      margin-bottom: 36px;
+      animation: fadeIn 0.6s ease-out;
+      position: relative;
+      z-index: 1;
+    }
+    .login-logo-img {
+      width: 320px;
+      max-width: 90vw;
+      height: auto;
+      filter: drop-shadow(0 4px 24px rgba(59, 130, 246, 0.25));
+      margin-bottom: 12px;
+    }
+    .login-tagline {
+      color: rgba(148, 163, 184, 0.8);
+      font-size: 14px;
+      letter-spacing: 0.5px;
+      margin: 0;
+    }
+    .login-card-wrapper {
+      width: 100%;
+      max-width: 420px;
+      position: relative;
+      z-index: 1;
+      padding: 2px;
+      border-radius: 18px;
+      background: linear-gradient(135deg, #2563eb, #06b6d4, #2563eb);
+      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+      animation: fadeIn 0.6s ease-out 0.1s both;
+    }
+    .login-card {
+      width: 100%;
+      background: rgba(255, 255, 255, 0.97);
+      border-radius: 16px;
+      padding: 40px 36px 36px;
+      position: relative;
+    }
+    .login-card-header {
+      text-align: center;
+      margin-bottom: 28px;
+    }
+    .login-card-header h2 {
+      font-size: 22px;
+      font-weight: 700;
+      color: #111827;
+      margin: 0 0 6px;
+    }
+    .login-card-header p {
+      font-size: 14px;
+      color: #6b7280;
+      margin: 0;
+    }
+    .login-alert {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 12px 16px;
+      border-radius: 10px;
+      font-size: 14px;
+      margin-bottom: 20px;
+    }
+    .login-alert-error {
+      background: #fef2f2;
+      border: 1px solid #fecaca;
+      color: #dc2626;
+    }
+    .login-alert-warn {
+      background: #fffbeb;
+      border: 1px solid #fde68a;
+      color: #b45309;
+    }
+    .login-field {
+      margin-bottom: 18px;
+    }
+    .login-field label {
+      display: block;
+      font-size: 13px;
+      font-weight: 600;
+      color: #374151;
+      margin-bottom: 6px;
+      text-transform: uppercase;
+      letter-spacing: 0.4px;
+    }
+    .login-input-wrap {
+      position: relative;
+      display: flex;
+      align-items: center;
+    }
+    .login-input-icon {
+      position: absolute;
+      left: 14px;
+      color: #9ca3af;
+      pointer-events: none;
+      display: flex;
+      align-items: center;
+    }
+    .login-input {
+      width: 100%;
+      padding: 13px 14px 13px 46px;
+      border: 2px solid #e5e7eb;
+      border-radius: 10px;
+      font-size: 15px;
+      box-sizing: border-box;
+      transition: border-color 0.2s, box-shadow 0.2s;
+      outline: none;
+      background: #f9fafb;
+      height: 50px;
+    }
+    .login-input:focus {
+      border-color: #3b82f6;
+      box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+      background: #fff;
+    }
+    .login-input-pw {
+      padding-right: 50px;
+    }
+    .login-eye-btn {
+      position: absolute;
+      right: 12px;
+      background: none;
+      border: none;
+      cursor: pointer;
+      padding: 4px;
+      color: #9ca3af;
+      display: flex;
+      align-items: center;
+      transition: color 0.2s;
+    }
+    .login-eye-btn:hover {
+      color: #374151;
+    }
+    .login-options {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 24px;
+    }
+    .login-remember {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      cursor: pointer;
+      font-size: 14px;
+      color: #4b5563;
+    }
+    .login-remember input {
+      width: 18px;
+      height: 18px;
+      accent-color: #3b82f6;
+      cursor: pointer;
+    }
+    .login-forgot {
+      background: none;
+      border: none;
+      color: #3b82f6;
+      font-size: 13px;
+      font-weight: 500;
+      cursor: pointer;
+      padding: 0;
+      transition: color 0.2s;
+    }
+    .login-forgot:hover {
+      color: #1d4ed8;
+    }
+    .login-submit {
+      width: 100%;
+      padding: 14px;
+      background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
+      color: white;
+      border: none;
+      border-radius: 10px;
+      font-size: 16px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s;
+      box-shadow: 0 4px 14px rgba(37, 99, 235, 0.4);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      height: 52px;
+    }
+    .login-submit:hover:not(:disabled) {
+      background: linear-gradient(135deg, #1d4ed8 0%, #1e40af 100%);
+      transform: translateY(-1px);
+      box-shadow: 0 6px 20px rgba(37, 99, 235, 0.5);
+    }
+    .login-submit:active:not(:disabled) {
+      transform: translateY(0);
+    }
+    .login-submit:disabled {
+      background: #94a3b8;
+      cursor: not-allowed;
+      box-shadow: none;
+    }
+    .login-spinner {
+      width: 20px;
+      height: 20px;
+      border: 2px solid rgba(255, 255, 255, 0.3);
+      border-top-color: white;
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+    }
+    .login-secure {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      margin-top: 20px;
+      color: #9ca3af;
+      font-size: 12px;
+    }
+    .login-footer {
+      text-align: center;
+      margin-top: 32px;
+      animation: fadeIn 0.6s ease-out 0.2s both;
+      position: relative;
+      z-index: 1;
+    }
+    .login-footer-text {
+      color: rgba(148, 163, 184, 0.5);
+      font-size: 12px;
+      margin: 0;
+    }
+    @media (max-width: 480px) {
+      .login-card-wrapper {
+        padding: 2px;
+      }
+      .login-card {
+        padding: 32px 24px 28px;
+      }
+      .login-logo-img {
+        width: 260px;
+      }
     }
   `;
 
   return (
     <>
-      <style>{mobileStyles}</style>
-      <div className="login-container" style={styles.container}>
-        {/* Left Panel - Branding */}
-        <div className="login-left-panel" style={styles.leftPanel}>
-          {/* Background decorations */}
-          <div style={styles.bgCircle1} />
-          <div style={styles.bgCircle2} />
-
-          <div style={styles.leftPanelContent}>
-            {/* Logo - Full Teletime logo with name and tagline */}
-            <div style={styles.logoContainer}>
-              <img
-                className="login-logo"
-                src={teletimeLogo}
-                alt="Teletime - TV Electronics Appliances Furniture"
-                style={styles.logo}
-              />
-            </div>
-
-            {/* Features */}
-            <div className="login-features" style={styles.featuresContainer}>
-              {FEATURES.map((feature, index) => (
-                <div key={index} style={styles.featureItem}>
-                  <div style={styles.featureIcon}>
-                    <CheckIcon />
-                  </div>
-                  <div>
-                    <h3 style={styles.featureTitle}>{feature.title}</h3>
-                    <p style={styles.featureDescription}>{feature.description}</p>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          {/* Copyright */}
-          <div className="login-copyright" style={styles.copyright}>
-            &copy; {new Date().getFullYear()} {companyConfig.legalName || companyConfig.name || 'Company'}. All rights reserved.
-          </div>
+      <style>{cssStyles}</style>
+      <div className="login-page">
+        {/* Brand / Logo */}
+        <div className="login-brand">
+          <img
+            className="login-logo-img"
+            src={teletimeLogoWhite}
+            alt="Teletime - TV Electronics Appliances Furniture"
+          />
+          <p className="login-tagline">Staff Portal</p>
         </div>
 
-        {/* Right Panel - Login Form */}
-        <div className="login-right-panel" style={styles.rightPanel}>
-          <div style={{...styles.formContainer, animation: shake ? 'shake 0.5s ease-in-out' : 'none'}}>
-            {/* Header */}
-            <div style={styles.formHeader}>
-              <h2 style={styles.welcomeText}>Welcome back</h2>
-              <p style={styles.subtitleText}>Sign in to your account to continue</p>
+        {/* Login Card */}
+        <div
+          className="login-card-wrapper"
+          style={{ animation: shake ? 'shake 0.5s ease-in-out' : undefined }}
+        >
+        <div className="login-card">
+          <div className="login-card-header">
+            <h2>Welcome back</h2>
+            <p>Sign in to your account</p>
+          </div>
+
+          {/* Session Expired */}
+          {sessionExpired && (
+            <div className="login-alert login-alert-warn">
+              <span>&#9888;</span>
+              Your session expired. Please log in again.
+            </div>
+          )}
+
+          {/* Error */}
+          {error && (
+            <div className="login-alert login-alert-error">
+              <span>&#9888;</span>
+              {error}
+            </div>
+          )}
+
+          <form onSubmit={handleSubmit}>
+            {/* Email */}
+            <div className="login-field">
+              <label>Email</label>
+              <div className="login-input-wrap">
+                <span className="login-input-icon"><MailIcon /></span>
+                <input
+                  className="login-input"
+                  type="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  placeholder="you@teletime.ca"
+                  autoComplete="email"
+                  autoFocus
+                />
+              </div>
             </div>
 
-            {/* Session Expired Message */}
-            {sessionExpired && (
-              <div style={{ ...styles.errorBox, background: '#fef2f2', color: '#b91c1c', borderColor: '#fecaca' }}>
-                <span style={{ fontSize: '18px' }}>⚠</span>
-                Your session expired. Please log in again.
+            {/* Password */}
+            <div className="login-field">
+              <label>Password</label>
+              <div className="login-input-wrap">
+                <span className="login-input-icon"><LockIcon /></span>
+                <input
+                  className="login-input login-input-pw"
+                  type={showPassword ? 'text' : 'password'}
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  placeholder="Enter your password"
+                  autoComplete="current-password"
+                />
+                <button
+                  type="button"
+                  className="login-eye-btn"
+                  onClick={() => setShowPassword(!showPassword)}
+                >
+                  {showPassword ? <EyeOffIcon /> : <EyeIcon />}
+                </button>
               </div>
-            )}
+            </div>
 
-            {/* Error Message */}
-            {error && (
-              <div style={styles.errorBox}>
-                <span style={{ fontSize: '18px' }}>⚠</span>
-                {error}
-              </div>
-            )}
-
-            {/* Login Form */}
-            <form onSubmit={handleSubmit}>
-              {/* Email Field */}
-              <div style={styles.inputGroup}>
-                <label style={styles.label}>Email Address</label>
-                <div style={styles.inputWrapper}>
-                  <span style={styles.inputIcon}>
-                    <MailIcon />
-                  </span>
-                  <input
-                    type="email"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    placeholder="you@example.com"
-                    autoComplete="email"
-                    autoFocus
-                    style={styles.input}
-                    onFocus={(e) => {
-                      e.target.style.borderColor = '#3b82f6';
-                      e.target.style.boxShadow = '0 0 0 3px rgba(59, 130, 246, 0.1)';
-                    }}
-                    onBlur={(e) => {
-                      e.target.style.borderColor = '#e5e7eb';
-                      e.target.style.boxShadow = 'none';
-                    }}
-                  />
-                </div>
-              </div>
-
-              {/* Password Field */}
-              <div style={styles.inputGroup}>
-                <label style={styles.label}>Password</label>
-                <div style={styles.inputWrapper}>
-                  <span style={styles.inputIcon}>
-                    <LockIcon />
-                  </span>
-                  <input
-                    type={showPassword ? 'text' : 'password'}
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    placeholder="Enter your password"
-                    autoComplete="current-password"
-                    style={styles.passwordInput}
-                    onFocus={(e) => {
-                      e.target.style.borderColor = '#3b82f6';
-                      e.target.style.boxShadow = '0 0 0 3px rgba(59, 130, 246, 0.1)';
-                    }}
-                    onBlur={(e) => {
-                      e.target.style.borderColor = '#e5e7eb';
-                      e.target.style.boxShadow = 'none';
-                    }}
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowPassword(!showPassword)}
-                    style={styles.eyeButton}
-                    onMouseOver={(e) => e.target.style.color = '#374151'}
-                    onMouseOut={(e) => e.target.style.color = '#9ca3af'}
-                  >
-                    {showPassword ? <EyeOffIcon /> : <EyeIcon />}
-                  </button>
-                </div>
-              </div>
-
-              {/* Remember Me */}
-              <div style={styles.checkboxRow}>
-                <label style={styles.checkboxLabel}>
-                  <input
-                    type="checkbox"
-                    checked={rememberMe}
-                    onChange={(e) => setRememberMe(e.target.checked)}
-                    style={styles.checkbox}
-                  />
-                  Remember me
-                </label>
-              </div>
-
-              {/* Submit Button */}
-              <button
-                type="submit"
-                disabled={loading}
-                style={{
-                  ...styles.submitButton,
-                  ...(loading ? styles.submitButtonDisabled : {})
-                }}
-                onMouseOver={(e) => {
-                  if (!loading) {
-                    e.target.style.background = '#2563eb';
-                    e.target.style.transform = 'translateY(-1px)';
-                    e.target.style.boxShadow = '0 6px 20px rgba(59, 130, 246, 0.5)';
-                  }
-                }}
-                onMouseOut={(e) => {
-                  if (!loading) {
-                    e.target.style.background = '#3b82f6';
-                    e.target.style.transform = 'translateY(0)';
-                    e.target.style.boxShadow = '0 4px 14px rgba(59, 130, 246, 0.4)';
-                  }
-                }}
-              >
-                {loading ? (
-                  <>
-                    <div style={styles.spinner} />
-                    Signing in...
-                  </>
-                ) : (
-                  'Sign In'
-                )}
-              </button>
-            </form>
-
-            {/* Forgot Password */}
-            <div style={styles.forgotPassword}>
+            {/* Options row */}
+            <div className="login-options">
+              <label className="login-remember">
+                <input
+                  type="checkbox"
+                  checked={rememberMe}
+                  onChange={(e) => setRememberMe(e.target.checked)}
+                />
+                Remember me
+              </label>
               <button
                 type="button"
+                className="login-forgot"
                 onClick={handleForgotPassword}
-                style={styles.forgotLink}
-                onMouseOver={(e) => e.target.style.color = '#1d4ed8'}
-                onMouseOut={(e) => e.target.style.color = '#3b82f6'}
               >
-                Forgot your password?
+                Forgot password?
               </button>
             </div>
 
-            {/* Secure Login Indicator */}
-            <div style={styles.secureLogin}>
-              <ShieldIcon />
-              <span>Secure login</span>
-            </div>
+            {/* Submit */}
+            <button
+              type="submit"
+              className="login-submit"
+              disabled={loading}
+            >
+              {loading ? (
+                <>
+                  <div className="login-spinner" />
+                  Signing in...
+                </>
+              ) : (
+                'Sign In'
+              )}
+            </button>
+          </form>
+
+          {/* Secure indicator */}
+          <div className="login-secure">
+            <ShieldIcon />
+            <span>Secure encrypted login</span>
           </div>
+        </div>
+        </div>
+
+        {/* Footer */}
+        <div className="login-footer">
+          <p className="login-footer-text">
+            &copy; {new Date().getFullYear()} {companyConfig.legalName || 'Teletime Inc.'} &middot; {companyConfig.contact?.website || 'www.teletime.ca'}
+          </p>
         </div>
       </div>
     </>

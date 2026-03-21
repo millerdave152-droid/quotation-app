@@ -295,8 +295,8 @@ class AutoInvoiceService {
           COALESCE(SUM(i.total_cents) FILTER (WHERE ail.error_message IS NULL), 0) as total_invoiced_cents
         FROM auto_invoice_log ail
         LEFT JOIN invoices i ON ail.invoice_id = i.id
-        WHERE ail.created_at > NOW() - INTERVAL '${days} days'
-      `);
+        WHERE ail.created_at > NOW() - ($1 * INTERVAL '1 day')
+      `, [days]);
 
       const stats = result.rows[0];
       return {

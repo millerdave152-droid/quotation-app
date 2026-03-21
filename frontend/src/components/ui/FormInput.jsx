@@ -25,7 +25,7 @@ const FormInput = ({
   min,
   max,
   pattern,
-  validate,
+  validate: _validate,
   icon,
   suffix,
   rows = 3,

@@ -43,7 +43,7 @@ class InsightsEngine {
   async generateInsights(options = {}) {
     const { limit = 20, priority = null, types = null } = options;
 
-    const allInsights = await Promise.all([
+    const results = await Promise.allSettled([
       this.getStaleQuoteInsights(),
       this.getExpiringQuoteInsights(),
       this.getChurnRiskInsights(),
@@ -53,7 +53,11 @@ class InsightsEngine {
       this.getSalesOpportunityInsights()
     ]);
 
-    // Flatten and sort by priority and timestamp
+    // Flatten settled results, skip failures
+    const allInsights = results
+      .filter(r => r.status === 'fulfilled')
+      .map(r => r.value);
+
     let insights = allInsights.flat();
 
     // Filter by priority if specified

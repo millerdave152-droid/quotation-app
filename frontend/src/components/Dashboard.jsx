@@ -17,9 +17,10 @@ import { AtRiskCustomers } from './customers';
 import { AIInsightsWidget, SmartQuickActions, UnifiedTimeline } from './dashboard/index';
 import { cachedFetch } from '../services/apiCache';
 import {
-  AreaChart, Area, BarChart, Bar, LineChart, Line, PieChart, Pie, Cell,
+  AreaChart, Area, BarChart, Bar, PieChart, Pie, Cell,
   XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend
 } from 'recharts';
+import './Dashboard.css';
 
 // Chart color palette
 const CHART_COLORS = {
@@ -41,24 +42,29 @@ const STATUS_COLORS = {
   lost: '#ef4444'
 };
 
+// SVG icon helper for dashboard
+const DashIcon = ({ d, color = 'currentColor', size = 16 }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" dangerouslySetInnerHTML={{ __html: d }} />
+);
+
 // Activity type configurations
 const ACTIVITY_CONFIG = {
-  CREATED: { icon: '✨', color: '#3b82f6', bgColor: '#dbeafe', label: 'Created' },
-  UPDATED: { icon: '✏️', color: '#f59e0b', bgColor: '#fef3c7', label: 'Updated' },
-  STATUS_CHANGED: { icon: '🔄', color: '#6366f1', bgColor: '#e0e7ff', label: 'Status Changed' },
-  SENT: { icon: '📤', color: '#10b981', bgColor: '#d1fae5', label: 'Sent' },
-  WON: { icon: '🏆', color: '#22c55e', bgColor: '#dcfce7', label: 'Won' },
-  LOST: { icon: '❌', color: '#ef4444', bgColor: '#fee2e2', label: 'Lost' },
-  EMAIL_SENT: { icon: '📧', color: '#10b981', bgColor: '#d1fae5', label: 'Email Sent' },
-  CUSTOMER_VIEWED: { icon: '👀', color: '#8b5cf6', bgColor: '#ede9fe', label: 'Viewed' },
-  FOLLOW_UP_SCHEDULED: { icon: '📅', color: '#f97316', bgColor: '#ffedd5', label: 'Follow-up' },
-  CUSTOMER_CONTACTED: { icon: '📞', color: '#06b6d4', bgColor: '#cffafe', label: 'Contacted' },
-  PRICE_ADJUSTED: { icon: '💰', color: '#eab308', bgColor: '#fef9c3', label: 'Price Adjusted' },
-  APPROVAL_REQUESTED: { icon: '⏳', color: '#f59e0b', bgColor: '#fef3c7', label: 'Approval Requested' },
-  APPROVED: { icon: '✅', color: '#22c55e', bgColor: '#dcfce7', label: 'Approved' },
-  REJECTED: { icon: '❌', color: '#ef4444', bgColor: '#fee2e2', label: 'Rejected' },
-  NOTE_ADDED: { icon: '📝', color: '#6b7280', bgColor: '#f3f4f6', label: 'Note' },
-  INTERNAL_NOTE: { icon: '🔒', color: '#374151', bgColor: '#e5e7eb', label: 'Internal Note' }
+  CREATED: { icon: '<polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>', color: '#3b82f6', bgColor: '#dbeafe', label: 'Created' },
+  UPDATED: { icon: '<path d="M17 3a2.83 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"/>', color: '#f59e0b', bgColor: '#fef3c7', label: 'Updated' },
+  STATUS_CHANGED: { icon: '<polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/>', color: '#6366f1', bgColor: '#e0e7ff', label: 'Status Changed' },
+  SENT: { icon: '<line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/>', color: '#10b981', bgColor: '#d1fae5', label: 'Sent' },
+  WON: { icon: '<circle cx="12" cy="8" r="7"/><polyline points="8.21 13.89 7 23 12 20 17 23 15.79 13.88"/>', color: '#22c55e', bgColor: '#dcfce7', label: 'Won' },
+  LOST: { icon: '<circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/>', color: '#ef4444', bgColor: '#fee2e2', label: 'Lost' },
+  EMAIL_SENT: { icon: '<path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/>', color: '#10b981', bgColor: '#d1fae5', label: 'Email Sent' },
+  CUSTOMER_VIEWED: { icon: '<path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>', color: '#8b5cf6', bgColor: '#ede9fe', label: 'Viewed' },
+  FOLLOW_UP_SCHEDULED: { icon: '<rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/>', color: '#f97316', bgColor: '#ffedd5', label: 'Follow-up' },
+  CUSTOMER_CONTACTED: { icon: '<path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.13.88.36 1.74.7 2.56a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.82.34 1.68.57 2.56.7A2 2 0 0 1 22 16.92z"/>', color: '#06b6d4', bgColor: '#cffafe', label: 'Contacted' },
+  PRICE_ADJUSTED: { icon: '<line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/>', color: '#eab308', bgColor: '#fef9c3', label: 'Price Adjusted' },
+  APPROVAL_REQUESTED: { icon: '<circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>', color: '#f59e0b', bgColor: '#fef3c7', label: 'Approval Requested' },
+  APPROVED: { icon: '<path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/>', color: '#22c55e', bgColor: '#dcfce7', label: 'Approved' },
+  REJECTED: { icon: '<circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/>', color: '#ef4444', bgColor: '#fee2e2', label: 'Rejected' },
+  NOTE_ADDED: { icon: '<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/>', color: '#6b7280', bgColor: '#f3f4f6', label: 'Note' },
+  INTERNAL_NOTE: { icon: '<rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>', color: '#374151', bgColor: '#e5e7eb', label: 'Internal Note' }
 };
 
 /**
@@ -271,7 +277,6 @@ const MetricCard = ({ title, value, subtitle, icon, color = '#3b82f6', trend, tr
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
-          fontSize: '22px',
           flexShrink: 0
         }}>
           {icon}
@@ -287,27 +292,6 @@ const MetricCard = ({ title, value, subtitle, icon, color = '#3b82f6', trend, tr
   </div>
 );
 
-/**
- * Activity badge for weekly stats
- */
-const ActivityBadge = ({ label, count, color, icon }) => (
-  <div style={{
-    display: 'flex',
-    alignItems: 'center',
-    gap: '8px',
-    padding: '10px 14px',
-    background: `${color}10`,
-    borderRadius: '8px',
-    border: `1px solid ${color}30`
-  }}>
-    <span style={{ fontSize: '16px' }}>{icon}</span>
-    <div>
-      <div style={{ fontSize: '18px', fontWeight: 'bold', color }}>{count}</div>
-      <div style={{ fontSize: '11px', color: '#6b7280' }}>{label}</div>
-    </div>
-  </div>
-);
-
 // Time period options for filtering
 const TIME_PERIODS = [
   { value: '7d', label: '7 Days' },
@@ -317,7 +301,7 @@ const TIME_PERIODS = [
   { value: 'all', label: 'All Time' }
 ];
 
-const Dashboard = ({ onNavigate, onViewQuote, onBack }) => {
+const Dashboard = ({ onNavigate, onViewQuote }) => {
   const [stats, setStats] = useState(null);
   const [recentActivities, setRecentActivities] = useState([]);
   const [recentQuotes, setRecentQuotes] = useState([]);
@@ -393,7 +377,7 @@ const Dashboard = ({ onNavigate, onViewQuote, onBack }) => {
 
   // Format currency
   const formatCurrency = (cents) => {
-    return `$${((cents || 0) / 100).toLocaleString('en-CA', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
+    return `$${((cents || 0) / 100).toLocaleString('en-CA', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
   };
 
   // Format relative time
@@ -416,7 +400,7 @@ const Dashboard = ({ onNavigate, onViewQuote, onBack }) => {
   // Get config for activity type
   const getActivityConfig = (type) => {
     return ACTIVITY_CONFIG[type] || {
-      icon: '📌',
+      icon: '<circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>',
       color: '#6b7280',
       bgColor: '#f3f4f6',
       label: type
@@ -500,7 +484,9 @@ const Dashboard = ({ onNavigate, onViewQuote, onBack }) => {
         color: '#6b7280'
       }}>
         <div style={{ textAlign: 'center', maxWidth: '500px', padding: '20px' }}>
-          <div style={{ fontSize: '48px', marginBottom: '16px' }}>⚠️</div>
+          <div style={{ marginBottom: '16px' }}>
+            <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#ef4444" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+          </div>
           <h2 style={{ margin: '0 0 12px', color: '#ef4444', fontSize: '20px', fontWeight: '600' }}>
             Dashboard Error
           </h2>
@@ -536,11 +522,15 @@ const Dashboard = ({ onNavigate, onViewQuote, onBack }) => {
         alignItems: 'center',
         marginBottom: '24px'
       }}>
-        <div>
-          <h1 style={{ margin: 0, fontSize: '28px', fontWeight: 'bold', color: '#1f2937' }}>
+        <div className="dash-header-title">
+          <div className="dash-title-icon">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
+          </div>
+          <div>
+          <h1 style={{ margin: 0, fontSize: '24px', fontWeight: '700', color: '#1f2937' }}>
             Dashboard
           </h1>
-          <p style={{ margin: '4px 0 0', color: '#6b7280', fontSize: '14px' }}>
+          <p style={{ margin: '2px 0 0', color: '#6b7280', fontSize: '13px' }}>
             Welcome back! Here's what's happening with your quotes.
             {lastRefresh && (
               <span style={{ marginLeft: '12px', fontSize: '12px', color: '#9ca3af' }}>
@@ -548,31 +538,32 @@ const Dashboard = ({ onNavigate, onViewQuote, onBack }) => {
               </span>
             )}
           </p>
+          </div>
         </div>
 
-        <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
+        <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
           {/* Time Period Selector */}
           <div style={{
             display: 'flex',
             background: '#f3f4f6',
-            borderRadius: '8px',
-            padding: '4px'
+            borderRadius: '6px',
+            padding: '3px'
           }}>
             {TIME_PERIODS.map(period => (
               <button
                 key={period.value}
                 onClick={() => setTimePeriod(period.value)}
                 style={{
-                  padding: '8px 12px',
+                  padding: '6px 10px',
                   background: timePeriod === period.value ? 'white' : 'transparent',
                   color: timePeriod === period.value ? '#1f2937' : '#6b7280',
                   border: 'none',
-                  borderRadius: '6px',
-                  fontSize: '13px',
+                  borderRadius: '5px',
+                  fontSize: '12px',
                   fontWeight: '500',
                   cursor: 'pointer',
                   transition: 'all 0.15s ease',
-                  boxShadow: timePeriod === period.value ? '0 1px 3px rgba(0,0,0,0.1)' : 'none'
+                  boxShadow: timePeriod === period.value ? '0 1px 3px rgba(0,0,0,0.08)' : 'none'
                 }}
               >
                 {period.label}
@@ -584,40 +575,43 @@ const Dashboard = ({ onNavigate, onViewQuote, onBack }) => {
             onClick={fetchDashboardData}
             disabled={loading}
             style={{
-              padding: '10px 16px',
+              padding: '8px 12px',
               background: 'white',
               color: '#374151',
               border: '1px solid #e5e7eb',
-              borderRadius: '8px',
-              fontSize: '14px',
+              borderRadius: '6px',
+              fontSize: '13px',
               fontWeight: '500',
               cursor: loading ? 'wait' : 'pointer',
               display: 'flex',
               alignItems: 'center',
-              gap: '6px'
+              gap: '5px'
             }}
           >
-            <span style={{ display: loading ? 'inline-block' : 'none', animation: 'spin 1s linear infinite' }}>⟳</span>
-            {loading ? 'Refreshing...' : '⟳ Refresh'}
+            {loading ? (
+              <><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ animation: 'spin 1s linear infinite' }}><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg> Refreshing...</>
+            ) : (
+              <><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg> Refresh</>
+            )}
           </button>
           <button
             onClick={() => onNavigate?.('builder')}
             style={{
-              padding: '10px 20px',
+              padding: '8px 14px',
               background: 'linear-gradient(135deg, #6366f1 0%, #4f46e5 100%)',
               color: 'white',
               border: 'none',
-              borderRadius: '8px',
-              fontSize: '14px',
+              borderRadius: '6px',
+              fontSize: '13px',
               fontWeight: '600',
               cursor: 'pointer',
               display: 'flex',
               alignItems: 'center',
-              gap: '8px',
+              gap: '6px',
               boxShadow: '0 2px 8px rgba(99, 102, 241, 0.3)'
             }}
           >
-            <span>+</span> New Quote
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg> New Quote
           </button>
         </div>
       </div>
@@ -638,35 +632,35 @@ const Dashboard = ({ onNavigate, onViewQuote, onBack }) => {
           title="Total Quotes"
           value={stats?.total_quotes || 0}
           subtitle={`${stats?.last_7_days || 0} this week`}
-          icon="📋"
+          icon={<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#3b82f6" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><rect x="8" y="2" width="8" height="4" rx="1" ry="1"/></svg>}
           color="#3b82f6"
         />
         <MetricCard
           title="Avg Quote Value"
           value={formatCurrency(stats?.avg_quote_value_cents || 0)}
           subtitle="Per quote"
-          icon="💵"
+          icon={<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#10b981" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>}
           color="#10b981"
         />
         <MetricCard
           title="Conversion Rate"
           value={`${stats?.conversionRate || 0}%`}
           subtitle={`${stats?.closedQuotesCount || 0} closed quotes`}
-          icon="🎯"
+          icon={<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#8b5cf6" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></svg>}
           color="#8b5cf6"
         />
         <MetricCard
           title="Avg Days to Close"
           value={stats?.avgDaysToClose || 0}
           subtitle={stats?.daysToCloseSampleSize > 0 ? `Based on ${stats.daysToCloseSampleSize} won quotes` : 'No data yet'}
-          icon="⏱️"
+          icon={<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#f59e0b" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>}
           color="#f59e0b"
         />
         <MetricCard
           title="Win Rate"
           value={`${stats?.win_rate || 0}%`}
           subtitle={`${stats?.won_count || 0} won / ${stats?.total_quotes || 0} total`}
-          icon="🏆"
+          icon={<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#22c55e" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="8" r="7"/><polyline points="8.21 13.89 7 23 12 20 17 23 15.79 13.88"/></svg>}
           color="#22c55e"
         />
       </div>
@@ -916,7 +910,9 @@ const Dashboard = ({ onNavigate, onViewQuote, onBack }) => {
             <div style={{ maxHeight: '400px', overflowY: 'auto' }}>
               {filteredActivities.length === 0 ? (
                 <div style={{ padding: '40px 20px', textAlign: 'center', color: '#6b7280' }}>
-                  <div style={{ fontSize: '36px', marginBottom: '12px' }}>📋</div>
+                  <div style={{ marginBottom: '12px' }}>
+                    <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="#9ca3af" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><rect x="8" y="2" width="8" height="4" rx="1" ry="1"/></svg>
+                  </div>
                   <p style={{ margin: 0, fontWeight: '500' }}>No recent activity</p>
                 </div>
               ) : (
@@ -950,10 +946,9 @@ const Dashboard = ({ onNavigate, onViewQuote, onBack }) => {
                           display: 'flex',
                           alignItems: 'center',
                           justifyContent: 'center',
-                          fontSize: '14px',
                           flexShrink: 0
                         }}>
-                          {config.icon}
+                          <DashIcon d={config.icon} color={config.color} size={14} />
                         </div>
                         <div style={{ flex: 1, minWidth: 0 }}>
                           <div style={{ display: 'flex', justifyContent: 'space-between', gap: '8px' }}>
@@ -998,7 +993,7 @@ const Dashboard = ({ onNavigate, onViewQuote, onBack }) => {
           {/* AI Insights Widget */}
           <AIInsightsWidget
             onNavigate={onNavigate}
-            onAction={(action, insight, result) => {
+            onAction={() => {
               // Handle insight action - can be integrated with analytics tracking
             }}
             limit={5}
@@ -1189,7 +1184,7 @@ const Dashboard = ({ onNavigate, onViewQuote, onBack }) => {
                   gap: '8px'
                 }}
               >
-                <span>+</span> Create New Quote
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg> Create New Quote
               </button>
               <button
                 onClick={() => onNavigate?.('analytics')}
@@ -1207,7 +1202,7 @@ const Dashboard = ({ onNavigate, onViewQuote, onBack }) => {
                   gap: '8px'
                 }}
               >
-                <span>📊</span> View Analytics
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg> View Analytics
               </button>
             </div>
           </div>

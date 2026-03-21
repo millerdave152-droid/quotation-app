@@ -10,6 +10,7 @@ const express = require('express');
 const router = express.Router();
 const { authenticate, requireRole } = require('../middleware/auth');
 const { ApiError, asyncHandler } = require('../middleware/errorHandler');
+const { auditLogMiddleware } = require('../middleware/auditLog');
 
 /**
  * Initialize routes with services
@@ -27,7 +28,7 @@ module.exports = function (discountAuthorityService, fraudService) {
    * POST /api/discount-escalations
    * Staff submits an escalation request for a discount beyond their tier
    */
-  router.post('/', asyncHandler(async (req, res) => {
+  router.post('/', auditLogMiddleware('discount_escalation_request', 'discount'), asyncHandler(async (req, res) => {
     const { productId, discountPct, reason, marginAfter, commissionImpact } = req.body;
 
     if (productId == null || discountPct == null) {
@@ -101,7 +102,7 @@ module.exports = function (discountAuthorityService, fraudService) {
    * PUT /api/discount-escalations/:id/approve
    * Approve an escalation with optional notes (manager+ only)
    */
-  router.put('/:id/approve', requireRole('admin', 'manager'), asyncHandler(async (req, res) => {
+  router.put('/:id/approve', requireRole('admin', 'manager'), auditLogMiddleware('discount_escalation_approve', 'discount'), asyncHandler(async (req, res) => {
     const escalationId = parseInt(req.params.id, 10);
     const { notes } = req.body;
 
@@ -138,7 +139,7 @@ module.exports = function (discountAuthorityService, fraudService) {
    * PUT /api/discount-escalations/:id/deny
    * Deny an escalation with a required reason (manager+ only)
    */
-  router.put('/:id/deny', requireRole('admin', 'manager'), asyncHandler(async (req, res) => {
+  router.put('/:id/deny', requireRole('admin', 'manager'), auditLogMiddleware('discount_escalation_deny', 'discount'), asyncHandler(async (req, res) => {
     const escalationId = parseInt(req.params.id, 10);
     const { reason } = req.body;
 

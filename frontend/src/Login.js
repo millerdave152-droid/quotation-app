@@ -13,7 +13,7 @@ const Login = ({ onLoginSuccess }) => {
     setLoading(true);
 
     try {
-      const result = await signIn({
+      await signIn({
         username: email,
         password: password,
         options: {

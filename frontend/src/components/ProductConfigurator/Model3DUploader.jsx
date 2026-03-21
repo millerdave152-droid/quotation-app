@@ -1,7 +1,7 @@
 import React, { useState, useRef } from 'react';
 
 import { authFetch } from '../../services/authFetch';
-const API_URL = `${process.env.REACT_APP_API_URL || 'http://localhost:3001'}/api`;
+const API_URL = `${process.env.REACT_APP_API_URL || ''}/api`;
 
 /**
  * Model3DUploader - Component for uploading and managing 3D models for products

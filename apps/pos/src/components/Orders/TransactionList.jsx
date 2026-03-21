@@ -4,19 +4,12 @@
  */
 
 import { useState, useEffect, useCallback, useMemo } from 'react';
-import {
-  MagnifyingGlassIcon,
-  ArrowPathIcon,
-  ChevronLeftIcon,
-  ChevronRightIcon,
-  ReceiptRefundIcon,
-  EnvelopeIcon,
-} from '@heroicons/react/24/outline';
 import { getTransactions } from '../../api/transactions';
 import { formatCurrency } from '../../utils/formatters';
 import TransactionFilterTabs from './TransactionFilterTabs';
 import useTransactionCounts from '../../hooks/useTransactionCounts';
 import { EmailSelectedButton } from '../Email';
+import { ChevronLeft, ChevronRight, Receipt, RefreshCw, Search } from 'lucide-react';
 
 /**
  * Date range filter dropdown
@@ -136,7 +129,7 @@ function Pagination({ pagination, onPageChange, isLoading }) {
           disabled={pagination.page <= 1 || isLoading}
           className="p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed"
         >
-          <ChevronLeftIcon className="w-5 h-5" />
+          <ChevronLeft className="w-5 h-5" />
         </button>
         <span className="flex items-center px-3 text-sm font-medium text-gray-700">
           {pagination.page} / {pagination.totalPages}
@@ -146,7 +139,7 @@ function Pagination({ pagination, onPageChange, isLoading }) {
           disabled={!pagination.hasMore || isLoading}
           className="p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed"
         >
-          <ChevronRightIcon className="w-5 h-5" />
+          <ChevronRight className="w-5 h-5" />
         </button>
       </div>
     </div>
@@ -345,7 +338,7 @@ export default function TransactionList({
         <div className="flex gap-3">
           {/* Search input */}
           <div className="flex-1 relative">
-            <MagnifyingGlassIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
             <input
               type="text"
               placeholder="Search transactions, customers..."
@@ -365,7 +358,7 @@ export default function TransactionList({
             className="h-10 px-3 text-gray-500 hover:text-gray-700 hover:bg-gray-100 border border-gray-300 rounded-lg transition-colors disabled:opacity-50"
             title="Refresh"
           >
-            <ArrowPathIcon className={`w-5 h-5 ${isLoading ? 'animate-spin' : ''}`} />
+            <RefreshCw className={`w-5 h-5 ${isLoading ? 'animate-spin' : ''}`} />
           </button>
 
           {/* Select mode toggle */}
@@ -453,7 +446,7 @@ export default function TransactionList({
               <tr>
                 <td colSpan={isSelectMode ? 6 : 5} className="px-4 py-12 text-center">
                   <div className="flex flex-col items-center gap-3">
-                    <ArrowPathIcon className="w-8 h-8 text-gray-300 animate-spin" />
+                    <RefreshCw className="w-8 h-8 text-gray-300 animate-spin" />
                     <p className="text-gray-500">Loading transactions...</p>
                   </div>
                 </td>
@@ -462,7 +455,7 @@ export default function TransactionList({
               <tr>
                 <td colSpan={isSelectMode ? 6 : 5} className="px-4 py-12 text-center">
                   <div className="flex flex-col items-center gap-3">
-                    <ReceiptRefundIcon className="w-12 h-12 text-gray-300" />
+                    <Receipt className="w-12 h-12 text-gray-300" />
                     <p className="text-gray-500">No transactions found</p>
                     <p className="text-sm text-gray-400">
                       Try adjusting your filters or date range

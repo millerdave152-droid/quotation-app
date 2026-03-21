@@ -3,22 +3,16 @@ import { authFetch } from '../../services/authFetch';
  * NegotiationTimeline - Shows the history of counter-offers on a quote
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 
-const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:3001';
+const API_URL = process.env.REACT_APP_API_URL || '';
 
-const NegotiationTimeline = ({ quoteId, onRefresh }) => {
+const NegotiationTimeline = ({ quoteId, onRefresh: _onRefresh }) => {
   const [counterOffers, setCounterOffers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
-  useEffect(() => {
-    if (quoteId) {
-      fetchCounterOffers();
-    }
-  }, [quoteId]);
-
-  const fetchCounterOffers = async () => {
+  const fetchCounterOffers = useCallback(async () => {
     try {
       setLoading(true);
       const token = localStorage.getItem('auth_token');
@@ -40,7 +34,13 @@ const NegotiationTimeline = ({ quoteId, onRefresh }) => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [quoteId]);
+
+  useEffect(() => {
+    if (quoteId) {
+      fetchCounterOffers();
+    }
+  }, [quoteId, fetchCounterOffers]);
 
   const formatCurrency = (cents) => {
     return new Intl.NumberFormat('en-CA', {

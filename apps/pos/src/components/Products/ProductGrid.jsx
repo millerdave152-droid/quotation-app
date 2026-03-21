@@ -94,12 +94,16 @@ function EmptyState({ searchActive, categoryActive }) {
  * @param {boolean} props.isLoading - Override loading state
  * @param {boolean} props.hasMore - More products available (external mode)
  * @param {function} props.onLoadMore - Load more callback (external mode)
+ * @param {object} props.specFilters - Spec filter object { specKey: value }
+ * @param {string|number} props.locationId - Location ID for inventory data
  * @param {string} props.className - Additional CSS classes
  */
 export function ProductGrid({
   products: externalProducts,
   categoryId,
   searchQuery,
+  specFilters,
+  locationId,
   onProductSelect,
   onSelect,
   isLoading: externalLoading,
@@ -120,7 +124,9 @@ export function ProductGrid({
 
   // Determine mode
   const isExternalMode = externalProducts !== undefined;
-  const products = isExternalMode ? externalProducts : internalProducts;
+  const products = isExternalMode
+    ? (Array.isArray(externalProducts) ? externalProducts : [])
+    : internalProducts;
   const isLoading = externalLoading ?? internalLoading;
   const hasMore = isExternalMode ? (externalHasMore ?? false) : hasMorePages;
   const onLoadMore = isExternalMode ? externalOnLoadMore : () => setPage(p => p + 1);
@@ -140,24 +146,34 @@ export function ProductGrid({
         // Search mode
         response = await quickSearch(searchQuery);
         if (currentFetchId === fetchIdRef.current && response.success) {
-          setInternalProducts(response.data || []);
+          setInternalProducts(Array.isArray(response.data) ? response.data : []);
           setHasMorePages(false); // Search doesn't paginate
           setTotalCount(response.data?.length || 0);
         }
       } else if (categoryId) {
         // Category filter mode
-        response = await getProductsByCategory(categoryId, { page: pageNum, limit: 24 });
+        const fetchParams = { page: pageNum, limit: 24 };
+        if (specFilters && Object.keys(specFilters).length > 0) {
+          fetchParams.specFilters = specFilters;
+        }
+        if (locationId) fetchParams.locationId = locationId;
+        response = await getProductsByCategory(categoryId, fetchParams);
         if (currentFetchId === fetchIdRef.current && response.success) {
-          const newProducts = response.data || [];
+          const newProducts = Array.isArray(response.data) ? response.data : [];
           setInternalProducts(prev => append ? [...prev, ...newProducts] : newProducts);
           setHasMorePages(newProducts.length >= 24);
           setTotalCount(response.total || newProducts.length);
         }
       } else {
         // All products mode
-        response = await getProducts({ page: pageNum, limit: 24 });
+        const fetchParams = { page: pageNum, limit: 24 };
+        if (specFilters && Object.keys(specFilters).length > 0) {
+          fetchParams.specFilters = specFilters;
+        }
+        if (locationId) fetchParams.locationId = locationId;
+        response = await getProducts(fetchParams);
         if (currentFetchId === fetchIdRef.current && response.success) {
-          const newProducts = response.data || [];
+          const newProducts = Array.isArray(response.data) ? response.data : [];
           setInternalProducts(prev => append ? [...prev, ...newProducts] : newProducts);
           setHasMorePages(newProducts.length >= 24);
           setTotalCount(response.total || newProducts.length);
@@ -174,16 +190,16 @@ export function ProductGrid({
         setInternalLoading(false);
       }
     }
-  }, [isExternalMode, categoryId, searchQuery]);
+  }, [isExternalMode, categoryId, searchQuery, specFilters, locationId]);
 
-  // Reset and fetch when category or search changes
+  // Reset and fetch when category, search, or spec filters change
   useEffect(() => {
     if (isExternalMode) return;
 
     setPage(1);
     setInternalProducts([]);
     fetchProducts(1, false);
-  }, [isExternalMode, categoryId, searchQuery, fetchProducts]);
+  }, [isExternalMode, categoryId, searchQuery, specFilters, fetchProducts]);
 
   // Fetch more when page changes (pagination)
   useEffect(() => {

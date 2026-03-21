@@ -21,7 +21,6 @@ const ProductResultCard = ({
   onAddToQuote
 }) => {
   const {
-    id,
     model,
     name,
     manufacturer,
@@ -29,7 +28,6 @@ const ProductResultCard = ({
     badges = [],
     pricing = {},
     stock_quantity,
-    product_status,
     discountGuidance,
     discount_percent
   } = product;

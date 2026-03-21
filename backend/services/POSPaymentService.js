@@ -394,7 +394,21 @@ class POSPaymentService {
     try {
       await client.query('BEGIN');
 
-      const newBalance = validation.balanceCents - amountCents;
+      // Re-check balance with row lock to prevent concurrent double-spend
+      const lockResult = await client.query(
+        'SELECT current_balance_cents FROM gift_cards WHERE id = $1 FOR UPDATE',
+        [validation.cardId]
+      );
+      const lockedBalance = lockResult.rows[0]?.current_balance_cents ?? 0;
+      if (lockedBalance < amountCents) {
+        await client.query('ROLLBACK');
+        client.release();
+        throw new Error(
+          `Insufficient gift card balance. Available: $${(lockedBalance / 100).toFixed(2)}`
+        );
+      }
+
+      const newBalance = lockedBalance - amountCents;
 
       // Insert payment record
       const paymentResult = await client.query(`

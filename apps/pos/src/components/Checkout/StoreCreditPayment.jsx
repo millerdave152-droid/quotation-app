@@ -16,7 +16,7 @@ export default function StoreCreditPayment({ amountDue, onComplete, onBack, isPa
   const [useCustom, setUseCustom] = useState(false);
 
   const amountDueCents = Math.round(amountDue * 100);
-  const balanceCents = credit ? (credit.currentBalanceCents ?? credit.current_balance ?? 0) : 0;
+  const balanceCents = credit ? (credit.currentBalanceCents ?? credit.current_balance_cents ?? 0) : 0;
   const balanceDollars = balanceCents / 100;
   const maxApply = credit ? Math.min(balanceCents, amountDueCents) / 100 : 0;
 
@@ -39,7 +39,7 @@ export default function StoreCreditPayment({ amountDue, onComplete, onBack, isPa
       const d = result.data;
       if (d.status !== 'active') {
         setError(`This credit is ${d.status}`);
-      } else if ((d.currentBalanceCents ?? d.current_balance ?? 0) <= 0) {
+      } else if ((d.currentBalanceCents ?? d.current_balance_cents ?? 0) <= 0) {
         setError('No remaining balance on this credit');
       } else {
         setCredit(d);

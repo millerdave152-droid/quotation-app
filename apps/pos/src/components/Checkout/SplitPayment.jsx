@@ -3,14 +3,8 @@
  * Shows applied payments and remaining balance
  */
 
-import {
-  BanknotesIcon,
-  CreditCardIcon,
-  GiftIcon,
-  TrashIcon,
-  PlusIcon,
-} from '@heroicons/react/24/outline';
 import { formatCurrency } from '../../utils/formatters';
+import { Banknote, CreditCard, Gift, Plus, Trash2 } from 'lucide-react';
 
 /**
  * Get icon for payment method
@@ -18,14 +12,15 @@ import { formatCurrency } from '../../utils/formatters';
 const getPaymentIcon = (method) => {
   switch (method) {
     case 'cash':
-      return BanknotesIcon;
+      return Banknote;
     case 'credit':
     case 'debit':
-      return CreditCardIcon;
+      return CreditCard;
     case 'giftcard':
-      return GiftIcon;
+    case 'gift_card':
+      return Gift;
     default:
-      return CreditCardIcon;
+      return CreditCard;
   }
 };
 
@@ -41,6 +36,7 @@ const getPaymentColor = (method) => {
     case 'debit':
       return 'bg-blue-100 text-blue-700';
     case 'giftcard':
+    case 'gift_card':
       return 'bg-purple-100 text-purple-700';
     default:
       return 'bg-gray-100 text-gray-700';
@@ -106,7 +102,7 @@ function PaymentItem({ payment, onRemove, index }) {
           "
           aria-label="Remove payment"
         >
-          <TrashIcon className="w-4 h-4" />
+          <Trash2 className="w-4 h-4" />
         </button>
       )}
     </div>
@@ -221,7 +217,7 @@ export function SplitPayment({
               transition-colors duration-150
             "
           >
-            <PlusIcon className="w-6 h-6" />
+            <Plus className="w-6 h-6" />
             Add Payment Method
           </button>
         )}

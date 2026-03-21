@@ -7,16 +7,9 @@
  */
 
 import { useState, useEffect, useCallback, useMemo } from 'react';
-import {
-  XMarkIcon,
-  UserGroupIcon,
-  ArrowPathIcon,
-  ShieldCheckIcon,
-  ExclamationTriangleIcon,
-  CheckCircleIcon,
-} from '@heroicons/react/24/outline';
 import api from '../../api/axios';
 import { formatCurrency } from '../../utils/formatters';
+import { AlertTriangle, CheckCircle, RefreshCw, ShieldCheck, Users, X } from 'lucide-react';
 
 const ROLE_ORDER = { admin: 0, senior_manager: 1, manager: 2 };
 
@@ -146,14 +139,14 @@ export default function BatchManagerSelectionModal({
         {/* Header */}
         <div className="flex items-center justify-between p-4 border-b border-gray-200">
           <div className="flex items-center gap-2">
-            <ShieldCheckIcon className="w-5 h-5 text-blue-600" />
+            <ShieldCheck className="w-5 h-5 text-blue-600" />
             <h2 className="text-lg font-bold text-gray-900">Batch Approval Request</h2>
           </div>
           <button
             onClick={onClose}
             className="w-8 h-8 flex items-center justify-center text-gray-400 hover:text-gray-600 rounded-lg"
           >
-            <XMarkIcon className="w-5 h-5" />
+            <X className="w-5 h-5" />
           </button>
         </div>
 
@@ -237,14 +230,14 @@ export default function BatchManagerSelectionModal({
 
           {error && !isLoading && (
             <div className="p-3 bg-red-50 border border-red-200 rounded-lg flex items-start gap-2">
-              <ExclamationTriangleIcon className="w-5 h-5 text-red-500 flex-shrink-0 mt-0.5" />
+              <AlertTriangle className="w-5 h-5 text-red-500 flex-shrink-0 mt-0.5" />
               <div className="flex-1">
                 <p className="text-sm text-red-700">{error}</p>
                 <button
                   onClick={fetchManagers}
                   className="mt-2 text-sm font-medium text-red-600 hover:text-red-800 flex items-center gap-1"
                 >
-                  <ArrowPathIcon className="w-4 h-4" /> Retry
+                  <RefreshCw className="w-4 h-4" /> Retry
                 </button>
               </div>
             </div>
@@ -253,14 +246,14 @@ export default function BatchManagerSelectionModal({
           {!isLoading && !error && managers.length === 0 && (
             <div className="text-center py-6 space-y-3">
               <div className="w-14 h-14 mx-auto bg-gray-100 rounded-full flex items-center justify-center">
-                <UserGroupIcon className="w-7 h-7 text-gray-400" />
+                <Users className="w-7 h-7 text-gray-400" />
               </div>
               <p className="text-sm font-medium text-gray-700">No managers currently online</p>
               <button
                 onClick={fetchManagers}
                 className="text-sm font-medium text-blue-600 hover:text-blue-800 flex items-center gap-1 justify-center mx-auto"
               >
-                <ArrowPathIcon className="w-4 h-4" /> Refresh
+                <RefreshCw className="w-4 h-4" /> Refresh
               </button>
             </div>
           )}
@@ -329,7 +322,7 @@ export default function BatchManagerSelectionModal({
 
                   <div className="flex-shrink-0">
                     {isSelected ? (
-                      <CheckCircleIcon className="w-6 h-6 text-blue-600" />
+                      <CheckCircle className="w-6 h-6 text-blue-600" />
                     ) : (
                       <div className="w-6 h-6 rounded-full border-2 border-gray-300" />
                     )}
@@ -366,7 +359,7 @@ export default function BatchManagerSelectionModal({
               </>
             ) : (
               <>
-                <ShieldCheckIcon className="w-5 h-5" />
+                <ShieldCheck className="w-5 h-5" />
                 Request Batch Approval
               </>
             )}

@@ -9,8 +9,8 @@
  */
 
 import { useMemo } from 'react';
-import { TagIcon, SparklesIcon } from '@heroicons/react/24/solid';
 import { formatCurrency } from '../../utils/formatters';
+import { Sparkles, Tag } from 'lucide-react';
 
 /**
  * Volume discount badge component
@@ -32,11 +32,6 @@ export function VolumeDiscountBadge({
   compact = false,
   className = '',
 }) {
-  // Don't render if no discount
-  if (!percentOff || percentOff <= 0) {
-    return null;
-  }
-
   // Determine badge style based on pricing source
   const badgeStyle = useMemo(() => {
     switch (pricingSource) {
@@ -45,7 +40,7 @@ export function VolumeDiscountBadge({
           bg: 'bg-purple-100',
           text: 'text-purple-700',
           border: 'border-purple-200',
-          icon: SparklesIcon,
+          icon: Sparkles,
           label: 'VIP',
         };
       case 'tier_volume':
@@ -53,7 +48,7 @@ export function VolumeDiscountBadge({
           bg: 'bg-blue-100',
           text: 'text-blue-700',
           border: 'border-blue-200',
-          icon: TagIcon,
+          icon: Tag,
           label: 'Tier',
         };
       case 'product_volume+tier_bonus':
@@ -61,7 +56,7 @@ export function VolumeDiscountBadge({
           bg: 'bg-emerald-100',
           text: 'text-emerald-700',
           border: 'border-emerald-200',
-          icon: SparklesIcon,
+          icon: Sparkles,
           label: 'Bonus',
         };
       default:
@@ -69,11 +64,16 @@ export function VolumeDiscountBadge({
           bg: 'bg-green-100',
           text: 'text-green-700',
           border: 'border-green-200',
-          icon: TagIcon,
+          icon: Tag,
           label: 'Volume',
         };
     }
   }, [pricingSource]);
+
+  // Keep hooks unconditional to avoid hook-order mismatches when the badge disappears.
+  if (!percentOff || percentOff <= 0) {
+    return null;
+  }
 
   const IconComponent = badgeStyle.icon;
 

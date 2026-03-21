@@ -18,6 +18,34 @@ module.exports = function(pool) {
     Promise.resolve(fn(req, res, next)).catch(next);
 
   // ============================================
+  // ROOT — API DISCOVERY
+  // ============================================
+
+  /**
+   * GET /api/activities
+   * Returns list of available activity endpoints
+   */
+  router.get('/', authenticate, (req, res) => {
+    res.json({
+      success: true,
+      data: {
+        endpoints: [
+          'GET /api/activities/quote/:quoteId',
+          'GET /api/activities/quote/:quoteId/summary',
+          'POST /api/activities/quote/:quoteId/note',
+          'POST /api/activities/quote/:quoteId/contact',
+          'POST /api/activities/quote/:quoteId/follow-up',
+          'POST /api/activities/quote/:quoteId/price-adjustment',
+          'POST /api/activities/quote/:quoteId/customer-viewed',
+          'GET /api/activities/recent',
+          'GET /api/activities/types',
+          'GET /api/activities/icons'
+        ]
+      }
+    });
+  });
+
+  // ============================================
   // QUOTE-SPECIFIC ACTIVITIES
   // ============================================
 

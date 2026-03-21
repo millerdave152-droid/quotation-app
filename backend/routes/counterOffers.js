@@ -10,6 +10,7 @@ const db = require('../config/database');
 const { authenticate, requireRole } = require('../middleware/auth');
 const { ApiError, asyncHandler } = require('../middleware/errorHandler');
 const { SendEmailCommand } = require('@aws-sdk/client-ses');
+const logger = require('../utils/logger');
 
 // Initialize service
 const counterOfferService = new CounterOfferService(db);
@@ -52,7 +53,7 @@ router.post('/quotes/:id/counter-offers', authenticate, asyncHandler(async (req,
     try {
       await sendCounterOfferEmail(counterOffer, 'customer');
     } catch (emailErr) {
-      console.error('Failed to send counter-offer email:', emailErr);
+      req.log.error({ err: emailErr }, 'Failed to send counter-offer email');
     }
   }
 
@@ -161,7 +162,7 @@ router.post('/counter-offers/:id/counter', authenticate, requireRole('admin', 'm
     try {
       await sendCounterOfferEmail(result.counterOffer, 'customer');
     } catch (emailErr) {
-      console.error('Failed to send counter-offer email:', emailErr);
+      req.log.error({ err: emailErr }, 'Failed to send counter-offer email');
     }
   }
 
@@ -230,7 +231,7 @@ router.post('/counter-offers/magic/:token', asyncHandler(async (req, res) => {
     try {
       await sendSupervisorNotificationEmail(result.counterOffer, action, name, newOfferCents);
     } catch (emailErr) {
-      console.error('Failed to send supervisor notification email:', emailErr);
+      req.log.error({ err: emailErr }, 'Failed to send supervisor notification email');
     }
   }
 
@@ -294,7 +295,7 @@ router.get('/quote/view/:token', asyncHandler(async (req, res) => {
  */
 async function sendCounterOfferEmail(counterOffer, recipientType) {
   if (!sesClient) {
-    console.warn('SES client not configured, skipping email');
+    logger.warn('SES client not configured, skipping email');
     return;
   }
 
@@ -312,7 +313,7 @@ async function sendCounterOfferEmail(counterOffer, recipientType) {
   const recipientEmail = recipientType === 'customer' ? quote.customer_email : counterOffer.submitted_by_email;
 
   if (!recipientEmail) {
-    console.warn('No recipient email for counter-offer notification');
+    logger.warn('No recipient email for counter-offer notification');
     return;
   }
 
@@ -381,7 +382,7 @@ async function sendCounterOfferEmail(counterOffer, recipientType) {
     });
     await sesClient.send(command);
   } catch (err) {
-    console.error('Error sending counter-offer email:', err);
+    logger.error({ err }, 'Error sending counter-offer email');
     throw err;
   }
 }

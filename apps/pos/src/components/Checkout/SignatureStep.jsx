@@ -4,14 +4,8 @@
  */
 
 import { useState, useCallback } from 'react';
-import {
-  CheckCircleIcon,
-  ClockIcon,
-  PencilSquareIcon,
-  ArrowRightIcon,
-  ChevronLeftIcon,
-} from '@heroicons/react/24/outline';
 import { SignaturePad } from '../Signature';
+import { ArrowRight, CheckCircle, ChevronLeft, Clock, SquarePen } from 'lucide-react';
 
 /**
  * Signature requirement card
@@ -33,8 +27,8 @@ function SignatureRequirementCard({
 
   const statusIcons = {
     pending: null,
-    captured: <CheckCircleIcon className="w-5 h-5 text-green-600" />,
-    deferred: <ClockIcon className="w-5 h-5 text-amber-600" />,
+    captured: <CheckCircle className="w-5 h-5 text-green-600" />,
+    deferred: <Clock className="w-5 h-5 text-amber-600" />,
   };
 
   return (
@@ -66,7 +60,7 @@ function SignatureRequirementCard({
 
           {status === 'deferred' && (
             <div className="mt-3 flex items-center gap-2 text-sm text-amber-700">
-              <ClockIcon className="w-4 h-4" />
+              <Clock className="w-4 h-4" />
               <span>Will be captured upon delivery</span>
             </div>
           )}
@@ -80,7 +74,7 @@ function SignatureRequirementCard({
               onClick={onCapture}
               className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-lg transition-colors flex items-center gap-2"
             >
-              <PencilSquareIcon className="w-4 h-4" />
+              <SquarePen className="w-4 h-4" />
               Sign Now
             </button>
             {requirement.canDefer && (
@@ -174,7 +168,7 @@ export default function SignatureStep({
             onClick={handleSignatureCancel}
             className="p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
           >
-            <ChevronLeftIcon className="w-5 h-5" />
+            <ChevronLeft className="w-5 h-5" />
           </button>
           <h2 className="text-lg font-semibold text-gray-900">
             {activeCapture.title}
@@ -267,7 +261,7 @@ export default function SignatureStep({
               onClick={onBack}
               className="flex-1 h-12 flex items-center justify-center gap-2 bg-gray-100 hover:bg-gray-200 text-gray-700 font-medium rounded-xl transition-colors"
             >
-              <ChevronLeftIcon className="w-5 h-5" />
+              <ChevronLeft className="w-5 h-5" />
               Back
             </button>
           )}
@@ -282,7 +276,7 @@ export default function SignatureStep({
             }`}
           >
             Continue
-            <ArrowRightIcon className="w-5 h-5" />
+            <ArrowRight className="w-5 h-5" />
           </button>
         </div>
       </div>

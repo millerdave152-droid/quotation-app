@@ -7,7 +7,7 @@ const AppliedDiscountsDisplay = ({
   appliedDiscounts = [],
   originalSubtotal,
   discountTotal,
-  finalSubtotal
+  finalSubtotal: _finalSubtotal
 }) => {
   if (appliedDiscounts.length === 0 && discountTotal === 0) {
     return null;

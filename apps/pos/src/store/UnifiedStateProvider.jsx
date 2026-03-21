@@ -51,7 +51,6 @@ export const UnifiedStateProvider = ({
       try {
         const draft = await offlineSync.loadDraft(draftKey);
         if (draft) {
-          console.log('[UnifiedStateProvider] Restored draft from storage');
         }
       } catch (error) {
         console.warn('[UnifiedStateProvider] Failed to restore draft:', error);

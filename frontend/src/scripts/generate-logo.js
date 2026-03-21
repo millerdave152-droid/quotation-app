@@ -22,8 +22,6 @@ export default TELETIME_LOGO;
 `;
 
   fs.writeFileSync(outputPath, moduleContent);
-  console.log('Logo module created successfully at:', outputPath);
-  console.log('Base64 length:', base64.length);
 } catch (err) {
   console.error('Error:', err.message);
 }

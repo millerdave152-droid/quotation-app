@@ -4,17 +4,7 @@
  */
 
 import React from 'react';
-import {
-  CurrencyDollarIcon,
-  ShoppingCartIcon,
-  SparklesIcon,
-  ArrowTrendingUpIcon,
-  ArrowTrendingDownIcon,
-  ChartBarIcon,
-  UserGroupIcon,
-  ReceiptPercentIcon,
-} from '@heroicons/react/24/outline';
-
+import { BarChart3, DollarSign, Receipt, ShoppingCart, Sparkles, TrendingDown, TrendingUp, Users } from 'lucide-react';
 /**
  * Format currency
  */
@@ -71,9 +61,9 @@ function StatCard({
                 trend >= 0 ? 'text-green-600' : 'text-red-500'
               }`}>
                 {trend >= 0 ? (
-                  <ArrowTrendingUpIcon className="w-4 h-4" />
+                  <TrendingUp className="w-4 h-4" />
                 ) : (
-                  <ArrowTrendingDownIcon className="w-4 h-4" />
+                  <TrendingDown className="w-4 h-4" />
                 )}
                 <span>{Math.abs(trend).toFixed(1)}%</span>
               </div>
@@ -104,7 +94,7 @@ export function RepCommissionSummary({ summary, comparison, loading = false }) {
   return (
     <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
       <StatCard
-        icon={CurrencyDollarIcon}
+        icon={DollarSign}
         iconBg="bg-green-100"
         iconColor="text-green-600"
         label="Total Commission"
@@ -114,7 +104,7 @@ export function RepCommissionSummary({ summary, comparison, loading = false }) {
         loading={loading}
       />
       <StatCard
-        icon={ShoppingCartIcon}
+        icon={ShoppingCart}
         iconBg="bg-blue-100"
         iconColor="text-blue-600"
         label="Sales Count"
@@ -123,7 +113,7 @@ export function RepCommissionSummary({ summary, comparison, loading = false }) {
         loading={loading}
       />
       <StatCard
-        icon={SparklesIcon}
+        icon={Sparkles}
         iconBg="bg-amber-100"
         iconColor="text-amber-600"
         label="Bonus Earned"
@@ -132,7 +122,7 @@ export function RepCommissionSummary({ summary, comparison, loading = false }) {
         loading={loading}
       />
       <StatCard
-        icon={ReceiptPercentIcon}
+        icon={Receipt}
         iconBg="bg-purple-100"
         iconColor="text-purple-600"
         label="Avg. Rate"
@@ -151,7 +141,7 @@ export function TeamCommissionSummary({ totals, loading = false }) {
   return (
     <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
       <StatCard
-        icon={CurrencyDollarIcon}
+        icon={DollarSign}
         iconBg="bg-green-100"
         iconColor="text-green-600"
         label="Total Team Commission"
@@ -160,7 +150,7 @@ export function TeamCommissionSummary({ totals, loading = false }) {
         loading={loading}
       />
       <StatCard
-        icon={UserGroupIcon}
+        icon={Users}
         iconBg="bg-blue-100"
         iconColor="text-blue-600"
         label="Active Reps"
@@ -169,7 +159,7 @@ export function TeamCommissionSummary({ totals, loading = false }) {
         loading={loading}
       />
       <StatCard
-        icon={ShoppingCartIcon}
+        icon={ShoppingCart}
         iconBg="bg-indigo-100"
         iconColor="text-indigo-600"
         label="Total Orders"
@@ -178,7 +168,7 @@ export function TeamCommissionSummary({ totals, loading = false }) {
         loading={loading}
       />
       <StatCard
-        icon={ChartBarIcon}
+        icon={BarChart3}
         iconBg="bg-purple-100"
         iconColor="text-purple-600"
         label="Avg. Per Order"
@@ -242,7 +232,7 @@ export function TargetProgressCard({ targetProgress, loading = false }) {
 
       {isAchieved ? (
         <div className="flex items-center gap-2 mt-3 p-2 bg-green-50 rounded-lg">
-          <SparklesIcon className="w-5 h-5 text-green-600" />
+          <Sparkles className="w-5 h-5 text-green-600" />
           <span className="text-sm font-medium text-green-700">
             Target achieved! Exceeded by {formatCurrency(earned - target)}
           </span>

@@ -21,6 +21,69 @@ function init({ commissionService, pool }) {
   };
 
   // ============================================
+  // ROOT — API DISCOVERY
+  // ============================================
+
+  /**
+   * GET /api/commissions
+   * Returns list of available commission endpoints
+   */
+  router.get('/', (req, res) => {
+    res.json({
+      success: true,
+      data: {
+        endpoints: {
+          calculation: [
+            'POST /api/commissions/calculate/order/:orderId',
+            'POST /api/commissions/calculate/cart'
+          ],
+          recording: [
+            'POST /api/commissions/record/:orderId'
+          ],
+          reporting: [
+            'GET /api/commissions/summary',
+            'GET /api/commissions/summary/:userId',
+            'GET /api/commissions/my',
+            'GET /api/commissions/rep/:repId',
+            'GET /api/commissions/rep/:repId/detailed',
+            'GET /api/commissions/order/:orderId',
+            'GET /api/commissions/leaderboard',
+            'GET /api/commissions/stats',
+            'GET /api/commissions/team',
+            'GET /api/commissions/export'
+          ],
+          rules: [
+            'GET /api/commissions/rules',
+            'GET /api/commissions/rules/:id',
+            'POST /api/commissions/rules',
+            'PUT /api/commissions/rules/:id',
+            'DELETE /api/commissions/rules/:id'
+          ],
+          payroll: [
+            'GET /api/commissions/payroll/summary',
+            'POST /api/commissions/payouts',
+            'GET /api/commissions/payouts/pending',
+            'POST /api/commissions/payouts/:id/approve',
+            'POST /api/commissions/payouts/:id/paid'
+          ],
+          settings: [
+            'GET /api/commissions/settings/:repId',
+            'PUT /api/commissions/settings/:repId'
+          ],
+          splits: [
+            'POST /api/commissions/splits/:transactionId',
+            'GET /api/commissions/splits/:transactionId',
+            'POST /api/commissions/splits/preview'
+          ],
+          adjustments: [
+            'POST /api/commissions/adjustments'
+          ]
+        }
+      }
+    });
+  });
+
+  // ============================================
   // COMMISSION CALCULATION
   // ============================================
 

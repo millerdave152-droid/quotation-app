@@ -6,7 +6,7 @@ import { authFetch } from '../../services/authFetch';
 
 import React, { useState, useEffect, useCallback } from 'react';
 
-const API_BASE = process.env.REACT_APP_API_URL || 'http://localhost:3001';
+const API_BASE = process.env.REACT_APP_API_URL || '';
 
 const NomenclatureAdmin = () => {
   // State

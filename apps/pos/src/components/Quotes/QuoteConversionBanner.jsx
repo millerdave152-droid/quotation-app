@@ -1,13 +1,9 @@
+import { FileText, User, X } from 'lucide-react';
+
 /**
  * TeleTime POS - Quote Conversion Banner Component
  * Shows in cart when items came from a quote
  */
-
-import {
-  DocumentTextIcon,
-  UserIcon,
-  XMarkIcon,
-} from '@heroicons/react/24/outline';
 
 /**
  * Quote conversion banner
@@ -41,7 +37,7 @@ export function QuoteConversionBanner({
       <div className="flex items-center gap-3">
         {/* Quote Icon */}
         <div className="w-10 h-10 bg-white/20 rounded-lg flex items-center justify-center flex-shrink-0">
-          <DocumentTextIcon className="w-5 h-5" />
+          <FileText className="w-5 h-5" />
         </div>
 
         {/* Info */}
@@ -55,7 +51,7 @@ export function QuoteConversionBanner({
           <div className="flex items-center gap-4 text-sm text-blue-100 mt-0.5">
             {customerName && (
               <span className="flex items-center gap-1">
-                <UserIcon className="w-3 h-3" />
+                <User className="w-3 h-3" />
                 {customerName}
               </span>
             )}
@@ -83,7 +79,7 @@ export function QuoteConversionBanner({
             aria-label="Clear quote"
             title="Remove quote link (keeps items)"
           >
-            <XMarkIcon className="w-5 h-5" />
+            <X className="w-5 h-5" />
           </button>
         )}
       </div>

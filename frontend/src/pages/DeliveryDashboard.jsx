@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 
 import { authFetch } from '../services/authFetch';
-const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:3001';
+const API_URL = process.env.REACT_APP_API_URL || '';
 
 const STATUS_OPTIONS = [
   { value: 'pending', label: 'Pending', bg: '#fef3c7', color: '#92400e' },

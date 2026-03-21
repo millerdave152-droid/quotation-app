@@ -4,15 +4,7 @@
  */
 
 import React, { useState, useMemo } from 'react';
-import {
-  ChevronUpIcon,
-  ChevronDownIcon,
-  SparklesIcon,
-  ExclamationTriangleIcon,
-  FunnelIcon,
-  MagnifyingGlassIcon,
-} from '@heroicons/react/24/outline';
-
+import { AlertTriangle, ChevronDown, ChevronUp, Search, Sparkles } from 'lucide-react';
 /**
  * Format currency
  */
@@ -44,14 +36,14 @@ function SortIcon({ active, direction }) {
   if (!active) {
     return (
       <div className="w-4 h-4 text-slate-300">
-        <ChevronUpIcon className="w-3 h-3" />
+        <ChevronUp className="w-3 h-3" />
       </div>
     );
   }
   return direction === 'asc' ? (
-    <ChevronUpIcon className="w-4 h-4 text-blue-600" />
+    <ChevronUp className="w-4 h-4 text-blue-600" />
   ) : (
-    <ChevronDownIcon className="w-4 h-4 text-blue-600" />
+    <ChevronDown className="w-4 h-4 text-blue-600" />
   );
 }
 
@@ -191,7 +183,7 @@ export default function CommissionTable({
         <div className="flex items-center gap-3">
           {/* Search */}
           <div className="relative">
-            <MagnifyingGlassIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
             <input
               type="text"
               placeholder="Search orders, items..."
@@ -212,7 +204,7 @@ export default function CommissionTable({
               }
             `}
           >
-            <SparklesIcon className="w-4 h-4" />
+            <Sparkles className="w-4 h-4" />
             Bonus Only
           </button>
         </div>
@@ -307,12 +299,12 @@ export default function CommissionTable({
                       </span>
                       {earning.isBonus && (
                         <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 text-xs font-medium bg-green-100 text-green-700 rounded-full">
-                          <SparklesIcon className="w-3 h-3" />
+                          <Sparkles className="w-3 h-3" />
                         </span>
                       )}
                       {earning.isReduced && (
                         <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 text-xs font-medium bg-amber-100 text-amber-700 rounded-full">
-                          <ExclamationTriangleIcon className="w-3 h-3" />
+                          <AlertTriangle className="w-3 h-3" />
                         </span>
                       )}
                     </div>

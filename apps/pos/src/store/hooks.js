@@ -6,7 +6,7 @@
 import { useCallback, useMemo } from 'react';
 import { useUnifiedStore, useCustomer, useCart, usePricing, useDrafts, useSync } from './unifiedStore';
 import { useOfflineSync } from './offlineSync';
-import { draftApi, generateDraftKey, getDeviceId } from './draftApi';
+import { draftApi, getDeviceId } from './draftApi';
 
 // ============================================================================
 // UNIFIED CART HOOK
@@ -155,7 +155,7 @@ export const useCustomerState = () => {
     if (fetchPricing && customerData?.id) {
       try {
         // Fetch customer-specific pricing from API
-        const response = await fetch(`/api/customer-pricing/${customerData.id}`);
+        const response = await fetch(`/api/customer-pricing/info/${customerData.id}`);
         if (response.ok) {
           const data = await response.json();
           setCustomerPricing(data.data);
@@ -257,7 +257,6 @@ export const useDraftManagement = (options = {}) => {
   } = options;
 
   const drafts = useDrafts();
-  const store = useUnifiedStore();
 
   // Use offline sync
   const offlineSync = useOfflineSync({
@@ -267,10 +266,7 @@ export const useDraftManagement = (options = {}) => {
   });
 
   // Save current state as draft
-  const saveDraft = useCallback(async (label = '') => {
-    const snapshot = drafts.getDraftSnapshot();
-    const draftKey = generateDraftKey(draftType, userId);
-
+  const saveDraft = useCallback(async () => {
     try {
       const result = await offlineSync.saveDraft(true);
       drafts.setDraftId(result.id, draftType);
@@ -279,7 +275,7 @@ export const useDraftManagement = (options = {}) => {
       console.error('Failed to save draft:', error);
       throw error;
     }
-  }, [draftType, userId, drafts, offlineSync]);
+  }, [draftType, drafts, offlineSync]);
 
   // Load a draft
   const loadDraft = useCallback(async (draftIdOrKey) => {

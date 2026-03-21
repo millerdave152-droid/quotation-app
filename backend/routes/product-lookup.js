@@ -13,9 +13,11 @@ function init({ pool }) {
    * Returns product or 404
    */
   router.get('/lookup', asyncHandler(async (req, res) => {
-    const { barcode } = req.query;
+    const barcode = req.query.barcode || req.query.q || req.query.sku;
     if (!barcode || barcode.length < 3) {
-      throw ApiError.badRequest('Barcode/SKU required (min 3 chars)');
+      throw ApiError.badRequest(
+        'Query parameter required: ?barcode=<value>, ?q=<value>, or ?sku=<value> (min 3 chars). For text search by name, use GET /api/products?search=<term>'
+      );
     }
 
     const code = barcode.trim();

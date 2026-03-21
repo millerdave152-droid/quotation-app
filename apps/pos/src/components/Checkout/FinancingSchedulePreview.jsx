@@ -4,15 +4,8 @@
  */
 
 import { useState } from 'react';
-import {
-  CalendarDaysIcon,
-  ChevronDownIcon,
-  ChevronUpIcon,
-  BanknotesIcon,
-  ReceiptPercentIcon,
-  CurrencyDollarIcon,
-} from '@heroicons/react/24/outline';
 import { formatCurrency } from '../../utils/formatters';
+import { Banknote, CalendarDays, ChevronDown, ChevronUp, DollarSign, Receipt } from 'lucide-react';
 
 /**
  * Format date for display
@@ -109,26 +102,26 @@ export function FinancingSchedulePreview({ paymentPlan, compact = false }) {
       {/* Summary Stats */}
       <div className="grid grid-cols-2 gap-3">
         <StatCard
-          icon={CurrencyDollarIcon}
+          icon={DollarSign}
           label="Financed"
           value={formatCurrency(principal)}
           color="blue"
         />
         <StatCard
-          icon={BanknotesIcon}
+          icon={Banknote}
           label="Total Cost"
           value={formatCurrency(totalCost)}
           subValue={totalInterest > 0 ? `+${formatCurrency(totalInterest)} interest` : 'No interest'}
           color={isZeroApr ? 'green' : 'amber'}
         />
         <StatCard
-          icon={ReceiptPercentIcon}
+          icon={Receipt}
           label="APR"
           value={isZeroApr ? '0%' : `${apr}%`}
           color={isZeroApr ? 'green' : 'gray'}
         />
         <StatCard
-          icon={CalendarDaysIcon}
+          icon={CalendarDays}
           label="First Payment"
           value={formatDate(firstPaymentDate)}
           color="gray"
@@ -150,12 +143,12 @@ export function FinancingSchedulePreview({ paymentPlan, compact = false }) {
                   {showFullSchedule ? (
                     <>
                       <span>Show Less</span>
-                      <ChevronUpIcon className="w-4 h-4" />
+                      <ChevronUp className="w-4 h-4" />
                     </>
                   ) : (
                     <>
                       <span>Show All</span>
-                      <ChevronDownIcon className="w-4 h-4" />
+                      <ChevronDown className="w-4 h-4" />
                     </>
                   )}
                 </button>

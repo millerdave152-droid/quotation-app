@@ -283,7 +283,7 @@ function AutocompleteInput({
                   <li className="ac-group-header">
                     {groupLabels[group] || group}
                   </li>
-                  {items.map((suggestion, idx) => {
+                  {items.map((suggestion, _idx) => {
                     const globalIndex = suggestions.indexOf(suggestion);
                     return renderSuggestionItem(suggestion, globalIndex);
                   })}

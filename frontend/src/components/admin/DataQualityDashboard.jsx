@@ -1,8 +1,8 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
 
 import { authFetch } from '../../services/authFetch';
-const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:3001';
+const API_URL = process.env.REACT_APP_API_URL || '';
 
 const DataQualityDashboard = () => {
   const { token } = useAuth();
@@ -14,11 +14,7 @@ const DataQualityDashboard = () => {
   const [notification, setNotification] = useState(null);
   const [mergeModal, setMergeModal] = useState(null);
 
-  useEffect(() => {
-    fetchReport();
-  }, []);
-
-  const fetchReport = async () => {
+  const fetchReport = useCallback(async () => {
     setLoading(true);
     try {
       const response = await authFetch(`${API_URL}/api/data-quality/report`, {
@@ -39,7 +35,11 @@ const DataQualityDashboard = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [token]);
+
+  useEffect(() => {
+    fetchReport();
+  }, [fetchReport]);
 
   const handleAutoFix = async (fixType) => {
     if (!window.confirm(`Are you sure you want to run the "${fixType}" auto-fix? This will modify data.`)) {
@@ -668,7 +668,7 @@ const IssuesList = ({ title, issues, getSeverityColor }) => {
 };
 
 // Duplicate Card Component
-const DuplicateCard = ({ duplicate, entityType, onMerge }) => {
+const DuplicateCard = ({ duplicate, onMerge }) => {
   const records = duplicate.records || [];
 
   return (

@@ -6,17 +6,8 @@
  */
 
 import { useState, useEffect, useRef } from 'react';
-import {
-  XMarkIcon,
-  ClockIcon,
-  CheckCircleIcon,
-  XCircleIcon,
-  ArrowPathIcon,
-  ExclamationTriangleIcon,
-  ShieldCheckIcon,
-  TagIcon,
-} from '@heroicons/react/24/outline';
 import { formatCurrency } from '../../utils/formatters';
+import { AlertTriangle, CheckCircle, RefreshCw, ShieldCheck, Tag, XCircle } from 'lucide-react';
 
 // ---------------------------------------------------------------------------
 // Live Timer
@@ -112,7 +103,7 @@ export default function ApprovalStatusOverlay({
           <div className="p-5 bg-blue-50 border-b border-blue-100">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
-                <ShieldCheckIcon className="w-5 h-5 text-blue-600" />
+                <ShieldCheck className="w-5 h-5 text-blue-600" />
                 <h2 className="text-lg font-bold text-gray-900">Awaiting Approval</h2>
               </div>
               <LiveTimer createdAt={approvalRequest?.created_at || approvalRequest?.createdAt} />
@@ -123,7 +114,7 @@ export default function ApprovalStatusOverlay({
           <div className="p-5 space-y-4">
             {/* Product */}
             <div className="flex items-start gap-2">
-              <TagIcon className="w-4 h-4 text-gray-400 mt-0.5" />
+              <Tag className="w-4 h-4 text-gray-400 mt-0.5" />
               <p className="text-sm font-medium text-gray-900">{productName}</p>
             </div>
 
@@ -181,7 +172,7 @@ export default function ApprovalStatusOverlay({
         <div className="bg-white rounded-2xl shadow-xl max-w-md w-full mx-4 overflow-hidden">
           <div className="p-5 bg-green-50 border-b border-green-100">
             <div className="flex items-center gap-2">
-              <CheckCircleIcon className="w-6 h-6 text-green-600" />
+              <CheckCircle className="w-6 h-6 text-green-600" />
               <h2 className="text-lg font-bold text-green-800">
                 {flowState === 'done' ? 'Price Applied!' : 'Approved!'}
               </h2>
@@ -190,7 +181,7 @@ export default function ApprovalStatusOverlay({
 
           <div className="p-5 space-y-4">
             <div className="flex items-start gap-2">
-              <TagIcon className="w-4 h-4 text-gray-400 mt-0.5" />
+              <Tag className="w-4 h-4 text-gray-400 mt-0.5" />
               <p className="text-sm font-medium text-gray-900">{productName}</p>
             </div>
 
@@ -250,14 +241,14 @@ export default function ApprovalStatusOverlay({
         <div className="bg-white rounded-2xl shadow-xl max-w-md w-full mx-4 overflow-hidden">
           <div className="p-5 bg-red-50 border-b border-red-100">
             <div className="flex items-center gap-2">
-              <XCircleIcon className="w-6 h-6 text-red-600" />
+              <XCircle className="w-6 h-6 text-red-600" />
               <h2 className="text-lg font-bold text-red-800">Request Denied</h2>
             </div>
           </div>
 
           <div className="p-5 space-y-4">
             <div className="flex items-start gap-2">
-              <TagIcon className="w-4 h-4 text-gray-400 mt-0.5" />
+              <Tag className="w-4 h-4 text-gray-400 mt-0.5" />
               <p className="text-sm font-medium text-gray-900">{productName}</p>
             </div>
 
@@ -309,14 +300,14 @@ export default function ApprovalStatusOverlay({
         <div className="bg-white rounded-2xl shadow-xl max-w-md w-full mx-4 overflow-hidden">
           <div className="p-5 bg-amber-50 border-b border-amber-100">
             <div className="flex items-center gap-2">
-              <ArrowPathIcon className="w-5 h-5 text-amber-600" />
+              <RefreshCw className="w-5 h-5 text-amber-600" />
               <h2 className="text-lg font-bold text-amber-800">Counter Offer</h2>
             </div>
           </div>
 
           <div className="p-5 space-y-4">
             <div className="flex items-start gap-2">
-              <TagIcon className="w-4 h-4 text-gray-400 mt-0.5" />
+              <Tag className="w-4 h-4 text-gray-400 mt-0.5" />
               <p className="text-sm font-medium text-gray-900">{productName}</p>
             </div>
 
@@ -379,7 +370,7 @@ export default function ApprovalStatusOverlay({
         <div className="bg-white rounded-2xl shadow-xl max-w-md w-full mx-4 overflow-hidden">
           <div className="p-5 bg-amber-50 border-b border-amber-100">
             <div className="flex items-center gap-2">
-              <ExclamationTriangleIcon className="w-6 h-6 text-amber-600" />
+              <AlertTriangle className="w-6 h-6 text-amber-600" />
               <h2 className="text-lg font-bold text-amber-800">Request Timed Out</h2>
             </div>
           </div>
@@ -412,7 +403,7 @@ export default function ApprovalStatusOverlay({
         <div className="bg-white rounded-2xl shadow-xl max-w-md w-full mx-4 overflow-hidden">
           <div className="p-5 bg-red-50 border-b border-red-100">
             <div className="flex items-center gap-2">
-              <ExclamationTriangleIcon className="w-6 h-6 text-red-600" />
+              <AlertTriangle className="w-6 h-6 text-red-600" />
               <h2 className="text-lg font-bold text-red-800">Error</h2>
             </div>
           </div>

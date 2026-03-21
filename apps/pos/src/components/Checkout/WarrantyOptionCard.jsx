@@ -3,12 +3,8 @@
  * Individual warranty plan selection card
  */
 
-import {
-  CheckCircleIcon,
-  SparklesIcon,
-} from '@heroicons/react/24/outline';
-import { CheckCircleIcon as CheckCircleSolid } from '@heroicons/react/24/solid';
 import { formatCurrency } from '../../utils/formatters';
+import { CheckCircle, Sparkles } from 'lucide-react';
 
 /**
  * Coverage bullet point
@@ -16,7 +12,7 @@ import { formatCurrency } from '../../utils/formatters';
 function CoverageBullet({ text }) {
   return (
     <li className="flex items-start gap-2">
-      <CheckCircleIcon className="w-4 h-4 text-green-500 flex-shrink-0 mt-0.5" />
+      <CheckCircle className="w-4 h-4 text-green-500 flex-shrink-0 mt-0.5" />
       <span className="text-sm text-gray-600">{text}</span>
     </li>
   );
@@ -132,7 +128,7 @@ export function WarrantyOptionCard({
       {warranty.badge && (
         <div className="absolute -top-3 left-1/2 -translate-x-1/2">
           <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-sm">
-            <SparklesIcon className="w-3.5 h-3.5" />
+            <Sparkles className="w-3.5 h-3.5" />
             {warranty.badge}
           </span>
         </div>

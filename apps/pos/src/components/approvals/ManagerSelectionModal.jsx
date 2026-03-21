@@ -15,18 +15,9 @@
  */
 
 import { useState, useEffect, useCallback, useMemo } from 'react';
-import {
-  XMarkIcon,
-  UserGroupIcon,
-  ArrowPathIcon,
-  ShieldCheckIcon,
-  ExclamationTriangleIcon,
-  LockClosedIcon,
-  CheckCircleIcon,
-  TagIcon,
-} from '@heroicons/react/24/outline';
 import api from '../../api/axios';
 import { formatCurrency } from '../../utils/formatters';
+import { AlertTriangle, CheckCircle, Lock, RefreshCw, ShieldCheck, Tag, Users, X } from 'lucide-react';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -158,14 +149,14 @@ export default function ManagerSelectionModal({
         {/* ============================================================== */}
         <div className="flex items-center justify-between p-4 border-b border-gray-200">
           <div className="flex items-center gap-2">
-            <UserGroupIcon className="w-5 h-5 text-blue-600" />
+            <Users className="w-5 h-5 text-blue-600" />
             <h2 className="text-lg font-bold text-gray-900">Select Manager</h2>
           </div>
           <button
             onClick={onClose}
             className="w-8 h-8 flex items-center justify-center text-gray-400 hover:text-gray-600 rounded-lg"
           >
-            <XMarkIcon className="w-5 h-5" />
+            <X className="w-5 h-5" />
           </button>
         </div>
 
@@ -175,7 +166,7 @@ export default function ManagerSelectionModal({
         <div className="p-4 border-b border-gray-100 space-y-3">
           {/* Product name */}
           <div className="flex items-start gap-2">
-            <TagIcon className="w-4 h-4 text-gray-400 mt-0.5 flex-shrink-0" />
+            <Tag className="w-4 h-4 text-gray-400 mt-0.5 flex-shrink-0" />
             <p className="text-sm font-medium text-gray-900 leading-tight">
               {cartItem?.productName || 'Unknown product'}
             </p>
@@ -234,14 +225,14 @@ export default function ManagerSelectionModal({
           {/* Error */}
           {error && !isLoading && (
             <div className="p-3 bg-red-50 border border-red-200 rounded-lg flex items-start gap-2">
-              <ExclamationTriangleIcon className="w-5 h-5 text-red-500 flex-shrink-0 mt-0.5" />
+              <AlertTriangle className="w-5 h-5 text-red-500 flex-shrink-0 mt-0.5" />
               <div className="flex-1">
                 <p className="text-sm text-red-700">{error}</p>
                 <button
                   onClick={fetchManagers}
                   className="mt-2 text-sm font-medium text-red-600 hover:text-red-800 flex items-center gap-1"
                 >
-                  <ArrowPathIcon className="w-4 h-4" /> Retry
+                  <RefreshCw className="w-4 h-4" /> Retry
                 </button>
               </div>
             </div>
@@ -251,7 +242,7 @@ export default function ManagerSelectionModal({
           {!isLoading && !error && managers.length === 0 && (
             <div className="text-center py-8 space-y-4">
               <div className="w-16 h-16 mx-auto bg-gray-100 rounded-full flex items-center justify-center">
-                <UserGroupIcon className="w-8 h-8 text-gray-400" />
+                <Users className="w-8 h-8 text-gray-400" />
               </div>
               <div>
                 <p className="text-sm font-medium text-gray-700">
@@ -273,7 +264,7 @@ export default function ManagerSelectionModal({
                     transition-colors
                   "
                 >
-                  <LockClosedIcon className="w-4 h-4" />
+                  <Lock className="w-4 h-4" />
                   Use PIN Override
                 </button>
               )}
@@ -281,7 +272,7 @@ export default function ManagerSelectionModal({
                 onClick={fetchManagers}
                 className="block mx-auto text-sm font-medium text-blue-600 hover:text-blue-800 flex items-center gap-1 justify-center"
               >
-                <ArrowPathIcon className="w-4 h-4" /> Refresh
+                <RefreshCw className="w-4 h-4" /> Refresh
               </button>
             </div>
           )}
@@ -370,7 +361,7 @@ export default function ManagerSelectionModal({
                   {/* Selection indicator */}
                   <div className="flex-shrink-0">
                     {isSelected ? (
-                      <CheckCircleIcon className="w-6 h-6 text-blue-600" />
+                      <CheckCircle className="w-6 h-6 text-blue-600" />
                     ) : (
                       <div className="w-6 h-6 rounded-full border-2 border-gray-300" />
                     )}
@@ -415,7 +406,7 @@ export default function ManagerSelectionModal({
               </>
             ) : (
               <>
-                <ShieldCheckIcon className="w-5 h-5" />
+                <ShieldCheck className="w-5 h-5" />
                 Request Approval
               </>
             )}

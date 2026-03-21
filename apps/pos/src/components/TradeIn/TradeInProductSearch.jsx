@@ -22,43 +22,30 @@ import {
   Divider,
   Fade,
 } from '@mui/material';
-import {
-  Search as SearchIcon,
-  Smartphone as PhoneIcon,
-  Tv as TvIcon,
-  Laptop as LaptopIcon,
-  Tablet as TabletIcon,
-  Devices as DevicesIcon,
-  Watch as WatchIcon,
-  Headphones as AudioIcon,
-  SportsEsports as GamingIcon,
-  CheckCircle as CheckCircleIcon,
-  Edit as EditIcon,
-  TrendingUp as ValueIcon,
-} from '@mui/icons-material';
 import { useDebounce } from '../../hooks/useDebounce';
+import { CheckCircle, Gamepad2, Headphones, Laptop, Monitor, Pencil, Phone, Search, Tablet, Tag, Tv, Watch } from 'lucide-react';
 
 // ============================================================================
 // CONSTANTS
 // ============================================================================
 
 const CATEGORY_ICONS = {
-  'Smartphones': PhoneIcon,
-  'Phones': PhoneIcon,
-  'Cell Phones': PhoneIcon,
-  'TVs': TvIcon,
-  'Televisions': TvIcon,
-  'Laptops': LaptopIcon,
-  'Computers': LaptopIcon,
-  'Tablets': TabletIcon,
-  'iPads': TabletIcon,
-  'Smartwatches': WatchIcon,
-  'Wearables': WatchIcon,
-  'Audio': AudioIcon,
-  'Headphones': AudioIcon,
-  'Gaming': GamingIcon,
-  'Consoles': GamingIcon,
-  'default': DevicesIcon,
+  'Smartphones': Phone,
+  'Phones': Phone,
+  'Cell Phones': Phone,
+  'TVs': Tv,
+  'Televisions': Tv,
+  'Laptops': Laptop,
+  'Computers': Laptop,
+  'Tablets': Tablet,
+  'iPads': Tablet,
+  'Smartwatches': Watch,
+  'Wearables': Watch,
+  'Audio': Headphones,
+  'Headphones': Headphones,
+  'Gaming': Gamepad2,
+  'Consoles': Gamepad2,
+  'default': Monitor,
 };
 
 const API_BASE = '/api/trade-in';
@@ -157,7 +144,7 @@ export function TradeInProductSearch({
         InputProps={{
           startAdornment: (
             <InputAdornment position="start">
-              <SearchIcon color="action" />
+              <Search color="action" />
             </InputAdornment>
           ),
           endAdornment: searchLoading && (
@@ -276,7 +263,7 @@ export function TradeInProductSearch({
                           {product.release_year && ` • ${product.release_year}`}
                         </Typography>
                         <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                          <ValueIcon sx={{ fontSize: 16, color: 'success.main' }} />
+                          <Tag sx={{ fontSize: 16, color: 'success.main' }} />
                           <Typography variant="body2" color="success.main" fontWeight={700}>
                             Up to {formatCurrency(product.base_value)}
                           </Typography>
@@ -286,7 +273,7 @@ export function TradeInProductSearch({
                   />
                   {isSelected && (
                     <ListItemSecondaryAction>
-                      <CheckCircleIcon color="primary" sx={{ fontSize: 28 }} />
+                      <CheckCircle color="primary" sx={{ fontSize: 28 }} />
                     </ListItemSecondaryAction>
                   )}
                 </ListItem>
@@ -295,7 +282,7 @@ export function TradeInProductSearch({
           </List>
         ) : searchQuery || selectedCategory ? (
           <Box sx={{ textAlign: 'center', py: 4 }}>
-            <DevicesIcon sx={{ fontSize: 48, color: 'text.disabled', mb: 1 }} />
+            <Monitor sx={{ fontSize: 48, color: 'text.disabled', mb: 1 }} />
             <Typography color="text.secondary">
               No products found matching your search
             </Typography>
@@ -305,7 +292,7 @@ export function TradeInProductSearch({
           </Box>
         ) : (
           <Box sx={{ textAlign: 'center', py: 4 }}>
-            <SearchIcon sx={{ fontSize: 48, color: 'text.disabled', mb: 1 }} />
+            <Search sx={{ fontSize: 48, color: 'text.disabled', mb: 1 }} />
             <Typography color="text.secondary">
               Search for a product or select a category
             </Typography>
@@ -322,7 +309,7 @@ export function TradeInProductSearch({
         fullWidth
         variant={showManualForm ? 'contained' : 'outlined'}
         color={showManualForm ? 'secondary' : 'inherit'}
-        startIcon={<EditIcon />}
+        startIcon={<Pencil />}
         onClick={handleManualEntryClick}
         sx={{
           py: 1.5,

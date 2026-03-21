@@ -1,13 +1,13 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 
 import { authFetch } from '../services/authFetch';
-const API_BASE = `${process.env.REACT_APP_API_URL || 'http://localhost:3001'}/api`;
+const API_BASE = `${process.env.REACT_APP_API_URL || ''}/api`;
 
 /**
  * CustomerOrderHistory Component
  * Displays unified order history combining quotes and marketplace orders
  */
-function CustomerOrderHistory({ customerId, customerEmail, onCreateQuote }) {
+function CustomerOrderHistory({ customerId, onCreateQuote }) {
   const [activeTab, setActiveTab] = useState('all');
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -21,13 +21,8 @@ function CustomerOrderHistory({ customerId, customerEmail, onCreateQuote }) {
     quoteRevenue: 0
   });
 
-  useEffect(() => {
-    if (customerId) {
-      fetchUnifiedHistory();
-    }
-  }, [customerId]);
-
-  const fetchUnifiedHistory = async () => {
+  const fetchUnifiedHistory = useCallback(async () => {
+    if (!customerId) return;
     setLoading(true);
     setError(null);
     try {
@@ -52,7 +47,11 @@ function CustomerOrderHistory({ customerId, customerEmail, onCreateQuote }) {
     } finally {
       setLoading(false);
     }
-  };
+  }, [customerId]);
+
+  useEffect(() => {
+    fetchUnifiedHistory();
+  }, [fetchUnifiedHistory]);
 
   const formatCurrency = (cents) => {
     if (!cents) return '$0.00';
@@ -68,7 +67,7 @@ function CustomerOrderHistory({ customerId, customerEmail, onCreateQuote }) {
     });
   };
 
-  const getStatusBadge = (status, type) => {
+  const getStatusBadge = (status) => {
     const statusStyles = {
       // Quote statuses
       approved: { bg: '#dcfce7', color: '#166534' },
@@ -235,7 +234,7 @@ function CustomerOrderHistory({ customerId, customerEmail, onCreateQuote }) {
               </tr>
             </thead>
             <tbody>
-              {filteredOrders.map((order, index) => (
+              {filteredOrders.map((order) => (
                 <tr key={`${order.type}-${order.id}`} style={{ borderBottom: '1px solid #f3f4f6' }}>
                   <td style={{ padding: '12px' }}>
                     {getSourceBadge(order.type)}

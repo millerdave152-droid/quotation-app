@@ -5,15 +5,7 @@
 
 import React from 'react';
 import { createPortal } from 'react-dom';
-import {
-  XMarkIcon,
-  CurrencyDollarIcon,
-  SparklesIcon,
-  ExclamationTriangleIcon,
-  CheckCircleIcon,
-  InformationCircleIcon,
-} from '@heroicons/react/24/outline';
-
+import { AlertTriangle, CheckCircle, DollarSign, Info, Sparkles, X } from 'lucide-react';
 /**
  * Format currency
  */
@@ -43,13 +35,13 @@ function CommissionRow({ item, index }) {
           </span>
           {item.isBonus && (
             <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 text-xs font-medium bg-green-100 text-green-700 rounded-full">
-              <SparklesIcon className="w-3 h-3" />
+              <Sparkles className="w-3 h-3" />
               Bonus
             </span>
           )}
           {item.isReduced && (
             <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 text-xs font-medium bg-amber-100 text-amber-700 rounded-full">
-              <ExclamationTriangleIcon className="w-3 h-3" />
+              <AlertTriangle className="w-3 h-3" />
               Reduced
             </span>
           )}
@@ -92,20 +84,20 @@ function CommissionRow({ item, index }) {
  * Note item in the notes section
  */
 function NoteItem({ note }) {
-  let icon = <InformationCircleIcon className="w-4 h-4 text-blue-500" />;
+  let icon = <Info className="w-4 h-4 text-blue-500" />;
   let bgColor = 'bg-blue-50';
   let textColor = 'text-blue-700';
 
   if (note.toLowerCase().includes('bonus')) {
-    icon = <SparklesIcon className="w-4 h-4 text-green-500" />;
+    icon = <Sparkles className="w-4 h-4 text-green-500" />;
     bgColor = 'bg-green-50';
     textColor = 'text-green-700';
   } else if (note.toLowerCase().includes('reduced') || note.toLowerCase().includes('discount')) {
-    icon = <ExclamationTriangleIcon className="w-4 h-4 text-amber-500" />;
+    icon = <AlertTriangle className="w-4 h-4 text-amber-500" />;
     bgColor = 'bg-amber-50';
     textColor = 'text-amber-700';
   } else if (note.toLowerCase().includes('full commission')) {
-    icon = <CheckCircleIcon className="w-4 h-4 text-green-500" />;
+    icon = <CheckCircle className="w-4 h-4 text-green-500" />;
     bgColor = 'bg-green-50';
     textColor = 'text-green-700';
   }
@@ -148,7 +140,7 @@ export default function CommissionBreakdownModal({
           <div className="flex items-center justify-between p-5 border-b border-slate-200">
             <div className="flex items-center gap-3">
               <div className="p-2 bg-green-100 rounded-xl">
-                <CurrencyDollarIcon className="w-6 h-6 text-green-600" />
+                <DollarSign className="w-6 h-6 text-green-600" />
               </div>
               <div>
                 <h2 className="text-lg font-semibold text-slate-900">Commission Breakdown</h2>
@@ -161,7 +153,7 @@ export default function CommissionBreakdownModal({
               onClick={onClose}
               className="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg transition-colors"
             >
-              <XMarkIcon className="w-5 h-5" />
+              <X className="w-5 h-5" />
             </button>
           </div>
 
@@ -193,7 +185,7 @@ export default function CommissionBreakdownModal({
 
             {breakdown.length === 0 && (
               <div className="py-12 text-center">
-                <CurrencyDollarIcon className="w-12 h-12 text-slate-300 mx-auto mb-3" />
+                <DollarSign className="w-12 h-12 text-slate-300 mx-auto mb-3" />
                 <p className="text-slate-500">No commission data available</p>
               </div>
             )}
@@ -244,7 +236,7 @@ export default function CommissionBreakdownModal({
             {/* Reduced items warning */}
             {summary.reducedItems > 0 && (
               <div className="mt-4 flex items-center gap-2 p-3 bg-amber-50 border border-amber-200 rounded-lg">
-                <ExclamationTriangleIcon className="w-5 h-5 text-amber-500 flex-shrink-0" />
+                <AlertTriangle className="w-5 h-5 text-amber-500 flex-shrink-0" />
                 <span className="text-sm text-amber-700">
                   {summary.reducedItems} item{summary.reducedItems !== 1 ? 's have' : ' has'} reduced
                   commission due to discounts above threshold.

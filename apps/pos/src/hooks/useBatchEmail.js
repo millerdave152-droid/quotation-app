@@ -42,8 +42,9 @@ export function useBatchEmail() {
 
     try {
       const response = await api.get(`/batch-email/unsent?shiftId=${shiftId}`);
-      setUnsentReceipts(response.data || []);
-      return response.data || [];
+      const receipts = response.data || [];
+      setUnsentReceipts(receipts);
+      return receipts;
     } catch (err) {
       setError(err.message || 'Failed to fetch unsent receipts');
       return [];
@@ -65,8 +66,9 @@ export function useBatchEmail() {
       params.append('endDate', endDate.toISOString());
 
       const response = await api.get(`/batch-email/unsent?${params}`);
-      setUnsentReceipts(response.data || []);
-      return response.data || [];
+      const receipts = response.data || [];
+      setUnsentReceipts(receipts);
+      return receipts;
     } catch (err) {
       setError(err.message || 'Failed to fetch unsent receipts');
       return [];
@@ -251,7 +253,7 @@ export function useBatchEmail() {
         }
 
         // Continue polling with cancellation check
-        await new Promise((resolve, reject) => {
+        await new Promise((resolve) => {
           const timeoutId = setTimeout(resolve, intervalMs);
           // Allow cancellation during wait
           const checkCancelled = setInterval(() => {

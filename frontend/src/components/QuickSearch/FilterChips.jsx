@@ -53,7 +53,6 @@ const presetIcons = {
 
 const FilterChips = ({
   presets = [],
-  activePreset = null,
   onSelect,
   activeFilters = {},
   onClearFilters

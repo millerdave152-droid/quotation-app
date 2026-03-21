@@ -6,7 +6,7 @@ import { getRelativeTime } from '../../utils/relativeTime';
  * product search, item management, and revenue features
  */
 
-import React, { useState, useMemo, useCallback, useEffect, useRef } from 'react';
+import React, { useState, useMemo, useCallback, useRef } from 'react';
 import {
   FinancingCalculator,
   WarrantySelector,
@@ -20,12 +20,14 @@ import PackageBuilder from '../PackageBuilder';
 import PackageBuilderV2 from '../PackageBuilderV2';
 import { useAuth } from '../../contexts/AuthContext';
 import SignaturePad from '../common/SignaturePad';
-import { PromoCodeInput, AppliedDiscountsDisplay } from '../pricing';
+import { PromoCodeInput } from '../pricing';
 import { SmartSuggestions, UpsellRecommendations } from '../ai';
 import { ProductConfigurator3D } from '../ProductConfigurator';
 import CompetitorPricingPanel from './CompetitorPricingPanel';
+import InstitutionalPanel from '../institutional/InstitutionalPanel';
+import VoiceNoteButton from '../notes/VoiceNoteButton';
 
-const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:3001';
+const API_URL = process.env.REACT_APP_API_URL || '';
 
 // Service items for quick add
 const SERVICE_ITEMS = [
@@ -129,6 +131,10 @@ const QuoteBuilder = ({
   depositAmount,
   setDepositAmount,
 
+  // Institutional buyer
+  institutionalFields = {},
+  setInstitutionalFields,
+
   // Actions
   onSave,
   onSaveAndSend,
@@ -138,7 +144,6 @@ const QuoteBuilder = ({
   onCustomerSelect,
   onLoadTemplate,
   onDeleteTemplate,
-  onToggleFavorite,
 
   // Quote info for editing
   editingQuoteNumber,
@@ -147,8 +152,6 @@ const QuoteBuilder = ({
   lastSavedAt,
   isSaving,
 
-  // Helpers
-  formatCurrency
 }) => {
   // Auth context for margin threshold
   const { user } = useAuth();
@@ -231,9 +234,9 @@ const QuoteBuilder = ({
     let promoDiscount = 0;
     if (appliedPromo) {
       if (appliedPromo.discount_type === 'percent') {
-        promoDiscount = (afterDiscount * parseFloat(appliedPromo.discount_value)) / 100;
+        promoDiscount = (afterDiscount * (parseFloat(appliedPromo.discount_value) || 0)) / 100;
       } else {
-        promoDiscount = parseFloat(appliedPromo.discount_value);
+        promoDiscount = parseFloat(appliedPromo.discount_value) || 0;
       }
       // Apply max discount cap if set
       if (appliedPromo.max_discount_cents) {
@@ -522,7 +525,7 @@ const QuoteBuilder = ({
           boxShadow: '0 2px 8px rgba(245, 158, 11, 0.2)'
         }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-            <span style={{ fontSize: '24px' }}>✏️</span>
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#92400e" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
             <div>
               <div style={{ fontSize: '16px', fontWeight: 'bold', color: '#92400e' }}>
                 Editing Quote: {editingQuoteNumber || `#${editingQuoteId}`}
@@ -578,7 +581,7 @@ const QuoteBuilder = ({
             justifyContent: 'center',
             flexShrink: 0
           }}>
-            <span style={{ fontSize: '24px' }}>⚠️</span>
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
           </div>
           <div style={{ flex: 1 }}>
             <div style={{ fontSize: '16px', fontWeight: 'bold', color: '#991b1b', marginBottom: '4px' }}>
@@ -732,19 +735,26 @@ const QuoteBuilder = ({
                   {selectedCustomer.email} {selectedCustomer.phone && `• ${selectedCustomer.phone}`}
                 </div>
               </div>
-              <button
-                onClick={() => setSelectedCustomer(null)}
-                style={{
-                  padding: '8px 16px',
-                  background: '#ef4444',
-                  color: 'white',
-                  border: 'none',
-                  borderRadius: '6px',
-                  cursor: 'pointer'
-                }}
-              >
-                Change
-              </button>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <VoiceNoteButton
+                  customerId={selectedCustomer.id}
+                  surface="quotation"
+                  onNoteCreated={() => {}}
+                />
+                <button
+                  onClick={() => setSelectedCustomer(null)}
+                  style={{
+                    padding: '8px 16px',
+                    background: '#ef4444',
+                    color: 'white',
+                    border: 'none',
+                    borderRadius: '6px',
+                    cursor: 'pointer'
+                  }}
+                >
+                  Change
+                </button>
+              </div>
             </div>
 
             {/* Customer Quote History */}
@@ -781,6 +791,21 @@ const QuoteBuilder = ({
           </div>
         )}
       </div>
+
+      {/* Institutional Account Panel — auto-detects if customer has institutional profile */}
+      {selectedCustomer && setInstitutionalFields && (
+        <InstitutionalPanel
+          customerId={selectedCustomer.id}
+          fields={institutionalFields}
+          setFields={setInstitutionalFields}
+          quoteTotalCents={Math.round((calculateTotals?.total || 0) * 100)}
+          onDeliveryAddressSelect={({ address, city, postal_code }) => {
+            if (setDeliveryAddress) setDeliveryAddress(address);
+            if (setDeliveryCity) setDeliveryCity(city);
+            if (setDeliveryPostalCode) setDeliveryPostalCode(postal_code);
+          }}
+        />
+      )}
 
       {/* Templates */}
       {templates.length > 0 && (
@@ -1272,7 +1297,7 @@ const QuoteBuilder = ({
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '24px' }}>
             {/* Left Column: Delivery Info */}
             <div>
-              <h4 style={{ fontSize: '16px', fontWeight: 'bold', marginBottom: '12px', color: '#3b82f6' }}>📦 Delivery Information</h4>
+              <h4 style={{ fontSize: '16px', fontWeight: 'bold', marginBottom: '12px', color: '#3b82f6', display: 'flex', alignItems: 'center', gap: '8px' }}><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="1" y="3" width="15" height="13"/><polygon points="16 8 20 8 23 11 23 16 16 16 16 8"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></svg> Delivery Information</h4>
 
               <div style={{ marginBottom: '12px' }}>
                 <label style={{ display: 'block', fontWeight: '500', marginBottom: '4px', fontSize: '14px' }}>Delivery Address (if different from customer):</label>
@@ -1354,7 +1379,7 @@ const QuoteBuilder = ({
                       onChange={(e) => setInstallationRequired(e.target.checked)}
                       style={{ width: '18px', height: '18px' }}
                     />
-                    <span style={{ fontWeight: '500' }}>🔧 Installation Required</span>
+                    <span style={{ fontWeight: '500', display: 'inline-flex', alignItems: 'center', gap: '6px' }}><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg> Installation Required</span>
                   </label>
                 </div>
 
@@ -1383,7 +1408,7 @@ const QuoteBuilder = ({
                       onChange={(e) => setHaulAwayRequired(e.target.checked)}
                       style={{ width: '18px', height: '18px' }}
                     />
-                    <span style={{ fontWeight: '500' }}>🚛 Haul Away Old Appliance</span>
+                    <span style={{ fontWeight: '500', display: 'inline-flex', alignItems: 'center', gap: '6px' }}><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="1" y="3" width="15" height="13"/><polygon points="16 8 20 8 23 11 23 16 16 16 16 8"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></svg> Haul Away Old Appliance</span>
                   </label>
                 </div>
 
@@ -1403,7 +1428,7 @@ const QuoteBuilder = ({
 
             {/* Right Column: Sales & Payment Info */}
             <div>
-              <h4 style={{ fontSize: '16px', fontWeight: 'bold', marginBottom: '12px', color: '#10b981' }}>💼 Sales Information</h4>
+              <h4 style={{ fontSize: '16px', fontWeight: 'bold', marginBottom: '12px', color: '#10b981', display: 'flex', alignItems: 'center', gap: '8px' }}><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="7" width="20" height="14" rx="2" ry="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></svg> Sales Information</h4>
 
               <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '12px', marginBottom: '12px' }}>
                 <div>
@@ -1475,7 +1500,7 @@ const QuoteBuilder = ({
                 </div>
               </div>
 
-              <h4 style={{ fontSize: '16px', fontWeight: 'bold', marginBottom: '12px', marginTop: '20px', color: '#8b5cf6' }}>💳 Payment & Priority</h4>
+              <h4 style={{ fontSize: '16px', fontWeight: 'bold', marginBottom: '12px', marginTop: '20px', color: '#8b5cf6', display: 'flex', alignItems: 'center', gap: '8px' }}><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="1" y="4" width="22" height="16" rx="2" ry="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg> Payment &amp; Priority</h4>
 
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '12px' }}>
                 <div>
@@ -1519,7 +1544,7 @@ const QuoteBuilder = ({
                       onChange={(e) => setDepositRequired(e.target.checked)}
                       style={{ width: '18px', height: '18px' }}
                     />
-                    <span style={{ fontWeight: '500' }}>💰 Deposit Required</span>
+                    <span style={{ fontWeight: '500', display: 'inline-flex', alignItems: 'center', gap: '6px' }}><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg> Deposit Required</span>
                   </label>
                 </div>
 
@@ -1572,8 +1597,7 @@ const QuoteBuilder = ({
           <SmartSuggestions
             quoteItems={quoteItems}
             customerId={selectedCustomer?.id}
-            onActionClick={(suggestion) => {
-              console.log('Suggestion action:', suggestion);
+            onActionClick={() => {
               // Handle different actions based on suggestion.action
             }}
           />
@@ -1765,7 +1789,7 @@ const QuoteBuilder = ({
           <div style={{ background: 'white', borderRadius: '12px', padding: '24px', marginTop: '24px', boxShadow: '0 2px 4px rgba(0,0,0,0.1)', border: '2px solid #3b82f6' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: showStaffSignature ? '20px' : '0' }}>
               <h3 style={{ fontSize: '18px', fontWeight: 'bold', margin: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <span style={{ fontSize: '20px' }}>✍️</span>
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#3b82f6" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20 12v6a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h6"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
                 Staff Signature
                 {staffSignatureSaved && (
                   <span style={{
@@ -1889,7 +1913,7 @@ const QuoteBuilder = ({
                     >
                       {staffSignatureSaving ? (
                         <>
-                          <span style={{ animation: 'spin 1s linear infinite' }}>⏳</span>
+                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ animation: 'spin 1s linear infinite' }}><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg>
                           Saving...
                         </>
                       ) : (
@@ -1997,7 +2021,7 @@ const QuoteBuilder = ({
               }}
             >
               <span>{editingQuoteId ? 'Update & Send' : 'Save & Send'}</span>
-              <span style={{ fontSize: '16px' }}>📧</span>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
             </button>
 
             <button
@@ -2076,7 +2100,7 @@ const QuoteBuilder = ({
           }}>
             <PackageBuilderV2
               defaultPackageType="kitchen"
-              onPackageSelect={(tier, pkg, packageType) => {
+              onPackageSelect={(tier, pkg) => {
                 // Add all items from the selected package tier to the quote
                 if (pkg && pkg.items && pkg.items.length > 0) {
                   // Extract product data - handle both nested and flat structures

@@ -7,6 +7,7 @@ const express = require('express');
 const router = express.Router();
 const DraftService = require('../services/DraftService');
 const { ApiError, asyncHandler } = require('../middleware/errorHandler');
+const { authenticate, requireRole } = require('../middleware/auth');
 
 let draftService;
 
@@ -36,7 +37,7 @@ router.use(ensureInit);
  * POST /api/drafts
  * Save or update a draft
  */
-router.post('/', asyncHandler(async (req, res) => {
+router.post('/', authenticate, asyncHandler(async (req, res) => {
   const userId = req.user?.id;
   const draft = await draftService.saveDraft(req.body, userId);
 
@@ -121,7 +122,7 @@ router.get('/key/:key', asyncHandler(async (req, res) => {
  * DELETE /api/drafts/:id
  * Delete a draft
  */
-router.delete('/:id', asyncHandler(async (req, res) => {
+router.delete('/:id', authenticate, asyncHandler(async (req, res) => {
   const { id } = req.params;
   const userId = req.user?.id;
 
@@ -138,7 +139,7 @@ router.delete('/:id', asyncHandler(async (req, res) => {
  * POST /api/drafts/:id/complete
  * Mark a draft as completed (converted to quote/transaction)
  */
-router.post('/:id/complete', asyncHandler(async (req, res) => {
+router.post('/:id/complete', authenticate, asyncHandler(async (req, res) => {
   const { id } = req.params;
   const { notes } = req.body;
   const userId = req.user?.id;
@@ -160,7 +161,7 @@ router.post('/:id/complete', asyncHandler(async (req, res) => {
  * POST /api/drafts/sync
  * Batch sync operations from offline client
  */
-router.post('/sync', asyncHandler(async (req, res) => {
+router.post('/sync', authenticate, asyncHandler(async (req, res) => {
   const userId = req.user?.id;
   const deviceId = req.body.deviceId || req.headers['x-device-id'];
   const { operations } = req.body;
@@ -206,7 +207,7 @@ router.get('/sync/pending', asyncHandler(async (req, res) => {
  * POST /api/drafts/sync/operation/:id/complete
  * Mark a sync operation as completed
  */
-router.post('/sync/operation/:id/complete', asyncHandler(async (req, res) => {
+router.post('/sync/operation/:id/complete', authenticate, asyncHandler(async (req, res) => {
   const { id } = req.params;
   const { success, errorMessage } = req.body;
 
@@ -227,12 +228,7 @@ router.post('/sync/operation/:id/complete', asyncHandler(async (req, res) => {
  * POST /api/drafts/admin/cleanup
  * Clean up expired drafts (admin only)
  */
-router.post('/admin/cleanup', asyncHandler(async (req, res) => {
-  // Check admin role
-  if (req.user?.role?.toLowerCase() !== 'admin') {
-    throw ApiError.forbidden('Admin access required');
-  }
-
+router.post('/admin/cleanup', authenticate, requireRole('admin'), asyncHandler(async (req, res) => {
   const deletedCount = await draftService.cleanupExpiredDrafts();
 
   res.json({

@@ -15,7 +15,7 @@ import {
   Clock, AlertCircle, FileText, Package, AlertTriangle, ShoppingCart, RefreshCw, ArrowRight
 } from 'lucide-react';
 
-const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:3001';
+const API_URL = process.env.REACT_APP_API_URL || '';
 
 // Action configuration
 const ACTION_CONFIG = {
@@ -71,7 +71,7 @@ const ACTION_CONFIG = {
 
 const SmartQuickActions = ({ onNavigate }) => {
   const [actions, setActions] = useState([]);
-  const [allActions, setAllActions] = useState([]);
+  const [_allActions, setAllActions] = useState([]);
   const [loading, setLoading] = useState(true);
   const [totalCount, setTotalCount] = useState(0);
 
@@ -173,9 +173,9 @@ const SmartQuickActions = ({ onNavigate }) => {
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
-          fontSize: '20px'
+          flexShrink: 0
         }}>
-          ✨
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#166534" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
         </div>
         <div>
           <div style={{ fontWeight: '600', color: '#166534', fontSize: '14px' }}>
@@ -204,7 +204,7 @@ const SmartQuickActions = ({ onNavigate }) => {
         marginBottom: '12px'
       }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-          <span style={{ fontSize: '16px' }}>⚡</span>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#6366f1" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
           <h4 style={{ margin: 0, fontSize: '14px', fontWeight: '600', color: '#1f2937' }}>
             Quick Actions
           </h4>

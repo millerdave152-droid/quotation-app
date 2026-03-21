@@ -5,27 +5,10 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import {
-  ArrowLeftIcon,
-  ShieldCheckIcon,
-  PlusIcon,
-  PencilIcon,
-  TrashIcon,
-  DocumentDuplicateIcon,
-  FunnelIcon,
-  MagnifyingGlassIcon,
-  EllipsisVerticalIcon,
-  CheckIcon,
-  XMarkIcon,
-  ExclamationTriangleIcon,
-  TagIcon,
-  CalendarIcon,
-  ChevronDownIcon,
-} from '@heroicons/react/24/outline';
-import { ShieldCheckIcon as ShieldCheckSolid } from '@heroicons/react/24/solid';
 import { ApprovalRuleModal } from './ApprovalRuleModal';
+import { AlertTriangle, ArrowLeft, Calendar, Check, ChevronDown, Copy, Filter, MoreVertical, Pencil, Plus, Search, ShieldCheck, Tag, Trash2, X } from 'lucide-react';
 
-const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:3001/api';
+const API_BASE = import.meta.env.VITE_API_URL || '/api';
 
 const THRESHOLD_TYPE_LABELS = {
   discount_percent: 'Discount %',
@@ -64,12 +47,12 @@ function StatusBadge({ isActive }) {
     >
       {isActive ? (
         <>
-          <CheckIcon className="w-3 h-3" />
+          <Check className="w-3 h-3" />
           Active
         </>
       ) : (
         <>
-          <XMarkIcon className="w-3 h-3" />
+          <X className="w-3 h-3" />
           Inactive
         </>
       )}
@@ -165,7 +148,7 @@ function RuleRow({ rule, onEdit, onDelete, onDuplicate, onToggleActive }) {
       <td className="px-4 py-3">
         <div className="flex items-center gap-3">
           <div className={`p-2 rounded-lg ${rule.isActive ? 'bg-blue-100' : 'bg-gray-200'}`}>
-            <ShieldCheckIcon className={`w-5 h-5 ${rule.isActive ? 'text-blue-600' : 'text-gray-400'}`} />
+            <ShieldCheck className={`w-5 h-5 ${rule.isActive ? 'text-blue-600' : 'text-gray-400'}`} />
           </div>
           <div>
             <p className="font-medium text-gray-900">{rule.name}</p>
@@ -175,7 +158,7 @@ function RuleRow({ rule, onEdit, onDelete, onDuplicate, onToggleActive }) {
               </span>
               {hasTimeLimit && (
                 <span className="flex items-center gap-1 text-xs text-amber-600">
-                  <CalendarIcon className="w-3 h-3" />
+                  <Calendar className="w-3 h-3" />
                   Limited
                 </span>
               )}
@@ -193,7 +176,7 @@ function RuleRow({ rule, onEdit, onDelete, onDuplicate, onToggleActive }) {
       <td className="px-4 py-3">
         {rule.categoryName ? (
           <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-purple-100 text-purple-700 rounded text-xs">
-            <TagIcon className="w-3 h-3" />
+            <Tag className="w-3 h-3" />
             {rule.categoryName}
           </span>
         ) : (
@@ -239,7 +222,7 @@ function RuleRow({ rule, onEdit, onDelete, onDuplicate, onToggleActive }) {
             className="p-2 text-gray-500 hover:text-blue-600 hover:bg-blue-50 rounded-lg"
             title="Edit rule"
           >
-            <PencilIcon className="w-4 h-4" />
+            <Pencil className="w-4 h-4" />
           </button>
 
           {/* Menu */}
@@ -249,7 +232,7 @@ function RuleRow({ rule, onEdit, onDelete, onDuplicate, onToggleActive }) {
               onClick={() => setShowMenu(!showMenu)}
               className="p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-lg"
             >
-              <EllipsisVerticalIcon className="w-4 h-4" />
+              <MoreVertical className="w-4 h-4" />
             </button>
 
             {showMenu && (
@@ -267,7 +250,7 @@ function RuleRow({ rule, onEdit, onDelete, onDuplicate, onToggleActive }) {
                     }}
                     className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2"
                   >
-                    <DocumentDuplicateIcon className="w-4 h-4" />
+                    <Copy className="w-4 h-4" />
                     Duplicate Rule
                   </button>
                   <hr className="my-1" />
@@ -277,7 +260,7 @@ function RuleRow({ rule, onEdit, onDelete, onDuplicate, onToggleActive }) {
                     disabled={deleting}
                     className="w-full px-4 py-2 text-left text-sm text-red-600 hover:bg-red-50 flex items-center gap-2 disabled:opacity-50"
                   >
-                    <TrashIcon className="w-4 h-4" />
+                    <Trash2 className="w-4 h-4" />
                     {deleting ? 'Deleting...' : 'Delete Rule'}
                   </button>
                 </div>
@@ -474,7 +457,7 @@ export function ApprovalRulesPage() {
                 onClick={() => navigate(-1)}
                 className="p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-lg"
               >
-                <ArrowLeftIcon className="w-5 h-5" />
+                <ArrowLeft className="w-5 h-5" />
               </button>
               <div className="flex items-center gap-3">
                 <div className="p-2 bg-blue-100 rounded-lg">
@@ -493,7 +476,7 @@ export function ApprovalRulesPage() {
                 onClick={() => navigate('/admin/tier-settings')}
                 className="flex items-center gap-2 px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors"
               >
-                <ShieldCheckIcon className="w-5 h-5" />
+                <ShieldCheck className="w-5 h-5" />
                 Tier Settings
               </button>
               <button
@@ -501,7 +484,7 @@ export function ApprovalRulesPage() {
                 onClick={handleCreate}
                 className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
               >
-                <PlusIcon className="w-5 h-5" />
+                <Plus className="w-5 h-5" />
                 Create Rule
               </button>
             </div>
@@ -514,14 +497,14 @@ export function ApprovalRulesPage() {
         {/* Error */}
         {error && (
           <div className="mb-4 p-4 bg-red-50 border border-red-200 rounded-lg flex items-center gap-3">
-            <ExclamationTriangleIcon className="w-5 h-5 text-red-500" />
+            <AlertTriangle className="w-5 h-5 text-red-500" />
             <p className="text-red-700">{error}</p>
             <button
               type="button"
               onClick={() => setError(null)}
               className="ml-auto text-red-500 hover:text-red-700"
             >
-              <XMarkIcon className="w-5 h-5" />
+              <X className="w-5 h-5" />
             </button>
           </div>
         )}
@@ -531,7 +514,7 @@ export function ApprovalRulesPage() {
           <div className="p-4 flex items-center gap-4">
             {/* Search */}
             <div className="flex-1 relative">
-              <MagnifyingGlassIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
               <input
                 type="text"
                 value={search}
@@ -553,9 +536,9 @@ export function ApprovalRulesPage() {
                 }
               `}
             >
-              <FunnelIcon className="w-5 h-5" />
+              <Filter className="w-5 h-5" />
               Filters
-              <ChevronDownIcon className={`w-4 h-4 transition-transform ${showFilters ? 'rotate-180' : ''}`} />
+              <ChevronDown className={`w-4 h-4 transition-transform ${showFilters ? 'rotate-180' : ''}`} />
             </button>
           </div>
 
@@ -663,7 +646,7 @@ export function ApprovalRulesPage() {
             </div>
           ) : filteredRules.length === 0 ? (
             <div className="text-center py-12">
-              <ShieldCheckIcon className="w-12 h-12 text-gray-300 mx-auto mb-4" />
+              <ShieldCheck className="w-12 h-12 text-gray-300 mx-auto mb-4" />
               <p className="text-gray-500">No approval rules found</p>
               <button
                 type="button"

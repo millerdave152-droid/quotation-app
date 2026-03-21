@@ -38,7 +38,7 @@ export const getRegister = async (id) => {
 
     return {
       success: true,
-      data: response.data || response,
+      data: response?.data || response,
     };
   } catch (error) {
     console.error('[Register] getRegister error:', error);
@@ -81,7 +81,7 @@ export const openShift = async (registerId, openingCash) => {
 
     return {
       success: true,
-      data: response.data || response,
+      data: response?.data || response,
     };
   } catch (error) {
     console.error('[Register] openShift error:', error);
@@ -104,7 +104,7 @@ export const getShiftSummary = async (shiftId) => {
 
     return {
       success: true,
-      data: response.data || response,
+      data: response?.data || response,
     };
   } catch (error) {
     console.error('[Register] getShiftSummary error:', error);
@@ -172,7 +172,7 @@ export const closeShift = async (shiftId, closingCash, notes = '') => {
 
     return {
       success: true,
-      data: response.data || response,
+      data: response?.data || response,
     };
   } catch (error) {
     console.error('[Register] closeShift error:', error);
@@ -230,7 +230,7 @@ export const createRegister = async (data) => {
 
     return {
       success: true,
-      data: response.data || response,
+      data: response?.data || response,
     };
   } catch (error) {
     console.error('[Register] createRegister error:', error);
@@ -254,7 +254,7 @@ export const updateRegister = async (id, data) => {
 
     return {
       success: true,
-      data: response.data || response,
+      data: response?.data || response,
     };
   } catch (error) {
     console.error('[Register] updateRegister error:', error);
@@ -277,7 +277,7 @@ export const deactivateRegister = async (id) => {
 
     return {
       success: true,
-      data: response.data || response,
+      data: response?.data || response,
     };
   } catch (error) {
     console.error('[Register] deactivateRegister error:', error);

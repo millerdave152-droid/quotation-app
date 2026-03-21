@@ -6,8 +6,7 @@
  */
 
 import { useMemo } from 'react';
-import { ShieldCheckIcon } from '@heroicons/react/24/outline';
-
+import { ShieldCheck } from 'lucide-react';
 /**
  * Determine if an item's discount would require Tier 2+ approval.
  */
@@ -63,7 +62,7 @@ export default function BatchApprovalButton({ items, onRequestBatchApproval }) {
           transition-all duration-150
         "
       >
-        <ShieldCheckIcon className="w-5 h-5" />
+        <ShieldCheck className="w-5 h-5" />
         <span>Request Batch Approval ({needsApprovalItems.length} items)</span>
       </button>
     </div>

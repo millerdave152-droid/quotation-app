@@ -3,14 +3,8 @@
  * Display captured signatures with metadata
  */
 
-import {
-  CheckBadgeIcon,
-  XCircleIcon,
-  ClockIcon,
-  UserIcon,
-  DevicePhoneMobileIcon,
-} from '@heroicons/react/24/outline';
 import { sanitizeSvg } from '../../utils/sanitize';
+import { BadgeCheck, Clock, Smartphone, User, XCircle } from 'lucide-react';
 
 /**
  * Signature type badges
@@ -28,9 +22,9 @@ const TYPE_BADGES = {
  * Status badges
  */
 const STATUS_BADGES = {
-  valid: { label: 'Valid', color: 'text-green-600', icon: CheckBadgeIcon },
-  voided: { label: 'Voided', color: 'text-red-600', icon: XCircleIcon },
-  superseded: { label: 'Superseded', color: 'text-yellow-600', icon: ClockIcon },
+  valid: { label: 'Valid', color: 'text-green-600', icon: BadgeCheck },
+  voided: { label: 'Voided', color: 'text-red-600', icon: XCircle },
+  superseded: { label: 'Superseded', color: 'text-yellow-600', icon: Clock },
 };
 
 /**
@@ -143,13 +137,13 @@ export function SignatureDisplay({
         <div className="px-4 py-3 bg-gray-50 border-t border-gray-200 space-y-2">
           {signature.capturedByName && (
             <div className="flex items-center gap-2 text-xs text-gray-500">
-              <UserIcon className="w-4 h-4" />
+              <User className="w-4 h-4" />
               <span>Captured by: {signature.capturedByName}</span>
             </div>
           )}
           {signature.deviceInfo?.deviceType && (
             <div className="flex items-center gap-2 text-xs text-gray-500">
-              <DevicePhoneMobileIcon className="w-4 h-4" />
+              <Smartphone className="w-4 h-4" />
               <span>Device: {signature.deviceInfo.deviceType}</span>
             </div>
           )}
@@ -250,7 +244,7 @@ export function SignaturePreview({ signature, className = '' }) {
 
   return (
     <div className={`flex items-center gap-2 ${className}`}>
-      <CheckBadgeIcon className={`w-4 h-4 ${statusColors[signature.status] || 'text-green-600'}`} />
+      <BadgeCheck className={`w-4 h-4 ${statusColors[signature.status] || 'text-green-600'}`} />
       <span className={`text-sm ${statusColors[signature.status] || ''}`}>
         {signature.signerName}
       </span>

@@ -272,15 +272,15 @@ router.get('/products/top-sellers',
         COALESCE(SUM(ti.line_total_cents), 0) as revenue_cents,
         COUNT(DISTINCT t.transaction_id) as transaction_count,
         p.sell_cents as current_price_cents,
-        p.quantity_available as stock_available
+        p.qty_available as stock_available
       FROM products p
       LEFT JOIN transaction_items ti ON p.id = ti.product_id
       LEFT JOIN transactions t ON ti.transaction_id = t.transaction_id
         AND t.status = 'completed'
         AND t.created_at >= $1 AND t.created_at <= $2
       LEFT JOIN categories cat ON p.category_id = cat.id
-      WHERE p.deleted_at IS NULL
-      GROUP BY p.id, p.name, p.model, p.category_id, cat.name, p.sell_cents, p.quantity_available
+      WHERE p.is_active = true
+      GROUP BY p.id, p.name, p.model, p.category_id, cat.name, p.sell_cents, p.qty_available
       HAVING COALESCE(SUM(ti.quantity), 0) > 0
       ORDER BY revenue_cents DESC
       LIMIT $3
@@ -335,18 +335,17 @@ router.get('/products/performance',
     const inventoryAlerts = await db.query(`
       SELECT
         id, name, model,
-        quantity_available, reorder_point,
+        qty_available, reorder_point,
         CASE
-          WHEN quantity_available <= 0 THEN 'out_of_stock'
-          WHEN quantity_available <= reorder_point THEN 'low_stock'
+          WHEN qty_available <= 0 THEN 'out_of_stock'
+          WHEN qty_available <= reorder_point THEN 'low_stock'
           ELSE 'ok'
         END as stock_status
       FROM products
-      WHERE deleted_at IS NULL
-        AND is_active = true
+      WHERE is_active = true
         AND track_inventory = true
-        AND quantity_available <= reorder_point
-      ORDER BY quantity_available ASC
+        AND qty_available <= reorder_point
+      ORDER BY qty_available ASC
       LIMIT 20
     `);
 
@@ -398,7 +397,6 @@ router.get('/customers/top',
       JOIN transactions t ON c.id = t.customer_id
       WHERE t.status = 'completed'
         AND t.created_at >= $1 AND t.created_at <= $2
-        AND c.deleted_at IS NULL
       GROUP BY c.id, c.name, c.company, c.customer_type, c.email, c.phone
       ORDER BY total_spent_cents DESC
       LIMIT $3
@@ -436,7 +434,6 @@ router.get('/customers/insights',
         COUNT(*) as count,
         COALESCE(SUM(current_balance), 0) as total_balance
       FROM customers
-      WHERE deleted_at IS NULL
       GROUP BY customer_type
       ORDER BY count DESC
     `);
@@ -457,7 +454,6 @@ router.get('/customers/insights',
       LEFT JOIN transactions t ON c.id = t.customer_id
         AND t.status = 'completed'
         AND t.created_at >= $1
-      WHERE c.deleted_at IS NULL
       GROUP BY CASE WHEN c.created_at >= $1 THEN 'new' ELSE 'returning' END
     `, [thirtyDaysAgo]);
 
@@ -471,7 +467,6 @@ router.get('/customers/insights',
           COALESCE(SUM(t.total_cents), 0) as customer_total
         FROM customers c
         LEFT JOIN transactions t ON c.id = t.customer_id AND t.status = 'completed'
-        WHERE c.deleted_at IS NULL
         GROUP BY c.id
         HAVING COALESCE(SUM(t.total_cents), 0) > 0
       ) as customer_totals

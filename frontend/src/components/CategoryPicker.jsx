@@ -11,12 +11,11 @@ import { authFetch } from '../services/authFetch';
 
 import React, { useState, useEffect, useRef } from 'react';
 
-const API_BASE_URL = `${process.env.REACT_APP_API_URL || 'http://localhost:3001'}/api`;
+const API_BASE_URL = `${process.env.REACT_APP_API_URL || ''}/api`;
 
 const CategoryPicker = ({
   value,                    // Selected category slug or ID
   onChange,                 // Callback when category selected
-  mode = 'dropdown',        // 'dropdown' or 'select'
   showCounts = true,        // Show product counts
   placeholder = 'All Categories',
   allowClear = true,        // Allow clearing selection

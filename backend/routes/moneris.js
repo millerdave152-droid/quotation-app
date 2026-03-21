@@ -8,6 +8,9 @@ const express = require('express');
 const router = express.Router();
 const { ApiError, asyncHandler } = require('../middleware/errorHandler');
 const { authenticate } = require('../middleware/auth');
+const monerisWebhookVerify = require('../middleware/monerisWebhookVerify');
+const { paymentLimiter } = require('../middleware/security');
+const { validateBody, schemas } = require('../middleware/zodValidation');
 
 module.exports = (pool, cache, monerisService) => {
 
@@ -15,7 +18,7 @@ module.exports = (pool, cache, monerisService) => {
    * POST /api/moneris/create-checkout
    * Create a Moneris Checkout session for an invoice
    */
-  router.post('/create-checkout', authenticate, asyncHandler(async (req, res) => {
+  router.post('/create-checkout', authenticate, paymentLimiter, validateBody(schemas.monerisCheckout), asyncHandler(async (req, res) => {
     if (!monerisService.isConfigured()) {
       throw ApiError.badRequest('Moneris is not configured', {
         code: 'MONERIS_NOT_CONFIGURED'
@@ -52,7 +55,7 @@ module.exports = (pool, cache, monerisService) => {
    * POST /api/moneris/payment-link
    * Generate a payment link for a quotation
    */
-  router.post('/payment-link', authenticate, asyncHandler(async (req, res) => {
+  router.post('/payment-link', authenticate, paymentLimiter, validateBody(schemas.monerisPaymentLink), asyncHandler(async (req, res) => {
     const { quotationId } = req.body;
 
     if (!quotationId) {
@@ -95,7 +98,7 @@ module.exports = (pool, cache, monerisService) => {
    * POST /api/moneris/payment-link/:token/process
    * Process payment via payment link
    */
-  router.post('/payment-link/:token/process', authenticate, asyncHandler(async (req, res) => {
+  router.post('/payment-link/:token/process', authenticate, paymentLimiter, asyncHandler(async (req, res) => {
     if (!monerisService.isConfigured()) {
       throw ApiError.badRequest('Moneris is not configured');
     }
@@ -115,7 +118,7 @@ module.exports = (pool, cache, monerisService) => {
    * Handle Moneris callbacks/webhooks
    * NOTE: No authentication - callbacks are sent directly by Moneris
    */
-  router.post('/webhook', express.json(), asyncHandler(async (req, res) => {
+  router.post('/webhook', express.json(), monerisWebhookVerify, asyncHandler(async (req, res) => {
     const result = await monerisService.handleWebhook(req.body);
     res.json(result);
   }));
@@ -143,7 +146,7 @@ module.exports = (pool, cache, monerisService) => {
    * POST /api/moneris/refund
    * Refund a payment
    */
-  router.post('/refund', authenticate, asyncHandler(async (req, res) => {
+  router.post('/refund', authenticate, paymentLimiter, validateBody(schemas.monerisRefund), asyncHandler(async (req, res) => {
     if (!monerisService.isConfigured()) {
       throw ApiError.badRequest('Moneris is not configured');
     }

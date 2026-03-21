@@ -6,7 +6,11 @@
  */
 
 const PDFDocument = require('pdfkit');
+const path = require('path');
+const fs = require('fs');
 const CustomerService = require('./CustomerService');
+
+const LOGO_PATH = path.join(__dirname, '..', 'assets', 'logos', 'teletime-logo-colour-400.png');
 
 /**
  * PDF Error Codes for structured error handling
@@ -120,27 +124,17 @@ class PdfService {
       quote.customer_province = quote.cust_province;
       quote.customer_postal_code = quote.cust_postal_code;
 
-      // Debug: Log customer data for PDF
-      console.log(`[PDF] Customer data for quote ${quoteId}:`, {
-        customer_name: quote.customer_name,
-        customer_email: quote.customer_email,
-        customer_phone: quote.customer_phone,
-        customer_company: quote.customer_company,
-        customer_address: quote.customer_address,
-        customer_city: quote.customer_city,
-        customer_province: quote.customer_province,
-        customer_postal_code: quote.customer_postal_code,
-        sales_rep_name: quote.sales_rep_name,
-        customer_id: quote.customer_id
-      });
-
       // Fetch quote items
       let items = [];
       try {
         const itemsResult = await this.pool.query(`
-          SELECT qi.*, p.manufacturer, p.model, p.sku, p.description as product_description
+          SELECT qi.*, p.manufacturer, p.model, p.sku, p.description as product_description,
+                 cat.name AS category_name, cat.slug AS category_slug,
+                 dept.name AS department_name, dept.slug AS department_slug
           FROM quotation_items qi
           LEFT JOIN products p ON qi.product_id = p.id
+          LEFT JOIN categories cat ON p.category_id = cat.id AND cat.is_active = true
+          LEFT JOIN categories dept ON cat.parent_id = dept.id AND dept.level = 1
           WHERE qi.quotation_id = $1
           ORDER BY qi.id
         `, [quoteId]);
@@ -192,7 +186,6 @@ class PdfService {
       const pdfBuffer = await this.createPdfDocument(quote, items, type, signatures, clvData, tenantBranding);
 
       const duration = Date.now() - startTime;
-      console.log(`[PDF] Generated PDF for quote ${quoteId} (${type}) in ${duration}ms, size: ${pdfBuffer.length} bytes`);
 
       return pdfBuffer;
 
@@ -253,12 +246,12 @@ class PdfService {
         };
 
         // Company info (tenant branding → env vars → defaults)
-        const companyName = tenantBranding.company_name || process.env.COMPANY_NAME || 'Your Company';
-        const companyAddress = tenantBranding.company_address || process.env.COMPANY_ADDRESS || '123 Business Street';
-        const companyCity = tenantBranding.company_city || process.env.COMPANY_CITY || 'City, Province, Postal';
-        const companyPhone = tenantBranding.company_phone || process.env.COMPANY_PHONE || '(555) 123-4567';
-        const companyEmail = tenantBranding.company_email || process.env.COMPANY_EMAIL || 'sales@company.com';
-        const companyWebsite = tenantBranding.company_website || process.env.COMPANY_WEBSITE || 'www.company.com';
+        const companyName = tenantBranding.company_name || process.env.COMPANY_NAME || 'TELETIME';
+        const companyAddress = tenantBranding.company_address || process.env.COMPANY_ADDRESS || '3125 Wolfedale Road';
+        const companyCity = tenantBranding.company_city || process.env.COMPANY_CITY || 'Mississauga, ON L5C 1V8';
+        const companyPhone = tenantBranding.company_phone || process.env.COMPANY_PHONE || '(905) 273-5550';
+        const companyEmail = tenantBranding.company_email || process.env.COMPANY_EMAIL || 'info@teletime.ca';
+        const companyWebsite = tenantBranding.company_website || process.env.COMPANY_WEBSITE || 'www.teletime.ca';
 
         // ============================================
         // HEADER SECTION - ACCENT BAR & LOGO
@@ -267,19 +260,32 @@ class PdfService {
         // Top accent bar (full width, 4pt)
         doc.rect(0, 0, 612, 4).fill(colors.primary);
 
-        // Company Name (or Logo placeholder)
-        doc.fontSize(22)
-           .font('Helvetica-Bold')
-           .fillColor(colors.primary)
-           .text(companyName, 50, 20);
+        // Company Logo (falls back to text name if logo file missing)
+        let logoBottomY = 44;
+        if (fs.existsSync(LOGO_PATH)) {
+          doc.image(LOGO_PATH, 50, 14, { width: 160 });
+          logoBottomY = 50;
+        } else {
+          doc.fontSize(22)
+             .font('Helvetica-Bold')
+             .fillColor(colors.primary)
+             .text(companyName, 50, 20);
+        }
 
-        // Company contact info (below name)
+        // Company contact info (below logo/name)
+        const companyLandmark = tenantBranding.company_landmark || process.env.COMPANY_LANDMARK || '';
         doc.fontSize(9)
            .font('Helvetica')
            .fillColor(colors.textMuted)
-           .text(companyAddress, 50, 45)
-           .text(companyCity, 50, 56)
-           .text(`${companyPhone}  |  ${companyEmail}`, 50, 67);
+           .text(companyAddress, 50, logoBottomY)
+           .text(companyCity, 50, logoBottomY + 11);
+        let contactY = logoBottomY + 22;
+        if (companyLandmark) {
+          doc.fontSize(8).font('Helvetica-Oblique').text(companyLandmark, 50, contactY);
+          contactY += 11;
+        }
+        doc.fontSize(9).font('Helvetica').fillColor(colors.textMuted)
+           .text(`${companyPhone}  |  ${companyEmail}`, 50, contactY);
 
         // Quote Badge Box (right side)
         doc.roundedRect(430, 12, 130, 68, 4)
@@ -483,6 +489,9 @@ class PdfService {
         // ITEMS TABLE - ENTERPRISE STYLE
         // ============================================
 
+        // Package pricing mode: hide individual line prices, show only bundle total
+        const hideLinePrices = !!(quote.hide_line_prices) && type !== 'internal';
+
         // Ensure table starts below customer card (customer card ends at ~210)
         yPos = Math.max(yPos + 10, 220);
         const tableTop = yPos;
@@ -500,6 +509,14 @@ class PdfService {
           disc:  { x: 435, w: 35 },
           total: { x: 470, w: 50 },
           gp:    { x: 520, w: 42 }
+        } : hideLinePrices ? {
+          // Package pricing columns: wider description, no individual prices
+          // 60+65+280+35+72 = 512 ✓
+          sku:   { x: 50,  w: 60 },   // SKU
+          mfr:   { x: 110, w: 65 },   // MFR
+          desc:  { x: 175, w: 280 },  // DESCRIPTION - extra wide
+          qty:   { x: 455, w: 35 },   // QTY
+          incl:  { x: 490, w: 72 }    // INCLUDED indicator
         } : {
           // Customer PDF columns: 60+65+170+35+60+45+77 = 512 ✓
           sku:   { x: 50,  w: 60 },   // SKU - left align
@@ -522,17 +539,19 @@ class PdfService {
         doc.text('MFR', cols.mfr.x + 3, tableTop + 7);
         doc.text('DESCRIPTION', cols.desc.x + 3, tableTop + 7);
         doc.text('QTY', cols.qty.x, tableTop + 7, { width: cols.qty.w, align: 'center' });
-        doc.text('PRICE', cols.price.x, tableTop + 7, { width: cols.price.w, align: 'right' });
 
-        if (type === 'internal') {
-          doc.text('COST', cols.cost.x, tableTop + 7, { width: cols.cost.w, align: 'right' });
-        }
-
-        doc.text('DISC', cols.disc.x, tableTop + 7, { width: cols.disc.w, align: 'center' });
-        doc.text('TOTAL', cols.total.x, tableTop + 7, { width: cols.total.w, align: 'right' });
-
-        if (type === 'internal') {
-          doc.text('GP%', cols.gp.x, tableTop + 7, { width: cols.gp.w, align: 'right' });
+        if (hideLinePrices) {
+          doc.text('INCLUDED', cols.incl.x, tableTop + 7, { width: cols.incl.w, align: 'center' });
+        } else {
+          doc.text('PRICE', cols.price.x, tableTop + 7, { width: cols.price.w, align: 'right' });
+          if (type === 'internal') {
+            doc.text('COST', cols.cost.x, tableTop + 7, { width: cols.cost.w, align: 'right' });
+          }
+          doc.text('DISC', cols.disc.x, tableTop + 7, { width: cols.disc.w, align: 'center' });
+          doc.text('TOTAL', cols.total.x, tableTop + 7, { width: cols.total.w, align: 'right' });
+          if (type === 'internal') {
+            doc.text('GP%', cols.gp.x, tableTop + 7, { width: cols.gp.w, align: 'right' });
+          }
         }
 
         // Table rows
@@ -551,14 +570,18 @@ class PdfService {
             doc.text('MFR', cols.mfr.x + 3, 27);
             doc.text('DESCRIPTION', cols.desc.x + 3, 27);
             doc.text('QTY', cols.qty.x, 27, { width: cols.qty.w, align: 'center' });
-            doc.text('PRICE', cols.price.x, 27, { width: cols.price.w, align: 'right' });
-            if (type === 'internal') {
-              doc.text('COST', cols.cost.x, 27, { width: cols.cost.w, align: 'right' });
-            }
-            doc.text('DISC', cols.disc.x, 27, { width: cols.disc.w, align: 'center' });
-            doc.text('TOTAL', cols.total.x, 27, { width: cols.total.w, align: 'right' });
-            if (type === 'internal') {
-              doc.text('GP%', cols.gp.x, 27, { width: cols.gp.w, align: 'right' });
+            if (hideLinePrices) {
+              doc.text('INCLUDED', cols.incl.x, 27, { width: cols.incl.w, align: 'center' });
+            } else {
+              doc.text('PRICE', cols.price.x, 27, { width: cols.price.w, align: 'right' });
+              if (type === 'internal') {
+                doc.text('COST', cols.cost.x, 27, { width: cols.cost.w, align: 'right' });
+              }
+              doc.text('DISC', cols.disc.x, 27, { width: cols.disc.w, align: 'center' });
+              doc.text('TOTAL', cols.total.x, 27, { width: cols.total.w, align: 'right' });
+              if (type === 'internal') {
+                doc.text('GP%', cols.gp.x, 27, { width: cols.gp.w, align: 'right' });
+              }
             }
             yPos = 42;
           }
@@ -589,16 +612,45 @@ class PdfService {
           // Description (model + description)
           const modelText = item.model || '';
           const descText = item.description || item.product_description || '';
-          doc.font('Helvetica-Bold')
-             .fontSize(8)
-             .fillColor(colors.text)
-             .text(modelText.substring(0, 35), cols.desc.x + 3, rowTextY, { width: cols.desc.w - 6 });
+          const descLimit = hideLinePrices ? 120 : 80;
 
-          if (descText && modelText) {
+          // Category breadcrumb (e.g. "Major Appliances › French Door Refrigerators")
+          const catBreadcrumb = item.department_name && item.category_name
+            ? `${item.department_name} › ${item.category_name}`
+            : item.category_name || '';
+
+          if (modelText) {
+            // Show model as bold header, description below
+            doc.font('Helvetica-Bold')
+               .fontSize(8)
+               .fillColor(colors.text)
+               .text(modelText.substring(0, hideLinePrices ? 55 : 35), cols.desc.x + 3, rowTextY, { width: cols.desc.w - 6 });
+            let descOffsetY = rowTextY + 10;
+            if (descText) {
+              doc.font('Helvetica')
+                 .fontSize(6)
+                 .fillColor(colors.textMuted)
+                 .text(descText.substring(0, hideLinePrices ? 100 : 60), cols.desc.x + 3, descOffsetY, { width: cols.desc.w - 6 });
+              descOffsetY += 8;
+            }
+            if (catBreadcrumb) {
+              doc.font('Helvetica-Oblique')
+                 .fontSize(5.5)
+                 .fillColor('#9ca3af')
+                 .text(catBreadcrumb, cols.desc.x + 3, descOffsetY, { width: cols.desc.w - 6 });
+            }
+          } else if (descText) {
+            // No model — show description as the primary text
             doc.font('Helvetica')
-               .fontSize(6)
-               .fillColor(colors.textMuted)
-               .text(descText.substring(0, 45), cols.desc.x + 3, rowTextY + 10, { width: cols.desc.w - 6 });
+               .fontSize(7)
+               .fillColor(colors.text)
+               .text(descText.substring(0, descLimit), cols.desc.x + 3, rowTextY, { width: cols.desc.w - 6, lineGap: 1 });
+            if (catBreadcrumb) {
+              doc.font('Helvetica-Oblique')
+                 .fontSize(5.5)
+                 .fillColor('#9ca3af')
+                 .text(catBreadcrumb, cols.desc.x + 3, rowTextY + 12, { width: cols.desc.w - 6 });
+            }
           }
 
           // Quantity (bold, centered)
@@ -607,45 +659,53 @@ class PdfService {
              .fillColor(colors.text)
              .text((item.quantity || 1).toString(), cols.qty.x, rowTextY, { width: cols.qty.w, align: 'center' });
 
-          // Unit Price
-          const unitPrice = (item.unit_price_cents || item.sell_cents || 0) / 100;
-          doc.font('Helvetica')
-             .fontSize(8)
-             .fillColor(colors.textSecondary)
-             .text(`$${unitPrice.toLocaleString('en-CA', { minimumFractionDigits: 2 })}`, cols.price.x, rowTextY, { width: cols.price.w, align: 'right' });
-
-          // Cost (internal only)
-          if (type === 'internal') {
-            const cost = (item.cost_cents || 0) / 100;
-            doc.text(`$${cost.toLocaleString('en-CA', { minimumFractionDigits: 2 })}`, cols.cost.x, rowTextY, { width: cols.cost.w, align: 'right' });
-          }
-
-          // Discount
-          const discPercent = item.discount_percent || 0;
-          if (discPercent > 0) {
-            doc.font('Helvetica-Bold')
-               .fillColor(colors.error)
-               .text(`${discPercent}%`, cols.disc.x, rowTextY, { width: cols.disc.w, align: 'center' });
-          } else {
+          if (hideLinePrices) {
+            // Package pricing mode — show checkmark instead of individual prices
             doc.font('Helvetica')
-               .fillColor(colors.textLight)
-               .text('-', cols.disc.x, rowTextY, { width: cols.disc.w, align: 'center' });
-          }
+               .fontSize(8)
+               .fillColor(colors.success || '#28a745')
+               .text('Included', cols.incl.x, rowTextY, { width: cols.incl.w, align: 'center' });
+          } else {
+            // Unit Price
+            const unitPrice = (item.unit_price_cents || item.sell_cents || 0) / 100;
+            doc.font('Helvetica')
+               .fontSize(8)
+               .fillColor(colors.textSecondary)
+               .text(`$${unitPrice.toLocaleString('en-CA', { minimumFractionDigits: 2 })}`, cols.price.x, rowTextY, { width: cols.price.w, align: 'right' });
 
-          // Line Total (bold)
-          const lineTotal = (item.line_total_cents || (item.unit_price_cents * item.quantity)) / 100;
-          doc.font('Helvetica-Bold')
-             .fontSize(9)
-             .fillColor(colors.text)
-             .text(`$${lineTotal.toLocaleString('en-CA', { minimumFractionDigits: 2 })}`, cols.total.x, rowTextY, { width: cols.total.w, align: 'right' });
+            // Cost (internal only)
+            if (type === 'internal') {
+              const cost = (item.cost_cents || 0) / 100;
+              doc.text(`$${cost.toLocaleString('en-CA', { minimumFractionDigits: 2 })}`, cols.cost.x, rowTextY, { width: cols.cost.w, align: 'right' });
+            }
 
-          // Gross Profit % (internal only)
-          if (type === 'internal') {
-            const margin = item.margin_percent || 0;
-            const gpColor = margin >= 20 ? colors.success : margin >= 10 ? colors.warning : colors.error;
-            doc.fontSize(8)
-               .fillColor(gpColor)
-               .text(`${margin.toFixed(1)}%`, cols.gp.x, rowTextY, { width: cols.gp.w, align: 'right' });
+            // Discount
+            const discPercent = item.discount_percent || 0;
+            if (discPercent > 0) {
+              doc.font('Helvetica-Bold')
+                 .fillColor(colors.error)
+                 .text(`${discPercent}%`, cols.disc.x, rowTextY, { width: cols.disc.w, align: 'center' });
+            } else {
+              doc.font('Helvetica')
+                 .fillColor(colors.textLight)
+                 .text('-', cols.disc.x, rowTextY, { width: cols.disc.w, align: 'center' });
+            }
+
+            // Line Total (bold)
+            const lineTotal = (item.line_total_cents || (item.unit_price_cents * item.quantity)) / 100;
+            doc.font('Helvetica-Bold')
+               .fontSize(9)
+               .fillColor(colors.text)
+               .text(`$${lineTotal.toLocaleString('en-CA', { minimumFractionDigits: 2 })}`, cols.total.x, rowTextY, { width: cols.total.w, align: 'right' });
+
+            // Gross Profit % (internal only)
+            if (type === 'internal') {
+              const margin = item.margin_percent || 0;
+              const gpColor = margin >= 20 ? colors.success : margin >= 10 ? colors.warning : colors.error;
+              doc.fontSize(8)
+                 .fillColor(gpColor)
+                 .text(`${margin.toFixed(1)}%`, cols.gp.x, rowTextY, { width: cols.gp.w, align: 'right' });
+            }
           }
 
           yPos += rowHeight;
@@ -670,10 +730,11 @@ class PdfService {
 
         // Subtotal
         const subtotal = (quote.subtotal_cents || 0) / 100;
+        const subtotalLabel = hideLinePrices ? 'Package Price' : 'Subtotal';
         doc.fontSize(9)
-           .font('Helvetica')
+           .font(hideLinePrices ? 'Helvetica-Bold' : 'Helvetica')
            .fillColor(colors.textMuted)
-           .text('Subtotal', labelX, lineY);
+           .text(subtotalLabel, labelX, lineY);
         doc.fillColor(colors.textSecondary)
            .text(`$${subtotal.toLocaleString('en-CA', { minimumFractionDigits: 2 })}`, valueX - 80, lineY, { width: 80, align: 'right' });
 
@@ -754,15 +815,16 @@ class PdfService {
              .text('NOTES', 50, yPos);
 
           yPos += 14;
-          doc.roundedRect(50, yPos, 320, 50, 4)
+          const notesHeight = doc.heightOfString(quote.notes, { width: 496, fontSize: 8 }) + 16;
+          doc.roundedRect(50, yPos, 512, notesHeight, 4)
              .fillAndStroke(colors.bgLight, colors.border);
 
           doc.fontSize(8)
              .font('Helvetica')
              .fillColor(colors.textMuted)
-             .text(quote.notes, 58, yPos + 8, { width: 304, height: 38 });
+             .text(quote.notes, 58, yPos + 8, { width: 496 });
 
-          yPos += 60;
+          yPos += notesHeight + 10;
         }
 
         // ============================================
@@ -781,20 +843,21 @@ class PdfService {
            .text('TERMS & CONDITIONS', 50, yPos);
 
         yPos += 14;
-        doc.roundedRect(50, yPos, 512, 55, 4)
-           .fillAndStroke('#f9fafb', colors.border);
-
         const defaultTerms = quote.terms || `1. Payment is due within 30 days of invoice date.
 2. All prices are in Canadian Dollars (CAD).
 3. Quote valid for 14 days from date of issue.
 4. Prices and availability subject to change without notice.`;
+
+        const termsHeight = doc.heightOfString(defaultTerms, { width: 496, fontSize: 7 }) + 16;
+        doc.roundedRect(50, yPos, 512, termsHeight, 4)
+           .fillAndStroke('#f9fafb', colors.border);
 
         doc.fontSize(7)
            .font('Helvetica')
            .fillColor(colors.textMuted)
            .text(defaultTerms, 58, yPos + 8, { width: 496, lineGap: 2 });
 
-        yPos += 65;
+        yPos += termsHeight + 10;
 
         // ============================================
         // SIGNATURE AREA
@@ -941,6 +1004,12 @@ class PdfService {
         // ============================================
 
         const pageCount = doc.bufferedPageRange().count;
+
+        // Temporarily prevent PDFKit from auto-creating pages when
+        // rendering footer text below the bottom margin (y > 742)
+        const _origAddPage = doc.addPage;
+        doc.addPage = function() { return this; };
+
         for (let i = 0; i < pageCount; i++) {
           doc.switchToPage(i);
 
@@ -955,18 +1024,21 @@ class PdfService {
           doc.fontSize(9)
              .font('Helvetica')
              .fillColor(colors.textMuted)
-             .text('Thank you for your business!', 50, 752);
+             .text('Thank you for your business!', 50, 752, { lineBreak: false });
 
           // Page number (right)
           doc.fontSize(8)
              .fillColor(colors.textLight)
-             .text(`Page ${i + 1} of ${pageCount}`, 450, 752, { width: 112, align: 'right' });
+             .text(`Page ${i + 1} of ${pageCount}`, 450, 752, { width: 112, align: 'right', lineBreak: false });
 
           // Contact info (center)
           doc.fontSize(7)
              .fillColor(colors.textLight)
-             .text(`${companyWebsite}  |  ${companyPhone}  |  ${companyEmail}`, 50, 765, { width: 512, align: 'center' });
+             .text(`${companyWebsite}  |  ${companyPhone}  |  ${companyEmail}`, 50, 765, { width: 512, align: 'center', lineBreak: false });
         }
+
+        // Restore addPage before doc.end()
+        doc.addPage = _origAddPage;
 
         doc.end();
       } catch (error) {

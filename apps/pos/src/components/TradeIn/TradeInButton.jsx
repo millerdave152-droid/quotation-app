@@ -19,15 +19,8 @@ import {
   ListItemText,
   ListItemSecondaryAction,
 } from '@mui/material';
-import {
-  SwapHoriz as TradeInIcon,
-  ExpandMore as ExpandIcon,
-  ExpandLess as CollapseIcon,
-  Delete as RemoveIcon,
-  Pending as PendingIcon,
-  CheckCircle as ApprovedIcon,
-} from '@mui/icons-material';
 import { TradeInModal } from './TradeInModal';
+import { CheckCircle, ChevronDown, ChevronUp, Clock, Minus, RefreshCw } from 'lucide-react';
 
 // ============================================================================
 // TRADE-IN BUTTON
@@ -62,7 +55,7 @@ export function TradeInButton({
       <Button
         variant="outlined"
         color="secondary"
-        startIcon={<TradeInIcon />}
+        startIcon={<RefreshCw />}
         onClick={handleClick}
         disabled={disabled}
         fullWidth
@@ -130,7 +123,7 @@ export function TradeInSummary({
         onClick={() => showDetails && setExpanded(!expanded)}
       >
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-          <TradeInIcon />
+          <RefreshCw />
           <Typography variant="subtitle2">
             Trade-In Credit
           </Typography>
@@ -142,7 +135,7 @@ export function TradeInSummary({
           </Typography>
           {showDetails && (
             <IconButton size="small" sx={{ color: 'white' }}>
-              {expanded ? <CollapseIcon /> : <ExpandIcon />}
+              {expanded ? <ChevronUp /> : <ChevronDown />}
             </IconButton>
           )}
         </Box>
@@ -152,7 +145,7 @@ export function TradeInSummary({
       {pendingApproval.length > 0 && (
         <Box sx={{ p: 1, bgcolor: 'warning.light' }}>
           <Typography variant="caption" sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-            <PendingIcon fontSize="small" />
+            <Clock fontSize="small" />
             {pendingApproval.length} trade-in(s) pending manager approval
           </Typography>
         </Box>
@@ -179,7 +172,7 @@ export function TradeInSummary({
                           label="Pending Approval"
                           size="small"
                           color="warning"
-                          icon={<PendingIcon />}
+                          icon={<Clock />}
                         />
                       )}
                       {tradeIn.status === 'approved' && (
@@ -187,7 +180,7 @@ export function TradeInSummary({
                           label="Approved"
                           size="small"
                           color="success"
-                          icon={<ApprovedIcon />}
+                          icon={<CheckCircle />}
                         />
                       )}
                     </Box>
@@ -211,7 +204,7 @@ export function TradeInSummary({
                           onClick={() => onRemove(tradeIn.id)}
                           color="error"
                         >
-                          <RemoveIcon fontSize="small" />
+                          <Minus fontSize="small" />
                         </IconButton>
                       </Tooltip>
                     )}
@@ -253,7 +246,7 @@ export function TradeInLineItem({
         }}
       >
         <Typography variant="body2" sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-          <TradeInIcon fontSize="small" color="success" />
+          <RefreshCw size={16} className="text-green-600" />
           Trade-In: {tradeIn.brand} {tradeIn.model}
         </Typography>
         <Typography variant="body2" color="success.main" fontWeight={600}>
@@ -268,7 +261,7 @@ export function TradeInLineItem({
       <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
         <Box>
           <Typography variant="subtitle2" sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-            <TradeInIcon fontSize="small" color="success" />
+            <RefreshCw size={16} className="text-green-600" />
             Trade-In Credit
           </Typography>
           <Typography variant="body1" fontWeight={500}>

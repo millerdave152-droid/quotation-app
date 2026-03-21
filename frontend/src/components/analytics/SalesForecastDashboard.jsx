@@ -8,9 +8,9 @@
 
 import React, { useState, useEffect } from 'react';
 import {
-  LineChart, Line, BarChart, Bar, AreaChart, Area,
-  XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
-  PieChart, Pie, Cell, ComposedChart
+  BarChart, Bar, AreaChart, Area,
+  XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
+  Line
 } from 'recharts';
 import api from '../../services/api';
 import { useToast } from '../ui/Toast';
@@ -30,34 +30,34 @@ function SalesForecastDashboard() {
   });
 
   useEffect(() => {
+    const fetchAllData = async () => {
+      setLoading(true);
+      try {
+        const [forecastRes, pipelineRes, seasonalityRes, velocityRes, summaryRes] = await Promise.all([
+          api.get(`/analytics/forecast/revenue?days=${forecastPeriod}`),
+          api.get('/analytics/forecast/pipeline'),
+          api.get('/analytics/seasonality'),
+          api.get('/analytics/sales-velocity'),
+          api.get('/analytics/forecast/summary')
+        ]);
+
+        setData({
+          forecast: forecastRes.data?.data || forecastRes.data,
+          pipeline: pipelineRes.data?.data || pipelineRes.data,
+          seasonality: seasonalityRes.data?.data || seasonalityRes.data,
+          velocity: velocityRes.data?.data || velocityRes.data,
+          summary: summaryRes.data?.data || summaryRes.data
+        });
+      } catch (error) {
+        toast.error('Failed to load forecast data');
+        console.error(error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
     fetchAllData();
-  }, [forecastPeriod]);
-
-  const fetchAllData = async () => {
-    setLoading(true);
-    try {
-      const [forecastRes, pipelineRes, seasonalityRes, velocityRes, summaryRes] = await Promise.all([
-        api.get(`/analytics/forecast/revenue?days=${forecastPeriod}`),
-        api.get('/analytics/forecast/pipeline'),
-        api.get('/analytics/seasonality'),
-        api.get('/analytics/sales-velocity'),
-        api.get('/analytics/forecast/summary')
-      ]);
-
-      setData({
-        forecast: forecastRes.data?.data || forecastRes.data,
-        pipeline: pipelineRes.data?.data || pipelineRes.data,
-        seasonality: seasonalityRes.data?.data || seasonalityRes.data,
-        velocity: velocityRes.data?.data || velocityRes.data,
-        summary: summaryRes.data?.data || summaryRes.data
-      });
-    } catch (error) {
-      toast.error('Failed to load forecast data');
-      console.error(error);
-    } finally {
-      setLoading(false);
-    }
-  };
+  }, [forecastPeriod, toast]);
 
   const formatCurrency = (cents) => {
     return new Intl.NumberFormat('en-US', {
@@ -545,7 +545,7 @@ function SalesForecastDashboard() {
 }
 
 // Sub-components
-function ForecastMetricCard({ title, value, subtitle, metric, trend, confidence }) {
+function ForecastMetricCard({ title, value, subtitle, metric, trend }) {
   return (
     <div className="forecast-metric-card">
       <div className="metric-title">{title}</div>

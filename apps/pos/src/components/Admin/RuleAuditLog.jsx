@@ -4,47 +4,36 @@
  */
 
 import { useState, useEffect, useCallback } from 'react';
-import {
-  ClockIcon,
-  UserIcon,
-  PencilSquareIcon,
-  PlusCircleIcon,
-  TrashIcon,
-  DocumentDuplicateIcon,
-  ArrowPathIcon,
-  ChevronDownIcon,
-  ChevronUpIcon,
-} from '@heroicons/react/24/outline';
-
-const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:3001/api';
+import { ChevronDown, ChevronUp, Clock, Copy, PlusCircle, RefreshCw, SquarePen, Trash2, User } from 'lucide-react';
+const API_BASE = import.meta.env.VITE_API_URL || '/api';
 
 const ACTION_CONFIG = {
   create: {
-    icon: PlusCircleIcon,
+    icon: PlusCircle,
     label: 'Created',
     color: 'text-green-600',
     bgColor: 'bg-green-100',
   },
   update: {
-    icon: PencilSquareIcon,
+    icon: SquarePen,
     label: 'Updated',
     color: 'text-blue-600',
     bgColor: 'bg-blue-100',
   },
   delete: {
-    icon: TrashIcon,
+    icon: Trash2,
     label: 'Deleted',
     color: 'text-red-600',
     bgColor: 'bg-red-100',
   },
   bulk_update: {
-    icon: ArrowPathIcon,
+    icon: RefreshCw,
     label: 'Bulk Update',
     color: 'text-purple-600',
     bgColor: 'bg-purple-100',
   },
   duplicate: {
-    icon: DocumentDuplicateIcon,
+    icon: Copy,
     label: 'Duplicated',
     color: 'text-amber-600',
     bgColor: 'bg-amber-100',
@@ -163,7 +152,7 @@ function AuditLogEntry({ entry, isExpanded, onToggle }) {
           </div>
 
           <div className="flex items-center gap-2 mt-1">
-            <UserIcon className="w-4 h-4 text-gray-400" />
+            <User className="w-4 h-4 text-gray-400" />
             <span className="text-sm text-gray-600">{entry.admin_name || 'System'}</span>
           </div>
 
@@ -179,9 +168,9 @@ function AuditLogEntry({ entry, isExpanded, onToggle }) {
         {entry.changes && (
           <div className="text-gray-400">
             {isExpanded ? (
-              <ChevronUpIcon className="w-4 h-4" />
+              <ChevronUp className="w-4 h-4" />
             ) : (
-              <ChevronDownIcon className="w-4 h-4" />
+              <ChevronDown className="w-4 h-4" />
             )}
           </div>
         )}
@@ -256,7 +245,7 @@ export function RuleAuditLog({ ruleId, auditLog: initialLog }) {
   if (!auditLog || auditLog.length === 0) {
     return (
       <div className="text-center py-8">
-        <ClockIcon className="w-12 h-12 text-gray-300 mx-auto mb-3" />
+        <Clock className="w-12 h-12 text-gray-300 mx-auto mb-3" />
         <p className="text-gray-500">No audit history available</p>
         <p className="text-sm text-gray-400 mt-1">Changes to this rule will appear here</p>
       </div>
@@ -267,7 +256,7 @@ export function RuleAuditLog({ ruleId, auditLog: initialLog }) {
     <div className="space-y-2">
       <div className="flex items-center justify-between mb-4">
         <h3 className="font-medium text-gray-900 flex items-center gap-2">
-          <ClockIcon className="w-5 h-5 text-gray-500" />
+          <Clock className="w-5 h-5 text-gray-500" />
           Change History
         </h3>
         <span className="text-sm text-gray-500">{auditLog.length} entries</span>

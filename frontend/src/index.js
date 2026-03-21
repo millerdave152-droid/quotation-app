@@ -3,7 +3,6 @@ import ReactDOM from 'react-dom/client';
 import './index.css';
 import './components/ui/ResponsiveStyles.css';
 import App from './App';
-import { AuthProvider } from './contexts/AuthContext';
 import * as serviceWorkerRegistration from './serviceWorkerRegistration';
 import errorTracker from './services/errorTracker';
 
@@ -13,19 +12,15 @@ window.addEventListener('beforeunload', () => errorTracker.flush());
 
 const root = ReactDOM.createRoot(document.getElementById('root'));
 root.render(
-  <AuthProvider>
-    <App />
-  </AuthProvider>
+  <App />
 );
 
 // Register service worker for PWA functionality (only in production)
 if (process.env.NODE_ENV === 'production') {
   serviceWorkerRegistration.register({
-    onSuccess: (registration) => {
-      console.log('✅ Service worker registered successfully');
+    onSuccess: () => {
     },
-    onUpdate: (registration) => {
-      console.log('🔄 New version available! Please refresh.');
+    onUpdate: () => {
       // Show a non-blocking notification instead of confirm dialog
       const updateAvailable = document.createElement('div');
       updateAvailable.style.cssText = `
@@ -47,5 +42,4 @@ if (process.env.NODE_ENV === 'production') {
     },
   });
 } else {
-  console.log('⚠️ Service worker disabled in development mode');
 }

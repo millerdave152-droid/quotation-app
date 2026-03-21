@@ -64,7 +64,6 @@ export const createTransaction = async (data) => {
       };
     }
 
-    console.log('[Transactions] createTransaction request data:', JSON.stringify(data, null, 2));
     const response = await api.post('/transactions', {
       shiftId: data.shiftId,
       customerId: data.customerId || null,
@@ -72,6 +71,8 @@ export const createTransaction = async (data) => {
       salespersonId: data.salespersonId,
       items: data.items.map(item => ({
         productId: item.productId,
+        productName: item.productName || null,
+        sku: item.sku || null,
         quantity: item.quantity,
         unitPrice: item.unitPrice,
         unitCost: item.unitCost || null,
@@ -88,6 +89,9 @@ export const createTransaction = async (data) => {
         cardBrand: payment.cardBrand || null,
         authorizationCode: payment.authorizationCode || null,
         processorReference: payment.processorReference || null,
+        cardEntryMethod: payment.cardEntryMethod || payment.card_entry_method || null,
+        cardPresent: payment.cardPresent ?? null,
+        cardBin: payment.cardBin || null,
         cashTendered: payment.cashTendered || null,
         changeGiven: payment.changeGiven || null,
         etransferReference: payment.etransferReference || null,
@@ -108,6 +112,7 @@ export const createTransaction = async (data) => {
       isDeposit: data.isDeposit || false,
       marketingSource: data.marketingSource || null,
       marketingSourceDetail: data.marketingSourceDetail || null,
+      ...(data.fraudOverride && { fraudOverride: data.fraudOverride }),
     });
 
     const result = response.data || response;
@@ -353,8 +358,7 @@ export const lookupByNumber = async (transactionNumber) => {
  */
 export const getReceiptData = async (id) => {
   try {
-    // Get full transaction details for receipt
-    const response = await api.get(`/transactions/${id}`);
+    const response = await api.get(`/receipts/${id}/data`);
 
     return {
       success: true,

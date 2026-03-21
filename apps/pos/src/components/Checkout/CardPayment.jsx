@@ -4,15 +4,10 @@
  */
 
 import { useState, useCallback, useEffect, useRef } from 'react';
-import {
-  ArrowLeftIcon,
-  CreditCardIcon,
-  CheckCircleIcon,
-  XCircleIcon,
-} from '@heroicons/react/24/outline';
 import { formatCurrency } from '../../utils/formatters';
+import { ArrowLeft, CheckCircle, CreditCard, XCircle } from 'lucide-react';
 
-const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:3001/api';
+const API_BASE = import.meta.env.VITE_API_URL || '/api';
 
 /**
  * Card brands for selection
@@ -67,7 +62,7 @@ export function CardPayment({
 
     const createPaymentIntent = async () => {
       // Only create for credit/debit payments, not gift cards
-      if (paymentType === 'giftcard') return;
+      if (paymentType === 'giftcard' || paymentType === 'gift_card') return;
       if (!Number.isFinite(amountDue) || amountDue <= 0) {
         setMonerisError('Invalid payment amount');
         return;
@@ -272,7 +267,7 @@ export function CardPayment({
               transition-colors duration-150
             "
           >
-            <ArrowLeftIcon className="w-6 h-6" />
+            <ArrowLeft className="w-6 h-6" />
           </button>
           <h2 className="text-xl font-bold text-gray-900 capitalize">
             {paymentType} Card Payment
@@ -291,7 +286,7 @@ export function CardPayment({
         <div className="flex-1 flex flex-col items-center justify-center">
           <div className="relative mb-6">
             <div className="w-24 h-24 bg-blue-100 rounded-full flex items-center justify-center">
-              <CreditCardIcon className="w-12 h-12 text-blue-600" />
+              <CreditCard className="w-12 h-12 text-blue-600" />
             </div>
             <div className="absolute inset-0 rounded-full border-4 border-blue-600 border-t-transparent animate-spin" />
           </div>
@@ -300,7 +295,7 @@ export function CardPayment({
             Waiting for Card...
           </h3>
           <p className="text-sm text-gray-500 text-center max-w-xs">
-            Tap, insert, or swipe the customer's card on the terminal
+            Tap, insert, or swipe the customer&apos;s card on the terminal
           </p>
         </div>
 
@@ -396,7 +391,7 @@ export function CardPayment({
     return (
       <div className="flex flex-col h-full items-center justify-center">
         <div className="w-24 h-24 bg-green-100 rounded-full flex items-center justify-center mb-6">
-          <CheckCircleIcon className="w-16 h-16 text-green-600" />
+          <CheckCircle className="w-16 h-16 text-green-600" />
         </div>
         <h3 className="text-2xl font-bold text-gray-900 mb-2">
           Card Approved
@@ -413,7 +408,7 @@ export function CardPayment({
     return (
       <div className="flex flex-col h-full items-center justify-center">
         <div className="w-24 h-24 bg-red-100 rounded-full flex items-center justify-center mb-6">
-          <XCircleIcon className="w-16 h-16 text-red-600" />
+          <XCircle className="w-16 h-16 text-red-600" />
         </div>
         <h3 className="text-2xl font-bold text-gray-900 mb-2">
           Card Declined
@@ -454,7 +449,7 @@ export function CardPayment({
             transition-colors duration-150
           "
         >
-          <ArrowLeftIcon className="w-6 h-6" />
+          <ArrowLeft className="w-6 h-6" />
         </button>
         <h2 className="text-xl font-bold text-gray-900">Manual Card Entry</h2>
       </div>
@@ -591,7 +586,7 @@ export function CardPayment({
           transition-colors duration-150
         "
       >
-        <CheckCircleIcon className="w-6 h-6" />
+        <CheckCircle className="w-6 h-6" />
         Confirm Payment
       </button>
     </div>

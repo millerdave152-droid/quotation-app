@@ -10,7 +10,7 @@ import InteractiveDecoder from './InteractiveDecoder';
 import ReferenceChart from './ReferenceChart';
 import QuizMode from './QuizMode';
 
-const API_BASE = process.env.REACT_APP_API_URL || 'http://localhost:3001';
+const API_BASE = process.env.REACT_APP_API_URL || '';
 
 const TrainingCenter = () => {
   // State

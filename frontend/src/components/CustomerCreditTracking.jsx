@@ -1,8 +1,8 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { handleApiError } from '../utils/errorHandler';
 
 import { authFetch } from '../services/authFetch';
-const API_BASE = `${process.env.REACT_APP_API_URL || 'http://localhost:3001'}/api`;
+const API_BASE = `${process.env.REACT_APP_API_URL || ''}/api`;
 
 const CustomerCreditTracking = ({ customer, onUpdate }) => {
   const [payments, setPayments] = useState([]);
@@ -26,13 +26,8 @@ const CustomerCreditTracking = ({ customer, onUpdate }) => {
     payment_terms: customer?.payment_terms || 'Net 30'
   });
 
-  useEffect(() => {
-    if (customer?.id) {
-      loadPaymentData();
-    }
-  }, [customer?.id]);
-
-  const loadPaymentData = async () => {
+  const loadPaymentData = useCallback(async () => {
+    if (!customer?.id) return;
     setLoading(true);
     try {
       const [paymentsRes, summaryRes] = await Promise.all([
@@ -50,7 +45,11 @@ const CustomerCreditTracking = ({ customer, onUpdate }) => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [customer?.id]);
+
+  useEffect(() => {
+    loadPaymentData();
+  }, [loadPaymentData]);
 
   const handlePaymentSubmit = async (e) => {
     e.preventDefault();

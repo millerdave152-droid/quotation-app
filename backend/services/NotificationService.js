@@ -169,9 +169,9 @@ class NotificationService {
   async cleanupOldNotifications(daysOld = 30) {
     const result = await this.pool.query(`
       DELETE FROM user_notifications
-      WHERE created_at < CURRENT_TIMESTAMP - INTERVAL '${daysOld} days'
+      WHERE created_at < CURRENT_TIMESTAMP - ($1 * INTERVAL '1 day')
         AND is_read = true
-    `);
+    `, [daysOld]);
 
     return result.rowCount;
   }

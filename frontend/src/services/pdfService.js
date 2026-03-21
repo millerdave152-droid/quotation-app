@@ -6,7 +6,7 @@ import { handleApiError } from '../utils/errorHandler';
 import { toast } from '../components/ui/Toast';
 
 import { authFetch } from './authFetch';
-const API_BASE = `${process.env.REACT_APP_API_URL || 'http://localhost:3001'}/api`;
+const API_BASE = `${process.env.REACT_APP_API_URL || ''}/api`;
 
 // Helper to get auth headers
 const getAuthHeaders = () => {
@@ -98,9 +98,7 @@ export const downloadQuotePDF = async (quoteId, type = 'customer') => {
       throw new Error(`Failed to fetch quote: ${quoteResponse.status}`);
     }
     const quoteJson = await quoteResponse.json();
-    console.log('[PDF Download] Raw quote response:', quoteJson);
     const quote = quoteJson.data || quoteJson; // Handle wrapped response
-    console.log('[PDF Download] Extracted quote:', quote);
 
     // Fetch customer data
     const customerResponse = await authFetch(`${API_BASE}/customers/${quote.customer_id}`, { headers });
@@ -108,11 +106,9 @@ export const downloadQuotePDF = async (quoteId, type = 'customer') => {
       throw new Error(`Failed to fetch customer`);
     }
     const customerJson = await customerResponse.json();
-    console.log('[PDF Download] Raw customer response:', customerJson);
     // API returns { data: { customer: {...}, quotes: [...], stats: {...} } }
     const customerData = customerJson.data || customerJson;
     const customer = customerData.customer || customerData; // Extract nested customer object
-    console.log('[PDF Download] Extracted customer:', customer);
 
     // Fetch quote items
     const itemsResponse = await authFetch(`${API_BASE}/quotations/${quoteId}/items`, { headers });
@@ -120,9 +116,7 @@ export const downloadQuotePDF = async (quoteId, type = 'customer') => {
       throw new Error(`Failed to fetch quote items`);
     }
     const itemsJson = await itemsResponse.json();
-    console.log('[PDF Download] Raw items response:', itemsJson);
     const items = itemsJson.data || itemsJson; // Handle wrapped response
-    console.log('[PDF Download] Extracted items:', items);
 
     if (!items || items.length === 0) {
       toast.warning('This quote has no items. Please add products before downloading PDF.', 'Empty Quote');
@@ -487,7 +481,6 @@ export const generateCustomerPDF = (quote, customer, items) => {
     const unitPrice = (item.sell_cents || item.unit_price_cents || 0) / 100;
     const quantity = item.quantity || 1;
     const lineTotal = (item.line_total_cents || 0) / 100 || (quantity * unitPrice);
-    const lineDiscount = (item.discount_cents || 0) / 100;
     const discountPct = item.discount_percent || 0;
     const sku = item.sku || item.product_code || '-';
     const manufacturer = item.manufacturer || '-';
@@ -748,7 +741,6 @@ export const generateInternalPDF = (quote, customer, items) => {
   const doc = new jsPDF();
   const pageWidth = doc.internal.pageSize.getWidth();
   const pageHeight = doc.internal.pageSize.getHeight();
-  const { address, contact } = companyConfig;
 
   // Internal colors (red accent)
   const internalColors = {

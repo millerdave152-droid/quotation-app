@@ -4,24 +4,11 @@
  */
 
 import { useState, useEffect, useCallback } from 'react';
-import {
-  XMarkIcon,
-  ShieldCheckIcon,
-  PrinterIcon,
-  EnvelopeIcon,
-  ClockIcon,
-  CheckCircleIcon,
-  ExclamationTriangleIcon,
-  ArrowTopRightOnSquareIcon,
-  PencilSquareIcon,
-  MinusCircleIcon,
-  PlusCircleIcon,
-  TrashIcon,
-} from '@heroicons/react/24/outline';
-import { ShieldCheckIcon as ShieldCheckSolid } from '@heroicons/react/24/solid';
 import { formatCurrency, formatDateTime } from '../../utils/formatters';
+import { AlertTriangle, CheckCircle, Clock, ExternalLink, Mail, MinusCircle, PlusCircle, Printer, ShieldCheck, SquarePen, Trash2, X } from 'lucide-react';
 
-const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:3001/api';
+const API_BASE = import.meta.env.VITE_API_URL || '/api';
+const getToken = () => localStorage.getItem('pos_token') || localStorage.getItem('auth_token') || '';
 
 /**
  * Warranty status badge
@@ -31,19 +18,19 @@ function WarrantyStatusBadge({ status, daysRemaining }) {
     active: {
       bg: 'bg-green-100',
       text: 'text-green-700',
-      icon: CheckCircleIcon,
+      icon: CheckCircle,
       label: daysRemaining <= 30 ? `Expiring in ${daysRemaining} days` : 'Active',
     },
     expired: {
       bg: 'bg-gray-100',
       text: 'text-gray-600',
-      icon: ClockIcon,
+      icon: Clock,
       label: 'Expired',
     },
     pending: {
       bg: 'bg-yellow-100',
       text: 'text-yellow-700',
-      icon: ClockIcon,
+      icon: Clock,
       label: 'Pending',
     },
     claimed: {
@@ -55,7 +42,7 @@ function WarrantyStatusBadge({ status, daysRemaining }) {
     cancelled: {
       bg: 'bg-red-100',
       text: 'text-red-700',
-      icon: ExclamationTriangleIcon,
+      icon: AlertTriangle,
       label: 'Cancelled',
     },
   };
@@ -114,7 +101,7 @@ function ProductItemCard({ item }) {
             <div key={wIndex} className="p-4 border-b border-blue-100 last:border-b-0">
               <div className="flex items-start gap-3">
                 <div className="p-2 bg-blue-100 rounded-lg">
-                  <ShieldCheckIcon className="w-5 h-5 text-blue-600" />
+                  <ShieldCheck className="w-5 h-5 text-blue-600" />
                 </div>
                 <div className="flex-1 min-w-0">
                   <div className="flex items-start justify-between gap-2">
@@ -169,7 +156,7 @@ function ProductItemCard({ item }) {
                       className="mt-2 inline-flex items-center gap-1 text-sm text-blue-600 hover:text-blue-800"
                     >
                       View Terms & Conditions
-                      <ArrowTopRightOnSquareIcon className="w-4 h-4" />
+                      <ExternalLink className="w-4 h-4" />
                     </a>
                   )}
 
@@ -229,7 +216,7 @@ export function TransactionDetails({
     try {
       const response = await fetch(`${API_BASE}/receipts/${transactionId}/data`, {
         headers: {
-          Authorization: `Bearer ${localStorage.getItem('pos_token')}`,
+          Authorization: `Bearer ${getToken()}`,
         },
       });
 
@@ -237,8 +224,11 @@ export function TransactionDetails({
         throw new Error('Failed to load transaction details');
       }
 
-      const data = await response.json();
-      setReceiptData(data);
+      const result = await response.json();
+      if (!result.success) {
+        throw new Error(result.error || 'Failed to load transaction details');
+      }
+      setReceiptData(result.data);
     } catch (err) {
       console.error('[TransactionDetails] Fetch error:', err);
       setError(err.message);
@@ -256,17 +246,17 @@ export function TransactionDetails({
   // Handle print
   const handlePrint = useCallback(async () => {
     if (onPrintReceipt) {
-      await onPrintReceipt(receiptData);
+      await onPrintReceipt({ transactionId, transactionNumber: receiptData?.transaction?.number });
     }
-  }, [receiptData, onPrintReceipt]);
+  }, [transactionId, receiptData, onPrintReceipt]);
 
   // Handle email
   const handleEmail = useCallback(async () => {
     const email = prompt('Enter email address:', receiptData?.transaction?.customerEmail || '');
     if (email && onEmailReceipt) {
-      await onEmailReceipt(receiptData, email);
+      await onEmailReceipt({ transactionId, transactionNumber: receiptData?.transaction?.number }, email);
     }
-  }, [receiptData, onEmailReceipt]);
+  }, [transactionId, receiptData, onEmailReceipt]);
 
   // Toggle amendment form
   const handleToggleAmend = useCallback(() => {
@@ -367,7 +357,7 @@ export function TransactionDetails({
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            Authorization: `Bearer ${localStorage.getItem('pos_token')}`,
+            Authorization: `Bearer ${getToken()}`,
           },
           body: JSON.stringify(body),
         }
@@ -426,7 +416,7 @@ export function TransactionDetails({
               className="p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-lg disabled:opacity-50"
               title="Print Receipt"
             >
-              <PrinterIcon className="w-5 h-5" />
+              <Printer className="w-5 h-5" />
             </button>
             <button
               type="button"
@@ -435,7 +425,7 @@ export function TransactionDetails({
               className="p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-lg disabled:opacity-50"
               title="Email Receipt"
             >
-              <EnvelopeIcon className="w-5 h-5" />
+              <Mail className="w-5 h-5" />
             </button>
             <button
               type="button"
@@ -448,7 +438,7 @@ export function TransactionDetails({
               }`}
               title={showAmendForm ? 'Cancel Amendment' : 'Amend Order'}
             >
-              <PencilSquareIcon className="w-4 h-4" />
+              <SquarePen className="w-4 h-4" />
               {showAmendForm ? 'Cancel' : 'Amend'}
             </button>
             <button
@@ -456,7 +446,7 @@ export function TransactionDetails({
               onClick={onClose}
               className="p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-lg"
             >
-              <XMarkIcon className="w-5 h-5" />
+              <X className="w-5 h-5" />
             </button>
           </div>
         </div>
@@ -469,7 +459,7 @@ export function TransactionDetails({
             </div>
           ) : error ? (
             <div className="text-center py-12">
-              <ExclamationTriangleIcon className="w-12 h-12 text-red-500 mx-auto mb-4" />
+              <AlertTriangle className="w-12 h-12 text-red-500 mx-auto mb-4" />
               <p className="text-gray-600">{error}</p>
               <button
                 type="button"
@@ -636,7 +626,7 @@ export function TransactionDetails({
                 <div className="border-2 border-blue-200 rounded-lg overflow-hidden">
                   <div className="bg-blue-50 px-4 py-3 border-b border-blue-200">
                     <h3 className="font-semibold text-blue-900 text-sm flex items-center gap-2">
-                      <PencilSquareIcon className="w-4 h-4" />
+                      <SquarePen className="w-4 h-4" />
                       Quick Amendment — Qty Changes &amp; Removals
                     </h3>
                     <p className="text-xs text-blue-600 mt-0.5">
@@ -647,7 +637,7 @@ export function TransactionDetails({
                   {/* Success banner */}
                   {amendSuccess && (
                     <div className="mx-4 mt-3 p-3 bg-green-50 border border-green-200 rounded-lg flex items-start gap-2">
-                      <CheckCircleIcon className="w-5 h-5 text-green-600 flex-shrink-0 mt-0.5" />
+                      <CheckCircle className="w-5 h-5 text-green-600 flex-shrink-0 mt-0.5" />
                       <p className="text-sm text-green-800">{amendSuccess}</p>
                     </div>
                   )}
@@ -655,7 +645,7 @@ export function TransactionDetails({
                   {/* Error banner */}
                   {amendError && (
                     <div className="mx-4 mt-3 p-3 bg-red-50 border border-red-200 rounded-lg flex items-start gap-2">
-                      <ExclamationTriangleIcon className="w-5 h-5 text-red-600 flex-shrink-0 mt-0.5" />
+                      <AlertTriangle className="w-5 h-5 text-red-600 flex-shrink-0 mt-0.5" />
                       <p className="text-sm text-red-800">{amendError}</p>
                     </div>
                   )}
@@ -701,7 +691,7 @@ export function TransactionDetails({
                               className="p-1 text-gray-500 hover:text-blue-600 hover:bg-blue-50 rounded disabled:opacity-30 disabled:cursor-not-allowed"
                               title="Decrease quantity"
                             >
-                              <MinusCircleIcon className="w-5 h-5" />
+                              <MinusCircle className="w-5 h-5" />
                             </button>
                             <span className={`w-8 text-center text-sm font-semibold tabular-nums ${
                               qtyChanged ? 'text-amber-700' : 'text-gray-900'
@@ -715,7 +705,7 @@ export function TransactionDetails({
                               className="p-1 text-gray-500 hover:text-blue-600 hover:bg-blue-50 rounded disabled:opacity-30 disabled:cursor-not-allowed"
                               title="Increase quantity"
                             >
-                              <PlusCircleIcon className="w-5 h-5" />
+                              <PlusCircle className="w-5 h-5" />
                             </button>
                           </div>
 
@@ -738,7 +728,7 @@ export function TransactionDetails({
                             }`}
                             title={isRemoved ? 'Undo removal' : 'Remove item'}
                           >
-                            <TrashIcon className="w-4 h-4" />
+                            <Trash2 className="w-4 h-4" />
                           </button>
                         </div>
                       );

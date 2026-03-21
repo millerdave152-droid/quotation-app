@@ -2,7 +2,7 @@
  * Create/Update admin user for POS app
  */
 
-const bcrypt = require('bcryptjs');
+const bcrypt = require('bcrypt');
 const { Pool } = require('pg');
 require('dotenv').config({ path: require('path').join(__dirname, '..', '.env') });
 
@@ -18,8 +18,8 @@ const pool = new Pool({
 async function createAdminUser() {
   const client = await pool.connect();
   try {
-    const email = 'admin@yourcompany.com';
-    const password = 'TestPass123!';
+    const email = process.env.ADMIN_EMAIL || 'admin@yourcompany.com';
+    const password = process.env.ADMIN_PASSWORD || 'ChangeMe123!';
 
     // Hash password with 12 rounds (matching the app's SALT_ROUNDS)
     const passwordHash = await bcrypt.hash(password, 12);

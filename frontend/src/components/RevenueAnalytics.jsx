@@ -1,12 +1,10 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { BarChart3, TrendingUp, DollarSign, Package, Calendar, Users } from 'lucide-react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { BarChart3, TrendingUp, DollarSign, Package, Calendar } from 'lucide-react';
 import { cachedFetch } from '../services/apiCache';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
-  PieChart, Pie, Cell, Legend
+  PieChart, Pie, Cell
 } from 'recharts';
-
-const API_BASE = `${process.env.REACT_APP_API_URL || 'http://localhost:3001'}/api`;
 
 // Feature chart colors
 const FEATURE_COLORS = {
@@ -27,29 +25,8 @@ const RevenueAnalytics = () => {
   const isMounted = useRef(true);
   const loadedOnce = useRef(false);
 
-  // Cleanup on unmount
-  useEffect(() => {
-    isMounted.current = true;
-
-    if (!loadedOnce.current) {
-      loadedOnce.current = true;
-      fetchAnalytics();
-    }
-
-    return () => {
-      isMounted.current = false;
-    };
-  }, []);
-
-  // Refetch when period changes (but not on initial mount)
-  useEffect(() => {
-    if (loadedOnce.current && isMounted.current) {
-      fetchAnalytics();
-    }
-  }, [period]);
-
   // Fetch analytics data with caching
-  const fetchAnalytics = async () => {
+  const fetchAnalytics = useCallback(async () => {
     if (!isMounted.current) return;
 
     setLoading(true);
@@ -81,7 +58,28 @@ const RevenueAnalytics = () => {
         setLoading(false);
       }
     }
-  };
+  }, [period]);
+
+  // Cleanup on unmount
+  useEffect(() => {
+    isMounted.current = true;
+
+    if (!loadedOnce.current) {
+      loadedOnce.current = true;
+      fetchAnalytics();
+    }
+
+    return () => {
+      isMounted.current = false;
+    };
+  }, [fetchAnalytics]);
+
+  // Refetch when period changes (but not on initial mount)
+  useEffect(() => {
+    if (loadedOnce.current && isMounted.current) {
+      fetchAnalytics();
+    }
+  }, [fetchAnalytics]);
 
   if (loading) {
     return (
@@ -147,14 +145,6 @@ const RevenueAnalytics = () => {
   const revenue = analytics?.revenue || {};
   const averages = analytics?.averages || {};
   const periodInfo = analytics?.period || {};
-
-  const maxAdoption = Math.max(
-    featureAdoption.financing || 0,
-    featureAdoption.warranties || 0,
-    featureAdoption.delivery || 0,
-    featureAdoption.rebates || 0,
-    featureAdoption.tradeIns || 0
-  );
 
   return (
     <div style={{ padding: '20px', maxWidth: '1400px', margin: '0 auto' }}>
@@ -336,11 +326,11 @@ const RevenueAnalytics = () => {
         </h2>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '16px' }}>
           {[
-            { key: 'financing', label: 'Financing', icon: '💳', count: featureAdoption.financing, revenue: null },
-            { key: 'warranties', label: 'Warranties', icon: '🛡️', count: featureAdoption.warranties, revenue: revenue.warranties },
-            { key: 'delivery', label: 'Delivery', icon: '🚚', count: featureAdoption.delivery, revenue: revenue.delivery },
-            { key: 'rebates', label: 'Rebates', icon: '🎁', count: featureAdoption.rebates, revenue: null },
-            { key: 'tradeIns', label: 'Trade-Ins', icon: '♻️', count: featureAdoption.tradeIns, revenue: revenue.tradeIns }
+            { key: 'financing', label: 'Financing', icon: <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#6366f1" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="1" y="4" width="22" height="16" rx="2" ry="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg>, count: featureAdoption.financing, revenue: null },
+            { key: 'warranties', label: 'Warranties', icon: <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#10b981" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>, count: featureAdoption.warranties, revenue: revenue.warranties },
+            { key: 'delivery', label: 'Delivery', icon: <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#f59e0b" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="1" y="3" width="15" height="13"/><polygon points="16 8 20 8 23 11 23 16 16 16 16 8"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></svg>, count: featureAdoption.delivery, revenue: revenue.delivery },
+            { key: 'rebates', label: 'Rebates', icon: <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#ec4899" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 12 20 22 4 22 4 12"/><rect x="2" y="7" width="20" height="5"/><line x1="12" y1="22" x2="12" y2="7"/><path d="M12 7H7.5a2.5 2.5 0 0 1 0-5C11 2 12 7 12 7z"/><path d="M12 7h4.5a2.5 2.5 0 0 0 0-5C13 2 12 7 12 7z"/></svg>, count: featureAdoption.rebates, revenue: null },
+            { key: 'tradeIns', label: 'Trade-Ins', icon: <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#8b5cf6" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>, count: featureAdoption.tradeIns, revenue: revenue.tradeIns }
           ].map(feature => (
             <div key={feature.key} style={{
               padding: '20px',
@@ -352,7 +342,7 @@ const RevenueAnalytics = () => {
             onMouseEnter={(e) => e.currentTarget.style.transform = 'scale(1.02)'}
             onMouseLeave={(e) => e.currentTarget.style.transform = 'scale(1)'}
             >
-              <div style={{ fontSize: '28px', marginBottom: '8px' }}>{feature.icon}</div>
+              <div style={{ marginBottom: '8px' }}>{feature.icon}</div>
               <div style={{ fontSize: '14px', fontWeight: '600', color: '#374151', marginBottom: '4px' }}>{feature.label}</div>
               <div style={{ fontSize: '24px', fontWeight: 'bold', color: FEATURE_COLORS[feature.key] }}>{feature.count || 0}</div>
               <div style={{ fontSize: '12px', color: '#6b7280' }}>quotes</div>

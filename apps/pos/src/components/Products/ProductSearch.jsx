@@ -4,9 +4,9 @@
  */
 
 import { useState, useCallback, useRef, useEffect, forwardRef, useImperativeHandle } from 'react';
-import { MagnifyingGlassIcon, XMarkIcon } from '@heroicons/react/24/outline';
 import { quickSearch as quickSearchProducts } from '../../api/products';
 import { formatCurrency } from '../../utils/formatters';
+import { Search, X } from 'lucide-react';
 
 /**
  * Product search input with debounce and optional dropdown results
@@ -44,6 +44,7 @@ export const ProductSearch = forwardRef(function ProductSearch({
   const [showResults, setShowResults] = useState(false);
 
   const debounceRef = useRef(null);
+  const searchAbortRef = useRef(null);
   const inputRef = useRef(null);
   const containerRef = useRef(null);
 
@@ -61,8 +62,14 @@ export const ProductSearch = forwardRef(function ProductSearch({
   const resultCount = externalResultCount ?? results.length;
   const shouldShowDropdown = showDropdown ?? !!onSelect;
 
-  // Perform search
+  // Perform search with abort to prevent race conditions
   const performSearch = useCallback(async (searchQuery) => {
+    // Cancel any in-flight search
+    if (searchAbortRef.current) {
+      searchAbortRef.current.abort();
+      searchAbortRef.current = null;
+    }
+
     if (!searchQuery || searchQuery.length < 2) {
       setResults([]);
       setShowResults(false);
@@ -70,18 +77,25 @@ export const ProductSearch = forwardRef(function ProductSearch({
     }
 
     if (shouldShowDropdown) {
+      const controller = new AbortController();
+      searchAbortRef.current = controller;
       setIsSearching(true);
       try {
         const response = await quickSearchProducts(searchQuery);
+        // Ignore result if this request was aborted
+        if (controller.signal.aborted) return;
         if (response.success) {
           setResults(response.data || []);
           setShowResults(true);
         }
       } catch (err) {
+        if (controller.signal.aborted) return;
         console.error('[ProductSearch] Search error:', err);
         setResults([]);
       } finally {
-        setIsSearching(false);
+        if (!controller.signal.aborted) {
+          setIsSearching(false);
+        }
       }
     }
   }, [shouldShowDropdown]);
@@ -165,11 +179,14 @@ export const ProductSearch = forwardRef(function ProductSearch({
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  // Cleanup debounce on unmount
+  // Cleanup debounce and abort on unmount
   useEffect(() => {
     return () => {
       if (debounceRef.current) {
         clearTimeout(debounceRef.current);
+      }
+      if (searchAbortRef.current) {
+        searchAbortRef.current.abort();
       }
     };
   }, []);
@@ -183,7 +200,7 @@ export const ProductSearch = forwardRef(function ProductSearch({
           {isLoading ? (
             <div className="w-5 h-5 border-2 border-gray-300 border-t-blue-600 rounded-full animate-spin" />
           ) : (
-            <MagnifyingGlassIcon className="w-5 h-5 text-gray-400" />
+            <Search className="w-5 h-5 text-gray-400" />
           )}
         </div>
 
@@ -228,7 +245,7 @@ export const ProductSearch = forwardRef(function ProductSearch({
             "
             aria-label="Clear search"
           >
-            <XMarkIcon className="w-5 h-5" />
+            <X className="w-5 h-5" />
           </button>
         )}
       </div>

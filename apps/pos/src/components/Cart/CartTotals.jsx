@@ -4,8 +4,7 @@
  */
 
 import { formatCurrency } from '../../utils/formatters';
-import { ArrowsRightLeftIcon, ExclamationTriangleIcon } from '@heroicons/react/24/outline';
-
+import { AlertTriangle, ArrowLeftRight } from 'lucide-react';
 /**
  * Cart totals component
  * @param {object} props
@@ -14,7 +13,6 @@ import { ArrowsRightLeftIcon, ExclamationTriangleIcon } from '@heroicons/react/2
  * @param {number} props.cartDiscount - Cart-wide discount amount
  * @param {number} props.discountTotal - Total discounts (items + cart)
  * @param {string} props.taxLabel - Tax label (e.g., "HST 13%", "GST 5% + PST 7%")
- * @param {number} props.hstAmount - HST amount (if applicable)
  * @param {number} props.gstAmount - GST amount (if applicable)
  * @param {number} props.pstAmount - PST amount (if applicable)
  * @param {number} props.taxAmount - Total tax amount
@@ -30,7 +28,6 @@ export function CartTotals({
   cartDiscount = 0,
   discountTotal = 0,
   taxLabel = '',
-  hstAmount = 0,
   gstAmount = 0,
   pstAmount = 0,
   taxAmount = 0,
@@ -85,10 +82,10 @@ export function CartTotals({
       {hasTradeIn && (
         <div className="flex justify-between items-center text-sm mt-1">
           <span className="text-emerald-600 flex items-center gap-1">
-            <ArrowsRightLeftIcon className="w-4 h-4" />
+            <ArrowLeftRight className="w-4 h-4" />
             Trade-In Credit
             {hasPendingTradeIns && (
-              <ExclamationTriangleIcon className="w-3 h-3 text-yellow-500" title="Pending approval" />
+              <AlertTriangle className="w-3 h-3 text-yellow-500" title="Pending approval" />
             )}
           </span>
           <span className="font-medium text-emerald-600 tabular-nums">

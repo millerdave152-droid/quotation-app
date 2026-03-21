@@ -1,22 +1,19 @@
 import React, { useEffect, useState } from 'react';
 
 import { authFetch } from './services/authFetch';
-const API_BASE = `${process.env.REACT_APP_API_URL || 'http://localhost:3001'}/api`;
+const API_BASE = `${process.env.REACT_APP_API_URL || ''}/api`;
 
 function TestAPI() {
   const [data, setData] = useState(null);
   const [error, setError] = useState(null);
 
   useEffect(() => {
-    console.log('Fetching from API...');
     
     authFetch(`${API_BASE}/products`)
       .then(response => {
-        console.log('Response status:', response.status);
         return response.json();
       })
       .then(data => {
-        console.log('Data received:', data.length, 'products');
         setData(data);
       })
       .catch(err => {

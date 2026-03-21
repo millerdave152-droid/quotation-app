@@ -32,7 +32,6 @@ class ChannelManager {
         console.error(`[ChannelManager] Failed to create adapter for ${channel.channel_code}:`, err.message);
       }
     }
-    console.log(`[ChannelManager] Initialized: ${this.adapters.size} active channel(s)`);
     return this;
   }
 

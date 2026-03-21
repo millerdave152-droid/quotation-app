@@ -25,7 +25,6 @@ const init = (dbPool) => {
   NomenclatureScraper = require('../scrapers/NomenclatureScraper');
   isInitialized = true;
 
-  console.log('✅ Nomenclature scraper job initialized');
 };
 
 /**
@@ -37,10 +36,6 @@ const runScrape = async () => {
     return;
   }
 
-  console.log('\n========================================');
-  console.log('  SCHEDULED NOMENCLATURE SCRAPE');
-  console.log('  Started:', new Date().toISOString());
-  console.log('========================================\n');
 
   const scraper = new NomenclatureScraper(pool);
 
@@ -57,13 +52,6 @@ const runScrape = async () => {
     // Complete the job
     await scraper.completeJob(jobId, results);
 
-    console.log('\n========================================');
-    console.log('  SCRAPE COMPLETED');
-    console.log(`  Templates: ${results.templates}`);
-    console.log(`  Rules: ${results.rules}`);
-    console.log(`  Codes: ${results.codes}`);
-    console.log(`  Errors: ${results.errors?.length || 0}`);
-    console.log('========================================\n');
 
   } catch (err) {
     console.error('Scheduled scrape failed:', err);
@@ -89,7 +77,6 @@ const checkFreshness = async () => {
     const lastScrape = result.rows[0]?.last_scrape;
 
     if (!lastScrape) {
-      console.log('⚠️  No nomenclature data has been scraped yet');
       return;
     }
 
@@ -98,9 +85,7 @@ const checkFreshness = async () => {
     );
 
     if (daysSinceLastScrape > 30) {
-      console.log(`⚠️  Nomenclature data is ${daysSinceLastScrape} days old (>30 days)`);
     } else if (daysSinceLastScrape > 14) {
-      console.log(`📋 Nomenclature data is ${daysSinceLastScrape} days old`);
     }
 
   } catch (err) {
@@ -128,11 +113,9 @@ const startSchedule = (schedule = '0 2 * * 0') => {
     return null;
   }
 
-  console.log(`📅 Nomenclature scraper scheduled: ${schedule}`);
 
   // Schedule the main scrape job
   const scrapeJob = cron.schedule(schedule, () => {
-    console.log('Running scheduled nomenclature scrape...');
     runScrape().catch(err => {
       console.error('Scheduled scrape error:', err);
     });

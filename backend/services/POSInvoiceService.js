@@ -82,6 +82,13 @@ class POSInvoiceService {
     this.companyWebsite = config.companyWebsite || process.env.COMPANY_WEBSITE || '';
     this.taxNumber = config.taxNumber || process.env.TAX_NUMBER || '';
 
+    // Payment / remittance details (env-driven, bracketed placeholders if missing)
+    this.bankName = process.env.TELETIME_BANK_NAME || '[Bank Name]';
+    this.bankTransit = process.env.TELETIME_BANK_TRANSIT || '[Transit No.]';
+    this.bankAccount = process.env.TELETIME_BANK_ACCOUNT || '[Account No.]';
+    this.remittanceAddress = process.env.TELETIME_REMITTANCE_ADDRESS || '[Remittance Address]';
+    this.hstNumber = process.env.TELETIME_HST_NUMBER || '[HST Number]';
+
     // Invoice lookup URL
     this.invoiceBaseUrl = config.invoiceBaseUrl || process.env.INVOICE_URL || 'https://pos.teletime.ca/invoice';
 
@@ -478,11 +485,28 @@ class POSInvoiceService {
       if (paymentStatus !== 'paid' && paymentStatus !== 'void') {
         const instructionsY = 620;
         doc.fontSize(9).font('Helvetica-Bold').fillColor(COLORS.text).text('PAYMENT INSTRUCTIONS', 50, instructionsY);
-        doc.roundedRect(50, instructionsY + 14, 512, 45, 4).fillAndStroke('#f0fdf4', '#bbf7d0');
-        doc.fontSize(8).font('Helvetica').fillColor(COLORS.textSecondary)
-           .text('Please include your invoice number on all payments.', 60, instructionsY + 24)
-           .text(`Payment is due by ${this.formatDate(dueDate)}.`, 60, instructionsY + 36)
-           .text('For questions regarding this invoice, please contact us at ' + (this.companyEmail || this.companyPhone), 60, instructionsY + 48);
+        doc.roundedRect(50, instructionsY + 14, 512, 80, 4).fillAndStroke('#f0fdf4', '#bbf7d0');
+
+        let lineY = instructionsY + 24;
+        const lineH = 10;
+        doc.fontSize(8).font('Helvetica').fillColor(COLORS.textSecondary);
+
+        doc.text('Please include your invoice number on all payments.', 60, lineY);
+        lineY += lineH;
+        doc.text(`Payment is due by ${this.formatDate(dueDate)}.`, 60, lineY);
+        lineY += lineH + 4;
+
+        doc.font('Helvetica-Bold').text('Bank:', 60, lineY, { continued: true })
+           .font('Helvetica').text(`  ${this.bankName}   Transit: ${this.bankTransit}   Account: ${this.bankAccount}`, { continued: false });
+        lineY += lineH;
+        doc.font('Helvetica-Bold').text('Remit to:', 60, lineY, { continued: true })
+           .font('Helvetica').text(`  ${this.remittanceAddress}`, { continued: false });
+        lineY += lineH;
+        doc.font('Helvetica-Bold').text('HST #:', 60, lineY, { continued: true })
+           .font('Helvetica').text(`  ${this.hstNumber}`, { continued: false });
+        lineY += lineH + 2;
+
+        doc.text('For questions regarding this invoice, please contact us at ' + (this.companyEmail || this.companyPhone), 60, lineY);
       }
 
       // FOOTER

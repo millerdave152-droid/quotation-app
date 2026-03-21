@@ -14,13 +14,13 @@ import { authFetch } from '../../services/authFetch';
 import React, { useState, useEffect, useCallback } from 'react';
 import {
   User, Crown, Award, Medal, Star, Phone, Mail, Building, MapPin,
-  Calendar, TrendingUp, TrendingDown, AlertTriangle, ShoppingCart,
-  FileText, Receipt, ArrowRight, RefreshCw, ChevronDown, ChevronUp,
-  Clock, DollarSign, Package, AlertCircle, CheckCircle, X, MessageCircle
+  Calendar, TrendingUp, AlertTriangle, ShoppingCart,
+  FileText, Receipt, ArrowRight, ChevronDown, ChevronUp,
+  DollarSign, AlertCircle, CheckCircle, X, MessageCircle
 } from 'lucide-react';
 import CustomerActivityTimeline from './CustomerActivityTimeline';
 
-const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:3001';
+const API_URL = process.env.REACT_APP_API_URL || '';
 
 // Segment configuration
 const SEGMENT_CONFIG = {
@@ -770,7 +770,7 @@ const Customer360View = ({ customerId, onClose, onNavigate }) => {
 };
 
 // Collapsible Section Component
-const CollapsibleSection = ({ title, icon, expanded, onToggle, children, count }) => (
+const CollapsibleSection = ({ title, icon, expanded, onToggle, children }) => (
   <div style={{
     background: 'white',
     borderRadius: '12px',

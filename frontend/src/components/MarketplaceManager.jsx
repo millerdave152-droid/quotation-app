@@ -66,17 +66,15 @@ const MarketplaceManager = () => {
   const [syncSettings, setSyncSettings] = useState({});
   const [syncHistory, setSyncHistory] = useState([]);
   const [priceRules, setPriceRules] = useState([]);
-  const [pricePreviews, setPricePreviews] = useState([]);
+  const [_pricePreviews, _setPricePreviews] = useState([]);
   const [inventoryProducts, setInventoryProducts] = useState([]);
   const [globalBuffer, setGlobalBuffer] = useState(0);
-  const [showPriceRuleModal, setShowPriceRuleModal] = useState(false);
-  const [editingPriceRule, setEditingPriceRule] = useState(null);
+  const [_showPriceRuleModal, setShowPriceRuleModal] = useState(false);
+  const [_editingPriceRule, setEditingPriceRule] = useState(null);
   const [inventorySyncing, setInventorySyncing] = useState(false);
   const [inventoryPage, setInventoryPage] = useState(1);
   const [inventoryTotal, setInventoryTotal] = useState(0);
   const [inventorySearch, setInventorySearch] = useState('');
-  const [selectedInventoryProducts, setSelectedInventoryProducts] = useState([]);
-  const [bulkBufferValue, setBulkBufferValue] = useState('');
 
   // New: Inventory Queue & Drift state
   const [queueStatus, setQueueStatus] = useState(null);
@@ -139,7 +137,7 @@ const MarketplaceManager = () => {
   // Returns tab state
   const [returns, setReturns] = useState([]);
   const [returnsTotal, setReturnsTotal] = useState(0);
-  const [returnsPage, setReturnsPage] = useState(1);
+  const [returnsPage, _setReturnsPage] = useState(1);
   const [returnStatusFilter, setReturnStatusFilter] = useState('');
   const [returnStats, setReturnStats] = useState(null);
   const [returnRules, setReturnRules] = useState([]);
@@ -189,7 +187,7 @@ const MarketplaceManager = () => {
   const loadedOnce = useRef(false);
   const notificationCheckInterval = useRef(null);
 
-  const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:3001';
+  const API_BASE_URL = process.env.REACT_APP_API_URL || '';
 
   // Fetch all dashboard data
   const fetchDashboardData = useCallback(async () => {
@@ -326,16 +324,6 @@ const MarketplaceManager = () => {
       setPriceRules(response.data || []);
     } catch (err) {
       handleApiError(err, { context: 'Loading price rules', silent: true });
-    }
-  }, [API_BASE_URL]);
-
-  // Fetch price previews
-  const fetchPricePreviews = useCallback(async () => {
-    try {
-      const response = await axios.get(`${API_BASE_URL}/api/marketplace/preview-prices?limit=20`);
-      setPricePreviews(response.data?.previews || []);
-    } catch (err) {
-      handleApiError(err, { context: 'Loading price previews', silent: true });
     }
   }, [API_BASE_URL]);
 
@@ -610,13 +598,6 @@ const MarketplaceManager = () => {
       setReplyText(''); setMessage('Reply sent'); fetchMessageInbox();
       if (selectedThread) handleOpenThread(selectedThread, '');
     } catch (err) { setError('Reply failed: ' + extractErrorMsg(err)); }
-  };
-
-  const handleMarkMessageRead = async (messageId) => {
-    try {
-      await axios.post(`${API_BASE_URL}/api/marketplace/messages/${messageId}/read`);
-      fetchMessageInbox();
-    } catch (err) { /* silent */ }
   };
 
   // === ANALYTICS ===
@@ -1269,14 +1250,6 @@ const MarketplaceManager = () => {
     }
   };
 
-  const getPercentageChange = () => {
-    if (!analytics?.revenue) return 0;
-    const thisMonth = analytics.revenue.this_month || 0;
-    const lastMonth = analytics.revenue.last_month || 0;
-    if (lastMonth === 0) return thisMonth > 0 ? 100 : 0;
-    return Math.round(((thisMonth - lastMonth) / lastMonth) * 100);
-  };
-
   const getOrderStateColor = (state) => {
     switch (state) {
       case 'WAITING_ACCEPTANCE': return '#ffc107';
@@ -1497,7 +1470,6 @@ const MarketplaceManager = () => {
     };
 
     // Compute totals from items
-    const productSubtotal = items.reduce((s, it) => s + parseFloat(it.unit_price || 0) * (parseInt(it.quantity) || 1), 0);
     const shippingSubtotal = items.reduce((s, it) => s + parseFloat(it.shipping_amount || 0), 0);
     // Mirakl's taxes array includes ALL taxes (product + shipping)
     // shipping_taxes is the shipping-only subset — subtract to get product-only
@@ -3166,7 +3138,11 @@ const MarketplaceManager = () => {
                   {Object.entries(selectedChannelDetail.ordersByState).map(([state, count]) => (
                     <div key={state} style={{ padding: '12px', background: '#f8f9fa', borderRadius: '6px', textAlign: 'center' }}>
                       <div style={{ fontSize: '11px', color: '#6c757d', textTransform: 'capitalize' }}>{state.replace(/_/g, ' ')}</div>
-                      <div style={{ fontSize: '20px', fontWeight: '700' }}>{count}</div>
+                      <div style={{ fontSize: '20px', fontWeight: '700' }}>
+                        {typeof count === 'object' && count !== null
+                          ? Object.values(count).reduce((sum, v) => sum + (typeof v === 'number' ? v : 0), 0)
+                          : count}
+                      </div>
                     </div>
                   ))}
                 </div>
@@ -3595,8 +3571,16 @@ const MarketplaceManager = () => {
                     {returnRules.map((rule, i) => (
                       <tr key={rule.id || i}>
                         <td style={styles.td}><strong>{rule.name || rule.rule_name}</strong></td>
-                        <td style={styles.td}>{rule.condition || rule.description || '-'}</td>
-                        <td style={styles.td}>{rule.action || rule.auto_action || '-'}</td>
+                        <td style={styles.td}>
+                          {typeof rule.condition === 'object' && rule.condition !== null
+                            ? Object.entries(rule.condition).map(([k, v]) => `${k.replace(/_/g, ' ')}: ${v}`).join(', ')
+                            : rule.condition || rule.description || '-'}
+                        </td>
+                        <td style={styles.td}>
+                          {typeof rule.action === 'object' && rule.action !== null
+                            ? Object.entries(rule.action).map(([k, v]) => `${k.replace(/_/g, ' ')}: ${v}`).join(', ')
+                            : rule.action || rule.auto_action || '-'}
+                        </td>
                         <td style={styles.td}>
                           <span style={{ ...styles.statusBadge, backgroundColor: rule.active ? '#d4edda' : '#f8d7da', color: rule.active ? '#155724' : '#721c24' }}>
                             {rule.active ? 'Active' : 'Inactive'}

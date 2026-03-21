@@ -4,19 +4,11 @@
  */
 
 import { useState, useEffect, useCallback } from 'react';
-import {
-  XMarkIcon,
-  ShieldCheckIcon,
-  ExclamationTriangleIcon,
-  CalendarIcon,
-  ClockIcon,
-  TagIcon,
-  InformationCircleIcon,
-} from '@heroicons/react/24/outline';
 import { ApprovalLevelConfig } from './ApprovalLevelConfig';
 import { RuleAuditLog } from './RuleAuditLog';
+import { AlertTriangle, Calendar, Clock, Info, ShieldCheck, Tag, X } from 'lucide-react';
 
-const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:3001/api';
+const API_BASE = import.meta.env.VITE_API_URL || '/api';
 
 const THRESHOLD_TYPES = [
   { value: 'discount_percent', label: 'Discount Percentage', unit: '%', group: 'Discounts' },
@@ -233,7 +225,7 @@ export function ApprovalRuleModal({
         <div className="flex items-center justify-between p-4 border-b border-gray-200 bg-gradient-to-r from-blue-50 to-indigo-50">
           <div className="flex items-center gap-3">
             <div className="p-2 bg-white rounded-lg shadow-sm">
-              <ShieldCheckIcon className="w-6 h-6 text-blue-600" />
+              <ShieldCheck className="w-6 h-6 text-blue-600" />
             </div>
             <div>
               <h2 className="text-lg font-bold text-gray-900">
@@ -249,7 +241,7 @@ export function ApprovalRuleModal({
             onClick={onClose}
             className="p-2 text-gray-500 hover:text-gray-700 hover:bg-white/50 rounded-lg"
           >
-            <XMarkIcon className="w-5 h-5" />
+            <X className="w-5 h-5" />
           </button>
         </div>
 
@@ -283,7 +275,7 @@ export function ApprovalRuleModal({
           {/* Error display */}
           {error && (
             <div className="mb-4 p-4 bg-red-50 border border-red-200 rounded-lg flex items-start gap-3">
-              <ExclamationTriangleIcon className="w-5 h-5 text-red-500 flex-shrink-0 mt-0.5" />
+              <AlertTriangle className="w-5 h-5 text-red-500 flex-shrink-0 mt-0.5" />
               <div>
                 <p className="text-red-700 font-medium">{error}</p>
                 {conflicts.length > 0 && (
@@ -375,7 +367,7 @@ export function ApprovalRuleModal({
                 <div className="col-span-2">
                   <label className="block text-sm font-medium text-gray-700 mb-1">
                     <div className="flex items-center gap-2">
-                      <TagIcon className="w-4 h-4 text-gray-400" />
+                      <Tag className="w-4 h-4 text-gray-400" />
                       Category (Optional)
                     </div>
                   </label>
@@ -513,7 +505,7 @@ export function ApprovalRuleModal({
               {/* Validity Period */}
               <div>
                 <div className="flex items-center gap-2 mb-3">
-                  <CalendarIcon className="w-5 h-5 text-gray-500" />
+                  <Calendar className="w-5 h-5 text-gray-500" />
                   <h3 className="font-medium text-gray-900">Validity Period</h3>
                 </div>
                 <p className="text-sm text-gray-500 mb-4">
@@ -560,7 +552,7 @@ export function ApprovalRuleModal({
               {/* Time of Day */}
               <div>
                 <div className="flex items-center gap-2 mb-3">
-                  <ClockIcon className="w-5 h-5 text-gray-500" />
+                  <Clock className="w-5 h-5 text-gray-500" />
                   <h3 className="font-medium text-gray-900">Time of Day Restrictions</h3>
                 </div>
                 <p className="text-sm text-gray-500 mb-4">
@@ -629,7 +621,7 @@ export function ApprovalRuleModal({
 
               {/* Info box */}
               <div className="flex items-start gap-3 p-4 bg-blue-50 rounded-lg">
-                <InformationCircleIcon className="w-5 h-5 text-blue-600 flex-shrink-0 mt-0.5" />
+                <Info className="w-5 h-5 text-blue-600 flex-shrink-0 mt-0.5" />
                 <div className="text-sm text-blue-700">
                   <p className="font-medium">Schedule Tips</p>
                   <ul className="mt-1 list-disc list-inside text-blue-600">

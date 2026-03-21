@@ -8,6 +8,8 @@ export { EmailReceipt, generateEmailReceiptHtml, sendEmailReceipt } from './Emai
 export { PrintReceipt, printReceipt } from './PrintReceipt';
 export { ReceiptTemplate } from './ReceiptTemplate';
 export { ReceiptPreviewModal } from './ReceiptPreviewModal';
+export { RefundReceiptPreviewModal } from './RefundReceiptPreviewModal';
+export { ReceiptEmailModal } from './ReceiptEmailModal';
 
 // Default export as namespace
 import { Receipt } from './Receipt';
@@ -15,6 +17,8 @@ import { EmailReceipt, generateEmailReceiptHtml, sendEmailReceipt } from './Emai
 import { PrintReceipt, printReceipt } from './PrintReceipt';
 import { ReceiptTemplate } from './ReceiptTemplate';
 import { ReceiptPreviewModal } from './ReceiptPreviewModal';
+import { RefundReceiptPreviewModal } from './RefundReceiptPreviewModal';
+import { ReceiptEmailModal } from './ReceiptEmailModal';
 
 export default {
   Receipt,
@@ -25,4 +29,6 @@ export default {
   printReceipt,
   ReceiptTemplate,
   ReceiptPreviewModal,
+  RefundReceiptPreviewModal,
+  ReceiptEmailModal,
 };

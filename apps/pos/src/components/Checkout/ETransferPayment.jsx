@@ -4,9 +4,9 @@
  */
 
 import { useState, useEffect, useCallback } from 'react';
-import { ClipboardDocumentIcon, PrinterIcon, EnvelopeIcon, CheckIcon } from '@heroicons/react/24/outline';
 import { formatCurrency } from '../../utils/formatters';
 import { generateReference, emailInstructions } from '../../api/etransfer';
+import { Check, Clipboard, Mail, Printer } from 'lucide-react';
 
 const ETRANSFER_EMAIL = import.meta.env.VITE_ETRANSFER_EMAIL || 'payments@teletime.ca';
 
@@ -26,7 +26,7 @@ export function ETransferPayment({ amountDue, onComplete, onBack, isPartial, cus
         setLoading(true);
         const res = await generateReference();
         if (!cancelled) {
-          setReference(res.data.reference);
+          setReference(res?.data?.reference || res?.reference);
         }
       } catch (err) {
         if (!cancelled) {
@@ -139,9 +139,9 @@ export function ETransferPayment({ amountDue, onComplete, onBack, isPartial, cus
               title="Copy reference"
             >
               {copied ? (
-                <CheckIcon className="w-5 h-5 text-green-600" />
+                <Check className="w-5 h-5 text-green-600" />
               ) : (
-                <ClipboardDocumentIcon className="w-5 h-5 text-indigo-600" />
+                <Clipboard className="w-5 h-5 text-indigo-600" />
               )}
             </button>
           </div>
@@ -173,7 +173,7 @@ export function ETransferPayment({ amountDue, onComplete, onBack, isPartial, cus
           onClick={handlePrint}
           className="flex-1 flex items-center justify-center gap-2 px-4 py-3 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors"
         >
-          <PrinterIcon className="w-5 h-5" />
+          <Printer className="w-5 h-5" />
           Print Instructions
         </button>
 
@@ -186,12 +186,12 @@ export function ETransferPayment({ amountDue, onComplete, onBack, isPartial, cus
           >
             {emailSent ? (
               <>
-                <CheckIcon className="w-5 h-5 text-green-600" />
+                <Check className="w-5 h-5 text-green-600" />
                 Email Sent
               </>
             ) : (
               <>
-                <EnvelopeIcon className="w-5 h-5" />
+                <Mail className="w-5 h-5" />
                 {emailing ? 'Sending...' : 'Email Instructions'}
               </>
             )}

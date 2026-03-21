@@ -6,21 +6,13 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
-  ArrowLeftIcon,
-  ArrowPathIcon,
-  PlusIcon,
-  PencilSquareIcon,
-  TrashIcon,
-  CheckCircleIcon,
-  XCircleIcon,
-} from '@heroicons/react/24/outline';
-import {
   getCommissionRules,
   createCommissionRule,
   updateCommissionRule,
   deleteCommissionRule,
 } from '../api/commissions';
 
+import { ArrowLeft, CheckCircle, Plus, RefreshCw, SquarePen, Trash2, XCircle } from 'lucide-react';
 const RULE_TYPES = [
   { value: 'flat', label: 'Flat Rate', color: 'bg-blue-100 text-blue-700' },
   { value: 'tiered', label: 'Tiered', color: 'bg-amber-100 text-amber-700' },
@@ -169,7 +161,7 @@ export default function CommissionRulesPage() {
                 onClick={() => navigate('/')}
                 className="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg transition-colors"
               >
-                <ArrowLeftIcon className="w-5 h-5" />
+                <ArrowLeft className="w-5 h-5" />
               </button>
               <div>
                 <h1 className="text-xl font-bold text-slate-900">Commission Rules</h1>
@@ -182,14 +174,14 @@ export default function CommissionRulesPage() {
                 disabled={loading}
                 className="flex items-center gap-2 px-4 py-2 text-slate-600 hover:text-slate-900 hover:bg-slate-100 rounded-lg transition-colors"
               >
-                <ArrowPathIcon className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
+                <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
                 Refresh
               </button>
               <button
                 onClick={() => { resetForm(); setShowForm(true); }}
                 className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
               >
-                <PlusIcon className="w-4 h-4" />
+                <Plus className="w-4 h-4" />
                 Add Rule
               </button>
             </div>
@@ -376,12 +368,12 @@ export default function CommissionRulesPage() {
                         </span>
                         {rule.isActive ? (
                           <span className="flex items-center gap-1 text-xs text-green-600">
-                            <CheckCircleIcon className="w-3.5 h-3.5" />
+                            <CheckCircle className="w-3.5 h-3.5" />
                             Active
                           </span>
                         ) : (
                           <span className="flex items-center gap-1 text-xs text-red-500">
-                            <XCircleIcon className="w-3.5 h-3.5" />
+                            <XCircle className="w-3.5 h-3.5" />
                             Inactive
                           </span>
                         )}
@@ -410,7 +402,7 @@ export default function CommissionRulesPage() {
                         className="p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
                         title="Edit rule"
                       >
-                        <PencilSquareIcon className="w-4 h-4" />
+                        <SquarePen className="w-4 h-4" />
                       </button>
                       {rule.isActive && (
                         <button
@@ -418,7 +410,7 @@ export default function CommissionRulesPage() {
                           className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
                           title="Deactivate rule"
                         >
-                          <TrashIcon className="w-4 h-4" />
+                          <Trash2 className="w-4 h-4" />
                         </button>
                       )}
                     </div>

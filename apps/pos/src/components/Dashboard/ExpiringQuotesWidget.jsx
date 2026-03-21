@@ -13,20 +13,9 @@
  */
 
 import React, { useState, useEffect } from 'react';
-import {
-  ClockIcon,
-  ExclamationTriangleIcon,
-  ChevronDownIcon,
-  ChevronUpIcon,
-  ArrowPathIcon,
-  CheckCircleIcon,
-  CurrencyDollarIcon,
-  DocumentTextIcon,
-} from '@heroicons/react/24/outline';
-import { ExclamationCircleIcon } from '@heroicons/react/24/solid';
-
 import ExpiringQuoteRow from './ExpiringQuoteRow';
 import { useExpiringQuotes } from '../../hooks/useExpiringQuotes';
+import { AlertCircle, AlertTriangle, CheckCircle, ChevronDown, ChevronUp, Clock, DollarSign, FileText, RefreshCw } from 'lucide-react';
 
 /**
  * Format currency compactly
@@ -67,7 +56,7 @@ function EmptyState() {
   return (
     <div className="text-center py-8 px-4">
       <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-green-100 flex items-center justify-center">
-        <CheckCircleIcon className="w-8 h-8 text-green-500" />
+        <CheckCircle className="w-8 h-8 text-green-500" />
       </div>
       <h3 className="text-lg font-semibold text-gray-900 mb-1">All caught up!</h3>
       <p className="text-sm text-gray-500">No quotes expiring in the next 7 days</p>
@@ -202,7 +191,7 @@ export default function ExpiringQuotesWidget({
       >
         <div className={`${headerBg} px-4 py-3 flex items-center justify-between`}>
           <div className="flex items-center gap-2 text-white">
-            <ClockIcon className="w-5 h-5" />
+            <Clock className="w-5 h-5" />
             <span className="font-semibold">Expiring Quotes</span>
             {stats.expiringIn7Days > 0 && (
               <span className="px-2 py-0.5 bg-white/20 rounded-full text-xs font-medium">
@@ -210,7 +199,7 @@ export default function ExpiringQuotesWidget({
               </span>
             )}
           </div>
-          <ChevronDownIcon className="w-5 h-5 text-white/80" />
+          <ChevronDown className="w-5 h-5 text-white/80" />
         </div>
       </div>
     );
@@ -227,9 +216,9 @@ export default function ExpiringQuotesWidget({
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2 text-white">
             {hasUrgentQuotes ? (
-              <ExclamationCircleIcon className="w-5 h-5 animate-pulse" />
+              <AlertCircle className="w-5 h-5 animate-pulse" />
             ) : (
-              <ClockIcon className="w-5 h-5" />
+              <Clock className="w-5 h-5" />
             )}
             <span className="font-semibold">Expiring Quotes</span>
           </div>
@@ -241,7 +230,7 @@ export default function ExpiringQuotesWidget({
               className="p-1.5 rounded-lg hover:bg-white/20 transition-colors text-white/80 hover:text-white"
               title="Refresh"
             >
-              <ArrowPathIcon className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
+              <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
             </button>
             {collapsible && (
               <button
@@ -249,7 +238,7 @@ export default function ExpiringQuotesWidget({
                 className="p-1.5 rounded-lg hover:bg-white/20 transition-colors text-white/80 hover:text-white"
                 title="Collapse"
               >
-                <ChevronUpIcon className="w-4 h-4" />
+                <ChevronUp className="w-4 h-4" />
               </button>
             )}
           </div>
@@ -270,7 +259,7 @@ export default function ExpiringQuotesWidget({
             label="Today"
             value={stats.expiringToday || 0}
             variant={stats.expiringToday > 0 ? 'urgent' : 'default'}
-            icon={stats.expiringToday > 0 ? ExclamationTriangleIcon : null}
+            icon={stats.expiringToday > 0 ? AlertTriangle : null}
           />
           <StatBadge
             label="3 Days"
@@ -281,13 +270,13 @@ export default function ExpiringQuotesWidget({
             label="7 Days"
             value={stats.expiringIn7Days || 0}
             variant="default"
-            icon={DocumentTextIcon}
+            icon={FileText}
           />
           <StatBadge
             label="At Risk"
             value={formatCurrency(stats.totalAtRiskValue || 0)}
             variant="money"
-            icon={CurrencyDollarIcon}
+            icon={DollarSign}
           />
         </div>
       </div>
@@ -298,7 +287,7 @@ export default function ExpiringQuotesWidget({
           <LoadingSkeleton />
         ) : error ? (
           <div className="text-center py-6">
-            <ExclamationTriangleIcon className="w-10 h-10 text-red-400 mx-auto mb-2" />
+            <AlertTriangle className="w-10 h-10 text-red-400 mx-auto mb-2" />
             <p className="text-sm text-red-600">{error}</p>
             <button
               onClick={refresh}

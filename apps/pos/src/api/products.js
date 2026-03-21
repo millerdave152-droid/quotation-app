@@ -4,6 +4,7 @@
  */
 
 import api from './axios';
+import db from '../db/offlineDb';
 import { searchProductsOffline, getProductByBarcodeOffline } from '../services/offlineCacheService';
 
 /**
@@ -28,22 +29,33 @@ export const getProducts = async (params = {}) => {
     if (params.sortBy) queryParams.append('sortBy', params.sortBy);
     if (params.sortOrder) queryParams.append('sortOrder', params.sortOrder);
     if (params.inStock !== undefined) queryParams.append('inStock', params.inStock);
+    if (params.locationId) queryParams.append('locationId', params.locationId);
+    if (params.specFilters && Object.keys(params.specFilters).length > 0) {
+      queryParams.append('specFilters', JSON.stringify(params.specFilters));
+    }
+    // Exclude products with no price — not sellable at POS
+    queryParams.append('requirePrice', 'true');
 
     const response = await api.get(`/products?${queryParams}`);
 
-    // After axios interceptor unwrap, response may be an array or { data, pagination }
-    const products = Array.isArray(response) ? response : (response.data || response || []);
-    const pagination = Array.isArray(response) ? null : (response.pagination || null);
+    // After axios interceptor unwrap, response is one of:
+    //   - array of products (legacy)
+    //   - { products: [...], pagination } (current backend)
+    //   - { data: [...], pagination } (wrapped format)
+    const rawData = Array.isArray(response) ? response
+      : Array.isArray(response.products) ? response.products
+      : Array.isArray(response.data) ? response.data
+      : [];
+    const pagination = response.pagination || null;
 
     return {
       success: true,
-      data: products,
+      data: rawData,
       pagination,
     };
   } catch (error) {
     // Offline fallback: search local Dexie cache
     if (params.search && (error.code === 'ERR_NETWORK' || !navigator.onLine)) {
-      console.log('[Products] getProducts offline fallback');
       const offlineResults = await searchProductsOffline(params.search);
       return { success: true, data: offlineResults, pagination: null, offline: true };
     }
@@ -107,7 +119,6 @@ export const searchByBarcode = async (barcode) => {
   } catch (error) {
     // Offline fallback: look up in Dexie by barcode
     if (error.code === 'ERR_NETWORK' || !navigator.onLine) {
-      console.log('[Products] searchByBarcode offline fallback');
       const offlineProduct = await getProductByBarcodeOffline(barcode);
       if (offlineProduct) {
         return { success: true, data: offlineProduct, match_type: 'offline', offline: true };
@@ -129,7 +140,7 @@ export const searchByBarcode = async (barcode) => {
  */
 export const searchBySku = async (sku) => {
   try {
-    const response = await api.get(`/products?sku=${encodeURIComponent(sku)}`);
+    const response = await api.get(`/products?sku=${encodeURIComponent(sku)}&requirePrice=true`);
 
     const product = Array.isArray(response.data)
       ? response.data[0]
@@ -194,24 +205,33 @@ export const getProductsByCategory = async (categoryId, params = {}) => {
       categoryId,
       page: params.page || 1,
       limit: params.limit || 50,
+      requirePrice: 'true',
     });
+    if (params.locationId) queryParams.append('locationId', params.locationId);
+    if (params.specFilters && Object.keys(params.specFilters).length > 0) {
+      queryParams.append('specFilters', JSON.stringify(params.specFilters));
+    }
 
     const response = await api.get(`/products?${queryParams}`);
 
-    // After axios interceptor unwrap, response may be an array or { data, pagination }
-    const products = Array.isArray(response) ? response : (response.data || response || []);
-    const pagination = Array.isArray(response) ? null : (response.pagination || null);
+    // After axios interceptor unwrap, response is one of:
+    //   - array of products (legacy)
+    //   - { products: [...], pagination } (current backend)
+    //   - { data: [...], pagination } (wrapped format)
+    const rawData = Array.isArray(response) ? response
+      : Array.isArray(response.products) ? response.products
+      : Array.isArray(response.data) ? response.data
+      : [];
+    const pagination = response.pagination || null;
 
     return {
       success: true,
-      data: products,
+      data: rawData,
       pagination,
     };
   } catch (error) {
     // Offline fallback: filter Dexie by categoryId
     if (error.code === 'ERR_NETWORK' || !navigator.onLine) {
-      console.log('[Products] getProductsByCategory offline fallback');
-      const { default: db } = await import('../db/offlineDb');
       const offlineProducts = await db.products.where('categoryId').equals(Number(categoryId)).toArray();
       return { success: true, data: offlineProducts, pagination: null, offline: true };
     }
@@ -237,11 +257,12 @@ export const quickSearch = async (query, limit = 10) => {
 
   try {
     // Use the dedicated search endpoint
-    const response = await api.get(`/products/search?q=${encodeURIComponent(query)}&limit=${limit}`);
+    const response = await api.get(`/products/search?q=${encodeURIComponent(query)}&limit=${limit}&requirePrice=true`);
 
     // Response is already unwrapped by axios interceptor
     // Backend returns array directly from searchForAutocomplete
-    const products = Array.isArray(response) ? response : (response.data || response || []);
+    const rawData = Array.isArray(response) ? response : (response.data ?? response);
+    const products = Array.isArray(rawData) ? rawData : [];
 
     // Map the response to expected format
     const mappedProducts = products.map(p => ({
@@ -264,7 +285,6 @@ export const quickSearch = async (query, limit = 10) => {
   } catch (error) {
     // Offline fallback: search Dexie cache
     if (error.code === 'ERR_NETWORK' || !navigator.onLine) {
-      console.log('[Products] quickSearch offline fallback');
       const offlineResults = await searchProductsOffline(query);
       const mapped = offlineResults.slice(0, limit).map(p => ({
         id: p.id,

@@ -31,9 +31,7 @@ class NotificationTriggerService {
       try {
         const twilio = require('twilio');
         this.twilioClient = twilio(process.env.TWILIO_ACCOUNT_SID, process.env.TWILIO_AUTH_TOKEN);
-        console.log('✅ Twilio SMS client initialized');
       } catch (e) {
-        console.log('[NotificationService] Twilio not available:', e.message);
       }
     }
   }
@@ -78,7 +76,6 @@ class NotificationTriggerService {
       if (template.requires_consent) {
         const hasConsent = this.checkConsent(customer, template.consent_type);
         if (!hasConsent) {
-          console.log(`[NotificationService] Skipping ${templateCode} — no consent for customer ${customer.id}`);
           return { queued: false, reason: 'no_consent' };
         }
       }
@@ -174,7 +171,6 @@ class NotificationTriggerService {
       );
 
       if (!pending.length) { this._processing = false; return; }
-      console.log(`[NotificationQueue] Processing ${pending.length} notifications...`);
 
       for (const notification of pending) {
         try {
@@ -274,12 +270,10 @@ class NotificationTriggerService {
       return { provider: 'twilio', messageId: message.sid };
     }
     // Fallback: log-only mode
-    console.log(`[NotificationQueue] SMS (no provider) to ${notification.recipient_phone}: ${notification.body}`);
     return { provider: 'log', messageId: `log-${Date.now()}` };
   }
 
   async sendPush(notification) {
-    console.log(`[NotificationQueue] Push (no provider): ${notification.body}`);
     return { provider: 'log', messageId: `log-${Date.now()}` };
   }
 
@@ -301,7 +295,6 @@ class NotificationTriggerService {
     cron.schedule('* * * * *', () => {
       this.processQueue();
     });
-    console.log('✅ Notification queue processor started (every minute)');
   }
 }
 

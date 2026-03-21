@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 
 import { authFetch } from '../../services/authFetch';
-const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:3001';
+const API_URL = process.env.REACT_APP_API_URL || '';
 
 function TransactionSummary({ quoteId, token, convertedToOrderId }) {
   const [transaction, setTransaction] = useState(null);
@@ -13,36 +13,37 @@ function TransactionSummary({ quoteId, token, convertedToOrderId }) {
       setLoading(false);
       return;
     }
+
+    const fetchTransaction = async () => {
+      try {
+        setLoading(true);
+        const url = token
+          ? `${API_URL}/api/customer-portal/quotes/${token}/${quoteId}/transaction`
+          : `${API_URL}/api/customer-portal/internal/quotes/${quoteId}/transaction`;
+
+        const headers = {};
+        if (!token) {
+          const authToken = localStorage.getItem('auth_token');
+          if (authToken) headers['Authorization'] = `Bearer ${authToken}`;
+        }
+
+        const response = await authFetch(url, { headers });
+        const result = await response.json();
+
+        if (result.success) {
+          setTransaction(result.data);
+        } else {
+          setError(result.error || 'Failed to load transaction');
+        }
+      } catch (err) {
+        setError(err.message);
+      } finally {
+        setLoading(false);
+      }
+    };
+
     fetchTransaction();
   }, [quoteId, token, convertedToOrderId]);
-
-  const fetchTransaction = async () => {
-    try {
-      setLoading(true);
-      const url = token
-        ? `${API_URL}/api/customer-portal/quotes/${token}/${quoteId}/transaction`
-        : `${API_URL}/api/customer-portal/internal/quotes/${quoteId}/transaction`;
-
-      const headers = {};
-      if (!token) {
-        const authToken = localStorage.getItem('auth_token');
-        if (authToken) headers['Authorization'] = `Bearer ${authToken}`;
-      }
-
-      const response = await authFetch(url, { headers });
-      const result = await response.json();
-
-      if (result.success) {
-        setTransaction(result.data);
-      } else {
-        setError(result.error || 'Failed to load transaction');
-      }
-    } catch (err) {
-      setError(err.message);
-    } finally {
-      setLoading(false);
-    }
-  };
 
   const formatCurrency = (cents) => {
     return new Intl.NumberFormat('en-CA', {

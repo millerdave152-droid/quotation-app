@@ -25,7 +25,6 @@ export async function saveOfflineTransaction(transactionData) {
     lastError: null,
   });
 
-  console.log('[TransactionSync] Saved offline transaction:', clientTransactionId);
 
   return { clientTransactionId, createdAt };
 }
@@ -68,7 +67,6 @@ export async function replayPendingTransactions() {
           serverTransactionId: result.transactionId || result.transaction_id || null,
         });
         synced++;
-        console.log('[TransactionSync] Synced:', txn.clientTransactionId);
       } else {
         throw new Error(result.error || 'Server returned failure');
       }

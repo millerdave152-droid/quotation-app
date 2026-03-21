@@ -8,3 +8,4 @@ export {
   QuotesBadge,
   QuotesNavItem,
 } from './QuotesNavBadge';
+export { default as NotificationBell } from './NotificationBell';

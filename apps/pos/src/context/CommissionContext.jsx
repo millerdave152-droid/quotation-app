@@ -102,7 +102,7 @@ export function CommissionProvider({ children }) {
    * Toggle a specific setting
    */
   const toggleSetting = useCallback((key) => {
-    if (settings.hasOwnProperty(key)) {
+    if (Object.prototype.hasOwnProperty.call(settings, key)) {
       saveSettings({ [key]: !settings[key] });
     }
   }, [settings, saveSettings]);

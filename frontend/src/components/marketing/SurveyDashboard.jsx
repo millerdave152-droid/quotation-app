@@ -8,7 +8,7 @@ export default function SurveyDashboard() {
   const [templates, setTemplates] = useState([]);
   const [stats, setStats] = useState({});
   const [responses, setResponses] = useState([]);
-  const [selectedTemplate, setSelectedTemplate] = useState(null);
+  const [_selectedTemplate, setSelectedTemplate] = useState(null);
   const [error, setError] = useState('');
   const [form, setForm] = useState({ name: '', triggerEvent: 'purchase', triggerDelayHours: 24, googleReviewRedirectUrl: '', questions: '[]' });
 

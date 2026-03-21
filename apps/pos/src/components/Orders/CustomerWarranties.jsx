@@ -4,21 +4,10 @@
  */
 
 import { useState, useEffect, useCallback } from 'react';
-import {
-  ShieldCheckIcon,
-  MagnifyingGlassIcon,
-  XMarkIcon,
-  ClockIcon,
-  CheckCircleIcon,
-  ExclamationTriangleIcon,
-  ArrowTopRightOnSquareIcon,
-  PhoneIcon,
-  EnvelopeIcon,
-} from '@heroicons/react/24/outline';
-import { ShieldCheckIcon as ShieldCheckSolid } from '@heroicons/react/24/solid';
 import { formatCurrency } from '../../utils/formatters';
+import { AlertTriangle, CheckCircle, Clock, ExternalLink, ShieldCheck, X } from 'lucide-react';
 
-const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:3001/api';
+const API_BASE = import.meta.env.VITE_API_URL || '/api';
 
 /**
  * Warranty status badge
@@ -29,7 +18,7 @@ function WarrantyStatusBadge({ status, daysRemaining }) {
       return {
         bg: 'bg-amber-100',
         text: 'text-amber-700',
-        icon: ExclamationTriangleIcon,
+        icon: AlertTriangle,
         label: `Expiring in ${daysRemaining} days`,
       };
     }
@@ -38,19 +27,19 @@ function WarrantyStatusBadge({ status, daysRemaining }) {
       active: {
         bg: 'bg-green-100',
         text: 'text-green-700',
-        icon: CheckCircleIcon,
+        icon: CheckCircle,
         label: 'Active',
       },
       expired: {
         bg: 'bg-gray-100',
         text: 'text-gray-600',
-        icon: ClockIcon,
+        icon: Clock,
         label: 'Expired',
       },
       pending: {
         bg: 'bg-yellow-100',
         text: 'text-yellow-700',
-        icon: ClockIcon,
+        icon: Clock,
         label: 'Pending',
       },
       claimed: {
@@ -62,7 +51,7 @@ function WarrantyStatusBadge({ status, daysRemaining }) {
       cancelled: {
         bg: 'bg-red-100',
         text: 'text-red-700',
-        icon: XMarkIcon,
+        icon: X,
         label: 'Cancelled',
       },
     };
@@ -101,7 +90,7 @@ function WarrantyCard({ warranty, onViewDetails }) {
         <div className="flex items-start justify-between gap-3">
           <div className="flex items-start gap-3">
             <div className="p-2 bg-white rounded-lg shadow-sm">
-              <ShieldCheckIcon className="w-6 h-6 text-blue-600" />
+              <ShieldCheck className="w-6 h-6 text-blue-600" />
             </div>
             <div>
               <h3 className="font-semibold text-gray-900">{warranty.warrantyName}</h3>
@@ -161,7 +150,7 @@ function WarrantyCard({ warranty, onViewDetails }) {
               className="inline-flex items-center gap-1 text-blue-600 hover:text-blue-800"
             >
               View Terms
-              <ArrowTopRightOnSquareIcon className="w-4 h-4" />
+              <ExternalLink className="w-4 h-4" />
             </a>
           ) : (
             <span />
@@ -317,7 +306,7 @@ export function CustomerWarranties({
             onClick={onClose}
             className="p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-lg"
           >
-            <XMarkIcon className="w-5 h-5" />
+            <X className="w-5 h-5" />
           </button>
         </div>
 
@@ -356,7 +345,7 @@ export function CustomerWarranties({
             </div>
           ) : error ? (
             <div className="text-center py-12">
-              <ExclamationTriangleIcon className="w-12 h-12 text-red-500 mx-auto mb-4" />
+              <AlertTriangle className="w-12 h-12 text-red-500 mx-auto mb-4" />
               <p className="text-gray-600">{error}</p>
               <button
                 type="button"
@@ -380,7 +369,7 @@ export function CustomerWarranties({
                 </div>
               ) : (
                 <div className="text-center py-12">
-                  <ShieldCheckIcon className="w-12 h-12 text-gray-300 mx-auto mb-4" />
+                  <ShieldCheck className="w-12 h-12 text-gray-300 mx-auto mb-4" />
                   <p className="text-gray-500">
                     {filter === 'all'
                       ? 'No warranties found for this customer'

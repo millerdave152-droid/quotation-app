@@ -9,6 +9,7 @@
  */
 
 const InventorySyncService = require('../services/InventorySyncService');
+const logger = require('../utils/logger');
 
 /**
  * Factory function to create inventory middleware
@@ -55,12 +56,12 @@ function createInventoryMiddleware(pool, cache = null) {
 
         if (!result.success) {
           // Don't fail the quote, just log the inventory issue
-          console.warn(`Inventory reservation failed for quote ${quoteId}:`, result.errors);
+          (req.log || logger).warn({ quoteId, errors: result.errors }, `Inventory reservation failed for quote ${quoteId}`);
         }
 
         next();
       } catch (error) {
-        console.error('Inventory reservation middleware error:', error);
+        (req.log || logger).error({ err: error }, 'Inventory reservation middleware error');
         req.inventoryResult = { error: error.message };
         next(); // Continue even if inventory fails
       }
@@ -91,7 +92,7 @@ function createInventoryMiddleware(pool, cache = null) {
         req.inventoryResult = result;
         next();
       } catch (error) {
-        console.error('Inventory release middleware error:', error);
+        (req.log || logger).error({ err: error }, 'Inventory release middleware error');
         req.inventoryResult = { error: error.message };
         next();
       }
@@ -121,7 +122,7 @@ function createInventoryMiddleware(pool, cache = null) {
         req.inventoryResult = result;
         next();
       } catch (error) {
-        console.error('Quote conversion middleware error:', error);
+        (req.log || logger).error({ err: error }, 'Quote conversion middleware error');
         req.inventoryResult = { error: error.message };
         next();
       }
@@ -174,7 +175,7 @@ function createInventoryMiddleware(pool, cache = null) {
 
         next();
       } catch (error) {
-        console.error('Inventory deduction middleware error:', error);
+        (req.log || logger).error({ err: error }, 'Inventory deduction middleware error');
         req.inventoryResult = { error: error.message };
 
         if (options.failOnError) {
@@ -213,7 +214,7 @@ function createInventoryMiddleware(pool, cache = null) {
         req.inventoryResult = result;
         next();
       } catch (error) {
-        console.error('Inventory restoration middleware error:', error);
+        (req.log || logger).error({ err: error }, 'Inventory restoration middleware error');
         req.inventoryResult = { error: error.message };
         next();
       }
@@ -248,7 +249,7 @@ function createInventoryMiddleware(pool, cache = null) {
         req.availabilityCheck = result;
         next();
       } catch (error) {
-        console.error('Availability check middleware error:', error);
+        (req.log || logger).error({ err: error }, 'Availability check middleware error');
         return res.status(500).json({
           success: false,
           error: 'Failed to check inventory availability',
@@ -266,7 +267,7 @@ function createInventoryMiddleware(pool, cache = null) {
         req.expiredReservations = result;
         next();
       } catch (error) {
-        console.error('Reservation expiry middleware error:', error);
+        (req.log || logger).error({ err: error }, 'Reservation expiry middleware error');
         req.expiredReservations = { error: error.message };
         next();
       }

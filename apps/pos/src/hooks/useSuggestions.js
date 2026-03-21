@@ -8,7 +8,6 @@ import api from '../api/axios';
 
 // Storage keys
 const DECLINED_KEY = 'pos_declined_suggestions';
-const SHOWN_KEY = 'pos_shown_suggestions_session';
 const SESSION_TOUCHPOINT_KEY = 'pos_suggestion_touchpoint';
 
 // Config
@@ -131,6 +130,41 @@ export function useSuggestions({
   /**
    * Fetch recommendations from API
    */
+  const applySuggestions = useCallback(
+    (response) => {
+      let items = response?.recommendations || response?.suggestions || response?.products || [];
+      let bundleItems = response?.bundles || [];
+
+      // Filter out declined items
+      if (filterDeclined) {
+        const declined = declinedRef.current;
+        items = items.filter((item) => !declined[item.productId || item.product_id]);
+        bundleItems = bundleItems.filter((bundle) => {
+          // Filter bundles where all products are declined
+          const productIds = bundle.products?.map((p) => p.productId || p.product_id) || [];
+          return !productIds.every((id) => declined[id]);
+        });
+      }
+
+      // Filter out items already in cart
+      if (cartItems.length > 0) {
+        const cartProductIds = new Set(cartItems.map((i) => i.productId));
+        items = items.filter((item) => !cartProductIds.has(item.productId || item.product_id));
+      }
+
+      // Apply limit
+      items = items.slice(0, limit);
+      bundleItems = bundleItems.slice(0, 2);
+
+      setSuggestions(items);
+      setBundles(bundleItems);
+    },
+    [filterDeclined, cartItems, limit]
+  );
+
+  /**
+   * Fetch recommendations from API
+   */
   const fetchSuggestions = useCallback(async () => {
     if (!enabled || (!productId && cartItems.length === 0)) {
       setSuggestions([]);
@@ -197,42 +231,7 @@ export function useSuggestions({
     } finally {
       setLoading(false);
     }
-  }, [productId, cartItems, context, limit, enabled, cacheKey, customerId]);
-
-  /**
-   * Apply suggestions with filtering
-   */
-  const applySuggestions = useCallback(
-    (response) => {
-      let items = response?.recommendations || response?.suggestions || response?.products || [];
-      let bundleItems = response?.bundles || [];
-
-      // Filter out declined items
-      if (filterDeclined) {
-        const declined = declinedRef.current;
-        items = items.filter((item) => !declined[item.productId || item.product_id]);
-        bundleItems = bundleItems.filter((bundle) => {
-          // Filter bundles where all products are declined
-          const productIds = bundle.products?.map((p) => p.productId || p.product_id) || [];
-          return !productIds.every((id) => declined[id]);
-        });
-      }
-
-      // Filter out items already in cart
-      if (cartItems.length > 0) {
-        const cartProductIds = new Set(cartItems.map((i) => i.productId));
-        items = items.filter((item) => !cartProductIds.has(item.productId || item.product_id));
-      }
-
-      // Apply limit
-      items = items.slice(0, limit);
-      bundleItems = bundleItems.slice(0, 2);
-
-      setSuggestions(items);
-      setBundles(bundleItems);
-    },
-    [filterDeclined, cartItems, limit]
-  );
+  }, [productId, cartItems, context, limit, enabled, cacheKey, customerId, applySuggestions]);
 
   // Fetch on dependency changes
   useEffect(() => {

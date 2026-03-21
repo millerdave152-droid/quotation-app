@@ -4,18 +4,9 @@
  */
 
 import { useState, useRef, useCallback, memo } from 'react';
-import {
-  TrashIcon,
-  MinusIcon,
-  PlusIcon,
-  PencilSquareIcon,
-  ExclamationTriangleIcon,
-  ChevronDownIcon,
-  ChevronUpIcon,
-  ShieldCheckIcon,
-} from '@heroicons/react/24/outline';
 import { formatCurrency } from '../../utils/formatters';
 import { DiscountSlider } from '../Discount/DiscountSlider';
+import { AlertTriangle, ChevronDown, ChevronUp, Minus, Plus, ShieldCheck, SquarePen, Trash2 } from 'lucide-react';
 
 /**
  * Cart item component
@@ -138,7 +129,7 @@ export const CartItem = memo(function CartItem({
     >
       {/* Delete backdrop (revealed on swipe) */}
       <div className="absolute inset-y-0 right-0 w-24 bg-red-500 flex items-center justify-center">
-        <TrashIcon className="w-6 h-6 text-white" />
+        <Trash2 className="w-6 h-6 text-white" />
       </div>
 
       {/* Main item content */}
@@ -164,9 +155,9 @@ export const CartItem = memo(function CartItem({
                   {item.productName}
                 </h4>
                 {isExpanded ? (
-                  <ChevronUpIcon className="w-3.5 h-3.5 text-gray-400 flex-shrink-0" />
+                  <ChevronUp className="w-3.5 h-3.5 text-gray-400 flex-shrink-0" />
                 ) : (
-                  <ChevronDownIcon className="w-3.5 h-3.5 text-gray-400 flex-shrink-0" />
+                  <ChevronDown className="w-3.5 h-3.5 text-gray-400 flex-shrink-0" />
                 )}
               </div>
               <p className="text-xs text-gray-500 truncate">{item.sku}</p>
@@ -195,7 +186,7 @@ export const CartItem = memo(function CartItem({
                 <div className={`mt-0.5 flex items-center gap-1 text-xs font-medium ${
                   item.offlineApproval ? 'text-orange-600' : 'text-green-600'
                 }`}>
-                  <ShieldCheckIcon className="w-3 h-3" />
+                  <ShieldCheck className="w-3 h-3" />
                   {item.offlineApproval
                     ? `PIN Override (offline) - ${item.approvedByName}`
                     : `Approved by ${item.approvedByName}`}
@@ -205,13 +196,13 @@ export const CartItem = memo(function CartItem({
               {/* Low stock / Out of stock warning */}
               {isOutOfStock && (
                 <div className="mt-1 flex items-center gap-1 text-xs text-red-600 font-medium">
-                  <ExclamationTriangleIcon className="w-3.5 h-3.5" />
+                  <AlertTriangle className="w-3.5 h-3.5" />
                   Out of stock
                 </div>
               )}
               {isLowStock && !isOutOfStock && (
                 <div className="mt-1 flex items-center gap-1 text-xs text-amber-600 font-medium">
-                  <ExclamationTriangleIcon className="w-3.5 h-3.5" />
+                  <AlertTriangle className="w-3.5 h-3.5" />
                   Low stock ({stockQty} left)
                 </div>
               )}
@@ -233,7 +224,7 @@ export const CartItem = memo(function CartItem({
                 "
                 aria-label="Decrease quantity"
               >
-                <MinusIcon className="w-5 h-5" />
+                <Minus className="w-5 h-5" />
               </button>
 
               <span className="w-10 text-center text-sm font-semibold">
@@ -254,7 +245,7 @@ export const CartItem = memo(function CartItem({
                 "
                 aria-label="Increase quantity"
               >
-                <PlusIcon className="w-5 h-5" />
+                <Plus className="w-5 h-5" />
               </button>
             </div>
 
@@ -279,7 +270,7 @@ export const CartItem = memo(function CartItem({
                     "
                     aria-label="Override price"
                   >
-                    <PencilSquareIcon className="w-4 h-4" />
+                    <SquarePen className="w-4 h-4" />
                   </button>
                 )}
                 <button
@@ -295,7 +286,7 @@ export const CartItem = memo(function CartItem({
                   "
                   aria-label="Remove item"
                 >
-                  <TrashIcon className="w-4 h-4" />
+                  <Trash2 className="w-4 h-4" />
                 </button>
               </div>
             </div>

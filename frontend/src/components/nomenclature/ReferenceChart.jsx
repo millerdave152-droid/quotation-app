@@ -6,7 +6,7 @@ import { authFetch } from '../../services/authFetch';
 
 import React, { useState, useEffect, useCallback } from 'react';
 
-const API_BASE = process.env.REACT_APP_API_URL || 'http://localhost:3001';
+const API_BASE = process.env.REACT_APP_API_URL || '';
 
 const ReferenceChart = ({ manufacturer, templates }) => {
   const [selectedTemplate, setSelectedTemplate] = useState(null);
@@ -163,7 +163,7 @@ const ReferenceChart = ({ manufacturer, templates }) => {
           </div>
 
           {/* Rules and Codes */}
-          {templateData.rules?.map((rule, ruleIdx) => (
+          {templateData.rules?.map((rule, _ruleIdx) => (
             <div
               key={rule.id}
               style={{

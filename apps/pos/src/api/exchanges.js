@@ -54,10 +54,6 @@ export const processExchange = async (data) => {
       return { success: false, error: 'Original transaction ID is required' };
     }
 
-    if (!data.shiftId) {
-      return { success: false, error: 'Shift ID is required' };
-    }
-
     const response = await api.post('/exchanges', data);
     return response;
   } catch (error) {

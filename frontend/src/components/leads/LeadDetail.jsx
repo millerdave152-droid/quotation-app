@@ -31,16 +31,6 @@ function LeadDetail({ leadId, onEdit, onUpdate, onClose }) {
     });
   };
 
-  const formatDateTime = (dateStr) => {
-    if (!dateStr) return '-';
-    return new Date(dateStr).toLocaleString('en-CA', {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit'
-    });
-  };
 
   const handleStatusChange = async (newStatus) => {
     if (newStatus === lead.status) return;
@@ -170,6 +160,19 @@ function LeadDetail({ leadId, onEdit, onUpdate, onClose }) {
   return (
     <div className="lead-detail">
       <div className="lead-detail-header">
+        <button
+          className="btn btn-sm btn-secondary"
+          onClick={onClose}
+          style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: '6px',
+            marginBottom: '12px'
+          }}
+        >
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+          Back to Leads
+        </button>
         <div className="lead-detail-header-top">
           <div className="lead-detail-title">
             <h2>{lead.contact_name}</h2>
@@ -187,9 +190,6 @@ function LeadDetail({ leadId, onEdit, onUpdate, onClose }) {
                 Convert to Quote
               </button>
             )}
-            <button className="btn-icon" onClick={onClose} title="Close">
-              ✕
-            </button>
           </div>
         </div>
         <div className="lead-detail-badges">

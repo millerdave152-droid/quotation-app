@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   Box,
   Paper,
@@ -7,36 +7,22 @@ import {
   Chip,
   CircularProgress,
   Alert,
-  Divider,
   Table,
   TableBody,
   TableCell,
   TableContainer,
   TableHead,
   TableRow,
-  LinearProgress,
   Tooltip,
   IconButton,
   Card,
   CardContent
 } from '@mui/material';
-import {
-  TrendingUp,
-  TrendingDown,
-  TrendingFlat,
-  Inventory2,
-  LocalShipping,
-  Assessment,
-  Refresh,
-  Visibility,
-  Warning,
-  CheckCircle,
-  Info
-} from '@mui/icons-material';
 import apiClient from '../../services/apiClient';
 
-const API_BASE = process.env.REACT_APP_API_URL || 'http://localhost:3001/api';
+const API_BASE = `${process.env.REACT_APP_API_URL || ''}/api`;
 
+import { AlertTriangle, BarChart3, CheckCircle, Eye, MoveHorizontal, Package, RefreshCw, TrendingDown, TrendingUp, Truck } from 'lucide-react';
 const formatCurrency = (cents) => {
   if (!cents && cents !== 0) return '-';
   return `$${(cents / 100).toLocaleString('en-CA', { minimumFractionDigits: 2 })}`;
@@ -51,10 +37,10 @@ const DemandBadge = ({ demandTag }) => {
   const badgeConfig = {
     fast_mover: { label: 'Fast Mover', color: 'success', icon: <TrendingUp fontSize="small" /> },
     slow_mover: { label: 'Slow Mover', color: 'warning', icon: <TrendingDown fontSize="small" /> },
-    steady: { label: 'Steady', color: 'info', icon: <TrendingFlat fontSize="small" /> },
-    high_interest_low_conversion: { label: 'High Interest', color: 'secondary', icon: <Visibility fontSize="small" /> },
-    overstocked: { label: 'Overstocked', color: 'error', icon: <Inventory2 fontSize="small" /> },
-    stockout_risk: { label: 'Stockout Risk', color: 'error', icon: <Warning fontSize="small" /> },
+    steady: { label: 'Steady', color: 'info', icon: <MoveHorizontal fontSize="small" /> },
+    high_interest_low_conversion: { label: 'High Interest', color: 'secondary', icon: <Eye fontSize="small" /> },
+    overstocked: { label: 'Overstocked', color: 'error', icon: <Package fontSize="small" /> },
+    stockout_risk: { label: 'Stockout Risk', color: 'error', icon: <AlertTriangle fontSize="small" /> },
     normal: { label: 'Normal', color: 'default', icon: <CheckCircle fontSize="small" /> }
   };
 
@@ -105,19 +91,13 @@ const MetricCard = ({ title, value, subtitle, icon, color = 'primary' }) => (
   </Card>
 );
 
-const ProductIntelligence = ({ productId, onClose }) => {
+const ProductIntelligence = ({ productId }) => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [intelligence, setIntelligence] = useState(null);
   const [refreshing, setRefreshing] = useState(false);
 
-  useEffect(() => {
-    if (productId) {
-      fetchIntelligence();
-    }
-  }, [productId]);
-
-  const fetchIntelligence = async () => {
+  const fetchIntelligence = useCallback(async () => {
     try {
       setLoading(true);
       setError(null);
@@ -129,7 +109,13 @@ const ProductIntelligence = ({ productId, onClose }) => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [productId]);
+
+  useEffect(() => {
+    if (productId) {
+      fetchIntelligence();
+    }
+  }, [productId, fetchIntelligence]);
 
   const handleRefreshMetrics = async () => {
     try {
@@ -178,9 +164,9 @@ const ProductIntelligence = ({ productId, onClose }) => {
         <Box sx={{ display: 'flex', gap: 1, alignItems: 'center' }}>
           <StockStatusBadge status={product.stockStatus} />
           <DemandBadge demandTag={metrics?.demand_tag} />
-          <Tooltip title="Refresh Metrics">
+          <Tooltip title="RefreshCw Metrics">
             <IconButton onClick={handleRefreshMetrics} disabled={refreshing} size="small">
-              <Refresh className={refreshing ? 'rotating' : ''} />
+              <RefreshCw className={refreshing ? 'rotating' : ''} />
             </IconButton>
           </Tooltip>
         </Box>
@@ -193,7 +179,7 @@ const ProductIntelligence = ({ productId, onClose }) => {
             title="Sold (30 days)"
             value={metrics?.qty_sold_30d || 0}
             subtitle={`${metrics?.qty_sold_90d || 0} in 90 days`}
-            icon={<Assessment />}
+            icon={<BarChart3 />}
             color="primary"
           />
         </Grid>
@@ -210,7 +196,7 @@ const ProductIntelligence = ({ productId, onClose }) => {
           <MetricCard
             title="Quoted (30 days)"
             value={metrics?.qty_quoted_30d || 0}
-            icon={<Visibility />}
+            icon={<Eye />}
             color="info"
           />
         </Grid>
@@ -219,7 +205,7 @@ const ProductIntelligence = ({ productId, onClose }) => {
             title="Avg Sell Price"
             value={formatCurrency(metrics?.avg_sell_price_cents)}
             subtitle={`MSRP: ${formatCurrency(product.msrp_cents)}`}
-            icon={<Assessment />}
+            icon={<BarChart3 />}
             color="secondary"
           />
         </Grid>
@@ -228,7 +214,7 @@ const ProductIntelligence = ({ productId, onClose }) => {
       {/* Inventory Section */}
       <Paper variant="outlined" sx={{ p: 2, mb: 3 }}>
         <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
-          <Inventory2 sx={{ mr: 1, color: 'primary.main' }} />
+          <Package sx={{ mr: 1, color: 'primary.main' }} />
           <Typography variant="h6">Inventory Status</Typography>
         </Box>
         <Grid container spacing={3}>
@@ -261,7 +247,7 @@ const ProductIntelligence = ({ productId, onClose }) => {
         {inventory.nextPO && (
           <Box sx={{ mt: 2, p: 1.5, bgcolor: 'info.light', borderRadius: 1 }}>
             <Box sx={{ display: 'flex', alignItems: 'center' }}>
-              <LocalShipping sx={{ mr: 1, color: 'info.main' }} />
+              <Truck sx={{ mr: 1, color: 'info.main' }} />
               <Typography variant="body2">
                 <strong>{inventory.nextPO.quantity} units</strong> expected on{' '}
                 <strong>{formatDate(inventory.nextPO.date)}</strong>

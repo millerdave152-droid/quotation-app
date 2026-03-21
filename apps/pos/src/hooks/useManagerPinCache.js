@@ -2,7 +2,10 @@
  * TeleTime POS - Manager PIN Cache Hook
  *
  * Fetches and caches PIN hashes in IndexedDB for offline verification.
- * Uses bcryptjs for browser-side hash comparison.
+ * Uses bcryptjs (pure JS) intentionally — native bcrypt cannot run in the browser.
+ * This enables offline manager PIN verification at the POS terminal even when
+ * the network is down: hashes are pre-fetched from the server and stored in
+ * IndexedDB, then compared client-side via bcryptjs.compare().
  */
 
 import { useState, useEffect, useRef, useCallback } from 'react';

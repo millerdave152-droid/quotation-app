@@ -4,15 +4,9 @@
  */
 
 import { useState, useCallback, useMemo } from 'react';
-import {
-  ArrowLeftIcon,
-  BanknotesIcon,
-  CalculatorIcon,
-  CurrencyDollarIcon,
-  CheckCircleIcon,
-} from '@heroicons/react/24/outline';
 import { useRegister } from '../../context/RegisterContext';
 import { formatCurrency } from '../../utils/formatters';
+import { ArrowLeft, Banknote, Calculator, CheckCircle, DollarSign } from 'lucide-react';
 
 /**
  * Cash denominations for Canadian currency
@@ -177,7 +171,7 @@ export function OpenRegister({ register, onBack, onComplete }) {
             onClick={onBack}
             className="w-10 h-10 flex items-center justify-center hover:bg-slate-700 rounded-lg transition-colors"
           >
-            <ArrowLeftIcon className="w-6 h-6" />
+            <ArrowLeft className="w-6 h-6" />
           </button>
           <div>
             <h1 className="text-xl font-bold">Open Register</h1>
@@ -198,7 +192,7 @@ export function OpenRegister({ register, onBack, onComplete }) {
                 ${mode === 'simple' ? 'bg-blue-600 text-white' : 'text-gray-600 hover:bg-gray-100'}
               `}
             >
-              <CurrencyDollarIcon className="w-5 h-5" />
+              <DollarSign className="w-5 h-5" />
               Simple Entry
             </button>
             <button
@@ -208,7 +202,7 @@ export function OpenRegister({ register, onBack, onComplete }) {
                 ${mode === 'detailed' ? 'bg-blue-600 text-white' : 'text-gray-600 hover:bg-gray-100'}
               `}
             >
-              <CalculatorIcon className="w-5 h-5" />
+              <Calculator className="w-5 h-5" />
               Denomination Count
             </button>
           </div>
@@ -225,7 +219,7 @@ export function OpenRegister({ register, onBack, onComplete }) {
             <div className="bg-white rounded-2xl p-6 shadow-sm">
               <div className="flex items-center gap-3 mb-6">
                 <div className="w-12 h-12 bg-green-100 rounded-xl flex items-center justify-center">
-                  <BanknotesIcon className="w-6 h-6 text-green-600" />
+                  <Banknote className="w-6 h-6 text-green-600" />
                 </div>
                 <div>
                   <h2 className="text-lg font-bold text-gray-900">Opening Cash Amount</h2>
@@ -285,7 +279,7 @@ export function OpenRegister({ register, onBack, onComplete }) {
               {/* Bills Section */}
               <div className="p-4 bg-gray-50 border-b border-gray-200">
                 <h3 className="font-semibold text-gray-700 flex items-center gap-2">
-                  <BanknotesIcon className="w-5 h-5" />
+                  <Banknote className="w-5 h-5" />
                   Bills
                 </h3>
               </div>
@@ -342,7 +336,7 @@ export function OpenRegister({ register, onBack, onComplete }) {
                 <p className="text-3xl font-bold tabular-nums">{formatCurrency(effectiveTotal)}</p>
               </div>
               <div className="w-14 h-14 bg-white/20 rounded-xl flex items-center justify-center">
-                <BanknotesIcon className="w-7 h-7" />
+                <Banknote className="w-7 h-7" />
               </div>
             </div>
           </div>
@@ -372,7 +366,7 @@ export function OpenRegister({ register, onBack, onComplete }) {
               </>
             ) : (
               <>
-                <CheckCircleIcon className="w-6 h-6" />
+                <CheckCircle className="w-6 h-6" />
                 Open Register
               </>
             )}

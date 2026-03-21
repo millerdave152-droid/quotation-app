@@ -4,7 +4,7 @@ import { authFetch } from '../../services/authFetch';
  * Displays quote details, items, revenue features, and actions
  */
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect } from 'react';
 import { previewQuotePDF, downloadQuotePDF } from '../../services/pdfService';
 import { toast } from '../ui/Toast';
 import logger from '../../utils/logger';
@@ -15,7 +15,7 @@ import FulfillmentTracker from './FulfillmentTracker';
 import OrderEditModal from '../orders/OrderEditModal';
 import AmendmentTimeline from '../orders/AmendmentTimeline';
 
-const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:3001';
+const API_URL = process.env.REACT_APP_API_URL || '';
 
 /**
  * Tooltip wrapper component
@@ -222,7 +222,7 @@ const QuoteViewer = ({
   onUpdateStatus,
   onSendEmail,
   onRequestApproval,
-  onAddEvent,
+  _onAddEvent,
 
   // Dialog state
   showAddEventDialog,
@@ -254,7 +254,7 @@ const QuoteViewer = ({
 
   // Signatures state
   const [signatures, setSignatures] = useState([]);
-  const [signaturesLoading, setSignaturesLoading] = useState(false);
+  const [_signaturesLoading, setSignaturesLoading] = useState(false);
 
   // Win probability state
   const [winProbability, setWinProbability] = useState(null);
@@ -327,10 +327,10 @@ const QuoteViewer = ({
 
   // Status button configurations
   const statusButtons = {
-    SENT: { label: 'Mark as Sent', icon: '📧', color: '#3b82f6', confirm: false },
-    WON: { label: 'Mark as Won', icon: '🎉', color: '#10b981', confirm: true },
-    LOST: { label: 'Mark as Lost', icon: '❌', color: '#ef4444', confirm: true, needsReason: true },
-    DRAFT: { label: 'Reopen as Draft', icon: '📝', color: '#6b7280', confirm: true }
+    SENT: { label: 'Mark as Sent', icon: <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>, color: '#3b82f6', confirm: false },
+    WON: { label: 'Mark as Won', icon: <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5C7 4 9 7 12 7s5-3 7.5-3a2.5 2.5 0 0 1 0 5H18"/><path d="M18 9v11a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2V9"/></svg>, color: '#10b981', confirm: true },
+    LOST: { label: 'Mark as Lost', icon: <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>, color: '#ef4444', confirm: true, needsReason: true },
+    DRAFT: { label: 'Reopen as Draft', icon: <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>, color: '#6b7280', confirm: true }
   };
 
   // Handle status button click
@@ -449,21 +449,6 @@ const QuoteViewer = ({
     revenueFeatures.tradeIns?.length > 0
   );
 
-  // Status colors
-  const getStatusStyle = (status) => {
-    const styles = {
-      DRAFT: { bg: '#e0e7ff', color: '#3730a3' },
-      SENT: { bg: '#dbeafe', color: '#1e40af' },
-      WON: { bg: '#d1fae5', color: '#065f46' },
-      LOST: { bg: '#fee2e2', color: '#991b1b' },
-      PENDING_APPROVAL: { bg: '#fef3c7', color: '#92400e' },
-      APPROVED: { bg: '#d1fae5', color: '#065f46' },
-      REJECTED: { bg: '#fee2e2', color: '#991b1b' }
-    };
-    return styles[status] || styles.DRAFT;
-  };
-
-  const statusStyle = getStatusStyle(quote.status);
   const hasPendingApproval = quoteApprovals.some(a => a.status === 'PENDING');
 
   // Check if quote needs approval before sending
@@ -516,7 +501,11 @@ const QuoteViewer = ({
             justifyContent: 'center',
             flexShrink: 0
           }}>
-            <span style={{ fontSize: '24px' }}>{hasPendingApproval ? '\u23F3' : '\u26A0\uFE0F'}</span>
+            {hasPendingApproval ? (
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+            ) : (
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+            )}
           </div>
           <div style={{ flex: 1 }}>
             <div style={{
@@ -985,7 +974,7 @@ const QuoteViewer = ({
             border: '1px dashed #ef4444',
             fontSize: '14px'
           }}>
-            <span style={{ color: '#991b1b', marginRight: '8px', fontSize: '12px' }}>🔒 INTERNAL</span>
+            <span style={{ color: '#991b1b', marginRight: '8px', fontSize: '12px', display: 'inline-flex', alignItems: 'center', gap: '4px' }}><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg> INTERNAL</span>
             <span style={{ marginRight: '40px', color: '#10b981' }}>Gross Profit:</span>
             <span style={{ fontWeight: 'bold', color: '#10b981' }}>${((quote.gross_profit_cents || 0) / 100).toFixed(2)}</span>
           </div>
@@ -1129,7 +1118,7 @@ const QuoteViewer = ({
           border: '2px solid #10b981'
         }}>
           <h3 style={{ fontSize: '18px', fontWeight: 'bold', marginBottom: '16px', color: '#059669', display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <span style={{ fontSize: '20px' }}>✍️</span>
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#059669" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20 12v6a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h6"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
             Signatures ({signatures.length})
           </h3>
 
@@ -1319,7 +1308,7 @@ const QuoteViewer = ({
         <div style={{ marginTop: '16px', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
           <div style={{ padding: '12px', background: '#dcfce7', borderRadius: '8px', border: '2px solid #22c55e' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
-              <span style={{ fontSize: '16px' }}>✅</span>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#15803d" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
               <strong style={{ color: '#15803d' }}>Customer PDF (Safe to Send)</strong>
             </div>
             <div style={{ fontSize: '12px', color: '#166534' }}>
@@ -1328,7 +1317,7 @@ const QuoteViewer = ({
           </div>
           <div style={{ padding: '12px', background: '#fef2f2', borderRadius: '8px', border: '2px solid #ef4444' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
-              <span style={{ fontSize: '16px' }}>⚠️</span>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#991b1b" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
               <strong style={{ color: '#991b1b' }}>Internal PDF (DO NOT SEND)</strong>
             </div>
             <div style={{ fontSize: '12px', color: '#991b1b' }}>
@@ -1689,14 +1678,14 @@ const QuoteViewer = ({
           <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
             {quoteEvents.map((event) => {
               const eventColors = {
-                CREATED: { bg: '#dbeafe', border: '#3b82f6', icon: '✨' },
-                UPDATED: { bg: '#fef3c7', border: '#f59e0b', icon: '✏️' },
-                STATUS_CHANGED: { bg: '#e0e7ff', border: '#6366f1', icon: '🔄' },
-                EMAIL_SENT: { bg: '#d1fae5', border: '#10b981', icon: '📧' },
-                APPROVAL_REQUESTED: { bg: '#fef3c7', border: '#f59e0b', icon: '✅' },
-                APPROVED: { bg: '#d1fae5', border: '#10b981', icon: '✅' },
-                REJECTED: { bg: '#fee2e2', border: '#ef4444', icon: '❌' },
-                NOTE: { bg: '#f3f4f6', border: '#6b7280', icon: '📝' }
+                CREATED: { bg: '#dbeafe', border: '#3b82f6', icon: <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#3b82f6" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/></svg> },
+                UPDATED: { bg: '#fef3c7', border: '#f59e0b', icon: <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#f59e0b" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg> },
+                STATUS_CHANGED: { bg: '#e0e7ff', border: '#6366f1', icon: <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#6366f1" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg> },
+                EMAIL_SENT: { bg: '#d1fae5', border: '#10b981', icon: <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#10b981" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg> },
+                APPROVAL_REQUESTED: { bg: '#fef3c7', border: '#f59e0b', icon: <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#f59e0b" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg> },
+                APPROVED: { bg: '#d1fae5', border: '#10b981', icon: <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#10b981" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg> },
+                REJECTED: { bg: '#fee2e2', border: '#ef4444', icon: <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#ef4444" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg> },
+                NOTE: { bg: '#f3f4f6', border: '#6b7280', icon: <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#6b7280" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg> }
               };
               const style = eventColors[event.event_type] || eventColors.NOTE;
 
@@ -1816,7 +1805,7 @@ const QuoteViewer = ({
           onClick={() => setShowVersionHistory(!showVersionHistory)}
         >
           <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-            <span style={{ fontSize: '24px' }}>📜</span>
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#6366f1" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
             <div>
               <h3 style={{ fontSize: '18px', fontWeight: 'bold', margin: 0, color: '#3730a3' }}>
                 Version History

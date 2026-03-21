@@ -4,20 +4,10 @@
  */
 
 import { useState, useEffect, useCallback, useMemo } from 'react';
-import {
-  ShieldCheckIcon,
-  CheckCircleIcon,
-  XMarkIcon,
-  ChevronDownIcon,
-  ChevronUpIcon,
-  SparklesIcon,
-  InformationCircleIcon,
-  ChatBubbleBottomCenterTextIcon,
-} from '@heroicons/react/24/outline';
-import { ShieldCheckIcon as ShieldCheckSolid } from '@heroicons/react/24/solid';
 import { formatCurrency } from '../../utils/formatters';
+import { CheckCircle, ChevronDown, ChevronUp, Info, MessageCircle, ShieldCheck, Sparkles, X } from 'lucide-react';
 
-const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:3001/api';
+const API_BASE = import.meta.env.VITE_API_URL || '/api';
 
 /**
  * Warranty option card component
@@ -44,7 +34,7 @@ function WarrantyOptionCard({
       {warranty.badge && (
         <div className="absolute -top-2.5 left-4">
           <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-blue-600 text-white">
-            <SparklesIcon className="w-3 h-3" />
+            <Sparkles className="w-3 h-3" />
             {warranty.badge}
           </span>
         </div>
@@ -85,12 +75,12 @@ function WarrantyOptionCard({
         >
           {showDetails ? (
             <>
-              <ChevronUpIcon className="w-3 h-3" />
+              <ChevronUp className="w-3 h-3" />
               Hide details
             </>
           ) : (
             <>
-              <ChevronDownIcon className="w-3 h-3" />
+              <ChevronDown className="w-3 h-3" />
               View coverage details
             </>
           )}
@@ -104,7 +94,7 @@ function WarrantyOptionCard({
               {Object.entries(warranty.coverageDetails).map(([key, value]) => (
                 value && (
                   <li key={key} className="flex items-center gap-2 text-gray-600">
-                    <CheckCircleIcon className="w-3.5 h-3.5 text-green-500" />
+                    <CheckCircle className="w-3.5 h-3.5 text-green-500" />
                     {key.replace(/_/g, ' ').replace(/\b\w/g, (l) => l.toUpperCase())}
                   </li>
                 )
@@ -116,7 +106,7 @@ function WarrantyOptionCard({
                 <ul className="space-y-1">
                   {warranty.exclusions.map((exclusion, idx) => (
                     <li key={idx} className="flex items-center gap-2 text-gray-500">
-                      <XMarkIcon className="w-3.5 h-3.5 text-red-400" />
+                      <X className="w-3.5 h-3.5 text-red-400" />
                       {exclusion}
                     </li>
                   ))}
@@ -142,7 +132,7 @@ function WarrantyOptionCard({
           >
             {isSelected ? (
               <span className="flex items-center justify-center gap-2">
-                <CheckCircleIcon className="w-4 h-4" />
+                <CheckCircle className="w-4 h-4" />
                 Added
               </span>
             ) : (
@@ -205,7 +195,7 @@ function ProductWarrantyRow({
             {selectedWarranty ? (
               <ShieldCheckSolid className="w-5 h-5 text-green-600" />
             ) : (
-              <ShieldCheckIcon className="w-5 h-5 text-blue-600" />
+              <ShieldCheck className="w-5 h-5 text-blue-600" />
             )}
           </div>
           <div className="text-left">
@@ -225,7 +215,7 @@ function ProductWarrantyRow({
               +{formatCurrency(selectedWarranty.price)}
             </span>
           )}
-          <ChevronDownIcon
+          <ChevronDown
             className={`w-5 h-5 text-gray-400 transition-transform ${isExpanded ? 'rotate-180' : ''}`}
           />
         </div>
@@ -242,7 +232,7 @@ function ProductWarrantyRow({
                 onClick={() => setShowScriptTips(!showScriptTips)}
                 className="flex items-center gap-2 text-sm text-blue-600 hover:text-blue-700"
               >
-                <ChatBubbleBottomCenterTextIcon className="w-4 h-4" />
+                <MessageCircle className="w-4 h-4" />
                 {showScriptTips ? 'Hide' : 'Show'} sales tips
               </button>
 
@@ -489,7 +479,7 @@ export function WarrantyUpsell({
   if (eligibleItems === 0) {
     return (
       <div className="flex flex-col items-center justify-center py-12">
-        <ShieldCheckIcon className="w-12 h-12 text-gray-300 mb-4" />
+        <ShieldCheck className="w-12 h-12 text-gray-300 mb-4" />
         <p className="text-gray-500 mb-4">No protection plans available for these items</p>
         <button
           type="button"
@@ -507,7 +497,7 @@ export function WarrantyUpsell({
       {/* Header */}
       <div className="text-center mb-6">
         <div className="inline-flex items-center justify-center w-14 h-14 bg-blue-100 rounded-full mb-3">
-          <ShieldCheckIcon className="w-7 h-7 text-blue-600" />
+          <ShieldCheck className="w-7 h-7 text-blue-600" />
         </div>
         <h2 className="text-xl font-bold text-gray-900 mb-1">Protect Your Purchase</h2>
         <p className="text-sm text-gray-500">
@@ -517,7 +507,7 @@ export function WarrantyUpsell({
 
       {/* Info banner */}
       <div className="mb-4 p-3 bg-amber-50 border border-amber-200 rounded-lg flex items-start gap-3">
-        <InformationCircleIcon className="w-5 h-5 text-amber-500 flex-shrink-0 mt-0.5" />
+        <Info className="w-5 h-5 text-amber-500 flex-shrink-0 mt-0.5" />
         <div className="text-sm text-amber-800">
           <p className="font-medium">Why add protection?</p>
           <p className="text-amber-700">

@@ -4,12 +4,9 @@
  */
 
 import { useState, useEffect, useCallback } from 'react';
-import {
-  ArrowsRightLeftIcon,
-  ArrowPathIcon,
-} from '@heroicons/react/24/outline';
 import { getCustomerTradeIns } from '../../api/customers';
 import { formatCurrency } from '../../utils/formatters';
+import { ArrowLeftRight, RefreshCw } from 'lucide-react';
 
 const STATUS_COLORS = {
   pending: 'bg-yellow-100 text-yellow-700',
@@ -114,7 +111,7 @@ export function CustomerTradeInHistory({ customer }) {
       {/* Header */}
       <div className="flex items-center justify-between px-4 py-2 bg-gray-50 border-b border-gray-200">
         <div className="flex items-center gap-2">
-          <ArrowsRightLeftIcon className="w-4 h-4 text-gray-500" />
+          <ArrowLeftRight className="w-4 h-4 text-gray-500" />
           <span className="text-xs font-medium text-gray-600">
             {tradeIns.length} trade-in{tradeIns.length !== 1 ? 's' : ''}
           </span>
@@ -134,13 +131,13 @@ export function CustomerTradeInHistory({ customer }) {
               onClick={loadTradeIns}
               className="text-sm text-blue-600 hover:text-blue-700 flex items-center gap-1 mx-auto"
             >
-              <ArrowPathIcon className="w-4 h-4" />
+              <RefreshCw className="w-4 h-4" />
               Retry
             </button>
           </div>
         ) : tradeIns.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-12 text-center px-4">
-            <ArrowsRightLeftIcon className="w-10 h-10 text-gray-300 mb-3" />
+            <ArrowLeftRight className="w-10 h-10 text-gray-300 mb-3" />
             <p className="text-sm text-gray-500">No trade-in history</p>
           </div>
         ) : (

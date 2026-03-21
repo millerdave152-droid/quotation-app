@@ -4,15 +4,10 @@
  */
 
 import { useState, useEffect } from 'react';
-import {
-  ComputerDesktopIcon,
-  UserIcon,
-  CheckCircleIcon,
-  ExclamationTriangleIcon,
-  ArrowPathIcon,
-} from '@heroicons/react/24/outline';
 import { useRegister } from '../../context/RegisterContext';
+import { useAuth } from '../../context/AuthContext';
 import { formatDateTime } from '../../utils/formatters';
+import { AlertTriangle, CheckCircle, LogOut, Monitor, RefreshCw, User } from 'lucide-react';
 
 /**
  * Register card component
@@ -63,7 +58,7 @@ function RegisterCard({ register, onSelect, isSelected }) {
               : 'bg-blue-100 text-blue-600'
         }
       `}>
-        <ComputerDesktopIcon className="w-7 h-7" />
+        <Monitor className="w-7 h-7" />
       </div>
 
       {/* Register Info */}
@@ -81,7 +76,7 @@ function RegisterCard({ register, onSelect, isSelected }) {
             </span>
           )}
           {isSelected && (
-            <CheckCircleIcon className="w-5 h-5 text-blue-500" />
+            <CheckCircle className="w-5 h-5 text-blue-500" />
           )}
         </div>
 
@@ -91,7 +86,7 @@ function RegisterCard({ register, onSelect, isSelected }) {
 
         {isInUse && currentUser && (
           <div className="flex items-center gap-2 text-sm text-yellow-700">
-            <UserIcon className="w-4 h-4" />
+            <User className="w-4 h-4" />
             <span>
               Opened by <strong>{currentUser}</strong>
               {openedAt && ` at ${formatDateTime(openedAt)}`}
@@ -101,7 +96,7 @@ function RegisterCard({ register, onSelect, isSelected }) {
 
         {!isInUse && isActive && (
           <p className="text-sm text-green-600 flex items-center gap-1">
-            <CheckCircleIcon className="w-4 h-4" />
+            <CheckCircle className="w-4 h-4" />
             Available
           </p>
         )}
@@ -117,6 +112,7 @@ function RegisterCard({ register, onSelect, isSelected }) {
  */
 export function RegisterSelect({ onSelectRegister }) {
   const { registers, loading, error, refreshRegisters } = useRegister();
+  const { logout, user } = useAuth();
   const [selectedRegister, setSelectedRegister] = useState(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
 
@@ -167,20 +163,40 @@ export function RegisterSelect({ onSelectRegister }) {
             </h1>
             <p className="text-slate-400 text-sm">Select a register to begin</p>
           </div>
-          <button
-            onClick={handleRefresh}
-            disabled={isRefreshing}
-            className="
-              flex items-center gap-2
-              px-4 py-2
-              bg-slate-700 hover:bg-slate-600
-              rounded-lg
-              transition-colors
-            "
-          >
-            <ArrowPathIcon className={`w-5 h-5 ${isRefreshing ? 'animate-spin' : ''}`} />
-            Refresh
-          </button>
+          <div className="flex items-center gap-3">
+            {user && (
+              <span className="text-slate-400 text-sm hidden sm:inline">
+                {user.firstName || user.email}
+              </span>
+            )}
+            <button
+              onClick={handleRefresh}
+              disabled={isRefreshing}
+              className="
+                flex items-center gap-2
+                px-4 py-2
+                bg-slate-700 hover:bg-slate-600
+                rounded-lg
+                transition-colors
+              "
+            >
+              <RefreshCw className={`w-5 h-5 ${isRefreshing ? 'animate-spin' : ''}`} />
+              Refresh
+            </button>
+            <button
+              onClick={logout}
+              className="
+                flex items-center gap-2
+                px-4 py-2
+                bg-red-600 hover:bg-red-700
+                rounded-lg
+                transition-colors
+              "
+            >
+              <LogOut className="w-5 h-5" />
+              Sign Out
+            </button>
+          </div>
         </div>
       </header>
 
@@ -190,7 +206,7 @@ export function RegisterSelect({ onSelectRegister }) {
           {/* Error Message */}
           {error && (
             <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-xl flex items-start gap-3">
-              <ExclamationTriangleIcon className="w-6 h-6 text-red-500 flex-shrink-0" />
+              <AlertTriangle className="w-6 h-6 text-red-500 flex-shrink-0" />
               <div>
                 <h3 className="font-semibold text-red-800">Error Loading Registers</h3>
                 <p className="text-sm text-red-600">{error}</p>
@@ -207,7 +223,7 @@ export function RegisterSelect({ onSelectRegister }) {
 
             {availableRegisters.length === 0 ? (
               <div className="p-8 bg-white rounded-2xl border-2 border-dashed border-gray-300 text-center">
-                <ComputerDesktopIcon className="w-12 h-12 text-gray-400 mx-auto mb-3" />
+                <Monitor className="w-12 h-12 text-gray-400 mx-auto mb-3" />
                 <p className="text-gray-600">No registers available</p>
                 <p className="text-sm text-gray-500">All registers are currently in use or inactive</p>
               </div>

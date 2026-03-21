@@ -6,7 +6,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { previewCommissionSplits } from '../../api/commissions';
 
-const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:3001/api';
+const API_BASE = import.meta.env.VITE_API_URL || '/api';
 
 const SPLIT_PRESETS = [
   { label: '50/50', primary: 50, secondary: 50 },

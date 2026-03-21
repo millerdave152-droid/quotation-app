@@ -4,18 +4,9 @@
  */
 
 import { useState, useCallback, useRef, useEffect } from 'react';
-import {
-  MagnifyingGlassIcon,
-  XMarkIcon,
-  DocumentTextIcon,
-  UserIcon,
-  CalendarIcon,
-  ShoppingBagIcon,
-  ShoppingCartIcon,
-  ArrowLeftIcon,
-} from '@heroicons/react/24/outline';
 import { lookupQuote, getQuoteForSale, checkQuoteValidity } from '../../api/quotes';
 import { formatCurrency, formatDate } from '../../utils/formatters';
+import { ArrowLeft, Calendar, FileText, Search, ShoppingBag, ShoppingCart, User, X } from 'lucide-react';
 
 /**
  * Quote status badge
@@ -75,7 +66,7 @@ function QuoteResultItem({ quote, onClick, isSelected }) {
     >
       {/* Quote Icon */}
       <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center flex-shrink-0">
-        <DocumentTextIcon className="w-6 h-6 text-blue-600" />
+        <FileText className="w-6 h-6 text-blue-600" />
       </div>
 
       {/* Quote Info */}
@@ -86,17 +77,17 @@ function QuoteResultItem({ quote, onClick, isSelected }) {
         </div>
 
         <div className="flex items-center gap-1 text-sm text-gray-600 mb-1">
-          <UserIcon className="w-4 h-4" />
+          <User className="w-4 h-4" />
           <span className="truncate">{customerName}</span>
         </div>
 
         <div className="flex items-center gap-4 text-xs text-gray-500">
           <span className="flex items-center gap-1">
-            <CalendarIcon className="w-3 h-3" />
+            <Calendar className="w-3 h-3" />
             {formatDate(createdAt)}
           </span>
           <span className="flex items-center gap-1">
-            <ShoppingBagIcon className="w-3 h-3" />
+            <ShoppingBag className="w-3 h-3" />
             {itemCount} {itemCount === 1 ? 'item' : 'items'}
           </span>
           <span>by {salesperson}</span>
@@ -169,7 +160,7 @@ function QuotePreviewPanel({ quote, onLoadQuote, onBack, isLoading }) {
           onClick={onBack}
           className="w-10 h-10 flex items-center justify-center text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
         >
-          <ArrowLeftIcon className="w-5 h-5" />
+          <ArrowLeft className="w-5 h-5" />
         </button>
         <div>
           <h2 className="text-lg font-bold text-gray-900">{quoteNumber}</h2>
@@ -268,7 +259,7 @@ function QuotePreviewPanel({ quote, onLoadQuote, onBack, isLoading }) {
             </>
           ) : (
             <>
-              <ShoppingCartIcon className="w-6 h-6" />
+              <ShoppingCart className="w-6 h-6" />
               Load Quote into Cart
             </>
           )}
@@ -461,7 +452,7 @@ export function QuoteLookup({
                   transition-colors duration-150
                 "
               >
-                <XMarkIcon className="w-6 h-6" />
+                <X className="w-6 h-6" />
               </button>
             </div>
 
@@ -472,7 +463,7 @@ export function QuoteLookup({
                   {isLoading ? (
                     <div className="w-5 h-5 border-2 border-gray-300 border-t-blue-600 rounded-full animate-spin" />
                   ) : (
-                    <MagnifyingGlassIcon className="w-5 h-5 text-gray-400" />
+                    <Search className="w-5 h-5 text-gray-400" />
                   )}
                 </div>
 
@@ -508,7 +499,7 @@ export function QuoteLookup({
                       transition-colors duration-150
                     "
                   >
-                    <XMarkIcon className="w-5 h-5" />
+                    <X className="w-5 h-5" />
                   </button>
                 )}
               </div>
@@ -545,7 +536,7 @@ export function QuoteLookup({
                 </div>
               ) : query && !isLoading ? (
                 <div className="flex flex-col items-center justify-center py-12 text-center px-4">
-                  <DocumentTextIcon className="w-12 h-12 text-gray-300 mb-4" />
+                  <FileText className="w-12 h-12 text-gray-300 mb-4" />
                   <h3 className="text-lg font-medium text-gray-900 mb-2">
                     No quotes found
                   </h3>
@@ -556,7 +547,7 @@ export function QuoteLookup({
               ) : !query ? (
                 <div className="flex flex-col items-center justify-center py-12 text-center px-4">
                   <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mb-4">
-                    <MagnifyingGlassIcon className="w-8 h-8 text-blue-600" />
+                    <Search className="w-8 h-8 text-blue-600" />
                   </div>
                   <h3 className="text-lg font-medium text-gray-900 mb-2">
                     Search for a Quote

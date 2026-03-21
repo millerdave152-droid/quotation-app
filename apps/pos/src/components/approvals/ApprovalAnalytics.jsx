@@ -7,14 +7,6 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
-  ArrowLeftIcon,
-  ArrowPathIcon,
-  ArrowUpIcon,
-  ArrowDownIcon,
-  ChevronUpIcon,
-  ChevronDownIcon,
-} from '@heroicons/react/24/outline';
-import {
   ResponsiveContainer,
   PieChart, Pie, Cell,
   LineChart, Line,
@@ -23,6 +15,7 @@ import {
 } from 'recharts';
 import { getApprovalAnalytics } from '../../api/approvals';
 import { formatCurrency } from '../../utils/formatters';
+import { ArrowDown, ArrowLeft, ArrowUp, ChevronDown, ChevronUp, RefreshCw } from 'lucide-react';
 
 // ---- Constants ----
 
@@ -46,7 +39,7 @@ function TrendArrow({ value, inverted = false }) {
   if (value === 0) return null;
   // For inverted metrics (response time, margin impact), lower is better
   const isPositive = inverted ? value < 0 : value > 0;
-  const Icon = value > 0 ? ArrowUpIcon : ArrowDownIcon;
+  const Icon = value > 0 ? ArrowUp : ArrowDown;
   return (
     <span className={`inline-flex items-center gap-0.5 text-sm font-medium ${isPositive ? 'text-green-600' : 'text-red-600'}`}>
       <Icon className="w-3.5 h-3.5" />
@@ -113,8 +106,8 @@ function SortHeader({ label, field, sortField, sortDir, onSort }) {
       <span className="inline-flex items-center gap-1">
         {label}
         {active && (sortDir === 'asc'
-          ? <ChevronUpIcon className="w-3 h-3" />
-          : <ChevronDownIcon className="w-3 h-3" />
+          ? <ChevronUp className="w-3 h-3" />
+          : <ChevronDown className="w-3 h-3" />
         )}
       </span>
     </th>
@@ -197,7 +190,7 @@ export function ApprovalAnalytics() {
           <div className="flex items-center justify-between h-16">
             <div className="flex items-center gap-4">
               <button type="button" onClick={() => navigate(-1)} className="w-10 h-10 flex items-center justify-center text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors">
-                <ArrowLeftIcon className="w-5 h-5" />
+                <ArrowLeft className="w-5 h-5" />
               </button>
               <div>
                 <h1 className="text-xl font-bold text-gray-900">Approval Analytics</h1>
@@ -205,7 +198,7 @@ export function ApprovalAnalytics() {
               </div>
             </div>
             <button type="button" onClick={fetchData} disabled={loading} className="flex items-center gap-2 h-10 px-4 bg-gray-100 hover:bg-gray-200 text-gray-700 font-medium rounded-lg transition-colors disabled:opacity-50">
-              <ArrowPathIcon className={`w-5 h-5 ${loading ? 'animate-spin' : ''}`} />
+              <RefreshCw className={`w-5 h-5 ${loading ? 'animate-spin' : ''}`} />
               Refresh
             </button>
           </div>

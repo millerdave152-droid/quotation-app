@@ -42,7 +42,8 @@ module.exports = (pool, cache, invoiceService) => {
    */
   router.get('/auto-invoice/recent', authenticate, asyncHandler(async (req, res) => {
     const { limit = 20 } = req.query;
-    const invoices = await autoInvoiceService.getRecentAutoInvoices(parseInt(limit));
+    const safeLimit = Math.min(Math.max(parseInt(limit, 10) || 20, 1), 100);
+    const invoices = await autoInvoiceService.getRecentAutoInvoices(safeLimit);
     res.json({ success: true, data: invoices });
   }));
 
@@ -52,7 +53,8 @@ module.exports = (pool, cache, invoiceService) => {
    */
   router.get('/auto-invoice/stats', authenticate, asyncHandler(async (req, res) => {
     const { days = 30 } = req.query;
-    const stats = await autoInvoiceService.getStatistics(parseInt(days));
+    const safeDays = Math.min(Math.max(parseInt(days, 10) || 30, 1), 365);
+    const stats = await autoInvoiceService.getStatistics(safeDays);
     res.json({ success: true, data: stats });
   }));
 
@@ -112,7 +114,8 @@ module.exports = (pool, cache, invoiceService) => {
   router.get('/search', authenticate, asyncHandler(async (req, res) => {
     const { q, limit = 5 } = req.query;
     if (!q || q.trim().length < 2) return res.json([]);
-    const results = await invoiceService.searchInvoices(q.trim(), parseInt(limit));
+    const safeLimit = Math.min(Math.max(parseInt(limit, 10) || 5, 1), 50);
+    const results = await invoiceService.searchInvoices(q.trim(), safeLimit);
     res.json(results);
   }));
 
@@ -130,8 +133,8 @@ module.exports = (pool, cache, invoiceService) => {
       overdue: req.query.overdue,
       fromDate: req.query.fromDate,
       toDate: req.query.toDate,
-      page: parseInt(req.query.page) || 1,
-      limit: parseInt(req.query.limit) || 50,
+      page: Math.max(parseInt(req.query.page, 10) || 1, 1),
+      limit: Math.min(Math.max(parseInt(req.query.limit, 10) || 50, 1), 200),
       sortBy: req.query.sortBy,
       sortOrder: req.query.sortOrder
     });

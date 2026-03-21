@@ -4,13 +4,7 @@
  */
 
 import { useState } from 'react';
-import {
-  BanknotesIcon,
-  EnvelopeIcon,
-  GlobeAltIcon,
-  InformationCircleIcon,
-} from '@heroicons/react/24/outline';
-
+import { Banknote, Globe, Info, Mail } from 'lucide-react';
 /**
  * Format currency
  */
@@ -40,7 +34,7 @@ export function RebateBadge({
 
   const config = {
     instant: {
-      icon: BanknotesIcon,
+      icon: Banknote,
       bgColor: applied ? 'bg-green-100' : 'bg-green-50',
       textColor: applied ? 'text-green-800' : 'text-green-700',
       borderColor: applied ? 'border-green-300' : 'border-green-200',
@@ -48,7 +42,7 @@ export function RebateBadge({
       emoji: '\u{1F4B0}', // Money bag
     },
     mail_in: {
-      icon: EnvelopeIcon,
+      icon: Mail,
       bgColor: 'bg-blue-50',
       textColor: 'text-blue-700',
       borderColor: 'border-blue-200',
@@ -56,7 +50,7 @@ export function RebateBadge({
       emoji: '\u{1F4EC}', // Mailbox with mail
     },
     online: {
-      icon: GlobeAltIcon,
+      icon: Globe,
       bgColor: 'bg-purple-50',
       textColor: 'text-purple-700',
       borderColor: 'border-purple-200',
@@ -107,7 +101,7 @@ export function RebateBadge({
         <span className="text-base">{emoji}</span>
         <span>{formatCurrency(amount)} {label}</span>
         {type !== 'instant' && (
-          <InformationCircleIcon className="w-4 h-4 opacity-60" />
+          <Info className="w-4 h-4 opacity-60" />
         )}
       </button>
 
@@ -243,7 +237,7 @@ export function CartItemRebates({
               [...mailInRebates, ...onlineRebates].reduce((sum, r) => sum + r.amount, 0)
             )} rebate available
           </span>
-          <InformationCircleIcon className="w-3.5 h-3.5" />
+          <Info className="w-3.5 h-3.5" />
         </button>
       )}
     </div>

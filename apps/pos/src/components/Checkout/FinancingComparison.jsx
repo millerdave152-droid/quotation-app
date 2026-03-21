@@ -3,13 +3,8 @@
  * Side-by-side comparison of selected financing plans
  */
 
-import {
-  XMarkIcon,
-  CheckIcon,
-  MinusIcon,
-  SparklesIcon,
-} from '@heroicons/react/24/outline';
 import { formatCurrency } from '../../utils/formatters';
+import { Check, Minus, Sparkles, X } from 'lucide-react';
 
 /**
  * Format date for display
@@ -41,9 +36,9 @@ function ComparisonRow({ label, values, highlight = false, format = 'text' }) {
         return formatDate(value);
       case 'boolean':
         return value ? (
-          <CheckIcon className="w-5 h-5 text-green-600 mx-auto" />
+          <Check className="w-5 h-5 text-green-600 mx-auto" />
         ) : (
-          <MinusIcon className="w-5 h-5 text-gray-400 mx-auto" />
+          <Minus className="w-5 h-5 text-gray-400 mx-auto" />
         );
       default:
         return value;
@@ -141,7 +136,7 @@ export function FinancingComparison({
           onClick={onClose}
           className="p-1 text-gray-400 hover:text-gray-600 rounded transition-colors"
         >
-          <XMarkIcon className="w-5 h-5" />
+          <X className="w-5 h-5" />
         </button>
       </div>
 
@@ -154,7 +149,7 @@ export function FinancingComparison({
               {index === bestPlanIndex && (
                 <div className="absolute -top-1 left-1/2 -translate-x-1/2">
                   <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 bg-amber-500 text-white text-xs font-medium rounded">
-                    <SparklesIcon className="w-3 h-3" />
+                    <Sparkles className="w-3 h-3" />
                     Best
                   </span>
                 </div>

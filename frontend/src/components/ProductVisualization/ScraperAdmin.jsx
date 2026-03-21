@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 
 import { authFetch } from '../../services/authFetch';
 const API_BASE = '/api';
@@ -43,16 +43,7 @@ function ScraperAdmin({ onJobComplete }) {
   });
   const [bulkJson, setBulkJson] = useState('');
 
-  useEffect(() => {
-    fetchStatus();
-    // Poll every 5 seconds to catch job status changes (even after page refresh)
-    const interval = setInterval(() => {
-      fetchStatus();
-    }, 5000);
-    return () => clearInterval(interval);
-  }, []);
-
-  const fetchStatus = async () => {
+  const fetchStatus = useCallback(async () => {
     try {
       const response = await authFetch(`${API_BASE}/vendor-products/scrape/status`, {
         headers: getAuthHeaders()
@@ -78,7 +69,16 @@ function ScraperAdmin({ onJobComplete }) {
     } finally {
       setLoading(false);
     }
-  };
+  }, [scraping, onJobComplete]);
+
+  useEffect(() => {
+    fetchStatus();
+    // Poll every 5 seconds to catch job status changes (even after page refresh)
+    const interval = setInterval(() => {
+      fetchStatus();
+    }, 5000);
+    return () => clearInterval(interval);
+  }, [fetchStatus]);
 
   const handleStartScrape = async () => {
     setScraping(true);

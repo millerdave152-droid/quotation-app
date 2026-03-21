@@ -55,9 +55,9 @@ async function getCachedPricing(productId) {
     FROM competitor_prices
     WHERE product_id = $1
       AND pricing_source = 'pricesapi'
-      AND last_fetched_at > NOW() - INTERVAL '${CACHE_TTL_HOURS} hours'
+      AND last_fetched_at > NOW() - ($2 * INTERVAL '1 hour')
     ORDER BY competitor_price ASC NULLS LAST
-  `, [productId]);
+  `, [productId, CACHE_TTL_HOURS]);
 
   if (result.rows.length === 0) return null;
 
@@ -95,9 +95,9 @@ async function getSkulyticsCachedPricing(upc) {
     FROM global_skulytics_products
     WHERE upc = $1
       AND pricing_source = 'pricesapi'
-      AND last_fetched_at > NOW() - INTERVAL '${CACHE_TTL_HOURS} hours'
+      AND last_fetched_at > NOW() - ($2 * INTERVAL '1 hour')
     LIMIT 1
-  `, [upc]);
+  `, [upc, CACHE_TTL_HOURS]);
 
   if (result.rows.length === 0) return null;
 

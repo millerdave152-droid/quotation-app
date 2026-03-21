@@ -38,7 +38,7 @@ class CustomerPricingService {
 
     const result = await this.pool.query(
       `SELECT
-        c.customer_id,
+        c.id AS customer_id,
         c.name as customer_name,
         c.pricing_tier,
         c.default_discount_percent,
@@ -53,7 +53,7 @@ class CustomerPricingService {
         ptc.volume_discount_eligible
       FROM customers c
       LEFT JOIN pricing_tier_config ptc ON c.pricing_tier = ptc.tier
-      WHERE c.customer_id = $1`,
+      WHERE c.id = $1`,
       [customerId]
     );
 
@@ -216,7 +216,7 @@ class CustomerPricingService {
         cpp.product_id,
         p.name as product_name,
         p.sku as product_sku,
-        p.price as base_price_cents,
+        ROUND(COALESCE(p.selling_price, 0) * 100)::integer as base_price_cents,
         cpp.pricing_type,
         cpp.fixed_price_cents,
         cpp.discount_percent,
@@ -225,7 +225,7 @@ class CustomerPricingService {
         cpp.effective_to,
         cpp.notes
       FROM customer_product_pricing cpp
-      JOIN products p ON cpp.product_id = p.product_id
+      JOIN products p ON cpp.product_id = p.id
       WHERE cpp.customer_id = $1
         AND cpp.effective_from <= CURRENT_DATE
         AND (cpp.effective_to IS NULL OR cpp.effective_to >= CURRENT_DATE)
@@ -399,11 +399,11 @@ class CustomerPricingService {
 
     // Get product cost for margin impact
     const productResult = await this.pool.query(
-      'SELECT cost FROM products WHERE product_id = $1',
+      'SELECT cost_price FROM products WHERE id = $1',
       [productId]
     );
-    const costCents = productResult.rows[0]?.cost
-      ? Math.round(productResult.rows[0].cost * 100)
+    const costCents = productResult.rows[0]?.cost_price
+      ? Math.round(productResult.rows[0].cost_price * 100)
       : null;
 
     const marginImpactCents = costCents
@@ -510,9 +510,9 @@ class CustomerPricingService {
         c.pricing_tier,
         u.first_name || ' ' || u.last_name as requested_by_name
       FROM price_override_log pol
-      JOIN products p ON pol.product_id = p.product_id
-      LEFT JOIN customers c ON pol.customer_id = c.customer_id
-      JOIN users u ON pol.created_by = u.user_id
+      JOIN products p ON pol.product_id = p.id
+      LEFT JOIN customers c ON pol.customer_id = c.id
+      JOIN users u ON pol.created_by = u.id
       WHERE pol.status = 'pending'
       ORDER BY pol.created_at ASC
       LIMIT $1 OFFSET $2`,
@@ -587,10 +587,10 @@ class CustomerPricingService {
         u_created.first_name || ' ' || u_created.last_name as requested_by_name,
         u_approved.first_name || ' ' || u_approved.last_name as approved_by_name
       FROM price_override_log pol
-      JOIN products p ON pol.product_id = p.product_id
-      LEFT JOIN customers c ON pol.customer_id = c.customer_id
-      JOIN users u_created ON pol.created_by = u_created.user_id
-      LEFT JOIN users u_approved ON pol.approved_by = u_approved.user_id
+      JOIN products p ON pol.product_id = p.id
+      LEFT JOIN customers c ON pol.customer_id = c.id
+      JOIN users u_created ON pol.created_by = u_created.id
+      LEFT JOIN users u_approved ON pol.approved_by = u_approved.id
       WHERE ${whereClause}
       ORDER BY pol.created_at DESC
       LIMIT $${paramIndex} OFFSET $${paramIndex + 1}`,
@@ -610,7 +610,7 @@ class CustomerPricingService {
   async getVolumeDiscounts(productId, customerId = null) {
     // Get product category
     const productResult = await this.pool.query(
-      'SELECT category_id FROM products WHERE product_id = $1',
+      'SELECT category_id FROM products WHERE id = $1',
       [productId]
     );
 
@@ -624,7 +624,7 @@ class CustomerPricingService {
     let customerTier = null;
     if (customerId) {
       const customerResult = await this.pool.query(
-        'SELECT pricing_tier FROM customers WHERE customer_id = $1',
+        'SELECT pricing_tier FROM customers WHERE id = $1',
         [customerId]
       );
       customerTier = customerResult.rows[0]?.pricing_tier;
@@ -698,7 +698,7 @@ class CustomerPricingService {
     await this.pool.query(
       `UPDATE customers
        SET pricing_tier = $2, updated_at = NOW()
-       WHERE customer_id = $1`,
+       WHERE id = $1`,
       [customerId, tier]
     );
 

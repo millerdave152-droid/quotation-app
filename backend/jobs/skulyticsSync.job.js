@@ -29,7 +29,6 @@ const PREFIX = '[SKULYTICS_SYNC]';
 
 function log(event, details = '') {
   const ts = new Date().toISOString();
-  console.log(`${PREFIX} ${ts} ${event} ${details}`.trimEnd());
 }
 
 function logError(event, details = '') {

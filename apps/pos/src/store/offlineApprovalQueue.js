@@ -90,7 +90,6 @@ export async function syncToServer() {
       }
     }
 
-    console.log(`[OfflineQueue] Synced ${synced}, failed ${failed}`);
     return { synced, failed };
   } catch (err) {
     console.warn('[OfflineQueue] Sync failed:', err.message);

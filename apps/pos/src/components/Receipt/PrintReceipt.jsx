@@ -3,9 +3,9 @@
  * Wrapper that handles printing receipts
  */
 
-import { useRef, useCallback, useState } from 'react';
-import { PrinterIcon, CheckCircleIcon, XCircleIcon } from '@heroicons/react/24/outline';
+import { useRef, useCallback, useState, useEffect } from 'react';
 import Receipt from './Receipt';
+import { CheckCircle, Printer, XCircle } from 'lucide-react';
 
 /**
  * Print styles for thermal receipt
@@ -174,36 +174,110 @@ export function PrintReceipt({
   }, [onPrintComplete]);
 
   /**
-   * Print to thermal printer (future integration)
-   * This would integrate with libraries like:
-   * - escpos
-   * - node-thermal-printer
-   * - WebUSB API
+   * Print to thermal printer via WebUSB + ESC/POS.
+   * Falls back to browser print if WebUSB is unavailable or the user cancels
+   * the device picker.
    */
   const handleThermalPrint = useCallback(async () => {
     setPrintStatus('printing');
 
     try {
-      // Check for WebUSB support
       if (!navigator.usb) {
-        throw new Error('WebUSB not supported. Using browser print instead.');
+        throw new Error('WebUSB not supported');
       }
 
-      // TODO: Implement thermal printer integration
-      // This would involve:
-      // 1. Request USB device access
-      // 2. Connect to thermal printer
-      // 3. Send ESC/POS commands
-      // 4. Print receipt data
+      // Request access to a USB receipt printer (common vendor IDs for Epson/Star)
+      const device = await navigator.usb.requestDevice({
+        filters: [
+          { vendorId: 0x04b8 }, // Epson
+          { vendorId: 0x0519 }, // Star Micronics
+          { vendorId: 0x0dd4 }, // Custom Engineering
+        ],
+      });
 
-      // For now, fall back to browser print
-      handleBrowserPrint();
+      await device.open();
+      await device.selectConfiguration(1);
+      await device.claimInterface(0);
+
+      // Build ESC/POS payload
+      const encoder = new TextEncoder();
+      const ESC = 0x1b;
+      const GS = 0x1d;
+      const LF = 0x0a;
+
+      const lines = [];
+      const push = (text) => lines.push(encoder.encode(text + '\n'));
+
+      // Initialise printer
+      lines.push(new Uint8Array([ESC, 0x40]));
+      // Center align
+      lines.push(new Uint8Array([ESC, 0x61, 0x01]));
+
+      // Store header
+      const store = storeInfo || {};
+      if (store.name) push(store.name);
+      if (store.address) push(store.address);
+      if (store.phone) push(`Tel: ${store.phone}`);
+      push('--------------------------------');
+
+      // Left align for items
+      lines.push(new Uint8Array([ESC, 0x61, 0x00]));
+
+      if (transaction) {
+        push(`Receipt #${transaction.receipt_number || transaction.id || ''}`);
+        push(`Date: ${new Date(transaction.created_at || Date.now()).toLocaleString()}`);
+        push('--------------------------------');
+
+        (transaction.items || []).forEach((item) => {
+          const name = (item.product_name || item.name || '').substring(0, 20);
+          const qty = item.quantity || 1;
+          const price = parseFloat(item.unit_price || item.price || 0).toFixed(2);
+          const total = (qty * parseFloat(price)).toFixed(2);
+          push(`${name}`);
+          push(`  ${qty} x $${price}    $${total}`);
+        });
+
+        push('--------------------------------');
+        if (transaction.subtotal != null) push(`Subtotal:       $${parseFloat(transaction.subtotal).toFixed(2)}`);
+        if (transaction.tax_amount != null) push(`Tax:            $${parseFloat(transaction.tax_amount).toFixed(2)}`);
+        push(`TOTAL:          $${parseFloat(transaction.total || 0).toFixed(2)}`);
+        push(`Payment: ${transaction.payment_method || 'N/A'}`);
+      }
+
+      push('');
+      // Center
+      lines.push(new Uint8Array([ESC, 0x61, 0x01]));
+      push('Thank you for shopping!');
+      push('');
+
+      // Feed + cut
+      lines.push(new Uint8Array([LF, LF, LF, GS, 0x56, 0x00]));
+
+      // Merge all buffers and send
+      const totalLen = lines.reduce((s, b) => s + b.length, 0);
+      const payload = new Uint8Array(totalLen);
+      let offset = 0;
+      for (const buf of lines) {
+        payload.set(buf, offset);
+        offset += buf.length;
+      }
+
+      // Find OUT endpoint
+      const iface = device.configuration.interfaces[0];
+      const ep = iface.alternate.endpoints.find((e) => e.direction === 'out');
+      if (!ep) throw new Error('No OUT endpoint found on printer');
+
+      await device.transferOut(ep.endpointNumber, payload);
+      await device.close();
+
+      setPrintStatus('success');
+      onPrintComplete?.({ success: true, method: 'thermal' });
     } catch (error) {
       console.error('[PrintReceipt] Thermal print error:', error);
       // Fall back to browser print
       handleBrowserPrint();
     }
-  }, [handleBrowserPrint]);
+  }, [handleBrowserPrint, transaction, storeInfo, onPrintComplete]);
 
   /**
    * Main print handler
@@ -214,7 +288,7 @@ export function PrintReceipt({
   }, [handleThermalPrint]);
 
   // Auto-print on mount
-  useCallback(() => {
+  useEffect(() => {
     if (autoPrint && transaction) {
       handlePrint();
     }
@@ -245,7 +319,7 @@ export function PrintReceipt({
             </>
           ) : (
             <>
-              <PrinterIcon className="w-5 h-5" />
+              <Printer className="w-5 h-5" />
               Print Receipt
             </>
           )}
@@ -254,13 +328,13 @@ export function PrintReceipt({
         {/* Status indicator */}
         {printStatus === 'success' && (
           <span className="flex items-center gap-1 text-green-600">
-            <CheckCircleIcon className="w-5 h-5" />
+            <CheckCircle className="w-5 h-5" />
             Printed
           </span>
         )}
         {printStatus === 'error' && (
           <span className="flex items-center gap-1 text-red-600">
-            <XCircleIcon className="w-5 h-5" />
+            <XCircle className="w-5 h-5" />
             Print failed
           </span>
         )}

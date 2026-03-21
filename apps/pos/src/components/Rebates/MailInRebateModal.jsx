@@ -4,20 +4,8 @@
  */
 
 import { useState } from 'react';
-import {
-  XMarkIcon,
-  EnvelopeIcon,
-  PrinterIcon,
-  ClockIcon,
-  ExclamationTriangleIcon,
-  CheckCircleIcon,
-  ArrowTopRightOnSquareIcon,
-  DocumentTextIcon,
-  ClipboardDocumentListIcon,
-  GlobeAltIcon,
-} from '@heroicons/react/24/outline';
-
-const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:3001/api';
+import { AlertTriangle, CheckCircle, ClipboardList, Clock, ExternalLink, FileText, Globe, Mail, Printer, X } from 'lucide-react';
+const API_BASE = import.meta.env.VITE_API_URL || '/api';
 
 /**
  * Format currency
@@ -62,9 +50,9 @@ function RebateCard({ rebate, isUrgent = false }) {
           <div className="flex-1">
             <div className="flex items-center gap-2">
               {isOnline ? (
-                <GlobeAltIcon className="w-5 h-5 text-purple-600" />
+                <Globe className="w-5 h-5 text-purple-600" />
               ) : (
-                <EnvelopeIcon className="w-5 h-5 text-blue-600" />
+                <Mail className="w-5 h-5 text-blue-600" />
               )}
               <h4 className="font-semibold text-gray-900">
                 {rebate.rebateName || rebate.name}
@@ -94,9 +82,9 @@ function RebateCard({ rebate, isUrgent = false }) {
           }
         `}>
           {isUrgent ? (
-            <ExclamationTriangleIcon className="w-4 h-4" />
+            <AlertTriangle className="w-4 h-4" />
           ) : (
-            <ClockIcon className="w-4 h-4" />
+            <Clock className="w-4 h-4" />
           )}
           <span>
             Submit by: <strong>{formatDate(rebate.deadline)}</strong>
@@ -118,7 +106,7 @@ function RebateCard({ rebate, isUrgent = false }) {
               className="flex-1 flex items-center justify-center gap-2 px-3 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition-colors"
             >
               {isOnline ? 'Submit Online' : 'Download Form'}
-              <ArrowTopRightOnSquareIcon className="w-4 h-4" />
+              <ExternalLink className="w-4 h-4" />
             </a>
           )}
           <button
@@ -142,19 +130,19 @@ function RebateCard({ rebate, isUrgent = false }) {
             <div className="flex flex-wrap gap-2">
               {rebate.requiresReceipt && (
                 <span className="inline-flex items-center gap-1 px-2 py-1 bg-white border border-gray-200 rounded text-xs">
-                  <DocumentTextIcon className="w-3.5 h-3.5 text-gray-500" />
+                  <FileText className="w-3.5 h-3.5 text-gray-500" />
                   Receipt Copy
                 </span>
               )}
               {rebate.requiresUpc && (
                 <span className="inline-flex items-center gap-1 px-2 py-1 bg-white border border-gray-200 rounded text-xs">
-                  <ClipboardDocumentListIcon className="w-3.5 h-3.5 text-gray-500" />
+                  <ClipboardList className="w-3.5 h-3.5 text-gray-500" />
                   UPC Barcode
                 </span>
               )}
               {rebate.requiresRegistration && (
                 <span className="inline-flex items-center gap-1 px-2 py-1 bg-white border border-gray-200 rounded text-xs">
-                  <GlobeAltIcon className="w-3.5 h-3.5 text-gray-500" />
+                  <Globe className="w-3.5 h-3.5 text-gray-500" />
                   Product Registration
                 </span>
               )}
@@ -198,7 +186,7 @@ function RebateCard({ rebate, isUrgent = false }) {
               className="inline-flex items-center gap-1 mt-3 text-xs text-blue-600 hover:text-blue-700"
             >
               View Full Terms & Conditions
-              <ArrowTopRightOnSquareIcon className="w-3 h-3" />
+              <ExternalLink className="w-3 h-3" />
             </a>
           )}
         </div>
@@ -282,7 +270,7 @@ export function MailInRebateModal({
         <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200">
           <div className="flex items-center gap-3">
             <div className="p-2 bg-blue-100 rounded-lg">
-              <EnvelopeIcon className="w-6 h-6 text-blue-600" />
+              <Mail className="w-6 h-6 text-blue-600" />
             </div>
             <div>
               <h2 className="text-lg font-bold text-gray-900">Mail-in Rebate Information</h2>
@@ -296,7 +284,7 @@ export function MailInRebateModal({
             onClick={onClose}
             className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
           >
-            <XMarkIcon className="w-6 h-6" />
+            <X className="w-6 h-6" />
           </button>
         </div>
 
@@ -304,7 +292,7 @@ export function MailInRebateModal({
         {urgentRebates.length > 0 && (
           <div className="mx-6 mt-4 p-3 bg-orange-50 border border-orange-200 rounded-lg">
             <div className="flex items-center gap-2 text-orange-800">
-              <ExclamationTriangleIcon className="w-5 h-5" />
+              <AlertTriangle className="w-5 h-5" />
               <span className="font-medium">
                 {urgentRebates.length} rebate{urgentRebates.length !== 1 && 's'} expiring soon!
               </span>
@@ -360,7 +348,7 @@ export function MailInRebateModal({
             >
               {emailSent ? (
                 <>
-                  <CheckCircleIcon className="w-5 h-5" />
+                  <CheckCircle className="w-5 h-5" />
                   Sent!
                 </>
               ) : isSendingEmail ? (
@@ -370,7 +358,7 @@ export function MailInRebateModal({
                 </>
               ) : (
                 <>
-                  <EnvelopeIcon className="w-5 h-5" />
+                  <Mail className="w-5 h-5" />
                   Email Info
                 </>
               )}
@@ -384,7 +372,7 @@ export function MailInRebateModal({
               onClick={handlePrint}
               className="flex-1 flex items-center justify-center gap-2 px-4 py-3 bg-gray-100 text-gray-700 font-medium rounded-lg hover:bg-gray-200 transition-colors"
             >
-              <PrinterIcon className="w-5 h-5" />
+              <Printer className="w-5 h-5" />
               Print Rebate Forms
             </button>
             <button
@@ -438,7 +426,7 @@ export function RebateInfoPopover({
         </div>
 
         <div className="flex items-center gap-2 p-2 bg-gray-50 rounded text-sm text-gray-600 mb-3">
-          <ClockIcon className="w-4 h-4" />
+          <Clock className="w-4 h-4" />
           <span>Submit by {formatDate(rebate.deadline)}</span>
         </div>
 
@@ -459,7 +447,7 @@ export function RebateInfoPopover({
         onClick={onClose}
         className="absolute top-2 right-2 p-1 text-gray-400 hover:text-gray-600"
       >
-        <XMarkIcon className="w-4 h-4" />
+        <X className="w-4 h-4" />
       </button>
     </div>
   );

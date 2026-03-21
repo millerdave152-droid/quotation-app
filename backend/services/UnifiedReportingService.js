@@ -744,9 +744,9 @@ class UnifiedReportingService {
     const result = await this.pool.query(`
       SELECT *
       FROM v_monthly_sales_trend
-      WHERE month >= DATE_TRUNC('month', CURRENT_DATE - INTERVAL '${months} months')
+      WHERE month >= DATE_TRUNC('month', CURRENT_DATE - ($1 * INTERVAL '1 month'))
       ORDER BY month DESC, source
-    `);
+    `, [months]);
 
     return result.rows;
   }

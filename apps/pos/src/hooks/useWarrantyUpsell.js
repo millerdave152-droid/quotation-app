@@ -95,11 +95,9 @@ export function useWarrantyUpsell({
         price: item.unitPrice || item.unitCost || 0,
       }));
 
-      console.log('[useWarrantyUpsell] Checking eligibility for', products.length, 'items:', products);
 
       const result = await api.post('/warranty/eligible', { products });
 
-      console.log('[useWarrantyUpsell] API response:', { success: result.success, resultsCount: result.results?.length });
 
       // Check if component is still mounted before processing
       if (!isMountedRef.current) return [];
@@ -109,7 +107,6 @@ export function useWarrantyUpsell({
 
         result.results.forEach((r, index) => {
           const item = eligibleCartItems[index];
-          console.log(`[useWarrantyUpsell] Product ${r.productId}: eligible=${r.eligible}, warranties=${r.warranties?.length}`);
           if (r.eligible && r.warranties && r.warranties.length > 0) {
             eligible.push({
               cartItem: item,
@@ -122,11 +119,9 @@ export function useWarrantyUpsell({
           }
         });
 
-        console.log('[useWarrantyUpsell] Total eligible items:', eligible.length);
         return eligible;
       }
 
-      console.log('[useWarrantyUpsell] No results in response');
       return [];
     } catch (err) {
       console.error('[useWarrantyUpsell] Fetch error:', err);
@@ -143,12 +138,10 @@ export function useWarrantyUpsell({
   const startFlow = useCallback(async () => {
     // Prevent double-execution (React dev mode double-fires useEffect)
     if (flowInProgressRef.current) {
-      console.log('[useWarrantyUpsell] startFlow BLOCKED - already in progress');
       return;
     }
     flowInProgressRef.current = true;
 
-    console.log('[useWarrantyUpsell] startFlow called, cartItems:', cartItems?.length);
     setIsLoading(true);
     setError(null);
     setCurrentIndex(0);
@@ -157,14 +150,11 @@ export function useWarrantyUpsell({
 
     try {
       const eligible = await fetchEligibility();
-      console.log('[useWarrantyUpsell] startFlow result:', eligible.length, 'eligible items');
       setEligibleItems(eligible);
 
       if (eligible.length > 0) {
-        console.log('[useWarrantyUpsell] Opening warranty modal');
         setIsOpen(true);
       } else {
-        console.log('[useWarrantyUpsell] No eligible items, skipping warranty');
         // No eligible items, complete immediately
         onComplete?.({ warranties: {}, skipped: true });
       }

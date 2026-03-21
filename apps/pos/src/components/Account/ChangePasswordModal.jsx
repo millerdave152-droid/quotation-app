@@ -4,8 +4,8 @@
  */
 
 import { useState, useEffect, useRef } from 'react';
-import { XMarkIcon, EyeIcon, EyeSlashIcon, CheckCircleIcon, XCircleIcon } from '@heroicons/react/24/outline';
 import { useAuth } from '../../context/AuthContext';
+import { CheckCircle, Eye, EyeOff, X, XCircle } from 'lucide-react';
 
 const PASSWORD_RULES = [
   { key: 'length', label: 'At least 8 characters', test: (v) => v.length >= 8 },
@@ -95,13 +95,13 @@ export function ChangePasswordModal({ isOpen, onClose }) {
             onClick={onClose}
             className="w-9 h-9 flex items-center justify-center text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
           >
-            <XMarkIcon className="w-5 h-5" />
+            <X className="w-5 h-5" />
           </button>
         </div>
 
         {success ? (
           <div className="p-6 text-center">
-            <CheckCircleIcon className="w-16 h-16 text-green-500 mx-auto mb-3" />
+            <CheckCircle className="w-16 h-16 text-green-500 mx-auto mb-3" />
             <p className="text-lg font-semibold text-gray-900 mb-1">Password Changed</p>
             <p className="text-sm text-gray-500">You will be signed out in a moment...</p>
           </div>
@@ -134,7 +134,7 @@ export function ChangePasswordModal({ isOpen, onClose }) {
                   className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
                   tabIndex={-1}
                 >
-                  {showCurrent ? <EyeSlashIcon className="w-5 h-5" /> : <EyeIcon className="w-5 h-5" />}
+                  {showCurrent ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
                 </button>
               </div>
             </div>
@@ -159,7 +159,7 @@ export function ChangePasswordModal({ isOpen, onClose }) {
                   className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
                   tabIndex={-1}
                 >
-                  {showNew ? <EyeSlashIcon className="w-5 h-5" /> : <EyeIcon className="w-5 h-5" />}
+                  {showNew ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
                 </button>
               </div>
 
@@ -169,9 +169,9 @@ export function ChangePasswordModal({ isOpen, onClose }) {
                   {rulesPass.map((rule) => (
                     <li key={rule.key} className="flex items-center gap-2 text-xs">
                       {rule.passed ? (
-                        <CheckCircleIcon className="w-4 h-4 text-green-500 flex-shrink-0" />
+                        <CheckCircle className="w-4 h-4 text-green-500 flex-shrink-0" />
                       ) : (
-                        <XCircleIcon className="w-4 h-4 text-gray-300 flex-shrink-0" />
+                        <XCircle className="w-4 h-4 text-gray-300 flex-shrink-0" />
                       )}
                       <span className={rule.passed ? 'text-green-700' : 'text-gray-500'}>
                         {rule.label}
@@ -208,7 +208,7 @@ export function ChangePasswordModal({ isOpen, onClose }) {
                   className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
                   tabIndex={-1}
                 >
-                  {showConfirm ? <EyeSlashIcon className="w-5 h-5" /> : <EyeIcon className="w-5 h-5" />}
+                  {showConfirm ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
                 </button>
               </div>
               {confirmPassword && !passwordsMatch && (

@@ -3,8 +3,7 @@
  */
 
 import { Link, useNavigate } from 'react-router-dom';
-import { HomeIcon, ArrowLeftIcon } from '@heroicons/react/24/outline';
-
+import { ArrowLeft, Home } from 'lucide-react';
 export function NotFound() {
   const navigate = useNavigate();
 
@@ -38,7 +37,7 @@ export function NotFound() {
               transition-colors
             "
           >
-            <HomeIcon className="w-5 h-5" />
+            <Home className="w-5 h-5" />
             Go to POS
           </Link>
 
@@ -54,7 +53,7 @@ export function NotFound() {
               transition-colors
             "
           >
-            <ArrowLeftIcon className="w-5 h-5" />
+            <ArrowLeft className="w-5 h-5" />
             Go Back
           </button>
         </div>

@@ -1,8 +1,8 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
 
 import { authFetch } from '../../services/authFetch';
-const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:3001';
+const API_URL = process.env.REACT_APP_API_URL || '';
 
 const UserManagement = () => {
   const { token, isAdmin } = useAuth();
@@ -18,11 +18,7 @@ const UserManagement = () => {
   const [notification, setNotification] = useState(null);
 
   // Fetch users on mount
-  useEffect(() => {
-    fetchUsers();
-  }, [roleFilter, showInactive]);
-
-  const fetchUsers = async () => {
+  const fetchUsers = useCallback(async () => {
     setLoading(true);
     try {
       const params = new URLSearchParams();
@@ -49,7 +45,11 @@ const UserManagement = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [roleFilter, showInactive, searchTerm, token]);
+
+  useEffect(() => {
+    fetchUsers();
+  }, [fetchUsers]);
 
   const handleSearch = (e) => {
     e.preventDefault();

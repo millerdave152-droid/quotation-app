@@ -4,9 +4,8 @@
  */
 
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { StarIcon, XMarkIcon } from '@heroicons/react/24/outline';
-import { StarIcon as StarSolidIcon } from '@heroicons/react/24/solid';
 import { formatCurrency } from '../../utils/formatters';
+import { Star, X } from 'lucide-react';
 
 const FAVORITES_KEY = 'pos_favorites';
 const MAX_DISPLAY = 8;
@@ -139,7 +138,7 @@ export function QuickAddFavorites({ onAddItem }) {
   return (
     <div className="px-4 py-2 bg-amber-50 border-b border-amber-200">
       <div className="flex items-center gap-2 mb-2">
-        <StarSolidIcon className="w-4 h-4 text-amber-500" />
+        <Star className="w-4 h-4 text-amber-500" />
         <span className="text-xs font-semibold text-amber-700 uppercase tracking-wide">
           Favorites
         </span>
@@ -190,7 +189,7 @@ export function QuickAddFavorites({ onAddItem }) {
                   shadow-md
                 "
               >
-                <XMarkIcon className="w-3 h-3" />
+                <X className="w-3 h-3" />
               </button>
             )}
           </div>
@@ -230,9 +229,9 @@ export function FavoriteToggle({ product }) {
       title={starred ? 'Remove from favorites' : 'Add to favorites'}
     >
       {starred ? (
-        <StarSolidIcon className="w-4 h-4 text-amber-500" />
+        <Star className="w-4 h-4 text-amber-500" />
       ) : (
-        <StarIcon className="w-4 h-4 text-gray-300 hover:text-amber-400" />
+        <Star className="w-4 h-4 text-gray-300 hover:text-amber-400" />
       )}
     </button>
   );

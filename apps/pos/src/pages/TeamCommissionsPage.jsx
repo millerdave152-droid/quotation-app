@@ -5,15 +5,6 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import {
-  ArrowLeftIcon,
-  ArrowPathIcon,
-  CalendarIcon,
-  ArrowDownTrayIcon,
-  UserGroupIcon,
-  XMarkIcon,
-  ChevronRightIcon,
-} from '@heroicons/react/24/outline';
 import { useAuth } from '../context/AuthContext';
 import {
   getTeamCommissions,
@@ -26,6 +17,7 @@ import {
   TargetProgressCard,
 } from '../components/Commission/CommissionSummaryCards';
 import CommissionTable, { TeamCommissionTable } from '../components/Commission/CommissionTable';
+import { ArrowLeft, Calendar, ChevronRight, Download, RefreshCw, Users, X } from 'lucide-react';
 
 /**
  * Date range presets
@@ -116,7 +108,7 @@ function RepDetailPanel({ rep, dateRange, onClose }) {
             onClick={onClose}
             className="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-200 rounded-lg"
           >
-            <XMarkIcon className="w-5 h-5" />
+            <X className="w-5 h-5" />
           </button>
         </div>
 
@@ -311,11 +303,11 @@ export default function TeamCommissionsPage() {
                 onClick={() => navigate('/')}
                 className="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg transition-colors"
               >
-                <ArrowLeftIcon className="w-5 h-5" />
+                <ArrowLeft className="w-5 h-5" />
               </button>
               <div className="flex items-center gap-3">
                 <div className="p-2 bg-blue-100 rounded-lg">
-                  <UserGroupIcon className="w-6 h-6 text-blue-600" />
+                  <Users className="w-6 h-6 text-blue-600" />
                 </div>
                 <div>
                   <h1 className="text-xl font-bold text-slate-900">Team Commissions</h1>
@@ -332,7 +324,7 @@ export default function TeamCommissionsPage() {
                 disabled={loading}
                 className="flex items-center gap-2 px-4 py-2 text-slate-600 hover:text-slate-900 hover:bg-slate-100 rounded-lg transition-colors"
               >
-                <ArrowPathIcon className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
+                <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
                 Refresh
               </button>
               <button
@@ -340,7 +332,7 @@ export default function TeamCommissionsPage() {
                 disabled={exporting || loading}
                 className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors disabled:opacity-50"
               >
-                <ArrowDownTrayIcon className="w-4 h-4" />
+                <Download className="w-4 h-4" />
                 {exporting ? 'Exporting...' : 'Export All'}
               </button>
             </div>
@@ -352,7 +344,7 @@ export default function TeamCommissionsPage() {
       <div className="bg-white border-b border-slate-200">
         <div className="max-w-7xl mx-auto px-4 py-3">
           <div className="flex items-center gap-4 flex-wrap">
-            <CalendarIcon className="w-5 h-5 text-slate-400" />
+            <Calendar className="w-5 h-5 text-slate-400" />
 
             {/* Presets */}
             <div className="flex items-center gap-1 p-1 bg-slate-100 rounded-lg">
@@ -439,7 +431,7 @@ export default function TeamCommissionsPage() {
                   <div className="font-medium text-slate-900">Commission Rules</div>
                   <div className="text-sm text-slate-500">Configure rates and bonuses</div>
                 </div>
-                <ChevronRightIcon className="w-5 h-5 text-slate-400 group-hover:text-blue-500" />
+                <ChevronRight className="w-5 h-5 text-slate-400 group-hover:text-blue-500" />
               </button>
 
               <button
@@ -450,7 +442,7 @@ export default function TeamCommissionsPage() {
                   <div className="font-medium text-slate-900">Payroll Summary</div>
                   <div className="text-sm text-slate-500">Review pending payouts</div>
                 </div>
-                <ChevronRightIcon className="w-5 h-5 text-slate-400 group-hover:text-blue-500" />
+                <ChevronRight className="w-5 h-5 text-slate-400 group-hover:text-blue-500" />
               </button>
 
               <button
@@ -462,7 +454,7 @@ export default function TeamCommissionsPage() {
                   <div className="font-medium text-slate-900">Export Report</div>
                   <div className="text-sm text-slate-500">Download full CSV</div>
                 </div>
-                <ArrowDownTrayIcon className="w-5 h-5 text-slate-400 group-hover:text-green-500" />
+                <Download className="w-5 h-5 text-slate-400 group-hover:text-green-500" />
               </button>
             </div>
           </div>

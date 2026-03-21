@@ -13,22 +13,9 @@ import {
   CircularProgress,
   Fab,
   Collapse,
-  Divider,
   Chip,
-  Tooltip,
-  Badge
+  Tooltip
 } from '@mui/material';
-import {
-  Chat as ChatIcon,
-  Close as CloseIcon,
-  Send as SendIcon,
-  SmartToy as BotIcon,
-  Person as PersonIcon,
-  ThumbUp as ThumbUpIcon,
-  ThumbDown as ThumbDownIcon,
-  Refresh as RefreshIcon,
-  History as HistoryIcon
-} from '@mui/icons-material';
 import apiClient from '../../services/apiClient';
 import ReactMarkdown from 'react-markdown';
 
@@ -44,7 +31,7 @@ export default function AIAssistant() {
   const [inputValue, setInputValue] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [conversationId, setConversationId] = useState(null);
-  const [error, setError] = useState(null);
+  const [_error, setError] = useState(null);
 
   const messagesEndRef = useRef(null);
   const inputRef = useRef(null);
@@ -52,7 +39,9 @@ export default function AIAssistant() {
   // Auto-scroll to bottom when messages change
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages]);
+  
+import { Bot, MessageSquare, RefreshCw, Send, ThumbsDown, ThumbsUp, User, X } from 'lucide-react';
+}, [messages]);
 
   // Focus input when chat opens
   useEffect(() => {
@@ -185,7 +174,7 @@ export default function AIAssistant() {
           zIndex: 1000
         }}
       >
-        {isOpen ? <CloseIcon /> : <ChatIcon />}
+        {isOpen ? <X /> : <MessageSquare />}
       </Fab>
 
       {/* Chat Window */}
@@ -219,7 +208,7 @@ export default function AIAssistant() {
             }}
           >
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-              <BotIcon />
+              <Bot />
               <Typography variant="subtitle1" fontWeight="bold">
                 TeleTime AI Assistant
               </Typography>
@@ -227,12 +216,12 @@ export default function AIAssistant() {
             <Box>
               <Tooltip title="New conversation">
                 <IconButton size="small" onClick={startNewConversation} sx={{ color: 'white' }}>
-                  <RefreshIcon />
+                  <RefreshCw />
                 </IconButton>
               </Tooltip>
               <Tooltip title="Close">
                 <IconButton size="small" onClick={() => setIsOpen(false)} sx={{ color: 'white' }}>
-                  <CloseIcon />
+                  <X />
                 </IconButton>
               </Tooltip>
             </Box>
@@ -295,7 +284,7 @@ export default function AIAssistant() {
                 onClick={sendMessage}
                 disabled={!inputValue.trim() || isLoading}
               >
-                <SendIcon />
+                <Send />
               </IconButton>
             </Box>
             <Typography variant="caption" color="text.secondary" sx={{ mt: 0.5, display: 'block' }}>
@@ -348,7 +337,7 @@ function MessageBubble({ message, onFeedback }) {
             flexShrink: 0
           }}
         >
-          {isUser ? <PersonIcon fontSize="small" /> : <BotIcon fontSize="small" />}
+          {isUser ? <User fontSize="small" /> : <Bot fontSize="small" />}
         </Box>
 
         {/* Message Content */}
@@ -437,7 +426,7 @@ function MessageBubble({ message, onFeedback }) {
               onClick={() => onFeedback(message.id, 'helpful')}
               sx={{ p: 0.5 }}
             >
-              <ThumbUpIcon sx={{ fontSize: 16 }} />
+              <ThumbsUp sx={{ fontSize: 16 }} />
             </IconButton>
           </Tooltip>
           <Tooltip title="Not helpful">
@@ -446,7 +435,7 @@ function MessageBubble({ message, onFeedback }) {
               onClick={() => onFeedback(message.id, 'not_helpful')}
               sx={{ p: 0.5 }}
             >
-              <ThumbDownIcon sx={{ fontSize: 16 }} />
+              <ThumbsDown sx={{ fontSize: 16 }} />
             </IconButton>
           </Tooltip>
         </Box>

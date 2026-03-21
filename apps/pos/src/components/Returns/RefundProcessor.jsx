@@ -5,6 +5,8 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { getReturnPaymentInfo, processRefund } from '../../api/returns';
+import { RefundReceiptPreviewModal } from '../Receipt';
+import { useRefundReceiptActions } from '../../hooks/useRefundReceiptActions';
 
 const REFUND_METHODS = [
   { value: 'original_payment', label: 'Original Payment Method', description: 'Refund to the card/method used at purchase' },
@@ -20,9 +22,6 @@ const PAYMENT_METHOD_LABELS = {
   gift_card: 'Gift Card',
   account: 'Customer Account',
 };
-
-const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:3001/api';
-
 export default function RefundProcessor({ returnRecord, transaction, onClose, onComplete }) {
   const [paymentInfo, setPaymentInfo] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -32,7 +31,6 @@ export default function RefundProcessor({ returnRecord, transaction, onClose, on
   const [restockingFeeCents, setRestockingFeeCents] = useState(0);
   const [completed, setCompleted] = useState(false);
   const [refundResult, setRefundResult] = useState(null);
-  const [receiptSending, setReceiptSending] = useState(false);
   const [receiptSent, setReceiptSent] = useState(null); // 'print' | 'email' | 'both'
   const [emailInput, setEmailInput] = useState(transaction?.customer_email || '');
 
@@ -86,50 +84,39 @@ export default function RefundProcessor({ returnRecord, transaction, onClose, on
   };
 
   // --- Receipt handlers ---
-  const transactionId = transaction?.id || transaction?.transaction_id;
+  const returnId = refundResult?.returnId || returnRecord?.id;
+  const refundReceipt = useRefundReceiptActions({
+    returnId,
+    receiptNumber: returnRecord?.return_number,
+    initialEmail: emailInput,
+    onEmailSuccess: () => {
+      setReceiptSent(prev => prev === 'print' ? 'both' : 'email');
+    },
+  });
+
+  const handlePreviewReceipt = async () => {
+    if (!returnId) return;
+    await refundReceipt.preview();
+  };
+
+  const handleDownloadReceipt = async () => {
+    if (!returnId) return;
+    await refundReceipt.download();
+  };
 
   const handlePrintReceipt = async () => {
-    if (!transactionId) return;
-    setReceiptSending(true);
-    try {
-      const response = await fetch(`${API_BASE}/receipts/${transactionId}/preview`, {
-        headers: { Authorization: `Bearer ${localStorage.getItem('pos_token')}` },
-      });
-      if (!response.ok) throw new Error('Failed to fetch receipt');
-      const blob = await response.blob();
-      const url = URL.createObjectURL(blob);
-      const printWindow = window.open(url, '_blank', 'width=800,height=600');
-      if (printWindow) {
-        printWindow.addEventListener('load', () => { printWindow.print(); });
-      }
-      setTimeout(() => URL.revokeObjectURL(url), 60000);
-      setReceiptSent(prev => prev === 'email' ? 'both' : 'print');
-    } catch (err) {
-      console.error('[Refund] Print receipt error:', err);
-    } finally {
-      setReceiptSending(false);
-    }
+    if (!returnId) return;
+    await refundReceipt.print();
+    setReceiptSent(prev => prev === 'email' ? 'both' : 'print');
   };
 
   const handleEmailReceipt = async () => {
-    if (!transactionId || !emailInput) return;
-    setReceiptSending(true);
+    if (!returnId || !emailInput) return;
     try {
-      const response = await fetch(`${API_BASE}/receipts/${transactionId}/email`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${localStorage.getItem('pos_token')}`,
-        },
-        body: JSON.stringify({ email: emailInput }),
-      });
-      const result = await response.json();
-      if (!response.ok || !result.success) throw new Error(result.error || 'Failed to email receipt');
-      setReceiptSent(prev => prev === 'print' ? 'both' : 'email');
+      await refundReceipt.sendEmail(emailInput);
     } catch (err) {
       console.error('[Refund] Email receipt error:', err);
-    } finally {
-      setReceiptSending(false);
+      refundReceipt.setMessage(err.message || 'Failed to email receipt');
     }
   };
 
@@ -164,15 +151,9 @@ export default function RefundProcessor({ returnRecord, transaction, onClose, on
               </div>
               <p className="text-xs text-slate-400">Customer can use this code on future purchases</p>
               {transaction.customer_email && (
-                <button
-                  onClick={() => {
-                    // Email functionality placeholder — in production would call email API
-                    alert(`Store credit ${refundResult.storeCredit.code} details would be emailed to ${transaction.customer_email}`);
-                  }}
-                  className="mt-2 text-xs text-blue-400 hover:text-blue-300 underline"
-                >
-                  Email to {transaction.customer_email}
-                </button>
+                <p className="mt-2 text-xs text-slate-500">
+                  Refund receipt email can be sent to {transaction.customer_email}.
+                </p>
               )}
             </div>
           )}
@@ -191,13 +172,27 @@ export default function RefundProcessor({ returnRecord, transaction, onClose, on
           )}
 
           {/* Receipt Options */}
-          {transactionId && (
+          {returnId && (
             <div className="mb-4">
               <p className="text-xs text-slate-400 mb-2 font-medium">Refund Receipt</p>
-              <div className="flex gap-2 justify-center">
+              <div className="flex flex-wrap gap-2 justify-center">
+                <button
+                  onClick={handlePreviewReceipt}
+                  disabled={refundReceipt.busy}
+                  className="flex items-center gap-1.5 px-4 py-2 bg-slate-700 hover:bg-slate-600 disabled:opacity-40 text-white text-sm rounded-lg transition-colors"
+                >
+                  Preview
+                </button>
+                <button
+                  onClick={handleDownloadReceipt}
+                  disabled={refundReceipt.busy}
+                  className="flex items-center gap-1.5 px-4 py-2 bg-slate-700 hover:bg-slate-600 disabled:opacity-40 text-white text-sm rounded-lg transition-colors"
+                >
+                  Download
+                </button>
                 <button
                   onClick={handlePrintReceipt}
-                  disabled={receiptSending}
+                  disabled={refundReceipt.busy}
                   className="flex items-center gap-1.5 px-4 py-2 bg-slate-700 hover:bg-slate-600 disabled:opacity-40 text-white text-sm rounded-lg transition-colors"
                 >
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -215,7 +210,7 @@ export default function RefundProcessor({ returnRecord, transaction, onClose, on
                   />
                   <button
                     onClick={handleEmailReceipt}
-                    disabled={receiptSending || !emailInput}
+                    disabled={refundReceipt.busy || !emailInput}
                     className="flex items-center gap-1.5 px-4 py-2 bg-slate-700 hover:bg-slate-600 disabled:opacity-40 text-white text-sm rounded-lg transition-colors"
                   >
                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -225,13 +220,16 @@ export default function RefundProcessor({ returnRecord, transaction, onClose, on
                   </button>
                 </div>
               </div>
-              {receiptSending && (
+              {refundReceipt.busy && (
                 <p className="text-xs text-slate-500 mt-2">Sending...</p>
               )}
               {receiptSent && (
                 <p className="text-xs text-green-400 mt-2">
                   Receipt {receiptSent === 'both' ? 'printed & emailed' : receiptSent === 'print' ? 'printed' : 'emailed'} successfully
                 </p>
+              )}
+              {refundReceipt.message && (
+                <p className={`mt-2 text-xs ${refundReceipt.message.includes('emailed to') ? 'text-green-400' : 'text-red-400'}`}>{refundReceipt.message}</p>
               )}
             </div>
           )}
@@ -243,6 +241,12 @@ export default function RefundProcessor({ returnRecord, transaction, onClose, on
             Done
           </button>
         </div>
+        <RefundReceiptPreviewModal
+          isOpen={refundReceipt.previewOpen}
+          onClose={() => refundReceipt.setPreviewOpen(false)}
+          previewUrl={refundReceipt.previewUrl}
+          receiptNumber={returnRecord?.return_number}
+        />
       </div>
     );
   }
@@ -439,7 +443,7 @@ export default function RefundProcessor({ returnRecord, transaction, onClose, on
             <div className="bg-emerald-900/30 border border-emerald-700/50 rounded-lg p-3 text-sm text-emerald-200">
               <p>A store credit code worth {formatCents(refundTotalCents)} will be generated.</p>
               {transaction.customer_id ? (
-                <p className="text-xs text-emerald-400 mt-1">Credit will be linked to the customer's account.</p>
+                <p className="text-xs text-emerald-400 mt-1">Credit will be linked to the customer&apos;s account.</p>
               ) : (
                 <p className="text-xs text-emerald-400 mt-1">No customer on this transaction — credit will be unlinked (redeemable by anyone with the code).</p>
               )}

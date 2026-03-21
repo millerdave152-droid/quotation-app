@@ -46,7 +46,24 @@ class BatchEmailService {
    */
   async getUnsentReceiptsForShift(shiftId) {
     const result = await this.pool.query(
-      'SELECT * FROM get_unsent_shift_receipts($1)',
+      `SELECT
+        t.transaction_id,
+        t.transaction_number,
+        c.email AS customer_email,
+        c.name AS customer_name,
+        t.total_amount,
+        t.created_at
+      FROM transactions t
+      JOIN customers c ON t.customer_id = c.id
+      WHERE t.shift_id = $1
+        AND t.status = 'completed'
+        AND c.email IS NOT NULL
+        AND c.email != ''
+        AND NOT EXISTS (
+          SELECT 1 FROM receipt_email_tracking ret
+          WHERE ret.transaction_id = t.transaction_id
+        )
+      ORDER BY t.created_at`,
       [shiftId]
     );
     return result.rows;
@@ -60,7 +77,24 @@ class BatchEmailService {
    */
   async getUnsentReceiptsByDateRange(startDate, endDate) {
     const result = await this.pool.query(
-      'SELECT * FROM get_unsent_receipts_by_date($1, $2)',
+      `SELECT
+        t.transaction_id,
+        t.transaction_number,
+        c.email AS customer_email,
+        c.name AS customer_name,
+        t.total_amount,
+        t.created_at
+      FROM transactions t
+      JOIN customers c ON t.customer_id = c.id
+      WHERE t.created_at BETWEEN $1 AND $2
+        AND t.status = 'completed'
+        AND c.email IS NOT NULL
+        AND c.email != ''
+        AND NOT EXISTS (
+          SELECT 1 FROM receipt_email_tracking ret
+          WHERE ret.transaction_id = t.transaction_id
+        )
+      ORDER BY t.created_at`,
       [startDate, endDate]
     );
     return result.rows;
@@ -83,7 +117,7 @@ class BatchEmailService {
         t.total_amount,
         t.created_at
       FROM transactions t
-      JOIN customers c ON t.customer_id = c.customer_id
+      JOIN customers c ON t.customer_id = c.id
       WHERE t.transaction_id = ANY($1)
         AND t.status = 'completed'
         AND c.email IS NOT NULL
@@ -169,7 +203,7 @@ class BatchEmailService {
         SELECT eq.*, t.transaction_number, c.name as customer_name
         FROM email_queue eq
         JOIN transactions t ON eq.transaction_id = t.transaction_id
-        LEFT JOIN customers c ON t.customer_id = c.customer_id
+        LEFT JOIN customers c ON t.customer_id = c.id
         WHERE eq.batch_id = $1
           AND eq.status = 'failed'
           AND eq.retry_count < eq.max_retries
@@ -183,7 +217,7 @@ class BatchEmailService {
         SELECT eq.*, t.transaction_number, c.name as customer_name
         FROM email_queue eq
         JOIN transactions t ON eq.transaction_id = t.transaction_id
-        LEFT JOIN customers c ON t.customer_id = c.customer_id
+        LEFT JOIN customers c ON t.customer_id = c.id
         WHERE eq.status = 'failed'
           AND eq.retry_count < eq.max_retries
           AND (eq.next_retry_at IS NULL OR eq.next_retry_at <= NOW())
@@ -644,7 +678,7 @@ class BatchEmailService {
       SELECT eq.*, t.transaction_number, c.name as customer_name
       FROM email_queue eq
       JOIN transactions t ON eq.transaction_id = t.transaction_id
-      LEFT JOIN customers c ON t.customer_id = c.customer_id
+      LEFT JOIN customers c ON t.customer_id = c.id
       WHERE eq.batch_id = $1
     `;
 

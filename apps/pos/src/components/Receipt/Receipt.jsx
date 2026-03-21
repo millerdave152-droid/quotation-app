@@ -97,10 +97,10 @@ export const Receipt = forwardRef(function Receipt({
 }, ref) {
   // Default store info
   const store = {
-    name: 'TeleTime',
-    address: '123 Main Street',
-    city: 'Toronto, ON M5V 1A1',
-    phone: '(416) 555-0123',
+    name: 'TELETIME',
+    address: '3125 Wolfedale Road',
+    city: 'Mississauga, ON L5C 1V8',
+    phone: '(905) 273-5550',
     website: 'www.teletime.ca',
     ...storeInfo,
   };

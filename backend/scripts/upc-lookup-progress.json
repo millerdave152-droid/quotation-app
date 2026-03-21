@@ -1,0 +1,4559 @@
+{
+  "looked_up": {
+    "BERTAZZONI:MAS365GASXV": {
+      "upc": "8057971104420",
+      "found": true
+    },
+    "BEST:CP37I482SB": {
+      "upc": "026715186525",
+      "found": true
+    },
+    "BLOMBERG:DV17600W": {
+      "upc": "8690842162916",
+      "found": true
+    },
+    "BLOMBERG:WM72200W": {
+      "upc": "8690842162633",
+      "found": true
+    },
+    "BLUESOUND:BP100 BLK": {
+      "found": false
+    },
+    "BLUESOUND:POWERNODE 2 BLK": {
+      "found": false
+    },
+    "BLUESOUND:PULSE SOUNDBAR BLK": {
+      "upc": "5703120290546",
+      "found": true
+    },
+    "BLUESOUND:PULSE SUB BLK": {
+      "found": false
+    },
+    "BLUESOUND:WM100 BLK": {
+      "found": false
+    },
+    "BLUESOUND:WM100 WHT": {
+      "found": false
+    },
+    "BOSCH:B11CB50SSS": {
+      "upc": "825225908852",
+      "found": true
+    },
+    "BOSCH:B36BT830NS": {
+      "upc": "825225899174",
+      "found": true
+    },
+    "BOSCH:B36CL80SNS": {
+      "upc": "825225953630",
+      "found": true
+    },
+    "SAMSUNG:EP-T4510": {
+      "upc": "324567978917",
+      "found": true
+    },
+    "SAMSUNG:RF28T5001SR": {
+      "upc": "887276429380",
+      "found": true
+    },
+    "SAMSUNG:SM-S928B": {
+      "upc": "728944660295",
+      "found": true
+    },
+    "SAMSUNG:DA29": {
+      "upc": "717661457738",
+      "found": true
+    },
+    "SAMSUNG:DF60R8200DG": {
+      "upc": "887276369044",
+      "found": true
+    },
+    "SAMSUNG:DVE45B6305P": {
+      "upc": "887276652153",
+      "found": true
+    },
+    "SAMSUNG:DVE50BG8300V": {
+      "upc": "887276660875",
+      "found": true
+    },
+    "SAMSUNG:DVE52B7650V": {
+      "upc": "887276618661",
+      "found": true
+    },
+    "SAMSUNG:DVE53BB8900TAC": {
+      "upc": "887276660127",
+      "found": true
+    },
+    "SAMSUNG:DVE60M9900V": {
+      "upc": "887276197562",
+      "found": true
+    },
+    "SAMSUNG:DW80B7070AP": {
+      "upc": "887276609690",
+      "found": true
+    },
+    "SAMSUNG:DW80CG4021SRAA": {
+      "upc": "887276772882",
+      "found": true
+    },
+    "SAMSUNG:HAFEX/XAA": {
+      "upc": "4480672327562",
+      "found": true
+    },
+    "SAMSUNG:HW-B450/ZC": {
+      "upc": "887276636306",
+      "found": true
+    },
+    "SAMSUNG:HW-B550/ZC": {
+      "upc": "279807970858",
+      "found": true
+    },
+    "SAMSUNG:HW-B750D/ZC": {
+      "upc": "887276827209",
+      "found": true
+    },
+    "SAMSUNG:HW-LS60D/ZC": {
+      "upc": "887276824321",
+      "found": true
+    },
+    "SAMSUNG:HWMS6500": {
+      "upc": "761132909516",
+      "found": true
+    },
+    "SAMSUNG:HW-Q600B/ZC": {
+      "upc": "887276636283",
+      "found": true
+    },
+    "SAMSUNG:HW-Q60B/ZC": {
+      "upc": "887276636290",
+      "found": true
+    },
+    "SAMSUNG:HW-Q700B/ZC": {
+      "upc": "887276637549",
+      "found": true
+    },
+    "SAMSUNG:HW-Q800A/ZC": {
+      "upc": "887276524641",
+      "found": true
+    },
+    "SAMSUNG:HW-Q800D/ZC": {
+      "upc": "196641135185",
+      "found": true
+    },
+    "SAMSUNG:HW-S61A/ZC": {
+      "upc": "768677912513",
+      "found": true
+    },
+    "SAMSUNG:HW-S800D": {
+      "upc": "887276823942",
+      "found": true
+    },
+    "SAMSUNG:HW-S800D/ZC": {
+      "upc": "887276823942",
+      "found": true
+    },
+    "SAMSUNG:HW-S801B/ZC": {
+      "upc": "887276637686",
+      "found": true
+    },
+    "SAMSUNG:MATK8020TG": {
+      "upc": "887276224459",
+      "found": true
+    },
+    "SAMSUNG:MATK8020TS": {
+      "upc": "887276224466",
+      "found": true
+    },
+    "SAMSUNG:MC11J7033CT": {
+      "upc": "887276140230",
+      "found": true
+    },
+    "SAMSUNG:ME11A7510DS": {
+      "upc": "887276551449",
+      "found": true
+    },
+    "SAMSUNG:ME21A706BQN": {
+      "upc": "887276586007",
+      "found": true
+    },
+    "SAMSUNG:ME21A706BQN/AC": {
+      "upc": "887276586007",
+      "found": true
+    },
+    "SAMSUNG:MS19M8020TG": {
+      "upc": "887276212067",
+      "found": true
+    },
+    "SAMSUNG:MX-ST50B/ZC": {
+      "upc": "887276646572",
+      "found": true
+    },
+    "SAMSUNG:NA30K7750TG": {
+      "upc": "887276183299",
+      "found": true
+    },
+    "SAMSUNG:NA30R5310FS/AA": {
+      "upc": "887276298924",
+      "found": true
+    },
+    "SAMSUNG:NA36N7755TS": {
+      "upc": "887276281766",
+      "found": true
+    },
+    "SAMSUNG:NE63A6711SG/AC": {
+      "upc": "887276509464",
+      "found": true
+    },
+    "SAMSUNG:NE63T8911SS/AC": {
+      "upc": "887276415048",
+      "found": true
+    },
+    "SAMSUNG:NE63T8951SS/AC": {
+      "upc": "887276415086",
+      "found": true
+    },
+    "SAMSUNG:NK30K7000WG": {
+      "upc": "887276182957",
+      "found": true
+    },
+    "SAMSUNG:NK30K7000WS": {
+      "upc": "887276182964",
+      "found": true
+    },
+    "SAMSUNG:NK30N7000UG": {
+      "upc": "887276262758",
+      "found": true
+    },
+    "SAMSUNG:NK30N7000US": {
+      "upc": "887276262765",
+      "found": true
+    },
+    "SAMSUNG:NK30R5000WS": {
+      "upc": "887276302027",
+      "found": true
+    },
+    "SAMSUNG:NK36K7000WG": {
+      "upc": "887276245270",
+      "found": true
+    },
+    "SAMSUNG:NK36K7000WS": {
+      "upc": "887276245287",
+      "found": true
+    },
+    "SAMSUNG:NK-AE705PWG/AA": {
+      "upc": "887276252186",
+      "found": true
+    },
+    "SAMSUNG:NSG6DG8500MTAA": {
+      "upc": "400065815531",
+      "found": true
+    },
+    "SAMSUNG:NV51K7770DG": {
+      "upc": "887276181677",
+      "found": true
+    },
+    "SAMSUNG:NV51K7770DS": {
+      "upc": "887276181684",
+      "found": true
+    },
+    "SAMSUNG:NY36R9966PS": {
+      "upc": "887276292601",
+      "found": true
+    },
+    "SAMSUNG:NZ30R5330RK": {
+      "upc": "887276299013",
+      "found": true
+    },
+    "SAMSUNG:QN100QN80FFXZC": {
+      "upc": "887276932293",
+      "found": true
+    },
+    "SAMSUNG:QN32LS03TBFXZC": {
+      "upc": "887276418490",
+      "found": true
+    },
+    "SAMSUNG:QN43LS05TAFXZC": {
+      "upc": "887276411880",
+      "found": true
+    },
+    "SAMSUNG:QN43QN90DAFXZC": {
+      "upc": "887276817163",
+      "found": true
+    },
+    "SAMSUNG:QN65LS03FAFXZC": {
+      "upc": "198957005398",
+      "found": true
+    },
+    "SAMSUNG:QN65Q8FAAFXZC": {
+      "upc": "814561024333",
+      "found": true
+    },
+    "SAMSUNG:RA-F18DBB35/AA": {
+      "upc": "887276532981",
+      "found": true
+    },
+    "SAMSUNG:RA-F18DU412/AA": {
+      "upc": "887276628738",
+      "found": true
+    },
+    "SAMSUNG:RA-F18DU4C0/AA": {
+      "upc": "887276648033",
+      "found": true
+    },
+    "SAMSUNG:RA-F18DU4QL/AA": {
+      "upc": "887276628752",
+      "found": true
+    },
+    "SAMSUNG:RA-F18DU4QN/AA": {
+      "upc": "887276628585",
+      "found": true
+    },
+    "SAMSUNG:RA-F36DB4QL/AA": {
+      "upc": "799819054419",
+      "found": true
+    },
+    "SAMSUNG:RA-F36DMMQL/AA": {
+      "upc": "887276628943",
+      "found": true
+    },
+    "SAMSUNG:RF23BB8200AP": {
+      "upc": "660357645547",
+      "found": true
+    },
+    "SAMSUNG:RF23BB8200APAA": {
+      "upc": "887276624181",
+      "found": true
+    },
+    "SAMSUNG:RF23BB8900AWAC": {
+      "upc": "887276639789",
+      "found": true
+    },
+    "SAMSUNG:RF23DB9700QLAA": {
+      "upc": "400065816033",
+      "found": true
+    },
+    "SAMSUNG:RF25C5551SR/AA": {
+      "upc": "887276719023",
+      "found": true
+    },
+    "SAMSUNG:RF27T5201SG": {
+      "upc": "887276408712",
+      "found": true
+    },
+    "SAMSUNG:RF29A9071SG/AC": {
+      "upc": "887276525693",
+      "found": true
+    },
+    "SAMSUNG:SEK2000/ZA": {
+      "upc": "887276121154",
+      "found": true
+    },
+    "SAMSUNG:SKK-9MCD": {
+      "upc": "887276667362",
+      "found": true
+    },
+    "SAMSUNG:SKK-BB": {
+      "upc": "887276045535",
+      "found": true
+    },
+    "SAMSUNG:SP-LSP3BLA": {
+      "upc": "151414423784",
+      "found": true
+    },
+    "SAMSUNG:SP-LSP3BLAXZC": {
+      "upc": "887276628509",
+      "found": true
+    },
+    "SAMSUNG:SP-LSP7TFAXZC": {
+      "upc": "887276476483",
+      "found": true
+    },
+    "SAMSUNG:SWA-9100S": {
+      "upc": "887276524597",
+      "found": true
+    },
+    "SAMSUNG:UBDM8500": {
+      "upc": "667379197856",
+      "found": true
+    },
+    "SAMSUNG:UN40N5200AFXZC": {
+      "upc": "887276369808",
+      "found": true
+    },
+    "SAMSUNG:UN43DU8000FXZC": {
+      "upc": "887276824390",
+      "found": true
+    },
+    "SAMSUNG:UN43U7900FFXZC": {
+      "upc": "887276953939",
+      "found": true
+    },
+    "SAMSUNG:UN50U7900FFXZC": {
+      "upc": "887276953946",
+      "found": true
+    },
+    "SAMSUNG:UN65U7900FFXZC": {
+      "upc": "887276953977",
+      "found": true
+    },
+    "SAMSUNG:UN65U8000FFXZC": {
+      "upc": "887276953670",
+      "found": true
+    },
+    "SAMSUNG:UN85U8000FFXZC": {
+      "upc": "887276953694",
+      "found": true
+    },
+    "SAMSUNG:VG-KBD2000": {
+      "upc": "887276019093",
+      "found": true
+    },
+    "SAMSUNG:VG-SCFT50WT": {
+      "upc": "887276394299",
+      "found": true
+    },
+    "SAMSUNG:VG-SDCC75G/ZC": {
+      "upc": "887276764894",
+      "found": true
+    },
+    "SAMSUNG:VGSGSM11S": {
+      "upc": "818241591221",
+      "found": true
+    },
+    "SAMSUNG:VL351": {
+      "upc": "887276268996",
+      "found": true
+    },
+    "SAMSUNG:VL550": {
+      "upc": "887276259154",
+      "found": true
+    },
+    "SAMSUNG:WAM250": {
+      "upc": "887276849041",
+      "found": true
+    },
+    "SAMSUNG:WE402NP/A3": {
+      "upc": "887276310138",
+      "found": true
+    },
+    "SAMSUNG:WE402NV": {
+      "upc": "887276310145",
+      "found": true
+    },
+    "SAMSUNG:WF45T6000AV": {
+      "upc": "887276436548",
+      "found": true
+    },
+    "SAMSUNG:WMNM21EB": {
+      "upc": "887276224008",
+      "found": true
+    },
+    "LG:DLE3400W": {
+      "upc": "772454073168",
+      "found": true
+    },
+    "LG:DLE8200W": {
+      "upc": "195174089088",
+      "found": true
+    },
+    "LG:DLEX6500B": {
+      "upc": "195174052945",
+      "found": true
+    },
+    "LG:DLEX8900B": {
+      "upc": "195174024836",
+      "found": true
+    },
+    "LG:DLHC1455P": {
+      "upc": "772454074950",
+      "found": true
+    },
+    "LG:HU715Q": {
+      "upc": "635737554979",
+      "found": true
+    },
+    "LG:HU915QE": {
+      "upc": "195174037546",
+      "found": true
+    },
+    "LG:KSTK2": {
+      "upc": "850012177234",
+      "found": true
+    },
+    "LG:LDPH5554D": {
+      "upc": "048231347693",
+      "found": true
+    },
+    "LG:LMC1575SB": {
+      "upc": "658917738402",
+      "found": true
+    },
+    "LG:LMV2257BD": {
+      "upc": "695102157679",
+      "found": true
+    },
+    "LG:LRFCS29D6S": {
+      "upc": "195174047071",
+      "found": true
+    },
+    "LG:LRMNC1803S": {
+      "upc": "695102103386",
+      "found": true
+    },
+    "LG:LROFC1104V": {
+      "upc": "195174010440",
+      "found": true
+    },
+    "LG:LRONC1404V": {
+      "upc": "195174010433",
+      "found": true
+    },
+    "LG:LSE5613BD": {
+      "upc": "772454068096",
+      "found": true
+    },
+    "LG:LSEL6337XE": {
+      "upc": "048231348928",
+      "found": true
+    },
+    "LG:LSHD3080ST": {
+      "upc": "4883401049719",
+      "found": true
+    },
+    "LG:LSHD3089BD": {
+      "upc": "4883401049726",
+      "found": true
+    },
+    "LG:LSIS3018SS": {
+      "upc": "048231341653",
+      "found": true
+    },
+    "LG:LSWS306ST": {
+      "upc": "322262768543",
+      "found": true
+    },
+    "LG:LTCS20020S": {
+      "upc": "685208334838",
+      "found": true
+    },
+    "LG:LTCS20020W": {
+      "upc": "195174001448",
+      "found": true
+    },
+    "LG:LWS3063BD": {
+      "upc": "697842454087",
+      "found": true
+    },
+    "LG:MSER1130B": {
+      "upc": "195174109953",
+      "found": true
+    },
+    "LG:MVEL2137F": {
+      "upc": "739807139599",
+      "found": true
+    },
+    "LG:OLED48C2PUA": {
+      "upc": "195174028865",
+      "found": true
+    },
+    "LG:OLED55C3": {
+      "upc": "195174050279",
+      "found": true
+    },
+    "LG:OLED77G4WUA": {
+      "upc": "195174076736",
+      "found": true
+    },
+    "LG:S3RFBN": {
+      "upc": "221585880096",
+      "found": true
+    },
+    "LG:SC9S": {
+      "upc": "195174049297",
+      "found": true
+    },
+    "LG:WD200CB": {
+      "upc": "048231026482",
+      "found": true
+    },
+    "LG:WM3400CW": {
+      "upc": "110914205344",
+      "found": true
+    },
+    "LG:WM3555HVA": {
+      "upc": "4883400978386",
+      "found": true
+    },
+    "LG:WM4000HWA": {
+      "upc": "452823369114",
+      "found": true
+    },
+    "LG:WM6700HBA": {
+      "upc": "195174037058",
+      "found": true
+    },
+    "KITCHENAID:EDR2RXD1B": {
+      "upc": "883049369846",
+      "found": true
+    },
+    "KITCHENAID:EDR4RXD1B": {
+      "upc": "641676575777",
+      "found": true
+    },
+    "KITCHENAID:EXTKIT06ES": {
+      "upc": "883049385976",
+      "found": true
+    },
+    "KITCHENAID:JIC4536XB": {
+      "upc": "883049231488",
+      "found": true
+    },
+    "KITCHENAID:KBBL306EPA": {
+      "upc": "883049336800",
+      "found": true
+    },
+    "KITCHENAID:KBFN502ESS": {
+      "upc": "883049336947",
+      "found": true
+    },
+    "KITCHENAID:KBSD606ESS": {
+      "upc": "883049357201",
+      "found": true
+    },
+    "KITCHENAID:KBSN602EBS": {
+      "upc": "883049412016",
+      "found": true
+    },
+    "KITCHENAID:KCES956KSS": {
+      "upc": "883049599038",
+      "found": true
+    },
+    "KITCHENAID:KCG8433BM": {
+      "upc": "883049522739",
+      "found": true
+    },
+    "KITCHENAID:KCG8433DG": {
+      "upc": "883049522746",
+      "found": true
+    },
+    "KITCHENAID:KCGC558JSS": {
+      "upc": "883049528335",
+      "found": true
+    },
+    "KITCHENAID:KCGS350ESS": {
+      "upc": "883049330280",
+      "found": true
+    },
+    "KITCHENAID:KCGS550ESS": {
+      "upc": "883049330266",
+      "found": true
+    },
+    "KITCHENAID:KCM1208DG": {
+      "upc": "789993153763",
+      "found": true
+    },
+    "KITCHENAID:KCM1208OB": {
+      "upc": "883049545103",
+      "found": true
+    },
+    "KITCHENAID:KCM1209DG": {
+      "upc": "883049523453",
+      "found": true
+    },
+    "KITCHENAID:KCO211BM": {
+      "upc": "883049523248",
+      "found": true
+    },
+    "KITCHENAID:KCO273SS": {
+      "upc": "883049298795",
+      "found": true
+    },
+    "KITCHENAID:KCO275SS": {
+      "upc": "883049370804",
+      "found": true
+    },
+    "KITCHENAID:KDRS407VSS": {
+      "upc": "883049155678",
+      "found": true
+    },
+    "KITCHENAID:KDTE204KWH": {
+      "upc": "883049540658",
+      "found": true
+    },
+    "KITCHENAID:KDTS224SPS": {
+      "upc": "883049695334",
+      "found": true
+    },
+    "KITCHENAID:KES6403BM": {
+      "upc": "883049526607",
+      "found": true
+    },
+    "KITCHENAID:KES6403DG": {
+      "upc": "883049526621",
+      "found": true
+    },
+    "KITCHENAID:KES6404BM": {
+      "upc": "883049526645",
+      "found": true
+    },
+    "KITCHENAID:KESMK4BM": {
+      "upc": "883049526676",
+      "found": true
+    },
+    "KITCHENAID:KESMK4DG": {
+      "upc": "883049526683",
+      "found": true
+    },
+    "KITCHENAID:KESMK5OB": {
+      "upc": "883049543208",
+      "found": true
+    },
+    "KITCHENAID:KESMK5SX": {
+      "upc": "883049543215",
+      "found": true
+    },
+    "KITCHENAID:KEWS105BSS": {
+      "upc": "883049271224",
+      "found": true
+    },
+    "KITCHENAID:KFC3516IB": {
+      "upc": "883049487342",
+      "found": true
+    },
+    "KITCHENAID:KFC3516IC": {
+      "upc": "883049407210",
+      "found": true
+    },
+    "KITCHENAID:KFCB519BM": {
+      "upc": "541321937496",
+      "found": true
+    },
+    "KITCHENAID:KFCB519DG": {
+      "upc": "883049535241",
+      "found": true
+    },
+    "KITCHENAID:KFCB519OB": {
+      "upc": "883049535289",
+      "found": true
+    },
+    "KITCHENAID:KFCB519WH": {
+      "upc": "883049535265",
+      "found": true
+    },
+    "KITCHENAID:KFDC500JSS": {
+      "upc": "883049528212",
+      "found": true
+    },
+    "KITCHENAID:KFDC506JPA": {
+      "upc": "883049529165",
+      "found": true
+    },
+    "KITCHENAID:KFGC558JSS": {
+      "upc": "883049528182",
+      "found": true
+    },
+    "KITCHENAID:KFGG500EBS": {
+      "upc": "883049413518",
+      "found": true
+    },
+    "KITCHENAID:KFGG500ESS": {
+      "upc": "883049354859",
+      "found": true
+    },
+    "KITCHENAID:KFP0718BM": {
+      "upc": "883049473864",
+      "found": true
+    },
+    "KITCHENAID:KFP0718CU": {
+      "upc": "883049473840",
+      "found": true
+    },
+    "KITCHENAID:KFP0718ER": {
+      "upc": "883049465876",
+      "found": true
+    },
+    "KITCHENAID:KFP0718OB": {
+      "upc": "883049465883",
+      "found": true
+    },
+    "KITCHENAID:KFP0718WH": {
+      "upc": "883049467412",
+      "found": true
+    },
+    "KITCHENAID:KFP0921BM": {
+      "upc": "883049616001",
+      "found": true
+    },
+    "KITCHENAID:KFP0921ER": {
+      "upc": "883049616018",
+      "found": true
+    },
+    "KITCHENAID:KFP0921OB": {
+      "upc": "883049615905",
+      "found": true
+    },
+    "KITCHENAID:KFP1319BM": {
+      "upc": "883049599335",
+      "found": true
+    },
+    "KITCHENAID:KFP1319CU": {
+      "upc": "883049608822",
+      "found": true
+    },
+    "KITCHENAID:KFP1319WH": {
+      "upc": "883049599359",
+      "found": true
+    },
+    "KITCHENAID:KGCK346BSS": {
+      "upc": "883049258997",
+      "found": true
+    },
+    "KITCHENAID:KGCU407VSS": {
+      "upc": "883049155951",
+      "found": true
+    },
+    "KITCHENAID:KGCU462VSS": {
+      "upc": "883049155968",
+      "found": true
+    },
+    "KITCHENAID:KHBBV53BM": {
+      "upc": "883049544786",
+      "found": true
+    },
+    "KITCHENAID:KHBBV53DG": {
+      "upc": "883049546001",
+      "found": true
+    },
+    "KITCHENAID:KHBBV53ER": {
+      "upc": "883049546049",
+      "found": true
+    },
+    "KITCHENAID:KHBBV53OB": {
+      "upc": "541321937465",
+      "found": true
+    },
+    "KITCHENAID:KHBBV53PA": {
+      "upc": "883049544793",
+      "found": true
+    },
+    "KITCHENAID:KHBBV53WH": {
+      "upc": "883049546018",
+      "found": true
+    },
+    "KITCHENAID:KHBBV83BM": {
+      "upc": "883049535456",
+      "found": true
+    },
+    "KITCHENAID:KHBBV83DG": {
+      "upc": "541321937465",
+      "found": true
+    },
+    "KITCHENAID:KHBBV83ER": {
+      "upc": "883049544779",
+      "found": true
+    },
+    "KITCHENAID:KHBBV83OB": {
+      "upc": "883049535463",
+      "found": true
+    },
+    "KITCHENAID:KHBBV83PA": {
+      "upc": "610665142375",
+      "found": true
+    },
+    "KITCHENAID:KHBBV83WH": {
+      "upc": "634707076480",
+      "found": true
+    },
+    "KITCHENAID:KHBV53AQ": {
+      "upc": "883049584058",
+      "found": true
+    },
+    "KITCHENAID:KHBV53IB": {
+      "upc": "883049546155",
+      "found": true
+    },
+    "KITCHENAID:KHBV53OB": {
+      "upc": "883049546100",
+      "found": true
+    },
+    "KITCHENAID:KHBV53WH": {
+      "upc": "883049546094",
+      "found": true
+    },
+    "KITCHENAID:KHM512BM": {
+      "upc": "883049458762",
+      "found": true
+    },
+    "KITCHENAID:KHM512BY": {
+      "upc": "883049290409",
+      "found": true
+    },
+    "KITCHENAID:KHM512GA": {
+      "upc": "883049270661",
+      "found": true
+    },
+    "KITCHENAID:KHM7210CU": {
+      "upc": "883049271040",
+      "found": true
+    },
+    "KITCHENAID:KHM926CA": {
+      "upc": "883049260822",
+      "found": true
+    },
+    "KITCHENAID:KHM926ER": {
+      "upc": "883049260853",
+      "found": true
+    },
+    "KITCHENAID:KHM926OB": {
+      "upc": "883049260860",
+      "found": true
+    },
+    "KITCHENAID:KHMB732BM": {
+      "upc": "883049535210",
+      "found": true
+    },
+    "KITCHENAID:KHMB732DG": {
+      "upc": "541321937472",
+      "found": true
+    },
+    "KITCHENAID:KHMB732ER": {
+      "upc": "883049544762",
+      "found": true
+    },
+    "KITCHENAID:KHMB732OB": {
+      "upc": "610665142382",
+      "found": true
+    },
+    "KITCHENAID:KHMB732PA": {
+      "upc": "541321937472",
+      "found": true
+    },
+    "KITCHENAID:KMBD104GSS": {
+      "upc": "883049462202",
+      "found": true
+    },
+    "KITCHENAID:KODE500EBS": {
+      "upc": "883049362373",
+      "found": true
+    },
+    "KITCHENAID:KODE500ESS": {
+      "upc": "883049327327",
+      "found": true
+    },
+    "KITCHENAID:KOSE500EBS": {
+      "upc": "883049362366",
+      "found": true
+    },
+    "KITCHENAID:KOWT100EBS": {
+      "upc": "883049577227",
+      "found": true
+    },
+    "KITCHENAID:KOWT100ESS": {
+      "upc": "883049353807",
+      "found": true
+    },
+    "KITCHENAID:KOWT104ESS": {
+      "upc": "883049353821",
+      "found": true
+    },
+    "KITCHENAID:KP26M1XMH": {
+      "upc": "883049460727",
+      "found": true
+    },
+    "KITCHENAID:KP26M1XOB": {
+      "upc": "883049064734",
+      "found": true
+    },
+    "KITCHENAID:KP26M1XSL": {
+      "upc": "883049328256",
+      "found": true
+    },
+    "KITCHENAID:KRFF302EBS": {
+      "upc": "883049416755",
+      "found": true
+    },
+    "KITCHENAID:KSB2030PJB": {
+      "upc": "883049534220",
+      "found": true
+    },
+    "KITCHENAID:KSB4027CU": {
+      "upc": "649661440895",
+      "found": true
+    },
+    "KITCHENAID:KSBC1B0BM": {
+      "upc": "883049421629",
+      "found": true
+    },
+    "KITCHENAID:KSM150PSAQ": {
+      "upc": "883049143705",
+      "found": true
+    },
+    "KITCHENAID:KSM150PSIB": {
+      "upc": "883049460253",
+      "found": true
+    },
+    "KITCHENAID:KSM150PSIC": {
+      "upc": "8859100229239",
+      "found": true
+    },
+    "KITCHENAID:KSM150PSMA": {
+      "upc": "883049602509",
+      "found": true
+    },
+    "KITCHENAID:KSM150PSMI": {
+      "upc": "883049601038",
+      "found": true
+    },
+    "KITCHENAID:KSM150PSPA": {
+      "upc": "883049601045",
+      "found": true
+    },
+    "KITCHENAID:KSM150PSPT": {
+      "upc": "6984658683881",
+      "found": true
+    },
+    "KITCHENAID:KSM150PSVB": {
+      "upc": "883049486581",
+      "found": true
+    },
+    "KITCHENAID:KSM1APC": {
+      "upc": "883049375700",
+      "found": true
+    },
+    "KITCHENAID:KSM35GB": {
+      "upc": "883049480213",
+      "found": true
+    },
+    "KITCHENAID:KSM96ER": {
+      "upc": "883049425726",
+      "found": true
+    },
+    "KITCHENAID:KSM96IC": {
+      "upc": "600091609870",
+      "found": true
+    },
+    "KITCHENAID:KSMPEXTA": {
+      "upc": "883049392165",
+      "found": true
+    },
+    "KITCHENAID:KSMSFTA": {
+      "upc": "883049478487",
+      "found": true
+    },
+    "KITCHENAID:KTTS505EPA": {
+      "upc": "883049355207",
+      "found": true
+    },
+    "KITCHENAID:KUBL214KSB": {
+      "upc": "883049592930",
+      "found": true
+    },
+    "KITCHENAID:KUBL314KSS": {
+      "upc": "883049592893",
+      "found": true
+    },
+    "KITCHENAID:KUBR314KBS": {
+      "upc": "883049592909",
+      "found": true
+    },
+    "KITCHENAID:KUBR314KSS": {
+      "upc": "883049592886",
+      "found": true
+    },
+    "KITCHENAID:KUCS03FTSS": {
+      "upc": "883049044132",
+      "found": true
+    },
+    "KITCHENAID:KUDR204KSB": {
+      "upc": "883049593067",
+      "found": true
+    },
+    "KITCHENAID:KUID508HPS": {
+      "upc": "883049483399",
+      "found": true
+    },
+    "KITCHENAID:KUIX535HBS": {
+      "upc": "883049483306",
+      "found": true
+    },
+    "KITCHENAID:KUIX535HPS": {
+      "upc": "883049483290",
+      "found": true
+    },
+    "KITCHENAID:KURL314KSS": {
+      "upc": "883049592978",
+      "found": true
+    },
+    "KITCHENAID:KUWR214KSB": {
+      "upc": "883049592848",
+      "found": true
+    },
+    "KITCHENAID:KVIB606DBS": {
+      "upc": "883049364971",
+      "found": true
+    },
+    "KITCHENAID:KVIB606DSS": {
+      "upc": "883049328218",
+      "found": true
+    },
+    "KITCHENAID:KVUB400GSS": {
+      "upc": "883049452234",
+      "found": true
+    },
+    "KITCHENAID:KVUB406GSS": {
+      "upc": "883049452258",
+      "found": true
+    },
+    "KITCHENAID:KVUB600DSS": {
+      "upc": "883049328157",
+      "found": true
+    },
+    "KITCHENAID:KVUB606DSS": {
+      "upc": "883049328164",
+      "found": true
+    },
+    "KITCHENAID:KVUC606JSS": {
+      "upc": "883049569468",
+      "found": true
+    },
+    "KITCHENAID:KVWB400DSS": {
+      "upc": "883049328171",
+      "found": true
+    },
+    "KITCHENAID:KVWB406DSS": {
+      "upc": "883049328188",
+      "found": true
+    },
+    "KITCHENAID:KVWB600HBS": {
+      "upc": "883049484082",
+      "found": true
+    },
+    "KITCHENAID:KVWB606HBS": {
+      "upc": "4883400902213",
+      "found": true
+    },
+    "KITCHENAID:KVWC956KSS": {
+      "upc": "883049590738",
+      "found": true
+    },
+    "KITCHENAID:KVWC958JSS": {
+      "upc": "883049569482",
+      "found": true
+    },
+    "KITCHENAID:KXD4636YSS": {
+      "upc": "883049222462",
+      "found": true
+    },
+    "KITCHENAID:KXU2830YSS": {
+      "upc": "883049218748",
+      "found": true
+    },
+    "KITCHENAID:KXU2836JSS": {
+      "upc": "883049547534",
+      "found": true
+    },
+    "KITCHENAID:KXU8036YSS": {
+      "upc": "883049218564",
+      "found": true
+    },
+    "KITCHENAID:KXW8736YSS": {
+      "upc": "883049218571",
+      "found": true
+    },
+    "KITCHENAID:KXW9736YSS": {
+      "upc": "883049218670",
+      "found": true
+    },
+    "KITCHENAID:W10461962": {
+      "upc": "793713616209",
+      "found": true
+    },
+    "KITCHENAID:W10731887": {
+      "upc": "883049366142",
+      "found": true
+    },
+    "KITCHENAID:YKMHC319EBS": {
+      "upc": "883049420837",
+      "found": true
+    },
+    "KITCHENAID:YKMHC319ES": {
+      "upc": "883049323855",
+      "found": true
+    },
+    "KITCHENAID:YKMHP519ES": {
+      "upc": "883049323879",
+      "found": true
+    },
+    "KITCHENAID:YKMHS120EBS": {
+      "upc": "883049420813",
+      "found": true
+    },
+    "KITCHENAID:YKMLS311HSS": {
+      "upc": "883049469126",
+      "found": true
+    },
+    "KITCHENAID:YKSEG700EBS": {
+      "upc": "883049413617",
+      "found": true
+    },
+    "KITCHENAID:YKSEG700ESS": {
+      "upc": "883049329871",
+      "found": true
+    },
+    "BOSCH:B36CT80SNS": {
+      "upc": "825225953678",
+      "found": true
+    },
+    "BOSCH:B36CT81ENS": {
+      "upc": "825225964810",
+      "found": true
+    },
+    "BOSCH:B36FD10ENS": {
+      "upc": "825225974079",
+      "found": true
+    },
+    "BOSCH:B36FD52SNB": {
+      "upc": "825225970774",
+      "found": true
+    },
+    "BOSCH:DHL755BUC": {
+      "upc": "825225853299",
+      "found": true
+    },
+    "BOSCH:DPH36652UC": {
+      "upc": "825225884446",
+      "found": true
+    },
+    "BOSCH:HBL5451UC": {
+      "upc": "825225906476",
+      "found": true
+    },
+    "BOSCH:HBL5651UC": {
+      "upc": "825225906490",
+      "found": true
+    },
+    "BOSCH:HBLP451RUC": {
+      "upc": "825225906971",
+      "found": true
+    },
+    "BOSCH:HCP56652UC": {
+      "upc": "825225959465",
+      "found": true
+    },
+    "BOSCH:HCP80641UC": {
+      "upc": "825225946717",
+      "found": true
+    },
+    "BOSCH:HDIP054C": {
+      "upc": "810134803312",
+      "found": true
+    },
+    "BOSCH:HEI8054C": {
+      "upc": "4883400815070",
+      "found": true
+    },
+    "BOSCH:HEI8056C": {
+      "upc": "825225959656",
+      "found": true
+    },
+    "BOSCH:HGI8054UC": {
+      "upc": "825225907152",
+      "found": true
+    },
+    "BOSCH:HGIP056UC": {
+      "upc": "825225959731",
+      "found": true
+    },
+    "BOSCH:HGS8645UC": {
+      "upc": "825225960966",
+      "found": true
+    },
+    "BOSCH:HMB57152UC": {
+      "upc": "658917740955",
+      "found": true
+    },
+    "BOSCH:HMC80242UC": {
+      "upc": "825225950127",
+      "found": true
+    },
+    "BOSCH:HMC87152UC": {
+      "upc": "825225924135",
+      "found": true
+    },
+    "BOSCH:HMD8053UC": {
+      "upc": "825225924654",
+      "found": true
+    },
+    "BOSCH:HMV3053C": {
+      "upc": "825225924340",
+      "found": true
+    },
+    "BOSCH:HMV5053C": {
+      "upc": "4883400812550",
+      "found": true
+    },
+    "BOSCH:HMV8044C": {
+      "upc": "825225950332",
+      "found": true
+    },
+    "BOSCH:HSD5051UC": {
+      "upc": "825225908517",
+      "found": true
+    },
+    "BOSCH:HSLP451UC": {
+      "upc": "825225906360",
+      "found": true
+    },
+    "BOSCH:HUI56551UC": {
+      "upc": "825225920533",
+      "found": true
+    },
+    "BOSCH:HWD5051UC": {
+      "upc": "825225908722",
+      "found": true
+    },
+    "BOSCH:NGM5056UC": {
+      "upc": "825225937999",
+      "found": true
+    },
+    "BOSCH:NGM8046UC": {
+      "upc": "825225949008",
+      "found": true
+    },
+    "BOSCH:NGM8056UC": {
+      "upc": "825225938019",
+      "found": true
+    },
+    "BOSCH:NGM8059UC": {
+      "upc": "763515548268",
+      "found": true
+    },
+    "BOSCH:NGMP056UC": {
+      "upc": "825225938026",
+      "found": true
+    },
+    "BOSCH:NGMP059UC": {
+      "upc": "810134803220",
+      "found": true
+    },
+    "BOSCH:NGMP655UC": {
+      "upc": "825225906926",
+      "found": true
+    },
+    "BOSCH:NGMP656UC": {
+      "upc": "825225938460",
+      "found": true
+    },
+    "BOSCH:NITP069UC": {
+      "upc": "825225955733",
+      "found": true
+    },
+    "BOSCH:SGE53B55UC": {
+      "upc": "825225964759",
+      "found": true
+    },
+    "BOSCH:SHE53C85N": {
+      "upc": "825225969303",
+      "found": true
+    },
+    "BOSCH:SHE53C86N": {
+      "upc": "825225969327",
+      "found": true
+    },
+    "BOSCH:SHX3AR76UC": {
+      "upc": "825225899211",
+      "found": true
+    },
+    "BOSCH:SHX5AEM4N": {
+      "upc": "825225969006",
+      "found": true
+    },
+    "BOSCH:SMZPC002UC": {
+      "upc": "825225906254",
+      "found": true
+    },
+    "BOSCH:SMZPCJB1UC": {
+      "upc": "825225958826",
+      "found": true
+    },
+    "BOSCH:SPV68C73UC": {
+      "upc": "825225965428",
+      "found": true
+    },
+    "BROAN:332H": {
+      "upc": "710822779335",
+      "found": true
+    },
+    "BROAN:BBN1303SS": {
+      "upc": "196641105256",
+      "found": true
+    },
+    "BROAN:BQLA130SS": {
+      "upc": "818223685184",
+      "found": true
+    },
+    "BROAN:BWT1304SS": {
+      "upc": "026715265091",
+      "found": true
+    },
+    "BROAN:E6430SSLC": {
+      "upc": "772371133273",
+      "found": true
+    },
+    "BROAN:EWT1306SS": {
+      "upc": "026715267972",
+      "found": true
+    },
+    "DANBY:DCR044B1BM": {
+      "upc": "792636597855",
+      "found": true
+    },
+    "ELECTROLUX:E30MO75HPS": {
+      "upc": "684758042880",
+      "found": true
+    },
+    "ELECTROLUX:E32AF85PQS": {
+      "upc": "4883400666849",
+      "found": true
+    },
+    "ELECTROLUX:ECCG3068AS": {
+      "upc": "312388676617",
+      "found": true
+    },
+    "ELECTROLUX:ECCG3668AS": {
+      "upc": "057112992754",
+      "found": true
+    },
+    "ELECTROLUX:ECCI3668AS": {
+      "upc": "136257204554",
+      "found": true
+    },
+    "ELECTROLUX:ECFD3668AS": {
+      "upc": "567131829004",
+      "found": true
+    },
+    "ELECTROLUX:ECP8472SS": {
+      "upc": "791116185872",
+      "found": true
+    },
+    "ELECTROLUX:ECVW3062AS": {
+      "upc": "312388676617",
+      "found": true
+    },
+    "ELECTROLUX:ECVW3662AS": {
+      "upc": "136257204554",
+      "found": true
+    },
+    "ELECTROLUX:ECWM3012AS": {
+      "upc": "012505516481",
+      "found": true
+    },
+    "ELECTROLUX:ECWS3011AS": {
+      "upc": "136257204554",
+      "found": true
+    },
+    "ELECTROLUX:EFDC210TIW": {
+      "upc": "4883400818897",
+      "found": true
+    },
+    "ELECTROLUX:EI24BC15VS": {
+      "upc": "012505646515",
+      "found": true
+    },
+    "ELECTROLUX:EI24MO45IB": {
+      "upc": "791116175385",
+      "found": true
+    },
+    "ELECTROLUX:EI30EF4CQS": {
+      "upc": "4883400659216",
+      "found": true
+    },
+    "ELECTROLUX:EI30GF45QS": {
+      "upc": "822351328929",
+      "found": true
+    },
+    "ELECTROLUX:EI30MO45TS": {
+      "upc": "012505560590",
+      "found": true
+    },
+    "ELECTROLUX:EI33AF80WS": {
+      "upc": "358010252149",
+      "found": true
+    },
+    "ELECTROLUX:ELFW7337AW": {
+      "upc": "996518970617",
+      "found": true
+    },
+    "ELECTROLUX:ELFW7537AT": {
+      "upc": "227915872335",
+      "found": true
+    },
+    "ELECTROLUX:EW30EW65PS": {
+      "upc": "824272920701",
+      "found": true
+    },
+    "ELECTROLUX:EW30IC60LS": {
+      "upc": "700621175179",
+      "found": true
+    },
+    "ELECTROLUX:EW30IS8CRS": {
+      "upc": "4883400671935",
+      "found": true
+    },
+    "ELECTROLUX:EWF01C": {
+      "upc": "012505461477",
+      "found": true
+    },
+    "ELECTROLUX:FFGF3052TW": {
+      "upc": "012505510939",
+      "found": true
+    },
+    "ELECTROLUX:FPIC3677RF": {
+      "upc": "793888018693",
+      "found": true
+    },
+    "ELECTROLUX:GCRG3060AD": {
+      "upc": "196107281104",
+      "found": true
+    },
+    "ELECTROLUX:GCRI305CAF": {
+      "upc": "4883400973206",
+      "found": true
+    },
+    "ELECTROLUX:PCK4200": {
+      "upc": "717449028655",
+      "found": true
+    },
+    "ELECTROLUX:TRIMKITSS2": {
+      "upc": "366012960153",
+      "found": true
+    },
+    "ELECTROLUX:TRMKTEZ2LV79": {
+      "upc": "793888351592",
+      "found": true
+    },
+    "ELECTROLUX:TRMKTSS2LV84": {
+      "upc": "485741500116",
+      "found": true
+    },
+    "ELICA:EAR628S2": {
+      "upc": "190603000450",
+      "found": true
+    },
+    "ELICA:EBL430WT": {
+      "upc": "190603001174",
+      "found": true
+    },
+    "ELICA:ECV636S3": {
+      "upc": "190603001969",
+      "found": true
+    },
+    "ELICA:ELN136S2": {
+      "upc": "190603003611",
+      "found": true
+    },
+    "ELICA:ELN142SS": {
+      "upc": "7502232553239",
+      "found": true
+    },
+    "ELICA:ELN630SS": {
+      "upc": "190603000351",
+      "found": true
+    },
+    "ELICA:EMZ630S3": {
+      "upc": "190603002065",
+      "found": true
+    },
+    "ELICA:EORX48SS": {
+      "upc": "190603004854",
+      "found": true
+    },
+    "ELICA:ESL636S2": {
+      "upc": "190603000498",
+      "found": true
+    },
+    "ELICA:ETR134S1": {
+      "upc": "190603002027",
+      "found": true
+    },
+    "ELICA:ETR634SS": {
+      "upc": "190603004229",
+      "found": true
+    },
+    "ELICA:EUM634SS": {
+      "upc": "190603005479",
+      "found": true
+    },
+    "ELICA:EVR630S1": {
+      "upc": "190603000535",
+      "found": true
+    },
+    "ELICA:EVR636S2": {
+      "upc": "190603002164",
+      "found": true
+    },
+    "EPSON:EF12": {
+      "upc": "781052057494",
+      "found": true
+    },
+    "EPSON:ELPLP78": {
+      "upc": "842740073773",
+      "found": true
+    },
+    "EPSON:H956A": {
+      "upc": "647056531791",
+      "found": true
+    },
+    "EPSON:LS500BATV100EP": {
+      "upc": "908833440249",
+      "found": true
+    },
+    "EVERYDROP:EVFILTER5B": {
+      "upc": "883049598307",
+      "found": true
+    },
+    "EVERYDROP:EVFILTERG1B": {
+      "upc": "883049598314",
+      "found": true
+    },
+    "EVERYDROP:EVFILTERL7B": {
+      "upc": "883049598345",
+      "found": true
+    },
+    "EVERYDROP:EVFILTERL8B": {
+      "upc": "883049598352",
+      "found": true
+    },
+    "EVERYDROP:EVFILTERS2B": {
+      "upc": "883049598338",
+      "found": true
+    },
+    "FABER:RB1200": {
+      "upc": "612192210718",
+      "found": true
+    },
+    "FRIGIDAIRE:AIRFRYTRAY": {
+      "upc": "752287559466",
+      "found": true
+    },
+    "FRIGIDAIRE:CFPWD15W": {
+      "upc": "719881100586",
+      "found": true
+    },
+    "FRIGIDAIRE:CPBM3077RF": {
+      "upc": "4883400672604",
+      "found": true
+    },
+    "FRIGIDAIRE:FCFE306CAS": {
+      "upc": "012505514302",
+      "found": true
+    },
+    "FRIGIDAIRE:FCRG3062AS": {
+      "upc": "624112085559",
+      "found": true
+    },
+    "FRIGIDAIRE:FFBC4622QS": {
+      "upc": "695974888862",
+      "found": true
+    },
+    "FRIGIDAIRE:FFBD1831US": {
+      "upc": "376311678970",
+      "found": true
+    },
+    "FRIGIDAIRE:FFBD1831UW": {
+      "upc": "4883400912168",
+      "found": true
+    },
+    "FRIGIDAIRE:FFSS2315TP": {
+      "upc": "340394160516",
+      "found": true
+    },
+    "FRIGIDAIRE:FFUE0725AW": {
+      "upc": "810160850090",
+      "found": true
+    },
+    "FRIGIDAIRE:FGET3065PF": {
+      "upc": "536292135354",
+      "found": true
+    },
+    "FRIGIDAIRE:FGET3066UF": {
+      "upc": "361411258382",
+      "found": true
+    },
+    "FRIGIDAIRE:FGET3069UF": {
+      "upc": "151941887295",
+      "found": true
+    },
+    "FRIGIDAIRE:FGEW3066UF": {
+      "upc": "398883553653",
+      "found": true
+    },
+    "FRIGIDAIRE:FGGS3065PF": {
+      "upc": "753389209730",
+      "found": true
+    },
+    "FRIGIDAIRE:FGHF2367TD": {
+      "upc": "4883400812222",
+      "found": true
+    },
+    "FRIGIDAIRE:FGIC3066TB": {
+      "upc": "147602985769",
+      "found": true
+    },
+    "FRIGIDAIRE:FGIC3666TB": {
+      "upc": "372261002094",
+      "found": true
+    },
+    "FRIGIDAIRE:FGMO3067UF": {
+      "upc": "695102139712",
+      "found": true
+    },
+    "FRIGIDAIRE:FHWC3050RS": {
+      "upc": "4883400788701",
+      "found": true
+    },
+    "FRIGIDAIRE:FPEC3677RF": {
+      "upc": "426127462963",
+      "found": true
+    },
+    "FRIGIDAIRE:GMBS3068BF": {
+      "upc": "810143400229",
+      "found": true
+    },
+    "FRIGIDAIRE:GRFC2353AD": {
+      "upc": "4883401052306",
+      "found": true
+    },
+    "FRIGIDAIRE:GRFC2353AF": {
+      "upc": "4883401052313",
+      "found": true
+    },
+    "FRIGIDAIRE:GRFN2853AF": {
+      "upc": "691835333311",
+      "found": true
+    },
+    "FRIGIDAIRE:MWTK30FGUF": {
+      "upc": "4883400905818",
+      "found": true
+    },
+    "FRIGIDAIRE:MWTK30FPUF": {
+      "upc": "4883400896031",
+      "found": true
+    },
+    "FRIGIDAIRE:PRFS2883AF": {
+      "upc": "691835333618",
+      "found": true
+    },
+    "FRIGIDAIRE:TRMKTEZ2FL79": {
+      "upc": "999999071323",
+      "found": true
+    },
+    "GE:CDT875P2NS1": {
+      "upc": "4883400945364",
+      "found": true
+    },
+    "GE:CGP95302MS1": {
+      "upc": "196107371201",
+      "found": true
+    },
+    "GE:CVW73014MWM": {
+      "upc": "4883400920712",
+      "found": true
+    },
+    "GE:CVW93014MWM": {
+      "upc": "084691842811",
+      "found": true
+    },
+    "GE:CVW93614MWM": {
+      "upc": "084691842804",
+      "found": true
+    },
+    "GE:CXFCHHKPMBT": {
+      "upc": "4883400920958",
+      "found": true
+    },
+    "GE:CXPR6HKPMBZ": {
+      "upc": "4883400953499",
+      "found": true
+    },
+    "GE:CZS22MP2NS1": {
+      "upc": "445486910328",
+      "found": true
+    },
+    "GE:GFA28KITN": {
+      "upc": "669185507898",
+      "found": true
+    },
+    "GE:GFD55ESMNWW": {
+      "upc": "4883400988729",
+      "found": true
+    },
+    "GE:GFD55GSSNWW": {
+      "upc": "735380097288",
+      "found": true
+    },
+    "GE:GFD65ESMNSN": {
+      "upc": "4883400988767",
+      "found": true
+    },
+    "GE:GFT14JSIMWW": {
+      "upc": "4883400965768",
+      "found": true
+    },
+    "GE:GTD68EBMRWS": {
+      "upc": "757638430494",
+      "found": true
+    },
+    "GE:GTW334BMRWS": {
+      "upc": "757638430395",
+      "found": true
+    },
+    "GE:GTX34EBMRWS": {
+      "upc": "757638430449",
+      "found": true
+    },
+    "GE:GWS04HAESS": {
+      "upc": "4883400820753",
+      "found": true
+    },
+    "GE:JBS86SPSS": {
+      "upc": "4883400995383",
+      "found": true
+    },
+    "GE:JCAS640RMSS": {
+      "upc": "4883401033794",
+      "found": true
+    },
+    "GE:JGP5030SLSS": {
+      "upc": "840110518060",
+      "found": true
+    }
+  },
+  "not_found": [
+    "BLUESOUND:BP100 BLK",
+    "BLUESOUND:POWERNODE 2 BLK",
+    "BLUESOUND:PULSE SUB BLK",
+    "BLUESOUND:WM100 BLK",
+    "BLUESOUND:WM100 WHT"
+  ],
+  "updated": [
+    {
+      "id": 26738,
+      "model": "MAS365GASXV",
+      "brand": "BERTAZZONI",
+      "upc": "8057971104420"
+    },
+    {
+      "id": 26739,
+      "model": "CP37I482SB",
+      "brand": "BEST",
+      "upc": "026715186525"
+    },
+    {
+      "id": 26740,
+      "model": "DV17600W",
+      "brand": "BLOMBERG",
+      "upc": "8690842162916"
+    },
+    {
+      "id": 26426,
+      "model": "WM72200W",
+      "brand": "BLOMBERG",
+      "upc": "8690842162633"
+    },
+    {
+      "id": 26743,
+      "model": "PULSE SOUNDBAR BLK",
+      "brand": "BLUESOUND",
+      "upc": "5703120290546"
+    },
+    {
+      "id": 26436,
+      "model": "B11CB50SSS",
+      "brand": "BOSCH",
+      "upc": "825225908852"
+    },
+    {
+      "id": 26774,
+      "model": "B36BT830NS",
+      "brand": "BOSCH",
+      "upc": "825225899174"
+    },
+    {
+      "id": 26437,
+      "model": "B36CL80SNS",
+      "brand": "BOSCH",
+      "upc": "825225953630"
+    },
+    {
+      "id": 1017,
+      "model": "EP-T4510",
+      "brand": "Samsung",
+      "upc": "324567978917"
+    },
+    {
+      "id": 1011,
+      "model": "RF28T5001SR",
+      "brand": "Samsung",
+      "upc": "887276429380"
+    },
+    {
+      "id": 1009,
+      "model": "SM-S928B",
+      "brand": "Samsung",
+      "upc": "728944660295"
+    },
+    {
+      "id": 27370,
+      "model": "DA29",
+      "brand": "SAMSUNG",
+      "upc": "717661457738"
+    },
+    {
+      "id": 26163,
+      "model": "DF60R8200DG",
+      "brand": "SAMSUNG",
+      "upc": "887276369044"
+    },
+    {
+      "id": 26652,
+      "model": "DVE45B6305P",
+      "brand": "SAMSUNG",
+      "upc": "887276652153"
+    },
+    {
+      "id": 27361,
+      "model": "DVE50BG8300V",
+      "brand": "SAMSUNG",
+      "upc": "887276660875"
+    },
+    {
+      "id": 27362,
+      "model": "DVE52B7650V",
+      "brand": "SAMSUNG",
+      "upc": "887276618661"
+    },
+    {
+      "id": 27363,
+      "model": "DVE53BB8900TAC",
+      "brand": "SAMSUNG",
+      "upc": "887276660127"
+    },
+    {
+      "id": 27364,
+      "model": "DVE60M9900V",
+      "brand": "SAMSUNG",
+      "upc": "887276197562"
+    },
+    {
+      "id": 25587,
+      "model": "DW80B7070AP",
+      "brand": "SAMSUNG",
+      "upc": "887276609690"
+    },
+    {
+      "id": 27360,
+      "model": "DW80CG4021SRAA",
+      "brand": "SAMSUNG",
+      "upc": "887276772882"
+    },
+    {
+      "id": 25549,
+      "model": "HAFEX/XAA",
+      "brand": "SAMSUNG",
+      "upc": "4480672327562"
+    },
+    {
+      "id": 27401,
+      "model": "HW-B450/ZC",
+      "brand": "SAMSUNG",
+      "upc": "887276636306"
+    },
+    {
+      "id": 27396,
+      "model": "HW-B550/ZC",
+      "brand": "SAMSUNG",
+      "upc": "279807970858"
+    },
+    {
+      "id": 27402,
+      "model": "HW-B750D/ZC",
+      "brand": "SAMSUNG",
+      "upc": "887276827209"
+    },
+    {
+      "id": 27405,
+      "model": "HW-LS60D/ZC",
+      "brand": "SAMSUNG",
+      "upc": "887276824321"
+    },
+    {
+      "id": 25969,
+      "model": "HWMS6500",
+      "brand": "SAMSUNG",
+      "upc": "761132909516"
+    },
+    {
+      "id": 25581,
+      "model": "HW-Q600B/ZC",
+      "brand": "SAMSUNG",
+      "upc": "887276636283"
+    },
+    {
+      "id": 25835,
+      "model": "HW-Q60B/ZC",
+      "brand": "SAMSUNG",
+      "upc": "887276636290"
+    },
+    {
+      "id": 26660,
+      "model": "HW-Q700B/ZC",
+      "brand": "SAMSUNG",
+      "upc": "887276637549"
+    },
+    {
+      "id": 27398,
+      "model": "HW-Q800A/ZC",
+      "brand": "SAMSUNG",
+      "upc": "887276524641"
+    },
+    {
+      "id": 27403,
+      "model": "HW-Q800D/ZC",
+      "brand": "SAMSUNG",
+      "upc": "196641135185"
+    },
+    {
+      "id": 25609,
+      "model": "HW-S61A/ZC",
+      "brand": "SAMSUNG",
+      "upc": "768677912513"
+    },
+    {
+      "id": 27404,
+      "model": "HW-S800D",
+      "brand": "SAMSUNG",
+      "upc": "887276823942"
+    },
+    {
+      "id": 27387,
+      "model": "HW-S800D/ZC",
+      "brand": "SAMSUNG",
+      "upc": "887276823942"
+    },
+    {
+      "id": 27400,
+      "model": "HW-S801B/ZC",
+      "brand": "SAMSUNG",
+      "upc": "887276637686"
+    },
+    {
+      "id": 25561,
+      "model": "MATK8020TG",
+      "brand": "SAMSUNG",
+      "upc": "887276224459"
+    },
+    {
+      "id": 27407,
+      "model": "MATK8020TS",
+      "brand": "SAMSUNG",
+      "upc": "887276224466"
+    },
+    {
+      "id": 27379,
+      "model": "MC11J7033CT",
+      "brand": "SAMSUNG",
+      "upc": "887276140230"
+    },
+    {
+      "id": 25834,
+      "model": "ME11A7510DS",
+      "brand": "SAMSUNG",
+      "upc": "887276551449"
+    },
+    {
+      "id": 25637,
+      "model": "ME21A706BQN",
+      "brand": "SAMSUNG",
+      "upc": "887276586007"
+    },
+    {
+      "id": 26169,
+      "model": "ME21A706BQN/AC",
+      "brand": "SAMSUNG",
+      "upc": "887276586007"
+    },
+    {
+      "id": 26168,
+      "model": "MS19M8020TG",
+      "brand": "SAMSUNG",
+      "upc": "887276212067"
+    },
+    {
+      "id": 25638,
+      "model": "MX-ST50B/ZC",
+      "brand": "SAMSUNG",
+      "upc": "887276646572"
+    },
+    {
+      "id": 27359,
+      "model": "NA30K7750TG",
+      "brand": "SAMSUNG",
+      "upc": "887276183299"
+    },
+    {
+      "id": 27372,
+      "model": "NA30R5310FS/AA",
+      "brand": "SAMSUNG",
+      "upc": "887276298924"
+    },
+    {
+      "id": 27373,
+      "model": "NA36N7755TS",
+      "brand": "SAMSUNG",
+      "upc": "887276281766"
+    },
+    {
+      "id": 27367,
+      "model": "NE63A6711SG/AC",
+      "brand": "SAMSUNG",
+      "upc": "887276509464"
+    },
+    {
+      "id": 27377,
+      "model": "NE63T8911SS/AC",
+      "brand": "SAMSUNG",
+      "upc": "887276415048"
+    },
+    {
+      "id": 27378,
+      "model": "NE63T8951SS/AC",
+      "brand": "SAMSUNG",
+      "upc": "887276415086"
+    },
+    {
+      "id": 25571,
+      "model": "NK30K7000WG",
+      "brand": "SAMSUNG",
+      "upc": "887276182957"
+    },
+    {
+      "id": 25656,
+      "model": "NK30K7000WS",
+      "brand": "SAMSUNG",
+      "upc": "887276182964"
+    },
+    {
+      "id": 26653,
+      "model": "NK30N7000UG",
+      "brand": "SAMSUNG",
+      "upc": "887276262758"
+    },
+    {
+      "id": 27375,
+      "model": "NK30N7000US",
+      "brand": "SAMSUNG",
+      "upc": "887276262765"
+    },
+    {
+      "id": 25576,
+      "model": "NK30R5000WS",
+      "brand": "SAMSUNG",
+      "upc": "887276302027"
+    },
+    {
+      "id": 26659,
+      "model": "NK36K7000WG",
+      "brand": "SAMSUNG",
+      "upc": "887276245270"
+    },
+    {
+      "id": 27376,
+      "model": "NK36K7000WS",
+      "brand": "SAMSUNG",
+      "upc": "887276245287"
+    },
+    {
+      "id": 27369,
+      "model": "NK-AE705PWG/AA",
+      "brand": "SAMSUNG",
+      "upc": "887276252186"
+    },
+    {
+      "id": 27374,
+      "model": "NSG6DG8500MTAA",
+      "brand": "SAMSUNG",
+      "upc": "400065815531"
+    },
+    {
+      "id": 25963,
+      "model": "NV51K7770DG",
+      "brand": "SAMSUNG",
+      "upc": "887276181677"
+    },
+    {
+      "id": 27358,
+      "model": "NV51K7770DS",
+      "brand": "SAMSUNG",
+      "upc": "887276181684"
+    },
+    {
+      "id": 27386,
+      "model": "NY36R9966PS",
+      "brand": "SAMSUNG",
+      "upc": "887276292601"
+    },
+    {
+      "id": 26650,
+      "model": "NZ30R5330RK",
+      "brand": "SAMSUNG",
+      "upc": "887276299013"
+    },
+    {
+      "id": 27382,
+      "model": "QN100QN80FFXZC",
+      "brand": "SAMSUNG",
+      "upc": "887276932293"
+    },
+    {
+      "id": 25750,
+      "model": "QN32LS03TBFXZC",
+      "brand": "SAMSUNG",
+      "upc": "887276418490"
+    },
+    {
+      "id": 26171,
+      "model": "QN43LS05TAFXZC",
+      "brand": "SAMSUNG",
+      "upc": "887276411880"
+    },
+    {
+      "id": 25967,
+      "model": "QN43QN90DAFXZC",
+      "brand": "SAMSUNG",
+      "upc": "887276817163"
+    },
+    {
+      "id": 27371,
+      "model": "QN65LS03FAFXZC",
+      "brand": "SAMSUNG",
+      "upc": "198957005398"
+    },
+    {
+      "id": 27383,
+      "model": "QN65Q8FAAFXZC",
+      "brand": "SAMSUNG",
+      "upc": "814561024333"
+    },
+    {
+      "id": 26655,
+      "model": "RA-F18DBB35/AA",
+      "brand": "SAMSUNG",
+      "upc": "887276532981"
+    },
+    {
+      "id": 27412,
+      "model": "RA-F18DU412/AA",
+      "brand": "SAMSUNG",
+      "upc": "887276628738"
+    },
+    {
+      "id": 26651,
+      "model": "RA-F18DU4C0/AA",
+      "brand": "SAMSUNG",
+      "upc": "887276648033"
+    },
+    {
+      "id": 25639,
+      "model": "RA-F18DU4QL/AA",
+      "brand": "SAMSUNG",
+      "upc": "887276628752"
+    },
+    {
+      "id": 25547,
+      "model": "RA-F18DU4QN/AA",
+      "brand": "SAMSUNG",
+      "upc": "887276628585"
+    },
+    {
+      "id": 25966,
+      "model": "RA-F36DB4QL/AA",
+      "brand": "SAMSUNG",
+      "upc": "799819054419"
+    },
+    {
+      "id": 25608,
+      "model": "RA-F36DMMQL/AA",
+      "brand": "SAMSUNG",
+      "upc": "887276628943"
+    },
+    {
+      "id": 25580,
+      "model": "RF23BB8200AP",
+      "brand": "SAMSUNG",
+      "upc": "660357645547"
+    },
+    {
+      "id": 27391,
+      "model": "RF23BB8200APAA",
+      "brand": "SAMSUNG",
+      "upc": "887276624181"
+    },
+    {
+      "id": 27392,
+      "model": "RF23BB8900AWAC",
+      "brand": "SAMSUNG",
+      "upc": "887276639789"
+    },
+    {
+      "id": 27390,
+      "model": "RF23DB9700QLAA",
+      "brand": "SAMSUNG",
+      "upc": "400065816033"
+    },
+    {
+      "id": 27393,
+      "model": "RF25C5551SR/AA",
+      "brand": "SAMSUNG",
+      "upc": "887276719023"
+    },
+    {
+      "id": 27394,
+      "model": "RF27T5201SG",
+      "brand": "SAMSUNG",
+      "upc": "887276408712"
+    },
+    {
+      "id": 27395,
+      "model": "RF29A9071SG/AC",
+      "brand": "SAMSUNG",
+      "upc": "887276525693"
+    },
+    {
+      "id": 27368,
+      "model": "SEK2000/ZA",
+      "brand": "SAMSUNG",
+      "upc": "887276121154"
+    },
+    {
+      "id": 26176,
+      "model": "SKK-9MCD",
+      "brand": "SAMSUNG",
+      "upc": "887276667362"
+    },
+    {
+      "id": 27406,
+      "model": "SKK-BB",
+      "brand": "SAMSUNG",
+      "upc": "887276045535"
+    },
+    {
+      "id": 25752,
+      "model": "SP-LSP3BLA",
+      "brand": "SAMSUNG",
+      "upc": "151414423784"
+    },
+    {
+      "id": 27351,
+      "model": "SP-LSP3BLAXZC",
+      "brand": "SAMSUNG",
+      "upc": "887276628509"
+    },
+    {
+      "id": 26656,
+      "model": "SP-LSP7TFAXZC",
+      "brand": "SAMSUNG",
+      "upc": "887276476483"
+    },
+    {
+      "id": 26664,
+      "model": "SWA-9100S",
+      "brand": "SAMSUNG",
+      "upc": "887276524597"
+    },
+    {
+      "id": 27357,
+      "model": "UBDM8500",
+      "brand": "SAMSUNG",
+      "upc": "667379197856"
+    },
+    {
+      "id": 27409,
+      "model": "UN40N5200AFXZC",
+      "brand": "SAMSUNG",
+      "upc": "887276369808"
+    },
+    {
+      "id": 27410,
+      "model": "UN43DU8000FXZC",
+      "brand": "SAMSUNG",
+      "upc": "887276824390"
+    },
+    {
+      "id": 26662,
+      "model": "UN43U7900FFXZC",
+      "brand": "SAMSUNG",
+      "upc": "887276953939"
+    },
+    {
+      "id": 26661,
+      "model": "UN50U7900FFXZC",
+      "brand": "SAMSUNG",
+      "upc": "887276953946"
+    },
+    {
+      "id": 26663,
+      "model": "UN65U7900FFXZC",
+      "brand": "SAMSUNG",
+      "upc": "887276953977"
+    },
+    {
+      "id": 25675,
+      "model": "UN65U8000FFXZC",
+      "brand": "SAMSUNG",
+      "upc": "887276953670"
+    },
+    {
+      "id": 27411,
+      "model": "UN85U8000FFXZC",
+      "brand": "SAMSUNG",
+      "upc": "887276953694"
+    },
+    {
+      "id": 25567,
+      "model": "VG-KBD2000",
+      "brand": "SAMSUNG",
+      "upc": "887276019093"
+    },
+    {
+      "id": 27353,
+      "model": "VG-SCFT50WT",
+      "brand": "SAMSUNG",
+      "upc": "887276394299"
+    },
+    {
+      "id": 25964,
+      "model": "VG-SDCC75G/ZC",
+      "brand": "SAMSUNG",
+      "upc": "887276764894"
+    },
+    {
+      "id": 25702,
+      "model": "VGSGSM11S",
+      "brand": "SAMSUNG",
+      "upc": "818241591221"
+    },
+    {
+      "id": 27388,
+      "model": "VL351",
+      "brand": "SAMSUNG",
+      "upc": "887276268996"
+    },
+    {
+      "id": 27389,
+      "model": "VL550",
+      "brand": "SAMSUNG",
+      "upc": "887276259154"
+    },
+    {
+      "id": 25833,
+      "model": "WAM250",
+      "brand": "SAMSUNG",
+      "upc": "887276849041"
+    },
+    {
+      "id": 25596,
+      "model": "WE402NP/A3",
+      "brand": "SAMSUNG",
+      "upc": "887276310138"
+    },
+    {
+      "id": 26170,
+      "model": "WE402NV",
+      "brand": "SAMSUNG",
+      "upc": "887276310145"
+    },
+    {
+      "id": 27416,
+      "model": "WF45T6000AV",
+      "brand": "SAMSUNG",
+      "upc": "887276436548"
+    },
+    {
+      "id": 27413,
+      "model": "WMNM21EB",
+      "brand": "SAMSUNG",
+      "upc": "887276224008"
+    },
+    {
+      "id": 26141,
+      "model": "DLE3400W",
+      "brand": "LG",
+      "upc": "772454073168"
+    },
+    {
+      "id": 27142,
+      "model": "DLE8200W",
+      "brand": "LG",
+      "upc": "195174089088"
+    },
+    {
+      "id": 27143,
+      "model": "DLEX6500B",
+      "brand": "LG",
+      "upc": "195174052945"
+    },
+    {
+      "id": 27144,
+      "model": "DLEX8900B",
+      "brand": "LG",
+      "upc": "195174024836"
+    },
+    {
+      "id": 27145,
+      "model": "DLHC1455P",
+      "brand": "LG",
+      "upc": "772454074950"
+    },
+    {
+      "id": 27156,
+      "model": "HU715Q",
+      "brand": "LG",
+      "upc": "635737554979"
+    },
+    {
+      "id": 26593,
+      "model": "HU915QE",
+      "brand": "LG",
+      "upc": "195174037546"
+    },
+    {
+      "id": 26144,
+      "model": "KSTK2",
+      "brand": "LG",
+      "upc": "850012177234"
+    },
+    {
+      "id": 27140,
+      "model": "LDPH5554D",
+      "brand": "LG",
+      "upc": "048231347693"
+    },
+    {
+      "id": 27149,
+      "model": "LMC1575SB",
+      "brand": "LG",
+      "upc": "658917738402"
+    },
+    {
+      "id": 25944,
+      "model": "LMV2257BD",
+      "brand": "LG",
+      "upc": "695102157679"
+    },
+    {
+      "id": 27160,
+      "model": "LRFCS29D6S",
+      "brand": "LG",
+      "upc": "195174047071"
+    },
+    {
+      "id": 25822,
+      "model": "LRMNC1803S",
+      "brand": "LG",
+      "upc": "695102103386"
+    },
+    {
+      "id": 25946,
+      "model": "LROFC1104V",
+      "brand": "LG",
+      "upc": "195174010440"
+    },
+    {
+      "id": 26142,
+      "model": "LRONC1404V",
+      "brand": "LG",
+      "upc": "195174010433"
+    },
+    {
+      "id": 26594,
+      "model": "LSE5613BD",
+      "brand": "LG",
+      "upc": "772454068096"
+    },
+    {
+      "id": 27148,
+      "model": "LSEL6337XE",
+      "brand": "LG",
+      "upc": "048231348928"
+    },
+    {
+      "id": 25745,
+      "model": "LSHD3080ST",
+      "brand": "LG",
+      "upc": "4883401049719"
+    },
+    {
+      "id": 27157,
+      "model": "LSHD3089BD",
+      "brand": "LG",
+      "upc": "4883401049726"
+    },
+    {
+      "id": 27163,
+      "model": "LSIS3018SS",
+      "brand": "LG",
+      "upc": "048231341653"
+    },
+    {
+      "id": 27146,
+      "model": "LSWS306ST",
+      "brand": "LG",
+      "upc": "322262768543"
+    },
+    {
+      "id": 27162,
+      "model": "LTCS20020S",
+      "brand": "LG",
+      "upc": "685208334838"
+    },
+    {
+      "id": 27158,
+      "model": "LTCS20020W",
+      "brand": "LG",
+      "upc": "195174001448"
+    },
+    {
+      "id": 27147,
+      "model": "LWS3063BD",
+      "brand": "LG",
+      "upc": "697842454087"
+    },
+    {
+      "id": 25744,
+      "model": "MSER1130B",
+      "brand": "LG",
+      "upc": "195174109953"
+    },
+    {
+      "id": 27155,
+      "model": "MVEL2137F",
+      "brand": "LG",
+      "upc": "739807139599"
+    },
+    {
+      "id": 27150,
+      "model": "OLED48C2PUA",
+      "brand": "LG",
+      "upc": "195174028865"
+    },
+    {
+      "id": 1002,
+      "model": "OLED55C3",
+      "brand": "LG",
+      "upc": "195174050279"
+    },
+    {
+      "id": 27154,
+      "model": "OLED77G4WUA",
+      "brand": "LG",
+      "upc": "195174076736"
+    },
+    {
+      "id": 26145,
+      "model": "S3RFBN",
+      "brand": "LG",
+      "upc": "221585880096"
+    },
+    {
+      "id": 26143,
+      "model": "SC9S",
+      "brand": "LG",
+      "upc": "195174049297"
+    },
+    {
+      "id": 26146,
+      "model": "WD200CB",
+      "brand": "LG",
+      "upc": "048231026482"
+    },
+    {
+      "id": 27169,
+      "model": "WM3400CW",
+      "brand": "LG",
+      "upc": "110914205344"
+    },
+    {
+      "id": 27170,
+      "model": "WM3555HVA",
+      "brand": "LG",
+      "upc": "4883400978386"
+    },
+    {
+      "id": 1012,
+      "model": "WM4000HWA",
+      "brand": "LG",
+      "upc": "452823369114"
+    },
+    {
+      "id": 26596,
+      "model": "WM6700HBA",
+      "brand": "LG",
+      "upc": "195174037058"
+    },
+    {
+      "id": 27087,
+      "model": "EDR2RXD1B",
+      "brand": "KITCHENAID",
+      "upc": "883049369846"
+    },
+    {
+      "id": 25541,
+      "model": "EDR4RXD1B",
+      "brand": "KITCHENAID",
+      "upc": "641676575777"
+    },
+    {
+      "id": 27052,
+      "model": "EXTKIT06ES",
+      "brand": "KITCHENAID",
+      "upc": "883049385976"
+    },
+    {
+      "id": 26513,
+      "model": "JIC4536XB",
+      "brand": "KITCHENAID",
+      "upc": "883049231488"
+    },
+    {
+      "id": 27082,
+      "model": "KBBL306EPA",
+      "brand": "KITCHENAID",
+      "upc": "883049336800"
+    },
+    {
+      "id": 26561,
+      "model": "KBFN502ESS",
+      "brand": "KITCHENAID",
+      "upc": "883049336947"
+    },
+    {
+      "id": 27068,
+      "model": "KBSD606ESS",
+      "brand": "KITCHENAID",
+      "upc": "883049357201"
+    },
+    {
+      "id": 26562,
+      "model": "KBSN602EBS",
+      "brand": "KITCHENAID",
+      "upc": "883049412016"
+    },
+    {
+      "id": 26533,
+      "model": "KCES956KSS",
+      "brand": "KITCHENAID",
+      "upc": "883049599038"
+    },
+    {
+      "id": 26107,
+      "model": "KCG8433BM",
+      "brand": "KITCHENAID",
+      "upc": "883049522739"
+    },
+    {
+      "id": 26106,
+      "model": "KCG8433DG",
+      "brand": "KITCHENAID",
+      "upc": "883049522746"
+    },
+    {
+      "id": 27027,
+      "model": "KCGC558JSS",
+      "brand": "KITCHENAID",
+      "upc": "883049528335"
+    },
+    {
+      "id": 26516,
+      "model": "KCGS350ESS",
+      "brand": "KITCHENAID",
+      "upc": "883049330280"
+    },
+    {
+      "id": 25812,
+      "model": "KCGS550ESS",
+      "brand": "KITCHENAID",
+      "upc": "883049330266"
+    },
+    {
+      "id": 26108,
+      "model": "KCM1208DG",
+      "brand": "KITCHENAID",
+      "upc": "789993153763"
+    },
+    {
+      "id": 25923,
+      "model": "KCM1208OB",
+      "brand": "KITCHENAID",
+      "upc": "883049545103"
+    },
+    {
+      "id": 26512,
+      "model": "KCM1209DG",
+      "brand": "KITCHENAID",
+      "upc": "883049523453"
+    },
+    {
+      "id": 26102,
+      "model": "KCO211BM",
+      "brand": "KITCHENAID",
+      "upc": "883049523248"
+    },
+    {
+      "id": 27046,
+      "model": "KCO273SS",
+      "brand": "KITCHENAID",
+      "upc": "883049298795"
+    },
+    {
+      "id": 27023,
+      "model": "KCO275SS",
+      "brand": "KITCHENAID",
+      "upc": "883049370804"
+    },
+    {
+      "id": 27067,
+      "model": "KDRS407VSS",
+      "brand": "KITCHENAID",
+      "upc": "883049155678"
+    },
+    {
+      "id": 27041,
+      "model": "KDTE204KWH",
+      "brand": "KITCHENAID",
+      "upc": "883049540658"
+    },
+    {
+      "id": 27051,
+      "model": "KDTS224SPS",
+      "brand": "KITCHENAID",
+      "upc": "883049695334"
+    },
+    {
+      "id": 25924,
+      "model": "KES6403BM",
+      "brand": "KITCHENAID",
+      "upc": "883049526607"
+    },
+    {
+      "id": 25920,
+      "model": "KES6403DG",
+      "brand": "KITCHENAID",
+      "upc": "883049526621"
+    },
+    {
+      "id": 26109,
+      "model": "KES6404BM",
+      "brand": "KITCHENAID",
+      "upc": "883049526645"
+    },
+    {
+      "id": 25928,
+      "model": "KESMK4BM",
+      "brand": "KITCHENAID",
+      "upc": "883049526676"
+    },
+    {
+      "id": 25929,
+      "model": "KESMK4DG",
+      "brand": "KITCHENAID",
+      "upc": "883049526683"
+    },
+    {
+      "id": 25930,
+      "model": "KESMK5OB",
+      "brand": "KITCHENAID",
+      "upc": "883049543208"
+    },
+    {
+      "id": 25917,
+      "model": "KESMK5SX",
+      "brand": "KITCHENAID",
+      "upc": "883049543215"
+    },
+    {
+      "id": 27037,
+      "model": "KEWS105BSS",
+      "brand": "KITCHENAID",
+      "upc": "883049271224"
+    },
+    {
+      "id": 27053,
+      "model": "KFC3516IB",
+      "brand": "KITCHENAID",
+      "upc": "883049487342"
+    },
+    {
+      "id": 26535,
+      "model": "KFC3516IC",
+      "brand": "KITCHENAID",
+      "upc": "883049407210"
+    },
+    {
+      "id": 26536,
+      "model": "KFCB519BM",
+      "brand": "KITCHENAID",
+      "upc": "541321937496"
+    },
+    {
+      "id": 26537,
+      "model": "KFCB519DG",
+      "brand": "KITCHENAID",
+      "upc": "883049535241"
+    },
+    {
+      "id": 27054,
+      "model": "KFCB519OB",
+      "brand": "KITCHENAID",
+      "upc": "883049535289"
+    },
+    {
+      "id": 26538,
+      "model": "KFCB519WH",
+      "brand": "KITCHENAID",
+      "upc": "883049535265"
+    },
+    {
+      "id": 27074,
+      "model": "KFDC500JSS",
+      "brand": "KITCHENAID",
+      "upc": "883049528212"
+    },
+    {
+      "id": 25922,
+      "model": "KFDC506JPA",
+      "brand": "KITCHENAID",
+      "upc": "883049529165"
+    },
+    {
+      "id": 26527,
+      "model": "KFGC558JSS",
+      "brand": "KITCHENAID",
+      "upc": "883049528182"
+    },
+    {
+      "id": 26522,
+      "model": "KFGG500EBS",
+      "brand": "KITCHENAID",
+      "upc": "883049413518"
+    },
+    {
+      "id": 27047,
+      "model": "KFGG500ESS",
+      "brand": "KITCHENAID",
+      "upc": "883049354859"
+    },
+    {
+      "id": 25925,
+      "model": "KFP0718BM",
+      "brand": "KITCHENAID",
+      "upc": "883049473864"
+    },
+    {
+      "id": 25926,
+      "model": "KFP0718CU",
+      "brand": "KITCHENAID",
+      "upc": "883049473840"
+    },
+    {
+      "id": 27055,
+      "model": "KFP0718ER",
+      "brand": "KITCHENAID",
+      "upc": "883049465876"
+    },
+    {
+      "id": 25814,
+      "model": "KFP0718OB",
+      "brand": "KITCHENAID",
+      "upc": "883049465883"
+    },
+    {
+      "id": 25927,
+      "model": "KFP0718WH",
+      "brand": "KITCHENAID",
+      "upc": "883049467412"
+    },
+    {
+      "id": 26110,
+      "model": "KFP0921BM",
+      "brand": "KITCHENAID",
+      "upc": "883049616001"
+    },
+    {
+      "id": 27056,
+      "model": "KFP0921ER",
+      "brand": "KITCHENAID",
+      "upc": "883049616018"
+    },
+    {
+      "id": 26539,
+      "model": "KFP0921OB",
+      "brand": "KITCHENAID",
+      "upc": "883049615905"
+    },
+    {
+      "id": 26540,
+      "model": "KFP1319BM",
+      "brand": "KITCHENAID",
+      "upc": "883049599335"
+    },
+    {
+      "id": 26112,
+      "model": "KFP1319CU",
+      "brand": "KITCHENAID",
+      "upc": "883049608822"
+    },
+    {
+      "id": 26101,
+      "model": "KFP1319WH",
+      "brand": "KITCHENAID",
+      "upc": "883049599359"
+    },
+    {
+      "id": 27032,
+      "model": "KGCK346BSS",
+      "brand": "KITCHENAID",
+      "upc": "883049258997"
+    },
+    {
+      "id": 25933,
+      "model": "KGCU407VSS",
+      "brand": "KITCHENAID",
+      "upc": "883049155951"
+    },
+    {
+      "id": 26525,
+      "model": "KGCU462VSS",
+      "brand": "KITCHENAID",
+      "upc": "883049155968"
+    },
+    {
+      "id": 26542,
+      "model": "KHBBV53BM",
+      "brand": "KITCHENAID",
+      "upc": "883049544786"
+    },
+    {
+      "id": 26543,
+      "model": "KHBBV53DG",
+      "brand": "KITCHENAID",
+      "upc": "883049546001"
+    },
+    {
+      "id": 26530,
+      "model": "KHBBV53ER",
+      "brand": "KITCHENAID",
+      "upc": "883049546049"
+    },
+    {
+      "id": 27059,
+      "model": "KHBBV53OB",
+      "brand": "KITCHENAID",
+      "upc": "541321937465"
+    },
+    {
+      "id": 26113,
+      "model": "KHBBV53PA",
+      "brand": "KITCHENAID",
+      "upc": "883049544793"
+    },
+    {
+      "id": 27060,
+      "model": "KHBBV53WH",
+      "brand": "KITCHENAID",
+      "upc": "883049546018"
+    },
+    {
+      "id": 26114,
+      "model": "KHBBV83BM",
+      "brand": "KITCHENAID",
+      "upc": "883049535456"
+    },
+    {
+      "id": 26544,
+      "model": "KHBBV83DG",
+      "brand": "KITCHENAID",
+      "upc": "541321937465"
+    },
+    {
+      "id": 26545,
+      "model": "KHBBV83ER",
+      "brand": "KITCHENAID",
+      "upc": "883049544779"
+    },
+    {
+      "id": 26546,
+      "model": "KHBBV83OB",
+      "brand": "KITCHENAID",
+      "upc": "883049535463"
+    },
+    {
+      "id": 26115,
+      "model": "KHBBV83PA",
+      "brand": "KITCHENAID",
+      "upc": "610665142375"
+    },
+    {
+      "id": 26116,
+      "model": "KHBBV83WH",
+      "brand": "KITCHENAID",
+      "upc": "634707076480"
+    },
+    {
+      "id": 26547,
+      "model": "KHBV53AQ",
+      "brand": "KITCHENAID",
+      "upc": "883049584058"
+    },
+    {
+      "id": 26117,
+      "model": "KHBV53IB",
+      "brand": "KITCHENAID",
+      "upc": "883049546155"
+    },
+    {
+      "id": 27061,
+      "model": "KHBV53OB",
+      "brand": "KITCHENAID",
+      "upc": "883049546100"
+    },
+    {
+      "id": 27057,
+      "model": "KHBV53WH",
+      "brand": "KITCHENAID",
+      "upc": "883049546094"
+    },
+    {
+      "id": 27025,
+      "model": "KHM512BM",
+      "brand": "KITCHENAID",
+      "upc": "883049458762"
+    },
+    {
+      "id": 27075,
+      "model": "KHM512BY",
+      "brand": "KITCHENAID",
+      "upc": "883049290409"
+    },
+    {
+      "id": 27076,
+      "model": "KHM512GA",
+      "brand": "KITCHENAID",
+      "upc": "883049270661"
+    },
+    {
+      "id": 26548,
+      "model": "KHM7210CU",
+      "brand": "KITCHENAID",
+      "upc": "883049271040"
+    },
+    {
+      "id": 26518,
+      "model": "KHM926CA",
+      "brand": "KITCHENAID",
+      "upc": "883049260822"
+    },
+    {
+      "id": 26549,
+      "model": "KHM926ER",
+      "brand": "KITCHENAID",
+      "upc": "883049260853"
+    },
+    {
+      "id": 26121,
+      "model": "KHM926OB",
+      "brand": "KITCHENAID",
+      "upc": "883049260860"
+    },
+    {
+      "id": 26118,
+      "model": "KHMB732BM",
+      "brand": "KITCHENAID",
+      "upc": "883049535210"
+    },
+    {
+      "id": 27063,
+      "model": "KHMB732DG",
+      "brand": "KITCHENAID",
+      "upc": "541321937472"
+    },
+    {
+      "id": 26550,
+      "model": "KHMB732ER",
+      "brand": "KITCHENAID",
+      "upc": "883049544762"
+    },
+    {
+      "id": 26119,
+      "model": "KHMB732OB",
+      "brand": "KITCHENAID",
+      "upc": "610665142382"
+    },
+    {
+      "id": 27064,
+      "model": "KHMB732PA",
+      "brand": "KITCHENAID",
+      "upc": "541321937472"
+    },
+    {
+      "id": 25816,
+      "model": "KMBD104GSS",
+      "brand": "KITCHENAID",
+      "upc": "883049462202"
+    },
+    {
+      "id": 26532,
+      "model": "KODE500EBS",
+      "brand": "KITCHENAID",
+      "upc": "883049362373"
+    },
+    {
+      "id": 25696,
+      "model": "KODE500ESS",
+      "brand": "KITCHENAID",
+      "upc": "883049327327"
+    },
+    {
+      "id": 25697,
+      "model": "KOSE500EBS",
+      "brand": "KITCHENAID",
+      "upc": "883049362366"
+    },
+    {
+      "id": 27049,
+      "model": "KOWT100EBS",
+      "brand": "KITCHENAID",
+      "upc": "883049577227"
+    },
+    {
+      "id": 25698,
+      "model": "KOWT100ESS",
+      "brand": "KITCHENAID",
+      "upc": "883049353807"
+    },
+    {
+      "id": 27050,
+      "model": "KOWT104ESS",
+      "brand": "KITCHENAID",
+      "upc": "883049353821"
+    },
+    {
+      "id": 26551,
+      "model": "KP26M1XMH",
+      "brand": "KITCHENAID",
+      "upc": "883049460727"
+    },
+    {
+      "id": 27033,
+      "model": "KP26M1XOB",
+      "brand": "KITCHENAID",
+      "upc": "883049064734"
+    },
+    {
+      "id": 26552,
+      "model": "KP26M1XSL",
+      "brand": "KITCHENAID",
+      "upc": "883049328256"
+    },
+    {
+      "id": 27048,
+      "model": "KRFF302EBS",
+      "brand": "KITCHENAID",
+      "upc": "883049416755"
+    },
+    {
+      "id": 26521,
+      "model": "KSB2030PJB",
+      "brand": "KITCHENAID",
+      "upc": "883049534220"
+    },
+    {
+      "id": 27031,
+      "model": "KSB4027CU",
+      "brand": "KITCHENAID",
+      "upc": "649661440895"
+    },
+    {
+      "id": 27073,
+      "model": "KSBC1B0BM",
+      "brand": "KITCHENAID",
+      "upc": "883049421629"
+    },
+    {
+      "id": 26553,
+      "model": "KSM150PSAQ",
+      "brand": "KITCHENAID",
+      "upc": "883049143705"
+    },
+    {
+      "id": 27071,
+      "model": "KSM150PSIB",
+      "brand": "KITCHENAID",
+      "upc": "883049460253"
+    },
+    {
+      "id": 27030,
+      "model": "KSM150PSIC",
+      "brand": "KITCHENAID",
+      "upc": "8859100229239"
+    },
+    {
+      "id": 27035,
+      "model": "KSM150PSMA",
+      "brand": "KITCHENAID",
+      "upc": "883049602509"
+    },
+    {
+      "id": 26554,
+      "model": "KSM150PSMI",
+      "brand": "KITCHENAID",
+      "upc": "883049601038"
+    },
+    {
+      "id": 26555,
+      "model": "KSM150PSPA",
+      "brand": "KITCHENAID",
+      "upc": "883049601045"
+    },
+    {
+      "id": 27084,
+      "model": "KSM150PSPT",
+      "brand": "KITCHENAID",
+      "upc": "6984658683881"
+    },
+    {
+      "id": 26556,
+      "model": "KSM150PSVB",
+      "brand": "KITCHENAID",
+      "upc": "883049486581"
+    },
+    {
+      "id": 26564,
+      "model": "KSM1APC",
+      "brand": "KITCHENAID",
+      "upc": "883049375700"
+    },
+    {
+      "id": 27026,
+      "model": "KSM35GB",
+      "brand": "KITCHENAID",
+      "upc": "883049480213"
+    },
+    {
+      "id": 27036,
+      "model": "KSM96ER",
+      "brand": "KITCHENAID",
+      "upc": "883049425726"
+    },
+    {
+      "id": 26524,
+      "model": "KSM96IC",
+      "brand": "KITCHENAID",
+      "upc": "600091609870"
+    },
+    {
+      "id": 27072,
+      "model": "KSMPEXTA",
+      "brand": "KITCHENAID",
+      "upc": "883049392165"
+    },
+    {
+      "id": 27021,
+      "model": "KSMSFTA",
+      "brand": "KITCHENAID",
+      "upc": "883049478487"
+    },
+    {
+      "id": 25695,
+      "model": "KTTS505EPA",
+      "brand": "KITCHENAID",
+      "upc": "883049355207"
+    },
+    {
+      "id": 27080,
+      "model": "KUBL214KSB",
+      "brand": "KITCHENAID",
+      "upc": "883049592930"
+    },
+    {
+      "id": 26563,
+      "model": "KUBL314KSS",
+      "brand": "KITCHENAID",
+      "upc": "883049592893"
+    },
+    {
+      "id": 26529,
+      "model": "KUBR314KBS",
+      "brand": "KITCHENAID",
+      "upc": "883049592909"
+    },
+    {
+      "id": 27069,
+      "model": "KUBR314KSS",
+      "brand": "KITCHENAID",
+      "upc": "883049592886"
+    },
+    {
+      "id": 27038,
+      "model": "KUCS03FTSS",
+      "brand": "KITCHENAID",
+      "upc": "883049044132"
+    },
+    {
+      "id": 25937,
+      "model": "KUDR204KSB",
+      "brand": "KITCHENAID",
+      "upc": "883049593067"
+    },
+    {
+      "id": 25935,
+      "model": "KUID508HPS",
+      "brand": "KITCHENAID",
+      "upc": "883049483399"
+    },
+    {
+      "id": 26519,
+      "model": "KUIX535HBS",
+      "brand": "KITCHENAID",
+      "upc": "883049483306"
+    },
+    {
+      "id": 26520,
+      "model": "KUIX535HPS",
+      "brand": "KITCHENAID",
+      "upc": "883049483290"
+    },
+    {
+      "id": 27081,
+      "model": "KURL314KSS",
+      "brand": "KITCHENAID",
+      "upc": "883049592978"
+    },
+    {
+      "id": 27034,
+      "model": "KUWR214KSB",
+      "brand": "KITCHENAID",
+      "upc": "883049592848"
+    },
+    {
+      "id": 26104,
+      "model": "KVIB606DBS",
+      "brand": "KITCHENAID",
+      "upc": "883049364971"
+    },
+    {
+      "id": 25612,
+      "model": "KVIB606DSS",
+      "brand": "KITCHENAID",
+      "upc": "883049328218"
+    },
+    {
+      "id": 25611,
+      "model": "KVUB400GSS",
+      "brand": "KITCHENAID",
+      "upc": "883049452234"
+    },
+    {
+      "id": 25813,
+      "model": "KVUB406GSS",
+      "brand": "KITCHENAID",
+      "upc": "883049452258"
+    },
+    {
+      "id": 25652,
+      "model": "KVUB600DSS",
+      "brand": "KITCHENAID",
+      "upc": "883049328157"
+    },
+    {
+      "id": 25579,
+      "model": "KVUB606DSS",
+      "brand": "KITCHENAID",
+      "upc": "883049328164"
+    },
+    {
+      "id": 25921,
+      "model": "KVUC606JSS",
+      "brand": "KITCHENAID",
+      "upc": "883049569468"
+    },
+    {
+      "id": 25740,
+      "model": "KVWB400DSS",
+      "brand": "KITCHENAID",
+      "upc": "883049328171"
+    },
+    {
+      "id": 25607,
+      "model": "KVWB406DSS",
+      "brand": "KITCHENAID",
+      "upc": "883049328188"
+    },
+    {
+      "id": 25815,
+      "model": "KVWB600HBS",
+      "brand": "KITCHENAID",
+      "upc": "883049484082"
+    },
+    {
+      "id": 27028,
+      "model": "KVWB606HBS",
+      "brand": "KITCHENAID",
+      "upc": "4883400902213"
+    },
+    {
+      "id": 27065,
+      "model": "KVWC956KSS",
+      "brand": "KITCHENAID",
+      "upc": "883049590738"
+    },
+    {
+      "id": 26526,
+      "model": "KVWC958JSS",
+      "brand": "KITCHENAID",
+      "upc": "883049569482"
+    },
+    {
+      "id": 26103,
+      "model": "KXD4636YSS",
+      "brand": "KITCHENAID",
+      "upc": "883049222462"
+    },
+    {
+      "id": 27079,
+      "model": "KXU2830YSS",
+      "brand": "KITCHENAID",
+      "upc": "883049218748"
+    },
+    {
+      "id": 27044,
+      "model": "KXU2836JSS",
+      "brand": "KITCHENAID",
+      "upc": "883049547534"
+    },
+    {
+      "id": 27042,
+      "model": "KXU8036YSS",
+      "brand": "KITCHENAID",
+      "upc": "883049218564"
+    },
+    {
+      "id": 27066,
+      "model": "KXW8736YSS",
+      "brand": "KITCHENAID",
+      "upc": "883049218571"
+    },
+    {
+      "id": 27043,
+      "model": "KXW9736YSS",
+      "brand": "KITCHENAID",
+      "upc": "883049218670"
+    },
+    {
+      "id": 25932,
+      "model": "W10461962",
+      "brand": "KITCHENAID",
+      "upc": "793713616209"
+    },
+    {
+      "id": 27085,
+      "model": "W10731887",
+      "brand": "KITCHENAID",
+      "upc": "883049366142"
+    },
+    {
+      "id": 27077,
+      "model": "YKMHC319EBS",
+      "brand": "KITCHENAID",
+      "upc": "883049420837"
+    },
+    {
+      "id": 27045,
+      "model": "YKMHC319ES",
+      "brand": "KITCHENAID",
+      "upc": "883049323855"
+    },
+    {
+      "id": 26105,
+      "model": "YKMHP519ES",
+      "brand": "KITCHENAID",
+      "upc": "883049323879"
+    },
+    {
+      "id": 25936,
+      "model": "YKMHS120EBS",
+      "brand": "KITCHENAID",
+      "upc": "883049420813"
+    },
+    {
+      "id": 25918,
+      "model": "YKMLS311HSS",
+      "brand": "KITCHENAID",
+      "upc": "883049469126"
+    },
+    {
+      "id": 27078,
+      "model": "YKSEG700EBS",
+      "brand": "KITCHENAID",
+      "upc": "883049413617"
+    },
+    {
+      "id": 26560,
+      "model": "YKSEG700ESS",
+      "brand": "KITCHENAID",
+      "upc": "883049329871"
+    },
+    {
+      "id": 26772,
+      "model": "B36CT80SNS",
+      "brand": "BOSCH",
+      "upc": "825225953678"
+    },
+    {
+      "id": 26775,
+      "model": "B36CT81ENS",
+      "brand": "BOSCH",
+      "upc": "825225964810"
+    },
+    {
+      "id": 26773,
+      "model": "B36FD10ENS",
+      "brand": "BOSCH",
+      "upc": "825225974079"
+    },
+    {
+      "id": 26776,
+      "model": "B36FD52SNB",
+      "brand": "BOSCH",
+      "upc": "825225970774"
+    },
+    {
+      "id": 26430,
+      "model": "DHL755BUC",
+      "brand": "BOSCH",
+      "upc": "825225853299"
+    },
+    {
+      "id": 26762,
+      "model": "DPH36652UC",
+      "brand": "BOSCH",
+      "upc": "825225884446"
+    },
+    {
+      "id": 26766,
+      "model": "HBL5451UC",
+      "brand": "BOSCH",
+      "upc": "825225906476"
+    },
+    {
+      "id": 26434,
+      "model": "HBL5651UC",
+      "brand": "BOSCH",
+      "upc": "825225906490"
+    },
+    {
+      "id": 26438,
+      "model": "HBLP451RUC",
+      "brand": "BOSCH",
+      "upc": "825225906971"
+    },
+    {
+      "id": 26771,
+      "model": "HCP56652UC",
+      "brand": "BOSCH",
+      "upc": "825225959465"
+    },
+    {
+      "id": 26431,
+      "model": "HCP80641UC",
+      "brand": "BOSCH",
+      "upc": "825225946717"
+    },
+    {
+      "id": 26768,
+      "model": "HDIP054C",
+      "brand": "BOSCH",
+      "upc": "810134803312"
+    },
+    {
+      "id": 26769,
+      "model": "HEI8054C",
+      "brand": "BOSCH",
+      "upc": "4883400815070"
+    },
+    {
+      "id": 26761,
+      "model": "HEI8056C",
+      "brand": "BOSCH",
+      "upc": "825225959656"
+    },
+    {
+      "id": 26435,
+      "model": "HGI8054UC",
+      "brand": "BOSCH",
+      "upc": "825225907152"
+    },
+    {
+      "id": 26770,
+      "model": "HGIP056UC",
+      "brand": "BOSCH",
+      "upc": "825225959731"
+    },
+    {
+      "id": 25895,
+      "model": "HGS8645UC",
+      "brand": "BOSCH",
+      "upc": "825225960966"
+    },
+    {
+      "id": 26765,
+      "model": "HMB57152UC",
+      "brand": "BOSCH",
+      "upc": "658917740955"
+    },
+    {
+      "id": 26747,
+      "model": "HMC80242UC",
+      "brand": "BOSCH",
+      "upc": "825225950127"
+    },
+    {
+      "id": 25792,
+      "model": "HMC87152UC",
+      "brand": "BOSCH",
+      "upc": "825225924135"
+    },
+    {
+      "id": 25729,
+      "model": "HMD8053UC",
+      "brand": "BOSCH",
+      "upc": "825225924654"
+    },
+    {
+      "id": 26763,
+      "model": "HMV3053C",
+      "brand": "BOSCH",
+      "upc": "825225924340"
+    },
+    {
+      "id": 25793,
+      "model": "HMV5053C",
+      "brand": "BOSCH",
+      "upc": "4883400812550"
+    },
+    {
+      "id": 26764,
+      "model": "HMV8044C",
+      "brand": "BOSCH",
+      "upc": "825225950332"
+    },
+    {
+      "id": 26429,
+      "model": "HSD5051UC",
+      "brand": "BOSCH",
+      "upc": "825225908517"
+    },
+    {
+      "id": 26433,
+      "model": "HSLP451UC",
+      "brand": "BOSCH",
+      "upc": "825225906360"
+    },
+    {
+      "id": 26432,
+      "model": "HUI56551UC",
+      "brand": "BOSCH",
+      "upc": "825225920533"
+    },
+    {
+      "id": 26777,
+      "model": "HWD5051UC",
+      "brand": "BOSCH",
+      "upc": "825225908722"
+    },
+    {
+      "id": 25728,
+      "model": "NGM5056UC",
+      "brand": "BOSCH",
+      "upc": "825225937999"
+    },
+    {
+      "id": 26748,
+      "model": "NGM8046UC",
+      "brand": "BOSCH",
+      "upc": "825225949008"
+    },
+    {
+      "id": 26055,
+      "model": "NGM8056UC",
+      "brand": "BOSCH",
+      "upc": "825225938019"
+    },
+    {
+      "id": 26753,
+      "model": "NGM8059UC",
+      "brand": "BOSCH",
+      "upc": "763515548268"
+    },
+    {
+      "id": 26749,
+      "model": "NGMP056UC",
+      "brand": "BOSCH",
+      "upc": "825225938026"
+    },
+    {
+      "id": 26750,
+      "model": "NGMP059UC",
+      "brand": "BOSCH",
+      "upc": "810134803220"
+    },
+    {
+      "id": 26751,
+      "model": "NGMP655UC",
+      "brand": "BOSCH",
+      "upc": "825225906926"
+    },
+    {
+      "id": 26056,
+      "model": "NGMP656UC",
+      "brand": "BOSCH",
+      "upc": "825225938460"
+    },
+    {
+      "id": 26752,
+      "model": "NITP069UC",
+      "brand": "BOSCH",
+      "upc": "825225955733"
+    },
+    {
+      "id": 26755,
+      "model": "SGE53B55UC",
+      "brand": "BOSCH",
+      "upc": "825225964759"
+    },
+    {
+      "id": 26757,
+      "model": "SHE53C85N",
+      "brand": "BOSCH",
+      "upc": "825225969303"
+    },
+    {
+      "id": 26758,
+      "model": "SHE53C86N",
+      "brand": "BOSCH",
+      "upc": "825225969327"
+    },
+    {
+      "id": 26759,
+      "model": "SHX3AR76UC",
+      "brand": "BOSCH",
+      "upc": "825225899211"
+    },
+    {
+      "id": 26760,
+      "model": "SHX5AEM4N",
+      "brand": "BOSCH",
+      "upc": "825225969006"
+    },
+    {
+      "id": 26767,
+      "model": "SMZPC002UC",
+      "brand": "BOSCH",
+      "upc": "825225906254"
+    },
+    {
+      "id": 25566,
+      "model": "SMZPCJB1UC",
+      "brand": "BOSCH",
+      "upc": "825225958826"
+    },
+    {
+      "id": 26754,
+      "model": "SPV68C73UC",
+      "brand": "BOSCH",
+      "upc": "825225965428"
+    },
+    {
+      "id": 26790,
+      "model": "332H",
+      "brand": "BROAN",
+      "upc": "710822779335"
+    },
+    {
+      "id": 25797,
+      "model": "BBN1303SS",
+      "brand": "BROAN",
+      "upc": "196641105256"
+    },
+    {
+      "id": 26793,
+      "model": "BQLA130SS",
+      "brand": "BROAN",
+      "upc": "818223685184"
+    },
+    {
+      "id": 26445,
+      "model": "BWT1304SS",
+      "brand": "BROAN",
+      "upc": "026715265091"
+    },
+    {
+      "id": 25900,
+      "model": "E6430SSLC",
+      "brand": "BROAN",
+      "upc": "772371133273"
+    },
+    {
+      "id": 25899,
+      "model": "EWT1306SS",
+      "brand": "BROAN",
+      "upc": "026715267972"
+    },
+    {
+      "id": 25799,
+      "model": "DCR044B1BM",
+      "brand": "DANBY",
+      "upc": "792636597855"
+    },
+    {
+      "id": 26817,
+      "model": "E30MO75HPS",
+      "brand": "ELECTROLUX",
+      "upc": "684758042880"
+    },
+    {
+      "id": 26826,
+      "model": "E32AF85PQS",
+      "brand": "ELECTROLUX",
+      "upc": "4883400666849"
+    },
+    {
+      "id": 26813,
+      "model": "ECCG3068AS",
+      "brand": "ELECTROLUX",
+      "upc": "312388676617"
+    },
+    {
+      "id": 26808,
+      "model": "ECCG3668AS",
+      "brand": "ELECTROLUX",
+      "upc": "057112992754"
+    },
+    {
+      "id": 26815,
+      "model": "ECCI3668AS",
+      "brand": "ELECTROLUX",
+      "upc": "136257204554"
+    },
+    {
+      "id": 26819,
+      "model": "ECFD3668AS",
+      "brand": "ELECTROLUX",
+      "upc": "567131829004"
+    },
+    {
+      "id": 26816,
+      "model": "ECP8472SS",
+      "brand": "ELECTROLUX",
+      "upc": "791116185872"
+    },
+    {
+      "id": 26825,
+      "model": "ECVW3062AS",
+      "brand": "ELECTROLUX",
+      "upc": "312388676617"
+    },
+    {
+      "id": 26449,
+      "model": "ECVW3662AS",
+      "brand": "ELECTROLUX",
+      "upc": "136257204554"
+    },
+    {
+      "id": 26831,
+      "model": "ECWM3012AS",
+      "brand": "ELECTROLUX",
+      "upc": "012505516481"
+    },
+    {
+      "id": 26827,
+      "model": "ECWS3011AS",
+      "brand": "ELECTROLUX",
+      "upc": "136257204554"
+    },
+    {
+      "id": 26811,
+      "model": "EFDC210TIW",
+      "brand": "ELECTROLUX",
+      "upc": "4883400818897"
+    },
+    {
+      "id": 26807,
+      "model": "EI24BC15VS",
+      "brand": "ELECTROLUX",
+      "upc": "012505646515"
+    },
+    {
+      "id": 26818,
+      "model": "EI24MO45IB",
+      "brand": "ELECTROLUX",
+      "upc": "791116175385"
+    },
+    {
+      "id": 26820,
+      "model": "EI30EF4CQS",
+      "brand": "ELECTROLUX",
+      "upc": "4883400659216"
+    },
+    {
+      "id": 26821,
+      "model": "EI30GF45QS",
+      "brand": "ELECTROLUX",
+      "upc": "822351328929"
+    },
+    {
+      "id": 26064,
+      "model": "EI30MO45TS",
+      "brand": "ELECTROLUX",
+      "upc": "012505560590"
+    },
+    {
+      "id": 26812,
+      "model": "EI33AF80WS",
+      "brand": "ELECTROLUX",
+      "upc": "358010252149"
+    },
+    {
+      "id": 26452,
+      "model": "ELFW7337AW",
+      "brand": "ELECTROLUX",
+      "upc": "996518970617"
+    },
+    {
+      "id": 26453,
+      "model": "ELFW7537AT",
+      "brand": "ELECTROLUX",
+      "upc": "227915872335"
+    },
+    {
+      "id": 26810,
+      "model": "EW30EW65PS",
+      "brand": "ELECTROLUX",
+      "upc": "824272920701"
+    },
+    {
+      "id": 26809,
+      "model": "EW30IC60LS",
+      "brand": "ELECTROLUX",
+      "upc": "700621175179"
+    },
+    {
+      "id": 26450,
+      "model": "EW30IS8CRS",
+      "brand": "ELECTROLUX",
+      "upc": "4883400671935"
+    },
+    {
+      "id": 26066,
+      "model": "EWF01C",
+      "brand": "ELECTROLUX",
+      "upc": "012505461477"
+    },
+    {
+      "id": 26822,
+      "model": "FFGF3052TW",
+      "brand": "ELECTROLUX",
+      "upc": "012505510939"
+    },
+    {
+      "id": 26448,
+      "model": "FPIC3677RF",
+      "brand": "ELECTROLUX",
+      "upc": "793888018693"
+    },
+    {
+      "id": 26823,
+      "model": "GCRG3060AD",
+      "brand": "ELECTROLUX",
+      "upc": "196107281104"
+    },
+    {
+      "id": 26824,
+      "model": "GCRI305CAF",
+      "brand": "ELECTROLUX",
+      "upc": "4883400973206"
+    },
+    {
+      "id": 26447,
+      "model": "PCK4200",
+      "brand": "ELECTROLUX",
+      "upc": "717449028655"
+    },
+    {
+      "id": 26828,
+      "model": "TRIMKITSS2",
+      "brand": "ELECTROLUX",
+      "upc": "366012960153"
+    },
+    {
+      "id": 26830,
+      "model": "TRMKTEZ2LV79",
+      "brand": "ELECTROLUX",
+      "upc": "793888351592"
+    },
+    {
+      "id": 26065,
+      "model": "TRMKTSS2LV84",
+      "brand": "ELECTROLUX",
+      "upc": "485741500116"
+    },
+    {
+      "id": 26840,
+      "model": "EAR628S2",
+      "brand": "ELICA",
+      "upc": "190603000450"
+    },
+    {
+      "id": 26842,
+      "model": "EBL430WT",
+      "brand": "ELICA",
+      "upc": "190603001174"
+    },
+    {
+      "id": 26833,
+      "model": "ECV636S3",
+      "brand": "ELICA",
+      "upc": "190603001969"
+    },
+    {
+      "id": 26834,
+      "model": "ELN136S2",
+      "brand": "ELICA",
+      "upc": "190603003611"
+    },
+    {
+      "id": 26454,
+      "model": "ELN142SS",
+      "brand": "ELICA",
+      "upc": "7502232553239"
+    },
+    {
+      "id": 26841,
+      "model": "ELN630SS",
+      "brand": "ELICA",
+      "upc": "190603000351"
+    },
+    {
+      "id": 26835,
+      "model": "EMZ630S3",
+      "brand": "ELICA",
+      "upc": "190603002065"
+    },
+    {
+      "id": 26836,
+      "model": "EORX48SS",
+      "brand": "ELICA",
+      "upc": "190603004854"
+    },
+    {
+      "id": 26837,
+      "model": "ESL636S2",
+      "brand": "ELICA",
+      "upc": "190603000498"
+    },
+    {
+      "id": 26838,
+      "model": "ETR134S1",
+      "brand": "ELICA",
+      "upc": "190603002027"
+    },
+    {
+      "id": 26455,
+      "model": "ETR634SS",
+      "brand": "ELICA",
+      "upc": "190603004229"
+    },
+    {
+      "id": 26456,
+      "model": "EUM634SS",
+      "brand": "ELICA",
+      "upc": "190603005479"
+    },
+    {
+      "id": 26839,
+      "model": "EVR630S1",
+      "brand": "ELICA",
+      "upc": "190603000535"
+    },
+    {
+      "id": 26457,
+      "model": "EVR636S2",
+      "brand": "ELICA",
+      "upc": "190603002164"
+    },
+    {
+      "id": 26068,
+      "model": "EF12",
+      "brand": "EPSON",
+      "upc": "781052057494"
+    },
+    {
+      "id": 27557,
+      "model": "ELPLP78",
+      "brand": "EPSON",
+      "upc": "842740073773"
+    },
+    {
+      "id": 26845,
+      "model": "H956A",
+      "brand": "EPSON",
+      "upc": "647056531791"
+    },
+    {
+      "id": 26846,
+      "model": "LS500BATV100EP",
+      "brand": "EPSON",
+      "upc": "908833440249"
+    },
+    {
+      "id": 25902,
+      "model": "EVFILTER5B",
+      "brand": "EVERYDROP",
+      "upc": "883049598307"
+    },
+    {
+      "id": 25568,
+      "model": "EVFILTERG1B",
+      "brand": "EVERYDROP",
+      "upc": "883049598314"
+    },
+    {
+      "id": 25602,
+      "model": "EVFILTERL7B",
+      "brand": "EVERYDROP",
+      "upc": "883049598345"
+    },
+    {
+      "id": 25559,
+      "model": "EVFILTERL8B",
+      "brand": "EVERYDROP",
+      "upc": "883049598352"
+    },
+    {
+      "id": 25532,
+      "model": "EVFILTERS2B",
+      "brand": "EVERYDROP",
+      "upc": "883049598338"
+    },
+    {
+      "id": 26847,
+      "model": "RB1200",
+      "brand": "FABER",
+      "upc": "612192210718"
+    },
+    {
+      "id": 25633,
+      "model": "AIRFRYTRAY",
+      "brand": "FRIGIDAIRE",
+      "upc": "752287559466"
+    },
+    {
+      "id": 26474,
+      "model": "CFPWD15W",
+      "brand": "FRIGIDAIRE",
+      "upc": "719881100586"
+    },
+    {
+      "id": 26876,
+      "model": "CPBM3077RF",
+      "brand": "FRIGIDAIRE",
+      "upc": "4883400672604"
+    },
+    {
+      "id": 26870,
+      "model": "FCFE306CAS",
+      "brand": "FRIGIDAIRE",
+      "upc": "012505514302"
+    },
+    {
+      "id": 26873,
+      "model": "FCRG3062AS",
+      "brand": "FRIGIDAIRE",
+      "upc": "624112085559"
+    },
+    {
+      "id": 26885,
+      "model": "FFBC4622QS",
+      "brand": "FRIGIDAIRE",
+      "upc": "695974888862"
+    },
+    {
+      "id": 26867,
+      "model": "FFBD1831US",
+      "brand": "FRIGIDAIRE",
+      "upc": "376311678970"
+    },
+    {
+      "id": 26868,
+      "model": "FFBD1831UW",
+      "brand": "FRIGIDAIRE",
+      "upc": "4883400912168"
+    },
+    {
+      "id": 26878,
+      "model": "FFSS2315TP",
+      "brand": "FRIGIDAIRE",
+      "upc": "340394160516"
+    },
+    {
+      "id": 26871,
+      "model": "FFUE0725AW",
+      "brand": "FRIGIDAIRE",
+      "upc": "810160850090"
+    },
+    {
+      "id": 26883,
+      "model": "FGET3065PF",
+      "brand": "FRIGIDAIRE",
+      "upc": "536292135354"
+    },
+    {
+      "id": 26869,
+      "model": "FGET3066UF",
+      "brand": "FRIGIDAIRE",
+      "upc": "361411258382"
+    },
+    {
+      "id": 26884,
+      "model": "FGET3069UF",
+      "brand": "FRIGIDAIRE",
+      "upc": "151941887295"
+    },
+    {
+      "id": 26882,
+      "model": "FGEW3066UF",
+      "brand": "FRIGIDAIRE",
+      "upc": "398883553653"
+    },
+    {
+      "id": 26877,
+      "model": "FGGS3065PF",
+      "brand": "FRIGIDAIRE",
+      "upc": "753389209730"
+    },
+    {
+      "id": 26872,
+      "model": "FGHF2367TD",
+      "brand": "FRIGIDAIRE",
+      "upc": "4883400812222"
+    },
+    {
+      "id": 26865,
+      "model": "FGIC3066TB",
+      "brand": "FRIGIDAIRE",
+      "upc": "147602985769"
+    },
+    {
+      "id": 25801,
+      "model": "FGIC3666TB",
+      "brand": "FRIGIDAIRE",
+      "upc": "372261002094"
+    },
+    {
+      "id": 26874,
+      "model": "FGMO3067UF",
+      "brand": "FRIGIDAIRE",
+      "upc": "695102139712"
+    },
+    {
+      "id": 26071,
+      "model": "FHWC3050RS",
+      "brand": "FRIGIDAIRE",
+      "upc": "4883400788701"
+    },
+    {
+      "id": 26866,
+      "model": "FPEC3677RF",
+      "brand": "FRIGIDAIRE",
+      "upc": "426127462963"
+    },
+    {
+      "id": 26875,
+      "model": "GMBS3068BF",
+      "brand": "FRIGIDAIRE",
+      "upc": "810143400229"
+    },
+    {
+      "id": 26879,
+      "model": "GRFC2353AD",
+      "brand": "FRIGIDAIRE",
+      "upc": "4883401052306"
+    },
+    {
+      "id": 26880,
+      "model": "GRFC2353AF",
+      "brand": "FRIGIDAIRE",
+      "upc": "4883401052313"
+    },
+    {
+      "id": 25692,
+      "model": "GRFN2853AF",
+      "brand": "FRIGIDAIRE",
+      "upc": "691835333311"
+    },
+    {
+      "id": 25802,
+      "model": "MWTK30FGUF",
+      "brand": "FRIGIDAIRE",
+      "upc": "4883400905818"
+    },
+    {
+      "id": 25803,
+      "model": "MWTK30FPUF",
+      "brand": "FRIGIDAIRE",
+      "upc": "4883400896031"
+    },
+    {
+      "id": 26881,
+      "model": "PRFS2883AF",
+      "brand": "FRIGIDAIRE",
+      "upc": "691835333618"
+    },
+    {
+      "id": 25624,
+      "model": "TRMKTEZ2FL79",
+      "brand": "FRIGIDAIRE",
+      "upc": "999999071323"
+    },
+    {
+      "id": 26894,
+      "model": "CDT875P2NS1",
+      "brand": "GE",
+      "upc": "4883400945364"
+    },
+    {
+      "id": 26892,
+      "model": "CGP95302MS1",
+      "brand": "GE",
+      "upc": "196107371201"
+    },
+    {
+      "id": 26901,
+      "model": "CVW73014MWM",
+      "brand": "GE",
+      "upc": "4883400920712"
+    },
+    {
+      "id": 26902,
+      "model": "CVW93014MWM",
+      "brand": "GE",
+      "upc": "084691842811"
+    },
+    {
+      "id": 26903,
+      "model": "CVW93614MWM",
+      "brand": "GE",
+      "upc": "084691842804"
+    },
+    {
+      "id": 26906,
+      "model": "CXFCHHKPMBT",
+      "brand": "GE",
+      "upc": "4883400920958"
+    },
+    {
+      "id": 26073,
+      "model": "CXPR6HKPMBZ",
+      "brand": "GE",
+      "upc": "4883400953499"
+    },
+    {
+      "id": 26910,
+      "model": "CZS22MP2NS1",
+      "brand": "GE",
+      "upc": "445486910328"
+    },
+    {
+      "id": 25546,
+      "model": "GFA28KITN",
+      "brand": "GE",
+      "upc": "669185507898"
+    },
+    {
+      "id": 25734,
+      "model": "GFD55ESMNWW",
+      "brand": "GE",
+      "upc": "4883400988729"
+    },
+    {
+      "id": 26900,
+      "model": "GFD55GSSNWW",
+      "brand": "GE",
+      "upc": "735380097288"
+    },
+    {
+      "id": 26477,
+      "model": "GFD65ESMNSN",
+      "brand": "GE",
+      "upc": "4883400988767"
+    },
+    {
+      "id": 26895,
+      "model": "GFT14JSIMWW",
+      "brand": "GE",
+      "upc": "4883400965768"
+    },
+    {
+      "id": 26074,
+      "model": "GTD68EBMRWS",
+      "brand": "GE",
+      "upc": "757638430494"
+    },
+    {
+      "id": 26913,
+      "model": "GTW334BMRWS",
+      "brand": "GE",
+      "upc": "757638430395"
+    },
+    {
+      "id": 25671,
+      "model": "GTX34EBMRWS",
+      "brand": "GE",
+      "upc": "757638430449"
+    },
+    {
+      "id": 26478,
+      "model": "GWS04HAESS",
+      "brand": "GE",
+      "upc": "4883400820753"
+    },
+    {
+      "id": 26907,
+      "model": "JBS86SPSS",
+      "brand": "GE",
+      "upc": "4883400995383"
+    },
+    {
+      "id": 26908,
+      "model": "JCAS640RMSS",
+      "brand": "GE",
+      "upc": "4883401033794"
+    },
+    {
+      "id": 26899,
+      "model": "JGP5030SLSS",
+      "brand": "GE",
+      "upc": "840110518060"
+    }
+  ],
+  "last_run": "2026-03-20T17:28:16.795Z"
+}

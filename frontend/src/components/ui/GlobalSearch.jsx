@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 
 import { authFetch } from '../../services/authFetch';
-const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:3001';
+const API_URL = process.env.REACT_APP_API_URL || '';
 
 const GlobalSearch = ({ isOpen, onClose }) => {
   const [query, setQuery] = useState('');
@@ -120,6 +120,33 @@ const GlobalSearch = ({ isOpen, onClose }) => {
 
   const allResults = getAllResults();
 
+  // Handle result selection
+  const handleSelectResult = useCallback((result) => {
+    onClose();
+    switch (result.type) {
+      case 'quote':
+        navigate(`/quotes/${result.id}`);
+        break;
+      case 'customer':
+        navigate(`/customers/${result.id}`);
+        break;
+      case 'product':
+        navigate(`/products/${result.id}`);
+        break;
+      case 'lead':
+        navigate(`/leads/${result.id}`);
+        break;
+      case 'invoice':
+        navigate(`/invoices`);
+        break;
+      case 'order':
+        navigate(`/invoices`);
+        break;
+      default:
+        break;
+    }
+  }, [onClose, navigate]);
+
   // Handle keyboard navigation
   const handleKeyDown = useCallback((e) => {
     if (!isOpen) return;
@@ -154,7 +181,7 @@ const GlobalSearch = ({ isOpen, onClose }) => {
       default:
         break;
     }
-  }, [isOpen, allResults, selectedIndex, onClose, activeCategory]);
+  }, [isOpen, allResults, selectedIndex, onClose, activeCategory, handleSelectResult]);
 
   useEffect(() => {
     document.addEventListener('keydown', handleKeyDown);
@@ -170,33 +197,6 @@ const GlobalSearch = ({ isOpen, onClose }) => {
       }
     }
   }, [selectedIndex]);
-
-  // Handle result selection
-  const handleSelectResult = (result) => {
-    onClose();
-    switch (result.type) {
-      case 'quote':
-        navigate(`/quotes/${result.id}`);
-        break;
-      case 'customer':
-        navigate(`/customers/${result.id}`);
-        break;
-      case 'product':
-        navigate(`/products/${result.id}`);
-        break;
-      case 'lead':
-        navigate(`/leads/${result.id}`);
-        break;
-      case 'invoice':
-        navigate(`/invoices`);
-        break;
-      case 'order':
-        navigate(`/invoices`);
-        break;
-      default:
-        break;
-    }
-  };
 
   // Format currency
   const formatCurrency = (cents) => {
@@ -369,7 +369,7 @@ const GlobalSearch = ({ isOpen, onClose }) => {
                       Quotes
                     </div>
                   )}
-                  {results.quotes.map((quote, i) => {
+                  {results.quotes.map((quote) => {
                     const globalIndex = allResults.findIndex(r => r.type === 'quote' && r.id === quote.id);
                     return (
                       <div
@@ -419,7 +419,7 @@ const GlobalSearch = ({ isOpen, onClose }) => {
                       Customers
                     </div>
                   )}
-                  {results.customers.map((customer, i) => {
+                  {results.customers.map((customer) => {
                     const globalIndex = allResults.findIndex(r => r.type === 'customer' && r.id === customer.id);
                     return (
                       <div
@@ -459,7 +459,7 @@ const GlobalSearch = ({ isOpen, onClose }) => {
                       Products
                     </div>
                   )}
-                  {results.products.map((product, i) => {
+                  {results.products.map((product) => {
                     const globalIndex = allResults.findIndex(r => r.type === 'product' && r.id === product.id);
                     return (
                       <div
@@ -502,7 +502,7 @@ const GlobalSearch = ({ isOpen, onClose }) => {
                       Leads
                     </div>
                   )}
-                  {results.leads.map((lead, i) => {
+                  {results.leads.map((lead) => {
                     const globalIndex = allResults.findIndex(r => r.type === 'lead' && r.id === lead.id);
                     return (
                       <div
@@ -557,7 +557,7 @@ const GlobalSearch = ({ isOpen, onClose }) => {
                       Invoices
                     </div>
                   )}
-                  {results.invoices.map((invoice, i) => {
+                  {results.invoices.map((invoice) => {
                     const globalIndex = allResults.findIndex(r => r.type === 'invoice' && r.id === invoice.id);
                     return (
                       <div
@@ -607,7 +607,7 @@ const GlobalSearch = ({ isOpen, onClose }) => {
                       Orders
                     </div>
                   )}
-                  {results.orders.map((order, i) => {
+                  {results.orders.map((order) => {
                     const globalIndex = allResults.findIndex(r => r.type === 'order' && r.id === order.id);
                     return (
                       <div

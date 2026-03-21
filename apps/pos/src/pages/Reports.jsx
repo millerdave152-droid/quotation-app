@@ -5,22 +5,10 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import {
-  ArrowLeftIcon,
-  CalendarIcon,
-  ChartBarIcon,
-  DocumentTextIcon,
-  CurrencyDollarIcon,
-  UserGroupIcon,
-  ClockIcon,
-  PrinterIcon,
-  FunnelIcon,
-  ShieldCheckIcon,
-  ArrowRightIcon,
-} from '@heroicons/react/24/outline';
 import { useAuth } from '../context/AuthContext';
 import { formatCurrency, formatDate, formatDateTime } from '../utils/formatters';
 import api from '../api/axios';
+import { ArrowLeft, ArrowRight, BarChart3, Clock, DollarSign, FileText, Filter, Printer, ShieldCheck } from 'lucide-react';
 
 /**
  * Stat card component
@@ -72,7 +60,7 @@ function ShiftRow({ shift, onViewDetails }) {
     <div className="flex items-center justify-between p-4 bg-white border-b border-gray-100 hover:bg-gray-50 transition-colors">
       <div className="flex items-center gap-4">
         <div className="w-10 h-10 bg-slate-100 rounded-lg flex items-center justify-center">
-          <ClockIcon className="w-5 h-5 text-slate-600" />
+          <Clock className="w-5 h-5 text-slate-600" />
         </div>
         <div>
           <p className="font-medium text-gray-900">
@@ -133,7 +121,7 @@ function PrintableReport({ summary, shifts, dateRange, onClose }) {
             onClick={handlePrint}
             className="flex items-center gap-2 px-5 py-2 bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700 transition-colors"
           >
-            <PrinterIcon className="w-5 h-5" />
+            <Printer className="w-5 h-5" />
             Print
           </button>
           <button
@@ -391,7 +379,7 @@ export function Reports() {
                 onClick={() => navigate('/')}
                 className="w-10 h-10 flex items-center justify-center text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
               >
-                <ArrowLeftIcon className="w-5 h-5" />
+                <ArrowLeft className="w-5 h-5" />
               </button>
               <div>
                 <h1 className="text-xl font-bold text-gray-900">Reports</h1>
@@ -426,7 +414,7 @@ export function Reports() {
                 onClick={handlePrint}
                 className="flex items-center gap-2 h-10 px-4 bg-gray-200 hover:bg-gray-300 text-gray-700 font-medium rounded-lg transition-colors"
               >
-                <PrinterIcon className="w-5 h-5" />
+                <Printer className="w-5 h-5" />
                 Print
               </button>
             </div>
@@ -449,27 +437,27 @@ export function Reports() {
             {/* Summary Stats */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
               <StatCard
-                icon={CurrencyDollarIcon}
+                icon={DollarSign}
                 label="Gross Sales"
                 value={formatCurrency(summary?.totalSales || 0)}
                 subValue={`${summary?.transactionCount || 0} transactions`}
                 color="green"
               />
               <StatCard
-                icon={DocumentTextIcon}
+                icon={FileText}
                 label="Transactions"
                 value={summary?.transactionCount || 0}
                 subValue={`${summary?.itemsSold || 0} items sold`}
                 color="blue"
               />
               <StatCard
-                icon={ChartBarIcon}
+                icon={BarChart3}
                 label="Average Ticket"
                 value={formatCurrency(summary?.averageTicket || 0)}
                 color="purple"
               />
               <StatCard
-                icon={CurrencyDollarIcon}
+                icon={DollarSign}
                 label="Net Revenue"
                 value={formatCurrency(summary?.netRevenue || 0)}
                 color="green"
@@ -482,7 +470,7 @@ export function Reports() {
                 <div className="bg-white rounded-xl border border-red-200 p-5">
                   <div className="flex items-center gap-3">
                     <div className="w-10 h-10 rounded-lg bg-red-50 flex items-center justify-center">
-                      <CurrencyDollarIcon className="w-5 h-5 text-red-600" />
+                      <DollarSign className="w-5 h-5 text-red-600" />
                     </div>
                     <div>
                       <p className="text-xl font-bold text-red-600">-{formatCurrency(summary?.refundAmount || 0)}</p>
@@ -493,7 +481,7 @@ export function Reports() {
                 <div className="bg-white rounded-xl border border-amber-200 p-5">
                   <div className="flex items-center gap-3">
                     <div className="w-10 h-10 rounded-lg bg-amber-50 flex items-center justify-center">
-                      <DocumentTextIcon className="w-5 h-5 text-amber-600" />
+                      <FileText className="w-5 h-5 text-amber-600" />
                     </div>
                     <div>
                       <p className="text-xl font-bold text-amber-600">{summary?.voidCount || 0}</p>
@@ -504,7 +492,7 @@ export function Reports() {
                 <div className="bg-white rounded-xl border border-gray-200 p-5">
                   <div className="flex items-center gap-3">
                     <div className="w-10 h-10 rounded-lg bg-blue-50 flex items-center justify-center">
-                      <ChartBarIcon className="w-5 h-5 text-blue-600" />
+                      <BarChart3 className="w-5 h-5 text-blue-600" />
                     </div>
                     <div>
                       <p className="text-xl font-bold text-gray-900">{formatCurrency(summary?.netRevenue || 0)}</p>
@@ -525,14 +513,14 @@ export function Reports() {
               >
                 <div className="flex items-center gap-3">
                   <div className="w-10 h-10 bg-purple-100 rounded-lg flex items-center justify-center">
-                    <ShieldCheckIcon className="w-5 h-5 text-purple-600" />
+                    <ShieldCheck className="w-5 h-5 text-purple-600" />
                   </div>
                   <div className="text-left">
                     <p className="font-medium text-gray-900">Override Audit</p>
                     <p className="text-sm text-gray-500">Manager approval history</p>
                   </div>
                 </div>
-                <ArrowRightIcon className="w-5 h-5 text-gray-400 group-hover:text-blue-600 transition-colors" />
+                <ArrowRight className="w-5 h-5 text-gray-400 group-hover:text-blue-600 transition-colors" />
               </button>
 
               <button
@@ -542,14 +530,14 @@ export function Reports() {
               >
                 <div className="flex items-center gap-3">
                   <div className="w-10 h-10 bg-green-100 rounded-lg flex items-center justify-center">
-                    <ChartBarIcon className="w-5 h-5 text-green-600" />
+                    <BarChart3 className="w-5 h-5 text-green-600" />
                   </div>
                   <div className="text-left">
                     <p className="font-medium text-gray-900">Shift Report</p>
                     <p className="text-sm text-gray-500">End-of-day detailed report</p>
                   </div>
                 </div>
-                <ArrowRightIcon className="w-5 h-5 text-gray-400 group-hover:text-blue-600 transition-colors" />
+                <ArrowRight className="w-5 h-5 text-gray-400 group-hover:text-blue-600 transition-colors" />
               </button>
 
               <button
@@ -559,14 +547,14 @@ export function Reports() {
               >
                 <div className="flex items-center gap-3">
                   <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center">
-                    <ChartBarIcon className="w-5 h-5 text-blue-600" />
+                    <BarChart3 className="w-5 h-5 text-blue-600" />
                   </div>
                   <div className="text-left">
                     <p className="font-medium text-gray-900">Approval Analytics</p>
                     <p className="text-sm text-gray-500">Override trends & insights</p>
                   </div>
                 </div>
-                <ArrowRightIcon className="w-5 h-5 text-gray-400 group-hover:text-blue-600 transition-colors" />
+                <ArrowRight className="w-5 h-5 text-gray-400 group-hover:text-blue-600 transition-colors" />
               </button>
             </div>
 
@@ -578,7 +566,7 @@ export function Reports() {
                   type="button"
                   className="flex items-center gap-2 text-sm text-gray-600 hover:text-gray-900"
                 >
-                  <FunnelIcon className="w-4 h-4" />
+                  <Filter className="w-4 h-4" />
                   Filter
                 </button>
               </div>
@@ -595,7 +583,7 @@ export function Reports() {
                 </div>
               ) : (
                 <div className="py-12 text-center">
-                  <ClockIcon className="w-12 h-12 text-gray-300 mx-auto mb-4" />
+                  <Clock className="w-12 h-12 text-gray-300 mx-auto mb-4" />
                   <p className="text-gray-500">No shifts found for this period</p>
                 </div>
               )}

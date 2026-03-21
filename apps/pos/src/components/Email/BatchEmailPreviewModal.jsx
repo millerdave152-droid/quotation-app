@@ -4,17 +4,8 @@
  */
 
 import { useState, useEffect, useCallback } from 'react';
-import {
-  XMarkIcon,
-  EnvelopeIcon,
-  ArrowPathIcon,
-  PaperAirplaneIcon,
-  UserIcon,
-  CurrencyDollarIcon,
-  CheckCircleIcon,
-  MagnifyingGlassIcon,
-} from '@heroicons/react/24/outline';
 import { formatCurrency } from '../../utils/formatters';
+import { CheckCircle, DollarSign, Mail, RefreshCw, Search, Send, User, X } from 'lucide-react';
 
 /**
  * Receipt item row in preview list
@@ -47,11 +38,11 @@ function ReceiptItem({ item, isSelected, onToggle, disabled }) {
         </div>
         <div className="flex items-center gap-3 text-sm text-gray-500">
           <span className="flex items-center gap-1">
-            <UserIcon className="w-3.5 h-3.5" />
+            <User className="w-3.5 h-3.5" />
             {item.customer_name || 'Customer'}
           </span>
           <span className="flex items-center gap-1">
-            <CurrencyDollarIcon className="w-3.5 h-3.5" />
+            <DollarSign className="w-3.5 h-3.5" />
             {formatCurrency(item.total_amount)}
           </span>
         </div>
@@ -172,7 +163,7 @@ export default function BatchEmailPreviewModal({
         <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center">
-              <EnvelopeIcon className="w-5 h-5 text-blue-600" />
+              <Mail className="w-5 h-5 text-blue-600" />
             </div>
             <div>
               <h2 className="text-lg font-bold text-gray-900">{title}</h2>
@@ -186,7 +177,7 @@ export default function BatchEmailPreviewModal({
             disabled={isSending}
             className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors disabled:opacity-50"
           >
-            <XMarkIcon className="w-5 h-5" />
+            <X className="w-5 h-5" />
           </button>
         </div>
 
@@ -194,12 +185,12 @@ export default function BatchEmailPreviewModal({
         <div className="flex-1 overflow-hidden flex flex-col p-6">
           {isLoading ? (
             <div className="flex flex-col items-center justify-center py-12">
-              <ArrowPathIcon className="w-8 h-8 text-gray-400 animate-spin mb-3" />
+              <RefreshCw className="w-8 h-8 text-gray-400 animate-spin mb-3" />
               <p className="text-gray-500">Loading receipts...</p>
             </div>
           ) : receipts.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-12">
-              <CheckCircleIcon className="w-12 h-12 text-green-500 mb-3" />
+              <CheckCircle className="w-12 h-12 text-green-500 mb-3" />
               <p className="text-lg font-medium text-gray-900">All caught up!</p>
               <p className="text-gray-500">No unsent receipts found.</p>
             </div>
@@ -208,7 +199,7 @@ export default function BatchEmailPreviewModal({
               {/* Search and select all */}
               <div className="flex items-center gap-3 mb-4">
                 <div className="flex-1 relative">
-                  <MagnifyingGlassIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
                   <input
                     type="text"
                     placeholder="Search receipts..."
@@ -274,12 +265,12 @@ export default function BatchEmailPreviewModal({
           >
             {isSending ? (
               <>
-                <ArrowPathIcon className="w-4 h-4 animate-spin" />
+                <RefreshCw className="w-4 h-4 animate-spin" />
                 Starting...
               </>
             ) : (
               <>
-                <PaperAirplaneIcon className="w-4 h-4" />
+                <Send className="w-4 h-4" />
                 Send {selectedIds.size} Email{selectedIds.size !== 1 ? 's' : ''}
               </>
             )}

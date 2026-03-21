@@ -39,6 +39,75 @@ export const searchInvoices = async ({ search, startDate, endDate, dateRange, pa
 };
 
 /**
+ * Get completed returns/refunds history
+ * @param {object} options - Search options
+ * @returns {Promise<object>} Completed returns list
+ */
+export const getReturnsHistory = async ({ search, startDate, endDate, dateRange, page, limit } = {}) => {
+  try {
+    const params = {};
+    if (search) params.search = search;
+    if (startDate) params.startDate = startDate;
+    if (endDate) params.endDate = endDate;
+    if (dateRange) params.dateRange = dateRange;
+    if (page) params.page = page;
+    if (limit) params.limit = limit;
+
+    const response = await api.get('/returns/history', { params });
+    return response;
+  } catch (error) {
+    console.error('[Returns] getReturnsHistory error:', error);
+    return { success: false, error: error.message || 'Failed to load returns history' };
+  }
+};
+
+/**
+ * Resolve a sale transaction to its latest completed return
+ * @param {number} transactionId - Original transaction ID
+ * @returns {Promise<object>} Return record
+ */
+export const getReturnByTransaction = async (transactionId) => {
+  try {
+    const response = await api.get(`/returns/by-transaction/${transactionId}`);
+    return response;
+  } catch (error) {
+    console.error('[Returns] getReturnByTransaction error:', error);
+    return { success: false, error: error.message || 'Failed to load return record' };
+  }
+};
+
+/**
+ * Get detailed refund receipt data for a completed return
+ * @param {number} returnId - Return ID
+ * @returns {Promise<object>} Refund receipt data
+ */
+export const getReturnReceiptData = async (returnId) => {
+  try {
+    const response = await api.get(`/returns/${returnId}/refund-receipt/data`);
+    return response;
+  } catch (error) {
+    console.error('[Returns] getReturnReceiptData error:', error);
+    return { success: false, error: error.message || 'Failed to load refund receipt data' };
+  }
+};
+
+/**
+ * Email a completed refund receipt
+ * @param {number} returnId - Return ID
+ * @param {string} email - Destination email
+ * @returns {Promise<object>} Email send result
+ */
+export const emailReturnReceipt = async (returnId, email) => {
+  try {
+    const response = await api.post(`/returns/${returnId}/refund-receipt/email`, { email });
+    return response;
+  } catch (error) {
+    console.error('[Returns] emailReturnReceipt error:', error);
+    return { success: false, error: error.message || 'Failed to email refund receipt' };
+  }
+};
+
+/**
  * Get active return reason codes
  * @returns {Promise<object>} Reason codes list
  */
@@ -136,6 +205,10 @@ export const createReturn = async ({ originalTransactionId, returnType, notes })
 
 export default {
   searchInvoices,
+  getReturnsHistory,
+  getReturnByTransaction,
+  getReturnReceiptData,
+  emailReturnReceipt,
   getReasonCodes,
   getReturnItems,
   addReturnItems,

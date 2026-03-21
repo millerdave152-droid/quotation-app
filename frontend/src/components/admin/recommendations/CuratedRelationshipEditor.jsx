@@ -5,18 +5,8 @@ import { authFetch } from '../../../services/authFetch';
  */
 
 import { useState, useEffect, useCallback, useRef } from 'react';
-import {
-  PlusIcon,
-  TrashIcon,
-  PencilIcon,
-  MagnifyingGlassIcon,
-  ArrowUpTrayIcon,
-  CheckIcon,
-  XMarkIcon,
-  ArrowRightIcon,
-} from '@heroicons/react/24/outline';
-
-const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+import { ArrowRight, Check, Pencil, Plus, Search, Trash2, Upload, X } from 'lucide-react';
+const API_BASE = process.env.REACT_APP_API_URL || '';
 
 /**
  * Product search/select component
@@ -107,13 +97,13 @@ function ProductSearch({ value, onChange, placeholder, exclude = [] }) {
             onClick={handleClear}
             className="p-1 text-blue-400 hover:text-blue-600"
           >
-            <XMarkIcon className="w-4 h-4" />
+            <X className="w-4 h-4" />
           </button>
         </div>
       ) : (
         <>
           <div className="relative">
-            <MagnifyingGlassIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
             <input
               type="text"
               value={search}
@@ -293,7 +283,7 @@ function RelationshipModal({ isOpen, onClose, onSave, editData }) {
 
             {/* Arrow indicator */}
             <div className="flex justify-center">
-              <ArrowRightIcon className="w-6 h-6 text-gray-400 rotate-90" />
+              <ArrowRight className="w-6 h-6 text-gray-400 rotate-90" />
             </div>
 
             {/* Related Product */}
@@ -404,7 +394,7 @@ function RelationshipModal({ isOpen, onClose, onSave, editData }) {
                   </>
                 ) : (
                   <>
-                    <CheckIcon className="w-4 h-4" />
+                    <Check className="w-4 h-4" />
                     {editData ? 'Update' : 'Create'}
                   </>
                 )}
@@ -630,7 +620,7 @@ function CSVUploadModal({ isOpen, onClose, onSuccess }) {
                   </>
                 ) : (
                   <>
-                    <ArrowUpTrayIcon className="w-4 h-4" />
+                    <Upload className="w-4 h-4" />
                     Upload
                   </>
                 )}
@@ -741,7 +731,7 @@ export default function CuratedRelationshipEditor({ onStatsUpdate }) {
               onClick={() => setShowUploadModal(true)}
               className="flex items-center gap-2 px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50"
             >
-              <ArrowUpTrayIcon className="w-4 h-4" />
+              <Upload className="w-4 h-4" />
               Bulk Upload
             </button>
             <button
@@ -751,7 +741,7 @@ export default function CuratedRelationshipEditor({ onStatsUpdate }) {
               }}
               className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
             >
-              <PlusIcon className="w-4 h-4" />
+              <Plus className="w-4 h-4" />
               Add Relationship
             </button>
           </div>
@@ -791,7 +781,7 @@ export default function CuratedRelationshipEditor({ onStatsUpdate }) {
 
                 {/* Arrow and Type */}
                 <div className="flex items-center gap-2 px-4">
-                  <ArrowRightIcon className="w-5 h-5 text-gray-400" />
+                  <ArrowRight className="w-5 h-5 text-gray-400" />
                   <span className="text-xs px-2 py-1 bg-blue-100 text-blue-800 rounded">
                     {typeLabels[rel.relationshipType]}
                   </span>
@@ -828,13 +818,13 @@ export default function CuratedRelationshipEditor({ onStatsUpdate }) {
                   onClick={() => handleEdit(rel)}
                   className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg"
                 >
-                  <PencilIcon className="w-4 h-4" />
+                  <Pencil className="w-4 h-4" />
                 </button>
                 <button
                   onClick={() => handleDelete(rel.id)}
                   className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg"
                 >
-                  <TrashIcon className="w-4 h-4" />
+                  <Trash2 className="w-4 h-4" />
                 </button>
               </div>
             </div>

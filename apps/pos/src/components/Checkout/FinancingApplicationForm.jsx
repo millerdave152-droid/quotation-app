@@ -4,19 +4,10 @@
  */
 
 import { useState, useEffect } from 'react';
-import {
-  UserCircleIcon,
-  CheckCircleIcon,
-  ExclamationTriangleIcon,
-  BuildingLibraryIcon,
-  IdentificationIcon,
-  PhoneIcon,
-  EnvelopeIcon,
-  HomeIcon,
-} from '@heroicons/react/24/outline';
 import { formatCurrency } from '../../utils/formatters';
+import { AlertTriangle, CheckCircle, CircleUser, Home, IdCard, Landmark, Mail, Phone } from 'lucide-react';
 
-const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:3001/api';
+const API_BASE = import.meta.env.VITE_API_URL || '/api';
 
 /**
  * Form field component
@@ -65,9 +56,9 @@ function CreditCheckResult({ result, loading }) {
     `}>
       <div className="flex items-start gap-3">
         {isEligible ? (
-          <CheckCircleIcon className="w-6 h-6 text-green-600 flex-shrink-0" />
+          <CheckCircle className="w-6 h-6 text-green-600 flex-shrink-0" />
         ) : (
-          <ExclamationTriangleIcon className="w-6 h-6 text-red-600 flex-shrink-0" />
+          <AlertTriangle className="w-6 h-6 text-red-600 flex-shrink-0" />
         )}
         <div>
           <p className={`font-medium ${isEligible ? 'text-green-800' : 'text-red-800'}`}>
@@ -242,7 +233,7 @@ export function FinancingApplicationForm({
       <div className="p-4 bg-gray-50 border border-gray-200 rounded-lg">
         <div className="flex items-center gap-3">
           <div className="w-12 h-12 bg-gray-200 rounded-full flex items-center justify-center">
-            <UserCircleIcon className="w-8 h-8 text-gray-500" />
+            <CircleUser className="w-8 h-8 text-gray-500" />
           </div>
           <div>
             <p className="font-semibold text-gray-900">
@@ -267,7 +258,7 @@ export function FinancingApplicationForm({
       {isExternalFinancing && (
         <div className="p-4 bg-amber-50 border border-amber-200 rounded-lg">
           <div className="flex items-start gap-3">
-            <BuildingLibraryIcon className="w-6 h-6 text-amber-600 flex-shrink-0" />
+            <Landmark className="w-6 h-6 text-amber-600 flex-shrink-0" />
             <div>
               <p className="font-medium text-amber-800">
                 External Financing with {selectedPlan?.providerName}
@@ -288,7 +279,7 @@ export function FinancingApplicationForm({
         </h3>
 
         <div className="grid grid-cols-2 gap-4">
-          <FormField label="First Name" icon={IdentificationIcon}>
+          <FormField label="First Name" icon={IdCard}>
             <input
               type="text"
               value={applicationData.firstName || ''}
@@ -298,7 +289,7 @@ export function FinancingApplicationForm({
             />
           </FormField>
 
-          <FormField label="Last Name" icon={IdentificationIcon}>
+          <FormField label="Last Name" icon={IdCard}>
             <input
               type="text"
               value={applicationData.lastName || ''}
@@ -309,7 +300,7 @@ export function FinancingApplicationForm({
           </FormField>
         </div>
 
-        <FormField label="Email" icon={EnvelopeIcon} error={errors.email}>
+        <FormField label="Email" icon={Mail} error={errors.email}>
           <input
             type="email"
             value={applicationData.email || ''}
@@ -324,7 +315,7 @@ export function FinancingApplicationForm({
           />
         </FormField>
 
-        <FormField label="Phone" icon={PhoneIcon} error={errors.phone}>
+        <FormField label="Phone" icon={Phone} error={errors.phone}>
           <input
             type="tel"
             value={applicationData.phone || ''}
@@ -341,7 +332,7 @@ export function FinancingApplicationForm({
 
         {isExternalFinancing && (
           <>
-            <FormField label="Address" icon={HomeIcon}>
+            <FormField label="Address" icon={Home}>
               <input
                 type="text"
                 value={applicationData.address || ''}

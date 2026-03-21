@@ -4,17 +4,10 @@
  */
 
 import { useState, useCallback } from 'react';
-import {
-  XMarkIcon,
-  ArrowDownTrayIcon,
-  ArrowUpTrayIcon,
-  MinusCircleIcon,
-  PlusCircleIcon,
-  ExclamationTriangleIcon,
-} from '@heroicons/react/24/outline';
 import { formatCurrency } from '../../utils/formatters';
+import { AlertTriangle, Download, MinusCircle, PlusCircle, Upload, X } from 'lucide-react';
 
-const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:3001/api';
+const API_BASE = import.meta.env.VITE_API_URL || '/api';
 
 /**
  * Movement type configurations
@@ -23,7 +16,7 @@ const MOVEMENT_TYPES = {
   paid_out: {
     label: 'Paid Out',
     description: 'Remove cash for expenses (vendor payment, petty cash)',
-    icon: MinusCircleIcon,
+    icon: MinusCircle,
     color: 'red',
     direction: 'out',
     requiresReason: true,
@@ -33,7 +26,7 @@ const MOVEMENT_TYPES = {
   drop: {
     label: 'Safe Drop',
     description: 'Remove excess cash to safe',
-    icon: ArrowDownTrayIcon,
+    icon: Download,
     color: 'orange',
     direction: 'out',
     requiresReason: true
@@ -41,7 +34,7 @@ const MOVEMENT_TYPES = {
   pickup: {
     label: 'Cash Pickup',
     description: 'Manager collected cash from drawer',
-    icon: ArrowUpTrayIcon,
+    icon: Upload,
     color: 'orange',
     direction: 'out',
     requiresReason: true
@@ -49,7 +42,7 @@ const MOVEMENT_TYPES = {
   add: {
     label: 'Add Cash',
     description: 'Add cash to drawer (change, float adjustment)',
-    icon: PlusCircleIcon,
+    icon: PlusCircle,
     color: 'green',
     direction: 'in',
     requiresReason: true
@@ -57,7 +50,7 @@ const MOVEMENT_TYPES = {
   refund: {
     label: 'Cash Refund',
     description: 'Cash refund to customer (outside transaction)',
-    icon: MinusCircleIcon,
+    icon: MinusCircle,
     color: 'red',
     direction: 'out',
     requiresReason: true
@@ -227,7 +220,7 @@ export function CashMovementModal({
             onClick={handleClose}
             className="w-10 h-10 flex items-center justify-center hover:bg-gray-100 rounded-lg transition-colors"
           >
-            <XMarkIcon className="w-6 h-6 text-gray-500" />
+            <X className="w-6 h-6 text-gray-500" />
           </button>
         </div>
 
@@ -306,7 +299,7 @@ export function CashMovementModal({
               {/* Approval Warning */}
               {typeConfig.requiresApproval && parsedAmount > typeConfig.approvalThreshold && (
                 <div className="p-3 bg-yellow-50 border border-yellow-200 rounded-lg flex items-start gap-2">
-                  <ExclamationTriangleIcon className="w-5 h-5 text-yellow-600 flex-shrink-0 mt-0.5" />
+                  <AlertTriangle className="w-5 h-5 text-yellow-600 flex-shrink-0 mt-0.5" />
                   <p className="text-sm text-yellow-700">
                     Amounts over {formatCurrency(typeConfig.approvalThreshold)} require manager approval
                   </p>

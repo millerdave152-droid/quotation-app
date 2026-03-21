@@ -5,26 +5,11 @@
 
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import {
-  ArrowLeftIcon,
-  CalendarIcon,
-  FunnelIcon,
-  ArrowDownTrayIcon,
-  ShieldCheckIcon,
-  XCircleIcon,
-  TagIcon,
-  CurrencyDollarIcon,
-  UserCircleIcon,
-  ChartBarIcon,
-  ChevronLeftIcon,
-  ChevronRightIcon,
-  ArrowPathIcon,
-  XMarkIcon,
-} from '@heroicons/react/24/outline';
 import { useAuth } from '../context/AuthContext';
 import { formatCurrency, formatDateTime } from '../utils/formatters';
+import { ArrowLeft, BarChart3, ChevronLeft, ChevronRight, DollarSign, Download, Filter, RefreshCw, ShieldCheck, Tag, X, XCircle } from 'lucide-react';
 
-const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+const API_BASE = import.meta.env.VITE_API_URL || '/api';
 
 /** Authenticated fetch using POS Bearer token */
 function authFetch(url, options = {}) {
@@ -161,12 +146,12 @@ function OverrideTypeBadge({ type }) {
 function StatusBadge({ approved }) {
   return approved ? (
     <span className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium bg-green-100 text-green-700 rounded">
-      <ShieldCheckIcon className="w-3.5 h-3.5" />
+      <ShieldCheck className="w-3.5 h-3.5" />
       Approved
     </span>
   ) : (
     <span className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium bg-red-100 text-red-700 rounded">
-      <XCircleIcon className="w-3.5 h-3.5" />
+      <XCircle className="w-3.5 h-3.5" />
       Denied
     </span>
   );
@@ -257,7 +242,7 @@ function Pagination({ page, totalPages, total, onPageChange }) {
           disabled={page <= 1}
           className="p-2 text-gray-500 hover:text-gray-700 disabled:opacity-50 disabled:cursor-not-allowed"
         >
-          <ChevronLeftIcon className="w-5 h-5" />
+          <ChevronLeft className="w-5 h-5" />
         </button>
 
         {pages.map((p) => (
@@ -283,7 +268,7 @@ function Pagination({ page, totalPages, total, onPageChange }) {
           disabled={page >= totalPages}
           className="p-2 text-gray-500 hover:text-gray-700 disabled:opacity-50 disabled:cursor-not-allowed"
         >
-          <ChevronRightIcon className="w-5 h-5" />
+          <ChevronRight className="w-5 h-5" />
         </button>
       </div>
     </div>
@@ -352,9 +337,9 @@ export function OverrideAuditReport() {
   const loadFilterOptions = async () => {
     try {
       const [managersRes, cashiersRes, typesRes] = await Promise.all([
-        authFetch(`${API_BASE}/api/admin/overrides/managers`),
-        authFetch(`${API_BASE}/api/admin/overrides/cashiers`),
-        authFetch(`${API_BASE}/api/admin/overrides/types`),
+        authFetch(`${API_BASE}/admin/overrides/managers`),
+        authFetch(`${API_BASE}/admin/overrides/cashiers`),
+        authFetch(`${API_BASE}/admin/overrides/types`),
       ]);
 
       const [managersData, cashiersData, typesData] = await Promise.all([
@@ -389,8 +374,8 @@ export function OverrideAuditReport() {
 
       // Fetch data and summary in parallel
       const [dataRes, summaryRes] = await Promise.all([
-        authFetch(`${API_BASE}/api/admin/overrides?${params}`),
-        authFetch(`${API_BASE}/api/admin/overrides/summary?${params}`),
+        authFetch(`${API_BASE}/admin/overrides?${params}`),
+        authFetch(`${API_BASE}/admin/overrides/summary?${params}`),
       ]);
 
       const [dataResult, summaryResult] = await Promise.all([
@@ -430,7 +415,7 @@ export function OverrideAuditReport() {
       if (statusFilter !== '') params.set('was_approved', statusFilter);
 
       const response = await authFetch(
-        `${API_BASE}/api/admin/overrides/export?${params}`
+        `${API_BASE}/admin/overrides/export?${params}`
       );
 
       if (!response.ok) {
@@ -479,7 +464,7 @@ export function OverrideAuditReport() {
                 onClick={() => navigate('/reports')}
                 className="w-10 h-10 flex items-center justify-center text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
               >
-                <ArrowLeftIcon className="w-5 h-5" />
+                <ArrowLeft className="w-5 h-5" />
               </button>
               <div>
                 <h1 className="text-xl font-bold text-gray-900">Override Audit Report</h1>
@@ -493,7 +478,7 @@ export function OverrideAuditReport() {
                 onClick={loadData}
                 className="flex items-center gap-2 h-10 px-4 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors"
               >
-                <ArrowPathIcon className={`w-5 h-5 ${loading ? 'animate-spin' : ''}`} />
+                <RefreshCw className={`w-5 h-5 ${loading ? 'animate-spin' : ''}`} />
                 Refresh
               </button>
 
@@ -510,7 +495,7 @@ export function OverrideAuditReport() {
                   </>
                 ) : (
                   <>
-                    <ArrowDownTrayIcon className="w-5 h-5" />
+                    <Download className="w-5 h-5" />
                     Export CSV
                   </>
                 )}
@@ -545,7 +530,7 @@ export function OverrideAuditReport() {
                 }
               `}
             >
-              <FunnelIcon className="w-5 h-5" />
+              <Filter className="w-5 h-5" />
               Filters
               {hasFilters && (
                 <span className="w-5 h-5 bg-blue-600 text-white text-xs font-bold rounded-full flex items-center justify-center">
@@ -600,7 +585,7 @@ export function OverrideAuditReport() {
                     onClick={handleClearFilters}
                     className="flex items-center gap-1 h-10 px-3 text-gray-500 hover:text-gray-700"
                   >
-                    <XMarkIcon className="w-4 h-4" />
+                    <X className="w-4 h-4" />
                     Clear
                   </button>
                 )}
@@ -613,33 +598,33 @@ export function OverrideAuditReport() {
         {summary && !loading && (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4 mb-6">
             <StatCard
-              icon={ChartBarIcon}
+              icon={BarChart3}
               label="Total Overrides"
               value={summary.totalOverrides}
               subValue={`${summary.approvalRate}% approval rate`}
               color="blue"
             />
             <StatCard
-              icon={ShieldCheckIcon}
+              icon={ShieldCheck}
               label="Approved"
               value={summary.approvedCount}
               color="green"
             />
             <StatCard
-              icon={XCircleIcon}
+              icon={XCircle}
               label="Denied"
               value={summary.deniedCount}
               color="red"
             />
             <StatCard
-              icon={CurrencyDollarIcon}
+              icon={DollarSign}
               label="Total Discount"
               value={formatCurrency(summary.totalDiscountAmount)}
               subValue={`Avg: ${summary.avgDiscountPercent.toFixed(1)}%`}
               color="yellow"
             />
             <StatCard
-              icon={TagIcon}
+              icon={Tag}
               label="Most Common"
               value={summary.mostCommonType?.replace(/_/g, ' ') || 'N/A'}
               color="purple"
@@ -666,7 +651,7 @@ export function OverrideAuditReport() {
             </div>
           ) : overrides.length === 0 ? (
             <div className="py-12 text-center">
-              <ShieldCheckIcon className="w-12 h-12 text-gray-300 mx-auto mb-4" />
+              <ShieldCheck className="w-12 h-12 text-gray-300 mx-auto mb-4" />
               <p className="text-gray-500">No overrides found for this period</p>
             </div>
           ) : (

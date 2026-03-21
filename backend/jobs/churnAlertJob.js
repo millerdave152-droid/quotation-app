@@ -24,7 +24,6 @@ const DEFAULT_SCHEDULE = '0 9 * * *';
  */
 async function runJob(options = {}) {
   const startTime = new Date();
-  console.log(`[${startTime.toISOString()}] Starting churn alert job...`);
 
   let jobResult = {
     startTime,
@@ -48,11 +47,6 @@ async function runJob(options = {}) {
     jobResult.results = results;
     jobResult.status = 'completed';
 
-    console.log(`[${new Date().toISOString()}] Churn alert job completed successfully.`);
-    console.log(`  - High risk customers: ${results.totalHighRisk}`);
-    console.log(`  - Alerts sent: ${results.alertsSent}`);
-    console.log(`  - Alerts skipped: ${results.alertsSkipped}`);
-    console.log(`  - Alerts failed: ${results.alertsFailed}`);
 
   } catch (err) {
     jobResult.status = 'failed';
@@ -141,7 +135,6 @@ async function logJobExecution(jobResult) {
  * @returns {object} - Cron task instance
  */
 function startScheduler(schedule = DEFAULT_SCHEDULE) {
-  console.log(`Starting churn alert scheduler with schedule: ${schedule}`);
 
   const task = cron.schedule(schedule, async () => {
     await runJob();
@@ -150,7 +143,6 @@ function startScheduler(schedule = DEFAULT_SCHEDULE) {
     timezone: process.env.TIMEZONE || 'America/Toronto'
   });
 
-  console.log('Churn alert scheduler started.');
   return task;
 }
 
@@ -170,11 +162,9 @@ async function getJobHistory(limit = 20) {
 
 // Run as standalone script
 if (require.main === module) {
-  console.log('Running churn alert job as standalone script...');
 
   runJob()
     .then(result => {
-      console.log('Job completed:', result.status);
       process.exit(result.status === 'completed' ? 0 : 1);
     })
     .catch(err => {

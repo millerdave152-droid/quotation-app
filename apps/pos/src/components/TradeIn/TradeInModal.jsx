@@ -17,20 +17,12 @@ import {
   Alert,
   CircularProgress,
 } from '@mui/material';
-import {
-  Close as CloseIcon,
-  ArrowBack as ArrowBackIcon,
-  ArrowForward as ArrowForwardIcon,
-  CheckCircle as CheckCircleIcon,
-  SwapHoriz as TradeInIcon,
-  Calculate as CalculateIcon,
-} from '@mui/icons-material';
-
 // Import step components
 import { TradeInProductSearch } from './TradeInProductSearch';
 import { ConditionSelector } from './ConditionSelector';
 import { TradeInDetails } from './TradeInDetails';
 import { TradeInConfirmation } from './TradeInConfirmation';
+import { ArrowLeft, ArrowRight, Calculator, RefreshCw, X } from 'lucide-react';
 
 // ============================================================================
 // CONSTANTS
@@ -39,6 +31,21 @@ import { TradeInConfirmation } from './TradeInConfirmation';
 const STEPS = ['Find Product', 'Assess Condition', 'Enter Details', 'Confirm'];
 
 const API_BASE = '/api/trade-in';
+
+const getAuthHeaders = (extraHeaders = {}) => {
+  const token = localStorage.getItem('pos_token');
+  return {
+    ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    ...extraHeaders,
+  };
+};
+
+const FALLBACK_CONDITIONS = [
+  { id: 1, condition_code: 'LN', condition_name: 'Like New', value_multiplier: 0.85, condition_criteria: 'Item is in near-perfect condition with minimal signs of use' },
+  { id: 2, condition_code: 'GD', condition_name: 'Good', value_multiplier: 0.65, condition_criteria: 'Item works perfectly with minor cosmetic wear' },
+  { id: 3, condition_code: 'FR', condition_name: 'Fair', value_multiplier: 0.40, condition_criteria: 'Item is functional but shows noticeable wear or minor issues' },
+  { id: 4, condition_code: 'PR', condition_name: 'Poor', value_multiplier: 0.15, condition_criteria: 'Item has significant wear or functional issues' },
+];
 
 // ============================================================================
 // MAIN COMPONENT
@@ -93,19 +100,10 @@ export function TradeInModal({
   // DATA FETCHING
   // ============================================================================
 
-  useEffect(() => {
-    if (open) {
-      fetchCategories();
-      fetchConditions();
-    }
-  }, [open]);
-
-  const fetchCategories = async () => {
+  const fetchCategories = useCallback(async () => {
     try {
       const response = await fetch(`${API_BASE}/categories`, {
-        headers: {
-          Authorization: `Bearer ${localStorage.getItem('pos_token')}`,
-        },
+        headers: getAuthHeaders(),
       });
       if (!response.ok) throw new Error('Failed to load categories');
       const data = await response.json();
@@ -113,21 +111,12 @@ export function TradeInModal({
     } catch (err) {
       console.error('Error loading categories:', err);
     }
-  };
+  }, []);
 
-  const FALLBACK_CONDITIONS = [
-    { id: 1, condition_code: 'LN', condition_name: 'Like New', value_multiplier: 0.85, condition_criteria: 'Item is in near-perfect condition with minimal signs of use' },
-    { id: 2, condition_code: 'GD', condition_name: 'Good', value_multiplier: 0.65, condition_criteria: 'Item works perfectly with minor cosmetic wear' },
-    { id: 3, condition_code: 'FR', condition_name: 'Fair', value_multiplier: 0.40, condition_criteria: 'Item is functional but shows noticeable wear or minor issues' },
-    { id: 4, condition_code: 'PR', condition_name: 'Poor', value_multiplier: 0.15, condition_criteria: 'Item has significant wear or functional issues' },
-  ];
-
-  const fetchConditions = async () => {
+  const fetchConditions = useCallback(async () => {
     try {
       const response = await fetch(`${API_BASE}/conditions`, {
-        headers: {
-          Authorization: `Bearer ${localStorage.getItem('pos_token')}`,
-        },
+        headers: getAuthHeaders(),
       });
       if (!response.ok) throw new Error('Failed to load conditions');
       const data = await response.json();
@@ -137,7 +126,14 @@ export function TradeInModal({
       console.error('Error loading conditions:', err);
       setConditions(FALLBACK_CONDITIONS);
     }
-  };
+  }, []);
+
+  useEffect(() => {
+    if (open) {
+      fetchCategories();
+      fetchConditions();
+    }
+  }, [open, fetchCategories, fetchConditions]);
 
   // ============================================================================
   // VALIDATION
@@ -165,7 +161,7 @@ export function TradeInModal({
         }
         return true;
 
-      case 2: // Details
+      case 2: { // Details
         const product = isManualEntry ? null : selectedProduct;
         if (product?.requires_serial && !serialNumber) {
           setError('Serial number is required for this product');
@@ -180,6 +176,7 @@ export function TradeInModal({
           return false;
         }
         return true;
+      }
 
       default:
         return true;
@@ -281,7 +278,7 @@ export function TradeInModal({
         // API assessment for known products
         const response = await fetch(`${API_BASE}/assess`, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: getAuthHeaders({ 'Content-Type': 'application/json' }),
           body: JSON.stringify({
             productId: selectedProduct.id,
             conditionId: selectedCondition.id,
@@ -331,7 +328,7 @@ export function TradeInModal({
 
       const response = await fetch(`${API_BASE}/assessments`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: getAuthHeaders({ 'Content-Type': 'application/json' }),
         body: JSON.stringify(assessmentData),
       });
 
@@ -365,7 +362,7 @@ export function TradeInModal({
     try {
       const response = await fetch(`${API_BASE}/assessments/${assessmentId}/apply`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: getAuthHeaders({ 'Content-Type': 'application/json' }),
         body: JSON.stringify({ cartId }),
       });
 
@@ -560,13 +557,13 @@ export function TradeInModal({
           }}
         >
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
-            <TradeInIcon sx={{ fontSize: 28 }} />
+            <RefreshCw sx={{ fontSize: 28 }} />
             <Typography variant="h5" fontWeight={600}>
               Trade-In Assessment
             </Typography>
           </Box>
           <IconButton onClick={handleClose} sx={{ color: 'white' }}>
-            <CloseIcon />
+            <X />
           </IconButton>
         </Box>
 
@@ -614,7 +611,7 @@ export function TradeInModal({
           >
             <Button
               onClick={activeStep === 0 ? handleClose : handleBack}
-              startIcon={activeStep === 0 ? <CloseIcon /> : <ArrowBackIcon />}
+              startIcon={activeStep === 0 ? <X /> : <ArrowLeft />}
               disabled={loading}
               sx={{ minWidth: 120 }}
             >
@@ -628,9 +625,9 @@ export function TradeInModal({
                 loading ? (
                   <CircularProgress size={20} color="inherit" />
                 ) : activeStep === 2 ? (
-                  <CalculateIcon />
+                  <Calculator />
                 ) : (
-                  <ArrowForwardIcon />
+                  <ArrowRight />
                 )
               }
               disabled={isNextDisabled()}

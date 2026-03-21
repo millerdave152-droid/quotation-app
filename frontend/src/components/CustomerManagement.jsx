@@ -9,11 +9,10 @@ import { useDebounce } from '../utils/useDebounce';
 import { cachedFetch, invalidateCache } from '../services/apiCache';
 import { useToast } from './ui/Toast';
 import { useConfirmDialog } from './ui/ConfirmDialog';
-import { SkeletonTable, SkeletonStats } from './ui/LoadingSkeleton';
 import * as lookupService from '../services/lookupService';
 
 import { authFetch } from '../services/authFetch';
-const API_BASE = `${process.env.REACT_APP_API_URL || 'http://localhost:3001'}/api`;
+const API_BASE = `${process.env.REACT_APP_API_URL || ''}/api`;
 
 // Helper to get auth headers
 const getAuthHeaders = () => {
@@ -32,7 +31,7 @@ function CustomerManagement() {
   const [showAddForm, setShowAddForm] = useState(false);
   const [editingCustomer, setEditingCustomer] = useState(null);
   const [selectedCustomer, setSelectedCustomer] = useState(null);
-  const [notification, setNotification] = useState(null);
+  const [_notification, _setNotification] = useState(null);
   const [loadingCustomerId, setLoadingCustomerId] = useState(null); // Track which customer is being loaded
   const [viewMode, setViewMode] = useState('table'); // 'table' or 'card'
 
@@ -53,7 +52,7 @@ function CustomerManagement() {
   const [sortOrder, setSortOrder] = useState('ASC');
 
   // Postal Code & Cities State
-  const [availableCities, setAvailableCities] = useState([]);
+  const [_availableCities, setAvailableCities] = useState([]);
   const [loadingPostalCode, setLoadingPostalCode] = useState(false);
 
   // New Form Enhancement State
@@ -273,29 +272,8 @@ function CustomerManagement() {
   const toast = useToast();
   const { confirm, DialogComponent } = useConfirmDialog();
 
-  useEffect(() => {
-    isMounted.current = true;
-
-    if (!loadedOnce.current) {
-      loadedOnce.current = true;
-      fetchCustomers();
-      fetchStats();
-    }
-
-    return () => {
-      isMounted.current = false;
-    };
-  }, []);
-
-  // Separate effect for filters (using debounced search to prevent flickering)
-  useEffect(() => {
-    if (loadedOnce.current && isMounted.current) {
-      fetchCustomers();
-    }
-  }, [currentPage, itemsPerPage, debouncedSearchTerm, cityFilter, provinceFilter, sortBy, sortOrder]);
-
   // Updated notification function using toast system
-  const showNotification = (message, type = 'success') => {
+  const showNotification = useCallback((message, type = 'success') => {
     if (type === 'success') {
       toast.success(message);
     } else if (type === 'error') {
@@ -303,7 +281,7 @@ function CustomerManagement() {
     } else {
       toast.info(message);
     }
-  };
+  }, [toast]);
 
   const fetchStats = async () => {
     try {
@@ -316,7 +294,7 @@ function CustomerManagement() {
     }
   };
 
-  const fetchCustomers = async () => {
+  const fetchCustomers = useCallback(async () => {
     try {
       setLoading(true);
       const params = new URLSearchParams({
@@ -356,7 +334,28 @@ function CustomerManagement() {
         setLoading(false);
       }
     }
-  };
+  }, [currentPage, itemsPerPage, debouncedSearchTerm, cityFilter, provinceFilter, sortBy, sortOrder, showNotification]);
+
+  useEffect(() => {
+    isMounted.current = true;
+
+    if (!loadedOnce.current) {
+      loadedOnce.current = true;
+      fetchCustomers();
+      fetchStats();
+    }
+
+    return () => {
+      isMounted.current = false;
+    };
+  }, [fetchCustomers]);
+
+  // Separate effect for filters (using debounced search to prevent flickering)
+  useEffect(() => {
+    if (loadedOnce.current && isMounted.current) {
+      fetchCustomers();
+    }
+  }, [fetchCustomers]);
 
   const fetchCustomerDetails = async (id) => {
     if (!id) {
@@ -603,7 +602,7 @@ function CustomerManagement() {
       });
 
       if (response.ok) {
-        const responseData = await response.json();
+        await response.json();
 
         showNotification(
           editingCustomer ? 'Customer updated successfully!' : 'Customer added successfully!',
@@ -1891,7 +1890,7 @@ function CustomerManagement() {
                 <CustomerOrderHistory
                   customerId={selectedCustomer.customer?.id}
                   customerEmail={selectedCustomer.customer?.email}
-                  onCreateQuote={(order) => {
+                  onCreateQuote={() => {
                     // Handle creating quote from marketplace order
                     showNotification('Quote creation from marketplace order coming soon!', 'success');
                   }}

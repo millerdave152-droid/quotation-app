@@ -8,6 +8,7 @@ const { verifyAccessToken } = require('../utils/jwt');
 const { rawPool: db, tenantContext } = require('../db'); // Use rawPool — RLS not active during auth
 const { resolvePermissions, hasPermission: checkPermission, POS_PERMISSIONS } = require('../utils/permissions');
 const { ApiError } = require('./errorHandler');
+const logger = require('../utils/logger');
 
 /**
  * Wraps next() in tenant context so all downstream DB queries are tenant-scoped.
@@ -195,7 +196,7 @@ const optionalAuth = async (req, res, next) => {
 
     next();
   } catch (error) {
-    console.error('Optional authentication error:', error);
+    (req.log || logger).error({ err: error }, '[Auth] Optional authentication error');
     req.user = null;
     next();
   }
@@ -231,8 +232,9 @@ const requireRole = (...allowedRoles) => {
       : false;
 
     if (!hasRole && !hasAdminOrManagerPerms) {
-      console.warn(
-        `Access denied for user ${req.user.email} (role: ${req.user.role}, posRole: ${req.user.posRoleName}, roleName: ${req.user.roleName}). Required roles: ${allowedRoles.join(', ')}`
+      (req.log || logger).warn(
+        { userId: req.user.id, email: req.user.email, role: req.user.role, posRole: req.user.posRoleName, roleName: req.user.roleName, requiredRoles: allowedRoles },
+        `[Auth] Access denied for user ${req.user.email} (role: ${req.user.role}, posRole: ${req.user.posRoleName}, roleName: ${req.user.roleName}). Required roles: ${allowedRoles.join(', ')}`
       );
       throw ApiError.forbidden('Access denied. Insufficient permissions.');
     }
@@ -302,7 +304,7 @@ const authenticateApiKey = async (req, res, next) => {
       `SELECT ak.*, u.id as user_id, u.email, u.first_name, u.last_name, u.role, u.is_active, u.tenant_id
        FROM api_keys ak
        JOIN users u ON ak.user_id = u.id
-       WHERE ak.key_value = $1 AND ak.is_active = true AND u.is_active = true`,
+       WHERE ak.api_key = $1 AND ak.is_active = true AND u.is_active = true`,
       [apiKey]
     );
 
@@ -359,8 +361,9 @@ const requirePermission = (...requiredPermissions) => {
     const hasAny = requiredPermissions.some(p => userPerms.includes(p));
 
     if (!hasAny) {
-      console.warn(
-        `Permission denied for user ${req.user.id}. Required: ${requiredPermissions.join(' | ')}`
+      (req.log || logger).warn(
+        { userId: req.user.id, requiredPermissions },
+        `[Auth] Permission denied for user ${req.user.id}. Required: ${requiredPermissions.join(' | ')}`
       );
       throw ApiError.forbidden('Access denied. Insufficient permissions.');
     }

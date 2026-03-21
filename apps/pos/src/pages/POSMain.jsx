@@ -3,33 +3,8 @@
  * Full POS interface with product browsing, cart, and checkout
  */
 
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { lazy, Suspense, useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import {
-  Bars3Icon,
-  XMarkIcon,
-  UserCircleIcon,
-  ArrowRightOnRectangleIcon,
-  ClockIcon,
-  ChartBarIcon,
-  DocumentTextIcon,
-  UserIcon,
-  PauseIcon,
-  TagIcon,
-  ShoppingCartIcon,
-  CubeIcon,
-  ArrowUturnLeftIcon,
-  ClipboardDocumentListIcon,
-  TableCellsIcon,
-  UserGroupIcon,
-  CurrencyDollarIcon,
-  ShieldCheckIcon,
-  Cog6ToothIcon,
-  BanknotesIcon,
-  LockClosedIcon,
-  BellAlertIcon,
-} from '@heroicons/react/24/outline';
-
 // Context hooks
 import { useAuth } from '../context/AuthContext';
 import { useRegister } from '../context/RegisterContext';
@@ -42,23 +17,9 @@ import { CategoryBar } from '../components/Products/CategoryBar';
 import { BarcodeScanner } from '../components/Products/BarcodeScanner';
 import { Cart } from '../components/Cart/Cart';
 import { QuickAddFavorites } from '../components/Cart/QuickAddFavorites';
-import { CustomerLookup } from '../components/Customer/CustomerLookup';
-import { QuoteLookup } from '../components/Quotes/QuoteLookup';
 import { QuoteConversionBanner } from '../components/Quotes/QuoteConversionBanner';
-import { CheckoutModal } from '../components/Checkout/CheckoutModal';
-import { PriceOverrideModal } from '../components/Pricing/PriceOverrideModal';
-import { ShiftSummaryCompact, ShiftSummaryPanel } from '../components/Register/ShiftSummary';
-import ShiftCommissionSummary from '../components/Commission/ShiftCommissionSummary';
-import { ManagerApprovalQueue } from '../components/Discount/ManagerApprovalQueue';
-import { DiscountEscalationModal } from '../components/Discount/DiscountEscalationModal';
 import { EscalationToastContainer } from '../components/Discount/EscalationToast';
-import { ChangePasswordModal } from '../components/Account/ChangePasswordModal';
-import { NotificationPreferences } from '../components/Account/NotificationPreferences';
-import ManagerSelectionModal from '../components/approvals/ManagerSelectionModal';
-import ApprovalStatusOverlay from '../components/approvals/ApprovalStatusOverlay';
-import BatchManagerSelectionModal from '../components/approvals/BatchManagerSelectionModal';
-import BatchApprovalStatusOverlay from '../components/approvals/BatchApprovalStatusOverlay';
-import DelegationModal from '../components/approvals/DelegationModal';
+import { NotificationBell } from '../components/Notifications';
 
 // Hooks
 import { useEscalationPolling } from '../hooks/useEscalationPolling';
@@ -80,27 +41,51 @@ import { addOfflineApproval, syncToServer } from '../store/offlineApprovalQueue'
 
 // API
 import { getMyTier, initializeBudget } from '../api/discountAuthority';
+import api from '../api/axios';
 
 // Utils
 import { formatCurrency } from '../utils/formatters';
+import { Banknote, BarChart3, BellRing, Box, CircleUser, ClipboardList, Clock, DollarSign, FileText, Lock, LogIn, Menu, Pause, Settings, ShieldCheck, ShoppingCart, Table, Tag, Undo2, User, Users, X } from 'lucide-react';
+
+const VariantPicker = lazy(() =>
+  import('../components/Products/VariantPicker').then((module) => ({ default: module.VariantPicker }))
+);
+const CustomerLookup = lazy(() =>
+  import('../components/Customer/CustomerLookup').then((module) => ({ default: module.CustomerLookup }))
+);
+const QuoteLookup = lazy(() =>
+  import('../components/Quotes/QuoteLookup').then((module) => ({ default: module.QuoteLookup }))
+);
+const CheckoutModal = lazy(() =>
+  import('../components/Checkout/CheckoutModal').then((module) => ({ default: module.CheckoutModal }))
+);
+const PriceOverrideModal = lazy(() =>
+  import('../components/Pricing/PriceOverrideModal').then((module) => ({ default: module.PriceOverrideModal }))
+);
+const ShiftSummaryPanel = lazy(() =>
+  import('../components/Register/ShiftSummary').then((module) => ({ default: module.ShiftSummaryPanel }))
+);
+const ShiftCommissionSummary = lazy(() => import('../components/Commission/ShiftCommissionSummary'));
+const ManagerApprovalQueue = lazy(() =>
+  import('../components/Discount/ManagerApprovalQueue').then((module) => ({ default: module.ManagerApprovalQueue }))
+);
+const DiscountEscalationModal = lazy(() =>
+  import('../components/Discount/DiscountEscalationModal').then((module) => ({ default: module.DiscountEscalationModal }))
+);
+const ChangePasswordModal = lazy(() =>
+  import('../components/Account/ChangePasswordModal').then((module) => ({ default: module.ChangePasswordModal }))
+);
+const NotificationPreferences = lazy(() =>
+  import('../components/Account/NotificationPreferences').then((module) => ({ default: module.NotificationPreferences }))
+);
+const ManagerSelectionModal = lazy(() => import('../components/approvals/ManagerSelectionModal'));
+const ApprovalStatusOverlay = lazy(() => import('../components/approvals/ApprovalStatusOverlay'));
+const BatchManagerSelectionModal = lazy(() => import('../components/approvals/BatchManagerSelectionModal'));
+const BatchApprovalStatusOverlay = lazy(() => import('../components/approvals/BatchApprovalStatusOverlay'));
+const DelegationModal = lazy(() => import('../components/approvals/DelegationModal'));
 
 // ============================================================================
 // KEYBOARD SHORTCUTS
-// ============================================================================
-
-const KEYBOARD_SHORTCUTS = {
-  F2: 'search',       // Focus product search
-  F4: 'customer',     // Customer lookup
-  F5: 'quote',        // Quote lookup
-  F6: 'returns',      // Returns & Exchanges
-  F7: 'hold',         // Hold transaction
-  F8: 'priceCheck',   // Price check
-  F9: 'checkout',     // Checkout (changed from F12 to allow DevTools)
-  Escape: 'cancel',   // Cancel/close modals
-};
-
-// ============================================================================
-// QUICK ACTION BAR
 // ============================================================================
 
 function QuickAction({ icon: Icon, label, shortcut, onClick, disabled, variant = 'default' }) {
@@ -149,25 +134,25 @@ function QuickActionsBar({
   return (
     <div className="flex items-center gap-2 p-3 bg-slate-800 border-t border-slate-700">
       <QuickAction
-        icon={DocumentTextIcon}
+        icon={FileText}
         label="Quote"
         shortcut="F5"
         onClick={onQuoteLookup}
       />
       <QuickAction
-        icon={UserIcon}
+        icon={User}
         label="Customer"
         shortcut="F4"
         onClick={onCustomerLookup}
       />
       <QuickAction
-        icon={ArrowUturnLeftIcon}
+        icon={Undo2}
         label="Returns"
         shortcut="F6"
         onClick={onReturns}
       />
       <QuickAction
-        icon={PauseIcon}
+        icon={Pause}
         label="Hold"
         shortcut="F7"
         onClick={onHold}
@@ -175,14 +160,14 @@ function QuickActionsBar({
         variant="warning"
       />
       <QuickAction
-        icon={TagIcon}
+        icon={Tag}
         label="Price Check"
         shortcut="F8"
         onClick={onPriceCheck}
       />
       {isManager && (
         <QuickAction
-          icon={ShieldCheckIcon}
+          icon={ShieldCheck}
           label="Discount Approvals"
           onClick={onDiscountApprovals}
         />
@@ -198,7 +183,6 @@ function QuickActionsBar({
 function Header({
   onMenuClick,
   onShiftSummaryClick,
-  onUserMenuClick,
   onCloseShift,
   onDiscountApprovals,
   onDelegateAuthority,
@@ -244,17 +228,16 @@ function Header({
             onClick={onMenuClick}
             className="lg:hidden w-10 h-10 flex items-center justify-center hover:bg-slate-700 rounded-lg transition-colors"
           >
-            <Bars3Icon className="w-6 h-6" />
+            <Menu className="w-6 h-6" />
           </button>
 
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-blue-600 rounded-lg flex items-center justify-center">
-              <span className="text-lg font-bold">TT</span>
-            </div>
+            <img
+              src={new URL('../assets/logos/teletime-logo-white-200.png', import.meta.url).href}
+              alt="Teletime"
+              className="h-8 w-auto"
+            />
             <div className="hidden md:block">
-              <h1 className="text-lg font-bold">
-                {import.meta.env.VITE_APP_NAME || 'TeleTime POS'}
-              </h1>
               <p className="text-xs text-slate-400">{registerName}</p>
             </div>
           </div>
@@ -269,7 +252,7 @@ function Header({
               className="flex items-center gap-4 px-4 py-2 bg-slate-700 hover:bg-slate-600 rounded-lg transition-colors"
             >
               <div className="flex items-center gap-2">
-                <ChartBarIcon className="w-5 h-5 text-blue-400" />
+                <BarChart3 className="w-5 h-5 text-blue-400" />
                 <div className="text-left">
                   <p className="text-sm font-semibold">
                     {summary.transactionCount || 0} sales
@@ -283,7 +266,7 @@ function Header({
               <div className="h-8 w-px bg-slate-600" />
 
               <div className="flex items-center gap-2">
-                <ClockIcon className="w-4 h-4 text-slate-400" />
+                <Clock className="w-4 h-4 text-slate-400" />
                 <span className="text-sm text-slate-300">{getShiftDuration()}</span>
               </div>
             </button>
@@ -310,12 +293,15 @@ function Header({
               className="relative w-10 h-10 flex items-center justify-center hover:bg-slate-700 rounded-lg transition-colors"
               title={badgeIsManager ? 'Pending discount approvals' : 'Your pending escalations'}
             >
-              <BellAlertIcon className="w-5 h-5 text-amber-400" />
+              <BellRing className="w-5 h-5 text-amber-400" />
               <span className="absolute -top-0.5 -right-0.5 min-w-[18px] h-[18px] bg-amber-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center px-1">
                 {badgeCount > 99 ? '99+' : badgeCount}
               </span>
             </button>
           )}
+
+          {/* Notification Bell */}
+          <NotificationBell />
 
           <div className="relative">
           <button
@@ -323,7 +309,7 @@ function Header({
             onClick={() => setShowUserMenu(!showUserMenu)}
             className="flex items-center gap-3 px-3 py-2 hover:bg-slate-700 rounded-lg transition-colors"
           >
-            <UserCircleIcon className="w-8 h-8 text-slate-400" />
+            <CircleUser className="w-8 h-8 text-slate-400" />
             <div className="hidden sm:block text-left">
               <p className="text-sm font-medium">{userName}</p>
               <p className="text-xs text-slate-400">Cashier</p>
@@ -351,7 +337,7 @@ function Header({
                   }}
                   className="w-full flex items-center gap-3 px-4 py-3 text-left text-gray-700 hover:bg-gray-50 transition-colors"
                 >
-                  <ClockIcon className="w-5 h-5 text-gray-500" />
+                  <Clock className="w-5 h-5 text-gray-500" />
                   <span>Close Shift</span>
                 </button>
 
@@ -365,7 +351,7 @@ function Header({
                       onClick={() => { setShowUserMenu(false); navigate('/transactions'); }}
                       className="w-full flex items-center gap-3 px-4 py-3 text-left text-gray-700 hover:bg-gray-50 transition-colors"
                     >
-                      <TableCellsIcon className="w-5 h-5 text-gray-500" />
+                      <Table className="w-5 h-5 text-gray-500" />
                       <span>Transactions</span>
                     </button>
 
@@ -374,7 +360,7 @@ function Header({
                       onClick={() => { setShowUserMenu(false); navigate('/reports'); }}
                       className="w-full flex items-center gap-3 px-4 py-3 text-left text-gray-700 hover:bg-gray-50 transition-colors"
                     >
-                      <ClipboardDocumentListIcon className="w-5 h-5 text-gray-500" />
+                      <ClipboardList className="w-5 h-5 text-gray-500" />
                       <span>Reports</span>
                     </button>
 
@@ -383,7 +369,7 @@ function Header({
                       onClick={() => { setShowUserMenu(false); navigate('/reports/shift'); }}
                       className="w-full flex items-center gap-3 px-4 py-3 text-left text-gray-700 hover:bg-gray-50 transition-colors"
                     >
-                      <ClockIcon className="w-5 h-5 text-gray-500" />
+                      <Clock className="w-5 h-5 text-gray-500" />
                       <span>Shift Reports</span>
                     </button>
 
@@ -392,7 +378,7 @@ function Header({
                       onClick={() => { setShowUserMenu(false); navigate('/reports/overrides'); }}
                       className="w-full flex items-center gap-3 px-4 py-3 text-left text-gray-700 hover:bg-gray-50 transition-colors"
                     >
-                      <ShieldCheckIcon className="w-5 h-5 text-gray-500" />
+                      <ShieldCheck className="w-5 h-5 text-gray-500" />
                       <span>Override Audit</span>
                     </button>
 
@@ -401,7 +387,7 @@ function Header({
                       onClick={() => { setShowUserMenu(false); navigate('/commissions/team'); }}
                       className="w-full flex items-center gap-3 px-4 py-3 text-left text-gray-700 hover:bg-gray-50 transition-colors"
                     >
-                      <UserGroupIcon className="w-5 h-5 text-gray-500" />
+                      <Users className="w-5 h-5 text-gray-500" />
                       <span>Team Commissions</span>
                     </button>
 
@@ -410,7 +396,7 @@ function Header({
                       onClick={() => { setShowUserMenu(false); navigate('/admin/approval-rules'); }}
                       className="w-full flex items-center gap-3 px-4 py-3 text-left text-gray-700 hover:bg-gray-50 transition-colors"
                     >
-                      <Cog6ToothIcon className="w-5 h-5 text-gray-500" />
+                      <Settings className="w-5 h-5 text-gray-500" />
                       <span>Approval Rules</span>
                     </button>
 
@@ -419,7 +405,7 @@ function Header({
                       onClick={() => { setShowUserMenu(false); navigate('/admin/financing'); }}
                       className="w-full flex items-center gap-3 px-4 py-3 text-left text-gray-700 hover:bg-gray-50 transition-colors"
                     >
-                      <BanknotesIcon className="w-5 h-5 text-gray-500" />
+                      <Banknote className="w-5 h-5 text-gray-500" />
                       <span>Financing Admin</span>
                     </button>
 
@@ -428,7 +414,7 @@ function Header({
                       onClick={() => { setShowUserMenu(false); onDiscountApprovals?.(); }}
                       className="w-full flex items-center gap-3 px-4 py-3 text-left text-gray-700 hover:bg-gray-50 transition-colors"
                     >
-                      <TagIcon className="w-5 h-5 text-gray-500" />
+                      <Tag className="w-5 h-5 text-gray-500" />
                       <span>Discount Approvals</span>
                     </button>
 
@@ -437,7 +423,7 @@ function Header({
                       onClick={() => { setShowUserMenu(false); onDelegateAuthority?.(); }}
                       className="w-full flex items-center gap-3 px-4 py-3 text-left text-gray-700 hover:bg-gray-50 transition-colors"
                     >
-                      <UserGroupIcon className="w-5 h-5 text-gray-500" />
+                      <Users className="w-5 h-5 text-gray-500" />
                       <span>Delegate Authority</span>
                     </button>
                   </>
@@ -451,7 +437,7 @@ function Header({
                   }}
                   className="w-full flex items-center gap-3 px-4 py-3 text-left text-gray-700 hover:bg-gray-50 transition-colors"
                 >
-                  <CurrencyDollarIcon className="w-5 h-5 text-gray-500" />
+                  <DollarSign className="w-5 h-5 text-gray-500" />
                   <span>My Commissions</span>
                 </button>
 
@@ -463,7 +449,7 @@ function Header({
                   }}
                   className="w-full flex items-center gap-3 px-4 py-3 text-left text-gray-700 hover:bg-gray-50 transition-colors"
                 >
-                  <BellAlertIcon className="w-5 h-5 text-gray-500" />
+                  <BellRing className="w-5 h-5 text-gray-500" />
                   <span>Notification Settings</span>
                 </button>
 
@@ -475,7 +461,7 @@ function Header({
                   }}
                   className="w-full flex items-center gap-3 px-4 py-3 text-left text-gray-700 hover:bg-gray-50 transition-colors"
                 >
-                  <LockClosedIcon className="w-5 h-5 text-gray-500" />
+                  <Lock className="w-5 h-5 text-gray-500" />
                   <span>Change Password</span>
                 </button>
 
@@ -489,7 +475,7 @@ function Header({
                   }}
                   className="w-full flex items-center gap-3 px-4 py-3 text-left text-red-600 hover:bg-red-50 transition-colors"
                 >
-                  <ArrowRightOnRectangleIcon className="w-5 h-5" />
+                  <LogIn className="w-5 h-5" />
                   <span>Sign Out</span>
                 </button>
               </div>
@@ -499,13 +485,15 @@ function Header({
         </div>
       </div>
 
-      <ShiftCommissionSummary
-        isOpen={showCommissionSummary}
-        onClose={() => {
-          setShowCommissionSummary(false);
-          logout();
-        }}
-      />
+      <Suspense fallback={null}>
+        <ShiftCommissionSummary
+          isOpen={showCommissionSummary}
+          onClose={() => {
+            setShowCommissionSummary(false);
+            logout();
+          }}
+        />
+      </Suspense>
     </header>
   );
 }
@@ -529,7 +517,7 @@ function MobileViewToggle({ view, onViewChange, cartItemCount }) {
           }
         `}
       >
-        <CubeIcon className="w-5 h-5" />
+        <Box className="w-5 h-5" />
         Products
       </button>
       <button
@@ -544,7 +532,7 @@ function MobileViewToggle({ view, onViewChange, cartItemCount }) {
           }
         `}
       >
-        <ShoppingCartIcon className="w-5 h-5" />
+        <ShoppingCart className="w-5 h-5" />
         Cart
         {cartItemCount > 0 && (
           <span className="absolute top-2 right-1/4 w-5 h-5 bg-red-500 rounded-full text-xs flex items-center justify-center">
@@ -561,13 +549,11 @@ function MobileViewToggle({ view, onViewChange, cartItemCount }) {
 // ============================================================================
 
 function PriceCheckModal({ isOpen, onClose }) {
-  const [query, setQuery] = useState('');
   const [product, setProduct] = useState(null);
   const inputRef = useRef(null);
 
   useEffect(() => {
     if (isOpen) {
-      setQuery('');
       setProduct(null);
       setTimeout(() => inputRef.current?.focus(), 100);
     }
@@ -575,7 +561,6 @@ function PriceCheckModal({ isOpen, onClose }) {
 
   const handleProductSelect = (selectedProduct) => {
     setProduct(selectedProduct);
-    setQuery('');
   };
 
   if (!isOpen) return null;
@@ -591,7 +576,7 @@ function PriceCheckModal({ isOpen, onClose }) {
             onClick={onClose}
             className="w-10 h-10 flex items-center justify-center text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
           >
-            <XMarkIcon className="w-6 h-6" />
+            <X className="w-6 h-6" />
           </button>
         </div>
 
@@ -664,7 +649,7 @@ function OfflinePinModal({ onClose, onSubmitPin, error, productName, requestedPr
             onClick={onClose}
             className="w-8 h-8 flex items-center justify-center text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
           >
-            <XMarkIcon className="w-5 h-5" />
+            <X className="w-5 h-5" />
           </button>
         </div>
 
@@ -752,14 +737,17 @@ function OfflinePinModal({ onClose, onSubmitPin, error, productName, requestedPr
 
 export function POSMain() {
   const navigate = useNavigate();
-  const { user, isAdminOrManager } = useAuth();
-  const { hasActiveShift, currentShift, shiftSummary } = useRegister();
+  const { isAdminOrManager } = useAuth();
+  const { hasActiveShift, currentShift } = useRegister();
   const cart = useCart();
 
   // UI State
   const [mobileView, setMobileView] = useState('products'); // 'products' | 'cart'
   const [selectedCategory, setSelectedCategory] = useState(null);
   const [searchQuery, setSearchQuery] = useState('');
+  const [specFilters, setSpecFilters] = useState({});
+  const [activeUseCase, setActiveUseCase] = useState(null);
+  const [useCaseCategoryIds, setUseCaseCategoryIds] = useState(null); // when set, limits visible categories
   const [showMobileMenu, setShowMobileMenu] = useState(false);
 
   // Modal State
@@ -768,6 +756,8 @@ export function POSMain() {
   const [showQuoteLookup, setShowQuoteLookup] = useState(false);
   const [showCheckout, setShowCheckout] = useState(false);
   const [showPriceCheck, setShowPriceCheck] = useState(false);
+  const [pickerProduct, setPickerProduct] = useState(null);
+  const [showPicker, setShowPicker] = useState(false);
   const [priceOverrideItem, setPriceOverrideItem] = useState(null);
   const [showDiscountApprovals, setShowDiscountApprovals] = useState(false);
   const [showChangePassword, setShowChangePassword] = useState(false);
@@ -776,7 +766,7 @@ export function POSMain() {
 
   // Connection status + offline support
   const { status: connectionStatus, isOffline } = useConnectionStatus();
-  const { verifyPinOffline, clearCache: clearPinCache } = useManagerPinCache();
+  const { verifyPinOffline } = useManagerPinCache();
   const { pendingCount: offlinePendingCount, isSyncing: offlineSyncing } = useOfflineTransaction();
 
   // Discount Authority State
@@ -1008,7 +998,6 @@ export function POSMain() {
     const result = cart.holdCart();
     if (result.success) {
       // Show success feedback
-      console.log('[POSMain] Transaction held');
     }
   }, [cart]);
 
@@ -1071,7 +1060,7 @@ export function POSMain() {
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [cart.isEmpty, hasActiveShift, showCheckout, showCustomerLookup, showQuoteLookup, showShiftSummary, showPriceCheck, priceOverrideItem, handleHoldTransaction]);
+  }, [cart.isEmpty, hasActiveShift, navigate, showCheckout, showCustomerLookup, showQuoteLookup, showShiftSummary, showPriceCheck, priceOverrideItem, handleHoldTransaction]);
 
   // ============================================================================
   // HANDLERS
@@ -1088,6 +1077,12 @@ export function POSMain() {
 
   // Handle product select (from search or grid)
   const handleProductSelect = useCallback((product) => {
+    // Parent products open the variant picker instead of adding directly
+    if (product.is_parent) {
+      setPickerProduct(product);
+      setShowPicker(true);
+      return;
+    }
     cart.addItem(product);
     setSearchQuery('');
     // On mobile, switch to cart view after adding
@@ -1096,19 +1091,89 @@ export function POSMain() {
     }
   }, [cart]);
 
+  // Category context boost terms (for search enhancement)
+  const [categoryBoostTerms, setCategoryBoostTerms] = useState('');
+  const categoryBoostRef = useRef('');
+
   // Handle category change
   const handleCategoryChange = useCallback((categoryId) => {
     setSelectedCategory(categoryId);
     setSearchQuery(''); // Clear search when changing category
+    setSpecFilters({}); // Clear spec filters when changing category
+    setCategoryBoostTerms('');
+    categoryBoostRef.current = '';
   }, []);
 
-  // Handle search
-  const handleSearch = useCallback((query) => {
-    setSearchQuery(query);
-    if (query) {
-      setSelectedCategory(null); // Clear category when searching
-    }
+  // Fetch category context boost terms when category changes (for search enhancement)
+  const categoriesListRef = useRef([]);
+  useEffect(() => {
+    // Fetch categories list once to resolve id -> slug
+    api.get('/categories/main')
+      .then(r => { categoriesListRef.current = r.categories || r.data?.categories || []; })
+      .catch(() => {});
   }, []);
+
+  useEffect(() => {
+    if (!selectedCategory) {
+      setCategoryBoostTerms('');
+      categoryBoostRef.current = '';
+      return;
+    }
+    // Resolve category ID to slug
+    const cat = categoriesListRef.current.find(c => c.id === selectedCategory);
+    const slug = cat?.slug;
+    if (!slug) return;
+
+    api.get(`/categories/${slug}/context`)
+      .then(r => {
+        const data = r.data || r;
+        const terms = (data.boost_terms || []).slice(0, 5).join(' ');
+        setCategoryBoostTerms(terms);
+        categoryBoostRef.current = terms;
+      })
+      .catch(() => {
+        setCategoryBoostTerms('');
+        categoryBoostRef.current = '';
+      });
+  }, [selectedCategory]);
+
+  // Handle search — prefix with category context when a category is active
+  const handleSearch = useCallback((query) => {
+    if (query) {
+      // When category is active, don't clear it — use contextual search
+      if (categoryBoostRef.current && selectedCategory) {
+        setSearchQuery(`${categoryBoostRef.current} ${query}`);
+      } else {
+        setSearchQuery(query);
+        setSelectedCategory(null); // Clear category only when no category context
+      }
+    } else {
+      setSearchQuery('');
+    }
+  }, [selectedCategory]);
+
+  // Handle use-case (Shop by Room)
+  const handleUseCase = useCallback(async (useCase) => {
+    if (activeUseCase === useCase) {
+      setActiveUseCase(null);
+      setUseCaseCategoryIds(null);
+      setSelectedCategory(null);
+      return;
+    }
+    setActiveUseCase(useCase);
+    try {
+      const res = await api.get(`/categories/by-use-case/${useCase}`);
+      const depts = res.departments || res.data?.departments || [];
+      const catIds = depts.flatMap(d => (d.categories || []).map(c => c.id));
+      setUseCaseCategoryIds(catIds);
+      // Auto-select first category
+      if (catIds.length > 0) {
+        setSelectedCategory(catIds[0]);
+      }
+    } catch {
+      // ignore
+    }
+  }, [activeUseCase]);
 
   // Handle checkout
   const handleCheckout = useCallback(() => {
@@ -1118,7 +1183,6 @@ export function POSMain() {
 
   // Handle checkout complete
   const handleCheckoutComplete = useCallback((transaction) => {
-    console.log('[POSMain] Transaction complete:', transaction);
     // Cart is cleared by checkout process
     setShowCheckout(false);
   }, []);
@@ -1224,7 +1288,33 @@ export function POSMain() {
           <QuickAddFavorites onAddItem={handleProductSelect} />
 
           {/* Search and Categories */}
-          <div className="p-4 bg-white border-b border-gray-200 space-y-4">
+          <div className="p-4 bg-white border-b border-gray-200 space-y-3">
+            {/* Shop by Room */}
+            <div className="flex items-center gap-1.5 overflow-x-auto" style={{ scrollbarWidth: 'none' }}>
+              <span className="text-[11px] font-medium text-gray-500 mr-1 flex-shrink-0">Room:</span>
+              {[
+                { key: 'kitchen', icon: '\uD83C\uDF73', label: 'Kitchen' },
+                { key: 'laundry', icon: '\uD83D\uDEC1', label: 'Laundry' },
+                { key: 'living-room', icon: '\uD83C\uDFAC', label: 'Living Room' },
+                { key: 'bedroom', icon: '\uD83D\uDECF\uFE0F', label: 'Bedroom' },
+                { key: 'outdoor', icon: '\uD83C\uDF3F', label: 'Outdoor' },
+                { key: 'air-quality', icon: '\uD83D\uDCA8', label: 'Air Quality' },
+              ].map((uc) => (
+                <button
+                  key={uc.key}
+                  onClick={() => handleUseCase(uc.key)}
+                  className={`flex-shrink-0 flex items-center gap-1 h-8 px-3 rounded-lg text-xs font-medium transition-all ${
+                    activeUseCase === uc.key
+                      ? 'bg-blue-600 text-white shadow-sm'
+                      : 'bg-gray-50 text-gray-600 border border-gray-200 hover:bg-gray-100'
+                  }`}
+                >
+                  <span>{uc.icon}</span>
+                  {uc.label}
+                </button>
+              ))}
+            </div>
+
             {/* Product Search */}
             <ProductSearch
               ref={searchInputRef}
@@ -1239,6 +1329,7 @@ export function POSMain() {
             <CategoryBar
               selectedCategory={selectedCategory}
               onSelectCategory={handleCategoryChange}
+              onSpecFilter={setSpecFilters}
             />
           </div>
 
@@ -1247,6 +1338,8 @@ export function POSMain() {
             <ProductGrid
               categoryId={selectedCategory}
               searchQuery={searchQuery}
+              specFilters={specFilters}
+              locationId={currentShift?.location_id || '1'}
               onProductSelect={handleProductSelect}
             />
           </div>
@@ -1296,33 +1389,56 @@ export function POSMain() {
       {/* MODALS */}
       {/* ============================================================ */}
 
-      {/* Shift Summary Panel */}
-      <ShiftSummaryPanel
-        isOpen={showShiftSummary}
-        onClose={() => setShowShiftSummary(false)}
-      />
+      <Suspense fallback={null}>
+        {/* Shift Summary Panel */}
+        <ShiftSummaryPanel
+          isOpen={showShiftSummary}
+          onClose={() => setShowShiftSummary(false)}
+        />
 
-      {/* Customer Lookup Modal */}
-      <CustomerLookup
-        isOpen={showCustomerLookup}
-        onClose={() => setShowCustomerLookup(false)}
-        onSelectCustomer={handleCustomerSelect}
-        onLoadQuote={handleLoadQuote}
-      />
+        {/* Customer Lookup Modal */}
+        <CustomerLookup
+          isOpen={showCustomerLookup}
+          onClose={() => setShowCustomerLookup(false)}
+          onSelectCustomer={handleCustomerSelect}
+          onLoadQuote={handleLoadQuote}
+        />
 
-      {/* Quote Lookup Modal */}
-      <QuoteLookup
-        isOpen={showQuoteLookup}
-        onClose={() => setShowQuoteLookup(false)}
-        onLoadQuote={handleLoadQuote}
-      />
+        {/* Quote Lookup Modal */}
+        <QuoteLookup
+          isOpen={showQuoteLookup}
+          onClose={() => setShowQuoteLookup(false)}
+          onLoadQuote={handleLoadQuote}
+        />
 
-      {/* Checkout Modal */}
-      <CheckoutModal
-        isOpen={showCheckout}
-        onClose={() => setShowCheckout(false)}
-        onComplete={handleCheckoutComplete}
-      />
+        {/* Checkout Modal */}
+        <CheckoutModal
+          isOpen={showCheckout}
+          onClose={() => setShowCheckout(false)}
+          onComplete={handleCheckoutComplete}
+        />
+
+        {/* Variant Picker */}
+        {showPicker && pickerProduct && (
+          <VariantPicker
+            parentProductId={String(pickerProduct.id)}
+            locationId={currentShift?.location_id || '1'}
+            onVariantSelected={(variant) => {
+              cart.addItem(variant);
+              setShowPicker(false);
+              setPickerProduct(null);
+              setSearchQuery('');
+              if (window.innerWidth < 1024) {
+                setMobileView('cart');
+              }
+            }}
+            onClose={() => {
+              setShowPicker(false);
+              setPickerProduct(null);
+            }}
+          />
+        )}
+      </Suspense>
 
       {/* Price Check Modal */}
       <PriceCheckModal
@@ -1330,39 +1446,41 @@ export function POSMain() {
         onClose={() => setShowPriceCheck(false)}
       />
 
-      {/* Manager Discount Approval Queue */}
-      <ManagerApprovalQueue
-        isOpen={showDiscountApprovals}
-        onClose={() => setShowDiscountApprovals(false)}
-      />
+      <Suspense fallback={null}>
+        {/* Manager Discount Approval Queue */}
+        <ManagerApprovalQueue
+          isOpen={showDiscountApprovals}
+          onClose={() => setShowDiscountApprovals(false)}
+        />
 
-      {/* Discount Escalation Modal */}
-      <DiscountEscalationModal
-        isOpen={!!escalationItem}
-        onClose={() => { setEscalationItem(null); setEscalationDesiredPct(0); refreshEscalations(); }}
-        onSubmitted={refreshEscalations}
-        item={escalationItem}
-        desiredPct={escalationDesiredPct}
-        tier={discountTier}
-      />
+        {/* Discount Escalation Modal */}
+        <DiscountEscalationModal
+          isOpen={!!escalationItem}
+          onClose={() => { setEscalationItem(null); setEscalationDesiredPct(0); refreshEscalations(); }}
+          onSubmitted={refreshEscalations}
+          item={escalationItem}
+          desiredPct={escalationDesiredPct}
+          tier={discountTier}
+        />
 
-      {/* Manager Selection Modal (new approval flow) */}
-      <ManagerSelectionModal
-        isOpen={approvalFlow.flowState === 'select_manager'}
-        onClose={() => {
-          approvalFlow.reset();
-          setApprovalFlowItem(null);
-        }}
-        cartItem={approvalFlowItem ? {
-          id: approvalFlowItem.itemId,
-          productId: approvalFlowItem.productId,
-          productName: approvalFlowItem.productName,
-          retailPrice: approvalFlowItem.retailPrice,
-          requestedPrice: approvalFlowItem.requestedPrice,
-          cost: approvalFlowItem.cost,
-        } : null}
-        onManagerSelected={handleManagerSelected}
-      />
+        {/* Manager Selection Modal (new approval flow) */}
+        <ManagerSelectionModal
+          isOpen={approvalFlow.flowState === 'select_manager'}
+          onClose={() => {
+            approvalFlow.reset();
+            setApprovalFlowItem(null);
+          }}
+          cartItem={approvalFlowItem ? {
+            id: approvalFlowItem.itemId,
+            productId: approvalFlowItem.productId,
+            productName: approvalFlowItem.productName,
+            retailPrice: approvalFlowItem.retailPrice,
+            requestedPrice: approvalFlowItem.requestedPrice,
+            cost: approvalFlowItem.cost,
+          } : null}
+          onManagerSelected={handleManagerSelected}
+        />
+      </Suspense>
 
       {/* Offline PIN Override Modal */}
       {approvalFlow.flowState === 'pin_offline' && (
@@ -1378,88 +1496,90 @@ export function POSMain() {
         />
       )}
 
-      {/* Approval Status Overlay (pending/approved/denied/countered - not pin_offline, that has its own modal) */}
-      <ApprovalStatusOverlay
-        isOpen={['pending', 'approved', 'denied', 'countered', 'consuming', 'done', 'timed_out', 'error'].includes(approvalFlow.flowState) && approvalFlow.flowState !== 'pin_offline'}
-        flowState={approvalFlow.flowState}
-        approvalRequest={approvalFlow.approvalRequest}
-        approvedPrice={approvalFlow.approvedPrice}
-        approvedByName={approvalFlow.approvedByName}
-        counterOffer={approvalFlow.counterOffer}
-        denyReason={approvalFlow.denyReason}
-        error={approvalFlow.error}
-        onAcceptCounter={approvalFlow.acceptCounter}
-        onDeclineCounter={approvalFlow.declineCounter}
-        onCancel={approvalFlow.cancel}
-        onClose={() => {
-          approvalFlow.reset();
-          setApprovalFlowItem(null);
-        }}
-      />
+      <Suspense fallback={null}>
+        {/* Approval Status Overlay (pending/approved/denied/countered - not pin_offline, that has its own modal) */}
+        <ApprovalStatusOverlay
+          isOpen={['pending', 'approved', 'denied', 'countered', 'consuming', 'done', 'timed_out', 'error'].includes(approvalFlow.flowState) && approvalFlow.flowState !== 'pin_offline'}
+          flowState={approvalFlow.flowState}
+          approvalRequest={approvalFlow.approvalRequest}
+          approvedPrice={approvalFlow.approvedPrice}
+          approvedByName={approvalFlow.approvedByName}
+          counterOffer={approvalFlow.counterOffer}
+          denyReason={approvalFlow.denyReason}
+          error={approvalFlow.error}
+          onAcceptCounter={approvalFlow.acceptCounter}
+          onDeclineCounter={approvalFlow.declineCounter}
+          onCancel={approvalFlow.cancel}
+          onClose={() => {
+            approvalFlow.reset();
+            setApprovalFlowItem(null);
+          }}
+        />
 
-      {/* Batch Manager Selection Modal */}
-      <BatchManagerSelectionModal
-        isOpen={batchApprovalFlow.flowState === 'select_manager'}
-        onClose={() => batchApprovalFlow.reset()}
-        batchItems={batchApprovalFlow.batchItems}
-        onManagerSelected={handleBatchManagerSelected}
-      />
+        {/* Batch Manager Selection Modal */}
+        <BatchManagerSelectionModal
+          isOpen={batchApprovalFlow.flowState === 'select_manager'}
+          onClose={() => batchApprovalFlow.reset()}
+          batchItems={batchApprovalFlow.batchItems}
+          onManagerSelected={handleBatchManagerSelected}
+        />
 
-      {/* Batch Approval Status Overlay */}
-      <BatchApprovalStatusOverlay
-        isOpen={['pending', 'approved', 'denied', 'consuming', 'done', 'timed_out', 'error'].includes(batchApprovalFlow.flowState)}
-        flowState={batchApprovalFlow.flowState}
-        batchResult={batchApprovalFlow.batchResult}
-        approvedChildren={batchApprovalFlow.approvedChildren}
-        approvedByName={batchApprovalFlow.approvedByName}
-        denyReason={batchApprovalFlow.denyReason}
-        error={batchApprovalFlow.error}
-        onCancel={batchApprovalFlow.cancel}
-        onClose={() => batchApprovalFlow.reset()}
-      />
+        {/* Batch Approval Status Overlay */}
+        <BatchApprovalStatusOverlay
+          isOpen={['pending', 'approved', 'denied', 'consuming', 'done', 'timed_out', 'error'].includes(batchApprovalFlow.flowState)}
+          flowState={batchApprovalFlow.flowState}
+          batchResult={batchApprovalFlow.batchResult}
+          approvedChildren={batchApprovalFlow.approvedChildren}
+          approvedByName={batchApprovalFlow.approvedByName}
+          denyReason={batchApprovalFlow.denyReason}
+          error={batchApprovalFlow.error}
+          onCancel={batchApprovalFlow.cancel}
+          onClose={() => batchApprovalFlow.reset()}
+        />
 
-      {/* Delegation Modal */}
-      <DelegationModal
-        isOpen={showDelegationModal}
-        onClose={() => setShowDelegationModal(false)}
-      />
+        {/* Delegation Modal */}
+        <DelegationModal
+          isOpen={showDelegationModal}
+          onClose={() => setShowDelegationModal(false)}
+        />
 
-      {/* Change Password Modal */}
-      <ChangePasswordModal
-        isOpen={showChangePassword}
-        onClose={() => setShowChangePassword(false)}
-      />
+        {/* Change Password Modal */}
+        <ChangePasswordModal
+          isOpen={showChangePassword}
+          onClose={() => setShowChangePassword(false)}
+        />
 
-      {/* Notification Preferences Modal */}
-      <NotificationPreferences
-        isOpen={showNotificationSettings}
-        onClose={() => setShowNotificationSettings(false)}
-      />
+        {/* Notification Preferences Modal */}
+        <NotificationPreferences
+          isOpen={showNotificationSettings}
+          onClose={() => setShowNotificationSettings(false)}
+        />
 
-      {/* Price Override Modal */}
-      <PriceOverrideModal
-        isOpen={!!priceOverrideItem}
-        onClose={() => setPriceOverrideItem(null)}
-        onApply={(overridePrice, reason, approvalInfo) => {
-          if (priceOverrideItem) {
-            cart.updateItemPrice(priceOverrideItem.id, overridePrice, reason, approvalInfo || {});
-          }
-          setPriceOverrideItem(null);
-        }}
-        onRequestApproval={(itemData) => {
-          setPriceOverrideItem(null); // close modal
-          handleRequestApproval({
-            ...itemData,
-            itemId: priceOverrideItem?.id,
-            entryPoint: 'priceOverride',
-          });
-        }}
-        product={priceOverrideItem || {}}
-        originalPrice={priceOverrideItem?.basePrice || priceOverrideItem?.unitPrice || 0}
-        customerPrice={priceOverrideItem?.unitPrice || 0}
-        customerId={cart.customer?.id || cart.customer?.customerId}
-        quantity={priceOverrideItem?.quantity || 1}
-      />
+        {/* Price Override Modal */}
+        <PriceOverrideModal
+          isOpen={!!priceOverrideItem}
+          onClose={() => setPriceOverrideItem(null)}
+          onApply={(overridePrice, reason, approvalInfo) => {
+            if (priceOverrideItem) {
+              cart.updateItemPrice(priceOverrideItem.id, overridePrice, reason, approvalInfo || {});
+            }
+            setPriceOverrideItem(null);
+          }}
+          onRequestApproval={(itemData) => {
+            setPriceOverrideItem(null); // close modal
+            handleRequestApproval({
+              ...itemData,
+              itemId: priceOverrideItem?.id,
+              entryPoint: 'priceOverride',
+            });
+          }}
+          product={priceOverrideItem || {}}
+          originalPrice={priceOverrideItem?.basePrice || priceOverrideItem?.unitPrice || 0}
+          customerPrice={priceOverrideItem?.unitPrice || 0}
+          customerId={cart.customer?.id || cart.customer?.customerId}
+          quantity={priceOverrideItem?.quantity || 1}
+        />
+      </Suspense>
 
       {/* Mobile Menu Overlay */}
       {showMobileMenu && (
@@ -1476,7 +1596,7 @@ export function POSMain() {
                 onClick={() => setShowMobileMenu(false)}
                 className="w-10 h-10 flex items-center justify-center text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
               >
-                <XMarkIcon className="w-6 h-6" />
+                <X className="w-6 h-6" />
               </button>
             </div>
 
@@ -1489,7 +1609,7 @@ export function POSMain() {
                 }}
                 className="w-full flex items-center gap-3 px-4 py-3 text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
               >
-                <ChartBarIcon className="w-5 h-5" />
+                <BarChart3 className="w-5 h-5" />
                 Shift Summary
               </button>
 
@@ -1501,7 +1621,7 @@ export function POSMain() {
                 }}
                 className="w-full flex items-center gap-3 px-4 py-3 text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
               >
-                <DocumentTextIcon className="w-5 h-5" />
+                <FileText className="w-5 h-5" />
                 Find Quote (F5)
               </button>
 
@@ -1513,7 +1633,7 @@ export function POSMain() {
                 }}
                 className="w-full flex items-center gap-3 px-4 py-3 text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
               >
-                <UserIcon className="w-5 h-5" />
+                <User className="w-5 h-5" />
                 Find Customer (F4)
               </button>
 
@@ -1525,7 +1645,7 @@ export function POSMain() {
                 }}
                 className="w-full flex items-center gap-3 px-4 py-3 text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
               >
-                <TagIcon className="w-5 h-5" />
+                <Tag className="w-5 h-5" />
                 Price Check (F8)
               </button>
 
@@ -1537,7 +1657,7 @@ export function POSMain() {
                 }}
                 className="w-full flex items-center gap-3 px-4 py-3 text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
               >
-                <ArrowUturnLeftIcon className="w-5 h-5" />
+                <Undo2 className="w-5 h-5" />
                 Returns & Exchanges (F6)
               </button>
 
@@ -1547,7 +1667,7 @@ export function POSMain() {
                 onClick={() => { setShowMobileMenu(false); navigate('/commissions/my'); }}
                 className="w-full flex items-center gap-3 px-4 py-3 text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
               >
-                <CurrencyDollarIcon className="w-5 h-5" />
+                <DollarSign className="w-5 h-5" />
                 My Commissions
               </button>
 
@@ -1561,7 +1681,7 @@ export function POSMain() {
                     onClick={() => { setShowMobileMenu(false); navigate('/transactions'); }}
                     className="w-full flex items-center gap-3 px-4 py-3 text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
                   >
-                    <TableCellsIcon className="w-5 h-5" />
+                    <Table className="w-5 h-5" />
                     Transactions
                   </button>
 
@@ -1570,7 +1690,7 @@ export function POSMain() {
                     onClick={() => { setShowMobileMenu(false); navigate('/reports'); }}
                     className="w-full flex items-center gap-3 px-4 py-3 text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
                   >
-                    <ClipboardDocumentListIcon className="w-5 h-5" />
+                    <ClipboardList className="w-5 h-5" />
                     Reports
                   </button>
 
@@ -1579,7 +1699,7 @@ export function POSMain() {
                     onClick={() => { setShowMobileMenu(false); navigate('/reports/shift'); }}
                     className="w-full flex items-center gap-3 px-4 py-3 text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
                   >
-                    <ClockIcon className="w-5 h-5" />
+                    <Clock className="w-5 h-5" />
                     Shift Reports
                   </button>
 
@@ -1588,7 +1708,7 @@ export function POSMain() {
                     onClick={() => { setShowMobileMenu(false); navigate('/reports/overrides'); }}
                     className="w-full flex items-center gap-3 px-4 py-3 text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
                   >
-                    <ShieldCheckIcon className="w-5 h-5" />
+                    <ShieldCheck className="w-5 h-5" />
                     Override Audit
                   </button>
 
@@ -1597,7 +1717,7 @@ export function POSMain() {
                     onClick={() => { setShowMobileMenu(false); navigate('/commissions/team'); }}
                     className="w-full flex items-center gap-3 px-4 py-3 text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
                   >
-                    <UserGroupIcon className="w-5 h-5" />
+                    <Users className="w-5 h-5" />
                     Team Commissions
                   </button>
 
@@ -1606,7 +1726,7 @@ export function POSMain() {
                     onClick={() => { setShowMobileMenu(false); navigate('/admin/approval-rules'); }}
                     className="w-full flex items-center gap-3 px-4 py-3 text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
                   >
-                    <Cog6ToothIcon className="w-5 h-5" />
+                    <Settings className="w-5 h-5" />
                     Approval Rules
                   </button>
 
@@ -1615,7 +1735,7 @@ export function POSMain() {
                     onClick={() => { setShowMobileMenu(false); navigate('/admin/financing'); }}
                     className="w-full flex items-center gap-3 px-4 py-3 text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
                   >
-                    <BanknotesIcon className="w-5 h-5" />
+                    <Banknote className="w-5 h-5" />
                     Financing Admin
                   </button>
                 </div>
@@ -1630,7 +1750,7 @@ export function POSMain() {
                   }}
                   className="w-full flex items-center gap-3 px-4 py-3 text-yellow-700 hover:bg-yellow-50 rounded-lg transition-colors"
                 >
-                  <ClockIcon className="w-5 h-5" />
+                  <Clock className="w-5 h-5" />
                   Close Shift
                 </button>
               </div>

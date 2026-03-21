@@ -3,23 +3,10 @@
  * Preview and send batch receipt emails
  */
 
-import { useState, useEffect, useCallback, useMemo } from 'react';
-import {
-  XMarkIcon,
-  EnvelopeIcon,
-  CheckCircleIcon,
-  ExclamationCircleIcon,
-  ArrowPathIcon,
-  PaperAirplaneIcon,
-  UserIcon,
-  CurrencyDollarIcon,
-  ClockIcon,
-  ExclamationTriangleIcon,
-  CheckIcon,
-  XCircleIcon,
-} from '@heroicons/react/24/outline';
+import { useState, useEffect, useCallback } from 'react';
 import { formatCurrency } from '../../utils/formatters';
 import useBatchEmail from '../../hooks/useBatchEmail';
+import { AlertCircle, AlertTriangle, CheckCircle, DollarSign, Mail, RefreshCw, Send, User, X, XCircle } from 'lucide-react';
 
 /**
  * Progress bar component
@@ -79,11 +66,11 @@ function ReceiptItem({ item, isSelected, onToggle, disabled }) {
         </div>
         <div className="flex items-center gap-3 text-sm text-gray-500">
           <span className="flex items-center gap-1">
-            <UserIcon className="w-3.5 h-3.5" />
+            <User className="w-3.5 h-3.5" />
             {item.customer_name || 'Customer'}
           </span>
           <span className="flex items-center gap-1">
-            <CurrencyDollarIcon className="w-3.5 h-3.5" />
+            <DollarSign className="w-3.5 h-3.5" />
             {formatCurrency(item.total_amount)}
           </span>
         </div>
@@ -92,28 +79,6 @@ function ReceiptItem({ item, isSelected, onToggle, disabled }) {
         {item.customer_email}
       </div>
     </label>
-  );
-}
-
-/**
- * Status badge for batch items
- */
-function StatusBadge({ status }) {
-  const config = {
-    pending: { bg: 'bg-gray-100', text: 'text-gray-700', icon: ClockIcon },
-    processing: { bg: 'bg-blue-100', text: 'text-blue-700', icon: ArrowPathIcon },
-    sent: { bg: 'bg-green-100', text: 'text-green-700', icon: CheckCircleIcon },
-    failed: { bg: 'bg-red-100', text: 'text-red-700', icon: XCircleIcon },
-    skipped: { bg: 'bg-amber-100', text: 'text-amber-700', icon: ExclamationTriangleIcon },
-  };
-
-  const { bg, text, icon: Icon } = config[status] || config.pending;
-
-  return (
-    <span className={`inline-flex items-center gap-1 px-2 py-0.5 text-xs font-medium rounded-full ${bg} ${text}`}>
-      <Icon className={`w-3 h-3 ${status === 'processing' ? 'animate-spin' : ''}`} />
-      {status.charAt(0).toUpperCase() + status.slice(1)}
-    </span>
   );
 }
 
@@ -142,7 +107,6 @@ export default function BatchReceiptEmailModal({
     error,
     unsentReceipts,
     currentBatch,
-    batchStatus,
     getUnsentForShift,
     getUnsentForToday,
     getUnsentForDate,
@@ -178,7 +142,7 @@ export default function BatchReceiptEmailModal({
         getUnsentForToday();
       }
     }
-  }, [isOpen, mode, shiftId, date, transactionIds]);
+  }, [isOpen, mode, shiftId, date, transactionIds, getUnsentForShift, getUnsentForDate, getUnsentForToday, reset]);
 
   // Auto-select all when receipts load
   useEffect(() => {
@@ -312,7 +276,7 @@ export default function BatchReceiptEmailModal({
         <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center">
-              <EnvelopeIcon className="w-5 h-5 text-blue-600" />
+              <Mail className="w-5 h-5 text-blue-600" />
             </div>
             <div>
               <h2 className="text-lg font-bold text-gray-900">{getTitle()}</h2>
@@ -327,7 +291,7 @@ export default function BatchReceiptEmailModal({
             onClick={handleClose}
             className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
           >
-            <XMarkIcon className="w-5 h-5" />
+            <X className="w-5 h-5" />
           </button>
         </div>
 
@@ -336,7 +300,7 @@ export default function BatchReceiptEmailModal({
           {/* Error message */}
           {error && (
             <div className="mb-4 p-4 bg-red-50 border border-red-200 rounded-lg flex items-start gap-3">
-              <ExclamationCircleIcon className="w-5 h-5 text-red-500 flex-shrink-0 mt-0.5" />
+              <AlertCircle className="w-5 h-5 text-red-500 flex-shrink-0 mt-0.5" />
               <div>
                 <p className="font-medium text-red-800">Error</p>
                 <p className="text-sm text-red-600">{error}</p>
@@ -349,12 +313,12 @@ export default function BatchReceiptEmailModal({
             <>
               {isLoading ? (
                 <div className="flex flex-col items-center justify-center py-12">
-                  <ArrowPathIcon className="w-8 h-8 text-gray-400 animate-spin mb-3" />
+                  <RefreshCw className="w-8 h-8 text-gray-400 animate-spin mb-3" />
                   <p className="text-gray-500">Loading receipts...</p>
                 </div>
               ) : unsentReceipts.length === 0 ? (
                 <div className="flex flex-col items-center justify-center py-12">
-                  <CheckCircleIcon className="w-12 h-12 text-green-500 mb-3" />
+                  <CheckCircle className="w-12 h-12 text-green-500 mb-3" />
                   <p className="text-lg font-medium text-gray-900">All caught up!</p>
                   <p className="text-gray-500">No unsent receipts found.</p>
                 </div>
@@ -401,7 +365,7 @@ export default function BatchReceiptEmailModal({
             <div className="py-8">
               <div className="text-center mb-6">
                 <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                  <PaperAirplaneIcon className="w-8 h-8 text-blue-600 animate-pulse" />
+                  <Send className="w-8 h-8 text-blue-600 animate-pulse" />
                 </div>
                 <h3 className="text-lg font-semibold text-gray-900 mb-1">
                   Sending Emails
@@ -451,7 +415,7 @@ export default function BatchReceiptEmailModal({
                 {processingStatus.error ? (
                   <>
                     <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                      <XCircleIcon className="w-8 h-8 text-red-600" />
+                      <XCircle className="w-8 h-8 text-red-600" />
                     </div>
                     <h3 className="text-lg font-semibold text-gray-900 mb-1">
                       Something went wrong
@@ -461,7 +425,7 @@ export default function BatchReceiptEmailModal({
                 ) : processingStatus.failed_count > 0 ? (
                   <>
                     <div className="w-16 h-16 bg-amber-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                      <ExclamationTriangleIcon className="w-8 h-8 text-amber-600" />
+                      <AlertTriangle className="w-8 h-8 text-amber-600" />
                     </div>
                     <h3 className="text-lg font-semibold text-gray-900 mb-1">
                       Completed with errors
@@ -473,7 +437,7 @@ export default function BatchReceiptEmailModal({
                 ) : (
                   <>
                     <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                      <CheckCircleIcon className="w-8 h-8 text-green-600" />
+                      <CheckCircle className="w-8 h-8 text-green-600" />
                     </div>
                     <h3 className="text-lg font-semibold text-gray-900 mb-1">
                       All done!
@@ -556,7 +520,7 @@ export default function BatchReceiptEmailModal({
                 disabled={selectedIds.size === 0 || isLoading}
                 className="px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
               >
-                <PaperAirplaneIcon className="w-4 h-4" />
+                <Send className="w-4 h-4" />
                 Send {selectedIds.size} Email{selectedIds.size !== 1 ? 's' : ''}
               </button>
             </>
@@ -584,7 +548,7 @@ export default function BatchReceiptEmailModal({
                   }}
                   className="px-4 py-2 text-blue-600 font-medium hover:bg-blue-50 rounded-lg transition-colors flex items-center gap-2"
                 >
-                  <ArrowPathIcon className="w-4 h-4" />
+                  <RefreshCw className="w-4 h-4" />
                   Retry Failed
                 </button>
               )}

@@ -33,7 +33,6 @@ export const searchCustomers = async (query, options = {}) => {
   } catch (error) {
     // Offline fallback: search Dexie cache
     if (error.code === 'ERR_NETWORK' || !navigator.onLine) {
-      console.log('[Customers] searchCustomers offline fallback');
       const offlineResults = await searchCustomersOffline(query);
       return { success: true, data: offlineResults, offline: true };
     }

@@ -5,15 +5,6 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import {
-  MagnifyingGlassIcon,
-  UserIcon,
-  DocumentTextIcon,
-  ClockIcon,
-  Squares2X2Icon,
-  ArrowPathIcon,
-  Cog6ToothIcon,
-} from '@heroicons/react/24/outline';
 import { useAuth } from '../context/AuthContext';
 import { useCart } from '../hooks/useCart';
 import { useRegister } from '../hooks/useRegister';
@@ -44,6 +35,7 @@ import {
 
 // Customer Components
 import { CustomerLookup } from '../components/Customer';
+import { Clock, FileText, Search, User } from 'lucide-react';
 
 /**
  * Main POS Register Screen
@@ -216,7 +208,7 @@ function Register() {
               Shift Active
             </span>
             <span className="text-gray-400">
-              <ClockIcon className="w-4 h-4 inline mr-1" />
+              <Clock className="w-4 h-4 inline mr-1" />
               {getShiftDuration?.() || '0:00'}
             </span>
             <span className="text-gray-400">
@@ -230,7 +222,7 @@ function Register() {
               onClick={() => setShowHeldTransactions(true)}
               className="relative px-3 py-1.5 bg-yellow-600 hover:bg-yellow-700 rounded-lg transition-colors"
             >
-              <ClockIcon className="w-5 h-5" />
+              <Clock className="w-5 h-5" />
               <span className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 rounded-full text-xs flex items-center justify-center">
                 {cart.heldCarts.length}
               </span>
@@ -289,7 +281,7 @@ function Register() {
                 onClick={() => setView('search')}
                 className={`p-2 ${view === 'search' ? 'bg-blue-50 text-blue-600' : 'text-gray-400 hover:text-gray-600'}`}
               >
-                <MagnifyingGlassIcon className="w-5 h-5" />
+                <Search className="w-5 h-5" />
               </button>
             </div>
 
@@ -299,21 +291,21 @@ function Register() {
                 onClick={() => setShowCustomerLookup(true)}
                 className="flex items-center gap-2 px-4 py-2 bg-blue-50 hover:bg-blue-100 text-blue-700 rounded-lg transition-colors"
               >
-                <UserIcon className="w-5 h-5" />
+                <User className="w-5 h-5" />
                 <span className="hidden lg:inline">Customer</span>
               </button>
               <button
                 onClick={() => setShowQuoteLookup(true)}
                 className="flex items-center gap-2 px-4 py-2 bg-purple-50 hover:bg-purple-100 text-purple-700 rounded-lg transition-colors"
               >
-                <DocumentTextIcon className="w-5 h-5" />
+                <FileText className="w-5 h-5" />
                 <span className="hidden lg:inline">Quote</span>
               </button>
               <button
                 onClick={() => setShowHeldTransactions(true)}
                 className="flex items-center gap-2 px-4 py-2 bg-yellow-50 hover:bg-yellow-100 text-yellow-700 rounded-lg transition-colors relative"
               >
-                <ClockIcon className="w-5 h-5" />
+                <Clock className="w-5 h-5" />
                 <span className="hidden lg:inline">Held</span>
                 {cart.hasHeldCarts && (
                   <span className="absolute -top-1 -right-1 w-5 h-5 bg-yellow-500 text-white rounded-full text-xs flex items-center justify-center">

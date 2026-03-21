@@ -88,7 +88,6 @@ class MessagingHub {
       }
     }
 
-    console.log(`${PREFIX} Channel ${adapter.channelCode}: polled ${totalPolled} threads, ${newMessages} new messages`);
     return { newMessages, totalPolled };
   }
 
@@ -144,7 +143,6 @@ class MessagingHub {
       [messageId]
     );
 
-    console.log(`${PREFIX} Reply sent to thread ${original.thread_id} (message #${outboundId})`);
     return { outboundId, channelResponse };
   }
 
@@ -164,7 +162,6 @@ class MessagingHub {
     );
 
     if (templates.length === 0) {
-      console.log(`${PREFIX} No active template for event "${triggerEvent}", skipping`);
       return { sent: false, outboundId: null, templateName: null };
     }
 
@@ -219,7 +216,6 @@ class MessagingHub {
     ]);
 
     const outboundId = insertResult.rows[0].id;
-    console.log(`${PREFIX} Triggered message "${template.template_name}" sent (message #${outboundId})`);
 
     return { sent: true, outboundId, templateName: template.template_name };
   }

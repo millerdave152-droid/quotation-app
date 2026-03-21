@@ -361,6 +361,13 @@ class InvoiceService {
         throw new Error('Invoice is already fully paid');
       }
 
+      // Prevent overpayment
+      if (amountCents > invoice.balance_due_cents) {
+        throw new Error(
+          `Payment amount ($${(amountCents / 100).toFixed(2)}) exceeds balance due ($${(invoice.balance_due_cents / 100).toFixed(2)})`
+        );
+      }
+
       // Record payment
       await client.query(`
         INSERT INTO invoice_payments (

@@ -4,18 +4,28 @@
   "description": "",
   "main": "index.js",
   "scripts": {
+    "start": "node server.js",
+    "dev": "npx nodemon server.js",
     "test": "jest --coverage --detectOpenHandles",
     "test:skulytics": "jest --testPathPatterns skulytics --runInBand --verbose --no-coverage && jest --testPathPatterns quotationEngine --runInBand --verbose --no-coverage",
     "test:watch": "jest --watch",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
     "format": "prettier --write \"**/*.{js,json,md}\"",
-    "format:check": "prettier --check \"**/*.{js,json,md}\""
+    "format:check": "prettier --check \"**/*.{js,json,md}\"",
+    "migrate": "node scripts/migrate.js",
+    "migrate:status": "node scripts/migrate.js --status",
+    "migrate:dry-run": "node scripts/migrate.js --dry-run",
+    "migrate:baseline": "node scripts/migrate.js --baseline"
   },
   "jest": {
     "testEnvironment": "node",
     "coveragePathIgnorePatterns": [
       "/node_modules/"
+    ],
+    "testPathIgnorePatterns": [
+      "/node_modules/",
+      "__tests__/integration/"
     ],
     "testMatch": [
       "**/__tests__/**/*.test.js"
@@ -38,7 +48,6 @@
     "archiver": "^7.0.1",
     "axios": "^1.13.2",
     "bcrypt": "^6.0.0",
-    "bcryptjs": "^3.0.3",
     "bwip-js": "^4.8.0",
     "chokidar": "^4.0.3",
     "cors": "^2.8.5",
@@ -49,14 +58,13 @@
     "express-rate-limit": "^8.2.1",
     "express-validator": "^7.3.1",
     "helmet": "^8.1.0",
+    "ioredis": "^5.10.0",
     "joi": "^18.0.2",
     "jsonwebtoken": "^9.0.2",
     "multer": "^2.0.2",
     "node-cache": "^5.1.2",
     "node-cron": "^4.2.1",
     "nodemailer": "^7.0.10",
-    "pdf-parse": "^2.4.5",
-    "pdf2json": "^4.0.0",
     "pdfkit": "^0.17.2",
     "pg": "^8.16.3",
     "pino": "^10.3.1",
@@ -64,10 +72,11 @@
     "puppeteer": "^24.34.0",
     "qrcode": "^1.5.4",
     "sharp": "^0.34.5",
-    "sqlite3": "^5.1.7",
+    "stripe": "^20.4.1",
     "web-push": "^3.6.7",
     "ws": "^8.19.0",
-    "xlsx": "^0.18.5"
+    "xlsx": "^0.18.5",
+    "zod": "^4.3.6"
   },
   "devDependencies": {
     "@types/jest": "^30.0.0",

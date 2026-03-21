@@ -1,7 +1,5 @@
 import React from 'react';
 
-const API_BASE = '/api';
-
 /**
  * ProductCard - Card display for a vendor product
  * Supports grid and list view modes

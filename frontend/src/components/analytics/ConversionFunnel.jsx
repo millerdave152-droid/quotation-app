@@ -25,21 +25,21 @@ function ConversionFunnel() {
   const [activeTab, setActiveTab] = useState('lead');
 
   useEffect(() => {
-    fetchFunnelData();
-  }, [period]);
+    const fetchFunnelData = async () => {
+      setLoading(true);
+      try {
+        const response = await api.get(`/analytics/funnel?days=${period}`);
+        setData(response.data?.data || response.data);
+      } catch (error) {
+        toast.error('Failed to load funnel data');
+        console.error(error);
+      } finally {
+        setLoading(false);
+      }
+    };
 
-  const fetchFunnelData = async () => {
-    setLoading(true);
-    try {
-      const response = await api.get(`/analytics/funnel?days=${period}`);
-      setData(response.data?.data || response.data);
-    } catch (error) {
-      toast.error('Failed to load funnel data');
-      console.error(error);
-    } finally {
-      setLoading(false);
-    }
-  };
+    fetchFunnelData();
+  }, [period, toast]);
 
   const formatCurrency = (cents) => {
     return new Intl.NumberFormat('en-US', {

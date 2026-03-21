@@ -4,7 +4,7 @@ import { authFetch } from '../../../services/authFetch';
  */
 import { useState, useEffect, useCallback, useRef } from 'react';
 
-const API_BASE = process.env.REACT_APP_API_URL || 'http://localhost:3001';
+const API_BASE = process.env.REACT_APP_API_URL || '';
 
 // Helper to get auth headers
 const getAuthHeaders = () => {
@@ -15,7 +15,7 @@ const getAuthHeaders = () => {
   };
 };
 
-export const useQuickSearch = (searchQuery, filters, sortBy, userRole) => {
+export const useQuickSearch = (searchQuery, filters, sortBy) => {
   const [products, setProducts] = useState([]);
   const [pagination, setPagination] = useState({
     page: 1,

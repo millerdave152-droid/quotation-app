@@ -9,8 +9,8 @@
  */
 
 import { useState, useEffect, useRef } from 'react';
-import { InformationCircleIcon, ChevronRightIcon, CheckCircleIcon } from '@heroicons/react/24/outline';
 import { formatCurrency } from '../../utils/formatters';
+import { CheckCircle, ChevronRight, Info } from 'lucide-react';
 
 /**
  * Volume tier tooltip component
@@ -100,7 +100,7 @@ export function VolumeTierTooltip({
         aria-label="View volume tiers"
         title="View volume pricing tiers"
       >
-        <InformationCircleIcon className="w-4 h-4" />
+        <Info className="w-4 h-4" />
       </button>
 
       {/* Tooltip */}
@@ -173,10 +173,10 @@ export function VolumeTierTooltip({
                       {/* Status indicator */}
                       <div className="flex-shrink-0 w-5">
                         {isCurrentTier && (
-                          <CheckCircleIcon className="w-4 h-4 text-green-500" />
+                          <CheckCircle className="w-4 h-4 text-green-500" />
                         )}
                         {isFutureTier && (
-                          <ChevronRightIcon className="w-4 h-4 text-gray-300" />
+                          <ChevronRight className="w-4 h-4 text-gray-300" />
                         )}
                       </div>
 

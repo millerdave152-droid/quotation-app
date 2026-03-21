@@ -5,19 +5,8 @@ import { authFetch } from '../../../services/authFetch';
  */
 
 import { useState, useEffect } from 'react';
-import {
-  MagnifyingGlassIcon,
-  ShoppingCartIcon,
-  BeakerIcon,
-  PlusIcon,
-  XMarkIcon,
-  InformationCircleIcon,
-  CheckCircleIcon,
-  ExclamationTriangleIcon,
-  ArrowPathIcon,
-} from '@heroicons/react/24/outline';
-
-const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+import { AlertTriangle, CheckCircle, FlaskConical, Info, RefreshCw, Search, ShoppingCart, X } from 'lucide-react';
+const API_BASE = process.env.REACT_APP_API_URL || '';
 
 /**
  * Product search input
@@ -75,7 +64,7 @@ function ProductSearchInput({ onSelect, placeholder }) {
   return (
     <div className="relative">
       <div className="relative">
-        <MagnifyingGlassIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
         <input
           type="text"
           value={search}
@@ -128,7 +117,7 @@ function CartItem({ item, onRemove }) {
         onClick={onRemove}
         className="p-1 text-gray-400 hover:text-red-600"
       >
-        <XMarkIcon className="w-5 h-5" />
+        <X className="w-5 h-5" />
       </button>
     </div>
   );
@@ -186,7 +175,7 @@ function RecommendationCard({ rec, index }) {
 /**
  * Debug info panel
  */
-function DebugInfo({ data, type }) {
+function DebugInfo({ data }) {
   const [expanded, setExpanded] = useState(false);
 
   if (!data) return null;
@@ -198,7 +187,7 @@ function DebugInfo({ data, type }) {
         className="w-full px-4 py-3 bg-gray-50 flex items-center justify-between hover:bg-gray-100"
       >
         <div className="flex items-center gap-2">
-          <InformationCircleIcon className="w-5 h-5 text-gray-400" />
+          <Info className="w-5 h-5 text-gray-400" />
           <span className="font-medium text-gray-700">Debug Information</span>
         </div>
         <span className="text-sm text-gray-500">
@@ -407,7 +396,7 @@ export default function RecommendationTester() {
                 : 'border-gray-200 hover:border-gray-300 text-gray-600'
             }`}
           >
-            <MagnifyingGlassIcon className="w-5 h-5" />
+            <Search className="w-5 h-5" />
             <span className="font-medium">Single Product</span>
           </button>
           <button
@@ -421,7 +410,7 @@ export default function RecommendationTester() {
                 : 'border-gray-200 hover:border-gray-300 text-gray-600'
             }`}
           >
-            <ShoppingCartIcon className="w-5 h-5" />
+            <ShoppingCart className="w-5 h-5" />
             <span className="font-medium">Simulate Cart</span>
           </button>
         </div>
@@ -454,7 +443,7 @@ export default function RecommendationTester() {
                   }}
                   className="p-1 text-blue-400 hover:text-blue-600"
                 >
-                  <XMarkIcon className="w-5 h-5" />
+                  <X className="w-5 h-5" />
                 </button>
               </div>
             )}
@@ -466,12 +455,12 @@ export default function RecommendationTester() {
             >
               {loading ? (
                 <>
-                  <ArrowPathIcon className="w-5 h-5 animate-spin" />
+                  <RefreshCw className="w-5 h-5 animate-spin" />
                   Testing...
                 </>
               ) : (
                 <>
-                  <BeakerIcon className="w-5 h-5" />
+                  <FlaskConical className="w-5 h-5" />
                   Test Recommendations
                 </>
               )}
@@ -526,12 +515,12 @@ export default function RecommendationTester() {
             >
               {loading ? (
                 <>
-                  <ArrowPathIcon className="w-5 h-5 animate-spin" />
+                  <RefreshCw className="w-5 h-5 animate-spin" />
                   Testing...
                 </>
               ) : (
                 <>
-                  <BeakerIcon className="w-5 h-5" />
+                  <FlaskConical className="w-5 h-5" />
                   Test Cart Recommendations
                 </>
               )}
@@ -543,7 +532,7 @@ export default function RecommendationTester() {
       {/* Error */}
       {error && (
         <div className="bg-red-50 border border-red-200 rounded-lg p-4 flex items-start gap-3">
-          <ExclamationTriangleIcon className="w-5 h-5 text-red-500 flex-shrink-0 mt-0.5" />
+          <AlertTriangle className="w-5 h-5 text-red-500 flex-shrink-0 mt-0.5" />
           <div>
             <p className="font-medium text-red-800">Test Failed</p>
             <p className="text-sm text-red-600">{error}</p>
@@ -555,7 +544,7 @@ export default function RecommendationTester() {
       {testResults && (
         <div className="bg-white rounded-lg shadow p-6">
           <div className="flex items-center gap-2 mb-4">
-            <CheckCircleIcon className="w-5 h-5 text-green-500" />
+            <CheckCircle className="w-5 h-5 text-green-500" />
             <h3 className="font-semibold text-gray-900">Test Results</h3>
           </div>
 
@@ -664,7 +653,7 @@ export default function RecommendationTester() {
       {/* No Results */}
       {testResults && recommendations.length === 0 && (
         <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-6 text-center">
-          <ExclamationTriangleIcon className="w-8 h-8 text-yellow-500 mx-auto mb-2" />
+          <AlertTriangle className="w-8 h-8 text-yellow-500 mx-auto mb-2" />
           <p className="font-medium text-yellow-800">No Recommendations Found</p>
           <p className="text-sm text-yellow-600 mt-1">
             This product has no active relationships or matching rules.

@@ -112,10 +112,10 @@ class RevenueForecastService {
         COUNT(*) as order_count
       FROM quotations
       WHERE status = 'WON'
-        AND won_at >= NOW() - INTERVAL '${days} days'
+        AND won_at >= NOW() - ($1 * INTERVAL '1 day')
       GROUP BY DATE(won_at)
       ORDER BY revenue_date ASC
-    `);
+    `, [days]);
 
     return result.rows.map(row => ({
       date: row.revenue_date,
@@ -402,7 +402,7 @@ class RevenueForecastService {
           AVG(total_cents) FILTER (WHERE status = 'WON') as avg_deal_size,
           AVG(EXTRACT(days FROM (won_at - created_at))) FILTER (WHERE status = 'WON') as avg_cycle_days
         FROM quotations
-        WHERE created_at >= NOW() - INTERVAL '${days} days'
+        WHERE created_at >= NOW() - ($1 * INTERVAL '1 day')
           AND created_by IS NOT NULL
         GROUP BY created_by
       )
@@ -417,7 +417,7 @@ class RevenueForecastService {
       FROM salesperson_metrics sm
       LEFT JOIN users u ON sm.salesperson = CONCAT(u.first_name, ' ', u.last_name) OR sm.salesperson = u.email
       ORDER BY won_revenue DESC NULLS LAST
-    `);
+    `, [days]);
 
     const salespeople = result.rows.map(row => ({
       salesperson: row.salesperson_name || row.salesperson,

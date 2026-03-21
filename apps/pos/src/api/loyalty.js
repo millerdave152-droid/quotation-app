@@ -1,9 +1,7 @@
 /**
  * TeleTime POS - Loyalty Points API
  * API functions for customer loyalty point lookup and redemption.
- *
- * TODO: Connect to Hub loyalty API when built. Currently uses mock data
- * so the POS component can be developed and tested independently.
+ * Calls the Hub loyalty API; falls back to zero-balance if endpoint returns 404.
  *
  * Integration points:
  *   GET  /api/customers/:id/loyalty         → getLoyaltyBalance()
@@ -20,7 +18,6 @@ export const POINTS_PER_DOLLAR = 100;
  * @param {number} customerId
  * @returns {Promise<object>} { success, data: { pointsBalance, tier, ... } }
  *
- * TODO: Replace mock with:  api.get(`/customers/${customerId}/loyalty`)
  */
 export const getLoyaltyBalance = async (customerId) => {
   try {
@@ -55,7 +52,6 @@ export const getLoyaltyBalance = async (customerId) => {
  * @param {number} [params.orderId]   - Associated order/transaction ID
  * @returns {Promise<object>}
  *
- * TODO: Replace mock with:  api.post(`/customers/${customerId}/loyalty/redeem`, params)
  */
 export const redeemPoints = async (customerId, { points, amountCents, orderId }) => {
   try {

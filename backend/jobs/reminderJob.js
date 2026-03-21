@@ -44,7 +44,6 @@ function initServices() {
  */
 async function runJob(options = {}) {
   const startTime = new Date();
-  console.log(`[${startTime.toISOString()}] Starting automated reminder job...`);
 
   let jobResult = {
     startTime,
@@ -68,14 +67,6 @@ async function runJob(options = {}) {
     jobResult.results = results;
     jobResult.status = 'completed';
 
-    console.log(`[${new Date().toISOString()}] Automated reminder job completed successfully.`);
-    console.log(`  - Inactive leads checked: ${results.inactiveLeads.checked}, reminders: ${results.inactiveLeads.created}`);
-    console.log(`  - Unviewed quotes checked: ${results.unviewedQuotes.checked}, reminders: ${results.unviewedQuotes.created}`);
-    console.log(`  - Expiring quotes checked: ${results.expiringQuotes.checked}, reminders: ${results.expiringQuotes.created}`);
-    console.log(`  - At-risk customers checked: ${results.atRiskCustomers.checked}, reminders: ${results.atRiskCustomers.created}`);
-    console.log(`  - Stale leads checked: ${results.staleLeads.checked}, reminders: ${results.staleLeads.created}`);
-    console.log(`  - High-value quotes checked: ${results.highValueQuotes.checked}, reminders: ${results.highValueQuotes.created}`);
-    console.log(`  - Total reminders created: ${results.totalRemindersCreated}`);
 
   } catch (err) {
     jobResult.status = 'failed';
@@ -177,7 +168,6 @@ async function logJobExecution(jobResult) {
  * @returns {object} - Cron task instance
  */
 function startScheduler(schedule = DEFAULT_SCHEDULE) {
-  console.log(`Starting automated reminder scheduler with schedule: ${schedule}`);
 
   const task = cron.schedule(schedule, async () => {
     await runJob();
@@ -186,7 +176,6 @@ function startScheduler(schedule = DEFAULT_SCHEDULE) {
     timezone: process.env.TIMEZONE || 'America/Toronto'
   });
 
-  console.log('Automated reminder scheduler started.');
   return task;
 }
 
@@ -215,11 +204,9 @@ async function getReminderStats() {
 
 // Run as standalone script
 if (require.main === module) {
-  console.log('Running automated reminder job as standalone script...');
 
   runJob()
     .then(result => {
-      console.log('Job completed:', result.status);
       process.exit(result.status === 'completed' ? 0 : 1);
     })
     .catch(err => {

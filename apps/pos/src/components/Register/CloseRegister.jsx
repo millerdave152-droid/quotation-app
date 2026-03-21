@@ -4,18 +4,9 @@
  */
 
 import { useState, useMemo, useCallback, useEffect } from 'react';
-import {
-  ArrowLeftIcon,
-  BanknotesIcon,
-  CalculatorIcon,
-  CurrencyDollarIcon,
-  CheckCircleIcon,
-  ExclamationTriangleIcon,
-  PrinterIcon,
-  DocumentTextIcon,
-} from '@heroicons/react/24/outline';
 import { useRegister } from '../../context/RegisterContext';
 import { formatCurrency } from '../../utils/formatters';
+import { AlertTriangle, ArrowLeft, Banknote, Calculator, CheckCircle, DollarSign, Printer } from 'lucide-react';
 
 /**
  * Cash denominations for Canadian currency
@@ -46,7 +37,7 @@ function getVarianceStatus(variance) {
       bgColor: 'bg-green-50',
       textColor: 'text-green-700',
       borderColor: 'border-green-200',
-      icon: CheckCircleIcon,
+      icon: CheckCircle,
       message: 'Variance is within acceptable range',
     };
   } else if (absVariance <= 20) {
@@ -56,7 +47,7 @@ function getVarianceStatus(variance) {
       bgColor: 'bg-yellow-50',
       textColor: 'text-yellow-700',
       borderColor: 'border-yellow-200',
-      icon: ExclamationTriangleIcon,
+      icon: AlertTriangle,
       message: 'Variance requires explanation',
     };
   } else {
@@ -66,7 +57,7 @@ function getVarianceStatus(variance) {
       bgColor: 'bg-red-50',
       textColor: 'text-red-700',
       borderColor: 'border-red-200',
-      icon: ExclamationTriangleIcon,
+      icon: AlertTriangle,
       message: 'Significant variance detected - please verify count',
     };
   }
@@ -238,7 +229,7 @@ export function CloseRegister({ onBack, onComplete, onPrintReport }) {
               onClick={step === 'review' ? () => setStep('count') : onBack}
               className="w-10 h-10 flex items-center justify-center hover:bg-slate-700 rounded-lg transition-colors"
             >
-              <ArrowLeftIcon className="w-6 h-6" />
+              <ArrowLeft className="w-6 h-6" />
             </button>
           )}
           <div>
@@ -277,7 +268,7 @@ export function CloseRegister({ onBack, onComplete, onPrintReport }) {
                     ${mode === 'simple' ? 'bg-blue-600 text-white' : 'text-gray-600 hover:bg-gray-100'}
                   `}
                 >
-                  <CurrencyDollarIcon className="w-5 h-5" />
+                  <DollarSign className="w-5 h-5" />
                   Simple Entry
                 </button>
                 <button
@@ -287,7 +278,7 @@ export function CloseRegister({ onBack, onComplete, onPrintReport }) {
                     ${mode === 'detailed' ? 'bg-blue-600 text-white' : 'text-gray-600 hover:bg-gray-100'}
                   `}
                 >
-                  <CalculatorIcon className="w-5 h-5" />
+                  <Calculator className="w-5 h-5" />
                   Denomination Count
                 </button>
               </div>
@@ -304,7 +295,7 @@ export function CloseRegister({ onBack, onComplete, onPrintReport }) {
                 <div className="bg-white rounded-2xl p-6 shadow-sm mb-6">
                   <div className="flex items-center gap-3 mb-6">
                     <div className="w-12 h-12 bg-green-100 rounded-xl flex items-center justify-center">
-                      <BanknotesIcon className="w-6 h-6 text-green-600" />
+                      <Banknote className="w-6 h-6 text-green-600" />
                     </div>
                     <div>
                       <h2 className="text-lg font-bold text-gray-900">Closing Cash Count</h2>
@@ -337,7 +328,7 @@ export function CloseRegister({ onBack, onComplete, onPrintReport }) {
                 <div className="bg-white rounded-2xl shadow-sm overflow-hidden mb-6">
                   <div className="p-4 bg-gray-50 border-b border-gray-200">
                     <h3 className="font-semibold text-gray-700 flex items-center gap-2">
-                      <BanknotesIcon className="w-5 h-5" />
+                      <Banknote className="w-5 h-5" />
                       Bills
                     </h3>
                   </div>
@@ -496,7 +487,7 @@ export function CloseRegister({ onBack, onComplete, onPrintReport }) {
           {step === 'complete' && (
             <div className="text-center py-12">
               <div className="w-20 h-20 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-6">
-                <CheckCircleIcon className="w-10 h-10 text-green-600" />
+                <CheckCircle className="w-10 h-10 text-green-600" />
               </div>
               <h2 className="text-2xl font-bold text-gray-900 mb-2">Register Closed</h2>
               <p className="text-gray-500 mb-8">
@@ -536,7 +527,7 @@ export function CloseRegister({ onBack, onComplete, onPrintReport }) {
                   transition-colors
                 "
               >
-                <PrinterIcon className="w-6 h-6" />
+                <Printer className="w-6 h-6" />
                 Print End-of-Day Report
               </button>
             </div>
@@ -590,7 +581,7 @@ export function CloseRegister({ onBack, onComplete, onPrintReport }) {
                   </>
                 ) : (
                   <>
-                    <CheckCircleIcon className="w-6 h-6" />
+                    <CheckCircle className="w-6 h-6" />
                     Close Register
                   </>
                 )}

@@ -13,7 +13,7 @@ export const draftApi = {
    */
   async saveDraft(draftData) {
     const response = await axios.post(BASE_URL, draftData);
-    return response.data.data;
+    return response?.data || response;
   },
 
   /**
@@ -21,7 +21,7 @@ export const draftApi = {
    */
   async getDraft(draftId) {
     const response = await axios.get(`${BASE_URL}/${draftId}`);
-    return response.data.data;
+    return response?.data || response;
   },
 
   /**
@@ -29,7 +29,7 @@ export const draftApi = {
    */
   async getDraftByKey(draftKey) {
     const response = await axios.get(`${BASE_URL}/key/${encodeURIComponent(draftKey)}`);
-    return response.data.data;
+    return response?.data || response;
   },
 
   /**
@@ -54,7 +54,7 @@ export const draftApi = {
    */
   async deleteDraft(draftId) {
     const response = await axios.delete(`${BASE_URL}/${draftId}`);
-    return response.data.data;
+    return response?.data || response;
   },
 
   /**
@@ -62,7 +62,7 @@ export const draftApi = {
    */
   async completeDraft(draftId, notes = '') {
     const response = await axios.post(`${BASE_URL}/${draftId}/complete`, { notes });
-    return response.data.data;
+    return response?.data || response;
   },
 
   /**
@@ -73,7 +73,7 @@ export const draftApi = {
       operations,
       deviceId,
     });
-    return response.data.data;
+    return response?.data || response;
   },
 
   /**
@@ -85,7 +85,7 @@ export const draftApi = {
     params.append('limit', limit);
 
     const response = await axios.get(`${BASE_URL}/sync/pending?${params.toString()}`);
-    return response.data.data;
+    return response?.data || response;
   },
 
   /**
@@ -96,7 +96,7 @@ export const draftApi = {
       success,
       errorMessage,
     });
-    return response.data.data;
+    return response?.data || response;
   },
 };
 

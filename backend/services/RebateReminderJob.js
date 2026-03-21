@@ -86,12 +86,9 @@ class RebateReminderJob {
     };
 
     try {
-      console.log(`[RebateReminderJob] Starting job run at ${startTime.toISOString()}`);
-      console.log(`[RebateReminderJob] Config: dryRun=${config.dryRun}`);
 
       // 1. Process post-purchase reminders (7 days after purchase)
       if (config.enablePostPurchase) {
-        console.log('[RebateReminderJob] Processing post-purchase reminders...');
         results.postPurchase = await this.followUpService.processPostPurchaseReminders({
           dryRun: config.dryRun,
           limit: config.postPurchaseLimit,
@@ -99,12 +96,10 @@ class RebateReminderJob {
         results.summary.totalProcessed += results.postPurchase.processed;
         results.summary.totalSent += results.postPurchase.sent;
         results.summary.totalFailed += results.postPurchase.failed;
-        console.log(`[RebateReminderJob] Post-purchase: processed=${results.postPurchase.processed}, sent=${results.postPurchase.sent}, failed=${results.postPurchase.failed}`);
       }
 
       // 2. Process deadline reminders
       if (config.enableDeadline) {
-        console.log('[RebateReminderJob] Processing deadline reminders...');
         results.deadline = await this.followUpService.processReminders({
           dryRun: config.dryRun,
           limit: config.deadlineLimit,
@@ -112,23 +107,18 @@ class RebateReminderJob {
         results.summary.totalProcessed += results.deadline.processed;
         results.summary.totalSent += results.deadline.sent;
         results.summary.totalFailed += results.deadline.failed;
-        console.log(`[RebateReminderJob] Deadline: processed=${results.deadline.processed}, sent=${results.deadline.sent}, failed=${results.deadline.failed}`);
       }
 
       // 3. Mark expired claims
       if (config.enableExpiredMarking && !config.dryRun) {
-        console.log('[RebateReminderJob] Marking expired claims...');
         results.expired = await this.followUpService.markExpiredClaims();
         results.summary.totalExpired = results.expired.expiredCount;
-        console.log(`[RebateReminderJob] Expired: marked=${results.expired.expiredCount}`);
       }
 
       results.completedAt = new Date();
       results.success = true;
       results.duration = results.completedAt - startTime;
 
-      console.log(`[RebateReminderJob] Job completed in ${results.duration}ms`);
-      console.log(`[RebateReminderJob] Summary: processed=${results.summary.totalProcessed}, sent=${results.summary.totalSent}, failed=${results.summary.totalFailed}, expired=${results.summary.totalExpired}`);
 
     } catch (error) {
       console.error('[RebateReminderJob] Job failed:', error);
@@ -229,11 +219,9 @@ class RebateReminderJob {
       }
 
       this.cronJob = cron.schedule(schedule, async () => {
-        console.log('[RebateReminderJob] Scheduled run triggered');
         await this.run();
       });
 
-      console.log(`[RebateReminderJob] Scheduler started with schedule: ${schedule}`);
       return true;
     } catch (error) {
       console.error('[RebateReminderJob] Failed to start scheduler:', error.message);
@@ -249,7 +237,6 @@ class RebateReminderJob {
     if (this.cronJob) {
       this.cronJob.stop();
       this.cronJob = null;
-      console.log('[RebateReminderJob] Scheduler stopped');
       return true;
     }
     return false;

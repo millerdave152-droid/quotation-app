@@ -3,16 +3,8 @@
  * Displays approval status and next steps
  */
 
-import {
-  CheckCircleIcon,
-  XCircleIcon,
-  ClockIcon,
-  ExclamationTriangleIcon,
-  ArrowRightIcon,
-  DocumentTextIcon,
-  PhoneIcon,
-} from '@heroicons/react/24/outline';
 import { formatCurrency } from '../../utils/formatters';
+import { AlertTriangle, ArrowRight, CheckCircle, Clock, FileText, Phone, XCircle } from 'lucide-react';
 
 /**
  * Format date for display
@@ -35,31 +27,31 @@ function StatusBadge({ status }) {
   const statusConfig = {
     approved: {
       bg: 'bg-green-100',
-      icon: CheckCircleIcon,
+      icon: CheckCircle,
       iconColor: 'text-green-600',
       animate: true,
     },
     declined: {
       bg: 'bg-red-100',
-      icon: XCircleIcon,
+      icon: XCircle,
       iconColor: 'text-red-600',
       animate: false,
     },
     pending: {
       bg: 'bg-yellow-100',
-      icon: ClockIcon,
+      icon: Clock,
       iconColor: 'text-yellow-600',
       animate: true,
     },
     more_info: {
       bg: 'bg-orange-100',
-      icon: ExclamationTriangleIcon,
+      icon: AlertTriangle,
       iconColor: 'text-orange-600',
       animate: false,
     },
     error: {
       bg: 'bg-red-100',
-      icon: XCircleIcon,
+      icon: XCircle,
       iconColor: 'text-red-600',
       animate: false,
     },
@@ -86,7 +78,7 @@ function AgreementDetails({ agreement, paymentPlan }) {
   return (
     <div className="bg-green-50 border border-green-200 rounded-xl p-4 text-left">
       <h4 className="font-semibold text-green-800 mb-3 flex items-center gap-2">
-        <DocumentTextIcon className="w-5 h-5" />
+        <FileText className="w-5 h-5" />
         Financing Agreement
       </h4>
       <div className="space-y-2 text-sm">
@@ -173,7 +165,7 @@ function ExternalRedirect({ application }) {
           className="inline-flex items-center gap-2 px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-lg transition-colors"
         >
           Continue to {info.name}
-          <ArrowRightIcon className="w-5 h-5" />
+          <ArrowRight className="w-5 h-5" />
         </a>
       )}
 
@@ -251,7 +243,7 @@ export function FinancingApprovalResult({
               onClick={onContinue}
               className="w-full h-14 bg-green-600 hover:bg-green-700 text-white text-lg font-bold rounded-xl transition-colors flex items-center justify-center gap-2"
             >
-              <DocumentTextIcon className="w-6 h-6" />
+              <FileText className="w-6 h-6" />
               Accept Terms & Sign
             </button>
           </>
@@ -337,7 +329,7 @@ export function FinancingApprovalResult({
             </div>
 
             <div className="flex items-center justify-center gap-2 text-sm text-gray-500">
-              <PhoneIcon className="w-4 h-4" />
+              <Phone className="w-4 h-4" />
               <span>Need help? Contact a manager</span>
             </div>
 

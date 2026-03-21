@@ -2,7 +2,7 @@
  * Create test users for approval workflow testing
  */
 
-const bcrypt = require('bcryptjs');
+const bcrypt = require('bcrypt');
 const { Pool } = require('pg');
 require('dotenv').config({ path: require('path').join(__dirname, '..', '.env') });
 
@@ -18,8 +18,8 @@ const pool = new Pool({
 async function createTestUsers() {
   const client = await pool.connect();
   try {
-    // Hash password 'Test123!'
-    const passwordHash = await bcrypt.hash('Test123!', 10);
+    const testPassword = process.env.TEST_USER_PASSWORD || 'Test123!';
+    const passwordHash = await bcrypt.hash(testPassword, 10);
 
     // Create manager first
     const managerResult = await client.query(`

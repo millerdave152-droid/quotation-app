@@ -4,10 +4,10 @@ import { authFetch } from '../services/authFetch';
  * Features: Quote history, reorder, communication preferences, profile management
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 
-const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:3001';
+const API_URL = process.env.REACT_APP_API_URL || '';
 
 function CustomerPortalDashboard() {
   const { token } = useParams();
@@ -16,15 +16,10 @@ function CustomerPortalDashboard() {
   const [error, setError] = useState(null);
   const [data, setData] = useState(null);
   const [activeTab, setActiveTab] = useState('overview');
-  const [selectedQuote, setSelectedQuote] = useState(null);
   const [showPreferences, setShowPreferences] = useState(false);
   const [processing, setProcessing] = useState(false);
 
-  useEffect(() => {
-    fetchDashboard();
-  }, [token]);
-
-  const fetchDashboard = async () => {
+  const fetchDashboard = useCallback(async () => {
     try {
       setLoading(true);
       const response = await authFetch(`${API_URL}/api/customer-portal/dashboard/${token}`);
@@ -40,7 +35,11 @@ function CustomerPortalDashboard() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [token]);
+
+  useEffect(() => {
+    fetchDashboard();
+  }, [fetchDashboard]);
 
   const handleViewQuote = (quoteId) => {
     navigate(`/customer-portal/quote/${token}/${quoteId}`);

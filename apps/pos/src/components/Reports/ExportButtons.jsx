@@ -4,19 +4,8 @@
  */
 
 import { useState } from 'react';
-import {
-  DocumentArrowDownIcon,
-  ArchiveBoxArrowDownIcon,
-  PrinterIcon,
-  ChevronDownIcon,
-  TableCellsIcon,
-  DocumentTextIcon,
-  CreditCardIcon,
-  UsersIcon,
-  ClockIcon,
-} from '@heroicons/react/24/outline';
-
-const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:3001/api';
+import { ArchiveRestore, ChevronDown, Clock, CreditCard, FileDown, FileText, Printer, Table, Users } from 'lucide-react';
+const API_BASE = import.meta.env.VITE_API_URL || '/api';
 
 /**
  * Export Buttons Component
@@ -30,12 +19,12 @@ export function ExportButtons({ date, shiftId, onPrint }) {
   const [showTypeMenu, setShowTypeMenu] = useState(false);
 
   const exportTypes = [
-    { id: 'summary', label: 'Summary', icon: DocumentTextIcon },
-    { id: 'transactions', label: 'Transactions', icon: TableCellsIcon },
-    { id: 'products', label: 'Products', icon: TableCellsIcon },
-    { id: 'payments', label: 'Payments', icon: CreditCardIcon },
-    { id: 'reps', label: 'Sales Reps', icon: UsersIcon },
-    { id: 'hourly', label: 'Hourly', icon: ClockIcon },
+    { id: 'summary', label: 'Summary', icon: FileText },
+    { id: 'transactions', label: 'Transactions', icon: Table },
+    { id: 'products', label: 'Products', icon: Table },
+    { id: 'payments', label: 'Payments', icon: CreditCard },
+    { id: 'reps', label: 'Sales Reps', icon: Users },
+    { id: 'hourly', label: 'Hourly', icon: Clock },
   ];
 
   /**
@@ -179,9 +168,9 @@ export function ExportButtons({ date, shiftId, onPrint }) {
             }
           `}
         >
-          <DocumentArrowDownIcon className="w-4 h-4" />
+          <FileDown className="w-4 h-4" />
           <span>Export CSV</span>
-          <ChevronDownIcon className={`w-4 h-4 transition-transform ${showTypeMenu ? 'rotate-180' : ''}`} />
+          <ChevronDown className={`w-4 h-4 transition-transform ${showTypeMenu ? 'rotate-180' : ''}`} />
         </button>
 
         {/* Dropdown Menu */}
@@ -231,7 +220,7 @@ export function ExportButtons({ date, shiftId, onPrint }) {
         {isExporting === 'zip' ? (
           <span className="w-4 h-4 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
         ) : (
-          <ArchiveBoxArrowDownIcon className="w-4 h-4" />
+          <ArchiveRestore className="w-4 h-4" />
         )}
         <span>Export All (ZIP)</span>
       </button>
@@ -249,7 +238,7 @@ export function ExportButtons({ date, shiftId, onPrint }) {
           transition-colors
         "
       >
-        <PrinterIcon className="w-4 h-4" />
+        <Printer className="w-4 h-4" />
         <span>Print Report</span>
       </button>
     </div>
@@ -318,7 +307,7 @@ export function CompactExportButtons({ date, shiftId }) {
         {isExporting === 'csv' ? (
           <span className="w-4 h-4 border-2 border-blue-500 border-t-transparent rounded-full animate-spin block" />
         ) : (
-          <DocumentArrowDownIcon className="w-4 h-4" />
+          <FileDown className="w-4 h-4" />
         )}
       </button>
       <button
@@ -331,7 +320,7 @@ export function CompactExportButtons({ date, shiftId }) {
         {isExporting === 'zip' ? (
           <span className="w-4 h-4 border-2 border-blue-500 border-t-transparent rounded-full animate-spin block" />
         ) : (
-          <ArchiveBoxArrowDownIcon className="w-4 h-4" />
+          <ArchiveRestore className="w-4 h-4" />
         )}
       </button>
       <button
@@ -340,7 +329,7 @@ export function CompactExportButtons({ date, shiftId }) {
         className="p-2 text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
         title="Print"
       >
-        <PrinterIcon className="w-4 h-4" />
+        <Printer className="w-4 h-4" />
       </button>
     </div>
   );

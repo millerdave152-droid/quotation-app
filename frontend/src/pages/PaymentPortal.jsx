@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useParams, useSearchParams } from 'react-router-dom';
 
 import { authFetch } from '../services/authFetch';
-const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:3001';
+const API_URL = process.env.REACT_APP_API_URL || '';
 
 /**
  * PaymentPortal - Customer-facing payment page
@@ -10,7 +10,7 @@ const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:3001';
  */
 const PaymentPortal = () => {
   const { token } = useParams();
-  const [searchParams] = useSearchParams();
+  const [_searchParams] = useSearchParams();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [paymentData, setPaymentData] = useState(null);
@@ -27,26 +27,26 @@ const PaymentPortal = () => {
   const [cardErrors, setCardErrors] = useState({});
 
   useEffect(() => {
+    const fetchPaymentDetails = async () => {
+      try {
+        setLoading(true);
+        const response = await authFetch(`${API_URL}/api/moneris/payment-link/${token}`);
+        const data = await response.json();
+
+        if (!data.success) {
+          throw new Error(data.error || 'Invalid or expired payment link');
+        }
+
+        setPaymentData(data.data);
+      } catch (err) {
+        setError(err.message);
+      } finally {
+        setLoading(false);
+      }
+    };
+
     fetchPaymentDetails();
   }, [token]);
-
-  const fetchPaymentDetails = async () => {
-    try {
-      setLoading(true);
-      const response = await authFetch(`${API_URL}/api/moneris/payment-link/${token}`);
-      const data = await response.json();
-
-      if (!data.success) {
-        throw new Error(data.error || 'Invalid or expired payment link');
-      }
-
-      setPaymentData(data.data);
-    } catch (err) {
-      setError(err.message);
-    } finally {
-      setLoading(false);
-    }
-  };
 
   const formatCurrency = (cents) => {
     return new Intl.NumberFormat('en-CA', {

@@ -45,7 +45,7 @@ function saveToStorage(key, data) {
 }
 
 export function RegisterProvider({ children }) {
-  const { isAuthenticated, user } = useAuth();
+  const { isAuthenticated } = useAuth();
 
   // State
   const [registers, setRegisters] = useState([]);
@@ -142,8 +142,16 @@ export function RegisterProvider({ children }) {
 
   // Initialize on auth change
   useEffect(() => {
+    let safetyTimer;
+
     if (isAuthenticated) {
       initializeRegister();
+      // Safety timeout — force loading=false after 5s even if API hangs
+      safetyTimer = setTimeout(() => {
+        console.warn('[Register] Safety timeout — forcing loading=false');
+        setLoading(false);
+        setIsInitialized(true);
+      }, 5000);
     } else {
       // Clear state on logout
       setRegisters([]);
@@ -157,6 +165,8 @@ export function RegisterProvider({ children }) {
       saveToStorage(STORAGE_KEYS.CURRENT_SHIFT, null);
       saveToStorage(STORAGE_KEYS.SELECTED_REGISTER, null);
     }
+
+    return () => { if (safetyTimer) clearTimeout(safetyTimer); };
   }, [isAuthenticated, initializeRegister]);
 
   // ============================================================================

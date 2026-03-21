@@ -8,6 +8,7 @@ const router = express.Router();
 const Joi = require('joi');
 const { asyncHandler, ApiError } = require('../middleware/errorHandler');
 const { authenticate, requireRole } = require('../middleware/auth');
+const { auditLogMiddleware } = require('../middleware/auditLog');
 const ShiftReportService = require('../services/ShiftReportService');
 
 // ============================================================================
@@ -492,7 +493,7 @@ router.get('/sales-rep/:repId', authenticate, requireRole('admin', 'manager'), a
  *   - type: Report type (summary, transactions, products, payments, reps, hourly, items)
  *   - registerId: Optional register filter
  */
-router.get('/export/csv', authenticate, asyncHandler(async (req, res) => {
+router.get('/export/csv', authenticate, auditLogMiddleware('data_export', 'report'), asyncHandler(async (req, res) => {
   const { date, shiftId, startTime, endTime, type = 'summary', registerId } = req.query;
 
   // Build params
@@ -564,7 +565,7 @@ router.get('/export/csv', authenticate, asyncHandler(async (req, res) => {
  *   - endTime: End of period (ISO)
  *   - registerId: Optional register filter
  */
-router.get('/export/zip', authenticate, asyncHandler(async (req, res) => {
+router.get('/export/zip', authenticate, auditLogMiddleware('data_export', 'report'), asyncHandler(async (req, res) => {
   const { date, shiftId, startTime, endTime, registerId } = req.query;
 
   // Build params

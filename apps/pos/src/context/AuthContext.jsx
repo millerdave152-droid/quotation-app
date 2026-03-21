@@ -47,9 +47,8 @@ export function AuthProvider({ children }) {
 
       setUser(null);
       setPermissions([]);
-      if (window.location.pathname !== '/login') {
-        window.location.href = '/login';
-      }
+      setLoading(false);
+      // ProtectedRoute will redirect to /login via React Router
     };
 
     // After token refresh, re-fetch permissions from /auth/me so cached
@@ -65,7 +64,6 @@ export function AuthProvider({ children }) {
           setPermissions(freshPerms);
           localStorage.setItem('pos_user', JSON.stringify(response.data.user));
           localStorage.setItem('pos_permissions', JSON.stringify(freshPerms));
-          console.log('[Auth] Permissions refreshed after token refresh');
         }
       } catch (err) {
         console.warn('[Auth] Permission refresh failed:', err.message);
@@ -82,14 +80,31 @@ export function AuthProvider({ children }) {
 
   // Check for existing session on mount
   useEffect(() => {
+    let cancelled = false;
+
+    // Safety timeout — guarantee loading resolves even if API hangs
+    const safetyTimer = setTimeout(() => {
+      if (!cancelled) {
+        console.warn('[Auth] Safety timeout — forcing loading=false');
+        clearAuth();
+        setUser(null);
+        setLoading(false);
+      }
+    }, 5000);
+
     const initAuth = async () => {
       const token = localStorage.getItem('pos_token');
       const savedUser = localStorage.getItem('pos_user');
       const savedPerms = localStorage.getItem('pos_permissions');
 
+
       // Restore cached permissions immediately so UI doesn't flash
       if (savedPerms) {
-        try { setPermissions(JSON.parse(savedPerms)); } catch {}
+        try {
+          setPermissions(JSON.parse(savedPerms));
+        } catch (err) {
+          console.warn('[Auth] Failed to parse cached permissions:', err.message);
+        }
       }
 
       if (token && savedUser) {
@@ -97,6 +112,8 @@ export function AuthProvider({ children }) {
           // Verify token is still valid
           setAuthToken(token);
           const response = await api.get('/auth/me');
+
+          if (cancelled) return;
 
           // Note: axios interceptor already unwraps response.data
           if (response?.success && response.data?.user) {
@@ -107,21 +124,33 @@ export function AuthProvider({ children }) {
             clearAuth();
           }
         } catch (err) {
+          if (cancelled) return;
           console.error('Auth verification failed:', err);
           clearAuth();
         }
       }
 
-      setLoading(false);
+      if (!cancelled) {
+        clearTimeout(safetyTimer);
+        setLoading(false);
+      }
     };
 
     initAuth();
+
+    return () => {
+      cancelled = true;
+      clearTimeout(safetyTimer);
+    };
   }, []);
 
   // Login function
+  // NOTE: We intentionally do NOT set loading=true here. The Login component
+  // manages its own `submitting` state. Setting the shared `loading` flag
+  // would cause GuestRoute to replace <Login> with <LoadingScreen>, which
+  // unmounts the form, loses typed values, and clears the error on remount.
   const login = useCallback(async (email, password) => {
     setError(null);
-    setLoading(true);
 
     try {
       // Note: axios interceptor already unwraps response.data
@@ -147,11 +176,9 @@ export function AuthProvider({ children }) {
         throw new Error(response?.message || 'Login failed');
       }
     } catch (err) {
-      const message = err.message || 'Invalid credentials';
+      const message = err.message || 'Invalid email or password';
       setError(message);
       return { success: false, error: message };
-    } finally {
-      setLoading(false);
     }
   }, []);
 
@@ -160,7 +187,9 @@ export function AuthProvider({ children }) {
     try {
       // Revoke the current refresh token server-side
       const refreshToken = localStorage.getItem('pos_refresh_token');
-      await api.post('/auth/logout', { refreshToken: refreshToken || undefined }).catch(() => {});
+      await api.post('/auth/logout', { refreshToken: refreshToken || undefined }).catch((err) => {
+        console.warn('[Auth] Logout request failed:', err.message);
+      });
     } finally {
       clearAuth();
       localStorage.removeItem('pos_refresh_token');
@@ -179,14 +208,14 @@ export function AuthProvider({ children }) {
     try {
       const response = await api.put('/users/me', updates);
 
-      if (response.data?.success) {
-        const updatedUser = { ...user, ...response.data.data };
+      if (response?.success) {
+        const updatedUser = { ...user, ...response.data };
         setUser(updatedUser);
         localStorage.setItem('pos_user', JSON.stringify(updatedUser));
         return { success: true };
       }
 
-      throw new Error(response.data?.message || 'Update failed');
+      throw new Error(response?.message || 'Update failed');
     } catch (err) {
       return { success: false, error: err.message };
     }

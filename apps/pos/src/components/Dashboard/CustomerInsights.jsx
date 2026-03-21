@@ -5,12 +5,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { getCustomerPurchaseHistory, getAOVComparison } from '../../api/reports';
-import {
-  UserIcon,
-  BuildingStorefrontIcon,
-  ArrowTrendingUpIcon,
-} from '@heroicons/react/24/outline';
-
+import { Store, TrendingUp, User } from 'lucide-react';
 const CustomerInsights = ({ dateRange = {} }) => {
   const [customers, setCustomers] = useState([]);
   const [aovData, setAovData] = useState(null);
@@ -101,7 +96,7 @@ const CustomerInsights = ({ dateRange = {} }) => {
       <div className="grid grid-cols-3 gap-4 mb-6">
         <div className="p-4 bg-blue-50 rounded-lg">
           <div className="flex items-center gap-2 mb-2">
-            <UserIcon className="w-4 h-4 text-blue-600" />
+            <User className="w-4 h-4 text-blue-600" />
             <span className="text-xs text-blue-600 font-medium uppercase">Quote AOV</span>
           </div>
           <p className="text-xl font-bold text-blue-700">
@@ -112,7 +107,7 @@ const CustomerInsights = ({ dateRange = {} }) => {
 
         <div className="p-4 bg-green-50 rounded-lg">
           <div className="flex items-center gap-2 mb-2">
-            <BuildingStorefrontIcon className="w-4 h-4 text-green-600" />
+            <Store className="w-4 h-4 text-green-600" />
             <span className="text-xs text-green-600 font-medium uppercase">POS AOV (Account)</span>
           </div>
           <p className="text-xl font-bold text-green-700">
@@ -123,7 +118,7 @@ const CustomerInsights = ({ dateRange = {} }) => {
 
         <div className="p-4 bg-gray-50 rounded-lg">
           <div className="flex items-center gap-2 mb-2">
-            <ArrowTrendingUpIcon className="w-4 h-4 text-gray-600" />
+            <TrendingUp className="w-4 h-4 text-gray-600" />
             <span className="text-xs text-gray-600 font-medium uppercase">POS AOV (Walk-in)</span>
           </div>
           <p className="text-xl font-bold text-gray-700">

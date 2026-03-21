@@ -51,21 +51,8 @@ const PackageBuilderV2 = ({
 
   // Handle generate click
   const handleGenerate = () => {
-    console.log('Generating packages with filters:', selectedFilters);
     generatePackages();
   };
-
-  // Debug log
-  console.log('PackageBuilderV2 state:', {
-    packages,
-    packagesLoading,
-    packagesError,
-    hasFilters: hasActiveFilters(),
-    selectedFilters
-  });
-
-  // Check if can generate - always allow, even without filters
-  const canGenerate = true;
 
   return (
     <div className="package-builder-v2">

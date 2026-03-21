@@ -4,19 +4,8 @@
  */
 
 import { useState, useEffect, useCallback } from 'react';
-import {
-  EnvelopeIcon,
-  ClockIcon,
-  Cog6ToothIcon,
-  CheckCircleIcon,
-  ExclamationTriangleIcon,
-  ArrowPathIcon,
-  PaperAirplaneIcon,
-  BeakerIcon,
-  BellIcon,
-  UserIcon,
-} from '@heroicons/react/24/outline';
 import api from '../../api/axios';
+import { AlertTriangle, Bell, CheckCircle, Clock, FlaskConical, Mail, RefreshCw, Send, Settings } from 'lucide-react';
 
 /**
  * Toggle Switch Component
@@ -105,7 +94,7 @@ export default function BatchEmailSettings() {
       setError(null);
 
       const response = await api.get('/batch-email-settings');
-      setSettings(response.data.data || response.data);
+      setSettings(response?.data || response);
     } catch (err) {
       console.error('[BatchEmailSettings] Load error:', err);
       setError(err.message || 'Failed to load settings');
@@ -125,7 +114,7 @@ export default function BatchEmailSettings() {
       setError(null);
 
       const response = await api.put('/batch-email-settings', updates);
-      setSettings(response.data.data || response.data);
+      setSettings(response?.data || response);
 
       setSuccessMessage('Settings saved successfully');
       setTimeout(() => setSuccessMessage(null), 3000);
@@ -173,7 +162,7 @@ export default function BatchEmailSettings() {
 
       setTestResult({
         success: true,
-        message: response.data.data?.message || `${response.data.data?.unsentCount || 0} receipts would be sent`,
+        message: response?.data?.message || `${response?.data?.unsentCount || 0} receipts would be sent`,
       });
     } catch (err) {
       console.error('[BatchEmailSettings] Test batch error:', err);
@@ -186,7 +175,7 @@ export default function BatchEmailSettings() {
   if (isLoading) {
     return (
       <div className="flex items-center justify-center py-12">
-        <ArrowPathIcon className="w-8 h-8 text-gray-400 animate-spin" />
+        <RefreshCw className="w-8 h-8 text-gray-400 animate-spin" />
       </div>
     );
   }
@@ -194,7 +183,7 @@ export default function BatchEmailSettings() {
   if (!settings) {
     return (
       <div className="text-center py-12">
-        <ExclamationTriangleIcon className="w-12 h-12 text-amber-500 mx-auto mb-3" />
+        <AlertTriangle className="w-12 h-12 text-amber-500 mx-auto mb-3" />
         <p className="text-gray-600">Failed to load settings</p>
         <button
           onClick={loadSettings}
@@ -218,7 +207,7 @@ export default function BatchEmailSettings() {
         </div>
         {isSaving && (
           <div className="flex items-center gap-2 text-blue-600">
-            <ArrowPathIcon className="w-4 h-4 animate-spin" />
+            <RefreshCw className="w-4 h-4 animate-spin" />
             <span className="text-sm">Saving...</span>
           </div>
         )}
@@ -227,14 +216,14 @@ export default function BatchEmailSettings() {
       {/* Success/Error Messages */}
       {successMessage && (
         <div className="flex items-center gap-2 p-4 bg-green-50 border border-green-200 rounded-lg">
-          <CheckCircleIcon className="w-5 h-5 text-green-500" />
+          <CheckCircle className="w-5 h-5 text-green-500" />
           <span className="text-green-700">{successMessage}</span>
         </div>
       )}
 
       {error && (
         <div className="flex items-center gap-2 p-4 bg-red-50 border border-red-200 rounded-lg">
-          <ExclamationTriangleIcon className="w-5 h-5 text-red-500" />
+          <AlertTriangle className="w-5 h-5 text-red-500" />
           <span className="text-red-700">{error}</span>
         </div>
       )}
@@ -242,7 +231,7 @@ export default function BatchEmailSettings() {
       {/* Auto-Send Section */}
       <div className="bg-white rounded-xl border border-gray-200 p-6">
         <SectionHeader
-          icon={EnvelopeIcon}
+          icon={Mail}
           title="Automatic Sending"
           description="Enable automatic batch sending of receipt emails"
         />
@@ -305,7 +294,7 @@ export default function BatchEmailSettings() {
       {/* Email Customization */}
       <div className="bg-white rounded-xl border border-gray-200 p-6">
         <SectionHeader
-          icon={Cog6ToothIcon}
+          icon={Settings}
           title="Email Customization"
           description="Customize receipt email content"
         />
@@ -329,7 +318,7 @@ export default function BatchEmailSettings() {
       {/* Manager Notifications */}
       <div className="bg-white rounded-xl border border-gray-200 p-6">
         <SectionHeader
-          icon={BellIcon}
+          icon={Bell}
           title="Manager Notifications"
           description="Send summary and alert emails to managers"
         />
@@ -375,7 +364,7 @@ export default function BatchEmailSettings() {
       {/* Rate Limiting */}
       <div className="bg-white rounded-xl border border-gray-200 p-6">
         <SectionHeader
-          icon={ClockIcon}
+          icon={Clock}
           title="Rate Limiting"
           description="Control email sending speed and limits"
         />
@@ -429,7 +418,7 @@ export default function BatchEmailSettings() {
       {/* Testing Section */}
       <div className="bg-white rounded-xl border border-gray-200 p-6">
         <SectionHeader
-          icon={BeakerIcon}
+          icon={FlaskConical}
           title="Testing"
           description="Test your email configuration"
         />
@@ -440,9 +429,9 @@ export default function BatchEmailSettings() {
             testResult.success ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-700'
           }`}>
             {testResult.success ? (
-              <CheckCircleIcon className="w-5 h-5" />
+              <CheckCircle className="w-5 h-5" />
             ) : (
-              <ExclamationTriangleIcon className="w-5 h-5" />
+              <AlertTriangle className="w-5 h-5" />
             )}
             <span className="text-sm">{testResult.message}</span>
           </div>
@@ -464,9 +453,9 @@ export default function BatchEmailSettings() {
               className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg transition-colors disabled:opacity-50"
             >
               {isTesting ? (
-                <ArrowPathIcon className="w-4 h-4 animate-spin" />
+                <RefreshCw className="w-4 h-4 animate-spin" />
               ) : (
-                <PaperAirplaneIcon className="w-4 h-4" />
+                <Send className="w-4 h-4" />
               )}
               Send Test
             </button>
@@ -484,9 +473,9 @@ export default function BatchEmailSettings() {
               className="flex items-center gap-2 px-4 py-2 text-blue-600 hover:bg-blue-50 font-medium rounded-lg transition-colors disabled:opacity-50"
             >
               {isTesting ? (
-                <ArrowPathIcon className="w-4 h-4 animate-spin" />
+                <RefreshCw className="w-4 h-4 animate-spin" />
               ) : (
-                <BeakerIcon className="w-4 h-4" />
+                <FlaskConical className="w-4 h-4" />
               )}
               Test Batch
             </button>
@@ -497,7 +486,7 @@ export default function BatchEmailSettings() {
       {/* Info Note */}
       <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
         <div className="flex items-start gap-3">
-          <EnvelopeIcon className="w-5 h-5 text-blue-600 flex-shrink-0 mt-0.5" />
+          <Mail className="w-5 h-5 text-blue-600 flex-shrink-0 mt-0.5" />
           <div className="text-sm text-blue-700">
             <p className="font-medium">How it works</p>
             <ul className="mt-1 list-disc list-inside space-y-1 text-blue-600">

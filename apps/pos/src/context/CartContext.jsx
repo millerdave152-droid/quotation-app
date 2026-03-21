@@ -263,7 +263,7 @@ export function CartProvider({ children }) {
     // Trade-in calculations
     const tradeInCount = tradeIns.length;
     const tradeInTotalRaw = tradeIns.reduce(
-      (sum, ti) => sum + parseFloat(ti.final_value || ti.finalValue || 0),
+      (sum, ti) => sum + (parseFloat(ti.final_value || ti.finalValue) || 0),
       0
     );
     // Cap trade-in at order total (cannot make order negative)
@@ -353,19 +353,19 @@ export function CartProvider({ children }) {
       // Resolve cost: check dollars fields first, then cents conversion
       const rawCost = product.cost || product.unitCost || product.unit_cost;
       const resolvedCost = rawCost
-        ? parseFloat(rawCost)
+        ? (parseFloat(rawCost) || 0)
         : product.cost_cents
-          ? parseFloat(product.cost_cents) / 100
+          ? (parseFloat(product.cost_cents) / 100) || 0
           : null;
 
       // Resolve price: check dollars fields first, then cents conversion
       const rawPrice = product.price || product.unitPrice || product.unit_price;
       const resolvedPrice = rawPrice
-        ? parseFloat(rawPrice)
+        ? (parseFloat(rawPrice) || 0)
         : product.msrp_cents
-          ? parseFloat(product.msrp_cents) / 100
+          ? (parseFloat(product.msrp_cents) / 100) || 0
           : product.retail_price_cents
-            ? parseFloat(product.retail_price_cents) / 100
+            ? (parseFloat(product.retail_price_cents) / 100) || 0
             : 0;
 
       const newItem = {
@@ -667,8 +667,8 @@ export function CartProvider({ children }) {
       productId: item.productId || item.product_id || item.id,
       productName: item.productName || item.product_name || item.name,
       sku: item.sku || item.model || item.productSku || item.product_sku || '',
-      unitPrice: rawPrice ? parseFloat(rawPrice) : item.msrp_cents ? parseFloat(item.msrp_cents) / 100 : 0,
-      unitCost: rawCost ? parseFloat(rawCost) : item.cost_cents ? parseFloat(item.cost_cents) / 100 : null,
+      unitPrice: rawPrice ? (parseFloat(rawPrice) || 0) : item.msrp_cents ? (parseFloat(item.msrp_cents) / 100) || 0 : 0,
+      unitCost: rawCost ? (parseFloat(rawCost) || 0) : item.cost_cents ? (parseFloat(item.cost_cents) / 100) || 0 : null,
       quantity: item.quantity || 1,
       discountPercent: item.discountPercent || item.discount_percent || 0,
       taxable: item.taxable !== false,
@@ -682,7 +682,7 @@ export function CartProvider({ children }) {
     // Set quote-level discount if any
     if (quoteData.discountAmount || quoteData.discount_amount) {
       setDiscountState({
-        amount: parseFloat(quoteData.discountAmount || quoteData.discount_amount),
+        amount: parseFloat(quoteData.discountAmount || quoteData.discount_amount) || 0,
         reason: quoteData.discountReason || quoteData.discount_reason || 'Quote discount',
       });
     }
@@ -823,7 +823,7 @@ export function CartProvider({ children }) {
       label: label || `Transaction ${new Date().toLocaleTimeString()}`,
       heldAt: new Date().toISOString(),
       items: [...items],
-      customer,
+      customer: customer ? { ...customer } : null,
       quoteId,
       discount: { ...discount },
       appliedPromotion: appliedPromotion ? { ...appliedPromotion } : null,
@@ -977,6 +977,8 @@ export function CartProvider({ children }) {
       salespersonId: Number.isFinite(Number(salespersonId)) ? Number(salespersonId) : (user?.id || null),
       items: items.map((item) => ({
         productId: item.productId,
+        productName: item.productName,
+        sku: item.sku,
         quantity: item.quantity,
         unitPrice: item.unitPrice,
         unitCost: item.unitCost,
@@ -1005,7 +1007,7 @@ export function CartProvider({ children }) {
       // Trade-in data - simplified for backend (only needs assessmentId and creditAmount)
       tradeIns: tradeIns.map((ti) => ({
         assessmentId: ti.id,
-        creditAmount: parseFloat(ti.final_value || ti.finalValue || 0),
+        creditAmount: parseFloat(ti.final_value || ti.finalValue) || 0,
       })),
       // Commission split data
       commissionSplit: commissionSplit?.enabled ? {

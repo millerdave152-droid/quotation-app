@@ -79,6 +79,21 @@ const CommandPalette = ({ isOpen, onClose, onNavigate }) => {
   // Flatten for keyboard navigation
   const flatCommands = Object.values(groupedCommands).flat();
 
+  // Execute command
+  const executeCommand = useCallback((cmd) => {
+    // Save to recent
+    const newRecent = [cmd.id, ...recentCommands.filter(id => id !== cmd.id)].slice(0, 5);
+    setRecentCommands(newRecent);
+    localStorage.setItem('commandPaletteRecent', JSON.stringify(newRecent));
+
+    if (cmd.path) {
+      onNavigate(cmd.path);
+    } else if (cmd.action) {
+      onNavigate(null, cmd.action);
+    }
+    onClose();
+  }, [recentCommands, onNavigate, onClose]);
+
   // Handle keyboard navigation
   const handleKeyDown = useCallback((e) => {
     if (!isOpen) return;
@@ -105,7 +120,7 @@ const CommandPalette = ({ isOpen, onClose, onNavigate }) => {
       default:
         break;
     }
-  }, [isOpen, flatCommands, selectedIndex, onClose]);
+  }, [isOpen, flatCommands, selectedIndex, onClose, executeCommand]);
 
   useEffect(() => {
     document.addEventListener('keydown', handleKeyDown);
@@ -121,21 +136,6 @@ const CommandPalette = ({ isOpen, onClose, onNavigate }) => {
       }
     }
   }, [selectedIndex]);
-
-  // Execute command
-  const executeCommand = (cmd) => {
-    // Save to recent
-    const newRecent = [cmd.id, ...recentCommands.filter(id => id !== cmd.id)].slice(0, 5);
-    setRecentCommands(newRecent);
-    localStorage.setItem('commandPaletteRecent', JSON.stringify(newRecent));
-
-    if (cmd.path) {
-      onNavigate(cmd.path);
-    } else if (cmd.action) {
-      onNavigate(null, cmd.action);
-    }
-    onClose();
-  };
 
   if (!isOpen) return null;
 

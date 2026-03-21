@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 
 import { authFetch } from './services/authFetch';
-const API_BASE = `${process.env.REACT_APP_API_URL || 'http://localhost:3001'}/api`;
+const API_BASE = `${process.env.REACT_APP_API_URL || ''}/api`;
 
 function QuoteManager() {
   const [quotations, setQuotations] = useState([]);
@@ -41,19 +41,19 @@ function QuoteManager() {
     }
   };
 
-  const handlePreview = (quote) => {
+  const handlePreview = () => {
     alert('👁️ PREVIEW button clicked!\nThis confirms the NEW component is loaded!\n\nNext: We will add PDF functionality.');
   };
 
-  const handleDownloadPDF = (quote) => {
+  const handleDownloadPDF = () => {
     alert('⬇️ PDF button clicked!\nThis confirms the NEW component is loaded!');
   };
 
-  const handleEmail = (quote) => {
+  const handleEmail = () => {
     alert('✉️ EMAIL button clicked!\nThis confirms the NEW component is loaded!');
   };
 
-  const handleInternal = (quote) => {
+  const handleInternal = () => {
     alert('📊 INTERNAL button clicked!\nThis confirms the NEW component is loaded!');
   };
 

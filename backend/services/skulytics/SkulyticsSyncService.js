@@ -323,11 +323,11 @@ class SkulyticsSyncService {
     const { rowCount } = await this.pool.query(
       `UPDATE global_skulytics_products
        SET is_stale = true
-       WHERE last_synced_at < NOW() - INTERVAL '${STALE_THRESHOLD_HOURS} hours'
-         AND is_stale = false`
+       WHERE last_synced_at < NOW() - ($1 * INTERVAL '1 hour')
+         AND is_stale = false`,
+      [STALE_THRESHOLD_HOURS]
     );
     if (rowCount > 0) {
-      console.log(`[SkulyticsSync] Marked ${rowCount} products as stale`);
     }
     return rowCount;
   }
@@ -596,7 +596,6 @@ class SkulyticsSyncService {
         await this.completeSyncRun(runId, 'completed', null, {
           processed: 0, created: 0, updated: 0, failed: 0, errorCount: 0,
         });
-        console.log(`[SkulyticsSync] SKU ${sku}: not found in Skulytics API`);
         return { runId, status: 'completed', sku, outcome: 'not_found' };
       }
 
@@ -625,7 +624,6 @@ class SkulyticsSyncService {
 
       await this.completeSyncRun(runId, status, null, counters);
 
-      console.log(`[SkulyticsSync] SKU ${sku}: ${outcome}`);
       return { runId, status, sku, outcome, ...counters };
 
     } catch (err) {

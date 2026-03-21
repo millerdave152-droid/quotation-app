@@ -4,14 +4,8 @@
  */
 
 import { useEffect } from 'react';
-import {
-  XMarkIcon,
-  ClockIcon,
-  ShoppingCartIcon,
-  TrashIcon,
-  ArrowPathIcon,
-} from '@heroicons/react/24/outline';
 import { formatCurrency, formatDateTime } from '../../utils/formatters';
+import { Clock, RefreshCw, ShoppingCart, Trash2, X } from 'lucide-react';
 
 /**
  * Held transaction item component
@@ -51,7 +45,7 @@ function HeldTransactionItem({ transaction, onRecall, onDelete }) {
     <div className="flex items-center gap-3 p-4 bg-white border border-gray-200 rounded-lg hover:border-gray-300 transition-colors">
       {/* Cart Icon */}
       <div className="w-12 h-12 bg-yellow-100 rounded-lg flex items-center justify-center flex-shrink-0">
-        <ShoppingCartIcon className="w-6 h-6 text-yellow-600" />
+        <ShoppingCart className="w-6 h-6 text-yellow-600" />
       </div>
 
       {/* Transaction Info */}
@@ -73,7 +67,7 @@ function HeldTransactionItem({ transaction, onRecall, onDelete }) {
         )}
 
         <div className="flex items-center gap-1 mt-1 text-xs text-gray-500">
-          <ClockIcon className="w-3 h-3" />
+          <Clock className="w-3 h-3" />
           <span>{label || getTimeAgo(heldTime)}</span>
         </div>
       </div>
@@ -92,7 +86,7 @@ function HeldTransactionItem({ transaction, onRecall, onDelete }) {
             transition-colors duration-150
           "
         >
-          <ArrowPathIcon className="w-4 h-4" />
+          <RefreshCw className="w-4 h-4" />
           Recall
         </button>
 
@@ -109,7 +103,7 @@ function HeldTransactionItem({ transaction, onRecall, onDelete }) {
           "
           aria-label="Delete held transaction"
         >
-          <TrashIcon className="w-5 h-5" />
+          <Trash2 className="w-5 h-5" />
         </button>
       </div>
     </div>
@@ -192,7 +186,7 @@ export function HeldTransactions({
             "
             aria-label="Close"
           >
-            <XMarkIcon className="w-6 h-6" />
+            <X className="w-6 h-6" />
           </button>
         </div>
 
@@ -201,7 +195,7 @@ export function HeldTransactions({
           {heldCarts.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-12 text-center">
               <div className="w-16 h-16 bg-gray-200 rounded-full flex items-center justify-center mb-4">
-                <ShoppingCartIcon className="w-8 h-8 text-gray-400" />
+                <ShoppingCart className="w-8 h-8 text-gray-400" />
               </div>
               <h3 className="text-lg font-semibold text-gray-900 mb-2">
                 No Held Transactions
@@ -239,7 +233,7 @@ export function HeldTransactions({
                 transition-colors duration-150
               "
             >
-              <TrashIcon className="w-5 h-5" />
+              <Trash2 className="w-5 h-5" />
               Clear All Held Transactions
             </button>
           </div>

@@ -1179,7 +1179,6 @@ class FinancingService {
   async _initiateAffirmCheckout(applicationId, amountCents, customerId) {
     // In production, this would call Affirm's API
     // https://docs.affirm.com/affirm-developers/docs/checkout-api
-    console.log(`[FinancingService] Affirm checkout stub for app ${applicationId}`);
 
     return {
       requiresRedirect: true,
@@ -1196,7 +1195,6 @@ class FinancingService {
   async _initiateKlarnaSession(applicationId, amountCents, customerId) {
     // In production, this would call Klarna's API
     // https://docs.klarna.com/klarna-payments/
-    console.log(`[FinancingService] Klarna session stub for app ${applicationId}`);
 
     return {
       requiresRedirect: false,
@@ -1212,7 +1210,6 @@ class FinancingService {
    */
   async _initiateSynchronyApplication(applicationId, amountCents, customerId) {
     // In production, this would call Synchrony's API
-    console.log(`[FinancingService] Synchrony application stub for app ${applicationId}`);
 
     return {
       requiresRedirect: true,
@@ -1255,7 +1252,6 @@ class FinancingService {
    * @private
    */
   async _processAffirmCallback(callbackData) {
-    console.log('[FinancingService] Processing Affirm callback:', callbackData);
 
     // Find application by external ID
     const { rows } = await this.pool.query(
@@ -1299,7 +1295,6 @@ class FinancingService {
    * @private
    */
   async _processKlarnaCallback(callbackData) {
-    console.log('[FinancingService] Processing Klarna callback:', callbackData);
 
     return {
       applicationId: null,
@@ -1313,7 +1308,6 @@ class FinancingService {
    * @private
    */
   async _processSynchronyCallback(callbackData) {
-    console.log('[FinancingService] Processing Synchrony callback:', callbackData);
 
     return {
       applicationId: null,

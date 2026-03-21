@@ -10,9 +10,9 @@ import { authFetch } from '../services/authFetch';
  * - View usage history and success rates
  */
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect } from 'react';
 
-const API_BASE = `${process.env.REACT_APP_API_URL || 'http://localhost:3001'}/api`;
+const API_BASE = `${process.env.REACT_APP_API_URL || ''}/api`;
 
 const ManufacturerTemplateManager = () => {
   // State
@@ -45,7 +45,24 @@ const ManufacturerTemplateManager = () => {
 
   // Load data on mount
   useEffect(() => {
-    loadTemplates();
+    const loadInitialTemplates = async () => {
+      try {
+        setLoading(true);
+        const response = await authFetch(`${API_BASE}/import-templates?active_only=false`);
+        const data = await response.json();
+        if (data.success) {
+          setTemplates(data.data);
+        }
+      } catch (error) {
+        console.error('Error loading templates:', error);
+        setNotification({ message: 'Failed to load templates', type: 'error' });
+        setTimeout(() => setNotification(null), 4000);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadInitialTemplates();
     loadManufacturers();
     loadTargetFields();
   }, []);

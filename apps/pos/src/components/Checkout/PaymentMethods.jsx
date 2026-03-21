@@ -3,19 +3,8 @@
  * Grid of available payment method buttons
  */
 
-import {
-  BanknotesIcon,
-  CreditCardIcon,
-  GiftIcon,
-  DevicePhoneMobileIcon,
-  UserCircleIcon,
-  CalendarDaysIcon,
-  EnvelopeIcon,
-  TicketIcon,
-  ArrowDownTrayIcon,
-  StarIcon,
-} from '@heroicons/react/24/outline';
 import { formatCurrency } from '../../utils/formatters';
+import { Banknote, CalendarDays, CircleUser, CreditCard, Download, Gift, Mail, Phone, Smartphone, Star, Ticket } from 'lucide-react';
 
 /**
  * Payment method button component
@@ -114,7 +103,7 @@ export function PaymentMethods({
       {/* Payment Method Grid */}
       <div className="grid grid-cols-2 gap-4 flex-1">
         <PaymentMethodButton
-          icon={BanknotesIcon}
+          icon={Banknote}
           label="Cash"
           color="green"
           onClick={() => onSelectMethod('cash')}
@@ -122,7 +111,7 @@ export function PaymentMethods({
         />
 
         <PaymentMethodButton
-          icon={CreditCardIcon}
+          icon={CreditCard}
           label="Credit"
           color="blue"
           onClick={() => onSelectMethod('credit')}
@@ -130,7 +119,7 @@ export function PaymentMethods({
         />
 
         <PaymentMethodButton
-          icon={DevicePhoneMobileIcon}
+          icon={Smartphone}
           label="Debit"
           color="blue"
           onClick={() => onSelectMethod('debit')}
@@ -138,15 +127,15 @@ export function PaymentMethods({
         />
 
         <PaymentMethodButton
-          icon={GiftIcon}
+          icon={Gift}
           label="Gift Card"
           color="purple"
-          onClick={() => onSelectMethod('giftcard')}
+          onClick={() => onSelectMethod('gift_card')}
           disabled={disabled || remainingAmount <= 0}
         />
 
         <PaymentMethodButton
-          icon={TicketIcon}
+          icon={Ticket}
           label="Store Credit"
           color="purple"
           onClick={() => onSelectMethod('store_credit')}
@@ -156,7 +145,7 @@ export function PaymentMethods({
         {/* Account Payment - only shown when customer is selected */}
         {hasCustomer && (
           <PaymentMethodButton
-            icon={UserCircleIcon}
+            icon={CircleUser}
             label="Account"
             color="orange"
             onClick={() => onSelectMethod('account')}
@@ -167,7 +156,7 @@ export function PaymentMethods({
         {/* Financing - shown for qualifying amounts with customer */}
         {hasCustomer && remainingAmount >= 50 && (
           <PaymentMethodButton
-            icon={CalendarDaysIcon}
+            icon={CalendarDays}
             label="Financing"
             color="teal"
             onClick={() => onSelectMethod('financing')}
@@ -178,7 +167,7 @@ export function PaymentMethods({
         {/* Loyalty Points - only when customer is selected */}
         {hasCustomer && (
           <PaymentMethodButton
-            icon={StarIcon}
+            icon={Star}
             label="Loyalty Points"
             color="rose"
             onClick={() => onSelectMethod('loyalty_points')}
@@ -186,9 +175,18 @@ export function PaymentMethods({
           />
         )}
 
+        {/* MOTO (Phone Order) - Card Not Present */}
+        <PaymentMethodButton
+          icon={Phone}
+          label="Phone Order"
+          color="rose"
+          onClick={() => onSelectMethod('moto')}
+          disabled={disabled || remainingAmount <= 0}
+        />
+
         {/* E-Transfer - always available */}
         <PaymentMethodButton
-          icon={EnvelopeIcon}
+          icon={Mail}
           label="E-Transfer"
           color="indigo"
           onClick={() => onSelectMethod('etransfer')}
@@ -198,7 +196,7 @@ export function PaymentMethods({
         {/* Deposit - only when no partial payments applied yet */}
         {!hasAppliedPayments && (
           <PaymentMethodButton
-            icon={ArrowDownTrayIcon}
+            icon={Download}
             label="Deposit"
             color="amber"
             onClick={() => onSelectMethod('deposit')}

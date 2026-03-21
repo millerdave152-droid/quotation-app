@@ -47,30 +47,30 @@ class ConversionAnalyticsService {
     const leadResult = await this.pool.query(`
       WITH lead_stats AS (
         SELECT
-          COUNT(*) FILTER (WHERE created_at >= NOW() - INTERVAL '${days} days') as total_leads,
-          COUNT(*) FILTER (WHERE status = 'contacted' AND created_at >= NOW() - INTERVAL '${days} days') as contacted,
-          COUNT(*) FILTER (WHERE status = 'qualified' AND created_at >= NOW() - INTERVAL '${days} days') as qualified,
-          COUNT(*) FILTER (WHERE status = 'converted' AND created_at >= NOW() - INTERVAL '${days} days') as converted,
-          COUNT(*) FILTER (WHERE status = 'lost' AND created_at >= NOW() - INTERVAL '${days} days') as lost
+          COUNT(*) FILTER (WHERE created_at >= NOW() - ($1 * INTERVAL '1 day')) as total_leads,
+          COUNT(*) FILTER (WHERE status = 'contacted' AND created_at >= NOW() - ($1 * INTERVAL '1 day')) as contacted,
+          COUNT(*) FILTER (WHERE status = 'qualified' AND created_at >= NOW() - ($1 * INTERVAL '1 day')) as qualified,
+          COUNT(*) FILTER (WHERE status = 'converted' AND created_at >= NOW() - ($1 * INTERVAL '1 day')) as converted,
+          COUNT(*) FILTER (WHERE status = 'lost' AND created_at >= NOW() - ($1 * INTERVAL '1 day')) as lost
         FROM leads
       )
       SELECT * FROM lead_stats
-    `);
+    `, [days]);
 
     // Quote funnel stages
     const quoteResult = await this.pool.query(`
       WITH quote_stats AS (
         SELECT
-          COUNT(*) FILTER (WHERE created_at >= NOW() - INTERVAL '${days} days') as total_quotes,
-          COUNT(*) FILTER (WHERE status IN ('SENT', 'PENDING_APPROVAL', 'APPROVED', 'WON', 'LOST') AND created_at >= NOW() - INTERVAL '${days} days') as sent,
-          COUNT(*) FILTER (WHERE status IN ('APPROVED', 'WON', 'LOST') AND created_at >= NOW() - INTERVAL '${days} days') as approved,
-          COUNT(*) FILTER (WHERE status = 'WON' AND created_at >= NOW() - INTERVAL '${days} days') as won,
-          COUNT(*) FILTER (WHERE status = 'LOST' AND created_at >= NOW() - INTERVAL '${days} days') as lost,
-          SUM(total_cents) FILTER (WHERE status = 'WON' AND created_at >= NOW() - INTERVAL '${days} days') as won_value
+          COUNT(*) FILTER (WHERE created_at >= NOW() - ($1 * INTERVAL '1 day')) as total_quotes,
+          COUNT(*) FILTER (WHERE status IN ('SENT', 'PENDING_APPROVAL', 'APPROVED', 'WON', 'LOST') AND created_at >= NOW() - ($1 * INTERVAL '1 day')) as sent,
+          COUNT(*) FILTER (WHERE status IN ('APPROVED', 'WON', 'LOST') AND created_at >= NOW() - ($1 * INTERVAL '1 day')) as approved,
+          COUNT(*) FILTER (WHERE status = 'WON' AND created_at >= NOW() - ($1 * INTERVAL '1 day')) as won,
+          COUNT(*) FILTER (WHERE status = 'LOST' AND created_at >= NOW() - ($1 * INTERVAL '1 day')) as lost,
+          SUM(total_cents) FILTER (WHERE status = 'WON' AND created_at >= NOW() - ($1 * INTERVAL '1 day')) as won_value
         FROM quotations
       )
       SELECT * FROM quote_stats
-    `);
+    `, [days]);
 
     const leads = leadResult.rows[0];
     const quotes = quoteResult.rows[0];
@@ -182,10 +182,10 @@ class ConversionAnalyticsService {
             ELSE NULL
           END) as avg_time_to_convert
         FROM leads l
-        WHERE created_at >= NOW() - INTERVAL '${days} days'
+        WHERE created_at >= NOW() - ($1 * INTERVAL '1 day')
       )
       SELECT * FROM lead_timing
-    `);
+    `, [days]);
 
     // Quote stage timing
     const quoteTimingResult = await this.pool.query(`
@@ -194,8 +194,8 @@ class ConversionAnalyticsService {
         AVG(EXTRACT(hours FROM (won_at - created_at)) / 24) FILTER (WHERE status = 'WON') as avg_sales_cycle,
         AVG(EXTRACT(hours FROM (CURRENT_TIMESTAMP - created_at)) / 24) FILTER (WHERE status IN ('DRAFT', 'SENT', 'PENDING_APPROVAL')) as avg_open_age
       FROM quotations
-      WHERE created_at >= NOW() - INTERVAL '${days} days'
-    `);
+      WHERE created_at >= NOW() - ($1 * INTERVAL '1 day')
+    `, [days]);
 
     const leadTiming = leadTimingResult.rows[0];
     const quoteTiming = quoteTimingResult.rows[0];
@@ -225,11 +225,11 @@ class ConversionAnalyticsService {
         COUNT(*) as count
       FROM leads
       WHERE status = 'lost'
-        AND created_at >= NOW() - INTERVAL '${days} days'
+        AND created_at >= NOW() - ($1 * INTERVAL '1 day')
       GROUP BY lost_reason
       ORDER BY count DESC
       LIMIT 10
-    `);
+    `, [days]);
 
     // Lost quote reasons (from events if tracked)
     const lostQuotesResult = await this.pool.query(`
@@ -243,11 +243,11 @@ class ConversionAnalyticsService {
         COUNT(*) as count
       FROM quotations q
       WHERE q.status = 'LOST'
-        AND q.created_at >= NOW() - INTERVAL '${days} days'
+        AND q.created_at >= NOW() - ($1 * INTERVAL '1 day')
       GROUP BY reason
       ORDER BY count DESC
       LIMIT 10
-    `);
+    `, [days]);
 
     // Stage where leads are lost most
     const stageDropoffResult = await this.pool.query(`
@@ -256,9 +256,9 @@ class ConversionAnalyticsService {
         COUNT(*) as count
       FROM leads
       WHERE status = 'lost'
-        AND created_at >= NOW() - INTERVAL '${days} days'
+        AND created_at >= NOW() - ($1 * INTERVAL '1 day')
       GROUP BY status
-    `);
+    `, [days]);
 
     return {
       lostLeadReasons: lostLeadsResult.rows.map(r => ({
@@ -288,7 +288,7 @@ class ConversionAnalyticsService {
           COUNT(*) FILTER (WHERE status = 'converted') as converted,
           COUNT(*) as total
         FROM leads
-        WHERE created_at >= NOW() - INTERVAL '${days} days'
+        WHERE created_at >= NOW() - ($1 * INTERVAL '1 day')
         GROUP BY DATE_TRUNC('week', created_at)
         ORDER BY week
       )
@@ -298,7 +298,7 @@ class ConversionAnalyticsService {
         total,
         CASE WHEN total > 0 THEN ROUND((converted::numeric / total) * 100, 1) ELSE 0 END as conversion_rate
       FROM weekly_stats
-    `);
+    `, [days]);
 
     // Quote win rate trends
     const quoteResult = await this.pool.query(`
@@ -308,7 +308,7 @@ class ConversionAnalyticsService {
           COUNT(*) FILTER (WHERE status = 'WON') as won,
           COUNT(*) FILTER (WHERE status IN ('WON', 'LOST')) as closed
         FROM quotations
-        WHERE created_at >= NOW() - INTERVAL '${days} days'
+        WHERE created_at >= NOW() - ($1 * INTERVAL '1 day')
         GROUP BY DATE_TRUNC('week', created_at)
         ORDER BY week
       )
@@ -318,7 +318,7 @@ class ConversionAnalyticsService {
         closed,
         CASE WHEN closed > 0 THEN ROUND((won::numeric / closed) * 100, 1) ELSE 0 END as win_rate
       FROM weekly_stats
-    `);
+    `, [days]);
 
     return {
       leadConversion: result.rows.map(r => ({
@@ -353,10 +353,10 @@ class ConversionAnalyticsService {
           ELSE 0
         END as conversion_rate
       FROM leads
-      WHERE created_at >= NOW() - INTERVAL '${days} days'
+      WHERE created_at >= NOW() - ($1 * INTERVAL '1 day')
       GROUP BY lead_source
       ORDER BY total_leads DESC
-    `);
+    `, [days]);
 
     return result.rows.map(r => ({
       source: r.source,

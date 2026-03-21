@@ -11,22 +11,13 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import {
-  XMarkIcon,
-  UserGroupIcon,
-  ArrowPathIcon,
-  TrashIcon,
-  PlusIcon,
-  ClockIcon,
-  ShieldCheckIcon,
-  ExclamationTriangleIcon,
-} from '@heroicons/react/24/outline';
-import {
   createDelegation,
   getActiveDelegations,
   revokeDelegation,
   getEligibleDelegates,
 } from '../../api/approvals';
 
+import { AlertTriangle, Clock, Plus, RefreshCw, ShieldCheck, Trash2, Users, X } from 'lucide-react';
 const TIER_LABELS = {
   1: 'Tier 1 (Salesperson)',
   2: 'Tier 2 (Standard)',
@@ -163,14 +154,14 @@ export default function DelegationModal({ isOpen, onClose }) {
         {/* Header */}
         <div className="flex items-center justify-between p-4 border-b border-gray-200">
           <div className="flex items-center gap-2">
-            <UserGroupIcon className="w-5 h-5 text-purple-600" />
+            <Users className="w-5 h-5 text-purple-600" />
             <h2 className="text-lg font-bold text-gray-900">Delegate Authority</h2>
           </div>
           <button
             onClick={onClose}
             className="w-8 h-8 flex items-center justify-center text-gray-400 hover:text-gray-600 rounded-lg"
           >
-            <XMarkIcon className="w-5 h-5" />
+            <X className="w-5 h-5" />
           </button>
         </div>
 
@@ -201,13 +192,13 @@ export default function DelegationModal({ isOpen, onClose }) {
         {/* Alerts */}
         {error && (
           <div className="mx-4 mt-3 p-2 bg-red-50 border border-red-200 rounded-lg flex items-center gap-2">
-            <ExclamationTriangleIcon className="w-4 h-4 text-red-500 flex-shrink-0" />
+            <AlertTriangle className="w-4 h-4 text-red-500 flex-shrink-0" />
             <p className="text-sm text-red-700">{error}</p>
           </div>
         )}
         {success && (
           <div className="mx-4 mt-3 p-2 bg-green-50 border border-green-200 rounded-lg flex items-center gap-2">
-            <ShieldCheckIcon className="w-4 h-4 text-green-600 flex-shrink-0" />
+            <ShieldCheck className="w-4 h-4 text-green-600 flex-shrink-0" />
             <p className="text-sm text-green-700">{success}</p>
           </div>
         )}
@@ -226,7 +217,7 @@ export default function DelegationModal({ isOpen, onClose }) {
 
               {!loading && delegations.delegatedTo.length === 0 && delegations.receivedFrom.length === 0 && (
                 <div className="text-center py-8">
-                  <UserGroupIcon className="w-12 h-12 text-gray-300 mx-auto mb-3" />
+                  <Users className="w-12 h-12 text-gray-300 mx-auto mb-3" />
                   <p className="text-sm text-gray-500">No active delegations</p>
                   <button
                     onClick={() => setTab('create')}
@@ -260,7 +251,7 @@ export default function DelegationModal({ isOpen, onClose }) {
                             </span>
                             <span className="text-gray-300">|</span>
                             <span className="text-xs text-gray-500 flex items-center gap-1">
-                              <ClockIcon className="w-3 h-3" />
+                              <Clock className="w-3 h-3" />
                               {formatTimeRemaining(d.expires_at)}
                             </span>
                           </div>
@@ -273,7 +264,7 @@ export default function DelegationModal({ isOpen, onClose }) {
                           className="w-8 h-8 flex items-center justify-center text-red-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
                           title="Revoke delegation"
                         >
-                          <TrashIcon className="w-4 h-4" />
+                          <Trash2 className="w-4 h-4" />
                         </button>
                       </div>
                     ))}
@@ -306,7 +297,7 @@ export default function DelegationModal({ isOpen, onClose }) {
                             </span>
                             <span className="text-gray-300">|</span>
                             <span className="text-xs text-gray-500 flex items-center gap-1">
-                              <ClockIcon className="w-3 h-3" />
+                              <Clock className="w-3 h-3" />
                               {formatTimeRemaining(d.expires_at)}
                             </span>
                           </div>
@@ -323,7 +314,7 @@ export default function DelegationModal({ isOpen, onClose }) {
                   onClick={fetchDelegations}
                   className="flex items-center gap-1 text-sm text-purple-600 hover:text-purple-800 mx-auto"
                 >
-                  <ArrowPathIcon className="w-4 h-4" /> Refresh
+                  <RefreshCw className="w-4 h-4" /> Refresh
                 </button>
               )}
             </div>
@@ -455,7 +446,7 @@ export default function DelegationModal({ isOpen, onClose }) {
                 </>
               ) : (
                 <>
-                  <PlusIcon className="w-4 h-4" />
+                  <Plus className="w-4 h-4" />
                   Delegate
                 </>
               )}

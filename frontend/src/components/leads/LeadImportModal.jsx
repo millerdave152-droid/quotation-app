@@ -4,9 +4,9 @@ import { authFetch } from '../../services/authFetch';
  * Features: File upload, field mapping, duplicate detection, preview
  */
 
-import React, { useState, useCallback, useRef } from 'react';
+import React, { useState, useRef } from 'react';
 
-const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:3001';
+const API_URL = process.env.REACT_APP_API_URL || '';
 
 // Available lead fields for mapping
 const LEAD_FIELDS = [

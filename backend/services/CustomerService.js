@@ -213,6 +213,12 @@ class CustomerService {
       });
     }
 
+    // Generate search embedding (fire-and-forget)
+    const { embedNewRecord } = require('./embeddingService');
+    embedNewRecord('customers', result.rows[0]).catch(err => {
+      console.warn('[CustomerService] Embedding error:', err.message);
+    });
+
     return result.rows[0];
   }
 
@@ -456,13 +462,13 @@ class CustomerService {
 
     if (segment) {
       const segmentRanges = {
-        platinum: 'lifetime_value >= 50000',
-        gold: 'lifetime_value >= 20000 AND lifetime_value < 50000',
-        silver: 'lifetime_value >= 5000 AND lifetime_value < 20000',
-        bronze: 'lifetime_value < 5000'
+        platinum: 'AND lifetime_value >= 50000',
+        gold: 'AND lifetime_value >= 20000 AND lifetime_value < 50000',
+        silver: 'AND lifetime_value >= 5000 AND lifetime_value < 20000',
+        bronze: 'AND lifetime_value < 5000'
       };
       if (segmentRanges[segment]) {
-        segmentFilter = `HAVING ${segmentRanges[segment]}`;
+        segmentFilter = segmentRanges[segment];
       }
     }
 
@@ -900,6 +906,140 @@ class CustomerService {
       province: 'c.province',
     };
     return map[field] || null;
+  }
+
+  // ────────────────────────────────────────────────────────────────
+  // Walk-in Customer Recognition — Context Card
+  // ────────────────────────────────────────────────────────────────
+
+  /**
+   * Get customer context for POS walk-in recognition.
+   * All queries run in parallel for speed.
+   */
+  async getCustomerContext(customerId) {
+    const cacheKey = `customer_context:${customerId}`;
+    const cached = this.cache?.get?.('short', cacheKey);
+    if (cached) return cached;
+
+    const [lastTxResult, statsResult, openQuotesResult, openWorkOrdersResult, promosResult] = await Promise.all([
+      // Query 1 — last completed transaction
+      this.pool.query(
+        `SELECT transaction_id, total_amount_cents, total_amount, created_at, status
+         FROM transactions
+         WHERE customer_id = $1 AND status = 'completed'
+         ORDER BY created_at DESC LIMIT 1`,
+        [customerId]
+      ),
+
+      // Query 2 — visit count + lifetime value
+      this.pool.query(
+        `SELECT COUNT(*)::INTEGER AS visit_count,
+                COALESCE(SUM(total_amount_cents), 0)::BIGINT AS lifetime_value_cents,
+                MAX(created_at) AS last_visit_at
+         FROM transactions
+         WHERE customer_id = $1 AND status = 'completed'`,
+        [customerId]
+      ),
+
+      // Query 3 — open quotes
+      this.pool.query(
+        `SELECT COUNT(*)::INTEGER AS open_quotes_count,
+                COALESCE(SUM(total_cents), 0)::BIGINT AS open_quotes_value_cents
+         FROM quotations
+         WHERE customer_id = $1
+           AND UPPER(status) NOT IN ('EXPIRED','LOST','REJECTED','CONVERTED','CANCELLED')`,
+        [customerId]
+      ),
+
+      // Query 4 — open work orders (service tickets)
+      this.pool.query(
+        `SELECT COUNT(*)::INTEGER AS open_count
+         FROM work_orders
+         WHERE customer_id = $1
+           AND status NOT IN ('completed','closed','cancelled')`,
+        [customerId]
+      ),
+
+      // Query 5 — applicable promotions (active pos_promotions)
+      this.pool.query(
+        `SELECT id, name, promo_code, discount_percent, discount_amount_cents
+         FROM pos_promotions
+         WHERE status = 'active'
+           AND (start_date IS NULL OR start_date <= NOW())
+           AND (end_date IS NULL OR end_date >= NOW())
+           AND auto_apply = TRUE
+         LIMIT 3`
+      ),
+    ]);
+
+    const lastTx = lastTxResult.rows[0] || null;
+    const stats = statsResult.rows[0] || {};
+    const openQ = openQuotesResult.rows[0] || {};
+    const openWO = openWorkOrdersResult.rows[0] || {};
+    const promos = promosResult.rows || [];
+
+    const visitCount = stats.visit_count || 0;
+    const lifetimeValueCents = parseInt(stats.lifetime_value_cents) || 0;
+    const openQuotesCount = openQ.open_quotes_count || 0;
+    const openQuotesValueCents = parseInt(openQ.open_quotes_value_cents) || 0;
+    const openServiceTickets = openWO.open_count || 0;
+
+    // Last purchase info
+    let lastPurchase = { date: null, totalCents: null, daysSince: null };
+    if (lastTx) {
+      const totalCents = lastTx.total_amount_cents != null
+        ? lastTx.total_amount_cents
+        : Math.round((lastTx.total_amount || 0) * 100);
+      const daysSince = Math.floor(
+        (Date.now() - new Date(lastTx.created_at).getTime()) / (1000 * 60 * 60 * 24)
+      );
+      lastPurchase = {
+        date: lastTx.created_at,
+        totalCents,
+        daysSince,
+      };
+    }
+
+    // Build one-line context summary
+    const fmtDollars = (cents) => `$${(cents / 100).toLocaleString('en-CA', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
+    let contextSummary;
+    if (lastPurchase.daysSince !== null) {
+      const parts = [
+        `Last visit ${lastPurchase.daysSince === 0 ? 'today' : lastPurchase.daysSince === 1 ? 'yesterday' : `${lastPurchase.daysSince} days ago`}`,
+        `${fmtDollars(lastPurchase.totalCents)} purchase`,
+      ];
+      if (openQuotesCount > 0) parts.push(`${openQuotesCount} open quote${openQuotesCount > 1 ? 's' : ''}`);
+      if (openServiceTickets > 0) parts.push(`${openServiceTickets} open service ticket${openServiceTickets > 1 ? 's' : ''}`);
+      contextSummary = parts.join(' · ');
+    } else if (visitCount > 1) {
+      contextSummary = `${visitCount} visits · ${fmtDollars(lifetimeValueCents)} lifetime`;
+    } else {
+      contextSummary = 'First-time customer';
+    }
+
+    const applicablePromotions = promos.map(p => ({
+      id: p.id,
+      name: p.name,
+      promoCode: p.promo_code,
+      discountPercent: p.discount_percent ? parseFloat(p.discount_percent) : null,
+      discountAmountCents: p.discount_amount_cents,
+    }));
+
+    const result = {
+      customerId,
+      lastPurchase,
+      visitCount,
+      lifetimeValueCents,
+      openQuotesCount,
+      openQuotesValueCents,
+      openServiceTickets,
+      applicablePromotions,
+      contextSummary,
+    };
+
+    // Cache for 5 minutes
+    if (this.cache?.set) this.cache.set('short', cacheKey, result, 300);
+    return result;
   }
 }
 

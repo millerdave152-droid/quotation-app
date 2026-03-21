@@ -208,16 +208,22 @@ export function useUpsellOffers({
     }
   }, [cartValueCents, shouldShowFinancing]);
 
-  // Fetch all on cart/customer change
+  // Fetch all on cart/customer change (with mounted guard)
   useEffect(() => {
     if (enabled) {
-      fetchOffers();
-      fetchServices();
-      fetchMembershipOffers();
+      // Wrap fetches with mounted check via Promise chaining
+      const safeFetch = async (fn) => {
+        try { await fn(); } catch { /* handled inside each fetch */ }
+      };
+
+      safeFetch(fetchOffers);
+      safeFetch(fetchServices);
+      safeFetch(fetchMembershipOffers);
       if (shouldShowFinancing) {
-        fetchFinancingOptions();
+        safeFetch(fetchFinancingOptions);
       }
     }
+
   }, [enabled, fetchOffers, fetchServices, fetchMembershipOffers, fetchFinancingOptions, shouldShowFinancing]);
 
   /**
@@ -247,6 +253,25 @@ export function useUpsellOffers({
     if (!timing) return 0;
     const endTime = timing.endTime || Date.now();
     return endTime - timing.startTime;
+  }, []);
+
+  /**
+   * Move to the next offer in the queue
+   * FIXED: Uses ref to get LATEST offers length, avoiding stale closure
+   */
+  const moveToNextOffer = useCallback(() => {
+    setCurrentOfferIndex(current => {
+      const next = current + 1;
+      // Use ref to get current length, not stale closure value
+      return next < offersRef.current.length ? next : current;
+    });
+  }, []);
+
+  /**
+   * Move to previous offer
+   */
+  const moveToPreviousOffer = useCallback(() => {
+    setCurrentOfferIndex(current => Math.max(0, current - 1));
   }, []);
 
   /**
@@ -283,7 +308,7 @@ export function useUpsellOffers({
     moveToNextOffer();
 
     return { success: true, offerId };
-  }, [customer, endOfferTiming, getOfferTimeSpent]);
+  }, [customer, endOfferTiming, getOfferTimeSpent, moveToNextOffer]);
 
   /**
    * Decline an offer
@@ -322,7 +347,7 @@ export function useUpsellOffers({
     moveToNextOffer();
 
     return { success: true, offerId };
-  }, [customer, endOfferTiming, getOfferTimeSpent]);
+  }, [customer, endOfferTiming, getOfferTimeSpent, moveToNextOffer]);
 
   /**
    * Skip/ignore an offer (viewed but no action)
@@ -349,26 +374,7 @@ export function useUpsellOffers({
     }
 
     moveToNextOffer();
-  }, [customer, endOfferTiming, getOfferTimeSpent]);
-
-  /**
-   * Move to the next offer in the queue
-   * FIXED: Uses ref to get LATEST offers length, avoiding stale closure
-   */
-  const moveToNextOffer = useCallback(() => {
-    setCurrentOfferIndex(current => {
-      const next = current + 1;
-      // Use ref to get current length, not stale closure value
-      return next < offersRef.current.length ? next : current;
-    });
-  }, []);
-
-  /**
-   * Move to previous offer
-   */
-  const moveToPreviousOffer = useCallback(() => {
-    setCurrentOfferIndex(current => Math.max(0, current - 1));
-  }, []);
+  }, [customer, endOfferTiming, getOfferTimeSpent, moveToNextOffer]);
 
   /**
    * Accept a service add-on

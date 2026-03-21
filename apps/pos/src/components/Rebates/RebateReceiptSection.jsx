@@ -1,15 +1,9 @@
+import { AlertTriangle, Clock, Gift, Mail } from 'lucide-react';
+
 /**
  * TeleTime POS - Rebate Receipt Section
  * Rebate information for printed/digital receipts
  */
-
-import {
-  GiftIcon,
-  EnvelopeIcon,
-  ClockIcon,
-  ArrowTopRightOnSquareIcon,
-  ExclamationTriangleIcon,
-} from '@heroicons/react/24/outline';
 
 /**
  * Format currency
@@ -65,7 +59,7 @@ export function AppliedRebatesSummary({ instantRebates = [], totalSavings = 0 })
     <div className="border-t border-dashed border-gray-300 pt-2 mt-2">
       <div className="flex justify-between text-sm font-medium text-green-700">
         <span className="flex items-center gap-1">
-          <GiftIcon className="w-4 h-4" />
+          <Gift className="w-4 h-4" />
           Manufacturer Rebates Applied
         </span>
         <span>-{formatCurrency(totalSavings)}</span>
@@ -94,7 +88,7 @@ export function MailInRebateReceiptSection({
       {/* Header */}
       <div className="text-center mb-4">
         <div className="flex items-center justify-center gap-2 mb-1">
-          <EnvelopeIcon className="w-5 h-5" />
+          <Mail className="w-5 h-5" />
           <span className="text-lg font-bold">REBATE OPPORTUNITIES</span>
         </div>
         <p className="text-sm text-gray-600">
@@ -136,9 +130,9 @@ export function MailInRebateReceiptSection({
               }
             `}>
               {rebate.daysRemaining && rebate.daysRemaining <= 14 ? (
-                <ExclamationTriangleIcon className="w-4 h-4" />
+                <AlertTriangle className="w-4 h-4" />
               ) : (
-                <ClockIcon className="w-4 h-4" />
+                <Clock className="w-4 h-4" />
               )}
               <span>
                 <strong>DEADLINE:</strong> {formatDate(rebate.deadline)}

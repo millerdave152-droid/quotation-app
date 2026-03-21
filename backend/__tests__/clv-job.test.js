@@ -131,6 +131,9 @@ describe('CLVCalculationJob', () => {
     });
 
     test('should process all active customers', async () => {
+      // Mock job log INSERT
+      pool.query.mockResolvedValueOnce({ rows: [{ id: 1 }] });
+
       // Mock getting customers
       pool.query.mockResolvedValueOnce({
         rows: [
@@ -155,23 +158,28 @@ describe('CLVCalculationJob', () => {
           engagement: { churnRisk: 'low' }
         });
 
-      // Mock trend determination (3 customers x 1 query each)
+      // With Promise.all, queries are grouped by operation across customers:
+      // All trends first, then all days, then all UPDATEs, then all history INSERTs
       pool.query
-        .mockResolvedValueOnce({ rows: [{ clv_score: 2400000 }] }) // Customer 1
-        .mockResolvedValueOnce({ rows: [{ clv_score: 750000 }] })  // Customer 2
-        .mockResolvedValueOnce({ rows: [{ clv_score: 5000000 }] }); // Customer 3
-
-      // Mock days since activity (3 customers x 1 query each)
-      pool.query
-        .mockResolvedValueOnce({ rows: [{ days: 10 }] })  // Customer 1
-        .mockResolvedValueOnce({ rows: [{ days: 45 }] })  // Customer 2
-        .mockResolvedValueOnce({ rows: [{ days: 5 }] });   // Customer 3
-
-      // Mock UPDATE queries (3 customers)
-      pool.query
+        // Trend queries (all 3 customers)
+        .mockResolvedValueOnce({ rows: [{ clv_score: 2400000 }] }) // Customer 1 trend
+        .mockResolvedValueOnce({ rows: [{ clv_score: 750000 }] })  // Customer 2 trend
+        .mockResolvedValueOnce({ rows: [{ clv_score: 5000000 }] }) // Customer 3 trend
+        // Days since activity queries (all 3 customers)
+        .mockResolvedValueOnce({ rows: [{ days: 10 }] })  // Customer 1 days
+        .mockResolvedValueOnce({ rows: [{ days: 45 }] })  // Customer 2 days
+        .mockResolvedValueOnce({ rows: [{ days: 5 }] })   // Customer 3 days
+        // UPDATE queries (all 3 customers)
+        .mockResolvedValueOnce({ rowCount: 1 })
+        .mockResolvedValueOnce({ rowCount: 1 })
+        .mockResolvedValueOnce({ rowCount: 1 })
+        // History INSERT queries (all 3 customers)
         .mockResolvedValueOnce({ rowCount: 1 })
         .mockResolvedValueOnce({ rowCount: 1 })
         .mockResolvedValueOnce({ rowCount: 1 });
+
+      // Mock job log completion UPDATE
+      pool.query.mockResolvedValueOnce({ rowCount: 1 });
 
       const stats = await job.run();
 
@@ -182,6 +190,9 @@ describe('CLVCalculationJob', () => {
     });
 
     test('should handle errors for individual customers', async () => {
+      // Mock job log INSERT
+      pool.query.mockResolvedValueOnce({ rows: [{ id: 1 }] });
+
       // Mock getting customers
       pool.query.mockResolvedValueOnce({
         rows: [
@@ -198,11 +209,15 @@ describe('CLVCalculationJob', () => {
         })
         .mockRejectedValueOnce(new Error('Database error'));
 
-      // Mock for successful customer
+      // Mock for successful customer: trend, days, UPDATE, history INSERT
       pool.query
         .mockResolvedValueOnce({ rows: [{ clv_score: 950000 }] }) // trend
         .mockResolvedValueOnce({ rows: [{ days: 15 }] })          // days
-        .mockResolvedValueOnce({ rowCount: 1 });                   // update
+        .mockResolvedValueOnce({ rowCount: 1 })                    // UPDATE
+        .mockResolvedValueOnce({ rowCount: 1 });                   // history INSERT
+
+      // Mock job log completion UPDATE
+      pool.query.mockResolvedValueOnce({ rowCount: 1 });
 
       const stats = await job.run();
 
@@ -214,7 +229,12 @@ describe('CLVCalculationJob', () => {
     });
 
     test('should set lastRun and lastRunStats after completion', async () => {
+      // Mock job log INSERT
+      pool.query.mockResolvedValueOnce({ rows: [{ id: 1 }] });
+      // Mock getting customers (empty list)
       pool.query.mockResolvedValueOnce({ rows: [] });
+      // Mock job log completion UPDATE
+      pool.query.mockResolvedValueOnce({ rowCount: 1 });
 
       await job.run();
 
@@ -233,9 +253,10 @@ describe('CLVCalculationJob', () => {
       });
 
       pool.query
-        .mockResolvedValueOnce({ rows: [{ clv_score: 1400000 }] })
-        .mockResolvedValueOnce({ rows: [{ days: 20 }] })
-        .mockResolvedValueOnce({ rowCount: 1 });
+        .mockResolvedValueOnce({ rows: [{ clv_score: 1400000 }] }) // trend
+        .mockResolvedValueOnce({ rows: [{ days: 20 }] })           // days
+        .mockResolvedValueOnce({ rowCount: 1 })                     // UPDATE
+        .mockResolvedValueOnce({ rowCount: 1 });                    // history INSERT
 
       const result = await job.runForCustomer(123);
 
@@ -278,13 +299,13 @@ describe('CLVCalculationJob', () => {
 
   describe('start/stop', () => {
     test('should not start if already running', () => {
-      job.cronJob = { stop: jest.fn() };
-      const consoleSpy = jest.spyOn(console, 'log').mockImplementation();
+      const existingJob = { stop: jest.fn() };
+      job.cronJob = existingJob;
 
       job.start();
 
-      expect(consoleSpy).toHaveBeenCalledWith('[CLV Job] Already running');
-      consoleSpy.mockRestore();
+      // cronJob should remain unchanged (early return, not replaced)
+      expect(job.cronJob).toBe(existingJob);
     });
 
     test('should stop scheduled job', () => {

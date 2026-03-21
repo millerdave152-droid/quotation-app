@@ -3,12 +3,8 @@
  * Displays individual financing option with key details
  */
 
-import {
-  CheckCircleIcon,
-  SparklesIcon,
-  ClockIcon,
-} from '@heroicons/react/24/outline';
 import { formatCurrency } from '../../utils/formatters';
+import { CheckCircle, Clock, Sparkles } from 'lucide-react';
 
 /**
  * Provider logo/badge component
@@ -103,7 +99,7 @@ export function FinancingPlanCard({
       {recommended && (
         <div className="absolute -top-3 left-4">
           <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-amber-500 text-white text-xs font-semibold rounded-full">
-            <SparklesIcon className="w-3 h-3" />
+            <Sparkles className="w-3 h-3" />
             Best Value
           </span>
         </div>
@@ -113,7 +109,7 @@ export function FinancingPlanCard({
       {isPromotional && !recommended && (
         <div className="absolute -top-3 left-4">
           <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-green-500 text-white text-xs font-semibold rounded-full">
-            <ClockIcon className="w-3 h-3" />
+            <Clock className="w-3 h-3" />
             Limited Time
           </span>
         </div>
@@ -122,7 +118,7 @@ export function FinancingPlanCard({
       {/* Selected Indicator */}
       {selected && (
         <div className="absolute top-3 right-3">
-          <CheckCircleIcon className="w-6 h-6 text-blue-600" />
+          <CheckCircle className="w-6 h-6 text-blue-600" />
         </div>
       )}
 

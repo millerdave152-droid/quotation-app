@@ -42,36 +42,6 @@ function ProductBrowser({ onProductSelect }) {
   const [categories, setCategories] = useState([]);
   const [brands, setBrands] = useState([]);
 
-  useEffect(() => {
-    fetchFilterOptions();
-  }, []);
-
-  useEffect(() => {
-    fetchProducts();
-  }, [selectedCategory, selectedBrand, searchQuery, sortBy, sortOrder, page]);
-
-  const fetchFilterOptions = async () => {
-    try {
-      const headers = getAuthHeaders();
-      const [catRes, brandRes] = await Promise.all([
-        authFetch(`${API_BASE}/vendor-products/categories`, { headers }),
-        authFetch(`${API_BASE}/vendor-products/brands`, { headers })
-      ]);
-
-      if (catRes.ok) {
-        const catData = await catRes.json();
-        setCategories(catData);
-      }
-
-      if (brandRes.ok) {
-        const brandData = await brandRes.json();
-        setBrands(brandData);
-      }
-    } catch (err) {
-      console.error('Failed to fetch filter options:', err);
-    }
-  };
-
   const fetchProducts = useCallback(async () => {
     setLoading(true);
     setError(null);
@@ -107,6 +77,35 @@ function ProductBrowser({ onProductSelect }) {
       setLoading(false);
     }
   }, [selectedCategory, selectedBrand, searchQuery, sortBy, sortOrder, page]);
+
+  useEffect(() => {
+    const fetchFilterOptions = async () => {
+      try {
+        const headers = getAuthHeaders();
+        const [catRes, brandRes] = await Promise.all([
+          authFetch(`${API_BASE}/vendor-products/categories`, { headers }),
+          authFetch(`${API_BASE}/vendor-products/brands`, { headers })
+        ]);
+
+        if (catRes.ok) {
+          const catData = await catRes.json();
+          setCategories(catData);
+        }
+
+        if (brandRes.ok) {
+          const brandData = await brandRes.json();
+          setBrands(brandData);
+        }
+      } catch (err) {
+        console.error('Failed to fetch filter options:', err);
+      }
+    };
+    fetchFilterOptions();
+  }, []);
+
+  useEffect(() => {
+    fetchProducts();
+  }, [fetchProducts]);
 
   const handleSearch = (query) => {
     setSearchQuery(query);

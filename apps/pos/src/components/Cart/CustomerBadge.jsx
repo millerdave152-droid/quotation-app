@@ -4,8 +4,10 @@
  */
 
 import { useState } from 'react';
-import { XMarkIcon, UserIcon, PhoneIcon } from '@heroicons/react/24/outline';
 import { formatPhone } from '../../utils/formatters';
+import VoiceNoteButton from '../Notes/VoiceNoteButton';
+import CustomerContextCard from '../Customer/CustomerContextCard';
+import { Phone, User, X } from 'lucide-react';
 
 /**
  * Customer badge component
@@ -71,7 +73,7 @@ export function CustomerBadge({
       >
         {/* Customer Icon */}
         <div className="w-10 h-10 bg-blue-500 rounded-full flex items-center justify-center flex-shrink-0">
-          <UserIcon className="w-5 h-5 text-white" />
+          <User className="w-5 h-5 text-white" />
         </div>
 
         {/* Customer Info */}
@@ -81,7 +83,7 @@ export function CustomerBadge({
           </h4>
           {phone && (
             <p className="text-xs text-gray-600 flex items-center gap-1">
-              <PhoneIcon className="w-3 h-3" />
+              <Phone className="w-3 h-3" />
               {formatPhone(phone)}
             </p>
           )}
@@ -91,6 +93,12 @@ export function CustomerBadge({
             </p>
           )}
         </div>
+
+        {/* Voice Note Button */}
+        <VoiceNoteButton
+          customerId={customerId}
+          surface="pos"
+        />
 
         {/* Remove Button */}
         <button
@@ -106,9 +114,12 @@ export function CustomerBadge({
           "
           aria-label="Remove customer"
         >
-          <XMarkIcon className="w-5 h-5" />
+          <X className="w-5 h-5" />
         </button>
       </div>
+
+      {/* Walk-in Customer Context */}
+      <CustomerContextCard customerId={customerId} compact />
 
       {/* Expanded Details (inline) */}
       {showDetails && (

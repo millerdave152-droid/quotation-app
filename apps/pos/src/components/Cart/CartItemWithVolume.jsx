@@ -9,10 +9,10 @@
  */
 
 import { useState, useRef, useCallback, useMemo } from 'react';
-import { TrashIcon, MinusIcon, PlusIcon } from '@heroicons/react/24/outline';
 import { formatCurrency } from '../../utils/formatters';
 import { VolumeDiscountBadge, VolumePriceDisplay } from './VolumeDiscountBadge';
 import { VolumeTierTooltip, NextTierPrompt } from './VolumeTierTooltip';
+import { Minus, Plus, Trash2 } from 'lucide-react';
 
 /**
  * Cart item component with volume pricing
@@ -148,7 +148,7 @@ export function CartItemWithVolume({
     >
       {/* Delete backdrop (revealed on swipe) */}
       <div className="absolute inset-y-0 right-0 w-24 bg-red-500 flex items-center justify-center">
-        <TrashIcon className="w-6 h-6 text-white" />
+        <Trash2 className="w-6 h-6 text-white" />
       </div>
 
       {/* Main item content */}
@@ -286,7 +286,7 @@ export function CartItemWithVolume({
               "
               aria-label="Decrease quantity"
             >
-              <MinusIcon className="w-4 h-4" />
+              <Minus className="w-4 h-4" />
             </button>
 
             <span className="w-8 text-center text-sm font-semibold">
@@ -307,7 +307,7 @@ export function CartItemWithVolume({
               "
               aria-label="Increase quantity"
             >
-              <PlusIcon className="w-4 h-4" />
+              <Plus className="w-4 h-4" />
             </button>
           </div>
 
@@ -337,7 +337,7 @@ export function CartItemWithVolume({
               "
               aria-label="Remove item"
             >
-              <TrashIcon className="w-4 h-4" />
+              <Trash2 className="w-4 h-4" />
             </button>
           </div>
         </div>

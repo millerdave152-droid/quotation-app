@@ -191,26 +191,51 @@ router.post('/transactions',
     const processedItems = [];
 
     for (const item of items) {
+      let product = null;
+
       const productResult = await db.query(
         'SELECT id, name, model, sell_cents FROM products WHERE id = $1',
         [item.productId]
       );
 
-      if (productResult.rows.length === 0) {
-        throw ApiError.badRequest(`Product ${item.productId} not found`);
+      if (productResult.rows.length > 0) {
+        product = productResult.rows[0];
+      } else if (item.sku) {
+        // Fallback: look up by SKU/model
+        const skuResult = await db.query(
+          'SELECT id, name, model, sell_cents FROM products WHERE model = $1 LIMIT 1',
+          [item.sku]
+        );
+        if (skuResult.rows.length > 0) {
+          product = skuResult.rows[0];
+          console.warn(`[POS Transaction] Product not found by ID ${item.productId}, resolved by SKU ${item.sku}`);
+        }
       }
 
-      const product = productResult.rows[0];
+      if (!product) {
+        // Product not in DB — use cart-provided data so the sale can complete
+        console.warn(`[POS Transaction] Product ${item.productId} not found — using cart data`);
+        product = {
+          id: item.productId,
+          name: item.productName || `Unknown Product (${item.productId})`,
+          model: item.sku || `UNKNOWN-${item.productId}`,
+          sell_cents: item.unitPriceCents || 0,
+          _fromCart: true,
+        };
+      }
+
       const unitPriceCents = item.unitPriceCents || product.sell_cents;
       const lineTotalCents = unitPriceCents * item.quantity;
       subtotalCents += lineTotalCents;
 
       processedItems.push({
         ...item,
+        productId: product.id,
         productName: product.name,
         productSku: product.model,
         unitPriceCents,
-        lineTotalCents
+        lineTotalCents,
+        _fromCart: product._fromCart || false,
       });
     }
 
@@ -255,7 +280,7 @@ router.post('/transactions',
             quantity, unit_price_cents, discount_cents, line_total_cents
           ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
         `, [
-          transaction.transaction_id, item.productId, item.productName, item.productSku,
+          transaction.transaction_id, item._fromCart ? null : item.productId, item.productName, item.productSku,
           item.quantity, item.unitPriceCents, item.discountAmountCents || 0, item.lineTotalCents
         ]);
       }

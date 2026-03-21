@@ -5,7 +5,7 @@
 
 import { useState, useCallback, useRef } from 'react';
 
-const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+const API_BASE = import.meta.env.VITE_API_URL || '/api';
 
 function getAuthHeaders() {
   const token = localStorage.getItem('pos_token');
@@ -55,7 +55,7 @@ export function useManagerApproval() {
    */
   const checkRequiresApproval = useCallback(async (overrideType, value, context = {}) => {
     try {
-      const response = await fetch(`${API_BASE}/api/manager-overrides/check`, {
+      const response = await fetch(`${API_BASE}/manager-overrides/check`, {
         method: 'POST',
         headers: getAuthHeaders(),
         body: JSON.stringify({
@@ -96,7 +96,7 @@ export function useManagerApproval() {
     context = {}
   ) => {
     try {
-      const response = await fetch(`${API_BASE}/api/manager-overrides/check-discount`, {
+      const response = await fetch(`${API_BASE}/manager-overrides/check-discount`, {
         method: 'POST',
         headers: getAuthHeaders(),
         body: JSON.stringify({
@@ -158,7 +158,7 @@ export function useManagerApproval() {
     setError(null);
 
     try {
-      const response = await fetch(`${API_BASE}/api/manager-overrides/approve`, {
+      const response = await fetch(`${API_BASE}/manager-overrides/approve`, {
         method: 'POST',
         headers: getAuthHeaders(),
         body: JSON.stringify({

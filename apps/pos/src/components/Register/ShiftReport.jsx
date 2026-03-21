@@ -53,10 +53,10 @@ export const ShiftReport = forwardRef(function ShiftReport({
   previousShiftSummary,
 }, ref) {
   const storeInfo = {
-    name: import.meta.env.VITE_STORE_NAME || 'TeleTime Communications',
-    address: import.meta.env.VITE_STORE_ADDRESS || '123 Main Street',
-    city: import.meta.env.VITE_STORE_CITY || 'Toronto, ON M5V 1A1',
-    phone: import.meta.env.VITE_STORE_PHONE || '(416) 555-1234',
+    name: import.meta.env.VITE_STORE_NAME || 'TELETIME',
+    address: import.meta.env.VITE_STORE_ADDRESS || '3125 Wolfedale Road',
+    city: import.meta.env.VITE_STORE_CITY || 'Mississauga, ON L5C 1V8',
+    phone: import.meta.env.VITE_STORE_PHONE || '(905) 273-5550',
   };
 
   const openedAt = shift?.openedAt || shift?.opened_at;

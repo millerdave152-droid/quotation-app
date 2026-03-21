@@ -267,8 +267,9 @@ const createTransactionSchema = Joi.object({
   salespersonId: optionalId,
   items: Joi.array().items(
     createLineItemSchema.keys({
-      productName: Joi.string().max(255).optional(),
-      productSku: Joi.string().max(100).optional()
+      productName: Joi.string().max(255).optional().allow('', null),
+      productSku: Joi.string().max(100).optional().allow('', null),
+      sku: Joi.string().max(200).optional().allow('', null)
     })
   ).min(1).required(),
   payments: Joi.array().items(createPaymentSchema).min(1).required(),

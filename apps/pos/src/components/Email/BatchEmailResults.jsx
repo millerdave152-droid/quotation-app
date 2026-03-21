@@ -4,17 +4,8 @@
  */
 
 import { useState, useEffect, useCallback } from 'react';
-import {
-  XMarkIcon,
-  CheckCircleIcon,
-  XCircleIcon,
-  ExclamationTriangleIcon,
-  ArrowPathIcon,
-  EnvelopeIcon,
-  ClockIcon,
-  DocumentTextIcon,
-} from '@heroicons/react/24/outline';
 import { formatCurrency } from '../../utils/formatters';
+import { AlertTriangle, CheckCircle, Clock, FileText, Mail, RefreshCw, X, XCircle } from 'lucide-react';
 
 /**
  * Result item row
@@ -22,25 +13,25 @@ import { formatCurrency } from '../../utils/formatters';
 function ResultItem({ item, status }) {
   const statusConfig = {
     sent: {
-      icon: CheckCircleIcon,
+      icon: CheckCircle,
       iconColor: 'text-green-500',
       bg: 'bg-green-50',
       label: 'Sent',
     },
     failed: {
-      icon: XCircleIcon,
+      icon: XCircle,
       iconColor: 'text-red-500',
       bg: 'bg-red-50',
       label: 'Failed',
     },
     skipped: {
-      icon: ExclamationTriangleIcon,
+      icon: AlertTriangle,
       iconColor: 'text-amber-500',
       bg: 'bg-amber-50',
       label: 'Skipped',
     },
     pending: {
-      icon: ClockIcon,
+      icon: Clock,
       iconColor: 'text-gray-400',
       bg: 'bg-gray-50',
       label: 'Pending',
@@ -168,11 +159,11 @@ export default function BatchEmailResults({
               ${allSuccess ? 'bg-green-100' : hasFailed ? 'bg-amber-100' : 'bg-blue-100'}
             `}>
               {allSuccess ? (
-                <CheckCircleIcon className="w-5 h-5 text-green-600" />
+                <CheckCircle className="w-5 h-5 text-green-600" />
               ) : hasFailed ? (
-                <ExclamationTriangleIcon className="w-5 h-5 text-amber-600" />
+                <AlertTriangle className="w-5 h-5 text-amber-600" />
               ) : (
-                <EnvelopeIcon className="w-5 h-5 text-blue-600" />
+                <Mail className="w-5 h-5 text-blue-600" />
               )}
             </div>
             <div>
@@ -188,7 +179,7 @@ export default function BatchEmailResults({
             onClick={onClose}
             className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
           >
-            <XMarkIcon className="w-5 h-5" />
+            <X className="w-5 h-5" />
           </button>
         </div>
 
@@ -262,7 +253,7 @@ export default function BatchEmailResults({
         <div className="flex-1 overflow-y-auto p-6">
           {displayItems.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-12 text-gray-400">
-              <DocumentTextIcon className="w-12 h-12 mb-3" />
+              <FileText className="w-12 h-12 mb-3" />
               <p>No items in this category</p>
             </div>
           ) : (
@@ -292,7 +283,7 @@ export default function BatchEmailResults({
                 disabled={isRetrying}
                 className="flex items-center gap-2 px-4 py-2 text-amber-600 font-medium hover:bg-amber-50 rounded-lg transition-colors disabled:opacity-50"
               >
-                <ArrowPathIcon className={`w-4 h-4 ${isRetrying ? 'animate-spin' : ''}`} />
+                <RefreshCw className={`w-4 h-4 ${isRetrying ? 'animate-spin' : ''}`} />
                 Retry {groupedItems.failed.length} Failed
               </button>
             )}

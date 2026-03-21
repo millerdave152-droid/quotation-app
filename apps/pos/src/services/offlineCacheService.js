@@ -18,7 +18,7 @@ export async function prefillProductCache() {
     let hasMore = true;
 
     while (hasMore) {
-      const response = await api.get(`/products?page=${page}&limit=${PAGE_SIZE}`);
+      const response = await api.get(`/products?page=${page}&limit=${PAGE_SIZE}&requirePrice=true`);
       const products = Array.isArray(response) ? response : (response.data || []);
 
       if (products.length === 0) {
@@ -50,7 +50,6 @@ export async function prefillProductCache() {
     }
 
     localStorage.setItem(CACHE_TIMESTAMP_KEY, new Date().toISOString());
-    console.log('[OfflineCache] Product cache prefilled');
   } catch (err) {
     console.warn('[OfflineCache] Product prefill failed:', err.message);
   }
@@ -91,7 +90,6 @@ export async function prefillCustomerCache() {
     }
 
     localStorage.setItem(CACHE_TIMESTAMP_KEY, new Date().toISOString());
-    console.log('[OfflineCache] Customer cache prefilled');
   } catch (err) {
     console.warn('[OfflineCache] Customer prefill failed:', err.message);
   }

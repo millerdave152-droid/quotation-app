@@ -158,7 +158,6 @@ class ReturnsManager {
           newStatus
         ]);
 
-        console.log(`${PREFIX} Return #${returnId}: ${decision} by rule "${rule.rule_name}"`);
 
         return { action: decision, ruleName: rule.rule_name, ruleId: rule.id };
       }
@@ -173,7 +172,6 @@ class ReturnsManager {
       WHERE id = $1
     `, [returnId]);
 
-    console.log(`${PREFIX} Return #${returnId}: NEEDS_REVIEW (no matching rule)`);
     return { action: 'NEEDS_REVIEW', ruleName: null, ruleId: null };
   }
 
@@ -221,7 +219,6 @@ class ReturnsManager {
     );
     if (rows.length === 0) throw new Error(`Return #${returnId} not found or not in PENDING status`);
 
-    console.log(`${PREFIX} Return #${returnId} manually ACCEPTED`);
     return this._formatReturn(rows[0]);
   }
 
@@ -238,7 +235,6 @@ class ReturnsManager {
     );
     if (rows.length === 0) throw new Error(`Return #${returnId} not found or cannot be rejected`);
 
-    console.log(`${PREFIX} Return #${returnId} REJECTED: ${reason || 'no reason given'}`);
     return this._formatReturn(rows[0]);
   }
 
@@ -317,16 +313,9 @@ class ReturnsManager {
           console.error(`${PREFIX} Failed to queue inventory sync for SKU ${sku}:`, err.message);
         }
 
-        console.log(`${PREFIX} Restocked SKU ${sku}: ${oldQty} → ${newQty}`);
         restocked = true;
       }
     }
-
-    console.log(
-      `${PREFIX} Return #${returnId} RECEIVED (${condition})` +
-      ` — refund: $${(finalRefundCents / 100).toFixed(2)}` +
-      (restocked ? ' — items restocked' : '')
-    );
 
     return {
       returnId,

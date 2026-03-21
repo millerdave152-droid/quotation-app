@@ -24,25 +24,13 @@ import {
   IconButton,
   Tooltip
 } from '@mui/material';
-import {
-  Settings,
-  AutoMode,
-  CheckCircle,
-  Error as ErrorIcon,
-  Refresh,
-  ExpandMore,
-  ExpandLess,
-  TrendingUp,
-  Receipt,
-  Send,
-  Schedule
-} from '@mui/icons-material';
 import { createAuthorizedClient } from '../../services/apiClient';
 
-const API_BASE = (process.env.REACT_APP_API_URL || 'http://localhost:3001') + '/api';
+const API_BASE = (process.env.REACT_APP_API_URL || '') + '/api';
 
 const api = createAuthorizedClient({ baseURL: API_BASE });
 
+import { AlertCircle, CheckCircle, ChevronDown, ChevronUp, Clock, Receipt, RefreshCw, Settings, TrendingUp } from 'lucide-react';
 const formatCurrency = (cents) => {
   if (!cents && cents !== 0) return '$0.00';
   return `$${(cents / 100).toLocaleString('en-CA', { minimumFractionDigits: 2 })}`;
@@ -156,7 +144,7 @@ const AutoInvoicePanel = () => {
       {/* Header */}
       <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-          <AutoMode color="primary" />
+          <RefreshCw color="primary" />
           <Typography variant="h6" sx={{ fontWeight: 'bold' }}>
             Auto-Invoice Generation
           </Typography>
@@ -167,15 +155,15 @@ const AutoInvoicePanel = () => {
           />
         </Box>
         <Button
-          startIcon={<Refresh />}
+          startIcon={<RefreshCw />}
           onClick={loadData}
           size="small"
         >
-          Refresh
+          RefreshCw
         </Button>
       </Box>
 
-      {error && <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError(null)}>{error}</Alert>}
+      {error && <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError(null)}>{typeof error === 'object' ? error.message || JSON.stringify(error) : error}</Alert>}
       {success && <Alert severity="success" sx={{ mb: 2 }} onClose={() => setSuccess(null)}>{success}</Alert>}
 
       {/* Statistics Cards */}
@@ -209,7 +197,7 @@ const AutoInvoicePanel = () => {
             <StatCard
               title="Failed"
               value={stats.failedCount}
-              icon={<ErrorIcon />}
+              icon={<AlertCircle />}
               color={stats.failedCount > 0 ? 'error' : 'default'}
             />
           </Grid>
@@ -236,7 +224,7 @@ const AutoInvoicePanel = () => {
             </Typography>
           </Box>
           <IconButton size="small">
-            {settingsExpanded ? <ExpandLess /> : <ExpandMore />}
+            {settingsExpanded ? <ChevronUp /> : <ChevronDown />}
           </IconButton>
         </Box>
 
@@ -433,14 +421,14 @@ const AutoInvoicePanel = () => {
           onClick={() => setRecentExpanded(!recentExpanded)}
         >
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-            <Schedule fontSize="small" />
+            <Clock fontSize="small" />
             <Typography variant="subtitle1" sx={{ fontWeight: 'bold' }}>
               Recent Auto-Generated Invoices
             </Typography>
             <Chip label={recentInvoices.length} size="small" />
           </Box>
           <IconButton size="small">
-            {recentExpanded ? <ExpandLess /> : <ExpandMore />}
+            {recentExpanded ? <ChevronUp /> : <ChevronDown />}
           </IconButton>
         </Box>
 

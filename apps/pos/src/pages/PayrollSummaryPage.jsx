@@ -6,15 +6,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
-  ArrowLeftIcon,
-  ArrowPathIcon,
-  ArrowDownTrayIcon,
-  CalendarIcon,
-  BanknotesIcon,
-  CheckIcon,
-  ClockIcon,
-} from '@heroicons/react/24/outline';
-import {
   getPayrollSummary,
   getPendingPayouts,
   createPayout,
@@ -23,6 +14,7 @@ import {
   exportCommissionsCSV,
 } from '../api/commissions';
 
+import { ArrowLeft, Banknote, Calendar, Check, Clock, Download, RefreshCw } from 'lucide-react';
 function formatCurrency(amount) {
   if (amount == null || isNaN(amount)) return '$0.00';
   return new Intl.NumberFormat('en-US', {
@@ -182,11 +174,11 @@ export default function PayrollSummaryPage() {
                 onClick={() => navigate('/')}
                 className="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg transition-colors"
               >
-                <ArrowLeftIcon className="w-5 h-5" />
+                <ArrowLeft className="w-5 h-5" />
               </button>
               <div className="flex items-center gap-3">
                 <div className="p-2 bg-green-100 rounded-lg">
-                  <BanknotesIcon className="w-6 h-6 text-green-600" />
+                  <Banknote className="w-6 h-6 text-green-600" />
                 </div>
                 <div>
                   <h1 className="text-xl font-bold text-slate-900">Payroll Summary</h1>
@@ -200,14 +192,14 @@ export default function PayrollSummaryPage() {
                 disabled={loading}
                 className="flex items-center gap-2 px-4 py-2 text-slate-600 hover:text-slate-900 hover:bg-slate-100 rounded-lg transition-colors"
               >
-                <ArrowPathIcon className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
+                <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
                 Refresh
               </button>
               <button
                 onClick={handleExport}
                 className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
               >
-                <ArrowDownTrayIcon className="w-4 h-4" />
+                <Download className="w-4 h-4" />
                 Export CSV
               </button>
             </div>
@@ -219,7 +211,7 @@ export default function PayrollSummaryPage() {
       <div className="bg-white border-b border-slate-200">
         <div className="max-w-7xl mx-auto px-4 py-3">
           <div className="flex items-center gap-4 flex-wrap">
-            <CalendarIcon className="w-5 h-5 text-slate-400" />
+            <Calendar className="w-5 h-5 text-slate-400" />
             <div className="flex items-center gap-1 p-1 bg-slate-100 rounded-lg">
               {PAYROLL_PRESETS.map((preset, index) => (
                 <button
@@ -386,7 +378,7 @@ export default function PayrollSummaryPage() {
                       {formatCurrency(payout.net_amount_cents ? payout.net_amount_cents / 100 : payout.gross_commission_cents / 100)}
                     </div>
                     <div className="flex items-center gap-1 text-xs text-slate-500">
-                      <ClockIcon className="w-3 h-3" />
+                      <Clock className="w-3 h-3" />
                       {payout.status}
                     </div>
                   </div>
@@ -396,7 +388,7 @@ export default function PayrollSummaryPage() {
                         onClick={() => handleApprovePayout(payout.id)}
                         className="flex items-center gap-1 px-3 py-1.5 text-xs font-medium bg-blue-50 text-blue-700 rounded-lg hover:bg-blue-100 transition-colors"
                       >
-                        <CheckIcon className="w-3 h-3" />
+                        <Check className="w-3 h-3" />
                         Approve
                       </button>
                     )}
@@ -405,7 +397,7 @@ export default function PayrollSummaryPage() {
                         onClick={() => handleMarkPaid(payout.id)}
                         className="flex items-center gap-1 px-3 py-1.5 text-xs font-medium bg-green-50 text-green-700 rounded-lg hover:bg-green-100 transition-colors"
                       >
-                        <BanknotesIcon className="w-3 h-3" />
+                        <Banknote className="w-3 h-3" />
                         Mark Paid
                       </button>
                     )}

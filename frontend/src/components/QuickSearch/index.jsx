@@ -9,12 +9,11 @@
  * - Grid/List view toggle
  * - URL-synced filters for shareable searches
  */
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import SearchBar from './SearchBar';
 import FilterPanel from './FilterPanel';
 import FilterChips from './FilterChips';
-import ProductResultCard from './ProductResultCard';
 import ProductResultsList from './ProductResultsList';
 import SortDropdown from './SortDropdown';
 import { useQuickSearch } from './hooks/useQuickSearch';

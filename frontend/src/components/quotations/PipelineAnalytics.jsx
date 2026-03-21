@@ -1,12 +1,24 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { authFetch } from '../../services/authFetch';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
-  FunnelChart, Funnel, LabelList, Cell,
-  LineChart, Line, PieChart, Pie
+  FunnelChart, Funnel, LabelList, Cell
 } from 'recharts';
 
-const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:3001';
+const API_URL = process.env.REACT_APP_API_URL || '';
+
+const STAGE_COLORS = {
+  'DRAFT': '#9E9E9E',
+  'SENT': '#2196F3',
+  'VIEWED': '#03A9F4',
+  'PENDING_APPROVAL': '#FF9800',
+  'APPROVED': '#8BC34A',
+  'COUNTER_OFFER': '#9C27B0',
+  'NEGOTIATING': '#673AB7',
+  'WON': '#4CAF50',
+  'LOST': '#F44336',
+  'EXPIRED': '#795548'
+};
 
 const PipelineAnalytics = () => {
   const [loading, setLoading] = useState(true);
@@ -16,11 +28,7 @@ const PipelineAnalytics = () => {
   const [atRiskQuotes, setAtRiskQuotes] = useState([]);
   const [dateRange, setDateRange] = useState(90);
 
-  useEffect(() => {
-    fetchPipelineData();
-  }, [dateRange]);
-
-  const fetchPipelineData = async () => {
+  const fetchPipelineData = useCallback(async () => {
     setLoading(true);
     try {
       const [pipelineRes, velocityRes, atRiskRes] = await Promise.all([
@@ -37,20 +45,11 @@ const PipelineAnalytics = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [dateRange]);
 
-  const STAGE_COLORS = {
-    'DRAFT': '#9E9E9E',
-    'SENT': '#2196F3',
-    'VIEWED': '#03A9F4',
-    'PENDING_APPROVAL': '#FF9800',
-    'APPROVED': '#8BC34A',
-    'COUNTER_OFFER': '#9C27B0',
-    'NEGOTIATING': '#673AB7',
-    'WON': '#4CAF50',
-    'LOST': '#F44336',
-    'EXPIRED': '#795548'
-  };
+  useEffect(() => {
+    fetchPipelineData();
+  }, [fetchPipelineData]);
 
   const funnelData = useMemo(() => {
     if (!pipelineData?.stages) return [];

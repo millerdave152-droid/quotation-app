@@ -207,7 +207,6 @@ async function autoHideDiscontinuedProducts() {
     );
   }
 
-  console.log(`[DiscontinuedProducts] Auto-hid ${toHide.length} zero-stock discontinued products`);
   return { hidden_count: toHide.length };
 }
 

@@ -4,17 +4,8 @@
  */
 
 import { useState, useRef, useCallback, useEffect } from 'react';
-import {
-  DocumentTextIcon,
-  CheckCircleIcon,
-  PencilIcon,
-  ArrowPathIcon,
-  ExclamationTriangleIcon,
-  CalendarDaysIcon,
-  BanknotesIcon,
-  CurrencyDollarIcon,
-} from '@heroicons/react/24/outline';
 import { formatCurrency } from '../../utils/formatters';
+import { AlertTriangle, Banknote, CalendarDays, CheckCircle, DollarSign, FileText, Pencil, RefreshCw } from 'lucide-react';
 
 /**
  * Format date for display
@@ -156,7 +147,7 @@ function SignaturePad({ onSignatureChange, disabled = false }) {
     <div className="space-y-2">
       <div className="flex items-center justify-between">
         <label className="flex items-center gap-2 text-sm font-medium text-gray-700">
-          <PencilIcon className="w-4 h-4" />
+          <Pencil className="w-4 h-4" />
           Customer Signature
         </label>
         {hasSignature && (
@@ -165,7 +156,7 @@ function SignaturePad({ onSignatureChange, disabled = false }) {
             onClick={clearSignature}
             className="flex items-center gap-1 text-sm text-gray-500 hover:text-gray-700"
           >
-            <ArrowPathIcon className="w-4 h-4" />
+            <RefreshCw className="w-4 h-4" />
             Clear
           </button>
         )}
@@ -256,7 +247,7 @@ export function FinancingTermsAcceptance({
       {/* Agreement Header */}
       <div className="text-center pb-4 border-b border-gray-200">
         <div className="w-16 h-16 mx-auto bg-blue-100 rounded-full flex items-center justify-center mb-4">
-          <DocumentTextIcon className="w-10 h-10 text-blue-600" />
+          <FileText className="w-10 h-10 text-blue-600" />
         </div>
         <h2 className="text-xl font-bold text-gray-900">Financing Agreement</h2>
         <p className="text-gray-500 mt-1">
@@ -268,7 +259,7 @@ export function FinancingTermsAcceptance({
       <div className="grid grid-cols-2 gap-4">
         <div className="p-4 bg-gray-50 rounded-xl">
           <div className="flex items-center gap-2 text-gray-500 mb-1">
-            <CurrencyDollarIcon className="w-4 h-4" />
+            <DollarSign className="w-4 h-4" />
             <span className="text-xs font-medium uppercase">Financed Amount</span>
           </div>
           <p className="text-xl font-bold text-gray-900 tabular-nums">
@@ -278,7 +269,7 @@ export function FinancingTermsAcceptance({
 
         <div className="p-4 bg-green-50 rounded-xl">
           <div className="flex items-center gap-2 text-green-600 mb-1">
-            <BanknotesIcon className="w-4 h-4" />
+            <Banknote className="w-4 h-4" />
             <span className="text-xs font-medium uppercase">Monthly Payment</span>
           </div>
           <p className="text-xl font-bold text-green-700 tabular-nums">
@@ -288,7 +279,7 @@ export function FinancingTermsAcceptance({
 
         <div className="p-4 bg-gray-50 rounded-xl">
           <div className="flex items-center gap-2 text-gray-500 mb-1">
-            <CalendarDaysIcon className="w-4 h-4" />
+            <CalendarDays className="w-4 h-4" />
             <span className="text-xs font-medium uppercase">First Payment</span>
           </div>
           <p className="text-sm font-medium text-gray-900">
@@ -370,7 +361,7 @@ export function FinancingTermsAcceptance({
       {/* Error */}
       {error && (
         <div className="flex items-center gap-2 p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm">
-          <ExclamationTriangleIcon className="w-5 h-5 flex-shrink-0" />
+          <AlertTriangle className="w-5 h-5 flex-shrink-0" />
           {error}
         </div>
       )}
@@ -413,7 +404,7 @@ export function FinancingTermsAcceptance({
             </>
           ) : (
             <>
-              <CheckCircleIcon className="w-6 h-6" />
+              <CheckCircle className="w-6 h-6" />
               <span>Complete Financing</span>
             </>
           )}

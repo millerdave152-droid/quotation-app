@@ -435,7 +435,7 @@ describe('Bulk Operations Service', () => {
     test('should clear selection', () => {
       const clearSelection = () => [];
 
-      const selection = [1, 2, 3, 4, 5];
+      const _selection = [1, 2, 3, 4, 5];
       const cleared = clearSelection();
       expect(cleared).toEqual([]);
     });

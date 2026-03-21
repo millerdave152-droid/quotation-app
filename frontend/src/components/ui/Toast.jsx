@@ -42,6 +42,11 @@ const ToastItem = ({ toast, onDismiss }) => {
   const [isExiting, setIsExiting] = useState(false);
   const typeStyle = TOAST_TYPES[toast.type] || TOAST_TYPES.info;
 
+  const handleDismiss = useCallback(() => {
+    setIsExiting(true);
+    setTimeout(() => onDismiss(toast.id), 200);
+  }, [onDismiss, toast.id]);
+
   useEffect(() => {
     if (toast.duration > 0) {
       const timer = setTimeout(() => {
@@ -49,12 +54,7 @@ const ToastItem = ({ toast, onDismiss }) => {
       }, toast.duration);
       return () => clearTimeout(timer);
     }
-  }, [toast.duration]);
-
-  const handleDismiss = () => {
-    setIsExiting(true);
-    setTimeout(() => onDismiss(toast.id), 200);
-  };
+  }, [toast.duration, handleDismiss]);
 
   return (
     <div

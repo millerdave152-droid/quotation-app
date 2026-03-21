@@ -12,10 +12,10 @@ import { authFetch } from '../../services/authFetch';
 
 import React, { useState, useEffect, useCallback } from 'react';
 import {
-  FileText, ShoppingCart, Receipt, User, ArrowRight, Filter, RefreshCw
+  FileText, ShoppingCart, Receipt, User, ArrowRight, RefreshCw
 } from 'lucide-react';
 
-const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:3001';
+const API_URL = process.env.REACT_APP_API_URL || '';
 
 // Event type configuration
 const EVENT_CONFIG = {
@@ -63,7 +63,7 @@ const STATUS_COLORS = {
 const UnifiedTimeline = ({ onNavigate, customerId = null, limit = 20 }) => {
   const [events, setEvents] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
+  const [_error, setError] = useState(null);
   const [filter, setFilter] = useState('all');
 
   // Fetch timeline events
@@ -288,7 +288,9 @@ const UnifiedTimeline = ({ onNavigate, customerId = null, limit = 20 }) => {
       <div style={{ maxHeight: '400px', overflowY: 'auto' }}>
         {filteredEvents.length === 0 ? (
           <div style={{ textAlign: 'center', padding: '40px 20px', color: '#6b7280' }}>
-            <div style={{ fontSize: '36px', marginBottom: '12px' }}>📋</div>
+            <div style={{ marginBottom: '12px' }}>
+              <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="#9ca3af" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><rect x="8" y="2" width="8" height="4" rx="1" ry="1"/></svg>
+            </div>
             <p style={{ margin: 0, fontWeight: '500' }}>No activity yet</p>
             <p style={{ margin: '4px 0 0', fontSize: '13px' }}>
               {filter !== 'all' ? `No ${filter} activity found` : 'Activity will appear here'}

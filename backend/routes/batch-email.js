@@ -204,7 +204,6 @@ router.post('/batches/:id/process', authenticate, requireRole('admin', 'manager'
     // Start processing in background
     batchEmailService.processBatch(batchId, { receiptService })
       .then(result => {
-        console.log(`[BatchEmail] Batch ${batchId} completed:`, result);
       })
       .catch(error => {
         console.error(`[BatchEmail] Batch ${batchId} failed:`, error);

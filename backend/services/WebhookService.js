@@ -391,9 +391,9 @@ class WebhookService {
   async cleanupLogs(daysToKeep = 30) {
     const result = await this.pool.query(`
       DELETE FROM webhook_logs
-      WHERE created_at < NOW() - INTERVAL '${daysToKeep} days'
+      WHERE created_at < NOW() - ($1 * INTERVAL '1 day')
       RETURNING id
-    `);
+    `, [daysToKeep]);
     return result.rowCount;
   }
 }

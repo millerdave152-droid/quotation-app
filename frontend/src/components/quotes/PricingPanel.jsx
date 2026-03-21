@@ -12,8 +12,6 @@ import { authFetch } from '../../services/authFetch';
 import React, { useState, useEffect, useCallback } from 'react';
 import {
   DollarSign,
-  TrendingUp,
-  TrendingDown,
   AlertTriangle,
   AlertCircle,
   CheckCircle,
@@ -30,7 +28,7 @@ import {
   Shield
 } from 'lucide-react';
 
-const API_BASE = `${process.env.REACT_APP_API_URL || 'http://localhost:3001'}/api`;
+const API_BASE = `${process.env.REACT_APP_API_URL || ''}/api`;
 
 // Format cents to currency string
 const formatCurrency = (cents) => {
@@ -212,7 +210,7 @@ const PricingPanel = ({
   productId,
   customerId = null,
   currentPrice = null,
-  onPriceChange = null,
+  _onPriceChange = null,
   onRecommendedPriceSelect = null,
   expanded = false,
   showSimulator = true,

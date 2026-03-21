@@ -8,6 +8,10 @@ const router = express.Router();
 const Joi = require('joi');
 const { authenticate } = require('../middleware/auth');
 const { ApiError, asyncHandler } = require('../middleware/errorHandler');
+const { fraudCheck } = require('../middleware/fraudCheck');
+const { auditLogMiddleware } = require('../middleware/auditLog');
+const { paymentLimiter } = require('../middleware/security');
+const { validateBody, schemas } = require('../middleware/zodValidation');
 
 // Apply authentication to all POS quote routes
 router.use(authenticate);
@@ -253,7 +257,7 @@ router.get('/:id/for-sale', asyncHandler(async (req, res) => {
  * POST /api/pos-quotes/:id/convert
  * Mark quote as converted after transaction completes
  */
-router.post('/:id/convert', asyncHandler(async (req, res) => {
+router.post('/:id/convert', paymentLimiter, validateBody(schemas.quoteConvert), fraudCheck('quote.convert'), auditLogMiddleware('quote_convert', 'quote'), asyncHandler(async (req, res) => {
   const quoteId = parseInt(req.params.id, 10);
   if (!quoteId) {
     throw ApiError.badRequest('Invalid quote ID');
@@ -325,6 +329,7 @@ router.post('/:id/convert', asyncHandler(async (req, res) => {
         status: 'converted',
         transactionId,
         transactionNumber,
+        fraudAssessment: req.fraudAssessment || null,
       },
     });
   } catch (err) {

@@ -20,23 +20,7 @@ import {
   Card,
   CardContent,
 } from '@mui/material';
-import {
-  CheckCircle as CheckCircleIcon,
-  Warning as WarningIcon,
-  Info as InfoIcon,
-  Smartphone as DeviceIcon,
-  Star as StarIcon,
-  AttachMoney as MoneyIcon,
-  Receipt as SerialIcon,
-  SimCard as ImeiIcon,
-  Note as NoteIcon,
-  ShoppingCart as CartIcon,
-  Cancel as CancelIcon,
-  SupervisorAccount as ManagerIcon,
-  TrendingDown as DiscountIcon,
-  AccountBalanceWallet as CreditIcon,
-} from '@mui/icons-material';
-
+import { CheckCircle, Fingerprint, Hash, Info, Percent, ShoppingCart, Smartphone, Star, StickyNote, UserCog, Wallet, XCircle } from 'lucide-react';
 // ============================================================================
 // CONSTANTS
 // ============================================================================
@@ -91,7 +75,7 @@ export function TradeInConfirmation({
       {requiresApproval && (
         <Alert
           severity="warning"
-          icon={<ManagerIcon />}
+          icon={<UserCog />}
           sx={{
             mb: 3,
             '& .MuiAlert-icon': { fontSize: 28 },
@@ -148,7 +132,7 @@ export function TradeInConfirmation({
                 bgcolor: 'grey.100',
               }}
             >
-              <DeviceIcon sx={{ fontSize: 40, color: 'text.secondary' }} />
+              <Smartphone sx={{ fontSize: 40, color: 'text.secondary' }} />
             </Box>
             <Box sx={{ flex: 1 }}>
               <Typography variant="h5" fontWeight={700}>
@@ -195,7 +179,7 @@ export function TradeInConfirmation({
             {/* Condition Multiplier */}
             <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1.5 }}>
               <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                <StarIcon sx={{ fontSize: 18, color: getConditionColor() }} />
+                <Star sx={{ fontSize: 18, color: getConditionColor() }} />
                 <Typography variant="body1">
                   Condition: {condition?.condition_name || selectedCondition?.condition_name}
                 </Typography>
@@ -209,7 +193,7 @@ export function TradeInConfirmation({
             {calculation.adjustmentAmount !== 0 && (
               <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1.5 }}>
                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                  <DiscountIcon
+                  <Percent
                     sx={{
                       fontSize: 18,
                       color: calculation.adjustmentAmount > 0 ? 'success.main' : 'error.main',
@@ -261,7 +245,7 @@ export function TradeInConfirmation({
             {serialNumber && (
               <ListItem disableGutters>
                 <ListItemIcon sx={{ minWidth: 40 }}>
-                  <SerialIcon color="action" />
+                  <Hash color="action" />
                 </ListItemIcon>
                 <ListItemText
                   primary="Serial Number"
@@ -274,7 +258,7 @@ export function TradeInConfirmation({
             {imei && (
               <ListItem disableGutters>
                 <ListItemIcon sx={{ minWidth: 40 }}>
-                  <ImeiIcon color="action" />
+                  <Fingerprint color="action" />
                 </ListItemIcon>
                 <ListItemText
                   primary="IMEI"
@@ -287,7 +271,7 @@ export function TradeInConfirmation({
             {conditionNotes && (
               <ListItem disableGutters sx={{ alignItems: 'flex-start' }}>
                 <ListItemIcon sx={{ minWidth: 40, mt: 0.5 }}>
-                  <NoteIcon color="action" />
+                  <StickyNote color="action" />
                 </ListItemIcon>
                 <ListItemText
                   primary="Condition Notes"
@@ -300,7 +284,7 @@ export function TradeInConfirmation({
             {!serialNumber && !imei && !conditionNotes && (
               <ListItem disableGutters>
                 <ListItemIcon sx={{ minWidth: 40 }}>
-                  <InfoIcon color="action" />
+                  <Info color="action" />
                 </ListItemIcon>
                 <ListItemText
                   primary="No additional details provided"
@@ -326,7 +310,7 @@ export function TradeInConfirmation({
         >
           <CardContent>
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
-              <CartIcon color="info" />
+              <ShoppingCart color="info" />
               <Typography variant="subtitle2" fontWeight={600}>
                 CART SUMMARY
               </Typography>
@@ -369,7 +353,7 @@ export function TradeInConfirmation({
             {excessCredit > 0 && (
               <Alert
                 severity="info"
-                icon={<CreditIcon />}
+                icon={<Wallet />}
                 sx={{ mt: 2 }}
               >
                 <Typography variant="body2">
@@ -388,7 +372,7 @@ export function TradeInConfirmation({
           variant="outlined"
           color="inherit"
           size="large"
-          startIcon={<CancelIcon />}
+          startIcon={<XCircle />}
           onClick={onCancel}
           disabled={isLoading}
           sx={{ flex: 1, py: 1.5 }}
@@ -399,7 +383,7 @@ export function TradeInConfirmation({
           variant="contained"
           color={requiresApproval ? 'warning' : 'success'}
           size="large"
-          startIcon={requiresApproval ? <ManagerIcon /> : <CheckCircleIcon />}
+          startIcon={requiresApproval ? <UserCog /> : <CheckCircle />}
           onClick={onConfirm}
           disabled={isLoading}
           sx={{

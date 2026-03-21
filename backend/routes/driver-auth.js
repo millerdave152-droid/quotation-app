@@ -122,10 +122,10 @@ function init({ pool }) {
   }));
 
   // ---- POST /logout — (optional) server-side cleanup ----
-  router.post('/logout', authenticate, async (req, res) => {
+  router.post('/logout', authenticate, asyncHandler(async (req, res) => {
     // No refresh tokens for driver app currently — just acknowledge
     res.json({ success: true });
-  });
+  }));
 
   // ---- POST /set-pin — admin or driver sets/resets PIN ----
   router.post('/set-pin', authenticate, asyncHandler(async (req, res) => {

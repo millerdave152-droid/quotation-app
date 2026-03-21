@@ -4,8 +4,8 @@
  */
 
 import { Component } from 'react';
-import { ExclamationTriangleIcon, ArrowPathIcon } from '@heroicons/react/24/outline';
 import errorTracker from '../services/ErrorTracker';
+import { AlertTriangle, RefreshCw } from 'lucide-react';
 
 /**
  * Error boundary to catch rendering errors
@@ -58,7 +58,7 @@ export class ErrorBoundary extends Component {
             <div className="bg-white rounded-2xl shadow-2xl p-8 text-center">
               {/* Icon */}
               <div className="w-20 h-20 mx-auto mb-6 bg-red-100 rounded-full flex items-center justify-center">
-                <ExclamationTriangleIcon className="w-10 h-10 text-red-600" />
+                <AlertTriangle className="w-10 h-10 text-red-600" />
               </div>
 
               {/* Title */}
@@ -99,7 +99,7 @@ export class ErrorBoundary extends Component {
                     transition-colors
                   "
                 >
-                  <ArrowPathIcon className="w-5 h-5" />
+                  <RefreshCw className="w-5 h-5" />
                   Refresh Page
                 </button>
 

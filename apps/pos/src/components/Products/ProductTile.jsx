@@ -93,16 +93,25 @@ export function ProductTile({
       `}
       aria-label={`Add ${productName} to cart`}
     >
-      {/* Stock Indicator */}
+      {/* Stock Badge */}
       <div
         className={`
-          absolute top-2 right-2
-          w-3 h-3
+          absolute top-1.5 right-1.5
+          flex items-center gap-1
+          px-1.5 py-0.5
           rounded-full
-          ${stockStatus.color}
+          text-[10px] font-semibold
+          ${stockStatus.level === 'ok' ? 'bg-green-100 text-green-700' :
+            stockStatus.level === 'low' ? 'bg-yellow-100 text-yellow-700' :
+            'bg-red-100 text-red-700'}
         `}
         title={stockStatus.label}
-      />
+      >
+        <span className={`w-1.5 h-1.5 rounded-full ${stockStatus.color}`} />
+        {stockStatus.level === 'ok' ? 'In Stock' :
+         stockStatus.level === 'low' ? `Low (${quantity})` :
+         'Out'}
+      </div>
 
       {/* Product Image */}
       <div className="w-full h-20 mb-2 flex items-center justify-center overflow-hidden rounded-lg bg-gray-50">
@@ -157,6 +166,26 @@ export function ProductTile({
           {formatCurrency(price)}
         </span>
       </div>
+
+      {/* Location Availability Pills */}
+      {product.location_stock && product.location_stock.length > 0 && (
+        <div className="flex flex-wrap gap-1 mt-1">
+          {product.location_stock.map((loc) => (
+            <span
+              key={loc.location_id}
+              className={`text-[9px] px-1.5 py-0.5 rounded-full font-medium ${
+                loc.quantity_available > 0
+                  ? 'bg-green-50 text-green-700'
+                  : 'bg-red-50 text-red-400'
+              }`}
+              title={`${loc.location_name}: ${loc.quantity_available} available`}
+            >
+              {(loc.location_code || loc.location_name || '').slice(0, 6)}
+              {loc.quantity_available > 0 ? ' \u2713' : ' \u2717'}
+            </span>
+          ))}
+        </div>
+      )}
 
       {/* Out of stock overlay */}
       {isOutOfStock && (

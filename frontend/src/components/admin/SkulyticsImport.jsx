@@ -4,7 +4,7 @@ import { useToast } from '../ui';
 import { SkeletonStats, SkeletonTable } from '../ui';
 import { useDebounce } from '../../utils/useDebounce';
 import {
-  Database, Download, RefreshCw, Search, Filter, ChevronRight,
+  Database, Download, RefreshCw, Search, ChevronRight,
   X, Check, AlertTriangle, Package, Eye, ChevronLeft, Zap, Loader
 } from 'lucide-react';
 

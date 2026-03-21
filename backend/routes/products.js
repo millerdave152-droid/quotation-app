@@ -14,6 +14,7 @@ const ProductService = require('../services/ProductService');
 const ProductRecommendationService = require('../services/ProductRecommendationService');
 const { authenticate } = require('../middleware/auth');
 const { validateJoi, productSchemas } = require('../middleware/validation');
+const { auditLogMiddleware } = require('../middleware/auditLog');
 
 // Module-level dependencies
 let productService = null;
@@ -48,7 +49,7 @@ const init = (deps) => {
  */
 router.get('/', authenticate, asyncHandler(async (req, res) => {
   const result = await productService.getProducts(req.query);
-  res.json(result.products || result);
+  res.json(result);
 }));
 
 /**
@@ -206,8 +207,8 @@ router.get('/by-tag/:tagId', authenticate, asyncHandler(async (req, res) => {
  * Search products for autocomplete
  */
 router.get('/search', authenticate, asyncHandler(async (req, res) => {
-  const { q, limit = 10 } = req.query;
-  const results = await productService.searchForAutocomplete(q || '', limit);
+  const { q, limit = 10, requirePrice } = req.query;
+  const results = await productService.searchForAutocomplete(q || '', limit, { requirePrice: requirePrice === 'true' });
   res.json(results);
 }));
 
@@ -280,7 +281,7 @@ router.get('/:id/competitor-prices', authenticate, asyncHandler(async (req, res)
  * POST /api/products
  * Create a new product
  */
-router.post('/', authenticate, validateJoi(productSchemas.create), asyncHandler(async (req, res) => {
+router.post('/', authenticate, validateJoi(productSchemas.create), auditLogMiddleware('product_create', 'inventory'), asyncHandler(async (req, res) => {
   try {
     const product = await productService.createProduct(req.body);
     res.created(product);
@@ -298,7 +299,7 @@ router.post('/', authenticate, validateJoi(productSchemas.create), asyncHandler(
  * PUT /api/products/:id
  * Update an existing product
  */
-router.put('/:id', authenticate, validateJoi(productSchemas.update), asyncHandler(async (req, res) => {
+router.put('/:id', authenticate, validateJoi(productSchemas.update), auditLogMiddleware('product_edit', 'inventory'), asyncHandler(async (req, res) => {
   const { id } = req.params;
 
   try {
@@ -311,7 +312,7 @@ router.put('/:id', authenticate, validateJoi(productSchemas.update), asyncHandle
     res.success(product);
   } catch (error) {
     if (error.code === '23505' && error.constraint && error.constraint.includes('model')) {
-      throw ApiError.conflict('Model already exists. Another product is already using this model number.');
+      throw ApiError.conflict(error.message || 'Model already exists. Another product is already using this model number.');
     }
     throw error;
   }
@@ -321,15 +322,23 @@ router.put('/:id', authenticate, validateJoi(productSchemas.update), asyncHandle
  * DELETE /api/products/:id
  * Delete a product
  */
-router.delete('/:id', authenticate, asyncHandler(async (req, res) => {
+router.delete('/:id', authenticate, auditLogMiddleware('product_delete', 'inventory'), asyncHandler(async (req, res) => {
   const { id } = req.params;
-  const result = await productService.deleteProduct(id);
 
-  if (!result) {
-    throw ApiError.notFound('Product');
+  try {
+    const result = await productService.deleteProduct(id);
+
+    if (!result) {
+      throw ApiError.notFound('Product');
+    }
+
+    res.success(null, { message: 'Product deleted successfully' });
+  } catch (error) {
+    if (error.code === '23503') {
+      throw ApiError.badRequest('Cannot delete this product because it is referenced by existing quotations or transactions. Deactivate it instead.');
+    }
+    throw error;
   }
-
-  res.success(null, { message: 'Product deleted successfully' });
 }));
 
 /**

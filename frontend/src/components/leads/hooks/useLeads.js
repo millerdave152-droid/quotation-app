@@ -7,7 +7,7 @@ import { authFetch } from '../../../services/authFetch';
 import { useState, useEffect, useCallback } from 'react';
 import { invalidateCache } from '../../../services/apiCache';
 
-const API_BASE = `${process.env.REACT_APP_API_URL || 'http://localhost:3001'}/api`;
+const API_BASE = `${process.env.REACT_APP_API_URL || ''}/api`;
 
 const getAuthHeaders = () => {
   const token = localStorage.getItem('auth_token');

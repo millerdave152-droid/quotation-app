@@ -1,6 +1,5 @@
 let pool;
 
-console.log('[ARAgingService] LOADED - version with unified_order_payments fix');
 
 function init(deps) {
   pool = deps.pool;

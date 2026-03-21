@@ -17,6 +17,16 @@ function ImageViewer({ images = [], initialIndex = 0, productName = '', onClose 
     return image.print_path || image.web_path || image.local_path || image.original_url;
   };
 
+  const goToPrev = useCallback(() => {
+    setCurrentIndex(prev => prev > 0 ? prev - 1 : images.length - 1);
+    setIsZoomed(false);
+  }, [images.length]);
+
+  const goToNext = useCallback(() => {
+    setCurrentIndex(prev => prev < images.length - 1 ? prev + 1 : 0);
+    setIsZoomed(false);
+  }, [images.length]);
+
   // Keyboard navigation
   useEffect(() => {
     const handleKeyDown = (e) => {
@@ -46,17 +56,7 @@ function ImageViewer({ images = [], initialIndex = 0, productName = '', onClose 
       document.removeEventListener('keydown', handleKeyDown);
       document.body.style.overflow = '';
     };
-  }, [isZoomed, onClose]);
-
-  const goToPrev = useCallback(() => {
-    setCurrentIndex(prev => prev > 0 ? prev - 1 : images.length - 1);
-    setIsZoomed(false);
-  }, [images.length]);
-
-  const goToNext = useCallback(() => {
-    setCurrentIndex(prev => prev < images.length - 1 ? prev + 1 : 0);
-    setIsZoomed(false);
-  }, [images.length]);
+  }, [isZoomed, onClose, goToPrev, goToNext]);
 
   const handleMouseMove = useCallback((e) => {
     if (!isZoomed) return;

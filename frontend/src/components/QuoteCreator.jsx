@@ -1,7 +1,7 @@
-import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 
 import { authFetch } from '../services/authFetch';
-const API_BASE = `${process.env.REACT_APP_API_URL || 'http://localhost:3001'}/api`;
+const API_BASE = `${process.env.REACT_APP_API_URL || ''}/api`;
 
 function QuoteCreatorEnhanced({ onClose, onQuoteCreated }) {
   // State management
@@ -23,7 +23,7 @@ function QuoteCreatorEnhanced({ onClose, onQuoteCreated }) {
     return date.toISOString().split('T')[0]; // YYYY-MM-DD format for input
   };
   const [expiryDate, setExpiryDate] = useState(getDefaultExpiryDate());
-  const [showNewCustomerForm, setShowNewCustomerForm] = useState(false);
+  const [_showNewCustomerForm, _setShowNewCustomerForm] = useState(false);
 
   // Additional charges - STORED IN CENTS
   const [deliveryFee, setDeliveryFee] = useState(0);
@@ -31,11 +31,13 @@ function QuoteCreatorEnhanced({ onClose, onQuoteCreated }) {
   const [setupFee, setSetupFee] = useState(0);
 
   // Tax settings
-  const [taxRate, setTaxRate] = useState(0.13); // Ontario default
+  const [taxRate, _setTaxRate] = useState(0.13); // Ontario default
   const [taxExempt, setTaxExempt] = useState(false);
 
   // Refs for debouncing
   const searchTimeoutRef = useRef(null);
+  // Ref to always hold the latest handleSaveQuote for keyboard shortcut
+  const handleSaveQuoteRef = useRef(null);
 
   useEffect(() => {
     fetchCustomers();
@@ -46,7 +48,7 @@ function QuoteCreatorEnhanced({ onClose, onQuoteCreated }) {
     const handleKeyboard = (e) => {
       if (e.ctrlKey && e.key === 's') {
         e.preventDefault();
-        handleSaveQuote();
+        handleSaveQuoteRef.current?.();
       }
     };
     window.addEventListener('keydown', handleKeyboard);
@@ -116,9 +118,7 @@ function QuoteCreatorEnhanced({ onClose, onQuoteCreated }) {
       );
 
       if (isInitial) {
-        console.log(`Loaded ${validProducts.length} initial products`);
       } else {
-        console.log(`Found ${validProducts.length} products matching "${search}"`);
       }
 
       setProducts(validProducts);
@@ -299,7 +299,6 @@ function QuoteCreatorEnhanced({ onClose, onQuoteCreated }) {
       const total = calculateTotal();
       const profit = calculateTotalProfit();
 
-      console.log('💾 Saving quote - Amounts in DOLLARS:', { subtotal, tax, total, profit });
 
       const quoteData = {
         customer_id: selectedCustomer.id,
@@ -346,7 +345,6 @@ function QuoteCreatorEnhanced({ onClose, onQuoteCreated }) {
         })
       };
 
-      console.log('📤 Quote payload:', JSON.stringify(quoteData, null, 2));
 
       const response = await authFetch(`${API_BASE}/quotes`, {
         method: 'POST',
@@ -366,7 +364,6 @@ function QuoteCreatorEnhanced({ onClose, onQuoteCreated }) {
       const quoteNumber = createdQuote.quote_number || createdQuote.quotation_number;
       const quoteId = createdQuote.id;
 
-      console.log('✅ Quote created successfully:', createdQuote);
 
       // Show success message with View Quote option
       const viewQuote = window.confirm(
@@ -386,6 +383,9 @@ function QuoteCreatorEnhanced({ onClose, onQuoteCreated }) {
       setLoading(false);
     }
   };
+
+  // Keep ref in sync so keyboard shortcut always calls latest version
+  handleSaveQuoteRef.current = handleSaveQuote;
 
   // Products are now filtered server-side, so just use them directly
   // Memoize to prevent unnecessary re-renders

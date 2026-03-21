@@ -4,15 +4,10 @@
  */
 
 import { useState, useEffect, useRef } from 'react';
-import {
-  MagnifyingGlassIcon,
-  XMarkIcon,
-  ClockIcon,
-  CheckCircleIcon,
-} from '@heroicons/react/24/outline';
 import { Avatar } from './SalesRepQuickSelect';
+import { CheckCircle, Clock, Search, X } from 'lucide-react';
 
-const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:3001/api';
+const API_BASE = import.meta.env.VITE_API_URL || '/api';
 
 // ============================================================================
 // SALES REP LIST ITEM
@@ -60,14 +55,14 @@ function SalesRepListItem({ rep, isSelected, onSelect }) {
       {/* On-shift badge */}
       {rep.isOnShift && (
         <span className="flex items-center gap-1 px-2 py-1 bg-green-100 text-green-700 text-xs font-medium rounded-full flex-shrink-0">
-          <ClockIcon className="w-3 h-3" />
+          <Clock className="w-3 h-3" />
           On Shift
         </span>
       )}
 
       {/* Selected indicator */}
       {isSelected && (
-        <CheckCircleIcon className="w-6 h-6 text-blue-500 flex-shrink-0" />
+        <CheckCircle className="w-6 h-6 text-blue-500 flex-shrink-0" />
       )}
     </button>
   );
@@ -190,7 +185,7 @@ export function SalesRepSearchModal({ isOpen, onClose, onSelect, currentId }) {
           "
           style={{ minWidth: '44px', minHeight: '44px' }}
         >
-          <XMarkIcon className="w-6 h-6" />
+          <X className="w-6 h-6" />
         </button>
 
         <h2 className="text-lg font-semibold text-gray-900 flex-1">
@@ -219,7 +214,7 @@ export function SalesRepSearchModal({ isOpen, onClose, onSelect, currentId }) {
       {/* Search Input */}
       <div className="p-4 border-b border-gray-200 bg-gray-50">
         <div className="relative">
-          <MagnifyingGlassIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
           <input
             ref={inputRef}
             type="text"
@@ -250,7 +245,7 @@ export function SalesRepSearchModal({ isOpen, onClose, onSelect, currentId }) {
                 touch-manipulation
               "
             >
-              <XMarkIcon className="w-5 h-5" />
+              <X className="w-5 h-5" />
             </button>
           )}
         </div>

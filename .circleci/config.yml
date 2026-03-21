@@ -67,3 +67,8 @@ workflows:
           requires:
             - backend-test
             - frontend-test
+          filters:
+            branches:
+              only:
+                - main
+                - develop

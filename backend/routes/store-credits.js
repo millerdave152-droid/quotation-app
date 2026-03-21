@@ -27,6 +27,124 @@ function generateCode(type = 'store_credit') {
 }
 
 // ============================================================================
+// GET / — List all store credits (admin view with filtering & pagination)
+// ============================================================================
+
+router.get('/', asyncHandler(async (req, res) => {
+  const {
+    status,
+    creditType,
+    customerId,
+    limit = 50,
+    offset = 0,
+    sort = 'created_at',
+    order = 'desc',
+  } = req.query;
+
+  const parsedLimit = Math.min(Math.max(parseInt(limit) || 50, 1), 200);
+  const parsedOffset = Math.max(parseInt(offset) || 0, 0);
+
+  const allowedSorts = ['created_at', 'current_balance', 'original_amount', 'expiry_date'];
+  const sortCol = allowedSorts.includes(sort) ? sort : 'created_at';
+  const sortDir = order === 'asc' ? 'ASC' : 'DESC';
+
+  const conditions = [];
+  const params = [];
+
+  if (status) {
+    params.push(status);
+    conditions.push(`sc.status = $${params.length}`);
+  }
+  if (creditType && ['store_credit', 'gift_card'].includes(creditType)) {
+    params.push(creditType);
+    conditions.push(`sc.credit_type = $${params.length}`);
+  }
+  if (customerId) {
+    params.push(parseInt(customerId));
+    conditions.push(`sc.customer_id = $${params.length}`);
+  }
+
+  const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
+
+  // Get total count
+  const countResult = await pool.query(
+    `SELECT COUNT(*) FROM store_credits sc ${whereClause}`,
+    params
+  );
+  const total = parseInt(countResult.rows[0].count);
+
+  // Get paginated results
+  const dataParams = [...params, parsedLimit, parsedOffset];
+  const result = await pool.query(
+    `SELECT sc.*,
+            c.name AS customer_name, c.email AS customer_email,
+            (u.first_name || ' ' || u.last_name) AS issued_by_name
+     FROM store_credits sc
+     LEFT JOIN customers c ON sc.customer_id = c.id
+     LEFT JOIN users u ON sc.issued_by = u.id
+     ${whereClause}
+     ORDER BY sc.${sortCol} ${sortDir}
+     LIMIT $${dataParams.length - 1} OFFSET $${dataParams.length}`,
+    dataParams
+  );
+
+  const credits = result.rows.map(row => ({
+    id: row.id,
+    code: row.code,
+    creditType: row.credit_type || 'store_credit',
+    customerId: row.customer_id,
+    customerName: row.customer_name,
+    customerEmail: row.customer_email,
+    originalAmountCents: row.original_amount,
+    originalAmount: row.original_amount / 100,
+    currentBalanceCents: row.current_balance,
+    currentBalance: row.current_balance / 100,
+    sourceType: row.source_type,
+    sourceId: row.source_id,
+    issuedByName: row.issued_by_name,
+    issuedDate: row.issued_date,
+    expiryDate: row.expiry_date,
+    status: row.status,
+    notes: row.notes,
+    createdAt: row.created_at,
+  }));
+
+  // Summary stats (unfiltered totals for dashboard)
+  const summaryResult = await pool.query(
+    `SELECT
+       COUNT(*) FILTER (WHERE status = 'active') AS active_count,
+       COUNT(*) FILTER (WHERE status = 'depleted') AS depleted_count,
+       COUNT(*) FILTER (WHERE status = 'expired') AS expired_count,
+       COUNT(*) FILTER (WHERE credit_type = 'gift_card') AS gift_card_count,
+       COALESCE(SUM(current_balance) FILTER (WHERE status = 'active'), 0) AS total_outstanding_cents,
+       COALESCE(SUM(original_amount), 0) AS total_issued_cents
+     FROM store_credits`
+  );
+
+  const s = summaryResult.rows[0];
+
+  res.json({
+    success: true,
+    data: credits,
+    pagination: {
+      total,
+      limit: parsedLimit,
+      offset: parsedOffset,
+    },
+    summary: {
+      activeCount: parseInt(s.active_count),
+      depletedCount: parseInt(s.depleted_count),
+      expiredCount: parseInt(s.expired_count),
+      giftCardCount: parseInt(s.gift_card_count),
+      totalOutstandingCents: parseInt(s.total_outstanding_cents),
+      totalOutstanding: parseInt(s.total_outstanding_cents) / 100,
+      totalIssuedCents: parseInt(s.total_issued_cents),
+      totalIssued: parseInt(s.total_issued_cents) / 100,
+    },
+  });
+}));
+
+// ============================================================================
 // POST / — Create a new store credit or gift card
 // ============================================================================
 
@@ -120,22 +238,36 @@ router.get('/customer/:customerId', asyncHandler(async (req, res) => {
   const customerId = parseInt(req.params.customerId);
   if (isNaN(customerId)) throw ApiError.badRequest('Invalid customer ID');
 
-  // Auto-expire any past-due credits
-  await pool.query(
-    `UPDATE store_credits SET status = 'expired', updated_at = NOW()
-     WHERE customer_id = $1 AND status = 'active'
-       AND expiry_date IS NOT NULL AND expiry_date < CURRENT_DATE`,
-    [customerId]
-  );
+  // Auto-expire and list in a single transaction for consistency
+  const client = await pool.connect();
+  let result;
+  try {
+    await client.query('BEGIN');
 
-  const result = await pool.query(
-    `SELECT sc.*,
-            (SELECT COUNT(*) FROM store_credit_transactions WHERE store_credit_id = sc.id) AS transaction_count
-     FROM store_credits sc
-     WHERE sc.customer_id = $1
-     ORDER BY sc.status = 'active' DESC, sc.created_at DESC`,
-    [customerId]
-  );
+    // Auto-expire any past-due credits
+    await client.query(
+      `UPDATE store_credits SET status = 'expired', updated_at = NOW()
+       WHERE customer_id = $1 AND status = 'active'
+         AND expiry_date IS NOT NULL AND expiry_date < CURRENT_DATE`,
+      [customerId]
+    );
+
+    result = await client.query(
+      `SELECT sc.*,
+              (SELECT COUNT(*) FROM store_credit_transactions WHERE store_credit_id = sc.id) AS transaction_count
+       FROM store_credits sc
+       WHERE sc.customer_id = $1
+       ORDER BY sc.status = 'active' DESC, sc.created_at DESC`,
+      [customerId]
+    );
+
+    await client.query('COMMIT');
+  } catch (err) {
+    await client.query('ROLLBACK');
+    throw err;
+  } finally {
+    client.release();
+  }
 
   const credits = result.rows.map(row => ({
     id: row.id,

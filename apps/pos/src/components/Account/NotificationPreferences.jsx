@@ -8,19 +8,9 @@
  */
 
 import { useState, useEffect, useCallback } from 'react';
-import {
-  XMarkIcon,
-  BellIcon,
-  BellSlashIcon,
-  SpeakerWaveIcon,
-  SpeakerXMarkIcon,
-  MoonIcon,
-  ExclamationTriangleIcon,
-  CheckCircleIcon,
-  ArrowPathIcon,
-} from '@heroicons/react/24/outline';
 import { usePushNotifications } from '../../hooks/usePushNotifications';
 import api from '../../api/axios';
+import { AlertTriangle, Bell, BellOff, CheckCircle, Moon, RefreshCw, Volume2, VolumeX, X } from 'lucide-react';
 
 export function NotificationPreferences({ isOpen, onClose }) {
   const {
@@ -149,7 +139,7 @@ export function NotificationPreferences({ isOpen, onClose }) {
         <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
           <div className="flex items-center gap-3">
             <div className="w-9 h-9 bg-blue-50 rounded-lg flex items-center justify-center">
-              <BellIcon className="w-5 h-5 text-blue-600" />
+              <Bell className="w-5 h-5 text-blue-600" />
             </div>
             <h2 className="text-lg font-bold text-gray-900">Notification Settings</h2>
           </div>
@@ -158,7 +148,7 @@ export function NotificationPreferences({ isOpen, onClose }) {
             onClick={onClose}
             className="w-9 h-9 flex items-center justify-center text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
           >
-            <XMarkIcon className="w-5 h-5" />
+            <X className="w-5 h-5" />
           </button>
         </div>
 
@@ -166,13 +156,13 @@ export function NotificationPreferences({ isOpen, onClose }) {
           {/* Status Banner */}
           {saved && (
             <div className="flex items-center gap-2 p-3 bg-green-50 border border-green-200 rounded-lg text-sm text-green-700">
-              <CheckCircleIcon className="w-5 h-5 flex-shrink-0" />
+              <CheckCircle className="w-5 h-5 flex-shrink-0" />
               Settings saved
             </div>
           )}
           {error && (
             <div className="flex items-center gap-2 p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">
-              <ExclamationTriangleIcon className="w-5 h-5 flex-shrink-0" />
+              <AlertTriangle className="w-5 h-5 flex-shrink-0" />
               {error}
             </div>
           )}
@@ -180,7 +170,7 @@ export function NotificationPreferences({ isOpen, onClose }) {
           {/* Browser Support Warning */}
           {!isSupported && (
             <div className="flex items-start gap-3 p-4 bg-amber-50 border border-amber-200 rounded-xl">
-              <ExclamationTriangleIcon className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" />
+              <AlertTriangle className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" />
               <div>
                 <p className="text-sm font-medium text-amber-800">Push notifications not supported</p>
                 <p className="text-xs text-amber-600 mt-1">
@@ -193,7 +183,7 @@ export function NotificationPreferences({ isOpen, onClose }) {
           {/* Permission Denied Warning */}
           {isSupported && permissionDenied && (
             <div className="flex items-start gap-3 p-4 bg-red-50 border border-red-200 rounded-xl">
-              <BellSlashIcon className="w-5 h-5 text-red-500 flex-shrink-0 mt-0.5" />
+              <BellOff className="w-5 h-5 text-red-500 flex-shrink-0 mt-0.5" />
               <div>
                 <p className="text-sm font-medium text-red-800">Notifications blocked</p>
                 <p className="text-xs text-red-600 mt-1">
@@ -217,9 +207,9 @@ export function NotificationPreferences({ isOpen, onClose }) {
               <div className="flex items-center justify-between p-4 bg-gray-50 rounded-xl">
                 <div className="flex items-center gap-3">
                   {isActive ? (
-                    <BellIcon className="w-6 h-6 text-blue-600" />
+                    <Bell className="w-6 h-6 text-blue-600" />
                   ) : (
-                    <BellSlashIcon className="w-6 h-6 text-gray-400" />
+                    <BellOff className="w-6 h-6 text-gray-400" />
                   )}
                   <div>
                     <p className="text-sm font-semibold text-gray-900">Push Notifications</p>
@@ -239,7 +229,7 @@ export function NotificationPreferences({ isOpen, onClose }) {
                   }`}
                 >
                   {pushLoading ? (
-                    <ArrowPathIcon className="w-4 h-4 text-white absolute left-1/2 -translate-x-1/2 animate-spin" />
+                    <RefreshCw className="w-4 h-4 text-white absolute left-1/2 -translate-x-1/2 animate-spin" />
                   ) : (
                     <span
                       className={`inline-block h-5 w-5 rounded-full bg-white shadow-sm transform transition-transform ${
@@ -254,9 +244,9 @@ export function NotificationPreferences({ isOpen, onClose }) {
               <div className="flex items-center justify-between p-4 bg-gray-50 rounded-xl">
                 <div className="flex items-center gap-3">
                   {prefs.soundEnabled ? (
-                    <SpeakerWaveIcon className="w-6 h-6 text-blue-600" />
+                    <Volume2 className="w-6 h-6 text-blue-600" />
                   ) : (
-                    <SpeakerXMarkIcon className="w-6 h-6 text-gray-400" />
+                    <VolumeX className="w-6 h-6 text-gray-400" />
                   )}
                   <div>
                     <p className="text-sm font-semibold text-gray-900">Notification Sound</p>
@@ -284,7 +274,7 @@ export function NotificationPreferences({ isOpen, onClose }) {
               {/* ─── Quiet Hours ─── */}
               <div className="p-4 bg-gray-50 rounded-xl space-y-3">
                 <div className="flex items-center gap-3">
-                  <MoonIcon className="w-6 h-6 text-indigo-500" />
+                  <Moon className="w-6 h-6 text-indigo-500" />
                   <div>
                     <p className="text-sm font-semibold text-gray-900">Quiet Hours</p>
                     <p className="text-xs text-gray-500">

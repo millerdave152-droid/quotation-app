@@ -5,13 +5,7 @@
  */
 
 import { useState, useRef, useEffect } from 'react';
-import {
-  TagIcon,
-  ClockIcon,
-  CheckCircleIcon,
-  XCircleIcon,
-} from '@heroicons/react/24/outline';
-
+import { CheckCircle, Clock, Tag, XCircle } from 'lucide-react';
 /**
  * Status badge + dropdown for escalation tracking
  */
@@ -52,7 +46,7 @@ export function EscalationStatusBadge({ escalations, pendingCount, onApplyApprov
           transition-colors duration-150
         "
       >
-        <TagIcon className="w-4 h-4" />
+        <Tag className="w-4 h-4" />
         <span>{pendingCount} Pending</span>
       </button>
 
@@ -67,7 +61,7 @@ export function EscalationStatusBadge({ escalations, pendingCount, onApplyApprov
             {/* Pending */}
             {pending.map((esc) => (
               <div key={esc.id} className="px-4 py-3 flex items-start gap-3">
-                <ClockIcon className="w-4 h-4 text-amber-500 mt-0.5 flex-shrink-0" />
+                <Clock className="w-4 h-4 text-amber-500 mt-0.5 flex-shrink-0" />
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-medium text-gray-900 truncate">
                     {esc.product_name || `Product #${esc.product_id}`}
@@ -82,7 +76,7 @@ export function EscalationStatusBadge({ escalations, pendingCount, onApplyApprov
             {/* Approved */}
             {approved.map((esc) => (
               <div key={esc.id} className="px-4 py-3 flex items-start gap-3">
-                <CheckCircleIcon className="w-4 h-4 text-green-500 mt-0.5 flex-shrink-0" />
+                <CheckCircle className="w-4 h-4 text-green-500 mt-0.5 flex-shrink-0" />
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-medium text-gray-900 truncate">
                     {esc.product_name || `Product #${esc.product_id}`}
@@ -114,7 +108,7 @@ export function EscalationStatusBadge({ escalations, pendingCount, onApplyApprov
             {/* Denied */}
             {denied.map((esc) => (
               <div key={esc.id} className="px-4 py-3 flex items-start gap-3">
-                <XCircleIcon className="w-4 h-4 text-red-500 mt-0.5 flex-shrink-0" />
+                <XCircle className="w-4 h-4 text-red-500 mt-0.5 flex-shrink-0" />
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-medium text-gray-900 truncate">
                     {esc.product_name || `Product #${esc.product_id}`}

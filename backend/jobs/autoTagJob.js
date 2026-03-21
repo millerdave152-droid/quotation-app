@@ -15,11 +15,9 @@ class AutoTagJob {
 
   start(schedule = '0 3 * * *') {
     if (this.cronJob) {
-      console.log('[AutoTag Job] Already running');
       return;
     }
     this.cronJob = cron.schedule(schedule, () => this.run(), { timezone: 'America/Toronto' });
-    console.log(`[AutoTag Job] Scheduled: ${schedule}`);
   }
 
   stop() {
@@ -33,14 +31,12 @@ class AutoTagJob {
     if (this.isRunning) return;
     this.isRunning = true;
     const start = Date.now();
-    console.log('[AutoTag Job] Evaluating auto-assign rules...');
 
     try {
       const results = await this.customerService.evaluateAutoTags();
       const totalAssigned = results.reduce((sum, r) => sum + r.assigned_count, 0);
       this.lastRunStats = { results, total_assigned: totalAssigned, duration_ms: Date.now() - start };
       this.lastRun = new Date();
-      console.log(`[AutoTag Job] Done in ${Date.now() - start}ms — assigned ${totalAssigned} tags across ${results.length} rules`);
     } catch (err) {
       console.error('[AutoTag Job] Failed:', err);
       this.lastRunStats = { error: err.message };

@@ -1471,11 +1471,11 @@ router.post('/bulk/extend-expiry', authenticate, asyncHandler(async (req, res) =
       const result = await pool.query(`
         UPDATE quotations
         SET
-          quote_expiry_date = COALESCE(quote_expiry_date, CURRENT_DATE) + INTERVAL '${days} days',
+          quote_expiry_date = COALESCE(quote_expiry_date, CURRENT_DATE) + ($2 * INTERVAL '1 day'),
           updated_at = CURRENT_TIMESTAMP
         WHERE id = $1
         RETURNING id, quotation_number, quote_expiry_date
-      `, [quoteId]);
+      `, [quoteId, days]);
 
       if (result.rows.length > 0) {
         results.success.push({

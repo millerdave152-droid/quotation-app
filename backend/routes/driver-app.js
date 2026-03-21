@@ -867,7 +867,6 @@ function init({ pool }) {
         `Hi ${name.split(' ')[0]}, your TeleTime delivery driver (${driver.name}) is on the way and will arrive ${etaText}. Please ensure the delivery area is accessible.`
       );
     } catch {
-      console.log(`[ETA SMS] Would send to ${phone}: Driver ${driver.name} arriving ${etaText}`);
     }
 
     // Mark customer notified

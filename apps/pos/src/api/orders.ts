@@ -465,7 +465,7 @@ export async function searchQuotesForPOS(
     if (response.success && response.data) {
       return {
         success: true,
-        data: response.data.data || [],
+        data: response.data?.data || response.data || [],
       };
     }
     return response;
@@ -500,7 +500,7 @@ export async function getShiftOrders(shiftId: number): Promise<ApiResponse<Unifi
     if (response.success && response.data) {
       return {
         success: true,
-        data: response.data.data || [],
+        data: response.data?.data || response.data || [],
       };
     }
     return response;

@@ -32,18 +32,20 @@ export const ReceiptTemplate = forwardRef(function ReceiptTemplate(
   const { company, transaction, items, totals, payments, qrCodeUrl } = receipt;
   const signatures = receipt.signatures || [];
   const hasSignatures = signatures.length > 0;
+  const receiptRebates = rebates || receipt.rebates || {};
+  const receiptTradeIns = tradeIns.length > 0 ? tradeIns : (receipt.tradeIns?.items || []);
 
   // Extract rebate data
-  const instantRebates = rebates?.instantRebates || [];
-  const mailInRebates = rebates?.mailInRebates || [];
-  const onlineRebates = rebates?.onlineRebates || [];
-  const totalInstantSavings = rebates?.totalInstantSavings || 0;
+  const instantRebates = receiptRebates.instantRebates || [];
+  const mailInRebates = receiptRebates.mailInRebates || [];
+  const onlineRebates = receiptRebates.onlineRebates || [];
+  const totalInstantSavings = receiptRebates.totalInstantSavings || 0;
   const hasMailInRebates = mailInRebates.length > 0 || onlineRebates.length > 0;
 
   // Trade-in data
-  const hasTradeIns = tradeIns && tradeIns.length > 0;
+  const hasTradeIns = receiptTradeIns.length > 0;
   const totalTradeInCredit = hasTradeIns
-    ? tradeIns.reduce((sum, ti) => sum + parseFloat(ti.final_value || ti.finalValue || 0), 0)
+    ? receiptTradeIns.reduce((sum, ti) => sum + parseFloat(ti.final_value || ti.finalValue || ti.creditAmount || 0), 0)
     : 0;
 
   // Get instant rebate for a specific product
@@ -251,7 +253,7 @@ export const ReceiptTemplate = forwardRef(function ReceiptTemplate(
 
         {/* Trade-In Section */}
         {hasTradeIns && (
-          <TradeInReceiptSection tradeIns={tradeIns} variant="thermal" />
+          <TradeInReceiptSection tradeIns={receiptTradeIns} variant="thermal" />
         )}
 
         {/* Mail-in Rebate Section */}
@@ -329,7 +331,6 @@ export const ReceiptTemplate = forwardRef(function ReceiptTemplate(
         <tbody>
           {items.map((item, index) => {
             const itemRebates = getProductRebates(item.productId || item.id);
-            const itemRebateTotal = itemRebates.reduce((sum, r) => sum + r.amount, 0);
             return (
             <Fragment key={`item-group-${index}`}>
               <tr
@@ -591,11 +592,32 @@ export const ReceiptTemplate = forwardRef(function ReceiptTemplate(
       <div className="mt-8 text-center">
         <p className="text-lg font-bold text-blue-800">Thank you for your purchase!</p>
         <p className="text-sm text-gray-500 mt-2">Please keep this receipt for your records.</p>
-        <p className="text-sm text-gray-500">Returns accepted within 30 days with receipt.</p>
+        <p className="text-sm text-gray-600 mt-1 font-medium">
+          Returns accepted within 30 days with receipt. Refunds issued to original payment method.
+        </p>
+        {transaction.number && (
+          <p className="text-xs text-gray-400 mt-1">
+            Reference: {transaction.number} | {formatDateTime(transaction.date)}
+          </p>
+        )}
+      </div>
+
+      {/* Billing & Contact Info — chargeback prevention */}
+      <div className="mt-4 pt-3 border-t border-gray-200">
+        <div className="text-center text-xs text-gray-500">
+          {receipt.billingDescriptor && (
+            <p className="font-medium">
+              This charge will appear on your statement as: {receipt.billingDescriptor}
+            </p>
+          )}
+          <p className="mt-1">
+            Questions? Contact us: {company.phone || '(416) 000-0000'} | {company.email || 'support@teletime.ca'}
+          </p>
+        </div>
       </div>
 
       {/* Page Footer */}
-      <div className="mt-8 pt-4 border-t border-gray-200">
+      <div className="mt-4 pt-4 border-t border-gray-200">
         <div className="text-center text-xs text-gray-400">
           <p>
             {[company.website, company.phone, company.email].filter(Boolean).join(' | ')}
@@ -608,7 +630,7 @@ export const ReceiptTemplate = forwardRef(function ReceiptTemplate(
 
       {/* Trade-In Details Section */}
       {hasTradeIns && (
-        <TradeInReceiptSection tradeIns={tradeIns} variant="full" />
+        <TradeInReceiptSection tradeIns={receiptTradeIns} variant="full" />
       )}
 
       {/* Mail-in Rebate Opportunities Section */}

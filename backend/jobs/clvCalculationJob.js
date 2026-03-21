@@ -27,7 +27,6 @@ class CLVCalculationJob {
    */
   start(schedule = '0 2 * * *') {
     if (this.cronJob) {
-      console.log('[CLV Job] Already running');
       return;
     }
 
@@ -35,7 +34,6 @@ class CLVCalculationJob {
       await this.run();
     }, { timezone: process.env.TZ || 'America/Toronto' });
 
-    console.log(`[CLV Job] Scheduled: ${schedule}`);
   }
 
   /**
@@ -45,7 +43,6 @@ class CLVCalculationJob {
     if (this.cronJob) {
       this.cronJob.stop();
       this.cronJob = null;
-      console.log('[CLV Job] Stopped');
     }
   }
 
@@ -54,7 +51,6 @@ class CLVCalculationJob {
    */
   async run(triggeredBy = 'scheduled') {
     if (this.isRunning) {
-      console.log('[CLV Job] Already running, skipping...');
       return { skipped: true };
     }
 
@@ -67,7 +63,6 @@ class CLVCalculationJob {
       errorDetails: []
     };
 
-    console.log('[CLV Job] Starting CLV calculation...');
 
     let jobLogId = null;
     try {
@@ -86,7 +81,6 @@ class CLVCalculationJob {
       `);
 
       const customers = customersResult.rows;
-      console.log(`[CLV Job] Processing ${customers.length} customers...`);
 
       // Process in configurable batches
       const batchSize = parseInt(process.env.CLV_BATCH_SIZE) || 50;
@@ -109,12 +103,10 @@ class CLVCalculationJob {
 
         // Log progress every 100 customers
         if (stats.processed % 100 === 0) {
-          console.log(`[CLV Job] Progress: ${stats.processed}/${customers.length}`);
         }
       }
 
       const duration = Date.now() - startTime;
-      console.log(`[CLV Job] Completed in ${duration}ms: ${stats.updated} updated, ${stats.errors} errors`);
 
       // Log job completion
       if (jobLogId) {

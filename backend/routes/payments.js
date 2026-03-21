@@ -464,7 +464,6 @@ async function handleCheckoutComplete(webhookResult) {
     `, [quote_id]);
   }
 
-  console.log(`Payment recorded for quote ${quote_id}: $${(amountCents / 100).toFixed(2)}`);
 }
 
 /**

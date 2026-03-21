@@ -10,9 +10,9 @@
  */
 
 import { useMemo } from 'react';
-import { TagIcon, SparklesIcon } from '@heroicons/react/24/solid';
 import { formatCurrency } from '../../utils/formatters';
 import { useVolumeContextOptional } from '../../context/VolumeContext';
+import { Sparkles, Tag } from 'lucide-react';
 
 /**
  * Cart totals component with volume pricing
@@ -24,7 +24,6 @@ import { useVolumeContextOptional } from '../../context/VolumeContext';
  * @param {number} props.cartDiscount - Cart-wide discount amount
  * @param {number} props.discountTotal - Total discounts (volume + items + cart)
  * @param {string} props.taxLabel - Tax label (e.g., "HST 13%")
- * @param {number} props.hstAmount - HST amount (if applicable)
  * @param {number} props.gstAmount - GST amount (if applicable)
  * @param {number} props.pstAmount - PST amount (if applicable)
  * @param {number} props.taxAmount - Total tax amount
@@ -39,9 +38,7 @@ export function CartTotalsWithVolume({
   volumeSavings: propVolumeSavings,
   itemDiscountTotal = 0,
   cartDiscount = 0,
-  discountTotal: propDiscountTotal,
   taxLabel = '',
-  hstAmount = 0,
   gstAmount = 0,
   pstAmount = 0,
   taxAmount = 0,
@@ -122,7 +119,7 @@ export function CartTotalsWithVolume({
       {showVolumeBreakdown && hasVolumeSavings && (
         <div className="flex justify-between items-center text-sm mt-1">
           <span className="flex items-center gap-1 text-green-600">
-            <TagIcon className="w-3.5 h-3.5" />
+            <Tag className="w-3.5 h-3.5" />
             Volume Savings
           </span>
           <span className="font-medium text-green-600 tabular-nums">
@@ -215,7 +212,7 @@ export function CartTotalsWithVolume({
       {hasDiscount && (
         <div className="mt-2 py-2 px-3 bg-green-100 rounded-lg">
           <div className="flex items-center justify-center gap-2">
-            <SparklesIcon className="w-4 h-4 text-green-600" />
+            <Sparkles className="w-4 h-4 text-green-600" />
             <span className="text-sm font-semibold text-green-700">
               You save {formatCurrency(totalSavings)}
             </span>

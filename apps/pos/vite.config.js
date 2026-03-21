@@ -37,5 +37,36 @@ export default defineConfig({
   build: {
     outDir: 'dist',
     sourcemap: true,
+    rollupOptions: {
+      output: {
+        manualChunks(id) {
+          if (!id.includes('node_modules')) return;
+
+          if (id.includes('react') || id.includes('react-dom') || id.includes('react-router')) {
+            return 'react-vendor';
+          }
+
+          if (id.includes('framer-motion')) {
+            return 'motion-vendor';
+          }
+
+          if (id.includes('chart.js') || id.includes('react-chartjs-2') || id.includes('recharts') || id.includes('d3-')) {
+            return 'charts-vendor';
+          }
+
+          if (id.includes('jspdf') || id.includes('pdfkit') || id.includes('pdfmake') || id.includes('@react-pdf')) {
+            return 'pdf-vendor';
+          }
+
+          if (id.includes('@heroicons') || id.includes('lucide-react')) {
+            return 'icons-vendor';
+          }
+
+          if (id.includes('dexie') || id.includes('idb')) {
+            return 'offline-vendor';
+          }
+        },
+      },
+    },
   },
 });

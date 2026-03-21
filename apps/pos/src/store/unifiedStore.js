@@ -7,7 +7,7 @@ import { create } from 'zustand';
 import { persist, subscribeWithSelector } from 'zustand/middleware';
 import { immer } from 'zustand/middleware/immer';
 import { createIDBStorage } from './idbStorage';
-import { calculateTax, TAX_RATES } from './taxCalculations';
+import { calculateTax } from './taxCalculations';
 
 // ============================================================================
 // TAX & PRICING UTILITIES
@@ -32,7 +32,7 @@ const calculateMargin = (revenue, cost) => {
 // CUSTOMER SLICE
 // ============================================================================
 
-const createCustomerSlice = (set, get) => ({
+const createCustomerSlice = (set) => ({
   // State
   customer: null,
   customerPricing: null, // Special pricing rules for this customer
@@ -51,7 +51,7 @@ const createCustomerSlice = (set, get) => ({
     state.customerPricing = pricing;
   }),
 
-  loadCustomerHistory: async (customerId) => {
+  loadCustomerHistory: async (_customerId) => {
     // Will be populated by API call
     set((state) => {
       state.customerHistory = [];
@@ -216,7 +216,7 @@ const createCartSlice = (set, get) => ({
 // DISCOUNT SLICE
 // ============================================================================
 
-const createDiscountSlice = (set, get) => ({
+const createDiscountSlice = (set) => ({
   // State
   cartDiscount: {
     type: 'percent', // 'percent' | 'fixed'
@@ -575,7 +575,7 @@ const createHeldTransactionsSlice = (set, get) => ({
 // SYNC SLICE (Online/Offline)
 // ============================================================================
 
-const createSyncSlice = (set, get) => ({
+const createSyncSlice = (set) => ({
   // State
   isOnline: typeof navigator !== 'undefined' ? navigator.onLine : true,
   pendingOperations: [],

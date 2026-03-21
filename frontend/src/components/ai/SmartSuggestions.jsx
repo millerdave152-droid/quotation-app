@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 
 import { authFetch } from '../../services/authFetch';
-const API_URL = `${process.env.REACT_APP_API_URL || 'http://localhost:3001'}/api`;
+const API_URL = `${process.env.REACT_APP_API_URL || ''}/api`;
 
 /**
  * SmartSuggestions - AI-powered suggestions panel for quotes

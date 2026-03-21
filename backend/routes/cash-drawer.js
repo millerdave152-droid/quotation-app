@@ -8,6 +8,7 @@ const router = express.Router();
 const Joi = require('joi');
 const { ApiError, asyncHandler } = require('../middleware/errorHandler');
 const { authenticate, requireRole } = require('../middleware/auth');
+const { auditLogMiddleware } = require('../middleware/auditLog');
 
 // Module state
 let cashDrawerService = null;
@@ -74,7 +75,7 @@ const noSaleSchema = Joi.object({
  * POST /api/cash-drawer/open
  * Open a cash drawer (start shift)
  */
-router.post('/open', authenticate, asyncHandler(async (req, res) => {
+router.post('/open', authenticate, auditLogMiddleware('drawer_open', 'transaction'), asyncHandler(async (req, res) => {
   const { error, value } = openDrawerSchema.validate(req.body);
   if (error) {
     throw ApiError.badRequest(error.details[0].message);
@@ -95,7 +96,7 @@ router.post('/open', authenticate, asyncHandler(async (req, res) => {
  * POST /api/cash-drawer/close
  * Close a cash drawer (end shift)
  */
-router.post('/close', authenticate, asyncHandler(async (req, res) => {
+router.post('/close', authenticate, auditLogMiddleware('drawer_close', 'transaction'), asyncHandler(async (req, res) => {
   const { error, value } = closeDrawerSchema.validate(req.body);
   if (error) {
     throw ApiError.badRequest(error.details[0].message);
@@ -116,7 +117,7 @@ router.post('/close', authenticate, asyncHandler(async (req, res) => {
  * POST /api/cash-drawer/no-sale
  * Open drawer without a sale (for change, etc.)
  */
-router.post('/no-sale', authenticate, asyncHandler(async (req, res) => {
+router.post('/no-sale', authenticate, auditLogMiddleware('no_sale_drawer_open', 'transaction', { severity: 'warning' }), asyncHandler(async (req, res) => {
   const { error, value } = noSaleSchema.validate(req.body);
   if (error) {
     throw ApiError.badRequest(error.details[0].message);

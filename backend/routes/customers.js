@@ -11,6 +11,7 @@ const CustomerService = require('../services/CustomerService');
 const LookupService = require('../services/LookupService');
 const { authenticate } = require('../middleware/auth');
 const { validateJoi, customerSchemas } = require('../middleware/validation');
+const { auditLogMiddleware } = require('../middleware/auditLog');
 
 // Module-level service instance
 let customerService = null;
@@ -235,7 +236,7 @@ router.get('/lifetime-value', authenticate, asyncHandler(async (req, res) => {
   const { limit, segment, sortBy, sortOrder } = req.query;
 
   const result = await customerService.getLifetimeValueSummary({
-    limit: limit ? parseInt(limit) : 50,
+    limit: Math.min(Math.max(parseInt(limit, 10) || 50, 1), 200),
     segment,
     sortBy,
     sortOrder
@@ -260,6 +261,19 @@ router.get('/:id', authenticate, asyncHandler(async (req, res) => {
   }
 
   res.success(result);
+}));
+
+/**
+ * GET /api/customers/:id/context
+ * Walk-in customer recognition — last purchase, open quotes, service tickets, promos.
+ * Cached 5 minutes in node-cache.
+ */
+router.get('/:id/context', authenticate, asyncHandler(async (req, res) => {
+  const customerId = parseInt(req.params.id);
+  if (isNaN(customerId)) throw ApiError.badRequest('Invalid customer ID');
+
+  const ctx = await customerService.getCustomerContext(customerId);
+  res.json({ success: true, data: ctx });
 }));
 
 /**
@@ -310,8 +324,8 @@ router.get('/predictive-clv/rfm-scores', authenticate, asyncHandler(async (req, 
 router.get('/predictive-clv/churn-analysis', authenticate, asyncHandler(async (req, res) => {
   const { limit = 50, minRevenue = 1000 } = req.query;
   const analysis = await PredictiveCLVService.getChurnRiskAnalysis({
-    limit: parseInt(limit),
-    minRevenue: parseFloat(minRevenue)
+    limit: Math.min(Math.max(parseInt(limit, 10) || 50, 1), 200),
+    minRevenue: parseFloat(minRevenue) || 1000
   });
   res.success(analysis);
 }));
@@ -372,7 +386,8 @@ router.get('/:id/predictive-clv', authenticate, asyncHandler(async (req, res) =>
     throw ApiError.badRequest('Invalid customer ID');
   }
 
-  const prediction = await PredictiveCLVService.predictCustomerCLV(customerId, parseInt(horizon));
+  const safeHorizon = Math.min(Math.max(parseInt(horizon, 10) || 12, 1), 120);
+  const prediction = await PredictiveCLVService.predictCustomerCLV(customerId, safeHorizon);
   res.success(prediction);
 }));
 
@@ -380,7 +395,7 @@ router.get('/:id/predictive-clv', authenticate, asyncHandler(async (req, res) =>
  * POST /api/customers
  * Create a new customer
  */
-router.post('/', authenticate, asyncHandler(async (req, res) => {
+router.post('/', authenticate, auditLogMiddleware('customer_create', 'customer'), asyncHandler(async (req, res) => {
   const { name, email } = req.body;
 
   if (!name || !email) {
@@ -405,7 +420,7 @@ router.post('/', authenticate, asyncHandler(async (req, res) => {
  * PUT /api/customers/:id
  * Update an existing customer
  */
-router.put('/:id', authenticate, asyncHandler(async (req, res) => {
+router.put('/:id', authenticate, auditLogMiddleware('customer_edit', 'customer'), asyncHandler(async (req, res) => {
   const { id } = req.params;
 
   try {
@@ -494,6 +509,8 @@ router.put('/:id/ai-consent', authenticate, asyncHandler(async (req, res) => {
 router.get('/:id/activities', authenticate, asyncHandler(async (req, res) => {
   const { id } = req.params;
   const { limit = 50, offset = 0, type } = req.query;
+  const safeLimit = Math.min(Math.max(parseInt(limit, 10) || 50, 1), 200);
+  const safeOffset = Math.max(parseInt(offset, 10) || 0, 0);
 
   // Build query
   let query = `
@@ -512,7 +529,7 @@ router.get('/:id/activities', authenticate, asyncHandler(async (req, res) => {
   }
 
   query += ` ORDER BY ca.created_at DESC LIMIT $${params.length + 1} OFFSET $${params.length + 2}`;
-  params.push(parseInt(limit), parseInt(offset));
+  params.push(safeLimit, safeOffset);
 
   const result = await customerService.pool.query(query, params);
 
@@ -782,8 +799,8 @@ router.get('/by-tag/:tagId', authenticate, asyncHandler(async (req, res) => {
   const { limit = 50, offset = 0, search } = req.query;
 
   const result = await customerService.getCustomersByTag(tagId, {
-    limit: parseInt(limit),
-    offset: parseInt(offset),
+    limit: Math.min(Math.max(parseInt(limit, 10) || 50, 1), 200),
+    offset: Math.max(parseInt(offset, 10) || 0, 0),
     search
   });
 

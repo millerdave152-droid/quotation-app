@@ -24,30 +24,30 @@ function ProductDetail({ productId, onBack }) {
   const [activeTab, setActiveTab] = useState('specs');
 
   useEffect(() => {
+    const fetchProduct = async () => {
+      setLoading(true);
+      setError(null);
+
+      try {
+        const response = await authFetch(`${API_BASE}/vendor-products/${productId}`, {
+          headers: getAuthHeaders()
+        });
+
+        if (!response.ok) {
+          throw new Error('Failed to fetch product');
+        }
+
+        const data = await response.json();
+        setProduct(data);
+      } catch (err) {
+        setError(err.message);
+      } finally {
+        setLoading(false);
+      }
+    };
+
     fetchProduct();
   }, [productId]);
-
-  const fetchProduct = async () => {
-    setLoading(true);
-    setError(null);
-
-    try {
-      const response = await authFetch(`${API_BASE}/vendor-products/${productId}`, {
-        headers: getAuthHeaders()
-      });
-
-      if (!response.ok) {
-        throw new Error('Failed to fetch product');
-      }
-
-      const data = await response.json();
-      setProduct(data);
-    } catch (err) {
-      setError(err.message);
-    } finally {
-      setLoading(false);
-    }
-  };
 
   const formatPrice = (cents) => {
     if (!cents) return 'N/A';

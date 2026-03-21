@@ -14,7 +14,7 @@
 
 import axios from 'axios';
 
-const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:3001';
+const API_URL = process.env.REACT_APP_API_URL || '';
 const DEFAULT_TIMEOUT = 30000; // 30 seconds
 
 // Track refresh state to prevent multiple refresh calls
@@ -307,7 +307,6 @@ export const requestWithRetry = async (method, url, data = null, options = {}) =
 
       if (attempt < retries) {
         const delay = retryDelay * Math.pow(2, attempt); // Exponential backoff
-        console.log(`[API] Retry ${attempt + 1}/${retries} for ${url} after ${delay}ms`);
         await new Promise(resolve => setTimeout(resolve, delay));
       }
     }

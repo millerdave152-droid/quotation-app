@@ -4,16 +4,8 @@
  */
 
 import React from 'react';
-import {
-  CurrencyDollarIcon,
-  EyeIcon,
-  EyeSlashIcon,
-  TableCellsIcon,
-  SparklesIcon,
-  ChartBarIcon,
-  Cog6ToothIcon,
-} from '@heroicons/react/24/outline';
 import { useCommissionContext } from '../../context/CommissionContext';
+import { BarChart3, DollarSign, Eye, EyeOff, Settings, Sparkles, Table } from 'lucide-react';
 
 /**
  * Toggle switch component
@@ -92,7 +84,7 @@ export default function CommissionSettings({ className = '' }) {
       {/* Header */}
       <div className="flex items-center gap-3 p-4 border-b border-slate-200 bg-slate-50">
         <div className="p-2 bg-green-100 rounded-lg">
-          <CurrencyDollarIcon className="w-5 h-5 text-green-600" />
+          <DollarSign className="w-5 h-5 text-green-600" />
         </div>
         <div>
           <h3 className="font-semibold text-slate-900">Commission Display</h3>
@@ -103,7 +95,7 @@ export default function CommissionSettings({ className = '' }) {
       {/* Settings list */}
       <div className="divide-y divide-slate-100">
         <SettingRow
-          icon={EyeIcon}
+          icon={Eye}
           title="Show Commission"
           description="Display commission information during sales"
           enabled={settings.showCommission}
@@ -111,7 +103,7 @@ export default function CommissionSettings({ className = '' }) {
         />
 
         <SettingRow
-          icon={TableCellsIcon}
+          icon={Table}
           title="Show Breakdown"
           description="View detailed per-item commission breakdown"
           enabled={settings.showBreakdown}
@@ -120,7 +112,7 @@ export default function CommissionSettings({ className = '' }) {
         />
 
         <SettingRow
-          icon={SparklesIcon}
+          icon={Sparkles}
           title="Show Confirmation"
           description="Celebrate commission earned after each sale"
           enabled={settings.showConfirmation}
@@ -129,7 +121,7 @@ export default function CommissionSettings({ className = '' }) {
         />
 
         <SettingRow
-          icon={ChartBarIcon}
+          icon={BarChart3}
           title="Show Leaderboard"
           description="See commission rankings with other reps"
           enabled={settings.showLeaderboard}
@@ -138,7 +130,7 @@ export default function CommissionSettings({ className = '' }) {
         />
 
         <SettingRow
-          icon={Cog6ToothIcon}
+          icon={Settings}
           title="Daily Widget"
           description="Show today's commission summary on dashboard"
           enabled={settings.showDailyWidget}
@@ -180,12 +172,12 @@ export function CommissionVisibilityToggle({ className = '' }) {
     >
       {settings.showCommission ? (
         <>
-          <EyeIcon className="w-4 h-4" />
+          <Eye className="w-4 h-4" />
           <span>Commission On</span>
         </>
       ) : (
         <>
-          <EyeSlashIcon className="w-4 h-4" />
+          <EyeOff className="w-4 h-4" />
           <span>Commission Off</span>
         </>
       )}

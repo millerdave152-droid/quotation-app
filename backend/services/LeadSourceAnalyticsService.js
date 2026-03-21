@@ -48,10 +48,10 @@ class LeadSourceAnalyticsService {
         AVG(EXTRACT(hours FROM (l.updated_at - l.created_at)) / 24)
           FILTER (WHERE l.status = 'converted') as avg_days_to_convert
       FROM leads l
-      WHERE l.created_at >= NOW() - INTERVAL '${days} days'
+      WHERE l.created_at >= NOW() - ($1 * INTERVAL '1 day')
       GROUP BY l.lead_source
       ORDER BY total_leads DESC
-    `);
+    `, [days]);
 
     const total = result.rows.reduce((sum, r) => sum + parseInt(r.total_leads), 0);
 
@@ -89,7 +89,7 @@ class LeadSourceAnalyticsService {
           COALESCE(SUM(q.total_cents) FILTER (WHERE q.status = 'WON'), 0) as revenue
         FROM leads l
         LEFT JOIN quotations q ON q.lead_id = l.id
-        WHERE l.created_at >= NOW() - INTERVAL '${days} days'
+        WHERE l.created_at >= NOW() - ($1 * INTERVAL '1 day')
         GROUP BY l.lead_source, l.id
       )
       SELECT
@@ -101,7 +101,7 @@ class LeadSourceAnalyticsService {
       FROM lead_revenue
       GROUP BY lead_source
       ORDER BY total_revenue DESC
-    `);
+    `, [days]);
 
     return result.rows.map(row => ({
       source: row.source,
@@ -125,10 +125,10 @@ class LeadSourceAnalyticsService {
         COALESCE(lead_source, 'Unknown') as source,
         COUNT(*) as lead_count
       FROM leads
-      WHERE created_at >= NOW() - INTERVAL '${days} days'
+      WHERE created_at >= NOW() - ($1 * INTERVAL '1 day')
       GROUP BY DATE_TRUNC('week', created_at), lead_source
       ORDER BY week, lead_count DESC
-    `);
+    `, [days]);
 
     // Group by week
     const weeklyData = {};
@@ -161,7 +161,7 @@ class LeadSourceAnalyticsService {
           COALESCE(SUM(q.total_cents) FILTER (WHERE q.status = 'WON'), 0) as revenue
         FROM leads l
         LEFT JOIN quotations q ON q.lead_id = l.id
-        WHERE l.created_at >= NOW() - INTERVAL '${days} days'
+        WHERE l.created_at >= NOW() - ($1 * INTERVAL '1 day')
         GROUP BY l.lead_source
         HAVING COUNT(*) >= 5
       )
@@ -176,7 +176,7 @@ class LeadSourceAnalyticsService {
       FROM source_metrics
       ORDER BY conversion_rate DESC, revenue_per_lead DESC
       LIMIT 5
-    `);
+    `, [days]);
 
     return result.rows.map(row => ({
       source: row.source,
@@ -204,10 +204,10 @@ class LeadSourceAnalyticsService {
         COALESCE(SUM(q.total_cents) FILTER (WHERE q.status = 'WON'), 0) as revenue
       FROM leads l
       LEFT JOIN quotations q ON q.lead_id = l.id
-      WHERE l.created_at >= NOW() - INTERVAL '${days} days'
+      WHERE l.created_at >= NOW() - ($3 * INTERVAL '1 day')
         AND l.lead_source IN ($1, $2)
       GROUP BY l.lead_source
-    `, [source1, source2]);
+    `, [source1, source2, days]);
 
     return result.rows.map(row => ({
       source: row.source,

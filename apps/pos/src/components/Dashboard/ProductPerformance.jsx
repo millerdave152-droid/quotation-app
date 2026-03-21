@@ -5,8 +5,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { getProductPerformance, getCategoryPerformance } from '../../api/reports';
-import { ChartBarIcon, TagIcon } from '@heroicons/react/24/outline';
-
+import { BarChart3, Tag } from 'lucide-react';
 const ProductPerformance = ({ dateRange = {} }) => {
   const [products, setProducts] = useState([]);
   const [categories, setCategories] = useState([]);
@@ -77,7 +76,7 @@ const ProductPerformance = ({ dateRange = {} }) => {
                 : 'text-gray-600 hover:text-gray-900'
             }`}
           >
-            <ChartBarIcon className="w-4 h-4" />
+            <BarChart3 className="w-4 h-4" />
             Products
           </button>
           <button
@@ -88,7 +87,7 @@ const ProductPerformance = ({ dateRange = {} }) => {
                 : 'text-gray-600 hover:text-gray-900'
             }`}
           >
-            <TagIcon className="w-4 h-4" />
+            <Tag className="w-4 h-4" />
             Categories
           </button>
         </div>

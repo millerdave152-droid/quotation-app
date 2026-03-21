@@ -5,16 +5,8 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 import { createPortal } from 'react-dom';
-import {
-  ExclamationTriangleIcon,
-  XMarkIcon,
-  ClockIcon,
-  CurrencyDollarIcon,
-  ChevronRightIcon,
-} from '@heroicons/react/24/outline';
-import { ExclamationCircleIcon } from '@heroicons/react/24/solid';
-
-const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:3001/api';
+import { AlertCircle, AlertTriangle, ChevronRight, X } from 'lucide-react';
+const API_BASE = import.meta.env.VITE_API_URL || '/api';
 
 // Session storage key to track if toast was dismissed
 const TOAST_DISMISSED_KEY = 'expiring_quotes_toast_dismissed';
@@ -99,7 +91,7 @@ function Toast({
   };
 
   const styles = typeStyles[type] || typeStyles.warning;
-  const Icon = type === 'urgent' ? ExclamationCircleIcon : ExclamationTriangleIcon;
+  const Icon = type === 'urgent' ? AlertCircle : AlertTriangle;
 
   return (
     <div
@@ -128,7 +120,7 @@ function Toast({
             `}
           >
             {action}
-            <ChevronRightIcon className="w-4 h-4" />
+            <ChevronRight className="w-4 h-4" />
           </button>
         )}
       </div>
@@ -138,7 +130,7 @@ function Toast({
         className="p-1 rounded-lg hover:bg-black/5 transition-colors"
         aria-label="Dismiss"
       >
-        <XMarkIcon className="w-5 h-5 text-gray-400" />
+        <X className="w-5 h-5 text-gray-400" />
       </button>
     </div>
   );

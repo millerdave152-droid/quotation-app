@@ -4,22 +4,13 @@
  */
 
 import React from 'react';
-import {
-  ArrowTrendingUpIcon,
-  ArrowTrendingDownIcon,
-  CurrencyDollarIcon,
-  ShoppingCartIcon,
-  UserGroupIcon,
-  DocumentTextIcon,
-  ChartBarIcon,
-} from '@heroicons/react/24/outline';
-
+import { BarChart3, DollarSign, FileText, ShoppingCart, TrendingDown, TrendingUp, Users } from 'lucide-react';
 const iconMap = {
-  currency: CurrencyDollarIcon,
-  cart: ShoppingCartIcon,
-  users: UserGroupIcon,
-  document: DocumentTextIcon,
-  chart: ChartBarIcon,
+  currency: DollarSign,
+  cart: ShoppingCart,
+  users: Users,
+  document: FileText,
+  chart: BarChart3,
 };
 
 const StatCard = ({
@@ -66,7 +57,7 @@ const StatCard = ({
     ? Math.abs(((value - previousValue) / previousValue) * 100).toFixed(1)
     : null;
 
-  const IconComponent = iconMap[icon] || CurrencyDollarIcon;
+  const IconComponent = iconMap[icon] || DollarSign;
 
   if (loading) {
     return (
@@ -91,9 +82,9 @@ const StatCard = ({
           {percentChange && (
             <div className="flex items-center mt-2 gap-1">
               {trendDirection === 'up' ? (
-                <ArrowTrendingUpIcon className="w-4 h-4 text-green-500" />
+                <TrendingUp className="w-4 h-4 text-green-500" />
               ) : (
-                <ArrowTrendingDownIcon className="w-4 h-4 text-red-500" />
+                <TrendingDown className="w-4 h-4 text-red-500" />
               )}
               <span
                 className={`text-sm font-medium ${

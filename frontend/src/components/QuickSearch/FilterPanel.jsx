@@ -35,9 +35,7 @@ const FilterPanel = ({
   filters = {},
   filterOptions = {},
   onFilterChange,
-  onClearFilters,
-  loading = false,
-  userRole = 'sales'
+  onClearFilters
 }) => {
   const [expandedSections, setExpandedSections] = useState({
     status: true,

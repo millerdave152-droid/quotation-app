@@ -3,7 +3,7 @@
  * Includes bulk selection, follow-up alerts, export functionality, and quick actions
  */
 
-import React, { useState, useMemo, useRef, useEffect } from 'react';
+import { useState, useMemo, useRef, useEffect } from 'react';
 import LeadStatusBadge from './LeadStatusBadge';
 import LeadPriorityBadge from './LeadPriorityBadge';
 import { updateLeadStatus } from './hooks/useLeads';
@@ -17,7 +17,6 @@ function LeadList({
   pagination,
   onPageChange,
   onLeadSelect,
-  onLeadEdit,
   onRefresh
 }) {
   const toast = useToast();
@@ -214,16 +213,6 @@ function LeadList({
     }
   };
 
-  const formatDate = (dateStr) => {
-    if (!dateStr) return '-';
-    const date = new Date(dateStr);
-    return date.toLocaleDateString('en-CA', {
-      month: 'short',
-      day: 'numeric',
-      year: 'numeric'
-    });
-  };
-
   const formatRelativeDate = (dateStr) => {
     if (!dateStr) return '-';
     const date = new Date(dateStr);
@@ -232,16 +221,26 @@ function LeadList({
 
     if (diffDays === 0) return 'Today';
     if (diffDays === 1) return 'Yesterday';
-    if (diffDays < 7) return `${diffDays} days ago`;
-    return formatDate(dateStr);
+    if (diffDays < 7) return `${diffDays}d ago`;
+    return date.toLocaleDateString('en-CA', { month: 'short', day: 'numeric' });
   };
 
   if (loading) {
     return (
       <div className="lead-list">
-        <div className="loading-state">
-          <div className="loading-spinner"></div>
-          <p>Loading leads...</p>
+        <div className="lead-list-header">
+          <h2>Leads</h2>
+        </div>
+        <div className="list-loading-skeleton">
+          {[1, 2, 3, 4, 5].map(i => (
+            <div key={i} className="list-skeleton-row">
+              <div className="list-skeleton-cell list-skeleton-name" />
+              <div className="list-skeleton-cell list-skeleton-badge" />
+              <div className="list-skeleton-cell list-skeleton-text" />
+              <div className="list-skeleton-cell list-skeleton-badge" />
+              <div className="list-skeleton-cell list-skeleton-text-sm" />
+            </div>
+          ))}
         </div>
       </div>
     );
@@ -251,10 +250,13 @@ function LeadList({
     return (
       <div className="lead-list">
         <div className="empty-state">
-          <div className="empty-state-icon">!</div>
+          <div className="empty-state-icon-wrap empty-state-icon-error">
+            <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+          </div>
           <div className="empty-state-title">Error Loading Leads</div>
           <p className="empty-state-description">{error}</p>
           <button className="btn btn-primary" onClick={onRefresh}>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
             Try Again
           </button>
         </div>
@@ -266,7 +268,9 @@ function LeadList({
     return (
       <div className="lead-list">
         <div className="empty-state">
-          <div className="empty-state-icon">📋</div>
+          <div className="empty-state-icon-wrap">
+            <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><rect x="8" y="2" width="8" height="4" rx="1" ry="1"/></svg>
+          </div>
           <div className="empty-state-title">No Leads Found</div>
           <p className="empty-state-description">
             No leads match your current filters. Try adjusting your search or create a new lead.
@@ -297,12 +301,17 @@ function LeadList({
       )}
 
       <div className="lead-list-header">
-        <h2>Leads ({pagination.total})</h2>
+        <h2>
+          Leads
+          <span className="lead-list-count">{pagination.total}</span>
+        </h2>
         <div className="lead-list-actions">
           <button className="btn btn-sm btn-secondary" onClick={exportToCSV} title="Export to CSV">
-            Export CSV
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+            Export
           </button>
           <button className="btn btn-sm btn-secondary" onClick={onRefresh}>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
             Refresh
           </button>
         </div>
@@ -373,26 +382,22 @@ function LeadList({
                 />
               </td>
               <td>
-                <div style={{ display: 'flex', flexDirection: 'column' }}>
-                  <span style={{ fontWeight: 600 }}>{lead.contact_name}</span>
-                  <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
-                    {lead.lead_number}
-                  </span>
+                <div className="lead-name-cell">
+                  <span className="lead-name">{lead.contact_name}</span>
+                  <span className="lead-number">{lead.lead_number}</span>
                 </div>
               </td>
               <td>
                 <LeadScoreBadge score={lead.lead_score} />
               </td>
               <td>
-                <div style={{ display: 'flex', flexDirection: 'column', fontSize: '0.875rem' }}>
-                  {lead.contact_email && <span>{lead.contact_email}</span>}
-                  {lead.contact_phone && (
-                    <span style={{ color: 'var(--text-secondary)' }}>{lead.contact_phone}</span>
-                  )}
+                <div className="lead-contact-cell">
+                  {lead.contact_email && <span className="lead-contact-email">{lead.contact_email}</span>}
+                  {lead.contact_phone && <span className="lead-contact-phone">{lead.contact_phone}</span>}
                 </div>
               </td>
               <td>
-                <span style={{ textTransform: 'capitalize' }}>
+                <span className="lead-source-label">
                   {lead.lead_source?.replace('_', ' ') || '-'}
                 </span>
               </td>
@@ -400,20 +405,10 @@ function LeadList({
                 <TimelineBadge timeline={lead.timeline} />
               </td>
               <td>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                <div className="lead-status-cell">
                   <LeadStatusBadge status={lead.status} />
                   {lead.status === 'lost' && lead.lost_reason && (
-                    <span
-                      style={{
-                        fontSize: '0.75rem',
-                        color: '#991b1b',
-                        maxWidth: '150px',
-                        overflow: 'hidden',
-                        textOverflow: 'ellipsis',
-                        whiteSpace: 'nowrap'
-                      }}
-                      title={lead.lost_reason}
-                    >
+                    <span className="lead-lost-reason" title={lead.lost_reason}>
                       {lead.lost_reason}
                     </span>
                   )}
@@ -426,7 +421,7 @@ function LeadList({
                 <FollowUpDate date={lead.follow_up_date} />
               </td>
               <td>
-                <span style={{ fontSize: '0.875rem', color: 'var(--text-secondary)' }}>
+                <span className="lead-created-date">
                   {formatRelativeDate(lead.created_at)}
                 </span>
               </td>
@@ -468,6 +463,7 @@ function LeadList({
             onClick={() => onPageChange(pagination.page - 1)}
             disabled={pagination.page <= 1}
           >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
             Previous
           </button>
           <span className="pagination-info">
@@ -479,6 +475,7 @@ function LeadList({
             disabled={pagination.page >= pagination.totalPages}
           >
             Next
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
           </button>
         </div>
       )}
@@ -496,33 +493,23 @@ function TimelineBadge({ timeline }) {
     just_researching: 'Researching'
   };
 
-  if (!timeline) return <span style={{ color: '#9ca3af', fontSize: '14px' }}>-</span>;
+  if (!timeline) return <span className="lead-empty-cell">-</span>;
 
   const isUrgent = timeline === 'asap' || timeline === '1_2_weeks';
 
   return (
-    <span
-      style={{
-        fontSize: '12px',
-        fontWeight: '600',
-        padding: '6px 10px',
-        borderRadius: '6px',
-        background: isUrgent
-          ? 'linear-gradient(135deg, #fef3c7 0%, #fde68a 100%)'
-          : 'linear-gradient(135deg, #f3f4f6 0%, #e5e7eb 100%)',
-        color: isUrgent ? '#b45309' : '#6b7280',
-        display: 'inline-block',
-        whiteSpace: 'nowrap'
-      }}
-    >
-      {isUrgent && '🔥 '}{labels[timeline] || timeline}
+    <span className={`timeline-badge ${isUrgent ? 'timeline-urgent' : 'timeline-normal'}`}>
+      {isUrgent && (
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 1 1-14 0c0-1.153.433-2.294 1-3a2.5 2.5 0 0 0 2.5 2.5z"/></svg>
+      )}
+      {labels[timeline] || timeline}
     </span>
   );
 }
 
 // Follow-up Date component
 function FollowUpDate({ date }) {
-  if (!date) return <span style={{ color: '#9ca3af', fontSize: '14px' }}>-</span>;
+  if (!date) return <span className="lead-empty-cell">-</span>;
 
   const followUp = new Date(date);
   const today = new Date();
@@ -531,171 +518,74 @@ function FollowUpDate({ date }) {
 
   const diffDays = Math.floor((followUp - today) / (1000 * 60 * 60 * 24));
 
-  let style = {
-    fontSize: '13px',
-    padding: '5px 10px',
-    borderRadius: '6px',
-    display: 'inline-block',
-    fontWeight: '500'
-  };
+  let className = 'followup-badge ';
   let text = followUp.toLocaleDateString('en-CA', { month: 'short', day: 'numeric' });
 
   if (diffDays < 0) {
-    style.background = 'linear-gradient(135deg, #fee2e2 0%, #fecaca 100%)';
-    style.color = '#dc2626';
-    style.fontWeight = '600';
-    text = `⚠️ ${Math.abs(diffDays)}d overdue`;
+    className += 'followup-overdue';
+    text = `${Math.abs(diffDays)}d overdue`;
   } else if (diffDays === 0) {
-    style.background = 'linear-gradient(135deg, #fef3c7 0%, #fde68a 100%)';
-    style.color = '#d97706';
-    style.fontWeight = '600';
-    text = '📌 Today';
+    className += 'followup-today';
+    text = 'Today';
   } else if (diffDays === 1) {
-    style.background = 'linear-gradient(135deg, #dbeafe 0%, #bfdbfe 100%)';
-    style.color = '#1d4ed8';
+    className += 'followup-tomorrow';
     text = 'Tomorrow';
   } else {
-    style.background = '#f3f4f6';
-    style.color = '#6b7280';
+    className += 'followup-future';
   }
 
-  return <span style={style}>{text}</span>;
+  return (
+    <span className={className}>
+      {diffDays < 0 && (
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+      )}
+      {diffDays === 0 && (
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+      )}
+      {text}
+    </span>
+  );
 }
 
 // Lead Score Badge component
 function LeadScoreBadge({ score }) {
   if (score === null || score === undefined) {
-    return (
-      <span style={{
-        fontSize: '12px',
-        padding: '6px 12px',
-        borderRadius: '20px',
-        background: '#f3f4f6',
-        color: '#9ca3af',
-        fontWeight: '500'
-      }}>
-        --
-      </span>
-    );
+    return <span className="score-badge score-none">--</span>;
   }
 
-  // Determine color based on score
-  let bgGradient, textColor, label, shadowColor;
-  if (score >= 80) {
-    bgGradient = 'linear-gradient(135deg, #dcfce7 0%, #bbf7d0 100%)';
-    textColor = '#166534';
-    label = 'A';
-    shadowColor = 'rgba(22, 163, 74, 0.2)';
-  } else if (score >= 60) {
-    bgGradient = 'linear-gradient(135deg, #dbeafe 0%, #bfdbfe 100%)';
-    textColor = '#1e40af';
-    label = 'B';
-    shadowColor = 'rgba(30, 64, 175, 0.2)';
-  } else if (score >= 40) {
-    bgGradient = 'linear-gradient(135deg, #fef3c7 0%, #fde68a 100%)';
-    textColor = '#92400e';
-    label = 'C';
-    shadowColor = 'rgba(146, 64, 14, 0.2)';
-  } else {
-    bgGradient = 'linear-gradient(135deg, #fee2e2 0%, #fecaca 100%)';
-    textColor = '#991b1b';
-    label = 'D';
-    shadowColor = 'rgba(153, 27, 27, 0.2)';
-  }
+  let className = 'score-badge ';
+  let label;
+  if (score >= 80) { className += 'score-a'; label = 'A'; }
+  else if (score >= 60) { className += 'score-b'; label = 'B'; }
+  else if (score >= 40) { className += 'score-c'; label = 'C'; }
+  else { className += 'score-d'; label = 'D'; }
 
   return (
-    <div style={{
-      display: 'inline-flex',
-      alignItems: 'center',
-      gap: '6px',
-      padding: '6px 12px',
-      borderRadius: '20px',
-      background: bgGradient,
-      boxShadow: `0 2px 8px ${shadowColor}`
-    }}>
-      <span style={{
-        fontSize: '14px',
-        color: textColor,
-        fontWeight: '700'
-      }}>
-        {score}
-      </span>
-      <span style={{
-        fontSize: '10px',
-        padding: '2px 6px',
-        borderRadius: '4px',
-        background: textColor,
-        color: 'white',
-        fontWeight: '700',
-        letterSpacing: '0.05em'
-      }}>
-        {label}
-      </span>
+    <div className={className}>
+      <span className="score-number">{score}</span>
+      <span className="score-letter">{label}</span>
     </div>
   );
 }
 
-// Quick Actions Buttons component
-function QuickActionsButtons({ lead, onCall, onNote, onEmail, onStatus, onFollowUp }) {
-  const buttonStyle = {
-    padding: '8px 10px',
-    border: 'none',
-    borderRadius: '8px',
-    cursor: 'pointer',
-    fontSize: '14px',
-    display: 'inline-flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    transition: 'all 0.2s ease',
-    boxShadow: '0 1px 2px rgba(0,0,0,0.05)'
-  };
-
+// Quick Actions Buttons component — SVG icons instead of emojis
+function QuickActionsButtons({ lead: _lead, onCall, onNote, onEmail, onStatus, onFollowUp }) {
   return (
-    <div style={{ display: 'flex', gap: '6px', flexWrap: 'nowrap', justifyContent: 'center' }}>
-      <button
-        onClick={onCall}
-        style={{ ...buttonStyle, background: 'linear-gradient(135deg, #dbeafe, #bfdbfe)', color: '#1e40af' }}
-        title="Log call"
-        onMouseEnter={(e) => e.target.style.transform = 'translateY(-2px)'}
-        onMouseLeave={(e) => e.target.style.transform = 'translateY(0)'}
-      >
-        📞
+    <div className="quick-actions-row">
+      <button className="qa-btn qa-btn-call" onClick={onCall} title="Log call">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg>
       </button>
-      <button
-        onClick={onEmail}
-        style={{ ...buttonStyle, background: 'linear-gradient(135deg, #e0e7ff, #c7d2fe)', color: '#3730a3' }}
-        title="Log email"
-        onMouseEnter={(e) => e.target.style.transform = 'translateY(-2px)'}
-        onMouseLeave={(e) => e.target.style.transform = 'translateY(0)'}
-      >
-        📧
+      <button className="qa-btn qa-btn-email" onClick={onEmail} title="Log email">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
       </button>
-      <button
-        onClick={onNote}
-        style={{ ...buttonStyle, background: 'linear-gradient(135deg, #fef3c7, #fde68a)', color: '#92400e' }}
-        title="Add note"
-        onMouseEnter={(e) => e.target.style.transform = 'translateY(-2px)'}
-        onMouseLeave={(e) => e.target.style.transform = 'translateY(0)'}
-      >
-        📝
+      <button className="qa-btn qa-btn-note" onClick={onNote} title="Add note">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
       </button>
-      <button
-        onClick={onStatus}
-        style={{ ...buttonStyle, background: 'linear-gradient(135deg, #f3f4f6, #e5e7eb)', color: '#374151' }}
-        title="Change status"
-        onMouseEnter={(e) => e.target.style.transform = 'translateY(-2px)'}
-        onMouseLeave={(e) => e.target.style.transform = 'translateY(0)'}
-      >
-        ⚡
+      <button className="qa-btn qa-btn-status" onClick={onStatus} title="Change status">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
       </button>
-      <button
-        onClick={onFollowUp}
-        style={{ ...buttonStyle, background: 'linear-gradient(135deg, #dcfce7, #bbf7d0)', color: '#166534' }}
-        title="Schedule follow-up"
-        onMouseEnter={(e) => e.target.style.transform = 'translateY(-2px)'}
-        onMouseLeave={(e) => e.target.style.transform = 'translateY(0)'}
-      >
-        📅
+      <button className="qa-btn qa-btn-followup" onClick={onFollowUp} title="Schedule follow-up">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
       </button>
     </div>
   );
@@ -754,65 +644,6 @@ function QuickActionModal({ type, lead, loading, onClose, onCall, onNote, onEmai
     }
   };
 
-  const modalStyle = {
-    position: 'fixed',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    background: 'rgba(0, 0, 0, 0.6)',
-    backdropFilter: 'blur(4px)',
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    zIndex: 1000
-  };
-
-  const contentStyle = {
-    background: 'white',
-    borderRadius: '16px',
-    padding: '0',
-    width: '100%',
-    maxWidth: '480px',
-    maxHeight: '90vh',
-    overflow: 'hidden',
-    boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)'
-  };
-
-  const headerStyle = {
-    display: 'flex',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    padding: '20px 24px',
-    background: 'linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%)',
-    borderBottom: '1px solid #e5e7eb'
-  };
-
-  const bodyStyle = {
-    padding: '24px',
-    maxHeight: 'calc(90vh - 140px)',
-    overflowY: 'auto'
-  };
-
-  const inputStyle = {
-    width: '100%',
-    padding: '12px 14px',
-    border: '1px solid #d1d5db',
-    borderRadius: '8px',
-    fontSize: '14px',
-    marginTop: '6px',
-    transition: 'border-color 0.2s, box-shadow 0.2s',
-    boxSizing: 'border-box'
-  };
-
-  const labelStyle = {
-    display: 'block',
-    fontSize: '13px',
-    fontWeight: '600',
-    color: '#374151',
-    marginBottom: '4px'
-  };
-
   const titles = {
     call: 'Log Phone Call',
     note: 'Add Quick Note',
@@ -821,63 +652,46 @@ function QuickActionModal({ type, lead, loading, onClose, onCall, onNote, onEmai
     followup: 'Schedule Follow-up'
   };
 
+  const titleIcons = {
+    call: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg>,
+    note: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>,
+    email: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>,
+    status: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>,
+    followup: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>,
+  };
+
   return (
-    <div style={modalStyle} onClick={onClose}>
-      <div style={contentStyle} ref={modalRef} onClick={(e) => e.stopPropagation()}>
-        <div style={headerStyle}>
+    <div className="quick-capture-modal" onClick={onClose}>
+      <div className="quick-action-content" ref={modalRef} onClick={(e) => e.stopPropagation()}>
+        <div className="quick-action-header">
           <div>
-            <h3 style={{ margin: 0, fontSize: '18px', fontWeight: '600', color: '#111827' }}>{titles[type]}</h3>
-            <p style={{ margin: '4px 0 0', fontSize: '13px', color: '#6b7280' }}>
-              {lead.contact_name} • <span style={{ fontFamily: 'monospace' }}>{lead.lead_number}</span>
+            <h3 className="quick-action-title">
+              {titleIcons[type]}
+              {titles[type]}
+            </h3>
+            <p className="quick-action-subtitle">
+              {lead.contact_name} <span className="quick-action-lead-num">{lead.lead_number}</span>
             </p>
           </div>
-          <button
-            onClick={onClose}
-            style={{
-              background: '#f3f4f6',
-              border: 'none',
-              fontSize: '18px',
-              cursor: 'pointer',
-              color: '#6b7280',
-              lineHeight: 1,
-              width: '32px',
-              height: '32px',
-              borderRadius: '8px',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              transition: 'all 0.15s'
-            }}
-            onMouseEnter={(e) => { e.target.style.background = '#e5e7eb'; e.target.style.color = '#374151'; }}
-            onMouseLeave={(e) => { e.target.style.background = '#f3f4f6'; e.target.style.color = '#6b7280'; }}
-          >
-            ✕
+          <button className="quick-action-close" onClick={onClose}>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
           </button>
         </div>
 
-        <div style={bodyStyle}>
+        <div className="quick-action-body">
         {type === 'status' ? (
           showLostReasons ? (
             // Lost Reason Selection
             <div>
               <button
                 onClick={() => setShowLostReasons(false)}
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '6px',
-                  background: 'none',
-                  border: 'none',
-                  cursor: 'pointer',
-                  fontSize: '0.875rem',
-                  color: '#6b7280',
-                  marginBottom: '12px',
-                  padding: '4px 0'
-                }}
+                className="btn btn-sm btn-ghost"
+                style={{ marginBottom: '12px' }}
               >
-                ← Back to status options
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+                Back to status options
               </button>
-              <h4 style={{ margin: '0 0 12px', fontSize: '0.95rem', color: '#374151' }}>
+              <h4 style={{ margin: '0 0 12px', fontSize: '15px', color: '#374151', fontWeight: '600' }}>
                 Why was this lead lost?
               </h4>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', marginBottom: '12px' }}>
@@ -896,13 +710,14 @@ function QuickActionModal({ type, lead, loading, onClose, onCall, onNote, onEmai
                       border: selectedLostReason === reason.label && !useCustomLostReason
                         ? '2px solid #dc2626'
                         : '1px solid #e5e7eb',
-                      borderRadius: '6px',
+                      borderRadius: '8px',
                       background: selectedLostReason === reason.label && !useCustomLostReason
                         ? '#fef2f2'
                         : 'white',
                       cursor: 'pointer',
                       textAlign: 'left',
-                      fontSize: '0.8rem'
+                      fontSize: '13px',
+                      transition: 'all 0.15s'
                     }}
                   >
                     <span>{reason.icon}</span>
@@ -911,7 +726,7 @@ function QuickActionModal({ type, lead, loading, onClose, onCall, onNote, onEmai
                 ))}
               </div>
               <div style={{ marginBottom: '12px' }}>
-                <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.875rem', cursor: 'pointer' }}>
+                <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '14px', cursor: 'pointer' }}>
                   <input
                     type="checkbox"
                     checked={useCustomLostReason}
@@ -928,50 +743,23 @@ function QuickActionModal({ type, lead, loading, onClose, onCall, onNote, onEmai
                     onChange={(e) => setCustomLostReason(e.target.value)}
                     placeholder="Enter custom reason..."
                     rows={2}
-                    style={{
-                      width: '100%',
-                      marginTop: '8px',
-                      padding: '8px',
-                      border: '1px solid #d1d5db',
-                      borderRadius: '6px',
-                      fontSize: '0.875rem',
-                      boxSizing: 'border-box'
-                    }}
+                    className="form-group-input"
+                    style={{ marginTop: '8px' }}
                   />
                 )}
               </div>
               <div style={{ display: 'flex', gap: '8px' }}>
-                <button
-                  onClick={(e) => onStatus('lost', e, null)}
-                  style={{
-                    flex: 1,
-                    padding: '10px',
-                    background: '#f3f4f6',
-                    border: '1px solid #d1d5db',
-                    borderRadius: '6px',
-                    cursor: 'pointer',
-                    fontSize: '0.875rem'
-                  }}
-                >
+                <button className="btn btn-sm btn-secondary" style={{ flex: 1 }} onClick={(e) => onStatus('lost', e, null)}>
                   Skip (No Reason)
                 </button>
                 <button
+                  className="btn btn-sm btn-danger"
+                  style={{ flex: 1 }}
                   onClick={(e) => {
                     const reason = useCustomLostReason ? customLostReason.trim() : selectedLostReason;
                     onStatus('lost', e, reason || null);
                   }}
                   disabled={!selectedLostReason && (!useCustomLostReason || !customLostReason.trim())}
-                  style={{
-                    flex: 1,
-                    padding: '10px',
-                    background: (selectedLostReason || (useCustomLostReason && customLostReason.trim())) ? '#dc2626' : '#9ca3af',
-                    color: 'white',
-                    border: 'none',
-                    borderRadius: '6px',
-                    cursor: (selectedLostReason || (useCustomLostReason && customLostReason.trim())) ? 'pointer' : 'not-allowed',
-                    fontSize: '0.875rem',
-                    fontWeight: '500'
-                  }}
                 >
                   Mark as Lost
                 </button>
@@ -979,50 +767,44 @@ function QuickActionModal({ type, lead, loading, onClose, onCall, onNote, onEmai
             </div>
           ) : (
             // Normal Status Selection
-            <div style={{ display: 'grid', gap: '8px' }}>
-              {['contacted', 'qualified', 'converted', 'lost'].map((status) => (
-                <button
-                  key={status}
-                  onClick={(e) => {
-                    if (status === 'lost') {
-                      setShowLostReasons(true);
-                    } else {
-                      onStatus(status, e);
-                    }
-                  }}
-                  disabled={loading || lead.status === status}
-                  style={{
-                    padding: '12px 16px',
-                    border: lead.status === status ? '2px solid #3b82f6' : '1px solid #e5e7eb',
-                    borderRadius: '8px',
-                    background: lead.status === status ? '#eff6ff' : 'white',
-                    cursor: lead.status === status ? 'default' : 'pointer',
-                    textAlign: 'left',
-                    textTransform: 'capitalize',
-                    fontSize: '0.9rem',
-                    fontWeight: lead.status === status ? '600' : '400',
-                    color: lead.status === status ? '#1d4ed8' : '#374151',
-                    opacity: loading ? 0.7 : 1
-                  }}
-                >
-                  {status === 'contacted' && '📞 '}
-                  {status === 'qualified' && '✓ '}
-                  {status === 'converted' && '🎉 '}
-                  {status === 'lost' && '✗ '}
-                  {status.replace('_', ' ')}
-                  {lead.status === status && ' (current)'}
-                </button>
-              ))}
+            <div className="status-select-grid">
+              {['contacted', 'qualified', 'converted', 'lost'].map((status) => {
+                const isCurrent = lead.status === status;
+                const icons = {
+                  contacted: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72"/></svg>,
+                  qualified: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>,
+                  converted: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>,
+                  lost: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>,
+                };
+                return (
+                  <button
+                    key={status}
+                    onClick={(e) => {
+                      if (status === 'lost') {
+                        setShowLostReasons(true);
+                      } else {
+                        onStatus(status, e);
+                      }
+                    }}
+                    disabled={loading || isCurrent}
+                    className={`status-select-btn ${isCurrent ? 'status-select-current' : ''}`}
+                  >
+                    {icons[status]}
+                    <span style={{ textTransform: 'capitalize' }}>{status.replace('_', ' ')}</span>
+                    {isCurrent && <span className="status-current-tag">current</span>}
+                  </button>
+                );
+              })}
             </div>
           )
         ) : (
           <form onSubmit={handleSubmit}>
             {type === 'call' && (
               <>
-                <div style={{ marginBottom: '16px' }}>
-                  <label style={labelStyle}>Call Outcome</label>
+                <div className="qa-form-group">
+                  <label className="qa-label">Call Outcome</label>
                   <select
-                    style={inputStyle}
+                    className="qa-input"
                     value={formData.outcome || ''}
                     onChange={(e) => setFormData({ ...formData, outcome: e.target.value })}
                     required
@@ -1035,21 +817,21 @@ function QuickActionModal({ type, lead, loading, onClose, onCall, onNote, onEmai
                     <option value="wrong_number">Wrong number</option>
                   </select>
                 </div>
-                <div style={{ marginBottom: '16px' }}>
-                  <label style={labelStyle}>Duration (minutes)</label>
+                <div className="qa-form-group">
+                  <label className="qa-label">Duration (minutes)</label>
                   <input
                     type="number"
-                    style={inputStyle}
+                    className="qa-input"
                     placeholder="Optional"
                     min="0"
                     value={formData.duration_minutes || ''}
                     onChange={(e) => setFormData({ ...formData, duration_minutes: e.target.value })}
                   />
                 </div>
-                <div style={{ marginBottom: '16px' }}>
-                  <label style={labelStyle}>Notes</label>
+                <div className="qa-form-group">
+                  <label className="qa-label">Notes</label>
                   <textarea
-                    style={{ ...inputStyle, minHeight: '80px', resize: 'vertical' }}
+                    className="qa-input qa-textarea"
                     placeholder="Call notes..."
                     value={formData.notes || ''}
                     onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
@@ -1059,10 +841,10 @@ function QuickActionModal({ type, lead, loading, onClose, onCall, onNote, onEmai
             )}
 
             {type === 'note' && (
-              <div style={{ marginBottom: '16px' }}>
-                <label style={labelStyle}>Note</label>
+              <div className="qa-form-group">
+                <label className="qa-label">Note</label>
                 <textarea
-                  style={{ ...inputStyle, minHeight: '120px', resize: 'vertical' }}
+                  className="qa-input qa-textarea qa-textarea-lg"
                   placeholder="Enter your note..."
                   required
                   value={formData.note || ''}
@@ -1073,20 +855,20 @@ function QuickActionModal({ type, lead, loading, onClose, onCall, onNote, onEmai
 
             {type === 'email' && (
               <>
-                <div style={{ marginBottom: '16px' }}>
-                  <label style={labelStyle}>Subject</label>
+                <div className="qa-form-group">
+                  <label className="qa-label">Subject</label>
                   <input
                     type="text"
-                    style={inputStyle}
+                    className="qa-input"
                     placeholder="Email subject..."
                     value={formData.subject || ''}
                     onChange={(e) => setFormData({ ...formData, subject: e.target.value })}
                   />
                 </div>
-                <div style={{ marginBottom: '16px' }}>
-                  <label style={labelStyle}>Notes</label>
+                <div className="qa-form-group">
+                  <label className="qa-label">Notes</label>
                   <textarea
-                    style={{ ...inputStyle, minHeight: '80px', resize: 'vertical' }}
+                    className="qa-input qa-textarea"
                     placeholder="Brief summary of the email..."
                     value={formData.notes || ''}
                     onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
@@ -1097,27 +879,27 @@ function QuickActionModal({ type, lead, loading, onClose, onCall, onNote, onEmai
 
             {type === 'followup' && (
               <>
-                <div style={{ marginBottom: '16px' }}>
-                  <label style={labelStyle}>Follow-up Date</label>
+                <div className="qa-form-group">
+                  <label className="qa-label">Follow-up Date</label>
                   <input
                     type="date"
-                    style={inputStyle}
+                    className="qa-input"
                     required
                     min={new Date().toISOString().split('T')[0]}
                     value={formData.follow_up_date || ''}
                     onChange={(e) => setFormData({ ...formData, follow_up_date: e.target.value })}
                   />
                 </div>
-                <div style={{ marginBottom: '16px' }}>
-                  <label style={labelStyle}>Reminder Note</label>
+                <div className="qa-form-group">
+                  <label className="qa-label">Reminder Note</label>
                   <textarea
-                    style={{ ...inputStyle, minHeight: '60px', resize: 'vertical' }}
+                    className="qa-input qa-textarea-sm"
                     placeholder="What's the follow-up about?"
                     value={formData.note || ''}
                     onChange={(e) => setFormData({ ...formData, note: e.target.value })}
                   />
                 </div>
-                <div style={{ display: 'flex', gap: '8px', marginBottom: '16px' }}>
+                <div className="qa-quick-dates">
                   {[
                     { label: 'Tomorrow', days: 1 },
                     { label: 'In 3 days', days: 3 },
@@ -1130,16 +912,8 @@ function QuickActionModal({ type, lead, loading, onClose, onCall, onNote, onEmai
                       <button
                         key={days}
                         type="button"
+                        className={`qa-quick-date-btn ${formData.follow_up_date === dateStr ? 'qa-quick-date-active' : ''}`}
                         onClick={() => setFormData({ ...formData, follow_up_date: dateStr })}
-                        style={{
-                          flex: 1,
-                          padding: '8px',
-                          border: formData.follow_up_date === dateStr ? '2px solid #3b82f6' : '1px solid #e5e7eb',
-                          borderRadius: '6px',
-                          background: formData.follow_up_date === dateStr ? '#eff6ff' : '#f9fafb',
-                          cursor: 'pointer',
-                          fontSize: '0.75rem'
-                        }}
                       >
                         {label}
                       </button>
@@ -1149,37 +923,11 @@ function QuickActionModal({ type, lead, loading, onClose, onCall, onNote, onEmai
               </>
             )}
 
-            <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end' }}>
-              <button
-                type="button"
-                onClick={onClose}
-                disabled={loading}
-                style={{
-                  padding: '8px 16px',
-                  border: '1px solid #d1d5db',
-                  borderRadius: '6px',
-                  background: 'white',
-                  cursor: 'pointer',
-                  fontSize: '0.875rem'
-                }}
-              >
+            <div className="qa-form-footer">
+              <button type="button" className="btn btn-secondary btn-sm" onClick={onClose} disabled={loading}>
                 Cancel
               </button>
-              <button
-                type="submit"
-                disabled={loading}
-                style={{
-                  padding: '8px 16px',
-                  border: 'none',
-                  borderRadius: '6px',
-                  background: '#3b82f6',
-                  color: 'white',
-                  cursor: loading ? 'not-allowed' : 'pointer',
-                  fontSize: '0.875rem',
-                  fontWeight: '500',
-                  opacity: loading ? 0.7 : 1
-                }}
-              >
+              <button type="submit" className="btn btn-primary btn-sm" disabled={loading}>
                 {loading ? 'Saving...' : 'Save'}
               </button>
             </div>

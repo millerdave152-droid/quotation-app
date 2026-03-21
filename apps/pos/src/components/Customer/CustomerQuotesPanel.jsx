@@ -3,15 +3,8 @@
  * Shows pending quotes for selected customer
  */
 
-import {
-  ArrowLeftIcon,
-  DocumentTextIcon,
-  ShoppingCartIcon,
-  ArrowRightIcon,
-  CalendarIcon,
-  UserIcon,
-} from '@heroicons/react/24/outline';
 import { formatCurrency, formatDate } from '../../utils/formatters';
+import { ArrowLeft, ArrowRight, Calendar, FileText, ShoppingCart, User } from 'lucide-react';
 
 /**
  * Quote card component
@@ -44,12 +37,12 @@ function QuoteCard({ quote, onLoad }) {
           </div>
           <div className="flex items-center gap-3 mt-1 text-xs text-gray-500">
             <span className="flex items-center gap-1">
-              <CalendarIcon className="w-3 h-3" />
+              <Calendar className="w-3 h-3" />
               {formatDate(createdAt)}
             </span>
             {salesperson && (
               <span className="flex items-center gap-1">
-                <UserIcon className="w-3 h-3" />
+                <User className="w-3 h-3" />
                 {salesperson}
               </span>
             )}
@@ -77,7 +70,7 @@ function QuoteCard({ quote, onLoad }) {
           transition-colors duration-150
         "
       >
-        <ShoppingCartIcon className="w-5 h-5" />
+        <ShoppingCart className="w-5 h-5" />
         Load Quote
       </button>
     </div>
@@ -120,7 +113,7 @@ export function CustomerQuotesPanel({
             transition-colors duration-150
           "
         >
-          <ArrowLeftIcon className="w-5 h-5" />
+          <ArrowLeft className="w-5 h-5" />
         </button>
         <div>
           <h2 className="text-lg font-bold text-gray-900">Pending Quotes</h2>
@@ -132,7 +125,7 @@ export function CustomerQuotesPanel({
       <div className="p-4 bg-blue-50 border-b border-blue-100">
         <div className="flex items-center gap-3">
           <div className="w-10 h-10 bg-blue-500 rounded-full flex items-center justify-center">
-            <DocumentTextIcon className="w-5 h-5 text-white" />
+            <FileText className="w-5 h-5 text-white" />
           </div>
           <div>
             <p className="font-semibold text-blue-900">
@@ -171,7 +164,7 @@ export function CustomerQuotesPanel({
           "
         >
           Continue without Quote
-          <ArrowRightIcon className="w-5 h-5" />
+          <ArrowRight className="w-5 h-5" />
         </button>
         <p className="mt-2 text-center text-xs text-gray-500">
           Customer will be attached to cart without loading a quote

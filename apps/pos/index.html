@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
 
     <!-- Favicon -->
-    <link rel="icon" type="image/svg+xml" href="/pos-icon.svg" />
+    <link rel="icon" type="image/x-icon" href="/favicon.ico" />
     <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
     <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png" />
     <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png" />
@@ -113,6 +113,22 @@
         <p style="color: #94a3b8;">TeleTime POS requires JavaScript to run. Please enable JavaScript in your browser settings.</p>
       </div>
     </noscript>
+
+    <!-- Unregister stale service workers in development -->
+    <script>
+      if (location.hostname === 'localhost' || location.hostname === '127.0.0.1') {
+        if ('serviceWorker' in navigator) {
+          navigator.serviceWorker.getRegistrations().then(function(regs) {
+            regs.forEach(function(r) { r.unregister(); console.log('[POS] Unregistered stale SW:', r.scope); });
+            if (regs.length > 0) {
+              console.log('[POS] Cleared ' + regs.length + ' service worker(s) — reloading');
+              caches.keys().then(function(names) { names.forEach(function(n) { caches.delete(n); }); });
+              location.reload();
+            }
+          });
+        }
+      }
+    </script>
 
     <!-- Main Script -->
     <script type="module" src="/src/main.jsx"></script>

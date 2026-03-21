@@ -209,8 +209,24 @@ function normalizeIcecatProduct(raw) {
   // Release date (keep as-is, let the caller decide on formatting)
   const releaseDate = info.ReleaseDate || null;
 
+  // Model — BrandPartCode is the manufacturer model number
+  const model = sku || info.MPN || null;
+
+  // Color — extract from specs if available
+  const color = ceSpecs?.['Design - Product colour']
+    || ceSpecs?.['Design - Colour']
+    || ceSpecs?.['Color']
+    || null;
+
+  // Category — derive from Icecat category info
+  const category = (typeof info.Category === 'string' ? info.Category : null)
+    || info.Category?.Name?.Value
+    || info.Category?.Name
+    || null;
+
   return {
     brand_name:          brandName,
+    model:               model,
     sku:                 sku,
     upc:                 typeof upc === 'string' ? upc : (upc != null ? String(upc) : null),
     description:         description,
@@ -221,6 +237,8 @@ function normalizeIcecatProduct(raw) {
     icecat_product_id:   icecatProductId,
     data_source:         'icecat',
     status:              'active',
+    color:               color,
+    category:            category,
 
     // Bonus fields — useful metadata callers may want
     release_date:        releaseDate,

@@ -308,7 +308,7 @@ const OverviewTab = ({ toast }) => {
 
 // ── History Tab ──────────────────────────────────────────────
 
-const HistoryTab = ({ toast }) => {
+const HistoryTab = ({ toast: _toast }) => {
   const [runs, setRuns] = useState([]);
   const [loading, setLoading] = useState(true);
   const [page, setPage] = useState(1);

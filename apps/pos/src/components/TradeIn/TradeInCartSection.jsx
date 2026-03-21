@@ -5,17 +5,8 @@
  */
 
 import React, { useState } from 'react';
-import {
-  ArrowsRightLeftIcon,
-  TrashIcon,
-  ExclamationTriangleIcon,
-  CheckCircleIcon,
-  ClockIcon,
-  ChevronDownIcon,
-  ChevronUpIcon,
-  DevicePhoneMobileIcon,
-} from '@heroicons/react/24/outline';
 import { formatCurrency } from '../../utils/formatters';
+import { AlertTriangle, ArrowLeftRight, CheckCircle, ChevronDown, ChevronUp, Clock, Trash2 } from 'lucide-react';
 
 // ============================================================================
 // TRADE-IN LINE ITEM
@@ -27,21 +18,21 @@ function TradeInLineItem({ tradeIn, onRemove, disabled = false }) {
 
   const statusConfig = {
     pending: {
-      icon: ClockIcon,
+      icon: Clock,
       color: 'text-yellow-600',
       bgColor: 'bg-yellow-50',
       borderColor: 'border-yellow-200',
       label: 'Pending Approval',
     },
     approved: {
-      icon: CheckCircleIcon,
+      icon: CheckCircle,
       color: 'text-green-600',
       bgColor: 'bg-green-50',
       borderColor: 'border-green-200',
       label: 'Approved',
     },
     applied: {
-      icon: CheckCircleIcon,
+      icon: CheckCircle,
       color: 'text-blue-600',
       bgColor: 'bg-blue-50',
       borderColor: 'border-blue-200',
@@ -71,7 +62,7 @@ function TradeInLineItem({ tradeIn, onRemove, disabled = false }) {
       <div className="flex items-start gap-3">
         {/* Icon */}
         <div className="flex-shrink-0 w-10 h-10 rounded-lg bg-emerald-100 flex items-center justify-center">
-          <ArrowsRightLeftIcon className="w-5 h-5 text-emerald-600" />
+          <ArrowLeftRight className="w-5 h-5 text-emerald-600" />
         </div>
 
         {/* Content */}
@@ -83,7 +74,7 @@ function TradeInLineItem({ tradeIn, onRemove, disabled = false }) {
             </span>
             {tradeIn.requires_approval && tradeIn.status === 'pending' && (
               <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-xs font-medium bg-yellow-100 text-yellow-700">
-                <ExclamationTriangleIcon className="w-3 h-3" />
+                <AlertTriangle className="w-3 h-3" />
                 Pending
               </span>
             )}
@@ -113,12 +104,12 @@ function TradeInLineItem({ tradeIn, onRemove, disabled = false }) {
             >
               {expanded ? (
                 <>
-                  <ChevronUpIcon className="w-3 h-3" />
+                  <ChevronUp className="w-3 h-3" />
                   Hide details
                 </>
               ) : (
                 <>
-                  <ChevronDownIcon className="w-3 h-3" />
+                  <ChevronDown className="w-3 h-3" />
                   Show details
                 </>
               )}
@@ -141,7 +132,7 @@ function TradeInLineItem({ tradeIn, onRemove, disabled = false }) {
               className="p-1 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded transition-colors"
               title="Remove trade-in"
             >
-              <TrashIcon className="w-4 h-4" />
+              <Trash2 className="w-4 h-4" />
             </button>
           )}
         </div>
@@ -209,7 +200,7 @@ export function TradeInCartSection({
       {/* Section Header */}
       <div className="px-4 py-2 bg-emerald-100 flex items-center justify-between">
         <div className="flex items-center gap-2">
-          <ArrowsRightLeftIcon className="w-5 h-5 text-emerald-600" />
+          <ArrowLeftRight className="w-5 h-5 text-emerald-600" />
           <span className="font-semibold text-emerald-700">
             Trade-In Credits
           </span>
@@ -225,7 +216,7 @@ export function TradeInCartSection({
       {/* Pending Approval Warning */}
       {pendingApprovalCount > 0 && (
         <div className="px-4 py-2 bg-yellow-50 border-b border-yellow-200 flex items-center gap-2 text-sm">
-          <ExclamationTriangleIcon className="w-4 h-4 text-yellow-600" />
+          <AlertTriangle className="w-4 h-4 text-yellow-600" />
           <span className="text-yellow-700">
             {pendingApprovalCount} trade-in{pendingApprovalCount > 1 ? 's' : ''} pending manager approval
           </span>
@@ -258,10 +249,10 @@ export function TradeInTotalsRow({ tradeInTotal, hasPendingApprovals = false }) 
   return (
     <div className="flex justify-between items-center text-sm mt-1">
       <span className="text-emerald-600 flex items-center gap-1">
-        <ArrowsRightLeftIcon className="w-4 h-4" />
+        <ArrowLeftRight className="w-4 h-4" />
         Trade-In Credit
         {hasPendingApprovals && (
-          <ExclamationTriangleIcon className="w-3 h-3 text-yellow-500" title="Pending approval" />
+          <AlertTriangle className="w-3 h-3 text-yellow-500" title="Pending approval" />
         )}
       </span>
       <span className="font-medium text-emerald-600 tabular-nums">
@@ -313,7 +304,7 @@ export function TradeInReceiptSection({ tradeIns = [], variant = 'full' }) {
   return (
     <div className="mt-4 pt-4 border-t-2 border-emerald-200">
       <h3 className="font-bold text-emerald-700 mb-3 flex items-center gap-2">
-        <ArrowsRightLeftIcon className="w-5 h-5" />
+        <ArrowLeftRight className="w-5 h-5" />
         TRADE-IN CREDITS
       </h3>
       <table className="w-full text-sm">

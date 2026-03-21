@@ -6,7 +6,7 @@
 import React, { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
 
-const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:3001';
+const API_URL = process.env.REACT_APP_API_URL || '';
 
 const CustomerQuoteAcceptance = () => {
   const { token } = useParams();
@@ -19,39 +19,39 @@ const CustomerQuoteAcceptance = () => {
   const [accepted, setAccepted] = useState(false);
 
   useEffect(() => {
+    const fetchQuote = async () => {
+      try {
+        setLoading(true);
+        const response = await fetch(`${API_URL}/api/quote-accept/${token}`);
+        const data = await response.json();
+
+        if (!data.success) {
+          setError(data.message || 'Invalid or expired link');
+          return;
+        }
+
+        if (data.expired) {
+          setExpired(true);
+          setQuoteData(data.data);
+          return;
+        }
+
+        if (data.already_accepted) {
+          setAlreadyAccepted(true);
+          setQuoteData(data.data);
+          return;
+        }
+
+        setQuoteData(data.data);
+      } catch (err) {
+        setError('Failed to load quote. Please try again later.');
+      } finally {
+        setLoading(false);
+      }
+    };
+
     fetchQuote();
   }, [token]);
-
-  const fetchQuote = async () => {
-    try {
-      setLoading(true);
-      const response = await fetch(`${API_URL}/api/quote-accept/${token}`);
-      const data = await response.json();
-
-      if (!data.success) {
-        setError(data.message || 'Invalid or expired link');
-        return;
-      }
-
-      if (data.expired) {
-        setExpired(true);
-        setQuoteData(data.data);
-        return;
-      }
-
-      if (data.already_accepted) {
-        setAlreadyAccepted(true);
-        setQuoteData(data.data);
-        return;
-      }
-
-      setQuoteData(data.data);
-    } catch (err) {
-      setError('Failed to load quote. Please try again later.');
-    } finally {
-      setLoading(false);
-    }
-  };
 
   const handleAccept = async () => {
     try {

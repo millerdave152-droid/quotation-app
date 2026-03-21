@@ -4,19 +4,8 @@
  */
 
 import { useState, useEffect, useCallback, useRef } from 'react';
-import {
-  MapPinIcon,
-  CalendarDaysIcon,
-  ClockIcon,
-  ArrowLeftIcon,
-  ArrowRightIcon,
-  BuildingStorefrontIcon,
-  ExclamationTriangleIcon,
-  UserIcon,
-  TruckIcon,
-} from '@heroicons/react/24/outline';
-
-const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:3001/api';
+import { AlertTriangle, ArrowLeft, ArrowRight, CalendarDays, Clock, MapPin, Store, Truck, User } from 'lucide-react';
+const API_BASE = import.meta.env.VITE_API_URL || '/api';
 
 /**
  * TeleTime pickup locations
@@ -249,7 +238,7 @@ export function PickupDetailsForm({ pickupType, customer, onComplete, onBack }) 
           onClick={onBack}
           className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
         >
-          <ArrowLeftIcon className="w-5 h-5" />
+          <ArrowLeft className="w-5 h-5" />
         </button>
         <div>
           <h2 className="text-xl font-bold text-gray-900">Pickup Details</h2>
@@ -263,7 +252,7 @@ export function PickupDetailsForm({ pickupType, customer, onComplete, onBack }) 
         {/* ── Pickup Location ── */}
         <div ref={locationRef}>
           <label className="block text-sm font-semibold text-gray-700 mb-3">
-            <MapPinIcon className="w-4 h-4 inline mr-1 -mt-0.5" />
+            <MapPin className="w-4 h-4 inline mr-1 -mt-0.5" />
             Pickup Location
             <span className="text-red-500 ml-0.5">*</span>
           </label>
@@ -299,7 +288,7 @@ export function PickupDetailsForm({ pickupType, customer, onComplete, onBack }) 
                         ${selectedLocationId === location.id ? 'bg-blue-100 text-blue-600' : 'bg-gray-100 text-gray-500'}
                       `}
                     >
-                      <BuildingStorefrontIcon className="w-5 h-5" />
+                      <Store className="w-5 h-5" />
                     </div>
                     <div className="flex-1 min-w-0">
                       <p className="font-semibold text-gray-900">{location.name}</p>
@@ -318,7 +307,7 @@ export function PickupDetailsForm({ pickupType, customer, onComplete, onBack }) 
                       )}
                       {(location.pickupHours || location.pickup_hours) && (
                         <p className="text-xs text-blue-600 mt-1">
-                          <ClockIcon className="w-3 h-3 inline mr-0.5 -mt-0.5" />
+                          <Clock className="w-3 h-3 inline mr-0.5 -mt-0.5" />
                           {location.pickupHours || location.pickup_hours}
                         </p>
                       )}
@@ -331,7 +320,7 @@ export function PickupDetailsForm({ pickupType, customer, onComplete, onBack }) 
 
           {errors.location && (
             <p className="mt-1.5 text-sm text-red-600 flex items-center gap-1">
-              <ExclamationTriangleIcon className="w-4 h-4" />
+              <AlertTriangle className="w-4 h-4" />
               {errors.location}
             </p>
           )}
@@ -340,7 +329,7 @@ export function PickupDetailsForm({ pickupType, customer, onComplete, onBack }) 
         {/* ── Pickup Date ── */}
         <div ref={dateRef}>
           <label className="block text-sm font-semibold text-gray-700 mb-2">
-            <CalendarDaysIcon className="w-4 h-4 inline mr-1 -mt-0.5" />
+            <CalendarDays className="w-4 h-4 inline mr-1 -mt-0.5" />
             {pickupType === 'pickup_now' ? 'Pickup Date' : 'Preferred Pickup Date'}
             <span className="text-red-500 ml-0.5">*</span>
           </label>
@@ -362,7 +351,7 @@ export function PickupDetailsForm({ pickupType, customer, onComplete, onBack }) 
 
           {errors.date && (
             <p className="mt-1.5 text-sm text-red-600 flex items-center gap-1">
-              <ExclamationTriangleIcon className="w-4 h-4" />
+              <AlertTriangle className="w-4 h-4" />
               {errors.date}
             </p>
           )}
@@ -377,7 +366,7 @@ export function PickupDetailsForm({ pickupType, customer, onComplete, onBack }) 
         {/* ── Pickup Person ── */}
         <div ref={personRef} className="bg-violet-50 rounded-xl p-4 border border-violet-200">
           <label className="block text-sm font-semibold text-violet-800 mb-3">
-            <UserIcon className="w-4 h-4 inline mr-1 -mt-0.5" />
+            <User className="w-4 h-4 inline mr-1 -mt-0.5" />
             Pickup Person
           </label>
           <p className="text-xs text-violet-600 mb-3">
@@ -435,7 +424,7 @@ export function PickupDetailsForm({ pickupType, customer, onComplete, onBack }) 
         {/* ── Vehicle Details ── */}
         <div className="bg-amber-50 rounded-xl p-4 border border-amber-200">
           <label className="block text-sm font-semibold text-amber-800 mb-3">
-            <TruckIcon className="w-4 h-4 inline mr-1 -mt-0.5" />
+            <Truck className="w-4 h-4 inline mr-1 -mt-0.5" />
             Vehicle Details
             <span className="text-xs font-normal text-amber-600 ml-1">(optional)</span>
           </label>
@@ -471,7 +460,7 @@ export function PickupDetailsForm({ pickupType, customer, onComplete, onBack }) 
         {/* ── Time Preference ── */}
         <div ref={timeRef}>
           <label className="block text-sm font-semibold text-gray-700 mb-3">
-            <ClockIcon className="w-4 h-4 inline mr-1 -mt-0.5" />
+            <Clock className="w-4 h-4 inline mr-1 -mt-0.5" />
             Preferred Pickup Time
             <span className="text-red-500 ml-0.5">*</span>
           </label>
@@ -502,7 +491,7 @@ export function PickupDetailsForm({ pickupType, customer, onComplete, onBack }) 
 
           {errors.time && (
             <p className="mt-1.5 text-sm text-red-600 flex items-center gap-1">
-              <ExclamationTriangleIcon className="w-4 h-4" />
+              <AlertTriangle className="w-4 h-4" />
               {errors.time}
             </p>
           )}
@@ -523,7 +512,7 @@ export function PickupDetailsForm({ pickupType, customer, onComplete, onBack }) 
           "
         >
           Continue
-          <ArrowRightIcon className="w-4 h-4" />
+          <ArrowRight className="w-4 h-4" />
         </button>
       </div>
     </div>

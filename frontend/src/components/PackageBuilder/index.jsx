@@ -5,11 +5,11 @@ import { authFetch } from '../../services/authFetch';
  * Enhanced with loading states, animations, and mobile responsiveness
  */
 
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { toast } from '../ui/Toast';
 import PackageComparison from './PackageComparison';
 
-const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:3001';
+const API_URL = process.env.REACT_APP_API_URL || '';
 
 // Helper to get auth headers
 const getAuthHeaders = () => {
@@ -93,7 +93,7 @@ const GenerationProgress = ({ stage }) => {
       gap: '24px',
       marginTop: '20px'
     }}>
-      {stages.map((s, idx) => (
+      {stages.map((s) => (
         <div
           key={s.id}
           style={{
@@ -752,45 +752,44 @@ const PackageBuilder = ({
   // Load questionnaire and create session
   useEffect(() => {
     if (step === 'questions') {
+      const loadQuestionnaireAndCreateSession = async () => {
+        setLoading(true);
+        try {
+          // Load questionnaire
+          const qRes = await authFetch(`${API_URL}/api/package-builder/questionnaires/${packageType}`, {
+            headers: getAuthHeaders()
+          });
+          const qData = await qRes.json();
+
+          if (!qData.success) {
+            throw new Error(qData.error || 'Failed to load questionnaire');
+          }
+
+          setQuestionnaire(qData.data);
+
+          // Create session
+          const sRes = await authFetch(`${API_URL}/api/package-builder/sessions`, {
+            method: 'POST',
+            headers: getAuthHeaders(),
+            body: JSON.stringify({ package_type: packageType, customer_id: customerId })
+          });
+          const sData = await sRes.json();
+
+          if (!sData.success) {
+            throw new Error(sData.error || 'Failed to create session');
+          }
+
+          setSessionUuid(sData.data.session_uuid);
+          setLoading(false);
+        } catch (err) {
+          console.error('Error loading questionnaire:', err);
+          toast.error(err.message, 'Load Error');
+          setLoading(false);
+        }
+      };
       loadQuestionnaireAndCreateSession();
     }
-  }, [step, packageType]);
-
-  const loadQuestionnaireAndCreateSession = async () => {
-    setLoading(true);
-    try {
-      // Load questionnaire
-      const qRes = await authFetch(`${API_URL}/api/package-builder/questionnaires/${packageType}`, {
-        headers: getAuthHeaders()
-      });
-      const qData = await qRes.json();
-
-      if (!qData.success) {
-        throw new Error(qData.error || 'Failed to load questionnaire');
-      }
-
-      setQuestionnaire(qData.data);
-
-      // Create session
-      const sRes = await authFetch(`${API_URL}/api/package-builder/sessions`, {
-        method: 'POST',
-        headers: getAuthHeaders(),
-        body: JSON.stringify({ package_type: packageType, customer_id: customerId })
-      });
-      const sData = await sRes.json();
-
-      if (!sData.success) {
-        throw new Error(sData.error || 'Failed to create session');
-      }
-
-      setSessionUuid(sData.data.session_uuid);
-      setLoading(false);
-    } catch (err) {
-      console.error('Error loading questionnaire:', err);
-      toast.error(err.message, 'Load Error');
-      setLoading(false);
-    }
-  };
+  }, [step, packageType, customerId]);
 
   // Handle answer
   const handleAnswer = useCallback((questionKey, value) => {

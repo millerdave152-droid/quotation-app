@@ -4,21 +4,10 @@
  */
 
 import { useState, useEffect, useCallback } from 'react';
-import {
-  CalendarIcon,
-  PrinterIcon,
-  ArrowDownTrayIcon,
-  CheckCircleIcon,
-  ExclamationTriangleIcon,
-  XCircleIcon,
-  BanknotesIcon,
-  CreditCardIcon,
-  ChartBarIcon,
-  ClockIcon,
-} from '@heroicons/react/24/outline';
 import { formatCurrency, formatDateTime } from '../../utils/formatters';
+import { AlertTriangle, Banknote, BarChart3, Calendar, CheckCircle, Clock, CreditCard, Download, Printer, XCircle } from 'lucide-react';
 
-const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:3001/api';
+const API_BASE = import.meta.env.VITE_API_URL || '/api';
 
 /**
  * Status badge component
@@ -26,17 +15,17 @@ const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:3001/api';
 function StatusBadge({ status }) {
   const configs = {
     balanced: {
-      icon: CheckCircleIcon,
+      icon: CheckCircle,
       label: 'Balanced',
       className: 'bg-green-100 text-green-700'
     },
     variance: {
-      icon: ExclamationTriangleIcon,
+      icon: AlertTriangle,
       label: 'Variance',
       className: 'bg-yellow-100 text-yellow-700'
     },
     open: {
-      icon: ClockIcon,
+      icon: Clock,
       label: 'Open Shifts',
       className: 'bg-blue-100 text-blue-700'
     }
@@ -63,7 +52,7 @@ function ShiftRow({ shift }) {
   return (
     <div className="flex items-center gap-4 py-4 border-b border-gray-100 last:border-0">
       <div className="w-12 h-12 bg-slate-100 rounded-xl flex items-center justify-center flex-shrink-0">
-        <BanknotesIcon className="w-6 h-6 text-slate-600" />
+        <Banknote className="w-6 h-6 text-slate-600" />
       </div>
 
       <div className="flex-1 min-w-0">
@@ -104,11 +93,11 @@ function ShiftRow({ shift }) {
  */
 function PaymentSummary({ payments }) {
   const methodIcons = {
-    cash: BanknotesIcon,
-    credit: CreditCardIcon,
-    debit: CreditCardIcon,
-    gift_card: BanknotesIcon,
-    account: BanknotesIcon
+    cash: Banknote,
+    credit: CreditCard,
+    debit: CreditCard,
+    gift_card: Banknote,
+    account: Banknote
   };
 
   const methodColors = {
@@ -122,7 +111,7 @@ function PaymentSummary({ payments }) {
   return (
     <div className="grid grid-cols-2 gap-3">
       {Object.entries(payments).map(([method, data]) => {
-        const Icon = methodIcons[method] || BanknotesIcon;
+        const Icon = methodIcons[method] || Banknote;
         const colorClass = methodColors[method] || 'bg-gray-100 text-gray-600';
 
         return (
@@ -213,7 +202,7 @@ export function EODReport({ date: initialDate, onClose }) {
     return (
       <div className="p-6 text-center">
         <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
-          <XCircleIcon className="w-8 h-8 text-red-600" />
+          <XCircle className="w-8 h-8 text-red-600" />
         </div>
         <h3 className="text-lg font-semibold text-gray-900 mb-2">Error Loading Report</h3>
         <p className="text-gray-500 mb-4">{error}</p>
@@ -246,7 +235,7 @@ export function EODReport({ date: initialDate, onClose }) {
         {/* Date Selector */}
         <div className="flex items-center gap-4 print:hidden">
           <div className="flex items-center gap-2">
-            <CalendarIcon className="w-5 h-5 text-gray-400" />
+            <Calendar className="w-5 h-5 text-gray-400" />
             <input
               type="date"
               value={date}
@@ -260,7 +249,7 @@ export function EODReport({ date: initialDate, onClose }) {
             onClick={handlePrint}
             className="flex items-center gap-2 px-4 py-2 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors"
           >
-            <PrinterIcon className="w-5 h-5" />
+            <Printer className="w-5 h-5" />
             Print Report
           </button>
         </div>
@@ -307,7 +296,7 @@ export function EODReport({ date: initialDate, onClose }) {
         <div className="bg-white rounded-xl border border-gray-200 mb-6">
           <div className="p-4 border-b border-gray-200">
             <h2 className="font-semibold text-gray-900 flex items-center gap-2">
-              <ChartBarIcon className="w-5 h-5" />
+              <BarChart3 className="w-5 h-5" />
               Shift Summary ({report.shifts.length} shifts)
             </h2>
           </div>
@@ -325,7 +314,7 @@ export function EODReport({ date: initialDate, onClose }) {
         {/* Payment Methods */}
         <div className="mb-6">
           <h2 className="font-semibold text-gray-900 mb-4 flex items-center gap-2">
-            <CreditCardIcon className="w-5 h-5" />
+            <CreditCard className="w-5 h-5" />
             Payment Methods
           </h2>
           <PaymentSummary payments={report.payments} />
@@ -336,7 +325,7 @@ export function EODReport({ date: initialDate, onClose }) {
           <div className="bg-white rounded-xl border border-gray-200 mb-6">
             <div className="p-4 border-b border-gray-200">
               <h2 className="font-semibold text-gray-900 flex items-center gap-2">
-                <ArrowDownTrayIcon className="w-5 h-5" />
+                <Download className="w-5 h-5" />
                 Safe Drops ({report.safeDrops.count})
               </h2>
             </div>
@@ -367,7 +356,7 @@ export function EODReport({ date: initialDate, onClose }) {
           <div className="bg-white rounded-xl border border-gray-200 mb-6">
             <div className="p-4 border-b border-gray-200">
               <h2 className="font-semibold text-gray-900 flex items-center gap-2">
-                <ExclamationTriangleIcon className="w-5 h-5" />
+                <AlertTriangle className="w-5 h-5" />
                 Voids & Refunds
               </h2>
             </div>
@@ -390,7 +379,7 @@ export function EODReport({ date: initialDate, onClose }) {
         <div className="bg-white rounded-xl border border-gray-200">
           <div className="p-4 border-b border-gray-200">
             <h2 className="font-semibold text-gray-900 flex items-center gap-2">
-              <BanknotesIcon className="w-5 h-5" />
+              <Banknote className="w-5 h-5" />
               Cash Reconciliation
             </h2>
           </div>

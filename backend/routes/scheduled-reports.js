@@ -448,7 +448,6 @@ function init({ pool }) {
              WHERE id = $2`,
             [calculateNextSendDate(report), report.id]
           );
-          console.log(`✅ Scheduled report #${report.id} (${report.name}) sent`);
         } catch (err) {
           console.error(`❌ Scheduled report #${report.id} failed:`, err.message);
           await pool.query(

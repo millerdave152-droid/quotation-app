@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import {
   Box,
   Paper,
@@ -21,32 +21,15 @@ import {
   TableRow,
   IconButton,
   Tooltip,
-  Switch,
-  FormControlLabel,
-  Divider,
-  LinearProgress,
   Dialog,
   DialogTitle,
   DialogContent,
   DialogActions
 } from '@mui/material';
-import {
-  LocalShipping,
-  CheckCircle,
-  QrCodeScanner,
-  Add,
-  Remove,
-  Delete,
-  ArrowBack,
-  Warning,
-  Inventory2,
-  BrokenImage,
-  Done,
-  PlayArrow
-} from '@mui/icons-material';
+import { ArrowLeft, Check, CheckCircle, ImageOff, Minus, Package, Play, Plus, QrCode, Trash2, Truck } from 'lucide-react';
 import apiClient from '../../services/apiClient';
 
-const API_BASE = (process.env.REACT_APP_API_URL || 'http://localhost:3001') + '/api';
+const API_BASE = (process.env.REACT_APP_API_URL || '') + '/api';
 
 const getAuthHeaders = () => {
   const token = localStorage.getItem('auth_token');
@@ -186,7 +169,7 @@ const SetupScreen = ({ onStart }) => {
               minHeight: 140, display: 'flex', flexDirection: 'column', justifyContent: 'center'
             }}
           >
-            <Inventory2 sx={{ fontSize: 48, color: mode === 'po' ? 'primary.main' : 'text.secondary', mb: 1 }} />
+            <Package sx={{ fontSize: 48, color: mode === 'po' ? 'primary.main' : 'text.secondary', mb: 1 }} />
             <Typography variant="h6" sx={{ fontWeight: 'bold' }}>Receive Against PO</Typography>
             <Typography variant="body2" color="text.secondary">
               {availablePOs.length} purchase order{availablePOs.length !== 1 ? 's' : ''} waiting
@@ -205,7 +188,7 @@ const SetupScreen = ({ onStart }) => {
               minHeight: 140, display: 'flex', flexDirection: 'column', justifyContent: 'center'
             }}
           >
-            <LocalShipping sx={{ fontSize: 48, color: mode === 'nopo' ? 'warning.main' : 'text.secondary', mb: 1 }} />
+            <Truck sx={{ fontSize: 48, color: mode === 'nopo' ? 'warning.main' : 'text.secondary', mb: 1 }} />
             <Typography variant="h6" sx={{ fontWeight: 'bold' }}>Receive Without PO</Typography>
             <Typography variant="body2" color="text.secondary">Unexpected or ad-hoc deliveries</Typography>
           </Paper>
@@ -307,7 +290,7 @@ const SetupScreen = ({ onStart }) => {
         variant="contained"
         size="large"
         fullWidth
-        startIcon={<PlayArrow />}
+        startIcon={<Play />}
         onClick={handleStart}
         disabled={!canStart}
         sx={{ py: 2, fontSize: '1.1rem' }}
@@ -320,7 +303,7 @@ const SetupScreen = ({ onStart }) => {
 
 // ─── SCAN & COUNT SCREEN (Phase 2) ──────────────────────────────────
 const ScanCountScreen = ({ session, onComplete, onBack }) => {
-  const { mode, po, locationId, carrier, trackingNumber, vendorId, vendorName } = session;
+  const { mode, po, locationId, carrier, trackingNumber } = session;
   const scanRef = useRef(null);
   const [scanValue, setScanValue] = useState('');
   const [receivedItems, setReceivedItems] = useState([]);
@@ -329,8 +312,8 @@ const ScanCountScreen = ({ session, onComplete, onBack }) => {
   const [showCompleteDialog, setShowCompleteDialog] = useState(false);
   const [completionResult, setCompletionResult] = useState(null);
 
-  // Build expected items from PO
-  const expectedItems = po?.items || [];
+  // Build expected items from PO (memoized to keep stable reference)
+  const expectedItems = useMemo(() => po?.items || [], [po?.items]);
 
   // Initialize received items from PO expected items
   useEffect(() => {
@@ -400,7 +383,7 @@ const ScanCountScreen = ({ session, onComplete, onBack }) => {
         // Unexpected product — still add it
       }
 
-      // Add new product
+      // Plus new product
       setReceivedItems((prev) => [...prev, {
         poItemId: null,
         product_id: product.id,
@@ -616,7 +599,7 @@ const ScanCountScreen = ({ session, onComplete, onBack }) => {
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
           <Tooltip title="Back to setup">
             <IconButton onClick={onBack} sx={{ minWidth: 48, minHeight: 48 }}>
-              <ArrowBack />
+              <ArrowLeft />
             </IconButton>
           </Tooltip>
           <Box>
@@ -634,7 +617,7 @@ const ScanCountScreen = ({ session, onComplete, onBack }) => {
           variant="contained"
           color="success"
           size="large"
-          startIcon={submitting ? <CircularProgress size={20} color="inherit" /> : <Done />}
+          startIcon={submitting ? <CircularProgress size={20} color="inherit" /> : <Check />}
           onClick={() => setShowCompleteDialog(true)}
           disabled={submitting || totalReceived === 0}
           sx={{ minWidth: 200, minHeight: 48, fontSize: '1rem' }}
@@ -655,7 +638,7 @@ const ScanCountScreen = ({ session, onComplete, onBack }) => {
         sx={{ p: 2, mb: 2, bgcolor: '#f5f5f5', borderWidth: 2, borderColor: 'primary.main' }}
       >
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-          <QrCodeScanner sx={{ fontSize: 36, color: 'primary.main' }} />
+          <QrCode sx={{ fontSize: 36, color: 'primary.main' }} />
           <TextField
             inputRef={scanRef}
             fullWidth
@@ -722,7 +705,7 @@ const ScanCountScreen = ({ session, onComplete, onBack }) => {
               {receivedItems.length === 0 ? (
                 <TableRow>
                   <TableCell colSpan={mode === 'po' ? 6 : 5} align="center" sx={{ py: 6 }}>
-                    <QrCodeScanner sx={{ fontSize: 56, color: 'text.disabled', mb: 1 }} />
+                    <QrCode sx={{ fontSize: 56, color: 'text.disabled', mb: 1 }} />
                     <Typography variant="h6" color="text.secondary">
                       Scan a barcode or enter a model to begin
                     </Typography>
@@ -766,7 +749,7 @@ const ScanCountScreen = ({ session, onComplete, onBack }) => {
                         disabled={item.received <= 0}
                         sx={{ minWidth: 48, minHeight: 48, bgcolor: 'grey.100' }}
                       >
-                        <Remove />
+                        <Minus />
                       </IconButton>
                       <Typography variant="h6" sx={{ fontWeight: 'bold', minWidth: 40, textAlign: 'center', fontSize: '1.3rem' }}>
                         {item.received}
@@ -775,13 +758,13 @@ const ScanCountScreen = ({ session, onComplete, onBack }) => {
                         onClick={() => updateReceived(idx, 1)}
                         sx={{ minWidth: 48, minHeight: 48, bgcolor: 'success.50', '&:hover': { bgcolor: 'success.100' } }}
                       >
-                        <Add />
+                        <Plus />
                       </IconButton>
                     </Box>
                   </TableCell>
                   <TableCell align="center">
                     <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 0.5 }}>
-                      <Tooltip title={item.isDamaged ? 'Remove damage flag' : 'Mark as damaged'}>
+                      <Tooltip title={item.isDamaged ? 'Minus damage flag' : 'Mark as damaged'}>
                         <IconButton
                           onClick={() => toggleDamaged(idx)}
                           sx={{
@@ -790,7 +773,7 @@ const ScanCountScreen = ({ session, onComplete, onBack }) => {
                             bgcolor: item.isDamaged ? 'error.50' : 'transparent'
                           }}
                         >
-                          <BrokenImage />
+                          <ImageOff />
                         </IconButton>
                       </Tooltip>
                       {item.isDamaged && (
@@ -806,12 +789,12 @@ const ScanCountScreen = ({ session, onComplete, onBack }) => {
                     </Box>
                   </TableCell>
                   <TableCell align="center">
-                    <Tooltip title={item.expected > 0 ? 'Reset count' : 'Remove item'}>
+                    <Tooltip title={item.expected > 0 ? 'Reset count' : 'Minus item'}>
                       <IconButton
                         onClick={() => removeItem(idx)}
                         sx={{ minWidth: 48, minHeight: 48, color: 'error.main' }}
                       >
-                        <Delete />
+                        <Trash2 />
                       </IconButton>
                     </Tooltip>
                   </TableCell>
@@ -857,7 +840,7 @@ const ScanCountScreen = ({ session, onComplete, onBack }) => {
             onClick={handleComplete}
             disabled={submitting}
             size="large"
-            startIcon={submitting ? <CircularProgress size={20} color="inherit" /> : <Done />}
+            startIcon={submitting ? <CircularProgress size={20} color="inherit" /> : <Check />}
             sx={{ minHeight: 48, minWidth: 160 }}
           >
             Confirm
@@ -895,7 +878,7 @@ const ReceivingWorkflow = () => {
       {/* Header */}
       {phase === 'setup' && (
         <Box sx={{ display: 'flex', alignItems: 'center', mb: 3 }}>
-          <QrCodeScanner sx={{ mr: 1.5, fontSize: 36, color: 'primary.main' }} />
+          <QrCode sx={{ mr: 1.5, fontSize: 36, color: 'primary.main' }} />
           <Box>
             <Typography variant="h4" sx={{ fontWeight: 'bold' }}>Receiving Workflow</Typography>
             <Typography variant="body2" color="text.secondary">

@@ -4,12 +4,8 @@
  */
 
 import { useState, useCallback } from 'react';
-import {
-  EnvelopeIcon,
-  PaperAirplaneIcon,
-  CheckCircleIcon,
-} from '@heroicons/react/24/outline';
 import BatchReceiptEmailModal from './BatchReceiptEmailModal';
+import { CheckCircle, Mail, Send } from 'lucide-react';
 
 /**
  * Email Receipts Button - Shift Mode
@@ -31,7 +27,7 @@ export function EmailShiftReceiptsButton({
 
   // Determine mode based on props
   const mode = shiftId ? 'shift' : date ? 'date' : 'today';
-  const buttonLabel = shiftId ? 'Email Shift Receipts' : date ? 'Email Day\'s Receipts' : 'Email Receipts';
+  const buttonLabel = shiftId ? 'Email Shift Receipts' : date ? "Email Day's Receipts" : 'Email Receipts';
 
   if (variant === 'icon') {
     return (
@@ -41,7 +37,7 @@ export function EmailShiftReceiptsButton({
           className={`relative p-2 text-gray-500 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors ${className}`}
           title={unsentCount != null ? `Email ${unsentCount} unsent receipts` : buttonLabel}
         >
-          <EnvelopeIcon className="w-5 h-5" />
+          <Mail className="w-5 h-5" />
           {unsentCount != null && unsentCount > 0 && (
             <span className="absolute -top-1 -right-1 w-4 h-4 bg-blue-600 text-white text-xs font-bold rounded-full flex items-center justify-center">
               {unsentCount > 9 ? '9+' : unsentCount}
@@ -79,7 +75,7 @@ export function EmailShiftReceiptsButton({
             ${className}
           `}
         >
-          <EnvelopeIcon className="w-4 h-4" />
+          <Mail className="w-4 h-4" />
           {unsentCount != null
             ? (unsentCount > 0 ? `Email (${unsentCount})` : 'All Emailed')
             : 'Email Receipts'
@@ -118,17 +114,17 @@ export function EmailShiftReceiptsButton({
       >
         {isDisabled ? (
           <>
-            <CheckCircleIcon className="w-5 h-5" />
+            <CheckCircle className="w-5 h-5" />
             All Receipts Emailed
           </>
         ) : unsentCount != null ? (
           <>
-            <PaperAirplaneIcon className="w-5 h-5" />
+            <Send className="w-5 h-5" />
             Email {unsentCount} Receipt{unsentCount !== 1 ? 's' : ''}
           </>
         ) : (
           <>
-            <EnvelopeIcon className="w-5 h-5" />
+            <Mail className="w-5 h-5" />
             {buttonLabel}
           </>
         )}
@@ -168,8 +164,8 @@ export function EmailTodayReceiptsButton({
           ${className}
         `}
       >
-        <EnvelopeIcon className="w-5 h-5" />
-        Email Today's Receipts
+        <Mail className="w-5 h-5" />
+        Email Today&apos;s Receipts
       </button>
 
       <BatchReceiptEmailModal
@@ -211,7 +207,7 @@ export function EmailSelectedButton({
           ${className}
         `}
       >
-        <EnvelopeIcon className="w-5 h-5" />
+        <Mail className="w-5 h-5" />
         Email Selected ({count})
       </button>
 

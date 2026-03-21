@@ -5,18 +5,8 @@ import { authFetch } from '../../../services/authFetch';
  */
 
 import { useState, useEffect, useCallback } from 'react';
-import {
-  MagnifyingGlassIcon,
-  EyeIcon,
-  EyeSlashIcon,
-  ChevronLeftIcon,
-  ChevronRightIcon,
-  ArrowsUpDownIcon,
-  FunnelIcon,
-  XMarkIcon,
-} from '@heroicons/react/24/outline';
-
-const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+import { ArrowUpDown, ChevronLeft, ChevronRight, Eye, EyeOff, Filter, Search, X } from 'lucide-react';
+const API_BASE = process.env.REACT_APP_API_URL || '';
 
 /**
  * Strength indicator bar
@@ -245,7 +235,7 @@ export default function AutoRelationshipsTable({ onStatsUpdate }) {
           <div className="flex items-center gap-3">
             {/* Search */}
             <div className="relative">
-              <MagnifyingGlassIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
               <input
                 type="text"
                 placeholder="Search by product ID..."
@@ -266,7 +256,7 @@ export default function AutoRelationshipsTable({ onStatsUpdate }) {
                   : 'border-gray-300 text-gray-700 hover:bg-gray-50'
               }`}
             >
-              <FunnelIcon className="w-4 h-4" />
+              <Filter className="w-4 h-4" />
               Filters
             </button>
           </div>
@@ -342,7 +332,7 @@ export default function AutoRelationshipsTable({ onStatsUpdate }) {
                   onClick={clearFilters}
                   className="flex items-center gap-1 px-3 py-2 text-sm text-gray-600 hover:text-gray-900"
                 >
-                  <XMarkIcon className="w-4 h-4" />
+                  <X className="w-4 h-4" />
                   Clear Filters
                 </button>
               </div>
@@ -393,7 +383,7 @@ export default function AutoRelationshipsTable({ onStatsUpdate }) {
                 >
                   <div className="flex items-center gap-1">
                     Strength
-                    <ArrowsUpDownIcon className="w-4 h-4" />
+                    <ArrowUpDown className="w-4 h-4" />
                   </div>
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -455,9 +445,9 @@ export default function AutoRelationshipsTable({ onStatsUpdate }) {
                       title={rel.isActive ? 'Hide this suggestion' : 'Show this suggestion'}
                     >
                       {rel.isActive ? (
-                        <EyeSlashIcon className="w-5 h-5" />
+                        <EyeOff className="w-5 h-5" />
                       ) : (
-                        <EyeIcon className="w-5 h-5" />
+                        <Eye className="w-5 h-5" />
                       )}
                     </button>
                   </td>
@@ -481,14 +471,14 @@ export default function AutoRelationshipsTable({ onStatsUpdate }) {
               disabled={page === 1}
               className="p-2 rounded-lg border border-gray-300 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              <ChevronLeftIcon className="w-4 h-4" />
+              <ChevronLeft className="w-4 h-4" />
             </button>
             <button
               onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
               disabled={page === totalPages}
               className="p-2 rounded-lg border border-gray-300 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              <ChevronRightIcon className="w-4 h-4" />
+              <ChevronRight className="w-4 h-4" />
             </button>
           </div>
         </div>

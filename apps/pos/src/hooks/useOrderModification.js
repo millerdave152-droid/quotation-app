@@ -464,7 +464,7 @@ export function useOrderModification(orderId) {
   const markBackordered = useCallback(
     async (items) => {
       try {
-        const result = await apiRequest(`/order-modifications/${orderId}/backorder`, {
+        await apiRequest(`/order-modifications/${orderId}/backorder`, {
           method: 'POST',
           body: JSON.stringify({ items }),
         });
@@ -482,14 +482,6 @@ export function useOrderModification(orderId) {
   // COMPUTED VALUES
   // ============================================================================
 
-  const hasPendingChanges = useMemo(() => {
-    return (
-      pendingChanges.addItems.length > 0 ||
-      pendingChanges.removeItems.length > 0 ||
-      pendingChanges.modifyItems.length > 0
-    );
-  }, [pendingChanges]);
-
   const pendingChangeCount = useMemo(() => {
     return (
       pendingChanges.addItems.length +
@@ -497,6 +489,8 @@ export function useOrderModification(orderId) {
       pendingChanges.modifyItems.length
     );
   }, [pendingChanges]);
+
+  const hasPendingChanges = pendingChangeCount > 0;
 
   const isFromQuote = useMemo(() => {
     return order?.quote !== null;

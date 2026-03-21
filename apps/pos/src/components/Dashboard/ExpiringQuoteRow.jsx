@@ -4,17 +4,7 @@
  */
 
 import React from 'react';
-import {
-  ClockIcon,
-  ExclamationTriangleIcon,
-  PhoneIcon,
-  ShoppingCartIcon,
-  ChevronRightIcon,
-  UserIcon,
-  DocumentTextIcon,
-} from '@heroicons/react/24/outline';
-import { ExclamationCircleIcon } from '@heroicons/react/24/solid';
-
+import { AlertCircle, AlertTriangle, ChevronRight, Clock, FileText, Phone, ShoppingCart, User } from 'lucide-react';
 /**
  * Format currency compactly
  */
@@ -39,7 +29,7 @@ function UrgencyIndicator({ daysUntilExpiry }) {
   if (daysUntilExpiry <= 0) {
     return (
       <div className="flex items-center gap-1 text-red-600">
-        <ExclamationCircleIcon className="w-4 h-4" />
+        <AlertCircle className="w-4 h-4" />
         <span className="text-xs font-bold uppercase">Expired</span>
       </div>
     );
@@ -48,7 +38,7 @@ function UrgencyIndicator({ daysUntilExpiry }) {
   if (daysUntilExpiry === 1) {
     return (
       <div className="flex items-center gap-1 text-red-600 animate-pulse">
-        <ExclamationTriangleIcon className="w-4 h-4" />
+        <AlertTriangle className="w-4 h-4" />
         <span className="text-xs font-bold uppercase">Tomorrow!</span>
       </div>
     );
@@ -57,7 +47,7 @@ function UrgencyIndicator({ daysUntilExpiry }) {
   if (daysUntilExpiry <= 3) {
     return (
       <div className="flex items-center gap-1 text-orange-600">
-        <ClockIcon className="w-4 h-4" />
+        <Clock className="w-4 h-4" />
         <span className="text-xs font-semibold">{daysUntilExpiry} days</span>
       </div>
     );
@@ -65,7 +55,7 @@ function UrgencyIndicator({ daysUntilExpiry }) {
 
   return (
     <div className="flex items-center gap-1 text-yellow-600">
-      <ClockIcon className="w-4 h-4" />
+      <Clock className="w-4 h-4" />
       <span className="text-xs font-medium">{daysUntilExpiry} days</span>
     </div>
   );
@@ -148,7 +138,7 @@ export default function ExpiringQuoteRow({
 
             <div className="flex items-center gap-4 text-sm">
               <span className="flex items-center gap-1 text-gray-500">
-                <DocumentTextIcon className="w-3.5 h-3.5" />
+                <FileText className="w-3.5 h-3.5" />
                 {quote.quoteNumber}
               </span>
               <span className="font-semibold text-gray-900">
@@ -161,7 +151,7 @@ export default function ExpiringQuoteRow({
 
             {quote.assignedRep && quote.assignedRep !== 'Unassigned' && (
               <div className="flex items-center gap-1 mt-1 text-xs text-gray-400">
-                <UserIcon className="w-3 h-3" />
+                <User className="w-3 h-3" />
                 {quote.assignedRep}
               </div>
             )}
@@ -171,7 +161,7 @@ export default function ExpiringQuoteRow({
           <div className="flex items-center gap-3">
             <UrgencyIndicator daysUntilExpiry={quote.daysUntilExpiry} />
             {showActions && (
-              <ChevronRightIcon
+              <ChevronRight
                 className={`w-5 h-5 text-gray-400 transition-transform ${
                   expanded ? 'rotate-90' : ''
                 }`}
@@ -191,7 +181,7 @@ export default function ExpiringQuoteRow({
                 onClick={handleCall}
                 className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 bg-green-600 hover:bg-green-700 text-white text-sm font-medium rounded-lg transition-colors"
               >
-                <PhoneIcon className="w-4 h-4" />
+                <Phone className="w-4 h-4" />
                 <span className="hidden sm:inline">Call</span>
                 <span className="sm:hidden">{quote.customerPhone}</span>
               </button>
@@ -202,7 +192,7 @@ export default function ExpiringQuoteRow({
               onClick={handleConvert}
               className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-lg transition-colors"
             >
-              <ShoppingCartIcon className="w-4 h-4" />
+              <ShoppingCart className="w-4 h-4" />
               Convert to Sale
             </button>
 

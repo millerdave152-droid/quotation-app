@@ -29,7 +29,6 @@ class PromotionFolderWatcher {
    */
   async startWatching() {
     const folders = await this.getActiveFolders();
-    console.log(`[PromotionFolderWatcher] Starting watch on ${folders.length} folders`);
 
     for (const folder of folders) {
       await this.watchFolder(folder);
@@ -40,10 +39,8 @@ class PromotionFolderWatcher {
    * Stop all watchers
    */
   async stopWatching() {
-    console.log('[PromotionFolderWatcher] Stopping all watchers');
     for (const [folderId, watcher] of this.watchers) {
       await watcher.close();
-      console.log(`[PromotionFolderWatcher] Stopped watching folder ${folderId}`);
     }
     this.watchers.clear();
   }
@@ -81,7 +78,6 @@ class PromotionFolderWatcher {
     watcher.on('add', async (filePath) => {
       const ext = path.extname(filePath).toLowerCase();
       if (['.xlsx', '.xls', '.csv'].includes(ext)) {
-        console.log(`[PromotionFolderWatcher] New file detected: ${filePath}`);
         await this.processFile(folder, filePath);
       }
     });
@@ -91,7 +87,6 @@ class PromotionFolderWatcher {
     });
 
     this.watchers.set(id, watcher);
-    console.log(`[PromotionFolderWatcher] Now watching: ${folder_path}`);
   }
 
   /**
@@ -101,7 +96,6 @@ class PromotionFolderWatcher {
     const { id: folderId, folder_path, manufacturer } = folder;
     const fileName = path.basename(filePath);
 
-    console.log(`[PromotionFolderWatcher] Processing file: ${fileName}`);
 
     try {
       // Import the file
@@ -115,12 +109,10 @@ class PromotionFolderWatcher {
       const processedPath = path.join(folder_path, 'processed', fileName);
       try {
         await fs.rename(filePath, processedPath);
-        console.log(`[PromotionFolderWatcher] Moved to: ${processedPath}`);
       } catch (moveErr) {
         // If rename fails (cross-device), copy and delete
         await fs.copyFile(filePath, processedPath);
         await fs.unlink(filePath);
-        console.log(`[PromotionFolderWatcher] Copied and deleted: ${processedPath}`);
       }
 
       // Update folder stats
@@ -132,7 +124,6 @@ class PromotionFolderWatcher {
         WHERE id = $2
       `, [fileName, folderId]);
 
-      console.log(`[PromotionFolderWatcher] Successfully processed: ${fileName}`);
       return result;
 
     } catch (err) {
@@ -157,7 +148,6 @@ class PromotionFolderWatcher {
    */
   async scanAllFolders() {
     if (this.isScanning) {
-      console.log('[PromotionFolderWatcher] Scan already in progress, skipping');
       return { skipped: true };
     }
 
@@ -171,7 +161,6 @@ class PromotionFolderWatcher {
 
     try {
       const folders = await this.getActiveFolders();
-      console.log(`[PromotionFolderWatcher] Scanning ${folders.length} folders`);
 
       for (const folder of folders) {
         try {
@@ -187,7 +176,6 @@ class PromotionFolderWatcher {
         }
       }
 
-      console.log(`[PromotionFolderWatcher] Scan complete: ${results.files_processed} files processed`);
       return results;
 
     } finally {
@@ -205,7 +193,6 @@ class PromotionFolderWatcher {
     try {
       await fs.access(folder_path);
     } catch (err) {
-      console.log(`[PromotionFolderWatcher] Folder not accessible: ${folder_path}`);
       return result;
     }
 
@@ -216,7 +203,6 @@ class PromotionFolderWatcher {
       return ['.xlsx', '.xls', '.csv'].includes(ext);
     });
 
-    console.log(`[PromotionFolderWatcher] Found ${excelFiles.length} Excel files in ${folder_path}`);
 
     // Process each file
     for (const fileName of excelFiles) {

@@ -4,14 +4,7 @@
  */
 
 import { useState, useEffect, useRef } from 'react';
-import {
-  CheckCircleIcon,
-  ClockIcon,
-  XCircleIcon,
-  ArrowUturnLeftIcon,
-  Squares2X2Icon,
-} from '@heroicons/react/24/outline';
-
+import { CheckCircle, Clock, Undo2, XCircle } from 'lucide-react';
 /**
  * Animated count badge
  * Provides subtle animation when count changes
@@ -157,28 +150,28 @@ export default function TransactionFilterTabs({
       key: 'completed',
       label: 'Completed',
       countKey: 'completed',
-      icon: CheckCircleIcon,
+      icon: CheckCircle,
       iconColor: 'text-green-500',
     },
     {
       key: 'pending',
       label: 'Pending',
       countKey: 'pending',
-      icon: ClockIcon,
+      icon: Clock,
       iconColor: 'text-amber-500',
     },
     {
       key: 'voided',
       label: 'Voided',
       countKey: 'voided',
-      icon: XCircleIcon,
+      icon: XCircle,
       iconColor: 'text-red-500',
     },
     {
       key: 'refunded',
       label: 'Refunded',
       countKey: 'refunded',
-      icon: ArrowUturnLeftIcon,
+      icon: Undo2,
       iconColor: 'text-purple-500',
     },
   ];

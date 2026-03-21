@@ -1,6 +1,157 @@
+@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&display=swap');
+@import url('https://cdn.jsdelivr.net/npm/geist@1.3.0/dist/fonts/geist-sans/style.css');
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+/* =============================================
+   LUNARIS DESIGN SYSTEM — DESIGN TOKENS
+   Format: HSL channels (space-separated)
+   Usage:  color: hsl(var(--lu-primary));
+           color: hsl(var(--lu-primary) / 0.5);
+   ============================================= */
+
+:root {
+  /* ─── Core Palette ─── */
+  --lu-background: 80 11% 95%;
+  --lu-foreground: 0 0% 7%;
+  --lu-card: 0 0% 100%;
+  --lu-card-foreground: 0 0% 7%;
+  --lu-popover: 0 0% 100%;
+  --lu-popover-foreground: 0 0% 7%;
+  --lu-primary: 31 100% 50%;
+  --lu-primary-foreground: 0 0% 7%;
+  --lu-secondary: 80 6% 90%;
+  --lu-secondary-foreground: 0 0% 7%;
+  --lu-muted: 80 11% 95%;
+  --lu-muted-foreground: 0 0% 40%;
+  --lu-accent: 80 11% 95%;
+  --lu-accent-foreground: 0 0% 7%;
+  --lu-destructive: 12 82% 47%;
+  --lu-border: 80 3% 79%;
+  --lu-input: 80 3% 79%;
+  --lu-ring: 0 0% 40%;
+
+  /* ─── Semantic Status ─── */
+  --lu-error: 11 17% 88%;
+  --lu-error-foreground: 12 100% 27%;
+  --lu-success: 137 12% 89%;
+  --lu-success-foreground: 140 100% 15%;
+  --lu-warning: 39 28% 88%;
+  --lu-warning-foreground: 31 100% 25%;
+  --lu-info: 240 12% 89%;
+  --lu-info-foreground: 240 100% 20%;
+
+  /* ─── Sidebar ─── */
+  --lu-sidebar: 80 6% 90%;
+  --lu-sidebar-foreground: 0 0% 40%;
+  --lu-sidebar-primary: 240 6% 10%;
+  --lu-sidebar-primary-foreground: 0 0% 98%;
+  --lu-sidebar-accent: 80 3% 79%;
+  --lu-sidebar-accent-foreground: 240 6% 10%;
+  --lu-sidebar-border: 80 3% 79%;
+  --lu-sidebar-ring: 240 4% 46%;
+
+  /* ─── Primitives ─── */
+  --lu-black: 0 0% 0%;
+  --lu-white: 0 0% 100%;
+
+  /* ─── Typography ─── */
+  --font-primary: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo,
+    Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace;
+  --font-secondary: 'Geist', ui-sans-serif, system-ui, -apple-system,
+    BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial,
+    'Noto Sans', sans-serif;
+
+  --text-2xs: 0.5625rem;
+  --text-2xs-leading: 1.4;
+  --text-xs: 0.75rem;
+  --text-xs-leading: 1.5;
+  --text-sm: 0.875rem;
+  --text-sm-leading: 1.43;
+  --text-base: 1rem;
+  --text-base-leading: 1.5;
+  --text-lg: 1.125rem;
+  --text-lg-leading: 1.56;
+  --text-xl: 1.25rem;
+  --text-xl-leading: 1.4;
+  --text-2xl: 1.5rem;
+  --text-2xl-leading: 1.5;
+  --text-3xl: 1.75rem;
+  --text-3xl-leading: 1.3;
+  --text-4xl: 2rem;
+  --text-4xl-leading: 1.25;
+
+  --font-weight-normal: 400;
+  --font-weight-medium: 500;
+  --font-weight-semibold: 600;
+  --font-weight-bold: 700;
+
+  /* ─── Border Radius ─── */
+  --lu-radius-none: 0px;
+  --lu-radius-xs: 2px;
+  --lu-radius-sm: 4px;
+  --lu-radius-md: 8px;
+  --lu-radius-lg: 12px;
+  --lu-radius-xl: 16px;
+  --lu-radius-pill: 999px;
+
+  /* ─── Box Shadows ─── */
+  --lu-shadow-sm: 0 1px 2px hsl(0 0% 0% / 0.05);
+  --lu-shadow-md: 0 2px 4px -1px hsl(0 0% 0% / 0.06);
+
+  /* ─── Z-Index Scale ─── */
+  --z-dropdown: 50;
+  --z-sticky: 100;
+  --z-overlay: 200;
+  --z-modal: 300;
+  --z-popover: 400;
+  --z-tooltip: 500;
+  --z-toast: 600;
+}
+
+.dark {
+  /* ─── Core Palette ─── */
+  --lu-background: 0 0% 7%;
+  --lu-foreground: 0 0% 100%;
+  --lu-card: 0 0% 10%;
+  --lu-card-foreground: 0 0% 100%;
+  --lu-popover: 0 0% 10%;
+  --lu-popover-foreground: 0 0% 100%;
+  --lu-primary: 31 100% 50%;
+  --lu-primary-foreground: 0 0% 7%;
+  --lu-secondary: 0 0% 18%;
+  --lu-secondary-foreground: 0 0% 100%;
+  --lu-muted: 0 0% 18%;
+  --lu-muted-foreground: 80 2% 72%;
+  --lu-accent: 0 0% 7%;
+  --lu-accent-foreground: 80 11% 95%;
+  --lu-destructive: 12 100% 60%;
+  --lu-border: 0 0% 18%;
+  --lu-input: 0 0% 18%;
+  --lu-ring: 0 0% 40%;
+
+  /* ─── Semantic Status ─── */
+  --lu-error: 12 53% 9%;
+  --lu-error-foreground: 12 100% 60%;
+  --lu-success: 137 10% 15%;
+  --lu-success-foreground: 140 100% 86%;
+  --lu-warning: 30 46% 11%;
+  --lu-warning-foreground: 31 100% 50%;
+  --lu-info: 240 9% 15%;
+  --lu-info-foreground: 240 100% 85%;
+
+  /* ─── Sidebar ─── */
+  --lu-sidebar: 240 6% 10%;
+  --lu-sidebar-foreground: 0 0% 98%;
+  --lu-sidebar-primary: 240 6% 10%;
+  --lu-sidebar-primary-foreground: 0 0% 98%;
+  --lu-sidebar-accent: 240 7% 18%;
+  --lu-sidebar-accent-foreground: 0 0% 98%;
+  --lu-sidebar-border: 0 0% 100%;
+  --lu-sidebar-ring: 240 4% 46%;
+}
 
 /* Base styles */
 @layer base {

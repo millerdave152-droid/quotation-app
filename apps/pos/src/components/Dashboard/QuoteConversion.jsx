@@ -6,13 +6,7 @@
 import React, { useState, useEffect } from 'react';
 import DonutChart from './charts/DonutChart';
 import { getQuoteConversionMetrics, getQuoteConversionTrend } from '../../api/reports';
-import {
-  CheckCircleIcon,
-  XCircleIcon,
-  ClockIcon,
-  ExclamationCircleIcon,
-} from '@heroicons/react/24/outline';
-
+import { AlertCircle, CheckCircle, Clock, XCircle } from 'lucide-react';
 const QuoteConversion = ({ dateRange = {} }) => {
   const [conversionData, setConversionData] = useState(null);
   const [trendData, setTrendData] = useState([]);
@@ -52,10 +46,10 @@ const QuoteConversion = ({ dateRange = {} }) => {
   };
 
   const statusConfig = {
-    converted: { color: 'green', icon: CheckCircleIcon, bg: 'bg-green-50', text: 'text-green-700' },
-    pending: { color: 'yellow', icon: ClockIcon, bg: 'bg-yellow-50', text: 'text-yellow-700' },
-    lost: { color: 'red', icon: XCircleIcon, bg: 'bg-red-50', text: 'text-red-700' },
-    expired: { color: 'gray', icon: ExclamationCircleIcon, bg: 'bg-gray-50', text: 'text-gray-700' },
+    converted: { color: 'green', icon: CheckCircle, bg: 'bg-green-50', text: 'text-green-700' },
+    pending: { color: 'yellow', icon: Clock, bg: 'bg-yellow-50', text: 'text-yellow-700' },
+    lost: { color: 'red', icon: XCircle, bg: 'bg-red-50', text: 'text-red-700' },
+    expired: { color: 'gray', icon: AlertCircle, bg: 'bg-gray-50', text: 'text-gray-700' },
   };
 
   if (loading) {

@@ -4,16 +4,8 @@
  */
 
 import { useState, useCallback } from 'react';
-import {
-  SparklesIcon,
-  TagIcon,
-  ArrowTrendingUpIcon,
-  ChevronDownIcon,
-  ChevronUpIcon,
-  ClipboardDocumentIcon,
-  CheckIcon,
-} from '@heroicons/react/24/outline';
 import { formatCurrency } from '../../utils/formatters';
+import { Check, ChevronDown, ChevronUp, Clipboard, Sparkles, Tag, TrendingUp } from 'lucide-react';
 
 /**
  * Individual promotion card for auto-applied promotions
@@ -21,7 +13,7 @@ import { formatCurrency } from '../../utils/formatters';
 function AutoAppliedCard({ promotion }) {
   return (
     <div className="flex items-center gap-2 p-2 bg-green-50 border border-green-200 rounded-lg">
-      <SparklesIcon className="w-4 h-4 text-green-600 flex-shrink-0" />
+      <Sparkles className="w-4 h-4 text-green-600 flex-shrink-0" />
       <div className="flex-1 min-w-0">
         <p className="text-xs font-medium text-green-800 truncate">
           {promotion.name}
@@ -54,7 +46,7 @@ function AvailableCodeCard({ promotion, onCopy }) {
 
   return (
     <div className="flex items-center gap-2 p-2 bg-blue-50 border border-blue-200 rounded-lg">
-      <TagIcon className="w-4 h-4 text-blue-600 flex-shrink-0" />
+      <Tag className="w-4 h-4 text-blue-600 flex-shrink-0" />
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2">
           <span className="text-xs font-mono font-semibold text-blue-800">
@@ -67,9 +59,9 @@ function AvailableCodeCard({ promotion, onCopy }) {
             title="Copy code"
           >
             {copied ? (
-              <CheckIcon className="w-3.5 h-3.5" />
+              <Check className="w-3.5 h-3.5" />
             ) : (
-              <ClipboardDocumentIcon className="w-3.5 h-3.5" />
+              <Clipboard className="w-3.5 h-3.5" />
             )}
           </button>
         </div>
@@ -98,7 +90,7 @@ function NearMissCard({ nearMiss }) {
   return (
     <div className="p-2 bg-amber-50 border border-amber-200 rounded-lg">
       <div className="flex items-start gap-2">
-        <ArrowTrendingUpIcon className="w-4 h-4 text-amber-600 flex-shrink-0 mt-0.5" />
+        <TrendingUp className="w-4 h-4 text-amber-600 flex-shrink-0 mt-0.5" />
         <div className="flex-1 min-w-0">
           <p className="text-xs font-medium text-amber-800">
             {nearMiss.message}
@@ -171,7 +163,7 @@ export function PromotionAlerts({
         "
       >
         <div className="flex items-center gap-2">
-          <SparklesIcon className="w-4 h-4 text-purple-600" />
+          <Sparkles className="w-4 h-4 text-purple-600" />
           <span className="text-sm font-medium text-purple-800">
             Promotions
           </span>
@@ -185,9 +177,9 @@ export function PromotionAlerts({
           )}
         </div>
         {isCollapsed ? (
-          <ChevronDownIcon className="w-4 h-4 text-purple-600" />
+          <ChevronDown className="w-4 h-4 text-purple-600" />
         ) : (
-          <ChevronUpIcon className="w-4 h-4 text-purple-600" />
+          <ChevronUp className="w-4 h-4 text-purple-600" />
         )}
       </button>
 

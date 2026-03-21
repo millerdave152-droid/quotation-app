@@ -4,17 +4,8 @@
  */
 
 import { useState, useEffect, useCallback, useMemo } from 'react';
-import {
-  CalendarIcon,
-  ClockIcon,
-  ArrowLeftIcon,
-  ArrowRightIcon,
-  ChevronLeftIcon,
-  ChevronRightIcon,
-  CheckIcon,
-} from '@heroicons/react/24/outline';
-
-const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:3001/api';
+import { ArrowLeft, ArrowRight, Calendar, Check, ChevronLeft, ChevronRight, Clock } from 'lucide-react';
+const API_BASE = import.meta.env.VITE_API_URL || '/api';
 
 /**
  * Format date for display
@@ -109,12 +100,12 @@ function TimeSlotButton({ slot, isSelected, onSelect, disabled = false }) {
       `}
     >
       <div className="flex items-center gap-2">
-        <ClockIcon className={`w-4 h-4 ${isSelected ? 'text-blue-600' : 'text-gray-400'}`} />
+        <Clock className={`w-4 h-4 ${isSelected ? 'text-blue-600' : 'text-gray-400'}`} />
         <span className={`text-sm font-medium ${isSelected ? 'text-blue-700' : 'text-gray-700'}`}>
           {formatTime(slot.startTime)} - {formatTime(slot.endTime)}
         </span>
       </div>
-      {isSelected && <CheckIcon className="w-5 h-5 text-blue-600" />}
+      {isSelected && <Check className="w-5 h-5 text-blue-600" />}
       {!slot.available && (
         <span className="text-xs text-gray-400">Full</span>
       )}
@@ -323,7 +314,7 @@ export function SchedulePicker({ optionType, address, onComplete, onBack }) {
           onClick={onBack}
           className="flex items-center gap-1 text-sm text-gray-500 hover:text-gray-700 mb-2"
         >
-          <ArrowLeftIcon className="w-4 h-4" />
+          <ArrowLeft className="w-4 h-4" />
           Back
         </button>
         <h2 className="text-xl font-bold text-gray-900">
@@ -337,7 +328,7 @@ export function SchedulePicker({ optionType, address, onComplete, onBack }) {
         {/* Date Selection */}
         <div className="mb-6">
           <div className="flex items-center gap-2 mb-3">
-            <CalendarIcon className="w-5 h-5 text-gray-400" />
+            <Calendar className="w-5 h-5 text-gray-400" />
             <h3 className="text-sm font-semibold text-gray-700">Select Date</h3>
           </div>
 
@@ -356,7 +347,7 @@ export function SchedulePicker({ optionType, address, onComplete, onBack }) {
                 }
               `}
             >
-              <ChevronLeftIcon className="w-5 h-5" />
+              <ChevronLeft className="w-5 h-5" />
             </button>
 
             {/* Date cards */}
@@ -385,7 +376,7 @@ export function SchedulePicker({ optionType, address, onComplete, onBack }) {
                 }
               `}
             >
-              <ChevronRightIcon className="w-5 h-5" />
+              <ChevronRight className="w-5 h-5" />
             </button>
           </div>
 
@@ -400,7 +391,7 @@ export function SchedulePicker({ optionType, address, onComplete, onBack }) {
         {/* Time Slots */}
         <div className="mb-6">
           <div className="flex items-center gap-2 mb-3">
-            <ClockIcon className="w-5 h-5 text-gray-400" />
+            <Clock className="w-5 h-5 text-gray-400" />
             <h3 className="text-sm font-semibold text-gray-700">Select Time</h3>
           </div>
 
@@ -480,7 +471,7 @@ export function SchedulePicker({ optionType, address, onComplete, onBack }) {
           "
         >
           Confirm Schedule
-          <ArrowRightIcon className="w-4 h-4" />
+          <ArrowRight className="w-4 h-4" />
         </button>
       </div>
     </div>

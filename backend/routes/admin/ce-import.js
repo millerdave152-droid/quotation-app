@@ -143,8 +143,11 @@ async function upsertProduct(product) {
   }
 
   // ── INSERT new product ─────────────────────────────────
+  // Build a human-readable name: prefer Icecat product name, then "Brand Model"
+  const brand = product.brand_name || '';
+  const modelNum = product.model || product.sku || '';
   const productName = product.product_name
-    || product.description?.substring(0, 200)
+    || (brand && modelNum ? `${brand} ${modelNum}` : null)
     || product.sku
     || ('UPC-' + product.upc);
 
@@ -164,7 +167,7 @@ async function upsertProduct(product) {
     ) RETURNING id
   `, [
     product.brand_name || 'Unknown',                                              // manufacturer
-    product.model || product.mpn || 'CE-IMPORT',                                  // model
+    product.model || product.mpn || product.sku || 'Unknown',                       // model
     product.sku,                                                                  // sku
     product.upc,                                                                  // upc
     productName,                                                                  // name

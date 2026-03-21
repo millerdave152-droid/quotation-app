@@ -18,24 +18,23 @@ function LeadSourceROI() {
   const [loading, setLoading] = useState(true);
   const [period, setPeriod] = useState(90);
   const [data, setData] = useState(null);
-  const [view, setView] = useState('overview');
 
   useEffect(() => {
-    fetchData();
-  }, [period]);
+    const fetchData = async () => {
+      setLoading(true);
+      try {
+        const response = await api.get(`/analytics/lead-sources?days=${period}`);
+        setData(response.data?.data || response.data);
+      } catch (error) {
+        toast.error('Failed to load lead source data');
+        console.error(error);
+      } finally {
+        setLoading(false);
+      }
+    };
 
-  const fetchData = async () => {
-    setLoading(true);
-    try {
-      const response = await api.get(`/analytics/lead-sources?days=${period}`);
-      setData(response.data?.data || response.data);
-    } catch (error) {
-      toast.error('Failed to load lead source data');
-      console.error(error);
-    } finally {
-      setLoading(false);
-    }
-  };
+    fetchData();
+  }, [period, toast]);
 
   const formatCurrency = (cents) => {
     return new Intl.NumberFormat('en-US', {

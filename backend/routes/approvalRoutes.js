@@ -15,6 +15,7 @@ const router = express.Router();
 const { authenticate, requireRole } = require('../middleware/auth');
 const { ApiError, asyncHandler } = require('../middleware/errorHandler');
 const wsService = require('../services/WebSocketService');
+const logger = require('../utils/logger');
 const pool = require('../db');
 
 /** Look up a product's display name by ID. Returns null if not found. */
@@ -56,7 +57,7 @@ function requireRoleOrDelegation(...allowedRoles) {
         return next();
       }
     } catch (err) {
-      console.error('[Auth] Delegation check failed:', err.message);
+      req.log.error({ err }, '[Auth] Delegation check failed');
     }
 
     return res.status(403).json({
@@ -130,7 +131,7 @@ module.exports = function (approvalService) {
           wsService.broadcastToRoles(['manager', 'senior_manager', 'admin'], 'approval:request', requestData);
         }
       } catch (err) {
-        console.error('[WS] approval:request notification failed:', err.message);
+        req.log.error({ err }, '[WS] approval:request notification failed');
       }
     }
   }));
@@ -195,7 +196,7 @@ module.exports = function (approvalService) {
         });
       }
     } catch (err) {
-      console.error('[WS] approval:counter-accepted notification failed:', err.message);
+      req.log.error({ err }, '[WS] approval:counter-accepted notification failed');
     }
   }));
 
@@ -228,7 +229,7 @@ module.exports = function (approvalService) {
         });
       }
     } catch (err) {
-      console.error('[WS] approval:counter-declined notification failed:', err.message);
+      req.log.error({ err }, '[WS] approval:counter-declined notification failed');
     }
   }));
 
@@ -254,7 +255,7 @@ module.exports = function (approvalService) {
         });
       }
     } catch (err) {
-      console.error('[WS] approval:cancelled notification failed:', err.message);
+      req.log.error({ err }, '[WS] approval:cancelled notification failed');
     }
   }));
 
@@ -354,7 +355,7 @@ module.exports = function (approvalService) {
         });
       }
     } catch (err) {
-      console.error('[WS] approval:approved notification failed:', err.message);
+      req.log.error({ err }, '[WS] approval:approved notification failed');
     }
   }));
 
@@ -395,7 +396,7 @@ module.exports = function (approvalService) {
         });
       }
     } catch (err) {
-      console.error('[WS] approval:denied notification failed:', err.message);
+      req.log.error({ err }, '[WS] approval:denied notification failed');
     }
   }));
 
@@ -435,7 +436,7 @@ module.exports = function (approvalService) {
         });
       }
     } catch (err) {
-      console.error('[WS] approval:countered notification failed:', err.message);
+      req.log.error({ err }, '[WS] approval:countered notification failed');
     }
   }));
 
@@ -696,7 +697,7 @@ module.exports = function (approvalService) {
           wsService.broadcastToRoles(['manager', 'senior_manager', 'admin'], 'approval:batch-request', requestData);
         }
       } catch (err) {
-        console.error('[WS] approval:batch-request notification failed:', err.message);
+        req.log.error({ err }, '[WS] approval:batch-request notification failed');
       }
     }
   }));
@@ -739,7 +740,7 @@ module.exports = function (approvalService) {
         totalApproved: result.children.reduce((s, c) => s + parseFloat(c.approved_price), 0),
       });
     } catch (err) {
-      console.error('[WS] approval:batch-approved notification failed:', err.message);
+      req.log.error({ err }, '[WS] approval:batch-approved notification failed');
     }
   }));
 
@@ -769,7 +770,7 @@ module.exports = function (approvalService) {
         managerName,
       });
     } catch (err) {
-      console.error('[WS] approval:batch-denied notification failed:', err.message);
+      req.log.error({ err }, '[WS] approval:batch-denied notification failed');
     }
   }));
 
@@ -1341,7 +1342,7 @@ module.exports = function (approvalService) {
           );
           results.push({ clientRequestId, success: true, deduplicated: true, requestId: dup[0]?.id });
         } else {
-          console.error('[sync-offline] Error syncing entry:', clientRequestId, err.message);
+          req.log.error({ err, clientRequestId }, '[sync-offline] Error syncing entry');
           results.push({ clientRequestId, success: false, error: err.message });
         }
       }
@@ -1385,7 +1386,7 @@ module.exports = function (approvalService) {
         expiresAt: delegation.expires_at,
       });
     } catch (err) {
-      console.error('[WS] delegation:granted notification failed:', err.message);
+      req.log.error({ err }, '[WS] delegation:granted notification failed');
     }
   }));
 
@@ -1418,7 +1419,7 @@ module.exports = function (approvalService) {
         delegatorName,
       });
     } catch (err) {
-      console.error('[WS] delegation:revoked notification failed:', err.message);
+      req.log.error({ err }, '[WS] delegation:revoked notification failed');
     }
   }));
 

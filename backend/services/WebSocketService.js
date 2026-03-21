@@ -97,7 +97,6 @@ class WebSocketService {
     // Start timeout checker for pending approval requests
     this._timeoutTimer = setInterval(() => this._checkTimeouts(), TIMEOUT_CHECK_MS);
 
-    console.log('✅ WebSocket service initialized (path: /ws)');
   }
 
   // =========================================================================
@@ -483,7 +482,6 @@ class WebSocketService {
       }
 
       if (timedOut.length > 0) {
-        console.log(`[WS] Timed out ${timedOut.length} pending approval request(s)`);
       }
 
       // Expire delegations
@@ -498,7 +496,6 @@ class WebSocketService {
           this.sendToUser(d.delegate_id, 'delegation:expired', { delegationId: d.id });
         }
         if (expired.length > 0) {
-          console.log(`[WS] Expired ${expired.length} delegation(s)`);
         }
       } catch (delegErr) {
         console.error('[WS] Delegation expiry error:', delegErr.message);

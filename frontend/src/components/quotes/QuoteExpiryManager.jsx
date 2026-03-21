@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 
 import { authFetch } from '../../services/authFetch';
-const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:3001';
+const API_URL = process.env.REACT_APP_API_URL || '';
 
 /**
  * QuoteExpiryManager - Admin UI for managing quote expiry rules

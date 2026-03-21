@@ -3281,6 +3281,10 @@ logger.info('Order modification routes loaded');
 app.use('/api/credit-memos', initCreditMemoRoutes({ pool, cache }));
 logger.info('Credit memo routes loaded');
 
+const { init: initBugReportRoutes } = require('./routes/bugReports');
+app.use('/api/bug-reports', initBugReportRoutes({ pool }));
+logger.info('Bug report routes loaded');
+
 // ============================================
 // ERROR HANDLING MIDDLEWARE
 // ============================================

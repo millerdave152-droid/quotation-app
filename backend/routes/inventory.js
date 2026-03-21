@@ -8,29 +8,17 @@ const express = require('express');
 const router = express.Router();
 const { ApiError, asyncHandler } = require('../middleware/errorHandler');
 const { authenticate } = require('../middleware/auth');
+const { auditLogMiddleware } = require('../middleware/auditLog');
 const InventoryOptimizationService = require('../services/InventoryOptimizationService');
 
 module.exports = (pool, cache, inventoryService) => {
   // Initialize optimization service
   const optimizationService = new InventoryOptimizationService(pool);
 
-  /**
-   * GET /api/inventory/summary
-   * Get inventory summary stats
-   */
-  router.get('/summary', authenticate, asyncHandler(async (req, res) => {
-    const summary = await pool.query(`
-      SELECT
-        COUNT(*) as total_products,
-        SUM(CASE WHEN COALESCE(qty_on_hand, 0) > 5 THEN 1 ELSE 0 END) as in_stock,
-        SUM(CASE WHEN COALESCE(qty_on_hand, 0) > 0 AND COALESCE(qty_on_hand, 0) <= 5 THEN 1 ELSE 0 END) as low_stock,
-        SUM(CASE WHEN COALESCE(qty_on_hand, 0) = 0 THEN 1 ELSE 0 END) as out_of_stock,
-        COALESCE(SUM(qty_reserved), 0) as total_reserved
-      FROM products
-      WHERE active = true
-    `);
-    res.json(summary.rows[0] || { total_products: 0, in_stock: 0, low_stock: 0, out_of_stock: 0, total_reserved: 0 });
-  }));
+  // NOTE: GET /summary is handled by the inline handler in server.js (line ~783)
+  // which queries location_inventory with dynamic reorder_level thresholds.
+  // This legacy version (hardcoded threshold, old products.active column) was
+  // shadowed and never reachable. Removed to avoid confusion.
 
   /**
    * GET /api/inventory/low-stock
@@ -218,21 +206,6 @@ module.exports = (pool, cache, inventoryService) => {
   }));
 
   /**
-   * GET /api/inventory/:productId
-   * Get stock levels for a product
-   */
-  router.get('/:productId', authenticate, asyncHandler(async (req, res) => {
-    const productId = parseInt(req.params.productId);
-
-    if (isNaN(productId)) {
-      throw ApiError.badRequest('Invalid product ID');
-    }
-
-    const availability = await inventoryService.getAvailability(productId);
-    res.json(availability);
-  }));
-
-  /**
    * GET /api/inventory/reservations/list
    * List inventory reservations
    */
@@ -340,7 +313,7 @@ module.exports = (pool, cache, inventoryService) => {
    * POST /api/inventory/adjust/:productId
    * Manually adjust stock quantity
    */
-  router.post('/adjust/:productId', authenticate, asyncHandler(async (req, res) => {
+  router.post('/adjust/:productId', authenticate, auditLogMiddleware('stock_adjust', 'inventory'), asyncHandler(async (req, res) => {
     const productId = parseInt(req.params.productId);
 
     if (isNaN(productId)) {
@@ -483,6 +456,22 @@ module.exports = (pool, cache, inventoryService) => {
   router.get('/optimization/po-suggestions', authenticate, asyncHandler(async (req, res) => {
     const suggestions = await optimizationService.generatePOSuggestions();
     res.json({ success: true, data: suggestions });
+  }));
+
+  /**
+   * GET /api/inventory/:productId
+   * Get stock levels for a product
+   * NOTE: Must be LAST — catch-all param would shadow named routes above
+   */
+  router.get('/:productId', authenticate, asyncHandler(async (req, res) => {
+    const productId = parseInt(req.params.productId);
+
+    if (isNaN(productId)) {
+      throw ApiError.badRequest('Invalid product ID');
+    }
+
+    const availability = await inventoryService.getAvailability(productId);
+    res.json(availability);
   }));
 
   return router;

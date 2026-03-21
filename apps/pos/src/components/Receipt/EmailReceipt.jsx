@@ -15,11 +15,11 @@ import { escapeHtml } from '../../utils/sanitize';
 export function generateEmailReceiptHtml(transaction, storeInfo = {}) {
   // Default store info
   const store = {
-    name: 'TeleTime',
-    address: '123 Main Street',
-    city: 'Toronto, ON M5V 1A1',
-    phone: '(416) 555-0123',
-    email: 'support@teletime.ca',
+    name: 'TELETIME',
+    address: '3125 Wolfedale Road',
+    city: 'Mississauga, ON L5C 1V8',
+    phone: '(905) 273-5550',
+    email: 'info@teletime.ca',
     website: 'www.teletime.ca',
     logoUrl: null,
     ...storeInfo,

@@ -7,7 +7,7 @@
 import db from '../db/localDb';
 import { authFetch } from './authFetch';
 
-const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:3001';
+const API_URL = process.env.REACT_APP_API_URL || '';
 const MAX_RETRIES = 3;
 
 class DraftSyncService {

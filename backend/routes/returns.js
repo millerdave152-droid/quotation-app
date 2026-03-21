@@ -8,15 +8,169 @@ const router = express.Router();
 const crypto = require('crypto');
 const { authenticate } = require('../middleware/auth');
 const { ApiError, asyncHandler } = require('../middleware/errorHandler');
+const { auditLogMiddleware } = require('../middleware/auditLog');
 
 let pool = null;
 let monerisService = null;
+let receiptService = null;
 
 // ============================================================================
 // MIDDLEWARE
 // ============================================================================
 
 router.use(authenticate);
+
+// ============================================================================
+// GET /history — List completed returns/refunds
+// ============================================================================
+
+router.get('/history', asyncHandler(async (req, res) => {
+  const { search, startDate, endDate, dateRange, page = 1, limit = 20 } = req.query;
+  const offset = (Math.max(1, parseInt(page, 10)) - 1) * parseInt(limit, 10);
+  const limitVal = Math.min(100, Math.max(1, parseInt(limit, 10)));
+
+  const conditions = [`r.status = 'completed'`];
+  const params = [];
+  let paramIndex = 1;
+
+  if (search && search.trim()) {
+    const searchTerm = `%${search.trim()}%`;
+    conditions.push(`(
+      r.return_number ILIKE $${paramIndex}
+      OR t.transaction_number ILIKE $${paramIndex}
+      OR c.name ILIKE $${paramIndex}
+      OR c.phone ILIKE $${paramIndex}
+      OR c.email ILIKE $${paramIndex}
+    )`);
+    params.push(searchTerm);
+    paramIndex++;
+  }
+
+  if (dateRange && dateRange !== 'all_time') {
+    let dateCondition;
+    switch (dateRange) {
+      case 'today':
+        dateCondition = 'COALESCE(r.completed_at, r.updated_at, r.created_at) >= CURRENT_DATE';
+        break;
+      case 'this_week':
+        dateCondition = 'COALESCE(r.completed_at, r.updated_at, r.created_at) >= date_trunc(\'week\', CURRENT_DATE)';
+        break;
+      case 'this_month':
+        dateCondition = 'COALESCE(r.completed_at, r.updated_at, r.created_at) >= date_trunc(\'month\', CURRENT_DATE)';
+        break;
+      case 'last_month':
+        dateCondition = 'COALESCE(r.completed_at, r.updated_at, r.created_at) >= date_trunc(\'month\', CURRENT_DATE - INTERVAL \'1 month\') AND COALESCE(r.completed_at, r.updated_at, r.created_at) < date_trunc(\'month\', CURRENT_DATE)';
+        break;
+    }
+    if (dateCondition) conditions.push(dateCondition);
+  }
+
+  if (startDate) {
+    conditions.push(`COALESCE(r.completed_at, r.updated_at, r.created_at) >= $${paramIndex}`);
+    params.push(startDate);
+    paramIndex++;
+  }
+  if (endDate) {
+    conditions.push(`COALESCE(r.completed_at, r.updated_at, r.created_at) <= $${paramIndex}::date + INTERVAL '1 day'`);
+    params.push(endDate);
+    paramIndex++;
+  }
+
+  const whereClause = `WHERE ${conditions.join(' AND ')}`;
+
+  const countResult = await pool.query(
+    `SELECT COUNT(*) AS total
+     FROM pos_returns r
+     JOIN transactions t ON r.original_transaction_id = t.transaction_id
+     LEFT JOIN customers c ON t.customer_id = c.id
+     ${whereClause}`,
+    params
+  );
+
+  const dataResult = await pool.query(
+    `SELECT
+       r.id,
+       r.return_number,
+       r.original_transaction_id,
+       r.return_type,
+       r.refund_method,
+       r.total_refund_amount,
+       r.completed_at,
+       r.updated_at,
+       r.created_at,
+       t.transaction_number AS original_transaction_number,
+       t.customer_id,
+       c.name AS customer_name,
+       c.email AS customer_email,
+       c.phone AS customer_phone,
+       u.first_name || ' ' || u.last_name AS processed_by_name
+     FROM pos_returns r
+     JOIN transactions t ON r.original_transaction_id = t.transaction_id
+     LEFT JOIN customers c ON t.customer_id = c.id
+     LEFT JOIN users u ON r.processed_by = u.id
+     ${whereClause}
+     ORDER BY COALESCE(r.completed_at, r.updated_at, r.created_at) DESC
+     LIMIT $${paramIndex} OFFSET $${paramIndex + 1}`,
+    [...params, limitVal, offset]
+  );
+
+  res.json({
+    success: true,
+    data: dataResult.rows,
+    pagination: {
+      page: parseInt(page, 10),
+      limit: limitVal,
+      total: parseInt(countResult.rows[0].total, 10),
+      totalPages: Math.ceil(parseInt(countResult.rows[0].total, 10) / limitVal),
+    },
+  });
+}));
+
+// ============================================================================
+// GET /by-transaction/:transactionId — Resolve transaction to its latest completed return
+// ============================================================================
+
+router.get('/by-transaction/:transactionId', asyncHandler(async (req, res) => {
+  const transactionId = parseInt(req.params.transactionId, 10);
+  if (isNaN(transactionId)) {
+    throw ApiError.badRequest('Invalid transaction ID');
+  }
+
+  const result = await pool.query(
+    `SELECT
+       r.id,
+       r.return_number,
+       r.original_transaction_id,
+       r.return_type,
+       r.refund_method,
+       r.total_refund_amount,
+       r.completed_at,
+       r.updated_at,
+       r.created_at,
+       t.transaction_number AS original_transaction_number,
+       t.customer_id,
+       c.name AS customer_name,
+       c.email AS customer_email,
+       c.phone AS customer_phone
+     FROM pos_returns r
+     JOIN transactions t ON r.original_transaction_id = t.transaction_id
+     LEFT JOIN customers c ON t.customer_id = c.id
+     WHERE r.original_transaction_id = $1
+       AND r.status = 'completed'
+     ORDER BY COALESCE(r.completed_at, r.updated_at, r.created_at) DESC
+     LIMIT 1`,
+    [transactionId]
+  );
+
+  if (result.rows.length === 0) {
+    throw ApiError.notFound('Return');
+  }
+
+  res.json({
+    success: true,
+    data: result.rows[0],
+  });
+}));
 
 // ============================================================================
 // GET / — Search transactions for return initiation
@@ -138,7 +292,7 @@ router.get('/', asyncHandler(async (req, res) => {
 // POST / — Create a return record (stub)
 // ============================================================================
 
-router.post('/', asyncHandler(async (req, res) => {
+router.post('/', auditLogMiddleware('return', 'transaction'), asyncHandler(async (req, res) => {
   const { originalTransactionId, returnType = 'full', notes } = req.body;
   const userId = req.user.id;
 
@@ -312,6 +466,58 @@ router.post('/:id/items', asyncHandler(async (req, res) => {
   }
 }));
 
+router.get('/:id/refund-receipt/data', asyncHandler(async (req, res) => {
+  const returnId = parseInt(req.params.id, 10);
+  if (isNaN(returnId)) {
+    throw ApiError.badRequest('Invalid return ID');
+  }
+
+  const data = await receiptService.getReturnReceiptData(returnId);
+  res.json({ success: true, data });
+}));
+
+router.get('/:id/refund-receipt/preview', asyncHandler(async (req, res) => {
+  const returnId = parseInt(req.params.id, 10);
+  if (isNaN(returnId)) {
+    throw ApiError.badRequest('Invalid return ID');
+  }
+
+  const pdfBuffer = await receiptService.generateReturnReceiptPdf(returnId);
+  res.setHeader('Content-Type', 'application/pdf');
+  res.setHeader('Content-Disposition', 'inline');
+  res.setHeader('Content-Length', pdfBuffer.length);
+  res.send(pdfBuffer);
+}));
+
+router.get('/:id/refund-receipt/pdf', asyncHandler(async (req, res) => {
+  const returnId = parseInt(req.params.id, 10);
+  if (isNaN(returnId)) {
+    throw ApiError.badRequest('Invalid return ID');
+  }
+
+  const pdfBuffer = await receiptService.generateReturnReceiptPdf(returnId);
+  const data = await receiptService.getReturnReceiptData(returnId);
+  res.setHeader('Content-Type', 'application/pdf');
+  res.setHeader('Content-Disposition', `attachment; filename="refund-${data.return.number}.pdf"`);
+  res.setHeader('Content-Length', pdfBuffer.length);
+  res.send(pdfBuffer);
+}));
+
+router.post('/:id/refund-receipt/email', asyncHandler(async (req, res) => {
+  const returnId = parseInt(req.params.id, 10);
+  if (isNaN(returnId)) {
+    throw ApiError.badRequest('Invalid return ID');
+  }
+
+  const email = String(req.body?.email || '').trim();
+  if (!email) {
+    throw ApiError.badRequest('email is required');
+  }
+
+  const result = await receiptService.emailReturnReceipt(returnId, email);
+  res.json({ success: true, data: result });
+}));
+
 // ============================================================================
 // GET /:id/payment-info — Get original payment methods and refund calculation
 // ============================================================================
@@ -404,7 +610,7 @@ router.get('/:id/payment-info', asyncHandler(async (req, res) => {
 // POST /:id/process-refund — Process the refund
 // ============================================================================
 
-router.post('/:id/process-refund', asyncHandler(async (req, res) => {
+router.post('/:id/process-refund', auditLogMiddleware('refund', 'transaction'), asyncHandler(async (req, res) => {
   const { id } = req.params;
   const { refundMethod, restockingFeeCents = 0 } = req.body;
   // refundMethod: 'original_payment' | 'store_credit' | 'cash' | 'gift_card'
@@ -670,6 +876,7 @@ router.post('/:id/process-refund', asyncHandler(async (req, res) => {
 const init = (deps) => {
   pool = deps.pool;
   monerisService = deps.monerisService || null;
+  receiptService = deps.receiptService;
   return router;
 };
 

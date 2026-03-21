@@ -4,19 +4,9 @@
  */
 
 import { useState, useEffect, useCallback } from 'react';
-import {
-  ChartBarIcon,
-  BanknotesIcon,
-  CreditCardIcon,
-  ReceiptRefundIcon,
-  ClockIcon,
-  ArrowPathIcon,
-  ChevronDownIcon,
-  ChevronUpIcon,
-  XMarkIcon,
-} from '@heroicons/react/24/outline';
 import { useRegister } from '../../context/RegisterContext';
 import { formatCurrency, formatTime, formatDateTime } from '../../utils/formatters';
+import { Banknote, BarChart3, ChevronDown, Clock, CreditCard, Receipt, RefreshCw, X } from 'lucide-react';
 
 /**
  * Stat card component
@@ -93,7 +83,7 @@ export function ShiftSummaryCompact({ onClick }) {
       "
     >
       <div className="flex items-center gap-3">
-        <ChartBarIcon className="w-5 h-5 text-blue-400" />
+        <BarChart3 className="w-5 h-5 text-blue-400" />
         <div>
           <p className="text-sm font-semibold text-white">
             {transactionCount} sales
@@ -107,7 +97,7 @@ export function ShiftSummaryCompact({ onClick }) {
       <div className="h-8 w-px bg-slate-500" />
 
       <div className="flex items-center gap-2">
-        <ClockIcon className="w-4 h-4 text-slate-400" />
+        <Clock className="w-4 h-4 text-slate-400" />
         <span className="text-sm text-slate-300">{getShiftDuration()}</span>
       </div>
 
@@ -115,10 +105,10 @@ export function ShiftSummaryCompact({ onClick }) {
         onClick={handleRefresh}
         className="ml-2 p-1.5 hover:bg-slate-600 rounded transition-colors"
       >
-        <ArrowPathIcon className={`w-4 h-4 text-slate-400 ${isRefreshing ? 'animate-spin' : ''}`} />
+        <RefreshCw className={`w-4 h-4 text-slate-400 ${isRefreshing ? 'animate-spin' : ''}`} />
       </button>
 
-      <ChevronDownIcon className="w-4 h-4 text-slate-400" />
+      <ChevronDown className="w-4 h-4 text-slate-400" />
     </button>
   );
 }
@@ -173,7 +163,7 @@ export function ShiftSummaryPanel({ isOpen, onClose }) {
         <div className="flex items-center justify-between p-4 border-b border-gray-200">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center">
-              <ChartBarIcon className="w-5 h-5 text-blue-600" />
+              <BarChart3 className="w-5 h-5 text-blue-600" />
             </div>
             <div>
               <h2 className="text-lg font-bold text-gray-900">Shift Summary</h2>
@@ -187,13 +177,13 @@ export function ShiftSummaryPanel({ isOpen, onClose }) {
               disabled={isRefreshing}
               className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
             >
-              <ArrowPathIcon className={`w-5 h-5 text-gray-500 ${isRefreshing ? 'animate-spin' : ''}`} />
+              <RefreshCw className={`w-5 h-5 text-gray-500 ${isRefreshing ? 'animate-spin' : ''}`} />
             </button>
             <button
               onClick={onClose}
               className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
             >
-              <XMarkIcon className="w-5 h-5 text-gray-500" />
+              <X className="w-5 h-5 text-gray-500" />
             </button>
           </div>
         </div>
@@ -217,25 +207,25 @@ export function ShiftSummaryPanel({ isOpen, onClose }) {
           {/* Stats Grid */}
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
             <StatCard
-              icon={ReceiptRefundIcon}
+              icon={Receipt}
               label="Transactions"
               value={summary.transactionCount || 0}
               color="blue"
             />
             <StatCard
-              icon={BanknotesIcon}
+              icon={Banknote}
               label="Total Sales"
               value={formatCurrency(summary.totalSales || 0)}
               color="green"
             />
             <StatCard
-              icon={ReceiptRefundIcon}
+              icon={Receipt}
               label="Voids"
               value={summary.voidCount || 0}
               color="yellow"
             />
             <StatCard
-              icon={ReceiptRefundIcon}
+              icon={Receipt}
               label="Refunds"
               value={summary.refundCount || 0}
               subValue={summary.refundTotal ? formatCurrency(summary.refundTotal) : null}
@@ -257,9 +247,9 @@ export function ShiftSummaryPanel({ isOpen, onClose }) {
                   >
                     <div className="flex items-center gap-3">
                       {method === 'cash' ? (
-                        <BanknotesIcon className="w-5 h-5 text-green-600" />
+                        <Banknote className="w-5 h-5 text-green-600" />
                       ) : (
-                        <CreditCardIcon className="w-5 h-5 text-blue-600" />
+                        <CreditCard className="w-5 h-5 text-blue-600" />
                       )}
                       <span className="font-medium text-gray-900 capitalize">{method}</span>
                     </div>

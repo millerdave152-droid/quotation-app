@@ -1,17 +1,9 @@
+import { Banknote, DollarSign, Minus, Receipt, ShoppingCart, TrendingDown, TrendingUp } from 'lucide-react';
+
 /**
  * TeleTime POS - Shift Summary Cards
  * At-a-glance metrics display for shift reports
  */
-
-import {
-  BanknotesIcon,
-  ShoppingCartIcon,
-  ReceiptPercentIcon,
-  CurrencyDollarIcon,
-  ArrowTrendingUpIcon,
-  ArrowTrendingDownIcon,
-  MinusIcon,
-} from '@heroicons/react/24/outline';
 
 /**
  * Format currency
@@ -52,9 +44,9 @@ function SummaryCard({
   };
 
   const getTrendIcon = () => {
-    if (trend === 'up') return ArrowTrendingUpIcon;
-    if (trend === 'down') return ArrowTrendingDownIcon;
-    return MinusIcon;
+    if (trend === 'up') return TrendingUp;
+    if (trend === 'down') return TrendingDown;
+    return Minus;
   };
 
   const getTrendColor = () => {
@@ -135,7 +127,7 @@ export function ShiftSummaryCards({ summary, payments, comparison }) {
   return (
     <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
       <SummaryCard
-        icon={CurrencyDollarIcon}
+        icon={DollarSign}
         title="Total Sales"
         value={formatCurrency(revenue.netRevenue)}
         subtitle={`Gross: ${formatCurrency(revenue.grossRevenue)}`}
@@ -145,7 +137,7 @@ export function ShiftSummaryCards({ summary, payments, comparison }) {
       />
 
       <SummaryCard
-        icon={ShoppingCartIcon}
+        icon={ShoppingCart}
         title="Transactions"
         value={transactions.total.toLocaleString()}
         subtitle={`${transactions.voided} voided, ${transactions.refunded} refunded`}
@@ -155,7 +147,7 @@ export function ShiftSummaryCards({ summary, payments, comparison }) {
       />
 
       <SummaryCard
-        icon={ReceiptPercentIcon}
+        icon={Receipt}
         title="Avg Transaction"
         value={formatCurrency(averages.transactionValue)}
         subtitle={`${averages.itemsPerTransaction.toFixed(1)} items/txn`}
@@ -163,7 +155,7 @@ export function ShiftSummaryCards({ summary, payments, comparison }) {
       />
 
       <SummaryCard
-        icon={BanknotesIcon}
+        icon={Banknote}
         title="Cash in Drawer"
         value={formatCurrency(cashInDrawer)}
         subtitle={`Discounts: ${formatCurrency(revenue.totalDiscounts)}`}
@@ -184,7 +176,7 @@ export function ExtendedSummaryCards({ summary, payments, operational }) {
   return (
     <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mt-4">
       <SummaryCard
-        icon={CurrencyDollarIcon}
+        icon={DollarSign}
         title="Total Tax"
         value={formatCurrency(revenue.tax.total)}
         subtitle={`HST: ${formatCurrency(revenue.tax.hst)} | GST: ${formatCurrency(revenue.tax.gst)}`}
@@ -192,7 +184,7 @@ export function ExtendedSummaryCards({ summary, payments, operational }) {
       />
 
       <SummaryCard
-        icon={BanknotesIcon}
+        icon={Banknote}
         title="Card Payments"
         value={formatCurrency(payments?.totals?.card || 0)}
         subtitle={`Cash: ${formatCurrency(payments?.totals?.cash || 0)}`}
@@ -200,7 +192,7 @@ export function ExtendedSummaryCards({ summary, payments, operational }) {
       />
 
       <SummaryCard
-        icon={ShoppingCartIcon}
+        icon={ShoppingCart}
         title="Items Sold"
         value={(summary.itemsSold || 0).toLocaleString()}
         subtitle="Total units"
@@ -208,7 +200,7 @@ export function ExtendedSummaryCards({ summary, payments, operational }) {
       />
 
       <SummaryCard
-        icon={ReceiptPercentIcon}
+        icon={Receipt}
         title="Manager Overrides"
         value={(operational?.managerOverrides?.count || 0).toString()}
         subtitle={`${operational?.voids?.count || 0} voids`}

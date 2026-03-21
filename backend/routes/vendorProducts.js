@@ -191,7 +191,6 @@ router.post('/scrape', authenticate, asyncHandler(async (req, res) => {
         await VendorScraperService.completeJob(job.id, 'completed');
         await VendorScraperService.updateLastSync(vendorSource.id);
         await VendorScraperService.closeBrowser();
-        console.log(`✅ Scrape completed: ${stats.productsScraped || 0} products, ${stats.imagesDownloaded || 0} images`);
       })
       .catch(async (err) => {
         await VendorScraperService.completeJob(job.id, 'failed', err.message);

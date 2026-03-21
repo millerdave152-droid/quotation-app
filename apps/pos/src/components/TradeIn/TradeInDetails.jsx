@@ -24,21 +24,7 @@ import {
   Tooltip,
   CircularProgress,
 } from '@mui/material';
-import {
-  CameraAlt as CameraIcon,
-  Delete as DeleteIcon,
-  QrCodeScanner as ScanIcon,
-  Info as InfoIcon,
-  AttachMoney as MoneyIcon,
-  TrendingUp as ValueIcon,
-  TrendingDown as DeductionIcon,
-  Note as NoteIcon,
-  PhotoLibrary as PhotoIcon,
-  Add as AddIcon,
-  Warning as WarningIcon,
-  CheckCircle as CheckIcon,
-} from '@mui/icons-material';
-
+import { AlertTriangle, Camera, Check, DollarSign, Image, MinusCircle, ScanLine, StickyNote, Tag, Trash2 } from 'lucide-react';
 // ============================================================================
 // MAIN COMPONENT
 // ============================================================================
@@ -182,7 +168,7 @@ export function TradeInDetails({
       >
         <CardContent>
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
-            <MoneyIcon color="success" />
+            <DollarSign color="success" />
             <Typography variant="h6" fontWeight={600} color="success.dark">
               Calculated Trade-In Value
             </Typography>
@@ -212,9 +198,9 @@ export function TradeInDetails({
               <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
                   {adjustment > 0 ? (
-                    <ValueIcon sx={{ fontSize: 16, color: 'success.main' }} />
+                    <Tag sx={{ fontSize: 16, color: 'success.main' }} />
                   ) : (
-                    <DeductionIcon sx={{ fontSize: 16, color: 'error.main' }} />
+                    <MinusCircle sx={{ fontSize: 16, color: 'error.main' }} />
                   )}
                   <Typography
                     variant="body2"
@@ -271,7 +257,7 @@ export function TradeInDetails({
                 <InputAdornment position="end">
                   <Tooltip title="Scan serial number (coming soon)">
                     <IconButton edge="end" disabled>
-                      <ScanIcon />
+                      <ScanLine />
                     </IconButton>
                   </Tooltip>
                 </InputAdornment>
@@ -298,7 +284,7 @@ export function TradeInDetails({
             InputProps={{
               endAdornment: imei && !imeiError && (
                 <InputAdornment position="end">
-                  <CheckIcon color="success" />
+                  <Check color="success" />
                 </InputAdornment>
               ),
             }}
@@ -341,7 +327,7 @@ export function TradeInDetails({
 
       {/* Internal Notes */}
       <Typography variant="subtitle1" fontWeight={600} gutterBottom>
-        <NoteIcon sx={{ fontSize: 18, mr: 0.5, verticalAlign: 'middle' }} />
+        <StickyNote sx={{ fontSize: 18, mr: 0.5, verticalAlign: 'middle' }} />
         Internal Notes
       </Typography>
 
@@ -357,7 +343,7 @@ export function TradeInDetails({
 
       {/* Photo Upload */}
       <Typography variant="subtitle1" fontWeight={600} gutterBottom>
-        <PhotoIcon sx={{ fontSize: 18, mr: 0.5, verticalAlign: 'middle' }} />
+        <Image sx={{ fontSize: 18, mr: 0.5, verticalAlign: 'middle' }} />
         Device Photos (Optional)
       </Typography>
 
@@ -380,7 +366,7 @@ export function TradeInDetails({
 
         <Button
           variant="outlined"
-          startIcon={uploadingPhoto ? <CircularProgress size={20} /> : <CameraIcon />}
+          startIcon={uploadingPhoto ? <CircularProgress size={20} /> : <Camera />}
           onClick={() => fileInputRef.current?.click()}
           disabled={uploadingPhoto}
           sx={{ mr: 1 }}
@@ -428,7 +414,7 @@ export function TradeInDetails({
                     sx={{ color: 'white' }}
                     onClick={() => handleRemovePhoto(photo.id)}
                   >
-                    <DeleteIcon fontSize="small" />
+                    <Trash2 fontSize="small" />
                   </IconButton>
                 }
                 actionPosition="right"
@@ -440,7 +426,7 @@ export function TradeInDetails({
 
       {/* Validation Warnings */}
       {(requiresSerial && !serialNumber) || (requiresImei && !imei) ? (
-        <Alert severity="warning" icon={<WarningIcon />}>
+        <Alert severity="warning" icon={<AlertTriangle />}>
           <Typography variant="body2">
             Please fill in all required fields before proceeding.
           </Typography>

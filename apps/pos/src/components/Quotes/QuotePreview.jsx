@@ -4,20 +4,9 @@
  */
 
 import { useState, useEffect, useCallback } from 'react';
-import {
-  XMarkIcon,
-  DocumentTextIcon,
-  UserIcon,
-  PhoneIcon,
-  EnvelopeIcon,
-  CheckCircleIcon,
-  ExclamationTriangleIcon,
-  XCircleIcon,
-  ShoppingCartIcon,
-  ChatBubbleLeftIcon,
-} from '@heroicons/react/24/outline';
 import { getQuoteForSale } from '../../api/quotes';
 import { formatCurrency, formatDate, formatPhone } from '../../utils/formatters';
+import { AlertTriangle, CheckCircle, FileText, Mail, MessageSquare, Phone, ShoppingCart, User, X, XCircle } from 'lucide-react';
 
 /**
  * Stock status indicator
@@ -26,7 +15,7 @@ function StockIndicator({ stock, required }) {
   if (stock >= required) {
     return (
       <div className="flex items-center gap-1 text-green-600" title={`${stock} in stock`}>
-        <CheckCircleIcon className="w-5 h-5" />
+        <CheckCircle className="w-5 h-5" />
         <span className="text-xs">In Stock</span>
       </div>
     );
@@ -35,7 +24,7 @@ function StockIndicator({ stock, required }) {
   if (stock > 0) {
     return (
       <div className="flex items-center gap-1 text-yellow-600" title={`Only ${stock} in stock`}>
-        <ExclamationTriangleIcon className="w-5 h-5" />
+        <AlertTriangle className="w-5 h-5" />
         <span className="text-xs">Low ({stock})</span>
       </div>
     );
@@ -43,7 +32,7 @@ function StockIndicator({ stock, required }) {
 
   return (
     <div className="flex items-center gap-1 text-red-600" title="Out of stock">
-      <XCircleIcon className="w-5 h-5" />
+      <XCircle className="w-5 h-5" />
       <span className="text-xs">Out of Stock</span>
     </div>
   );
@@ -214,7 +203,7 @@ export function QuotePreview({
         <div className="flex items-center justify-between p-4 border-b border-gray-200">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center">
-              <DocumentTextIcon className="w-5 h-5 text-blue-600" />
+              <FileText className="w-5 h-5 text-blue-600" />
             </div>
             <div>
               <h2 className="text-lg font-bold text-gray-900">{quoteNumber}</h2>
@@ -236,7 +225,7 @@ export function QuotePreview({
               transition-colors duration-150
             "
           >
-            <XMarkIcon className="w-6 h-6" />
+            <X className="w-6 h-6" />
           </button>
         </div>
 
@@ -249,7 +238,7 @@ export function QuotePreview({
           ) : error ? (
             <div className="p-6">
               <div className="p-4 bg-red-50 border border-red-200 rounded-lg text-center">
-                <XCircleIcon className="w-10 h-10 text-red-400 mx-auto mb-2" />
+                <XCircle className="w-10 h-10 text-red-400 mx-auto mb-2" />
                 <p className="text-red-700">{error}</p>
               </div>
             </div>
@@ -260,19 +249,19 @@ export function QuotePreview({
                 <h3 className="text-sm font-medium text-gray-500 mb-3">Customer</h3>
                 <div className="flex items-start gap-4">
                   <div className="w-12 h-12 bg-blue-500 rounded-full flex items-center justify-center">
-                    <UserIcon className="w-6 h-6 text-white" />
+                    <User className="w-6 h-6 text-white" />
                   </div>
                   <div>
                     <p className="font-semibold text-gray-900">{customerName}</p>
                     {customerPhone && (
                       <p className="text-sm text-gray-600 flex items-center gap-1 mt-1">
-                        <PhoneIcon className="w-4 h-4" />
+                        <Phone className="w-4 h-4" />
                         {formatPhone(customerPhone)}
                       </p>
                     )}
                     {customerEmail && (
                       <p className="text-sm text-gray-600 flex items-center gap-1">
-                        <EnvelopeIcon className="w-4 h-4" />
+                        <Mail className="w-4 h-4" />
                         {customerEmail}
                       </p>
                     )}
@@ -284,7 +273,7 @@ export function QuotePreview({
               {hasOutOfStock && (
                 <div className="mb-6 p-4 bg-yellow-50 border border-yellow-200 rounded-xl">
                   <div className="flex items-center gap-2">
-                    <ExclamationTriangleIcon className="w-5 h-5 text-yellow-600" />
+                    <AlertTriangle className="w-5 h-5 text-yellow-600" />
                     <p className="text-sm font-medium text-yellow-800">
                       Some items have stock issues. Check availability before proceeding.
                     </p>
@@ -340,7 +329,7 @@ export function QuotePreview({
               {notes && (
                 <div className="mb-6">
                   <h3 className="text-sm font-medium text-gray-500 mb-2 flex items-center gap-1">
-                    <ChatBubbleLeftIcon className="w-4 h-4" />
+                    <MessageSquare className="w-4 h-4" />
                     Salesperson Notes
                   </h3>
                   <div className="p-4 bg-blue-50 rounded-xl">
@@ -390,7 +379,7 @@ export function QuotePreview({
                   </>
                 ) : (
                   <>
-                    <ShoppingCartIcon className="w-5 h-5" />
+                    <ShoppingCart className="w-5 h-5" />
                     Load to Cart
                   </>
                 )}
@@ -399,7 +388,7 @@ export function QuotePreview({
 
             {allInStock && (
               <p className="mt-2 text-center text-sm text-green-600">
-                <CheckCircleIcon className="w-4 h-4 inline mr-1" />
+                <CheckCircle className="w-4 h-4 inline mr-1" />
                 All items in stock and ready
               </p>
             )}

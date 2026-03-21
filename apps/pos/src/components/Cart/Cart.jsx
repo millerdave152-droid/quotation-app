@@ -4,7 +4,6 @@
  */
 
 import { useState, useCallback } from 'react';
-import { ShoppingCartIcon, ArchiveBoxIcon, ArrowsRightLeftIcon, TagIcon, PlusIcon } from '@heroicons/react/24/outline';
 import { useCart } from '../../hooks/useCart';
 import { formatCurrency } from '../../utils/formatters';
 import CartItem from './CartItem';
@@ -19,6 +18,7 @@ import { TradeInModal } from '../TradeIn/TradeInModal';
 import { usePermissions, POS_PERMISSIONS } from '../../hooks/usePermissions';
 import { EscalationStatusBadge } from '../Discount/EscalationStatusBadge';
 import BatchApprovalButton from '../approvals/BatchApprovalButton';
+import { Archive, ArrowLeftRight, Plus, ShoppingCart, Tag } from 'lucide-react';
 
 /**
  * Empty cart state component
@@ -27,7 +27,7 @@ function EmptyCart() {
   return (
     <div className="flex-1 flex flex-col items-center justify-center p-6 text-center">
       <div className="w-20 h-20 bg-gray-100 rounded-full flex items-center justify-center mb-4">
-        <ShoppingCartIcon className="w-10 h-10 text-gray-400" />
+        <ShoppingCart className="w-10 h-10 text-gray-400" />
       </div>
       <h3 className="text-lg font-semibold text-gray-900 mb-2">Cart is Empty</h3>
       <p className="text-sm text-gray-500 max-w-xs">
@@ -57,7 +57,7 @@ function HeldCartsButton({ count, onClick }) {
         transition-colors duration-150
       "
     >
-      <ArchiveBoxIcon className="w-5 h-5" />
+      <Archive className="w-5 h-5" />
       <span>{count} Held</span>
     </button>
   );
@@ -100,7 +100,7 @@ export function Cart({
   const [isProcessing, setIsProcessing] = useState(false);
 
   // Trade-in values from cart context
-  const { tradeIns, tradeInTotal, hasPendingTradeIns, amountToPay } = cart;
+  const { tradeIns, tradeInTotal, hasPendingTradeIns } = cart;
 
   // Handle quantity update
   const handleUpdateQuantity = useCallback(
@@ -162,10 +162,7 @@ export function Cart({
     if (onHold) {
       onHold();
     } else {
-      const result = cart.holdCart();
-      if (result.success) {
-        console.log('[Cart] Transaction held successfully');
-      }
+      cart.holdCart();
     }
   }, [cart, onHold]);
 
@@ -185,7 +182,7 @@ export function Cart({
 
   // Handle salesperson selection
   const handleSalespersonSelect = useCallback(
-    (salespersonId, rep) => {
+    (salespersonId) => {
       cart.setSalespersonId(salespersonId);
     },
     [cart]
@@ -258,7 +255,7 @@ export function Cart({
       {/* Header */}
       <div className="flex items-center justify-between p-4 border-b border-gray-200">
         <div className="flex items-center gap-2">
-          <ShoppingCartIcon className="w-6 h-6 text-gray-700" />
+          <ShoppingCart className="w-6 h-6 text-gray-700" />
           <h2 className="text-lg font-bold text-gray-900">Cart</h2>
           {cart.itemCount > 0 && (
             <span className="px-2 py-0.5 bg-blue-100 text-blue-700 text-sm font-semibold rounded-full">
@@ -353,7 +350,7 @@ export function Cart({
               disabled:opacity-50 disabled:cursor-not-allowed
             "
           >
-            <ArrowsRightLeftIcon className="w-5 h-5" />
+            <ArrowLeftRight className="w-5 h-5" />
             <span>Trade-In</span>
             {tradeIns.length > 0 && (
               <span className="px-1.5 py-0.5 bg-emerald-200 text-emerald-800 text-xs font-bold rounded">
@@ -379,7 +376,7 @@ export function Cart({
             <div className="p-3 bg-green-50 border border-green-200 rounded-lg">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
-                  <TagIcon className="w-4 h-4 text-green-600" />
+                  <Tag className="w-4 h-4 text-green-600" />
                   <div>
                     <p className="text-sm font-medium text-green-800">
                       {formatCurrency(cart.discount.amount)} discount applied
@@ -413,7 +410,7 @@ export function Cart({
                 transition-colors duration-150
               "
             >
-              <PlusIcon className="w-4 h-4" />
+              <Plus className="w-4 h-4" />
               Add Discount
             </button>
           )}

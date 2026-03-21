@@ -85,16 +85,19 @@ class ReceiptService {
     this.receiptBaseUrl = config.receiptBaseUrl || process.env.RECEIPT_URL || 'https://pos.teletime.ca/receipt';
 
     // SES client for email
-    this.sesClient = new SESv2Client({
+    const sesConfig = {
       region: process.env.AWS_REGION || 'us-east-1',
-      credentials: {
-        accessKeyId: process.env.AWS_ACCESS_KEY_ID,
-        secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY
-      },
       requestHandler: {
         requestTimeout: 10_000, // 10 second timeout for SES API calls
       },
-    });
+    };
+    if (process.env.AWS_ACCESS_KEY_ID && process.env.AWS_SECRET_ACCESS_KEY) {
+      sesConfig.credentials = {
+        accessKeyId: process.env.AWS_ACCESS_KEY_ID,
+        secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY,
+      };
+    }
+    this.sesClient = new SESv2Client(sesConfig);
 
     this.fromEmail = config.fromEmail || process.env.EMAIL_FROM || 'receipts@teletime.ca';
 
@@ -1912,6 +1915,336 @@ class ReceiptService {
     return Buffer.from(text, 'binary');
   }
 
+  async getReturnReceiptData(returnId) {
+    const returnResult = await this.pool.query(
+      `
+      SELECT
+        r.*,
+        t.transaction_number AS original_transaction_number,
+        t.created_at AS original_transaction_date,
+        c.name AS customer_name,
+        c.email AS customer_email,
+        c.phone AS customer_phone,
+        u.first_name || ' ' || u.last_name AS processed_by_name
+      FROM pos_returns r
+      JOIN transactions t ON r.original_transaction_id = t.transaction_id
+      LEFT JOIN customers c ON t.customer_id = c.id
+      LEFT JOIN users u ON r.processed_by = u.id
+      WHERE r.id = $1
+      `,
+      [returnId]
+    );
+
+    if (returnResult.rows.length === 0) {
+      throw new Error(`Return ${returnId} not found`);
+    }
+
+    const returnRecord = returnResult.rows[0];
+    const itemsResult = await this.pool.query(
+      `
+      SELECT
+        ri.id,
+        ri.quantity,
+        ri.condition,
+        ri.reason_notes,
+        rrc.code AS reason_code,
+        rrc.description AS reason_description,
+        ti.product_name,
+        ti.product_sku,
+        ti.unit_price,
+        ti.discount_amount,
+        ti.quantity AS original_quantity
+      FROM return_items ri
+      JOIN transaction_items ti ON ri.transaction_item_id = ti.item_id
+      LEFT JOIN return_reason_codes rrc ON ri.reason_code_id = rrc.id
+      WHERE ri.return_id = $1
+      ORDER BY ri.id
+      `,
+      [returnId]
+    );
+    const allocationsResult = await this.pool.query(
+      `
+      SELECT
+        rpa.id,
+        rpa.refund_amount_cents,
+        rpa.refund_method,
+        rpa.moneris_refund_id,
+        p.card_brand,
+        p.card_last_four
+      FROM return_payment_allocations rpa
+      LEFT JOIN payments p ON rpa.original_payment_id = p.payment_id
+      WHERE rpa.return_id = $1
+      ORDER BY rpa.id
+      `,
+      [returnId]
+    );
+    const storeCreditResult = await this.pool.query(
+      `
+      SELECT id, code, current_balance, original_amount
+      FROM store_credits
+      WHERE source_type = 'return' AND source_id = $1
+      ORDER BY id DESC
+      LIMIT 1
+      `,
+      [returnId]
+    );
+
+    const items = itemsResult.rows.map((item) => {
+      const discountPerUnit = item.original_quantity > 0
+        ? Number(item.discount_amount || 0) / Number(item.original_quantity)
+        : 0;
+      return {
+        id: item.id,
+        name: item.product_name,
+        sku: item.product_sku,
+        quantity: Number(item.quantity),
+        unitPrice: Number(item.unit_price),
+        subtotal: (Number(item.unit_price) * Number(item.quantity)) - (discountPerUnit * Number(item.quantity)),
+        condition: item.condition,
+        reasonCode: item.reason_code,
+        reasonDescription: item.reason_description,
+        reasonNotes: item.reason_notes,
+      };
+    });
+
+    return {
+      company: {
+        name: this.companyName,
+        address: this.companyAddress,
+        city: this.companyCity,
+        phone: this.companyPhone,
+        email: this.companyEmail,
+        website: this.companyWebsite,
+        taxNumber: this.taxNumber,
+      },
+      return: {
+        id: returnRecord.id,
+        number: returnRecord.return_number,
+        date: returnRecord.updated_at || returnRecord.created_at,
+        status: returnRecord.status,
+        type: returnRecord.return_type,
+        originalTransactionId: returnRecord.original_transaction_id,
+        originalTransactionNumber: returnRecord.original_transaction_number,
+        originalTransactionDate: returnRecord.original_transaction_date,
+        processedBy: returnRecord.processed_by_name,
+        customer: returnRecord.customer_name,
+        customerEmail: returnRecord.customer_email,
+        customerPhone: returnRecord.customer_phone,
+        refundMethod: returnRecord.refund_method,
+        monerisRefundId: returnRecord.moneris_refund_id,
+      },
+      items,
+      totals: {
+        subtotal: Number(returnRecord.refund_subtotal || 0) / 100,
+        tax: Number(returnRecord.refund_tax || 0) / 100,
+        restockingFee: Number(returnRecord.restocking_fee || 0) / 100,
+        total: Number(returnRecord.refund_total || 0) / 100,
+      },
+      allocations: allocationsResult.rows.map((allocation) => ({
+        id: allocation.id,
+        amount: Number(allocation.refund_amount_cents) / 100,
+        method: allocation.refund_method,
+        cardBrand: allocation.card_brand,
+        cardLastFour: allocation.card_last_four,
+        monerisRefundId: allocation.moneris_refund_id,
+      })),
+      storeCredit: storeCreditResult.rows[0]
+        ? {
+            id: storeCreditResult.rows[0].id,
+            code: storeCreditResult.rows[0].code,
+            balance: Number(storeCreditResult.rows[0].current_balance) / 100,
+            originalAmount: Number(storeCreditResult.rows[0].original_amount) / 100,
+          }
+        : null,
+    };
+  }
+
+  async generateReturnReceiptPdf(returnId) {
+    const data = await this.getReturnReceiptData(returnId);
+    const { company, return: returnInfo, items, totals, allocations, storeCredit } = data;
+
+    return new Promise((resolve, reject) => {
+      const doc = new PDFDocument({ size: 'LETTER', margin: 50 });
+      const chunks = [];
+      doc.on('data', (chunk) => chunks.push(chunk));
+      doc.on('end', () => resolve(Buffer.concat(chunks)));
+      doc.on('error', reject);
+
+      doc.rect(0, 0, 612, 4).fill(COLORS.error);
+      doc.fontSize(22).font('Helvetica-Bold').fillColor(COLORS.primary).text(company.name, 50, 20);
+      doc.fontSize(9).font('Helvetica').fillColor(COLORS.textMuted);
+      let headerY = 46;
+      [company.address, company.city, company.phone ? `Tel: ${company.phone}` : '', company.email].filter(Boolean).forEach((line) => {
+        doc.text(line, 50, headerY);
+        headerY += 11;
+      });
+
+      doc.roundedRect(405, 12, 157, 86, 4).fillAndStroke(COLORS.bgLight, COLORS.border);
+      doc.fontSize(10).font('Helvetica-Bold').fillColor(COLORS.error).text('REFUND RECEIPT', 410, 18, { width: 145, align: 'center' });
+      doc.fontSize(14).font('Helvetica-Bold').fillColor(COLORS.text).text(returnInfo.number, 410, 34, { width: 145, align: 'center' });
+      doc.fontSize(8).font('Helvetica').fillColor(COLORS.textMuted).text(this.formatDate(returnInfo.date), 410, 52, { width: 145, align: 'center' });
+      doc.text(`Original Sale: ${returnInfo.originalTransactionNumber}`, 410, 66, { width: 145, align: 'center' });
+      if (returnInfo.processedBy) {
+        doc.text(`Processed By: ${returnInfo.processedBy}`, 410, 78, { width: 145, align: 'center' });
+      }
+
+      let y = 118;
+      if (returnInfo.customer) {
+        doc.roundedRect(50, y, 340, 52, 4).fillAndStroke(COLORS.bgMuted, COLORS.border);
+        doc.fontSize(8).font('Helvetica-Bold').fillColor(COLORS.primaryLight).text('REFUNDED TO', 60, y + 8);
+        doc.fontSize(10).font('Helvetica-Bold').fillColor(COLORS.text).text(returnInfo.customer, 60, y + 24);
+        if (returnInfo.customerEmail) {
+          doc.fontSize(9).font('Helvetica').fillColor(COLORS.textMuted).text(returnInfo.customerEmail, 60, y + 36);
+        }
+      }
+      y += 70;
+
+      doc.rect(50, y, 512, 22).fill(COLORS.error);
+      doc.fontSize(8).font('Helvetica-Bold').fillColor('white');
+      doc.text('ITEM', 58, y + 7);
+      doc.text('QTY', 330, y + 7, { width: 40, align: 'center' });
+      doc.text('UNIT', 380, y + 7, { width: 70, align: 'right' });
+      doc.text('AMOUNT', 460, y + 7, { width: 92, align: 'right' });
+      y += 22;
+
+      items.forEach((item, index) => {
+        if (index % 2 === 0) {
+          doc.rect(50, y, 512, 30).fill(COLORS.bgLight);
+        }
+        doc.fontSize(9).font('Helvetica-Bold').fillColor(COLORS.text).text(item.name, 58, y + 6, { width: 250 });
+        if (item.sku) {
+          doc.fontSize(7).font('Helvetica').fillColor(COLORS.textMuted).text(item.sku, 58, y + 17);
+        }
+        doc.fontSize(9).font('Helvetica').fillColor(COLORS.text).text(String(item.quantity), 330, y + 9, { width: 40, align: 'center' });
+        doc.text(this.formatCurrency(item.unitPrice), 380, y + 9, { width: 70, align: 'right' });
+        doc.font('Helvetica-Bold').text(this.formatCurrency(item.subtotal), 460, y + 9, { width: 92, align: 'right' });
+        y += 30;
+        const notes = [item.reasonDescription, item.reasonNotes].filter(Boolean).join(' | ');
+        if (notes) {
+          doc.fontSize(7).font('Helvetica').fillColor(COLORS.textMuted).text(`Reason: ${notes}`, 70, y - 4, { width: 420 });
+        }
+      });
+
+      y += 12;
+      doc.roundedRect(320, y, 242, 110, 4).fillAndStroke(COLORS.bgMuted, COLORS.border);
+      doc.fontSize(9).font('Helvetica').fillColor(COLORS.textSecondary);
+      doc.text('Refund Subtotal', 335, y + 16);
+      doc.text(this.formatCurrency(totals.subtotal), 470, y + 16, { width: 75, align: 'right' });
+      doc.text('Refund Tax', 335, y + 34);
+      doc.text(this.formatCurrency(totals.tax), 470, y + 34, { width: 75, align: 'right' });
+      if (totals.restockingFee > 0) {
+        doc.text('Restocking Fee', 335, y + 52);
+        doc.fillColor(COLORS.error).text(`-${this.formatCurrency(totals.restockingFee)}`, 470, y + 52, { width: 75, align: 'right' });
+      }
+      doc.fillColor(COLORS.error);
+      doc.roundedRect(335, y + 72, 210, 26, 4).fill(COLORS.error);
+      doc.fontSize(11).font('Helvetica-Bold').fillColor('white').text('TOTAL REFUND', 345, y + 80);
+      doc.text(this.formatCurrency(totals.total), 450, y + 80, { width: 85, align: 'right' });
+      y += 130;
+
+      doc.fontSize(12).font('Helvetica-Bold').fillColor(COLORS.text).text('Refund Allocations', 50, y);
+      y += 16;
+      allocations.forEach((allocation) => {
+        let label = allocation.method.replace(/_/g, ' ');
+        if (allocation.cardBrand && allocation.cardLastFour) {
+          label = `${allocation.cardBrand} ****${allocation.cardLastFour}`;
+        }
+        doc.fontSize(9).font('Helvetica').fillColor(COLORS.textSecondary).text(label, 60, y);
+        doc.font('Helvetica-Bold').fillColor(COLORS.text).text(this.formatCurrency(allocation.amount), 430, y, { width: 110, align: 'right' });
+        y += 16;
+      });
+
+      if (storeCredit) {
+        y += 8;
+        doc.roundedRect(50, y, 512, 52, 4).fillAndStroke('#ecfdf5', '#a7f3d0');
+        doc.fontSize(10).font('Helvetica-Bold').fillColor('#065f46').text('Store Credit Issued', 62, y + 10);
+        doc.fontSize(9).font('Helvetica').text(`Code: ${storeCredit.code}`, 62, y + 26);
+        doc.font('Helvetica-Bold').text(this.formatCurrency(storeCredit.originalAmount), 450, y + 18, { width: 90, align: 'right' });
+      }
+
+      doc.fontSize(9).font('Helvetica').fillColor(COLORS.textMuted).text(
+        `Refund method: ${(returnInfo.refundMethod || '').replace(/_/g, ' ')}${returnInfo.monerisRefundId ? ` | Moneris Refund: ${returnInfo.monerisRefundId}` : ''}`,
+        50,
+        705,
+        { width: 512, align: 'center' }
+      );
+      doc.text(`Original transaction: ${returnInfo.originalTransactionNumber} on ${this.formatDate(returnInfo.originalTransactionDate)}`, 50, 720, { width: 512, align: 'center' });
+      doc.text(`Questions? ${[company.phone, company.email].filter(Boolean).join(' | ')}`, 50, 735, { width: 512, align: 'center' });
+      doc.end();
+    });
+  }
+
+  async emailReturnReceipt(returnId, email) {
+    if (!email) {
+      throw new Error('Email address is required');
+    }
+
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) {
+      throw new Error('Invalid email address');
+    }
+
+    const data = await this.getReturnReceiptData(returnId);
+    const pdfBuffer = await this.generateReturnReceiptPdf(returnId);
+    const { return: returnInfo, items, totals, allocations, storeCredit } = data;
+
+    const itemsHtml = items.map((item) => `
+      <tr>
+        <td style="padding: 10px 8px; border-bottom: 1px solid #e5e7eb;">
+          <strong>${item.name}</strong>
+          ${item.sku ? `<br><small style="color: #6b7280;">${item.sku}</small>` : ''}
+          ${item.reasonDescription ? `<br><small style="color: #6b7280;">Reason: ${item.reasonDescription}</small>` : ''}
+        </td>
+        <td style="padding: 10px 8px; text-align: center; border-bottom: 1px solid #e5e7eb;">${item.quantity}</td>
+        <td style="padding: 10px 8px; text-align: right; border-bottom: 1px solid #e5e7eb;">${this.formatCurrency(item.subtotal)}</td>
+      </tr>
+    `).join('');
+
+    const allocationsHtml = allocations.map((allocation) => {
+      const label = allocation.cardBrand && allocation.cardLastFour
+        ? `${allocation.cardBrand} ****${allocation.cardLastFour}`
+        : allocation.method.replace(/_/g, ' ').toUpperCase();
+      return `<tr><td style="padding: 6px 0; color: #6b7280;">${label}</td><td style="padding: 6px 0; text-align: right; font-weight: 600; color: #1f2937;">${this.formatCurrency(allocation.amount)}</td></tr>`;
+    }).join('');
+
+    const emailHtml = `<!DOCTYPE html><html><body style="margin:0;padding:0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;background:#f3f4f6;"><div style="background:#dc2626;height:4px;"></div><div style="max-width:600px;margin:0 auto;background:#ffffff;"><div style="padding:30px;border-bottom:1px solid #e5e7eb;"><table width="100%" cellpadding="0" cellspacing="0"><tr><td><h1 style="margin:0;font-size:24px;color:#1e40af;">${this.companyName}</h1><p style="margin:6px 0 0;color:#6b7280;font-size:14px;">Your refund has been processed.</p></td><td style="text-align:right;"><div style="background:#fef2f2;border:1px solid #fecaca;border-radius:8px;padding:14px;display:inline-block;"><p style="margin:0 0 4px;font-size:11px;color:#dc2626;font-weight:600;">REFUND RECEIPT</p><p style="margin:0;font-size:16px;font-weight:700;color:#1f2937;">${returnInfo.number}</p><p style="margin:4px 0 0;font-size:12px;color:#6b7280;">${this.formatDate(returnInfo.date)}</p></div></td></tr></table></div><div style="padding:30px;"><p style="margin:0 0 12px;color:#374151;">Original sale: <strong>${returnInfo.originalTransactionNumber}</strong></p><table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:24px;"><thead><tr style="background:#dc2626;color:#ffffff;"><th style="padding:10px 8px;text-align:left;">ITEM</th><th style="padding:10px 8px;text-align:center;">QTY</th><th style="padding:10px 8px;text-align:right;">REFUND</th></tr></thead><tbody>${itemsHtml}</tbody></table><table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:24px;background:#fafafa;border:1px solid #e5e7eb;border-radius:8px;padding:14px;"><tr><td style="padding:6px 0;color:#6b7280;">Refund Subtotal</td><td style="text-align:right;">${this.formatCurrency(totals.subtotal)}</td></tr><tr><td style="padding:6px 0;color:#6b7280;">Refund Tax</td><td style="text-align:right;">${this.formatCurrency(totals.tax)}</td></tr>${totals.restockingFee > 0 ? `<tr><td style="padding:6px 0;color:#6b7280;">Restocking Fee</td><td style="text-align:right;color:#dc2626;">-${this.formatCurrency(totals.restockingFee)}</td></tr>` : ''}<tr><td style="padding:10px 0 0;font-weight:700;color:#1f2937;">Total Refund</td><td style="padding:10px 0 0;text-align:right;font-size:18px;font-weight:700;color:#dc2626;">${this.formatCurrency(totals.total)}</td></tr></table><div style="background:#f8fafc;border:1px solid #e5e7eb;border-radius:8px;padding:15px;margin-bottom:24px;"><p style="margin:0 0 10px;font-size:12px;font-weight:600;color:#1f2937;">REFUND ALLOCATIONS</p><table width="100%" cellpadding="0" cellspacing="0">${allocationsHtml}</table></div>${storeCredit ? `<div style="background:#ecfdf5;border:1px solid #a7f3d0;border-radius:8px;padding:15px;"><p style="margin:0 0 6px;font-size:12px;font-weight:600;color:#065f46;">STORE CREDIT ISSUED</p><p style="margin:0;color:#1f2937;">Code: <strong>${storeCredit.code}</strong></p><p style="margin:6px 0 0;color:#065f46;font-weight:600;">${this.formatCurrency(storeCredit.originalAmount)}</p></div>` : ''}</div></div></body></html>`;
+
+    const pdfBase64 = pdfBuffer.toString('base64');
+    const boundary = `----=_Part_${Date.now()}_${Math.random().toString(36).substr(2)}`;
+    const filename = `Refund-${returnInfo.number}.pdf`;
+    const rawEmail = [
+      `From: ${this.companyName} <${this.fromEmail}>`,
+      `To: ${email}`,
+      `Subject: Your Refund Receipt from ${this.companyName} - ${returnInfo.number}`,
+      'MIME-Version: 1.0',
+      `Content-Type: multipart/mixed; boundary="${boundary}"`,
+      '',
+      `--${boundary}`,
+      'Content-Type: text/html; charset=UTF-8',
+      'Content-Transfer-Encoding: 7bit',
+      '',
+      emailHtml,
+      '',
+      `--${boundary}`,
+      `Content-Type: application/pdf; name="${filename}"`,
+      'Content-Transfer-Encoding: base64',
+      `Content-Disposition: attachment; filename="${filename}"`,
+      '',
+      pdfBase64,
+      '',
+      `--${boundary}--`,
+    ].join('\r\n');
+
+    const command = new SendEmailCommand({
+      FromEmailAddress: this.fromEmail,
+      Destination: { ToAddresses: [email] },
+      Content: { Raw: { Data: Buffer.from(rawEmail) } },
+    });
+
+    const result = await this.sesClient.send(command);
+    return { success: true, messageId: result.MessageId, email, returnNumber: returnInfo.number };
+  }
+
   /**
    * Email receipt with professional HTML template
    * @param {number} transactionId - Transaction ID
@@ -2405,6 +2738,37 @@ class ReceiptService {
    */
   async getReceiptData(transactionId) {
     const data = await this.getTransactionForReceipt(transactionId);
+    const instantRebates = (data.rebates?.applied || []).map((rebate) => ({
+      rebateId: rebate.id,
+      productId: rebate.productId,
+      rebateName: rebate.name,
+      manufacturer: rebate.manufacturer,
+      rebateType: rebate.type,
+      amount: rebate.amount,
+      unitAmount: rebate.amount,
+      quantity: 1,
+      productName: rebate.productName,
+    }));
+    const pendingRebates = data.rebates?.pending || [];
+    const mapPendingRebate = (rebate) => ({
+      rebateId: rebate.claimId,
+      rebateName: rebate.name,
+      name: rebate.name,
+      manufacturer: rebate.manufacturer,
+      rebateType: rebate.type,
+      amount: rebate.amount,
+      submissionUrl: rebate.submissionUrl,
+      termsUrl: rebate.termsUrl,
+      requiresUpc: rebate.requiresUpc,
+      requiresReceipt: rebate.requiresReceipt,
+      deadline: rebate.deadline,
+      daysRemaining: rebate.deadline
+        ? Math.max(
+            0,
+            Math.ceil((new Date(rebate.deadline).getTime() - Date.now()) / (1000 * 60 * 60 * 24))
+          )
+        : null,
+    });
 
     // Map grouped items with warranties
     const groupedItems = (data.groupedItems || data.items).map(item => ({
@@ -2477,6 +2841,13 @@ class ReceiptService {
         cashTendered: p.cash_tendered ? parseFloat(p.cash_tendered) : null,
         changeGiven: p.change_given ? parseFloat(p.change_given) : null
       })),
+      rebates: {
+        instantRebates,
+        mailInRebates: pendingRebates.filter((rebate) => rebate.type === 'mail_in').map(mapPendingRebate),
+        onlineRebates: pendingRebates.filter((rebate) => rebate.type === 'online').map(mapPendingRebate),
+        totalInstantSavings: data.rebates?.totalApplied || 0,
+        totalMailInSavings: data.rebates?.totalPending || 0,
+      },
       tradeIns: data.tradeIns ? {
         items: data.tradeIns.tradeIns.map(ti => ({
           id: ti.id,
@@ -2485,10 +2856,15 @@ class ReceiptService {
           variant: ti.variant,
           category: ti.category,
           condition: ti.condition,
+          condition_name: ti.condition,
           conditionCode: ti.conditionCode,
+          condition_multiplier: ti.conditionMultiplier,
           serialNumber: ti.serialNumber,
+          serial_number: ti.serialNumber,
           imei: ti.imei,
-          creditAmount: ti.finalValue
+          creditAmount: ti.finalValue,
+          finalValue: ti.finalValue,
+          final_value: ti.finalValue
         })),
         totalCredit: data.tradeIns.totalCredit,
         count: data.tradeIns.count,

@@ -19,7 +19,6 @@ class DailyDigestJob {
    * Start the scheduled job
    */
   start() {
-    console.log(`[DailyDigest] Starting scheduler with schedule: ${this.schedule}`);
 
     cron.schedule(this.schedule, async () => {
       await this.run();
@@ -27,7 +26,6 @@ class DailyDigestJob {
       timezone: process.env.TIMEZONE || 'America/Toronto',
     });
 
-    console.log('[DailyDigest] Job scheduled');
   }
 
   /**
@@ -35,16 +33,13 @@ class DailyDigestJob {
    */
   async run() {
     if (this.isRunning) {
-      console.log('[DailyDigest] Job already running, skipping');
       return;
     }
 
     this.isRunning = true;
-    console.log('[DailyDigest] Starting digest job...');
 
     try {
       const reps = await this.getActiveReps();
-      console.log(`[DailyDigest] Found ${reps.length} active reps`);
 
       const results = { sent: 0, failed: 0, skipped: 0 };
 
@@ -73,7 +68,6 @@ class DailyDigestJob {
       }
 
       this.lastRun = new Date();
-      console.log('[DailyDigest] Job complete:', results);
       return results;
     } catch (error) {
       console.error('[DailyDigest] Job error:', error);
@@ -413,7 +407,6 @@ class DailyDigestJob {
         html,
       });
     } else {
-      console.log(`[DailyDigest] Would send email to ${rep.email}: ${subject}`);
     }
   }
 

@@ -9,7 +9,6 @@
  */
 
 import { useState, useCallback } from 'react';
-import { ShoppingCartIcon, ArchiveBoxIcon, TagIcon } from '@heroicons/react/24/outline';
 import { useCart } from '../../hooks/useCart';
 import { VolumeProvider, useVolumeContext } from '../../context/VolumeContext';
 import CartItemWithVolume from './CartItemWithVolume';
@@ -17,6 +16,7 @@ import CartTotalsWithVolume from './CartTotalsWithVolume';
 import CartActions from './CartActions';
 import CustomerBadge from './CustomerBadge';
 import HeldTransactions from './HeldTransactions';
+import { Archive, ShoppingCart, Tag } from 'lucide-react';
 
 /**
  * Empty cart state component
@@ -25,7 +25,7 @@ function EmptyCart() {
   return (
     <div className="flex-1 flex flex-col items-center justify-center p-6 text-center">
       <div className="w-20 h-20 bg-gray-100 rounded-full flex items-center justify-center mb-4">
-        <ShoppingCartIcon className="w-10 h-10 text-gray-400" />
+        <ShoppingCart className="w-10 h-10 text-gray-400" />
       </div>
       <h3 className="text-lg font-semibold text-gray-900 mb-2">Cart is Empty</h3>
       <p className="text-sm text-gray-500 max-w-xs">
@@ -54,7 +54,7 @@ function HeldCartsButton({ count, onClick }) {
         transition-colors duration-150
       "
     >
-      <ArchiveBoxIcon className="w-5 h-5" />
+      <Archive className="w-5 h-5" />
       <span>{count} Held</span>
     </button>
   );
@@ -63,12 +63,12 @@ function HeldCartsButton({ count, onClick }) {
 /**
  * Volume pricing indicator (shows when any item has volume discount)
  */
-function VolumePricingIndicator({ hasVolumeDiscount, totalSavings }) {
+function VolumePricingIndicator({ hasVolumeDiscount }) {
   if (!hasVolumeDiscount) return null;
 
   return (
     <div className="flex items-center gap-1 px-2 py-1 bg-green-100 text-green-700 text-xs font-medium rounded-full">
-      <TagIcon className="w-3 h-3" />
+      <Tag className="w-3 h-3" />
       <span>Volume Pricing Active</span>
     </div>
   );
@@ -136,10 +136,7 @@ function CartContent({
     if (onHold) {
       onHold();
     } else {
-      const result = cart.holdCart();
-      if (result.success) {
-        console.log('[CartWithVolume] Transaction held successfully');
-      }
+      cart.holdCart();
     }
   }, [cart, onHold]);
 
@@ -203,7 +200,7 @@ function CartContent({
       {/* Header */}
       <div className="flex items-center justify-between p-4 border-b border-gray-200">
         <div className="flex items-center gap-2">
-          <ShoppingCartIcon className="w-6 h-6 text-gray-700" />
+          <ShoppingCart className="w-6 h-6 text-gray-700" />
           <h2 className="text-lg font-bold text-gray-900">Cart</h2>
           {cart.itemCount > 0 && (
             <span className="px-2 py-0.5 bg-blue-100 text-blue-700 text-sm font-semibold rounded-full">
@@ -215,7 +212,6 @@ function CartContent({
         <div className="flex items-center gap-2">
           <VolumePricingIndicator
             hasVolumeDiscount={volumeContext.hasAnyVolumeDiscount}
-            totalSavings={volumeContext.totalVolumeSavings}
           />
           <HeldCartsButton
             count={cart.heldCarts?.length || 0}

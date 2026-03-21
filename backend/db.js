@@ -34,15 +34,20 @@ function resolveSslConfig() {
     return false;
   }
 
+  // SECURITY: Production ALWAYS requires verified SSL certificates to prevent
+  // MITM attacks. DB_SSL_REJECT_UNAUTHORIZED=false is only honored in dev/test.
+  if (process.env.NODE_ENV === 'production') {
+    return { rejectUnauthorized: true };
+  }
+
+  // Dev/test: honor the env var for local development with self-signed certs
   if (sslMode === 'require' || sslFlag === 'true' || sslFlag === '1') {
     const rejectUnauthorized = (process.env.DB_SSL_REJECT_UNAUTHORIZED || '').toLowerCase() !== 'false';
     return { rejectUnauthorized };
   }
 
-  // Default: production requires verified SSL, non-prod allows self-signed
-  return process.env.NODE_ENV === 'production'
-    ? { rejectUnauthorized: true }
-    : { rejectUnauthorized: false };
+  // Default for non-production: allow self-signed certs
+  return { rejectUnauthorized: false };
 }
 
 // ── Shared pool config ──

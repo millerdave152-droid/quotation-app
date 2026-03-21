@@ -581,7 +581,6 @@ class RecommendationService {
 
     try {
       // Step 1: Update individual product purchase counts
-      console.log('[RecommendationService] Updating product purchase counts...');
 
       await this.pool.query(`
         UPDATE purchase_patterns pp
@@ -592,7 +591,7 @@ class RecommendationService {
             JOIN transactions t ON ti.transaction_id = t.transaction_id
             WHERE ti.product_id = pp.product_a_id
               AND t.status = 'completed'
-              AND t.created_at >= NOW() - INTERVAL '${this.config.maxHistoryDays} days'
+              AND t.created_at >= NOW() - ($1 * INTERVAL '1 day')
           ), 0),
           product_b_purchase_count = COALESCE((
             SELECT COUNT(DISTINCT transaction_id)
@@ -600,13 +599,12 @@ class RecommendationService {
             JOIN transactions t ON ti.transaction_id = t.transaction_id
             WHERE ti.product_id = pp.product_b_id
               AND t.status = 'completed'
-              AND t.created_at >= NOW() - INTERVAL '${this.config.maxHistoryDays} days'
+              AND t.created_at >= NOW() - ($1 * INTERVAL '1 day')
           ), 0),
           last_updated = NOW()
-      `);
+      `, [this.config.maxHistoryDays]);
 
       // Step 2: Calculate confidence scores with recency weighting
-      console.log('[RecommendationService] Calculating confidence scores...');
 
       await this.pool.query(`
         UPDATE purchase_patterns
@@ -627,14 +625,13 @@ class RecommendationService {
             THEN (co_purchase_count::DECIMAL * (
               SELECT COUNT(DISTINCT transaction_id) FROM transactions
               WHERE status = 'completed'
-              AND created_at >= NOW() - INTERVAL '${this.config.maxHistoryDays} days'
+              AND created_at >= NOW() - ($1 * INTERVAL '1 day')
             )) / (product_a_purchase_count::DECIMAL * product_b_purchase_count)
             ELSE 1.0
           END
-      `);
+      `, [this.config.maxHistoryDays]);
 
       // Step 3: Generate/update bought_together relationships
-      console.log('[RecommendationService] Generating bought_together relationships...');
 
       // A -> B direction
       const resultAB = await this.pool.query(
@@ -699,7 +696,6 @@ class RecommendationService {
       );
 
       // Step 4: Deactivate stale auto-generated relationships
-      console.log('[RecommendationService] Cleaning up stale relationships...');
 
       const staleResult = await this.pool.query(`
         UPDATE product_relationships
@@ -710,7 +706,6 @@ class RecommendationService {
       `);
 
       // Step 5: Clear all recommendation caches
-      console.log('[RecommendationService] Clearing caches...');
       await this.cacheInvalidate('rec:*');
 
       const duration = Date.now() - startTime;
@@ -728,7 +723,6 @@ class RecommendationService {
         completedAt: new Date().toISOString(),
       };
 
-      console.log('[RecommendationService] Refresh complete:', summary);
       return summary;
     } catch (error) {
       console.error('[RecommendationService] refreshRecommendations error:', error);

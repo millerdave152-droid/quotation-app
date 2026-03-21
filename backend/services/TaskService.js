@@ -330,13 +330,13 @@ class TaskService {
       LEFT JOIN customers c ON t.related_type = 'customer' AND t.related_id = c.id
       WHERE t.status NOT IN ('completed', 'cancelled')
         AND t.due_date > CURRENT_DATE
-        AND t.due_date <= CURRENT_DATE + INTERVAL '${days} days'
+        AND t.due_date <= CURRENT_DATE + ($1 * INTERVAL '1 day')
     `;
 
-    const params = [];
+    const params = [days];
     if (assignedTo) {
       params.push(assignedTo);
-      query += ' AND t.assigned_to = $1';
+      query += ' AND t.assigned_to = $2';
     }
 
     query += ' ORDER BY t.due_date ASC, t.due_time ASC NULLS LAST';

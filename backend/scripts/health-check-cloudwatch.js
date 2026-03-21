@@ -13,12 +13,14 @@
  *   HEALTH_URL            – default http://localhost:3001/health
  *   CW_NAMESPACE          – default Custom/QuotationApp
  *   AWS_REGION            – default us-east-1
+ *   CW_INSTANCE_ID        – EC2 instance ID (e.g. i-0abc123def456). Set after launch.
  *   HEALTH_CHECK_INTERVAL – seconds between polls when running in loop mode (0 = one-shot, default)
  */
 
 const HEALTH_URL = process.env.HEALTH_URL || 'http://localhost:3001/health';
 const CW_NAMESPACE = process.env.CW_NAMESPACE || 'Custom/QuotationApp';
 const AWS_REGION = process.env.AWS_REGION || 'us-east-1';
+const INSTANCE_ID = process.env.CW_INSTANCE_ID || null;
 const INTERVAL = parseInt(process.env.HEALTH_CHECK_INTERVAL, 10) || 0;
 
 let cwClient;
@@ -37,10 +39,13 @@ async function getCloudWatchClient() {
 
 async function publishMetrics(healthStatus, dbLatencyMs) {
   const timestamp = new Date();
+  const dimensions = INSTANCE_ID
+    ? [{ Name: 'InstanceId', Value: INSTANCE_ID }]
+    : [];
 
   const metricData = [
-    { MetricName: 'HealthStatus', Value: healthStatus, Unit: 'None', Timestamp: timestamp },
-    ...(dbLatencyMs != null ? [{ MetricName: 'DBLatencyMs', Value: dbLatencyMs, Unit: 'Milliseconds', Timestamp: timestamp }] : []),
+    { MetricName: 'HealthStatus', Value: healthStatus, Unit: 'None', Timestamp: timestamp, Dimensions: dimensions },
+    ...(dbLatencyMs != null ? [{ MetricName: 'DBLatencyMs', Value: dbLatencyMs, Unit: 'Milliseconds', Timestamp: timestamp, Dimensions: dimensions }] : []),
   ];
 
   const client = await getCloudWatchClient();

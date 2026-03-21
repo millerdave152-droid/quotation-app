@@ -4,8 +4,8 @@
  */
 
 import { useMemo } from 'react';
-import { BanknotesIcon } from '@heroicons/react/24/outline';
 import { formatCurrency } from '../../utils/formatters';
+import { Banknote } from 'lucide-react';
 
 /**
  * Canadian currency denominations
@@ -199,7 +199,7 @@ export function DenominationCounter({
       <div className="p-4 bg-gray-50 border-b border-gray-200">
         <div className="flex items-center justify-between">
           <h3 className="font-semibold text-gray-700 flex items-center gap-2">
-            <BanknotesIcon className="w-5 h-5" />
+            <Banknote className="w-5 h-5" />
             Bills
           </h3>
           <span className="text-sm font-medium text-gray-500">

@@ -12,7 +12,7 @@ import {
   XAxis, YAxis, CartesianGrid, Tooltip, Legend
 } from 'recharts';
 
-const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:3001';
+const API_URL = process.env.REACT_APP_API_URL || '';
 
 const formatCurrency = (val) => {
   const num = parseFloat(val) || 0;
@@ -64,7 +64,7 @@ const TABS = [
 // ============================================================================
 
 export default function DiscountAnalyticsDashboard() {
-  const { user } = useAuth();
+  useAuth();
   const [activeTab, setActiveTab] = useState('summary');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);

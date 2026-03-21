@@ -37,6 +37,8 @@ const listingHealthMonitor = require('../services/ListingHealthMonitor');
 const returnsManager = require('../services/ReturnsManager');
 const messagingHub = require('../services/MessagingHub');
 const reportGenerator = require('../services/ReportGenerator');
+const EmailService = require('../services/EmailService');
+const emailService = new EmailService();
 
 const PREFIX = '[MarketplaceJobs]';
 
@@ -85,7 +87,6 @@ async function jobOrderPoll() {
 
     if (manager && manager.getAllAdapters().length > 0) {
       // Multi-channel path
-      console.log(`${PREFIX} Polling orders from ${manager.getAllAdapters().length} active channel(s)...`);
       const results = await manager.pollAllOrders();
 
       let totalNew = 0, totalUpdated = 0, totalPolled = 0, totalErrors = 0;
@@ -101,10 +102,6 @@ async function jobOrderPoll() {
           totalUpdated += r.updatedOrders || 0;
           totalPolled += r.totalPolled || 0;
           totalErrors += r.errors?.length || 0;
-          console.log(
-            `${PREFIX}   ${r.channelCode}: ${r.newOrders} new, ${r.updatedOrders} updated, ${r.totalPolled} total` +
-            (r.errors?.length ? ` (${r.errors.length} errors)` : '')
-          );
           perChannel.push({
             channel: r.channelCode,
             status: 'success',
@@ -125,12 +122,8 @@ async function jobOrderPoll() {
         durationMs: Date.now() - startTime,
       };
 
-      console.log(
-        `${PREFIX} Order poll complete: ${totalNew} new, ${totalUpdated} updated across ${results.length} channel(s)`
-      );
     } else {
       // Legacy single-channel path (Best Buy via miraklService)
-      console.log(`${PREFIX} Polling orders from Mirakl (legacy)...`);
       const result = await miraklService.pollOrders();
 
       jobs.orders.lastResult = {
@@ -142,10 +135,6 @@ async function jobOrderPoll() {
         durationMs: Date.now() - startTime,
       };
 
-      console.log(
-        `${PREFIX} Order poll complete: ${result.newOrders} new, ${result.updatedOrders} updated, ${result.totalPolled} total` +
-        (result.errors?.length ? ` (${result.errors.length} errors)` : '')
-      );
     }
   } catch (err) {
     console.error(`${PREFIX} Order poll FAILED:`, err.message);
@@ -195,7 +184,6 @@ async function jobInventorySync() {
       `);
 
       if (pendingByChannel.rows.length === 0 || pendingByChannel.rows.every(r => parseInt(r.cnt) === 0)) {
-        console.log(`${PREFIX} No pending inventory changes, skipping`);
         jobs.inventory.lastResult = { status: 'skipped', reason: 'queue_empty', durationMs: Date.now() - startTime };
         return;
       }
@@ -210,12 +198,10 @@ async function jobInventorySync() {
 
         try {
           const adapter = manager.getAdapter(channelId);
-          console.log(`${PREFIX}   ${adapter.channelCode}: processing ${count} queued changes...`);
           const result = await adapter.processInventoryBatch();
           const processed = result.submitted || result.processed || 0;
           totalProcessed += processed;
           perChannel.push({ channel: adapter.channelCode, channelId, processed, importId: result.importId });
-          console.log(`${PREFIX}   ${adapter.channelCode}: pushed ${processed} stock updates`);
         } catch (err) {
           console.error(`${PREFIX}   Channel ${channelId}: inventory sync failed — ${err.message}`);
           perChannel.push({ channelId, error: err.message });
@@ -229,7 +215,6 @@ async function jobInventorySync() {
         durationMs: Date.now() - startTime,
       };
 
-      console.log(`${PREFIX} Inventory batch sync complete: ${totalProcessed} products across ${perChannel.length} channel(s)`);
     } else {
       // Legacy single-channel path
       const pendingResult = await pool.query(
@@ -238,12 +223,10 @@ async function jobInventorySync() {
       const pendingCount = parseInt(pendingResult.rows[0].cnt) || 0;
 
       if (pendingCount === 0) {
-        console.log(`${PREFIX} No pending inventory changes, skipping`);
         jobs.inventory.lastResult = { status: 'skipped', reason: 'queue_empty', durationMs: Date.now() - startTime };
         return;
       }
 
-      console.log(`${PREFIX} Processing ${pendingCount} pending inventory changes (legacy)...`);
       const result = await miraklService.processInventoryBatch();
 
       jobs.inventory.lastResult = {
@@ -266,7 +249,6 @@ async function jobInventorySync() {
         console.error(`${PREFIX} Failed to log inventory sync:`, logErr.message);
       }
 
-      console.log(`${PREFIX} Inventory batch sync complete: ${result.processed} products pushed`);
     }
   } catch (err) {
     console.error(`${PREFIX} Inventory batch sync FAILED:`, err.message);
@@ -315,7 +297,6 @@ async function jobImportStatusCheck() {
       return;
     }
 
-    console.log(`${PREFIX} Checking ${pendingImports.rows.length} pending imports...`);
 
     const manager = await tryGetManager();
     let checked = 0;
@@ -343,9 +324,7 @@ async function jobImportStatusCheck() {
 
         if (result.status === 'COMPLETE' || result.status === 'COMPLETED') {
           completed++;
-          console.log(`${PREFIX}   Import ${imp.mirakl_import_id} (${imp.import_type}): COMPLETE`);
         } else {
-          console.log(`${PREFIX}   Import ${imp.mirakl_import_id} (${imp.import_type}): ${result.status}`);
         }
       } catch (err) {
         errors++;
@@ -361,7 +340,6 @@ async function jobImportStatusCheck() {
       durationMs: Date.now() - startTime,
     };
 
-    console.log(`${PREFIX} Import status check done: ${checked} checked, ${completed} completed, ${errors} errors`);
   } catch (err) {
     console.error(`${PREFIX} Import status check FAILED:`, err.message);
     jobs.imports.lastResult = { status: 'failed', error: err.message, durationMs: Date.now() - startTime };
@@ -428,7 +406,6 @@ async function jobAcceptanceMonitor() {
     };
 
     if (critical > 0 || warning > 0) {
-      console.log(`${PREFIX} Acceptance monitor: ${orders.length} waiting, ${critical} critical, ${warning} warning`);
     }
   } catch (err) {
     console.error(`${PREFIX} Acceptance monitor FAILED:`, err.message);
@@ -457,12 +434,10 @@ async function jobHealthScan() {
     );
 
     if (channels.length === 0) {
-      console.log(`${PREFIX} No active channels for health scan, skipping`);
       jobs.healthScan.lastResult = { status: 'skipped', reason: 'no_active_channels', durationMs: Date.now() - startTime };
       return;
     }
 
-    console.log(`${PREFIX} Running listing health scan across ${channels.length} channel(s)...`);
 
     let totalIssues = 0;
     let totalFixed = 0;
@@ -480,9 +455,6 @@ async function jobHealthScan() {
           issuesResolved: result.issuesResolved,
           scanned: result.scanned
         });
-        console.log(
-          `${PREFIX}   ${channel.channel_code}: scanned ${result.scanned} listings, ${result.issuesFound} issues found, ${result.issuesResolved} resolved`
-        );
       } catch (err) {
         console.error(`${PREFIX}   ${channel.channel_code}: health scan failed — ${err.message}`);
         perChannel.push({ channel: channel.channel_code, channelId: channel.id, error: err.message });
@@ -497,7 +469,6 @@ async function jobHealthScan() {
       durationMs: Date.now() - startTime,
     };
 
-    console.log(`${PREFIX} Health scan complete: ${totalIssues} issues found, ${totalFixed} resolved across ${channels.length} channel(s)`);
   } catch (err) {
     console.error(`${PREFIX} Health scan FAILED:`, err.message);
     jobs.healthScan.lastResult = { status: 'failed', error: err.message, durationMs: Date.now() - startTime };
@@ -522,13 +493,11 @@ async function jobReturnPoll() {
     const manager = await tryGetManager();
 
     if (!manager || manager.getAllAdapters().length === 0) {
-      console.log(`${PREFIX} No active channel adapters for return polling, skipping`);
       jobs.returns.lastResult = { status: 'skipped', reason: 'no_adapters', durationMs: Date.now() - startTime };
       return;
     }
 
     const adapters = manager.getAllAdapters();
-    console.log(`${PREFIX} Polling returns from ${adapters.length} active channel(s)...`);
 
     let totalNew = 0;
     let totalProcessed = 0;
@@ -564,9 +533,6 @@ async function jobReturnPoll() {
           processed: channelProcessed
         });
 
-        console.log(
-          `${PREFIX}   ${adapter.channelCode}: ${returns.length} polled, ${channelNew} new, ${channelProcessed} processed`
-        );
       } catch (err) {
         totalErrors++;
         console.error(`${PREFIX}   ${adapter.channelCode}: return poll failed — ${err.message}`);
@@ -583,9 +549,6 @@ async function jobReturnPoll() {
       durationMs: Date.now() - startTime,
     };
 
-    console.log(
-      `${PREFIX} Return poll complete: ${totalNew} new, ${totalProcessed} processed across ${adapters.length} channel(s)`
-    );
   } catch (err) {
     console.error(`${PREFIX} Return poll FAILED:`, err.message);
     jobs.returns.lastResult = { status: 'failed', error: err.message, durationMs: Date.now() - startTime };
@@ -610,13 +573,11 @@ async function jobMessagePoll() {
     const manager = await tryGetManager();
 
     if (!manager || manager.getAllAdapters().length === 0) {
-      console.log(`${PREFIX} No active channel adapters for message polling, skipping`);
       jobs.messages.lastResult = { status: 'skipped', reason: 'no_adapters', durationMs: Date.now() - startTime };
       return;
     }
 
     const adapters = manager.getAllAdapters();
-    console.log(`${PREFIX} Polling messages from ${adapters.length} active channel(s)...`);
 
     let totalNew = 0;
     let totalPolled = 0;
@@ -647,9 +608,6 @@ async function jobMessagePoll() {
       durationMs: Date.now() - startTime,
     };
 
-    console.log(
-      `${PREFIX} Message poll complete: ${totalNew} new messages, ${totalPolled} threads across ${adapters.length} channel(s)`
-    );
   } catch (err) {
     console.error(`${PREFIX} Message poll FAILED:`, err.message);
     jobs.messages.lastResult = { status: 'failed', error: err.message, durationMs: Date.now() - startTime };
@@ -687,17 +645,32 @@ async function jobDailySummary() {
       issues: report.issues,
     };
 
-    console.log(
-      `${PREFIX} Daily summary for ${report.date}: $${report.totals.gross_revenue} gross, ` +
-      `${report.totals.order_count} orders, ${report.byChannel.length} channels`
-    );
-
-    // TODO: Wire up email delivery here when email service is available
-    // await emailService.sendDailySummary(report);
+    // Send daily summary email to configured recipients
+    const summaryRecipients = (process.env.MARKETPLACE_SUMMARY_EMAILS || process.env.ADMIN_EMAIL || '').split(',').map(e => e.trim()).filter(Boolean);
+    if (summaryRecipients.length > 0) {
+      const subject = `Marketplace Daily Summary — ${report.date}`;
+      const html = `
+        <h2>Marketplace Daily Summary — ${report.date}</h2>
+        <table style="border-collapse:collapse;font-family:sans-serif;">
+          <tr><td style="padding:4px 12px;font-weight:bold;">Orders</td><td style="padding:4px 12px;">${summary.orders}</td></tr>
+          <tr><td style="padding:4px 12px;font-weight:bold;">Gross Revenue</td><td style="padding:4px 12px;">$${Number(summary.revenue || 0).toFixed(2)}</td></tr>
+          <tr><td style="padding:4px 12px;font-weight:bold;">Net Revenue</td><td style="padding:4px 12px;">$${Number(summary.netRevenue || 0).toFixed(2)}</td></tr>
+          <tr><td style="padding:4px 12px;font-weight:bold;">Channels</td><td style="padding:4px 12px;">${summary.channels}</td></tr>
+          <tr><td style="padding:4px 12px;font-weight:bold;">Top Product</td><td style="padding:4px 12px;">${summary.topProduct || 'N/A'}</td></tr>
+          <tr><td style="padding:4px 12px;font-weight:bold;">Returns</td><td style="padding:4px 12px;">${summary.returns}</td></tr>
+          <tr><td style="padding:4px 12px;font-weight:bold;">Issues</td><td style="padding:4px 12px;">${summary.issues || 0}</td></tr>
+        </table>
+      `;
+      const emailResult = await emailService.sendEmail(summaryRecipients, subject, html);
+      if (!emailResult.success) {
+        console.error(`${PREFIX} Daily summary email failed:`, emailResult.error);
+      }
+    }
 
     jobs.dailySummary.lastResult = {
       status: 'success',
       summary,
+      emailSent: summaryRecipients.length > 0,
       durationMs: Date.now() - startTime,
     };
   } catch (err) {
@@ -742,7 +715,6 @@ const INTERVAL_ENV = {
  * @returns {object} Job handles
  */
 function startPolling() {
-  console.log(`${PREFIX} Starting marketplace polling engine...`);
 
   for (const [name, config] of Object.entries(INTERVAL_ENV)) {
     const intervalMs = getIntervalMs(config.env, config.default);
@@ -753,14 +725,12 @@ function startPolling() {
     jobs[name].nextRun = new Date(Date.now() + intervalMs);
     jobs[name].handle = setInterval(fn, intervalMs);
 
-    console.log(`${PREFIX}   ${name}: every ${minutes} min`);
 
     // Stagger initial runs to avoid thundering herd (offset by job index * 10s)
     const staggerMs = Object.keys(INTERVAL_ENV).indexOf(name) * 10000;
     setTimeout(fn, staggerMs);
   }
 
-  console.log(`${PREFIX} All 8 jobs started`);
   return jobs;
 }
 
@@ -768,14 +738,12 @@ function startPolling() {
  * Stop all polling jobs.
  */
 function stopPolling() {
-  console.log(`${PREFIX} Stopping all marketplace polling jobs...`);
 
   for (const [name, job] of Object.entries(jobs)) {
     if (job.handle) {
       clearInterval(job.handle);
       job.handle = null;
       job.nextRun = null;
-      console.log(`${PREFIX}   Stopped: ${name}`);
     }
   }
 }
@@ -839,7 +807,6 @@ async function runJobNow(jobName) {
     throw new Error(`Job '${jobName}' is already running`);
   }
 
-  console.log(`${PREFIX} Manually triggering job: ${jobName}`);
   await fn();
   return jobs[jobName].lastResult;
 }

@@ -4,14 +4,8 @@
  */
 
 import React, { useState, useEffect, useCallback } from 'react';
-import {
-  CurrencyDollarIcon,
-  ChevronDownIcon,
-  ChevronUpIcon,
-  SparklesIcon,
-  ExclamationTriangleIcon,
-} from '@heroicons/react/24/outline';
 import { calculateCartCommission } from '../../api/commissions';
+import { AlertTriangle, ChevronDown, ChevronUp, DollarSign, Sparkles } from 'lucide-react';
 
 /**
  * Format currency
@@ -44,13 +38,13 @@ function CommissionItem({ item, compact = false }) {
           <span className="text-sm font-medium text-gray-900 truncate">{item.itemName}</span>
           {item.isBonus && (
             <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 text-xs font-medium bg-green-100 text-green-700 rounded">
-              <SparklesIcon className="w-3 h-3" />
+              <Sparkles className="w-3 h-3" />
               Bonus
             </span>
           )}
           {item.isReduced && (
             <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 text-xs font-medium bg-orange-100 text-orange-700 rounded">
-              <ExclamationTriangleIcon className="w-3 h-3" />
+              <AlertTriangle className="w-3 h-3" />
               Reduced
             </span>
           )}
@@ -142,7 +136,7 @@ export default function CommissionPreview({
   if (compact) {
     return (
       <div className={`flex items-center gap-2 ${className}`}>
-        <CurrencyDollarIcon className="w-4 h-4 text-green-600" />
+        <DollarSign className="w-4 h-4 text-green-600" />
         <span className="text-sm text-gray-600">Commission:</span>
         {loading ? (
           <span className="text-sm text-gray-400">Calculating...</span>
@@ -165,7 +159,7 @@ export default function CommissionPreview({
       >
         <div className="flex items-center gap-2">
           <div className="p-1.5 bg-green-100 rounded-lg">
-            <CurrencyDollarIcon className="w-5 h-5 text-green-600" />
+            <DollarSign className="w-5 h-5 text-green-600" />
           </div>
           <div className="text-left">
             <div className="text-sm font-medium text-gray-900">Your Commission</div>
@@ -195,9 +189,9 @@ export default function CommissionPreview({
 
           {showBreakdown && (
             expanded ? (
-              <ChevronUpIcon className="w-5 h-5 text-gray-400" />
+              <ChevronUp className="w-5 h-5 text-gray-400" />
             ) : (
-              <ChevronDownIcon className="w-5 h-5 text-gray-400" />
+              <ChevronDown className="w-5 h-5 text-gray-400" />
             )
           )}
         </div>

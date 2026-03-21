@@ -15,34 +15,18 @@ import {
   Chip,
   Card,
   CardContent,
-  CardActions,
   Dialog,
   DialogTitle,
   DialogContent,
   DialogActions,
   IconButton,
-  Tooltip,
-  Divider,
   LinearProgress
 } from '@mui/material';
-import {
-  LocalShipping,
-  CalendarMonth,
-  AccessTime,
-  LocationOn,
-  Person,
-  Phone,
-  Notes,
-  ChevronLeft,
-  ChevronRight,
-  Check,
-  Warning,
-  Block
-} from '@mui/icons-material';
 import apiClient from '../../services/apiClient';
 
-const API_BASE = process.env.REACT_APP_API_URL || 'http://localhost:3001/api';
+const API_BASE = `${process.env.REACT_APP_API_URL || ''}/api`;
 
+import { Ban, Calendar, Check, ChevronLeft, ChevronRight, MapPin, Truck } from 'lucide-react';
 const formatDate = (dateStr) => {
   if (!dateStr) return '';
   const date = new Date(dateStr);
@@ -86,7 +70,7 @@ const SlotCard = ({ slot, selected, onSelect, disabled }) => {
             {formatTime(slot.slot_start)} - {formatTime(slot.slot_end)}
           </Typography>
           {slot.is_blocked ? (
-            <Chip icon={<Block />} label="Blocked" size="small" color="error" />
+            <Chip icon={<Ban />} label="Blocked" size="small" color="error" />
           ) : (
             <Chip
               label={`${availableSpots} left`}
@@ -142,6 +126,28 @@ const DeliveryScheduler = ({ orderId, quotationId, customerId, onBookingComplete
 
   useEffect(() => {
     if (selectedZone) {
+      const fetchSlots = async () => {
+        try {
+          setLoading(true);
+          const endDate = new Date(currentWeekStart);
+          endDate.setDate(endDate.getDate() + 6);
+
+          const response = await apiClient.get(`${API_BASE}/delivery/slots`, {
+            params: {
+              zoneId: selectedZone.id,
+              startDate: currentWeekStart.toISOString().split('T')[0],
+              endDate: endDate.toISOString().split('T')[0]
+            }
+          });
+          setSlots(response.data);
+        } catch (err) {
+          console.error('Error fetching slots:', err);
+          setError('Failed to load delivery slots');
+        } finally {
+          setLoading(false);
+        }
+      };
+
       fetchSlots();
     }
   }, [selectedZone, currentWeekStart]);
@@ -152,28 +158,6 @@ const DeliveryScheduler = ({ orderId, quotationId, customerId, onBookingComplete
       setZones(response.data);
     } catch (err) {
       console.error('Error fetching zones:', err);
-    }
-  };
-
-  const fetchSlots = async () => {
-    try {
-      setLoading(true);
-      const endDate = new Date(currentWeekStart);
-      endDate.setDate(endDate.getDate() + 6);
-
-      const response = await apiClient.get(`${API_BASE}/delivery/slots`, {
-        params: {
-          zoneId: selectedZone.id,
-          startDate: currentWeekStart.toISOString().split('T')[0],
-          endDate: endDate.toISOString().split('T')[0]
-        }
-      });
-      setSlots(response.data);
-    } catch (err) {
-      console.error('Error fetching slots:', err);
-      setError('Failed to load delivery slots');
-    } finally {
-      setLoading(false);
     }
   };
 
@@ -269,7 +253,7 @@ const DeliveryScheduler = ({ orderId, quotationId, customerId, onBookingComplete
       {/* Postal Code Lookup */}
       <Paper variant="outlined" sx={{ p: 3, mb: 3 }}>
         <Typography variant="h6" sx={{ mb: 2, display: 'flex', alignItems: 'center' }}>
-          <LocationOn sx={{ mr: 1 }} /> Delivery Location
+          <MapPin sx={{ mr: 1 }} /> Delivery Location
         </Typography>
 
         <Grid container spacing={2} alignItems="flex-end">
@@ -337,7 +321,7 @@ const DeliveryScheduler = ({ orderId, quotationId, customerId, onBookingComplete
         <Paper variant="outlined" sx={{ p: 3 }}>
           <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
             <Typography variant="h6" sx={{ display: 'flex', alignItems: 'center' }}>
-              <CalendarMonth sx={{ mr: 1 }} /> Select Delivery Slot
+              <Calendar sx={{ mr: 1 }} /> Select Delivery Slot
             </Typography>
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
               <IconButton onClick={() => handleWeekChange(-1)}>
@@ -435,7 +419,7 @@ const DeliveryScheduler = ({ orderId, quotationId, customerId, onBookingComplete
       {/* Booking Dialog */}
       <Dialog open={bookingDialogOpen} onClose={() => setBookingDialogOpen(false)} maxWidth="sm" fullWidth>
         <DialogTitle>
-          <LocalShipping sx={{ mr: 1, verticalAlign: 'middle' }} />
+          <Truck sx={{ mr: 1, verticalAlign: 'middle' }} />
           Confirm Delivery Booking
         </DialogTitle>
         <DialogContent>

@@ -5,20 +5,8 @@ import { authFetch } from '../../../services/authFetch';
  */
 
 import { useState, useEffect, useCallback } from 'react';
-import {
-  PlusIcon,
-  TrashIcon,
-  PencilIcon,
-  CheckIcon,
-  XMarkIcon,
-  ArrowRightIcon,
-  ChevronUpIcon,
-  ChevronDownIcon,
-  PlayIcon,
-  PauseIcon,
-} from '@heroicons/react/24/outline';
-
-const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+import { ArrowRight, Check, ChevronDown, ChevronUp, Pause, Pencil, Play, Plus, Trash2 } from 'lucide-react';
+const API_BASE = process.env.REACT_APP_API_URL || '';
 
 /**
  * Category select component
@@ -260,7 +248,7 @@ function RuleModal({ isOpen, onClose, onSave, editData }) {
 
             {/* Arrow */}
             <div className="flex justify-center">
-              <ArrowRightIcon className="w-6 h-6 text-gray-400 rotate-90" />
+              <ArrowRight className="w-6 h-6 text-gray-400 rotate-90" />
             </div>
 
             {/* Target Type Toggle */}
@@ -433,7 +421,7 @@ function RuleModal({ isOpen, onClose, onSave, editData }) {
                   </>
                 ) : (
                   <>
-                    <CheckIcon className="w-4 h-4" />
+                    <Check className="w-4 h-4" />
                     {editData ? 'Update' : 'Create'}
                   </>
                 )}
@@ -587,7 +575,7 @@ export default function CategoryRulesEditor({ onStatsUpdate }) {
             }}
             className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
           >
-            <PlusIcon className="w-4 h-4" />
+            <Plus className="w-4 h-4" />
             Add Rule
           </button>
         </div>
@@ -610,7 +598,7 @@ export default function CategoryRulesEditor({ onStatsUpdate }) {
         </div>
       ) : (
         <div className="divide-y divide-gray-200">
-          {rules.map((rule, index) => (
+          {rules.map((rule) => (
             <div
               key={rule.id}
               className={`px-6 py-4 ${
@@ -637,7 +625,7 @@ export default function CategoryRulesEditor({ onStatsUpdate }) {
                     <span className="px-2 py-0.5 bg-purple-100 text-purple-800 rounded">
                       {rule.sourceCategory?.name || 'Any'}
                     </span>
-                    <ArrowRightIcon className="w-4 h-4 text-gray-400" />
+                    <ArrowRight className="w-4 h-4 text-gray-400" />
                     <span className="px-2 py-0.5 bg-blue-100 text-blue-800 rounded">
                       {rule.targetCategory?.name ||
                         rule.targetProduct?.name ||
@@ -681,7 +669,7 @@ export default function CategoryRulesEditor({ onStatsUpdate }) {
                       className="p-1 text-gray-400 hover:text-gray-600 disabled:opacity-30"
                       title="Increase priority"
                     >
-                      <ChevronUpIcon className="w-4 h-4" />
+                      <ChevronUp className="w-4 h-4" />
                     </button>
                     <button
                       onClick={() =>
@@ -691,7 +679,7 @@ export default function CategoryRulesEditor({ onStatsUpdate }) {
                       className="p-1 text-gray-400 hover:text-gray-600 disabled:opacity-30"
                       title="Decrease priority"
                     >
-                      <ChevronDownIcon className="w-4 h-4" />
+                      <ChevronDown className="w-4 h-4" />
                     </button>
                   </div>
 
@@ -706,9 +694,9 @@ export default function CategoryRulesEditor({ onStatsUpdate }) {
                     title={rule.isActive ? 'Pause rule' : 'Activate rule'}
                   >
                     {rule.isActive ? (
-                      <PauseIcon className="w-5 h-5" />
+                      <Pause className="w-5 h-5" />
                     ) : (
-                      <PlayIcon className="w-5 h-5" />
+                      <Play className="w-5 h-5" />
                     )}
                   </button>
 
@@ -717,7 +705,7 @@ export default function CategoryRulesEditor({ onStatsUpdate }) {
                     onClick={() => handleEdit(rule)}
                     className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg"
                   >
-                    <PencilIcon className="w-4 h-4" />
+                    <Pencil className="w-4 h-4" />
                   </button>
 
                   {/* Delete */}
@@ -725,7 +713,7 @@ export default function CategoryRulesEditor({ onStatsUpdate }) {
                     onClick={() => handleDelete(rule.id)}
                     className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg"
                   >
-                    <TrashIcon className="w-4 h-4" />
+                    <Trash2 className="w-4 h-4" />
                   </button>
                 </div>
               </div>

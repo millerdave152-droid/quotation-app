@@ -4,17 +4,6 @@
  */
 
 import { useState, useCallback, useRef, useEffect } from 'react';
-import {
-  MagnifyingGlassIcon,
-  XMarkIcon,
-  UserIcon,
-  PhoneIcon,
-  EnvelopeIcon,
-  DocumentTextIcon,
-  UserPlusIcon,
-  ClockIcon,
-  ArrowsRightLeftIcon,
-} from '@heroicons/react/24/outline';
 import { searchCustomers, getCustomerQuickStats } from '../../api/customers';
 import { getCustomerPendingQuotes } from '../../api/quotes';
 import { formatPhone, formatCurrency } from '../../utils/formatters';
@@ -22,6 +11,7 @@ import QuickAddCustomer from './QuickAddCustomer';
 import CustomerQuotesPanel from './CustomerQuotesPanel';
 import { CustomerPurchaseHistory } from './CustomerPurchaseHistory';
 import { CustomerTradeInHistory } from './CustomerTradeInHistory';
+import { ArrowLeftRight, Clock, FileText, Mail, Phone, Search, User, UserPlus, X } from 'lucide-react';
 
 /**
  * Customer result item
@@ -48,7 +38,7 @@ function CustomerResultItem({ customer, pendingQuoteCount, quickStats, onClick, 
     >
       {/* Avatar */}
       <div className="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center flex-shrink-0">
-        <UserIcon className="w-6 h-6 text-blue-600" />
+        <User className="w-6 h-6 text-blue-600" />
       </div>
 
       {/* Customer Info */}
@@ -67,7 +57,7 @@ function CustomerResultItem({ customer, pendingQuoteCount, quickStats, onClick, 
           )}
           {pendingQuoteCount > 0 && (
             <span className="flex items-center gap-1 px-2 py-0.5 bg-blue-100 text-blue-700 text-xs font-medium rounded-full">
-              <DocumentTextIcon className="w-3 h-3" />
+              <FileText className="w-3 h-3" />
               {pendingQuoteCount} {pendingQuoteCount === 1 ? 'quote' : 'quotes'}
             </span>
           )}
@@ -76,13 +66,13 @@ function CustomerResultItem({ customer, pendingQuoteCount, quickStats, onClick, 
         <div className="flex flex-wrap gap-x-4 gap-y-1 mt-1 text-sm text-gray-500">
           {phone && (
             <span className="flex items-center gap-1">
-              <PhoneIcon className="w-4 h-4" />
+              <Phone className="w-4 h-4" />
               {formatPhone(phone)}
             </span>
           )}
           {email && (
             <span className="flex items-center gap-1 truncate">
-              <EnvelopeIcon className="w-4 h-4" />
+              <Mail className="w-4 h-4" />
               {email}
             </span>
           )}
@@ -119,7 +109,7 @@ function CustomerResultItem({ customer, pendingQuoteCount, quickStats, onClick, 
           className="w-8 h-8 flex items-center justify-center text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
           title="Purchase History"
         >
-          <ClockIcon className="w-4 h-4" />
+          <Clock className="w-4 h-4" />
         </button>
         <button
           type="button"
@@ -127,7 +117,7 @@ function CustomerResultItem({ customer, pendingQuoteCount, quickStats, onClick, 
           className="w-8 h-8 flex items-center justify-center text-gray-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition-colors"
           title="Trade-In History"
         >
-          <ArrowsRightLeftIcon className="w-4 h-4" />
+          <ArrowLeftRight className="w-4 h-4" />
         </button>
         {pendingQuoteCount > 0 && (
           <div className="text-blue-500">
@@ -414,7 +404,7 @@ export function CustomerLookup({
                 </div>
               </div>
               <button type="button" onClick={onClose} className="w-10 h-10 flex items-center justify-center text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors">
-                <XMarkIcon className="w-6 h-6" />
+                <X className="w-6 h-6" />
               </button>
             </div>
 
@@ -484,7 +474,7 @@ export function CustomerLookup({
                   transition-colors duration-150
                 "
               >
-                <XMarkIcon className="w-6 h-6" />
+                <X className="w-6 h-6" />
               </button>
             </div>
 
@@ -495,7 +485,7 @@ export function CustomerLookup({
                   {isLoading ? (
                     <div className="w-5 h-5 border-2 border-gray-300 border-t-blue-600 rounded-full animate-spin" />
                   ) : (
-                    <MagnifyingGlassIcon className="w-5 h-5 text-gray-400" />
+                    <Search className="w-5 h-5 text-gray-400" />
                   )}
                 </div>
 
@@ -531,7 +521,7 @@ export function CustomerLookup({
                       transition-colors duration-150
                     "
                   >
-                    <XMarkIcon className="w-5 h-5" />
+                    <X className="w-5 h-5" />
                   </button>
                 )}
               </div>
@@ -562,7 +552,7 @@ export function CustomerLookup({
                 </div>
               ) : query && !isLoading ? (
                 <div className="flex flex-col items-center justify-center py-12 text-center px-4">
-                  <UserIcon className="w-12 h-12 text-gray-300 mb-4" />
+                  <User className="w-12 h-12 text-gray-300 mb-4" />
                   <h3 className="text-lg font-medium text-gray-900 mb-2">
                     No customers found
                   </h3>
@@ -581,14 +571,14 @@ export function CustomerLookup({
                       transition-colors duration-150
                     "
                   >
-                    <UserPlusIcon className="w-5 h-5" />
+                    <UserPlus className="w-5 h-5" />
                     Add New Customer
                   </button>
                 </div>
               ) : !query ? (
                 <div className="flex flex-col items-center justify-center py-12 text-center px-4">
                   <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mb-4">
-                    <MagnifyingGlassIcon className="w-8 h-8 text-blue-600" />
+                    <Search className="w-8 h-8 text-blue-600" />
                   </div>
                   <h3 className="text-lg font-medium text-gray-900 mb-2">
                     Search for a Customer
@@ -608,7 +598,7 @@ export function CustomerLookup({
                       transition-colors duration-150
                     "
                   >
-                    <UserIcon className="w-5 h-5" />
+                    <User className="w-5 h-5" />
                     Continue as Guest
                   </button>
                 </div>
@@ -629,7 +619,7 @@ export function CustomerLookup({
                   transition-colors duration-150
                 "
               >
-                <UserPlusIcon className="w-5 h-5" />
+                <UserPlus className="w-5 h-5" />
                 Quick Add New Customer
               </button>
               <button

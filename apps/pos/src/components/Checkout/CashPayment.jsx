@@ -4,8 +4,8 @@
  */
 
 import { useState, useCallback, useMemo, useRef, useEffect } from 'react';
-import { ArrowLeftIcon, BackspaceIcon } from '@heroicons/react/24/outline';
 import { formatCurrency } from '../../utils/formatters';
+import { ArrowLeft, Delete } from 'lucide-react';
 
 const shakeKeyframes = `
 @keyframes shake {
@@ -266,7 +266,7 @@ export function CashPayment({
             transition-colors duration-150
           "
         >
-          <ArrowLeftIcon className="w-6 h-6" />
+          <ArrowLeft className="w-6 h-6" />
         </button>
         <h2 className="text-xl font-bold text-gray-900">Cash Payment</h2>
       </div>
@@ -381,7 +381,7 @@ export function CashPayment({
         <NumpadButton onClick={() => handleNumpadPress('.')} ariaLabel="Enter decimal point">.</NumpadButton>
         <NumpadButton onClick={() => handleNumpadPress('0')}>0</NumpadButton>
         <NumpadButton onClick={handleBackspace} ariaLabel="Backspace">
-          <BackspaceIcon className="w-6 h-6" />
+          <Delete className="w-6 h-6" />
         </NumpadButton>
       </div>
 

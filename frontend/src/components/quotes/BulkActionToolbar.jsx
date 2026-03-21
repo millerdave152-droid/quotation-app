@@ -13,7 +13,7 @@ import { authFetch } from '../../services/authFetch';
 
 import React, { useState, useEffect } from 'react';
 
-const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:3001';
+const API_URL = process.env.REACT_APP_API_URL || '';
 
 // Email templates for bulk email
 const EMAIL_TEMPLATES = [
@@ -67,9 +67,9 @@ const BulkActionToolbar = ({
   formatCurrency
 }) => {
   const [loading, setLoading] = useState(false);
-  const [actionType, setActionType] = useState(null);
+  const [_actionType, setActionType] = useState(null);
   const [showConfirmDialog, setShowConfirmDialog] = useState(false);
-  const [confirmAction, setConfirmAction] = useState(null);
+  const [_confirmAction, setConfirmAction] = useState(null);
   const [salespeople, setSalespeople] = useState([]);
   const [progress, setProgress] = useState({ current: 0, total: 0, message: '' });
 
@@ -137,7 +137,7 @@ const BulkActionToolbar = ({
       }
     } catch (error) {
       console.error('Bulk status update error:', error);
-      alert(`Error: ${error.message}`);
+      alert(`Error: ${error?.message || error || 'An error occurred'}`);
     } finally {
       setLoading(false);
       setActionType(null);
@@ -175,7 +175,7 @@ const BulkActionToolbar = ({
       }
     } catch (error) {
       console.error('Bulk expiry update error:', error);
-      alert(`Error: ${error.message}`);
+      alert(`Error: ${error?.message || error || 'An error occurred'}`);
     } finally {
       setLoading(false);
       setActionType(null);
@@ -213,7 +213,7 @@ const BulkActionToolbar = ({
       }
     } catch (error) {
       console.error('Bulk assign error:', error);
-      alert(`Error: ${error.message}`);
+      alert(`Error: ${error?.message || error || 'An error occurred'}`);
     } finally {
       setLoading(false);
       setActionType(null);
@@ -258,7 +258,7 @@ const BulkActionToolbar = ({
       }
     } catch (error) {
       console.error('Bulk export error:', error);
-      alert(`Error: ${error.message}`);
+      alert(`Error: ${error?.message || error || 'An error occurred'}`);
     } finally {
       setLoading(false);
       setActionType(null);
@@ -296,7 +296,7 @@ const BulkActionToolbar = ({
       }
     } catch (error) {
       console.error('Bulk delete error:', error);
-      alert(`Error: ${error.message}`);
+      alert(`Error: ${error?.message || error || 'An error occurred'}`);
     } finally {
       setLoading(false);
       setActionType(null);
@@ -409,7 +409,7 @@ const BulkActionToolbar = ({
       }
     } catch (error) {
       console.error('Bulk email error:', error);
-      alert(`Error: ${error.message}`);
+      alert(`Error: ${error?.message || error || 'An error occurred'}`);
     } finally {
       setLoading(false);
       setActionType(null);
@@ -781,7 +781,7 @@ const BulkActionToolbar = ({
                   gap: '6px'
                 }}
               >
-                <span>✏️</span> Compose
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg> Compose
               </button>
               <button
                 onClick={() => setShowPreview(true)}
@@ -801,7 +801,7 @@ const BulkActionToolbar = ({
                   gap: '6px'
                 }}
               >
-                <span>👁️</span> Preview
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg> Preview
               </button>
             </div>
 
@@ -911,7 +911,7 @@ const BulkActionToolbar = ({
                       style={{ width: '16px', height: '16px' }}
                     />
                     <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                      <span style={{ fontSize: '16px' }}>📎</span>
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>
                       Attach PDF quote to each email
                     </span>
                   </label>
@@ -1076,7 +1076,7 @@ const BulkActionToolbar = ({
                             alignItems: 'center',
                             gap: '8px'
                           }}>
-                            <span>📎</span>
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>
                             Your detailed quote is attached as a PDF document.
                           </div>
                         )}

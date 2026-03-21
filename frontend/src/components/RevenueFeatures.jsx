@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 
 import { authFetch } from '../services/authFetch';
-const API_BASE = `${process.env.REACT_APP_API_URL || 'http://localhost:3001'}/api`;
+const API_BASE = `${process.env.REACT_APP_API_URL || ''}/api`;
 
 // ============================================
 // FINANCING CALCULATOR COMPONENT
@@ -14,20 +14,20 @@ export const FinancingCalculator = ({ quoteTotal, onFinancingSelected }) => {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    const fetchFinancingPlans = async () => {
+      try {
+        const response = await authFetch(`${API_BASE}/financing-plans?minPurchase=${quoteTotal}`);
+        const data = await response.json();
+        setFinancingPlans(data);
+        setLoading(false);
+      } catch (error) {
+        console.error('Error fetching financing plans:', error);
+        setLoading(false);
+      }
+    };
+
     fetchFinancingPlans();
   }, [quoteTotal]);
-
-  const fetchFinancingPlans = async () => {
-    try {
-      const response = await authFetch(`${API_BASE}/financing-plans?minPurchase=${quoteTotal}`);
-      const data = await response.json();
-      setFinancingPlans(data);
-      setLoading(false);
-    } catch (error) {
-      console.error('Error fetching financing plans:', error);
-      setLoading(false);
-    }
-  };
 
   const calculatePayment = async (planId) => {
     if (!planId) return;
@@ -548,7 +548,7 @@ export const DeliverySelector = ({ customerAddress, onDeliverySelected }) => {
 // ============================================
 // REBATES DISPLAY COMPONENT
 // ============================================
-export const RebatesDisplay = ({ products, onRebateApplied }) => {
+export const RebatesDisplay = ({ products: _products, onRebateApplied }) => {
   const [rebates, setRebates] = useState([]);
   const [selectedRebates, setSelectedRebates] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -687,27 +687,27 @@ export const TradeInEstimator = ({ onTradeInAdded }) => {
 
   useEffect(() => {
     if (category && condition) {
+      const fetchTradeInValue = async () => {
+        try {
+          const params = new URLSearchParams({
+            productCategory: category,
+            condition: condition,
+            ageYears: ageYears
+          });
+          const response = await authFetch(`${API_BASE}/trade-in-values?${params}`);
+          const data = await response.json();
+          setTradeInValues(data);
+          if (data.length > 0) {
+            setEstimatedValue(data[0].estimated_value_cents);
+          }
+        } catch (error) {
+          console.error('Error fetching trade-in values:', error);
+        }
+      };
+
       fetchTradeInValue();
     }
   }, [category, condition, ageYears]);
-
-  const fetchTradeInValue = async () => {
-    try {
-      const params = new URLSearchParams({
-        productCategory: category,
-        condition: condition,
-        ageYears: ageYears
-      });
-      const response = await authFetch(`${API_BASE}/trade-in-values?${params}`);
-      const data = await response.json();
-      setTradeInValues(data);
-      if (data.length > 0) {
-        setEstimatedValue(data[0].estimated_value_cents);
-      }
-    } catch (error) {
-      console.error('Error fetching trade-in values:', error);
-    }
-  };
 
   const handleAddTradeIn = () => {
     if (category && estimatedValue > 0) {

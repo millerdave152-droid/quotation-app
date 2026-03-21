@@ -4,16 +4,10 @@
  */
 
 import { useState, useCallback, useEffect } from 'react';
-import {
-  ArrowLeftIcon,
-  UserCircleIcon,
-  CheckCircleIcon,
-  ExclamationTriangleIcon,
-  CreditCardIcon,
-} from '@heroicons/react/24/outline';
 import { formatCurrency } from '../../utils/formatters';
+import { AlertTriangle, ArrowLeft, CheckCircle, CircleUser, CreditCard } from 'lucide-react';
 
-const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:3001/api';
+const API_BASE = import.meta.env.VITE_API_URL || '/api';
 
 /**
  * Account payment component
@@ -129,14 +123,14 @@ export function AccountPayment({
             onClick={onBack}
             className="w-10 h-10 flex items-center justify-center text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
           >
-            <ArrowLeftIcon className="w-6 h-6" />
+            <ArrowLeft className="w-6 h-6" />
           </button>
           <h2 className="text-xl font-bold text-gray-900">Account Payment</h2>
         </div>
 
         <div className="flex-1 flex flex-col items-center justify-center text-center">
           <div className="w-24 h-24 bg-yellow-100 rounded-full flex items-center justify-center mb-6">
-            <ExclamationTriangleIcon className="w-12 h-12 text-yellow-600" />
+            <AlertTriangle className="w-12 h-12 text-yellow-600" />
           </div>
           <h3 className="text-xl font-semibold text-gray-900 mb-2">
             No Customer Selected
@@ -160,14 +154,14 @@ export function AccountPayment({
             onClick={onBack}
             className="w-10 h-10 flex items-center justify-center text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
           >
-            <ArrowLeftIcon className="w-6 h-6" />
+            <ArrowLeft className="w-6 h-6" />
           </button>
           <h2 className="text-xl font-bold text-gray-900">Account Payment</h2>
         </div>
 
         <div className="flex-1 flex flex-col items-center justify-center text-center">
           <div className="w-24 h-24 bg-red-100 rounded-full flex items-center justify-center mb-6">
-            <ExclamationTriangleIcon className="w-12 h-12 text-red-600" />
+            <AlertTriangle className="w-12 h-12 text-red-600" />
           </div>
           <h3 className="text-xl font-semibold text-gray-900 mb-2">Error</h3>
           <p className="text-red-600 max-w-sm mb-4">{error}</p>
@@ -193,14 +187,14 @@ export function AccountPayment({
             onClick={onBack}
             className="w-10 h-10 flex items-center justify-center text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
           >
-            <ArrowLeftIcon className="w-6 h-6" />
+            <ArrowLeft className="w-6 h-6" />
           </button>
           <h2 className="text-xl font-bold text-gray-900">Account Payment</h2>
         </div>
 
         <div className="flex-1 flex flex-col items-center justify-center text-center">
           <div className="w-24 h-24 bg-yellow-100 rounded-full flex items-center justify-center mb-6">
-            <CreditCardIcon className="w-12 h-12 text-yellow-600" />
+            <CreditCard className="w-12 h-12 text-yellow-600" />
           </div>
           <h3 className="text-xl font-semibold text-gray-900 mb-2">
             No Credit Account
@@ -231,7 +225,7 @@ export function AccountPayment({
           onClick={onBack}
           className="w-10 h-10 flex items-center justify-center text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
         >
-          <ArrowLeftIcon className="w-6 h-6" />
+          <ArrowLeft className="w-6 h-6" />
         </button>
         <h2 className="text-xl font-bold text-gray-900">Account Payment</h2>
       </div>
@@ -240,7 +234,7 @@ export function AccountPayment({
       <div className="mb-6 p-4 bg-blue-50 border border-blue-200 rounded-xl">
         <div className="flex items-center gap-3">
           <div className="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center">
-            <UserCircleIcon className="w-8 h-8 text-blue-600" />
+            <CircleUser className="w-8 h-8 text-blue-600" />
           </div>
           <div>
             <p className="font-semibold text-gray-900">
@@ -313,7 +307,7 @@ export function AccountPayment({
       {!isEligible && (
         <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-xl">
           <div className="flex items-start gap-3">
-            <ExclamationTriangleIcon className="w-6 h-6 text-red-600 flex-shrink-0 mt-0.5" />
+            <AlertTriangle className="w-6 h-6 text-red-600 flex-shrink-0 mt-0.5" />
             <div>
               <p className="font-medium text-red-800">Insufficient Credit</p>
               <p className="text-sm text-red-600 mt-1">
@@ -329,7 +323,7 @@ export function AccountPayment({
       {isEligible && (
         <div className="mb-6 p-4 bg-green-50 border border-green-200 rounded-xl">
           <div className="flex items-center gap-3">
-            <CheckCircleIcon className="w-6 h-6 text-green-600" />
+            <CheckCircle className="w-6 h-6 text-green-600" />
             <div>
               <p className="font-medium text-green-800">Credit Available</p>
               <p className="text-sm text-green-600">
@@ -363,7 +357,7 @@ export function AccountPayment({
           </>
         ) : (
           <>
-            <CheckCircleIcon className="w-6 h-6" />
+            <CheckCircle className="w-6 h-6" />
             <span>Charge to Account</span>
           </>
         )}

@@ -7,6 +7,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { getReasonCodes, getReturnItems } from '../../api/returns';
 import { calculateExchange, processExchange } from '../../api/exchanges';
 import api from '../../api/axios';
+import { useRegister } from '../../context/RegisterContext';
 
 const CONDITION_OPTIONS = [
   { value: 'resellable', label: 'Resellable', color: 'text-green-400 bg-green-900/50 border-green-800' },
@@ -17,6 +18,7 @@ const CONDITION_OPTIONS = [
 const STEPS = ['return_items', 'replacement_items', 'review', 'complete'];
 
 export default function ExchangeProcessor({ transaction, onClose, onComplete }) {
+  const { currentShift } = useRegister();
   const [step, setStep] = useState('return_items');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -36,6 +38,7 @@ export default function ExchangeProcessor({ transaction, onClose, onComplete }) 
   // Review state
   const [preview, setPreview] = useState(null);
   const [previewLoading, setPreviewLoading] = useState(false);
+  const [differencePaymentMethod, setDifferencePaymentMethod] = useState('cash');
 
   // Processing state
   const [processing, setProcessing] = useState(false);
@@ -103,7 +106,7 @@ export default function ExchangeProcessor({ transaction, onClose, onComplete }) 
     if (!query.trim()) { setProductResults([]); return; }
     setSearchLoading(true);
     try {
-      const res = await api.get('/products', { params: { search: query, limit: 10 } });
+      const res = await api.get('/products', { params: { search: query, limit: 10, requirePrice: 'true' } });
       setProductResults(res.data?.data || res.data || []);
     } catch {
       setProductResults([]);
@@ -164,6 +167,11 @@ export default function ExchangeProcessor({ transaction, onClose, onComplete }) 
 
   // Process the exchange
   const handleProcess = async () => {
+    if (preview?.customerOwes && !differencePaymentMethod) {
+      setError('Select a payment method for the exchange difference');
+      return;
+    }
+
     setProcessing(true);
     setError(null);
     const payload = {
@@ -176,6 +184,8 @@ export default function ExchangeProcessor({ transaction, onClose, onComplete }) 
         condition: i.condition,
       })),
       newItems: replacementItems.map(r => ({ productId: r.product.id, quantity: r.quantity })),
+      shiftId: currentShift?.shiftId || currentShift?.shift_id || transaction.shift_id || transaction.shiftId,
+      paymentMethod: preview?.customerOwes ? differencePaymentMethod : undefined,
       differenceMethod: preview?.customerRefund ? 'store_credit' : undefined,
     };
 
@@ -408,7 +418,21 @@ export default function ExchangeProcessor({ transaction, onClose, onComplete }) 
                 {preview.customerOwes && (
                   <>
                     <p className="text-xl font-bold text-orange-400">Customer Owes: {formatCents(preview.differenceCents)}</p>
-                    <p className="text-xs text-slate-400 mt-1">Payment will be collected at processing</p>
+                    <p className="text-xs text-slate-400 mt-1">Choose how the difference will be collected when processing</p>
+                    <div className="mt-3">
+                      <label className="mb-1 block text-xs font-medium uppercase tracking-wider text-slate-400">
+                        Difference Payment Method
+                      </label>
+                      <select
+                        value={differencePaymentMethod}
+                        onChange={(e) => setDifferencePaymentMethod(e.target.value)}
+                        className="w-full rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-orange-500"
+                      >
+                        <option value="cash">Cash</option>
+                        <option value="debit">Debit</option>
+                        <option value="credit">Credit</option>
+                      </select>
+                    </div>
                   </>
                 )}
                 {preview.customerRefund && (

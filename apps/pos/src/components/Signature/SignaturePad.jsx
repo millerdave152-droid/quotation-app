@@ -5,13 +5,8 @@
  */
 
 import { useState, useRef, useCallback, useEffect } from 'react';
-import {
-  XMarkIcon,
-  ArrowPathIcon,
-  CheckIcon,
-  PencilIcon,
-} from '@heroicons/react/24/outline';
 import SignatureCanvas from './SignatureCanvas';
+import { Check, Pencil, RefreshCw, X } from 'lucide-react';
 
 /**
  * Signature Pad Component
@@ -121,7 +116,7 @@ export default function SignaturePad({
       {/* Header */}
       <div className="text-center mb-6">
         <div className="inline-flex items-center justify-center w-16 h-16 bg-blue-100 rounded-full mb-4">
-          <PencilIcon className="w-8 h-8 text-blue-600" />
+          <Pencil className="w-8 h-8 text-blue-600" />
         </div>
         <h2 className="text-2xl font-bold text-gray-900">{title}</h2>
         <p className="text-gray-500 mt-1">{subtitle}</p>
@@ -176,7 +171,7 @@ export default function SignaturePad({
               onClick={() => setShowPreview(false)}
               className="flex-1 h-14 flex items-center justify-center gap-2 bg-gray-100 hover:bg-gray-200 text-gray-700 font-medium rounded-xl transition-colors"
             >
-              <ArrowPathIcon className="w-5 h-5" />
+              <RefreshCw className="w-5 h-5" />
               Edit Signature
             </button>
             <button
@@ -184,7 +179,7 @@ export default function SignaturePad({
               onClick={handleAccept}
               className="flex-1 h-14 flex items-center justify-center gap-2 bg-green-600 hover:bg-green-700 text-white font-bold rounded-xl transition-colors"
             >
-              <CheckIcon className="w-5 h-5" />
+              <Check className="w-5 h-5" />
               Confirm & Accept
             </button>
           </div>
@@ -236,7 +231,7 @@ export default function SignaturePad({
                 className="absolute top-3 right-3 p-2 bg-white/90 hover:bg-red-50 text-gray-500 hover:text-red-600 rounded-lg shadow-sm border border-gray-200 transition-colors"
                 title="Clear signature"
               >
-                <ArrowPathIcon className="w-5 h-5" />
+                <RefreshCw className="w-5 h-5" />
               </button>
             )}
           </div>
@@ -265,7 +260,7 @@ export default function SignaturePad({
               onClick={onCancel}
               className="flex-1 h-14 flex items-center justify-center gap-2 bg-gray-100 hover:bg-gray-200 text-gray-700 font-medium rounded-xl transition-colors"
             >
-              <XMarkIcon className="w-5 h-5" />
+              <X className="w-5 h-5" />
               Cancel
             </button>
             <button
@@ -278,7 +273,7 @@ export default function SignaturePad({
                   : 'bg-gray-200 text-gray-400 cursor-not-allowed'
               }`}
             >
-              <CheckIcon className="w-5 h-5" />
+              <Check className="w-5 h-5" />
               Review & Sign
             </button>
           </div>

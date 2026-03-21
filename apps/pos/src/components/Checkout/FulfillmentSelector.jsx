@@ -4,20 +4,13 @@
  */
 
 import { useState, useEffect, useCallback } from 'react';
-import {
-  ShoppingBagIcon,
-  CalendarDaysIcon,
-  TruckIcon,
-  CheckIcon,
-  ArrowRightIcon,
-  ExclamationTriangleIcon,
-} from '@heroicons/react/24/outline';
 import { formatCurrency } from '../../utils/formatters';
 import DeliveryAddressForm from './DeliveryAddressForm';
 import SchedulePicker from './SchedulePicker';
 import PickupDetailsForm from './PickupDetailsForm';
+import { AlertTriangle, ArrowRight, CalendarDays, Check, ShoppingBag, Truck } from 'lucide-react';
 
-const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:3001/api';
+const API_BASE = import.meta.env.VITE_API_URL || '/api';
 
 /**
  * Fulfillment option card component
@@ -29,13 +22,13 @@ function FulfillmentOptionCard({
   disabled = false,
 }) {
   const icons = {
-    pickup_now: ShoppingBagIcon,
-    pickup_scheduled: CalendarDaysIcon,
-    local_delivery: TruckIcon,
-    shipping: TruckIcon,
+    pickup_now: ShoppingBag,
+    pickup_scheduled: CalendarDays,
+    local_delivery: Truck,
+    shipping: Truck,
   };
 
-  const Icon = icons[option.type] || ShoppingBagIcon;
+  const Icon = icons[option.type] || ShoppingBag;
 
   const getEstimateText = () => {
     if (option.type === 'pickup_now') {
@@ -68,7 +61,7 @@ function FulfillmentOptionCard({
       {/* Selected indicator */}
       {isSelected && (
         <div className="absolute top-3 right-3 w-6 h-6 bg-blue-500 rounded-full flex items-center justify-center">
-          <CheckIcon className="w-4 h-4 text-white" />
+          <Check className="w-4 h-4 text-white" />
         </div>
       )}
 
@@ -114,7 +107,7 @@ function FulfillmentOptionCard({
           {/* Unavailable reason */}
           {!option.available && option.unavailableReason && (
             <p className="text-xs text-red-500 mt-1 flex items-center gap-1">
-              <ExclamationTriangleIcon className="w-3 h-3" />
+              <AlertTriangle className="w-3 h-3" />
               {option.unavailableReason}
             </p>
           )}
@@ -386,7 +379,7 @@ export function FulfillmentSelector({
   if (error && options.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center py-12">
-        <ExclamationTriangleIcon className="w-12 h-12 text-red-400 mb-4" />
+        <AlertTriangle className="w-12 h-12 text-red-400 mb-4" />
         <p className="text-red-600 mb-4">{error}</p>
         <p className="text-sm text-gray-600">Please select a fulfillment option to continue.</p>
       </div>
@@ -465,7 +458,7 @@ export function FulfillmentSelector({
           "
         >
           Continue
-          <ArrowRightIcon className="w-4 h-4" />
+          <ArrowRight className="w-4 h-4" />
         </button>
       </div>
 

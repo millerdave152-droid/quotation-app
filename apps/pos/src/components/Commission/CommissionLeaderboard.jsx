@@ -4,13 +4,8 @@
  */
 
 import React, { useState, useEffect } from 'react';
-import {
-  TrophyIcon,
-  ArrowPathIcon,
-  ChartBarIcon,
-  UserIcon,
-} from '@heroicons/react/24/outline';
 import { getLeaderboard } from '../../api/commissions';
+import { BarChart3, RefreshCw, Trophy, User } from 'lucide-react';
 
 /**
  * Format currency
@@ -31,7 +26,7 @@ function RankBadge({ rank }) {
   if (rank === 1) {
     return (
       <div className="w-8 h-8 rounded-full bg-yellow-100 flex items-center justify-center">
-        <TrophyIcon className="w-5 h-5 text-yellow-600" />
+        <Trophy className="w-5 h-5 text-yellow-600" />
       </div>
     );
   }
@@ -150,7 +145,7 @@ export default function CommissionLeaderboard({
         <div className="flex items-center justify-between mb-3">
           <div className="flex items-center gap-2">
             <div className="p-2 bg-yellow-100 rounded-lg">
-              <TrophyIcon className="w-5 h-5 text-yellow-600" />
+              <Trophy className="w-5 h-5 text-yellow-600" />
             </div>
             <div>
               <h3 className="font-semibold text-gray-900">Commission Leaders</h3>
@@ -167,7 +162,7 @@ export default function CommissionLeaderboard({
             disabled={loading}
             className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
           >
-            <ArrowPathIcon className={`w-5 h-5 ${loading ? 'animate-spin' : ''}`} />
+            <RefreshCw className={`w-5 h-5 ${loading ? 'animate-spin' : ''}`} />
           </button>
         </div>
 
@@ -208,7 +203,7 @@ export default function CommissionLeaderboard({
           </div>
         ) : leaderboard.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-8 text-center">
-            <ChartBarIcon className="w-10 h-10 text-gray-300 mb-2" />
+            <BarChart3 className="w-10 h-10 text-gray-300 mb-2" />
             <p className="text-sm text-gray-500">No commission data for this period</p>
           </div>
         ) : (
@@ -229,7 +224,7 @@ export default function CommissionLeaderboard({
         <div className="p-3 bg-gray-50 border-t border-gray-200">
           <div className="flex items-center gap-3 p-2 bg-white rounded-lg border border-gray-200">
             <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center">
-              <UserIcon className="w-5 h-5 text-blue-600" />
+              <User className="w-5 h-5 text-blue-600" />
             </div>
             <div className="flex-1">
               <span className="text-sm text-gray-600">Your current rank</span>

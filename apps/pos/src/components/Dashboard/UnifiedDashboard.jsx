@@ -11,12 +11,7 @@ import ProductPerformance from './ProductPerformance';
 import CustomerInsights from './CustomerInsights';
 import ExpiringQuotesWidget from './ExpiringQuotesWidget';
 import { getDashboardSummary } from '../../api/reports';
-import {
-  CalendarIcon,
-  ArrowPathIcon,
-  DocumentArrowDownIcon,
-} from '@heroicons/react/24/outline';
-
+import { Calendar, FileDown, RefreshCw } from 'lucide-react';
 const UnifiedDashboard = () => {
   const [summary, setSummary] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -82,8 +77,34 @@ const UnifiedDashboard = () => {
   };
 
   const handleExport = () => {
-    // TODO: Implement CSV export
-    console.log('Export triggered');
+    if (!summary) return;
+
+    const rows = [
+      ['Metric', 'Value'],
+      ['Today Revenue', `$${(summary.today?.revenue || 0).toFixed(2)}`],
+      ['Today Transactions', summary.today?.transactions || 0],
+      ['This Month Revenue', `$${(summary.thisMonth?.revenue || 0).toFixed(2)}`],
+      ['This Week Revenue', `$${(summary.thisWeek?.revenue || 0).toFixed(2)}`],
+      ['Quote Conversion Rate', `${(summary.quoteConversion?.rate || 0).toFixed(1)}%`],
+      ['Quote AOV', `$${(summary.aov?.quote || 0).toFixed(2)}`],
+      ['POS AOV', `$${(summary.aov?.pos || 0).toFixed(2)}`],
+    ];
+
+    if (summary.topProducts?.length > 0) {
+      rows.push([], ['Top Products', 'Units', 'Revenue']);
+      summary.topProducts.forEach((p) => {
+        rows.push([p.product_name, p.units, `$${parseFloat(p.revenue).toFixed(2)}`]);
+      });
+    }
+
+    const csvContent = rows.map((r) => r.map((v) => `"${v}"`).join(',')).join('\n');
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `dashboard-${selectedPeriod}-${new Date().toISOString().split('T')[0]}.csv`;
+    link.click();
+    URL.revokeObjectURL(url);
   };
 
   return (
@@ -101,7 +122,7 @@ const UnifiedDashboard = () => {
           <div className="flex items-center gap-3">
             {/* Period selector */}
             <div className="flex items-center gap-2 bg-white rounded-lg border border-gray-200 p-1">
-              <CalendarIcon className="w-4 h-4 text-gray-400 ml-2" />
+              <Calendar className="w-4 h-4 text-gray-400 ml-2" />
               {['today', 'week', 'month', 'quarter', 'year'].map((period) => (
                 <button
                   key={period}
@@ -123,14 +144,14 @@ const UnifiedDashboard = () => {
               className="p-2 text-gray-600 hover:text-gray-900 hover:bg-white rounded-lg border border-gray-200 transition"
               title="Refresh data"
             >
-              <ArrowPathIcon className={`w-5 h-5 ${loading ? 'animate-spin' : ''}`} />
+              <RefreshCw className={`w-5 h-5 ${loading ? 'animate-spin' : ''}`} />
             </button>
 
             <button
               onClick={handleExport}
               className="flex items-center gap-2 px-4 py-2 bg-white text-gray-700 rounded-lg border border-gray-200 hover:bg-gray-50 transition"
             >
-              <DocumentArrowDownIcon className="w-4 h-4" />
+              <FileDown className="w-4 h-4" />
               Export
             </button>
           </div>

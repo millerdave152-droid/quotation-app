@@ -8,18 +8,8 @@
  */
 
 import { useState, useEffect, useCallback } from 'react';
-import {
-  TagIcon,
-  SparklesIcon,
-  TrophyIcon,
-  BuildingStorefrontIcon,
-  UserGroupIcon,
-  BriefcaseIcon,
-  IdentificationIcon,
-  CubeIcon,
-  ArrowTrendingDownIcon,
-} from '@heroicons/react/24/outline';
 import { formatCurrency } from '../../utils/formatters';
+import { Box, Briefcase, IdCard, Sparkles, Store, TrendingDown, Trophy, Users } from 'lucide-react';
 
 // ============================================================================
 // TIER BADGE COMPONENT
@@ -29,13 +19,13 @@ import { formatCurrency } from '../../utils/formatters';
  * Tier icon mapping
  */
 const TIER_ICONS = {
-  retail: BuildingStorefrontIcon,
-  wholesale: CubeIcon,
-  vip: TrophyIcon,
-  contractor: BriefcaseIcon,
-  dealer: IdentificationIcon,
-  employee: UserGroupIcon,
-  cost_plus: SparklesIcon,
+  retail: Store,
+  wholesale: Box,
+  vip: Trophy,
+  contractor: Briefcase,
+  dealer: IdCard,
+  employee: Users,
+  cost_plus: Sparkles,
 };
 
 /**
@@ -55,7 +45,7 @@ const TIER_COLORS = {
  * Customer tier badge
  */
 export function TierBadge({ tier, tierName, discount, size = 'md', showDiscount = true }) {
-  const Icon = TIER_ICONS[tier] || BuildingStorefrontIcon;
+  const Icon = TIER_ICONS[tier] || Store;
   const colorClass = TIER_COLORS[tier] || TIER_COLORS.retail;
 
   const sizeClasses = {
@@ -141,7 +131,7 @@ export function CustomerPriceDisplay({
       {showSavings && hasDiscount && (
         <div className="flex items-center gap-1.5 mt-1">
           <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-green-100 text-green-700 text-xs font-medium rounded-full">
-            <ArrowTrendingDownIcon className="w-3 h-3" />
+            <TrendingDown className="w-3 h-3" />
             Save {formatCurrency(savings)} ({savingsPercent.toFixed(0)}%)
           </span>
 
@@ -153,7 +143,7 @@ export function CustomerPriceDisplay({
           {/* Volume discount indicator */}
           {volumeDiscount > 0 && (
             <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-blue-100 text-blue-700 text-xs font-medium rounded-full">
-              <CubeIcon className="w-3 h-3" />
+              <Box className="w-3 h-3" />
               +{volumeDiscount.toFixed(0)}% volume
             </span>
           )}
@@ -241,7 +231,7 @@ export function VolumeDiscountPreview({
       {/* Current volume discount */}
       {currentTier && (
         <div className="flex items-center gap-1.5 text-green-700">
-          <CubeIcon className="w-4 h-4" />
+          <Box className="w-4 h-4" />
           <span>
             {currentTier.discountPercent}% volume discount applied (qty {currentQuantity})
           </span>
@@ -251,7 +241,7 @@ export function VolumeDiscountPreview({
       {/* Next tier hint */}
       {nextTier && (
         <div className="flex items-center gap-1.5 text-gray-500 mt-1">
-          <SparklesIcon className="w-4 h-4" />
+          <Sparkles className="w-4 h-4" />
           <span>
             Buy {nextTier.minQuantity - currentQuantity} more for{' '}
             {nextTier.discountPercent}% off
@@ -405,7 +395,7 @@ export function CustomerPricingCard({
       {pricingInfo.volumeDiscountEligible && (
         <div className="mt-3 pt-3 border-t border-gray-100">
           <div className="flex items-center gap-1.5 text-sm text-blue-600">
-            <CubeIcon className="w-4 h-4" />
+            <Box className="w-4 h-4" />
             <span>Volume discounts apply</span>
           </div>
         </div>

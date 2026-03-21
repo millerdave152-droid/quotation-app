@@ -4,7 +4,7 @@
  * @module utils/password
  */
 
-const bcrypt = require('bcryptjs');
+const bcrypt = require('bcrypt');
 
 // Salt rounds for bcrypt hashing (higher = more secure but slower)
 const SALT_ROUNDS = 12;

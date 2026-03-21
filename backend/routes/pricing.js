@@ -8,6 +8,7 @@ const express = require('express');
 const router = express.Router();
 const { ApiError, asyncHandler } = require('../middleware/errorHandler');
 const { authenticate } = require('../middleware/auth');
+const { auditLogMiddleware } = require('../middleware/auditLog');
 const DynamicPricingService = require('../services/DynamicPricingService');
 
 module.exports = (pool, cache, pricingService) => {
@@ -192,7 +193,7 @@ module.exports = (pool, cache, pricingService) => {
    * POST /api/pricing/violations/:id/resolve
    * Approve or reject a price violation
    */
-  router.post('/violations/:id/resolve', authenticate, asyncHandler(async (req, res) => {
+  router.post('/violations/:id/resolve', authenticate, auditLogMiddleware('price_violation_resolve', 'inventory'), asyncHandler(async (req, res) => {
     const violationId = parseInt(req.params.id);
 
     if (isNaN(violationId)) {

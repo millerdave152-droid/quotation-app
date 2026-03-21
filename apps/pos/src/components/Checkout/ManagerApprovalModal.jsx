@@ -3,20 +3,18 @@
  *
  * Modal for manager PIN verification when overrides exceed thresholds.
  * Features touch-friendly numeric keypad for POS screen.
+ *
+ * When used for fraud overrides, shows:
+ *   - Full fraud signal breakdown with point values
+ *   - ID verification checkbox
+ *   - Override reason dropdown
+ *   - Free-text notes
+ *   - Customer transaction history summary
  */
 
 import { useState, useCallback, useEffect, useRef } from 'react';
-import {
-  XMarkIcon,
-  LockClosedIcon,
-  ShieldCheckIcon,
-  ExclamationTriangleIcon,
-  BackspaceIcon,
-  CheckCircleIcon,
-  UserCircleIcon,
-  IdentificationIcon,
-} from '@heroicons/react/24/outline';
 import { formatCurrency } from '../../utils/formatters';
+import { AlertTriangle, CheckCircle, CircleUser, Delete, IdCard, Lock, ShieldAlert, ShieldCheck, X } from 'lucide-react';
 
 // ============================================================================
 // PIN KEYPAD BUTTON
@@ -93,20 +91,30 @@ function OverrideReasonBadge({ overrideType, value, threshold }) {
         return 'Transaction void requires manager approval';
       case 'drawer_adjustment':
         return `Drawer adjustment of ${formatCurrency(value)} requires approval`;
+      case 'fraud_block':
+        return `Fraud block override \u2014 Risk score: ${value}/100`;
       default:
         return 'Manager approval required for this action';
     }
   };
 
   return (
-    <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg">
+    <div className={`p-3 rounded-lg border ${
+      overrideType === 'fraud_block'
+        ? 'bg-red-50 border-red-200'
+        : 'bg-amber-50 border-amber-200'
+    }`}>
       <div className="flex items-start gap-2">
-        <ExclamationTriangleIcon className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" />
+        {overrideType === 'fraud_block' ? (
+          <ShieldAlert className="w-5 h-5 text-red-600 flex-shrink-0 mt-0.5" />
+        ) : (
+          <AlertTriangle className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" />
+        )}
         <div>
-          <p className="text-sm font-medium text-amber-800">
+          <p className={`text-sm font-medium ${overrideType === 'fraud_block' ? 'text-red-800' : 'text-amber-800'}`}>
             {getReasonText()}
           </p>
-          {value !== undefined && threshold !== undefined && (
+          {value !== undefined && threshold !== undefined && overrideType !== 'fraud_block' && (
             <p className="text-xs text-amber-600 mt-1">
               Current value: {typeof value === 'number' && value < 100 ? `${value.toFixed(1)}%` : formatCurrency(value)}
               {' '}| Threshold: {typeof threshold === 'number' && threshold < 100 ? `${threshold}%` : formatCurrency(threshold)}
@@ -119,24 +127,174 @@ function OverrideReasonBadge({ overrideType, value, threshold }) {
 }
 
 // ============================================================================
+// FRAUD SIGNAL BREAKDOWN (new — for fraud overrides)
+// ============================================================================
+
+const SIGNAL_LABELS = {
+  velocity: 'Transaction Velocity',
+  amount_anomaly: 'Amount Anomaly',
+  bin_risk: 'Card BIN Risk',
+  time_anomaly: 'Off-Hours Activity',
+  entry_method: 'Entry Method Risk',
+  employee_risk: 'Employee Risk Profile',
+  split_transaction: 'Split Transaction',
+  card_testing: 'Card Testing Pattern',
+  geographic_anomaly: 'Geographic Anomaly',
+  decline_pattern: 'Decline Pattern',
+  customer_anomaly: 'Customer Risk',
+  customer_history: 'Customer History',
+};
+
+function FraudSignalBreakdown({ signals }) {
+  if (!signals || Object.keys(signals).length === 0) return null;
+
+  // Collect signals with points > 0
+  const activeSignals = [];
+
+  for (const [key, value] of Object.entries(signals)) {
+    if (!value) continue;
+
+    // Velocity has sub-dimensions
+    if (key === 'velocity') {
+      for (const [dim, check] of Object.entries(value)) {
+        if (check.exceeded && check.riskPoints > 0) {
+          activeSignals.push({
+            label: `Velocity: ${dim}`,
+            points: check.riskPoints,
+            detail: `${check.count} events`,
+          });
+        }
+      }
+      continue;
+    }
+
+    const pts = value.riskPoints || 0;
+    if (pts > 0) {
+      const detail = key === 'entry_method' ? value.method
+        : key === 'amount_anomaly' ? `z-score: ${value.zscore}`
+        : key === 'geographic_anomaly' ? `${value.distanceKm}km / ${value.windowMinutes}min`
+        : key === 'customer_anomaly' || key === 'customer_history'
+          ? (value.flags || []).join(', ') || (value.chargebackCount > 0 ? `${value.chargebackCount} chargebacks` : '')
+        : key === 'split_transaction' ? `${value.count} txns`
+        : key === 'card_testing' ? `${value.attempts} attempts`
+        : '';
+
+      activeSignals.push({
+        label: SIGNAL_LABELS[key] || key,
+        points: pts,
+        detail,
+      });
+    }
+  }
+
+  if (activeSignals.length === 0) return null;
+
+  // Sort by points descending
+  activeSignals.sort((a, b) => b.points - a.points);
+
+  return (
+    <div className="p-3 bg-gray-50 rounded-lg border border-gray-200">
+      <h4 className="text-xs font-semibold text-gray-600 uppercase tracking-wide mb-2">
+        Signal Breakdown
+      </h4>
+      <div className="space-y-1.5">
+        {activeSignals.map((sig, idx) => (
+          <div key={idx} className="flex items-center justify-between text-sm">
+            <div className="flex items-center gap-2 min-w-0">
+              <div className={`w-2 h-2 rounded-full flex-shrink-0 ${
+                sig.points >= 15 ? 'bg-red-500' : sig.points >= 8 ? 'bg-orange-500' : 'bg-yellow-500'
+              }`} />
+              <span className="text-gray-700 truncate">{sig.label}</span>
+              {sig.detail && (
+                <span className="text-xs text-gray-400 truncate">({sig.detail})</span>
+              )}
+            </div>
+            <span className="text-xs font-bold text-gray-600 flex-shrink-0 ml-2">+{sig.points}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ============================================================================
+// FRAUD OVERRIDE FORM (new — reason, ID check, notes)
+// ============================================================================
+
+const OVERRIDE_REASONS = [
+  { value: '', label: 'Select override reason...' },
+  { value: 'known_regular', label: 'Known regular customer' },
+  { value: 'verified_id', label: 'Verified photo ID' },
+  { value: 'callback_completed', label: 'Callback completed' },
+  { value: 'manager_discretion', label: 'Manager discretion' },
+  { value: 'other', label: 'Other (see notes)' },
+];
+
+function FraudOverrideForm({ overrideData, onChange }) {
+  return (
+    <div className="space-y-3">
+      {/* ID Verification Checkbox */}
+      <label className="flex items-start gap-3 p-3 bg-blue-50 border border-blue-200 rounded-lg cursor-pointer hover:bg-blue-100 transition-colors">
+        <input
+          type="checkbox"
+          checked={overrideData.idVerified}
+          onChange={(e) => onChange({ ...overrideData, idVerified: e.target.checked })}
+          className="mt-0.5 w-5 h-5 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+        />
+        <div>
+          <p className="text-sm font-medium text-blue-800">
+            I have verified the customer&rsquo;s government-issued photo ID
+          </p>
+          <p className="text-xs text-blue-600 mt-0.5">
+            Driver&rsquo;s license, passport, or provincial ID card
+          </p>
+        </div>
+      </label>
+
+      {/* Override Reason Dropdown */}
+      <div>
+        <label className="block text-xs font-medium text-gray-600 mb-1">Override Reason</label>
+        <select
+          value={overrideData.reason}
+          onChange={(e) => onChange({ ...overrideData, reason: e.target.value })}
+          className="w-full h-10 px-3 text-sm border border-gray-300 rounded-lg bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+        >
+          {OVERRIDE_REASONS.map((opt) => (
+            <option key={opt.value} value={opt.value}>{opt.label}</option>
+          ))}
+        </select>
+      </div>
+
+      {/* Notes */}
+      <div>
+        <label className="block text-xs font-medium text-gray-600 mb-1">Notes (optional)</label>
+        <textarea
+          value={overrideData.notes}
+          onChange={(e) => onChange({ ...overrideData, notes: e.target.value })}
+          rows={2}
+          placeholder="Explain the override reason..."
+          className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg resize-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+        />
+      </div>
+    </div>
+  );
+}
+
+// ============================================================================
 // SUCCESS STATE
 // ============================================================================
 
 function ApprovalSuccess({ managerName }) {
-  // No auto-close timer here — verifyPin in useManagerApproval already
-  // schedules closing the modal + resolving the promise after 1500ms.
-  // Having a second timer caused a race condition and DOM crash.
-
   return (
     <div className="flex flex-col items-center justify-center py-8">
       <div className="w-20 h-20 bg-green-100 rounded-full flex items-center justify-center mb-4 animate-pulse">
-        <CheckCircleIcon className="w-12 h-12 text-green-600" />
+        <CheckCircle className="w-12 h-12 text-green-600" />
       </div>
       <h3 className="text-xl font-bold text-green-800 mb-2">
         Approved
       </h3>
       <div className="flex items-center gap-2 text-gray-600">
-        <UserCircleIcon className="w-5 h-5" />
+        <CircleUser className="w-5 h-5" />
         <span className="text-sm">Approved by {managerName}</span>
       </div>
     </div>
@@ -147,21 +305,20 @@ function ApprovalSuccess({ managerName }) {
 // MAIN MODAL COMPONENT
 // ============================================================================
 
-// PIN retry limiting constants
 const MAX_PIN_ATTEMPTS = 5;
-const LOCKOUT_DURATION_MS = 5 * 60 * 1000; // 5 minutes
+const LOCKOUT_DURATION_MS = 5 * 60 * 1000;
 
 /**
  * Manager approval modal with numeric PIN keypad
  * @param {object} props
- * @param {boolean} props.isOpen - Whether modal is open
- * @param {object} props.pendingOverride - Override details
+ * @param {boolean} props.isOpen
+ * @param {object} props.pendingOverride - Override details (may include signals, triggeredRules for fraud)
  * @param {function} props.onVerifyPin - Callback to verify PIN
- * @param {function} props.onCancel - Callback to cancel
- * @param {boolean} props.isLoading - Loading state
- * @param {string} props.error - Error message
- * @param {object} props.approvalResult - Approval result (if approved)
- * @param {function} props.onClearError - Clear error callback
+ * @param {function} props.onCancel
+ * @param {boolean} props.isLoading
+ * @param {string} props.error
+ * @param {object} props.approvalResult
+ * @param {function} props.onClearError
  */
 export function ManagerApprovalModal({
   isOpen,
@@ -179,13 +336,18 @@ export function ManagerApprovalModal({
   const [lockoutRemaining, setLockoutRemaining] = useState(0);
   const maxPinLength = 6;
 
-  // Check if currently locked out
+  // Fraud override form state (only used when overrideType === 'fraud_block')
+  const isFraudOverride = pendingOverride?.overrideType === 'fraud_block';
+  const [fraudForm, setFraudForm] = useState({ idVerified: false, reason: '', notes: '' });
+
   const isLockedOut = lockoutUntil && Date.now() < lockoutUntil;
+
+  // Whether the fraud override form is complete enough to submit
+  const fraudFormValid = !isFraudOverride || (fraudForm.reason !== '');
 
   // Update lockout countdown
   useEffect(() => {
     if (!lockoutUntil) return;
-
     const updateRemaining = () => {
       const remaining = Math.max(0, lockoutUntil - Date.now());
       setLockoutRemaining(remaining);
@@ -194,17 +356,16 @@ export function ManagerApprovalModal({
         setAttempts(0);
       }
     };
-
     updateRemaining();
     const interval = setInterval(updateRemaining, 1000);
     return () => clearInterval(interval);
   }, [lockoutUntil]);
 
-  // Clear PIN and reset attempts when modal opens/closes
+  // Clear PIN and reset on modal open/close
   useEffect(() => {
     if (isOpen) {
       setPin('');
-      // Check for existing lockout in sessionStorage
+      setFraudForm({ idVerified: false, reason: '', notes: '' });
       const storedLockout = sessionStorage.getItem('pin_lockout_until');
       if (storedLockout) {
         const lockoutTime = parseInt(storedLockout, 10);
@@ -224,24 +385,14 @@ export function ManagerApprovalModal({
 
   // Clear PIN on error
   useEffect(() => {
-    if (error) {
-      setPin('');
-    }
+    if (error) setPin('');
   }, [error]);
 
   // Handle keypad press
   const handleKeyPress = useCallback((key) => {
     if (isLoading) return;
-
-    // Clear any existing error when typing
-    if (error && onClearError) {
-      onClearError();
-    }
-
-    setPin((prev) => {
-      if (prev.length >= maxPinLength) return prev;
-      return prev + key;
-    });
+    if (error && onClearError) onClearError();
+    setPin((prev) => prev.length >= maxPinLength ? prev : prev + key);
   }, [isLoading, error, onClearError, maxPinLength]);
 
   // Handle backspace
@@ -254,49 +405,53 @@ export function ManagerApprovalModal({
   const handleClear = useCallback(() => {
     if (isLoading) return;
     setPin('');
-    if (error && onClearError) {
-      onClearError();
-    }
+    if (error && onClearError) onClearError();
   }, [isLoading, error, onClearError]);
 
   // Handle submit with retry limiting
   const handleSubmit = useCallback(async () => {
     if (!pin || pin.length < 4 || isLoading || isLockedOut) return;
+    if (!fraudFormValid) return;
 
     try {
-      const result = await onVerifyPin?.(pin);
+      // For fraud overrides, include the form data with the PIN verification
+      const extraData = isFraudOverride ? {
+        fraudOverride: {
+          idVerified: fraudForm.idVerified,
+          reason: fraudForm.reason,
+          notes: fraudForm.notes,
+          riskScore: pendingOverride?.value,
+          signals: pendingOverride?.signals,
+        },
+      } : {};
 
-      // If PIN verification failed, increment attempts
+      const result = await onVerifyPin?.(pin, extraData);
+
       if (!result || result.error || !result.approved) {
         const newAttempts = attempts + 1;
         setAttempts(newAttempts);
         sessionStorage.setItem('pin_attempts', newAttempts.toString());
-
-        // Check if should lock out
         if (newAttempts >= MAX_PIN_ATTEMPTS) {
           const lockoutTime = Date.now() + LOCKOUT_DURATION_MS;
           setLockoutUntil(lockoutTime);
           sessionStorage.setItem('pin_lockout_until', lockoutTime.toString());
         }
       } else {
-        // Success - clear attempts
         setAttempts(0);
         sessionStorage.removeItem('pin_attempts');
         sessionStorage.removeItem('pin_lockout_until');
       }
-    } catch (err) {
-      // Network error or other failure - still count as attempt
+    } catch {
       const newAttempts = attempts + 1;
       setAttempts(newAttempts);
       sessionStorage.setItem('pin_attempts', newAttempts.toString());
-
       if (newAttempts >= MAX_PIN_ATTEMPTS) {
         const lockoutTime = Date.now() + LOCKOUT_DURATION_MS;
         setLockoutUntil(lockoutTime);
         sessionStorage.setItem('pin_lockout_until', lockoutTime.toString());
       }
     }
-  }, [pin, isLoading, onVerifyPin, attempts, isLockedOut]);
+  }, [pin, isLoading, onVerifyPin, attempts, isLockedOut, isFraudOverride, fraudForm, fraudFormValid, pendingOverride]);
 
   // Handle cancel
   const handleCancel = useCallback(() => {
@@ -307,19 +462,12 @@ export function ManagerApprovalModal({
   // Keyboard support
   useEffect(() => {
     if (!isOpen || approvalResult) return;
-
     const handleKeyDown = (e) => {
-      if (e.key >= '0' && e.key <= '9') {
-        handleKeyPress(e.key);
-      } else if (e.key === 'Backspace') {
-        handleBackspace();
-      } else if (e.key === 'Escape') {
-        handleCancel();
-      } else if (e.key === 'Enter' && pin.length >= 4) {
-        handleSubmit();
-      }
+      if (e.key >= '0' && e.key <= '9') handleKeyPress(e.key);
+      else if (e.key === 'Backspace') handleBackspace();
+      else if (e.key === 'Escape') handleCancel();
+      else if (e.key === 'Enter' && pin.length >= 4) handleSubmit();
     };
-
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [isOpen, approvalResult, handleKeyPress, handleBackspace, handleCancel, handleSubmit, pin.length]);
@@ -331,9 +479,7 @@ export function ManagerApprovalModal({
     return (
       <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50">
         <div className="bg-white rounded-2xl shadow-xl max-w-md w-full mx-4">
-          <ApprovalSuccess
-            managerName={approvalResult.managerName}
-          />
+          <ApprovalSuccess managerName={approvalResult.managerName} />
         </div>
       </div>
     );
@@ -341,39 +487,63 @@ export function ManagerApprovalModal({
 
   return (
     <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50">
-      <div className="bg-white rounded-2xl shadow-xl max-w-md w-full mx-4 overflow-hidden">
+      <div className={`bg-white rounded-2xl shadow-xl w-full mx-4 overflow-hidden ${
+        isFraudOverride ? 'max-w-lg' : 'max-w-md'
+      }`} style={{ maxHeight: '95vh', overflowY: 'auto' }}>
         {/* Header */}
-        <div className="flex items-center justify-between p-4 border-b border-gray-200 bg-gradient-to-r from-blue-600 to-blue-700">
+        <div className={`flex items-center justify-between p-4 border-b border-gray-200 ${
+          isFraudOverride
+            ? 'bg-gradient-to-r from-red-600 to-red-700'
+            : 'bg-gradient-to-r from-blue-600 to-blue-700'
+        }`}>
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 bg-white/20 rounded-full flex items-center justify-center">
-              <LockClosedIcon className="w-5 h-5 text-white" />
+              {isFraudOverride ? (
+                <ShieldAlert className="w-5 h-5 text-white" />
+              ) : (
+                <Lock className="w-5 h-5 text-white" />
+              )}
             </div>
             <div>
-              <h2 className="text-lg font-bold text-white">Manager Approval</h2>
-              <p className="text-sm text-blue-100">Enter manager PIN to continue</p>
+              <h2 className="text-lg font-bold text-white">
+                {isFraudOverride ? 'Fraud Override' : 'Manager Approval'}
+              </h2>
+              <p className={`text-sm ${isFraudOverride ? 'text-red-100' : 'text-blue-100'}`}>
+                Enter manager PIN to continue
+              </p>
             </div>
           </div>
           <button
             onClick={handleCancel}
             className="w-8 h-8 flex items-center justify-center text-white/80 hover:text-white hover:bg-white/10 rounded-lg transition-colors"
           >
-            <XMarkIcon className="w-5 h-5" />
+            <X className="w-5 h-5" />
           </button>
         </div>
 
         {/* Content */}
         <div className="p-4 space-y-4">
-          {/* Override reason */}
+          {/* Override reason badge */}
           {pendingOverride && (
             <OverrideReasonBadge
               overrideType={pendingOverride.overrideType}
-              value={pendingOverride.displayValue || pendingOverride.overrideValue}
+              value={pendingOverride.displayValue || pendingOverride.overrideValue || pendingOverride.value}
               threshold={pendingOverride.threshold}
             />
           )}
 
-          {/* Product info (if applicable) */}
-          {pendingOverride?.productName && (
+          {/* Fraud signal breakdown — only for fraud overrides */}
+          {isFraudOverride && pendingOverride?.signals && (
+            <FraudSignalBreakdown signals={pendingOverride.signals} />
+          )}
+
+          {/* Fraud override form — ID verification, reason, notes */}
+          {isFraudOverride && (
+            <FraudOverrideForm overrideData={fraudForm} onChange={setFraudForm} />
+          )}
+
+          {/* Product info (if applicable — non-fraud overrides) */}
+          {!isFraudOverride && pendingOverride?.productName && (
             <div className="p-3 bg-gray-50 rounded-lg">
               <p className="text-xs text-gray-500 mb-1">Product</p>
               <p className="text-sm font-medium text-gray-900">{pendingOverride.productName}</p>
@@ -388,11 +558,18 @@ export function ManagerApprovalModal({
             <PinDots length={pin.length} maxLength={maxPinLength} />
           </div>
 
+          {/* Validation: fraud form must have a reason */}
+          {isFraudOverride && !fraudFormValid && pin.length >= 4 && (
+            <div className="p-2 bg-amber-50 border border-amber-200 rounded-lg">
+              <p className="text-xs text-amber-700">Please select an override reason before submitting</p>
+            </div>
+          )}
+
           {/* Lockout message */}
           {isLockedOut && (
             <div className="p-3 bg-red-100 border border-red-300 rounded-lg">
               <div className="flex items-center gap-2">
-                <LockClosedIcon className="w-5 h-5 text-red-600 flex-shrink-0" />
+                <Lock className="w-5 h-5 text-red-600 flex-shrink-0" />
                 <div>
                   <p className="text-sm font-medium text-red-800">Too many failed attempts</p>
                   <p className="text-xs text-red-600">
@@ -407,7 +584,7 @@ export function ManagerApprovalModal({
           {error && !isLockedOut && (
             <div className="p-3 bg-red-50 border border-red-200 rounded-lg">
               <div className="flex items-center gap-2">
-                <ExclamationTriangleIcon className="w-5 h-5 text-red-600 flex-shrink-0" />
+                <AlertTriangle className="w-5 h-5 text-red-600 flex-shrink-0" />
                 <div>
                   <p className="text-sm text-red-700">{error}</p>
                   {attempts > 0 && attempts < MAX_PIN_ATTEMPTS && (
@@ -422,7 +599,7 @@ export function ManagerApprovalModal({
 
           {/* Badge swipe placeholder */}
           <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg border border-dashed border-gray-300">
-            <IdentificationIcon className="w-6 h-6 text-gray-400" />
+            <IdCard className="w-6 h-6 text-gray-400" />
             <div>
               <p className="text-sm text-gray-500">Or swipe manager badge</p>
               <p className="text-xs text-gray-400">Badge reader coming soon</p>
@@ -457,7 +634,7 @@ export function ManagerApprovalModal({
               onClick={handleBackspace}
               disabled={isLoading || pin.length === 0}
             >
-              <BackspaceIcon className="w-6 h-6" />
+              <Delete className="w-6 h-6" />
             </KeypadButton>
           </div>
         </div>
@@ -480,7 +657,7 @@ export function ManagerApprovalModal({
           </button>
           <button
             onClick={handleSubmit}
-            disabled={isLoading || pin.length < 4 || isLockedOut}
+            disabled={isLoading || pin.length < 4 || isLockedOut || !fraudFormValid}
             className="
               flex-1 h-14
               flex items-center justify-center gap-2
@@ -498,12 +675,12 @@ export function ManagerApprovalModal({
               </>
             ) : isLockedOut ? (
               <>
-                <LockClosedIcon className="w-5 h-5" />
+                <Lock className="w-5 h-5" />
                 Locked
               </>
             ) : (
               <>
-                <ShieldCheckIcon className="w-5 h-5" />
+                <ShieldCheck className="w-5 h-5" />
                 Verify & Approve
               </>
             )}

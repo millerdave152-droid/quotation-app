@@ -37,6 +37,9 @@ export { default as CommandPalette } from './CommandPalette';
 // Global search
 export { default as GlobalSearch } from './GlobalSearch';
 
+// Universal semantic search
+export { default as UniversalSearch } from './UniversalSearch';
+
 // Email input with split layout
 export { default as EmailInput } from './EmailInput';
 

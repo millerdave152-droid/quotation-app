@@ -18,7 +18,6 @@ class QuoteExpiryDigestJob {
    * Start the scheduled job
    */
   start() {
-    console.log(`[QuoteExpiryDigest] Starting scheduler with schedule: ${this.schedule}`);
 
     cron.schedule(this.schedule, async () => {
       await this.run();
@@ -26,7 +25,6 @@ class QuoteExpiryDigestJob {
       timezone: process.env.TIMEZONE || 'America/Toronto',
     });
 
-    console.log('[QuoteExpiryDigest] Job scheduled');
   }
 
   /**
@@ -34,18 +32,15 @@ class QuoteExpiryDigestJob {
    */
   async run() {
     if (this.isRunning) {
-      console.log('[QuoteExpiryDigest] Job already running, skipping');
       return;
     }
 
     this.isRunning = true;
-    console.log('[QuoteExpiryDigest] Starting digest job...');
 
     try {
       // Get all sales reps with expiring quotes
       const repsWithQuotes = await this.getRepsWithExpiringQuotes();
 
-      console.log(`[QuoteExpiryDigest] Found ${repsWithQuotes.length} reps with expiring quotes`);
 
       const results = {
         sent: 0,
@@ -83,7 +78,6 @@ class QuoteExpiryDigestJob {
       }
 
       this.lastRun = new Date();
-      console.log('[QuoteExpiryDigest] Job complete:', results);
 
       return results;
     } catch (error) {
@@ -327,7 +321,6 @@ class QuoteExpiryDigestJob {
         html,
       });
     } else {
-      console.log(`[QuoteExpiryDigest] Would send email to ${rep.email}: ${subject}`);
     }
   }
 

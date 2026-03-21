@@ -4,11 +4,11 @@
  */
 
 import { useState, useCallback, useEffect, useMemo, useRef } from 'react';
-import { XMarkIcon, ChevronLeftIcon, TagIcon, PlusIcon, TruckIcon, ShoppingBagIcon } from '@heroicons/react/24/outline';
 import { useCart } from '../../hooks/useCart';
 import { formatCurrency } from '../../utils/formatters';
 
-const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:3001/api';
+const API_BASE = import.meta.env.VITE_API_URL || '/api';
+const getToken = () => localStorage.getItem('pos_token') || localStorage.getItem('auth_token') || '';
 import PaymentMethods from './PaymentMethods';
 import CashPayment from './CashPayment';
 import CardPayment from './CardPayment';
@@ -30,11 +30,13 @@ import SalespersonSelector from './SalespersonSelector';
 import CommissionSplitSelector from './CommissionSplitSelector';
 import FraudAlertBanner from './FraudAlertBanner';
 import FraudBlockedModal from './FraudBlockedModal';
+import MOTOPayment from './MOTOPayment';
 import useWarrantyUpsell from '../../hooks/useWarrantyUpsell';
 import useAutoPromotions from '../../hooks/useAutoPromotions';
 import useSignatureRequirements from '../../hooks/useSignatureRequirements';
 import { useAuth } from '../../context/AuthContext';
 import { usePermissions, POS_PERMISSIONS } from '../../hooks/usePermissions';
+import { ChevronLeft, Plus, ShoppingBag, Tag, Truck, X } from 'lucide-react';
 
 /**
  * Order summary item component
@@ -133,7 +135,7 @@ function OrderSummary({
             <div className="p-3 bg-green-50 border border-green-200 rounded-lg">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
-                  <TagIcon className="w-4 h-4 text-green-600" />
+                  <Tag className="w-4 h-4 text-green-600" />
                   <div>
                     <p className="text-sm font-medium text-green-800">
                       {formatCurrency(cart.discount.amount)} discount applied
@@ -167,7 +169,7 @@ function OrderSummary({
                 transition-colors duration-150
               "
             >
-              <PlusIcon className="w-4 h-4" />
+              <Plus className="w-4 h-4" />
               Add Discount
             </button>
           )}
@@ -189,9 +191,9 @@ function OrderSummary({
         <div className="mb-4 p-3 bg-gray-50 rounded-lg">
           <div className="flex items-start gap-3">
             {cart.selectedFulfillment.type === 'local_delivery' ? (
-              <TruckIcon className="w-5 h-5 text-gray-500 flex-shrink-0 mt-0.5" />
+              <Truck className="w-5 h-5 text-gray-500 flex-shrink-0 mt-0.5" />
             ) : (
-              <ShoppingBagIcon className="w-5 h-5 text-gray-500 flex-shrink-0 mt-0.5" />
+              <ShoppingBag className="w-5 h-5 text-gray-500 flex-shrink-0 mt-0.5" />
             )}
             <div className="flex-1 min-w-0">
               <p className="text-sm font-medium text-gray-900">
@@ -292,7 +294,7 @@ export function CheckoutModal({
   const { can } = usePermissions();
 
   // State
-  const [step, setStep] = useState('fulfillment'); // 'fulfillment', 'methods', 'cash', 'credit', 'debit', 'giftcard', 'account', 'financing', 'etransfer', 'store_credit', 'deposit', 'split', 'signature', 'complete'
+  const [step, setStep] = useState('fulfillment'); // 'fulfillment', 'methods', 'cash', 'credit', 'debit', 'gift_card', 'account', 'financing', 'etransfer', 'store_credit', 'deposit', 'split', 'signature', 'complete'
   const [payments, setPayments] = useState([]);
   const [transaction, setTransaction] = useState(null);
   const [error, setError] = useState(null);
@@ -302,7 +304,9 @@ export function CheckoutModal({
   const [isProcessing, setIsProcessing] = useState(false);
   const [fraudAssessment, setFraudAssessment] = useState(null);
   const [showFraudBlocked, setShowFraudBlocked] = useState(false);
+  const [code10Sent, setCode10Sent] = useState(false);
   const processingRef = useRef(false);
+  const fraudOverrideRef = useRef(null);
   const paymentsRef = useRef([]);
   const prevIsOpenRef = useRef(false);
   const [showDiscountPanel, setShowDiscountPanel] = useState(false);
@@ -343,7 +347,7 @@ export function CheckoutModal({
         coversItemId: itemId,
       });
     },
-    onComplete: ({ warranties, skipped }) => {
+    onComplete: () => {
       // Warranties flow complete, proceed to payment
       setStep('methods');
     },
@@ -359,17 +363,14 @@ export function CheckoutModal({
     autoApplyEnabled: !cart.appliedPromotion, // Don't auto-apply if promotion already applied
   });
 
-  // Calculate remaining balance
+  // Calculate remaining balance (round to cents to avoid floating point drift)
   const paidAmount = useMemo(() => {
-    return payments.reduce((sum, p) => sum + p.amount, 0);
+    return Math.round(payments.reduce((sum, p) => sum + p.amount, 0) * 100) / 100;
   }, [payments]);
 
   const remainingBalance = useMemo(() => {
-    return Math.max(0, cart.total - paidAmount);
+    return Math.max(0, Math.round((cart.total - paidAmount) * 100) / 100);
   }, [cart.total, paidAmount]);
-
-  // Check if fully paid
-  const isFullyPaid = remainingBalance <= 0.01;
 
   // Reset state only when modal transitions from closed to open
   useEffect(() => {
@@ -383,6 +384,9 @@ export function CheckoutModal({
       setSignatureWarning(null);
       setIsProcessing(false);
       setShowDiscountPanel(false);
+      setFraudAssessment(null);
+      setShowFraudBlocked(false);
+      fraudOverrideRef.current = null;
       signatureReq.reset();
       // Suppress auth redirect for the entire checkout session
       window.__posCheckoutActive = true;
@@ -458,7 +462,6 @@ export function CheckoutModal({
 
   // Handle fulfillment selection complete
   const handleFulfillmentComplete = useCallback((fulfillment) => {
-    console.log('[Checkout] Fulfillment complete, starting warranty flow. Cart items:', cart.items?.length);
     cart.setFulfillment(fulfillment);
     // Start warranty upsell flow (only if not already open from useEffect)
     if (!warrantyUpsell.isOpen && !warrantyUpsell.isLoading) {
@@ -486,9 +489,12 @@ export function CheckoutModal({
 
       const result = await cart.processTransaction(finalPayments, {
         signatures: signatureData,
+        ...(fraudOverrideRef.current && { fraudOverride: fraudOverrideRef.current }),
       });
 
       if (result.success) {
+        fraudOverrideRef.current = null;
+
         // Offline transaction: skip signature/fraud, go straight to complete
         if (result.offline) {
           setTransaction(result.transaction);
@@ -560,8 +566,8 @@ export function CheckoutModal({
     if (processingRef.current || isProcessing) return;
     processingRef.current = true;
 
-    const currentPaid = payments.reduce((sum, p) => sum + p.amount, 0);
-    const remainingBefore = Math.max(0, cart.total - currentPaid);
+    const currentPaid = Math.round(payments.reduce((sum, p) => sum + p.amount, 0) * 100) / 100;
+    const remainingBefore = Math.max(0, Math.round((cart.total - currentPaid) * 100) / 100);
     const isPartialPayment = payment.amount + 0.01 < remainingBefore;
 
     if (payment.paymentMethod === 'cash' && isPartialPayment) {
@@ -586,8 +592,8 @@ export function CheckoutModal({
       return;
     }
 
-    const newPaidAmount = newPayments.reduce((sum, p) => sum + p.amount, 0);
-    const newRemaining = cart.total - newPaidAmount;
+    const newPaidAmount = Math.round(newPayments.reduce((sum, p) => sum + p.amount, 0) * 100) / 100;
+    const newRemaining = Math.round((cart.total - newPaidAmount) * 100) / 100;
 
     if (newRemaining <= 0.01) {
       // Fully paid - check if signatures are required
@@ -620,8 +626,8 @@ export function CheckoutModal({
       return;
     }
 
-    const newPaidAmount = newPayments.reduce((sum, p) => sum + p.amount, 0);
-    const newRemaining = cart.total - newPaidAmount;
+    const newPaidAmount = Math.round(newPayments.reduce((sum, p) => sum + p.amount, 0) * 100) / 100;
+    const newRemaining = Math.round((cart.total - newPaidAmount) * 100) / 100;
 
     if (newRemaining <= 0.01) {
       if (signatureReq.hasRequirements && !signatureReq.isComplete) {
@@ -679,6 +685,87 @@ export function CheckoutModal({
     });
   }, []);
 
+  // Code 10 — silent fraud alert
+  const handleCode10 = useCallback(async () => {
+    if (code10Sent) return;
+    try {
+      await fetch(`${API_BASE}/fraud/code10`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${localStorage.getItem('pos_token')}`,
+        },
+        body: JSON.stringify({
+          transaction_id: transaction?.transactionId || null,
+          customer_id: cart.customer?.id || null,
+        }),
+      });
+      setCode10Sent(true);
+      setTimeout(() => setCode10Sent(false), 2000);
+    } catch {
+      // Silently fail — no indication to anyone nearby
+    }
+  }, [code10Sent, transaction, cart.customer]);
+
+  // Fraud override — verify manager PIN via backend
+  const handleFraudOverrideVerify = useCallback(async (pin, extraData) => {
+    try {
+      const response = await fetch(`${API_BASE}/manager-overrides/approve`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${localStorage.getItem('pos_token')}`,
+        },
+        body: JSON.stringify({
+          pin,
+          overrideType: 'fraud_block',
+          originalValue: fraudAssessment?.riskScore || 0,
+          overrideValue: 0,
+          reason: extraData?.fraudOverride?.reason || 'Fraud override',
+          requiredLevel: 'manager',
+        }),
+      });
+
+      const data = await response.json();
+      const errMsg = typeof data.error === 'object' ? data.error?.message : data.error;
+
+      if (!response.ok) {
+        return {
+          approved: false,
+          error: errMsg || 'Invalid PIN',
+          attemptsRemaining: data.attemptsRemaining,
+        };
+      }
+
+      if (!data.success || !data.approved) {
+        return { approved: false, error: errMsg || 'Approval denied' };
+      }
+
+      return {
+        approved: true,
+        logId: data.data.logId,
+        managerId: data.data.managerId,
+        managerName: data.data.managerName,
+        approvalLevel: data.data.approvalLevel,
+        fraudOverride: extraData?.fraudOverride,
+      };
+    } catch (err) {
+      return { approved: false, error: err.message || 'Verification failed' };
+    }
+  }, [fraudAssessment]);
+
+  // Handle successful fraud override — re-process transaction
+  const handleFraudOverride = useCallback((approvalResult) => {
+    setShowFraudBlocked(false);
+    fraudOverrideRef.current = {
+      logId: approvalResult.logId,
+      managerId: approvalResult.managerId,
+      managerName: approvalResult.managerName,
+      ...(approvalResult.fraudOverride || {}),
+    };
+    processTransaction(paymentsRef.current);
+  }, [processTransaction]);
+
   // Handle new transaction
   const handleNewTransaction = useCallback(() => {
     cart.clearCart();
@@ -697,7 +784,7 @@ export function CheckoutModal({
       // Fetch PDF from receipt API
       const response = await fetch(`${API_BASE}/receipts/${transactionId}/preview`, {
         headers: {
-          Authorization: `Bearer ${localStorage.getItem('pos_token')}`,
+          Authorization: `Bearer ${getToken()}`,
         },
       });
 
@@ -744,7 +831,7 @@ export function CheckoutModal({
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          Authorization: `Bearer ${localStorage.getItem('pos_token')}`,
+          Authorization: `Bearer ${getToken()}`,
         },
         body: JSON.stringify({ email }),
       });
@@ -810,7 +897,7 @@ export function CheckoutModal({
                     transition-colors duration-150
                   "
                 >
-                  <ChevronLeftIcon className="w-6 h-6" />
+                  <ChevronLeft className="w-6 h-6" />
                 </button>
               )}
               <h1 className="text-xl font-bold text-gray-900">
@@ -841,7 +928,7 @@ export function CheckoutModal({
                 transition-colors duration-150
               "
             >
-              <XMarkIcon className="w-6 h-6" />
+              <X className="w-6 h-6" />
             </button>
           </div>
         )}
@@ -856,14 +943,16 @@ export function CheckoutModal({
         <FraudBlockedModal
           isOpen={showFraudBlocked}
           assessment={fraudAssessment}
-          onOverride={() => {
-            setShowFraudBlocked(false);
-            setFraudAssessment(null);
-          }}
+          onVerifyPin={handleFraudOverrideVerify}
+          onOverride={handleFraudOverride}
           onCancel={() => {
             setShowFraudBlocked(false);
             setFraudAssessment(null);
             onClose();
+          }}
+          onTryAlternative={() => {
+            setShowFraudBlocked(false);
+            setStep('methods');
           }}
         />
 
@@ -973,13 +1062,24 @@ export function CheckoutModal({
           )}
 
           {/* Gift Card Payment */}
-          {step === 'giftcard' && (
+          {step === 'gift_card' && (
             <CardPayment
               amountDue={remainingBalance}
-              paymentType="giftcard"
+              paymentType="gift_card"
               onComplete={handlePaymentComplete}
               onBack={handleBack}
               isPartial={true}
+            />
+          )}
+
+          {/* MOTO / Phone Order Payment */}
+          {step === 'moto' && (
+            <MOTOPayment
+              amountDue={remainingBalance}
+              onComplete={handlePaymentComplete}
+              onBack={handleBack}
+              isPartial={payments.length > 0}
+              customer={cart.customer}
             />
           )}
 
@@ -1094,6 +1194,7 @@ export function CheckoutModal({
             onEmailReceipt={handleEmailReceipt}
             customerEmail={cart.customer?.email}
             signatureWarning={signatureWarning}
+            customerId={cart.customer?.id}
           />
           )}
         </div>
@@ -1111,6 +1212,16 @@ export function CheckoutModal({
         onSkipAll={warrantyUpsell.skipAll}
         onGoBack={warrantyUpsell.goBack}
         onClose={warrantyUpsell.close}
+      />
+
+      {/* Code 10 — subtle silent alert button */}
+      <button
+        onClick={handleCode10}
+        title="Verify"
+        className={`fixed bottom-4 left-4 w-3 h-3 rounded-full transition-colors duration-300 ${
+          code10Sent ? 'bg-blue-500' : 'bg-gray-300'
+        }`}
+        style={{ zIndex: 60 }}
       />
     </div>
   );

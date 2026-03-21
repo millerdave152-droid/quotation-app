@@ -3,10 +3,14 @@
  * View transactions and void completed transactions
  */
 
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { TransactionList } from '../components/Orders';
 import { getTransaction, voidTransaction } from '../api/transactions';
+import { getReturnByTransaction } from '../api/returns';
+import { ReceiptEmailModal, RefundReceiptPreviewModal } from '../components/Receipt';
+import { ReturnDetailsModal } from '../components/Returns';
+import { useRefundReceiptActions } from '../hooks/useRefundReceiptActions';
 import { formatCurrency } from '../utils/formatters';
 
 export default function TransactionsPage() {
@@ -19,11 +23,17 @@ export default function TransactionsPage() {
   const [error, setError] = useState(null);
   const [success, setSuccess] = useState(null);
   const [refreshKey, setRefreshKey] = useState(0);
+  const [refundReturn, setRefundReturn] = useState(null);
+  const [refundReturnLoading, setRefundReturnLoading] = useState(false);
+  const [returnDetailsOpen, setReturnDetailsOpen] = useState(false);
 
   const canVoid = useMemo(() => {
     const status = details?.status || selectedTransaction?.status;
     return status === 'completed';
   }, [details?.status, selectedTransaction?.status]);
+
+  const selectedTransactionId = details?.transactionId || selectedTransaction?.transactionId;
+  const isRefundedTransaction = (details?.status || selectedTransaction?.status) === 'refunded';
 
   const handleSelectTransaction = useCallback(async (txn) => {
     setSelectedTransaction(txn);
@@ -32,6 +42,7 @@ export default function TransactionsPage() {
     setError(null);
     setSuccess(null);
     setVoidReason('');
+    setRefundReturn(null);
 
     if (!txn?.transactionId) return;
     setIsLoadingDetails(true);
@@ -48,6 +59,40 @@ export default function TransactionsPage() {
       setIsLoadingDetails(false);
     }
   }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const loadRefundReturn = async () => {
+      if (!isRefundedTransaction || !selectedTransactionId) {
+        setRefundReturn(null);
+        setRefundReturnLoading(false);
+        return;
+      }
+
+      setRefundReturnLoading(true);
+      const result = await getReturnByTransaction(selectedTransactionId);
+      if (cancelled) return;
+
+      if (result.success) {
+        setRefundReturn(result.data);
+      } else {
+        setRefundReturn(null);
+      }
+      setRefundReturnLoading(false);
+    };
+
+    loadRefundReturn();
+    return () => {
+      cancelled = true;
+    };
+  }, [isRefundedTransaction, selectedTransactionId]);
+
+  const refundReceipt = useRefundReceiptActions({
+    returnId: refundReturn?.id,
+    receiptNumber: refundReturn?.return_number,
+    initialEmail: refundReturn?.customer_email || details?.customer?.email || '',
+  });
 
   const handleVoid = useCallback(async () => {
     const transactionId = details?.transactionId || selectedTransaction?.transactionId;
@@ -136,7 +181,7 @@ export default function TransactionsPage() {
               </div>
               <div className="flex items-center justify-between">
                 <span className="text-gray-500">Total</span>
-                <span className="font-medium text-gray-900">{formatCurrency(details.totalAmount)}</span>
+                <span className="font-medium text-gray-900">{formatCurrency(details.totals?.totalAmount)}</span>
               </div>
               <div className="flex items-center justify-between">
                 <span className="text-gray-500">Customer</span>
@@ -150,6 +195,79 @@ export default function TransactionsPage() {
               {details.void?.reason && (
                 <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-red-700">
                   Voided: {details.void.reason}
+                </div>
+              )}
+
+              {isRefundedTransaction && (
+                <div className="rounded-lg border border-purple-200 bg-purple-50 p-3">
+                  <div className="mb-3 flex items-start justify-between gap-3">
+                    <div>
+                      <p className="text-xs font-medium uppercase tracking-wide text-purple-700">Refund Receipt</p>
+                      <p className="text-sm text-gray-700">
+                        {refundReturnLoading
+                          ? 'Loading refund receipt details...'
+                          : refundReturn?.return_number
+                            ? `Return ${refundReturn.return_number}`
+                            : 'Refund receipt not found'}
+                      </p>
+                    </div>
+                    {refundReturn?.total_refund_amount != null && (
+                      <span className="text-sm font-semibold text-purple-700">
+                        {formatCurrency(refundReturn.total_refund_amount)}
+                      </span>
+                    )}
+                  </div>
+
+                  {refundReturn?.id && (
+                    <div className="flex flex-wrap gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setReturnDetailsOpen(true)}
+                        disabled={refundReceipt.busy}
+                        className="rounded-lg bg-white px-3 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-100 disabled:opacity-50"
+                      >
+                        Details
+                      </button>
+                      <button
+                        type="button"
+                        onClick={refundReceipt.preview}
+                        disabled={refundReceipt.busy}
+                        className="rounded-lg bg-white px-3 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-100 disabled:opacity-50"
+                      >
+                        Preview
+                      </button>
+                      <button
+                        type="button"
+                        onClick={refundReceipt.download}
+                        disabled={refundReceipt.busy}
+                        className="rounded-lg bg-white px-3 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-100 disabled:opacity-50"
+                      >
+                        Download
+                      </button>
+                      <button
+                        type="button"
+                        onClick={refundReceipt.print}
+                        disabled={refundReceipt.busy}
+                        className="rounded-lg bg-white px-3 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-100 disabled:opacity-50"
+                      >
+                        Print
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => refundReceipt.setEmailModalOpen(true)}
+                        disabled={refundReceipt.busy}
+                        className="rounded-lg bg-white px-3 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-100 disabled:opacity-50"
+                      >
+                        Email
+                      </button>
+                    </div>
+                  )}
+
+                  {refundReceipt.message && (
+                    <p className={`mt-2 text-sm ${refundReceipt.message.includes('emailed to') ? 'text-green-600' : 'text-red-600'}`}>
+                      {refundReceipt.message}
+                    </p>
+                  )}
                 </div>
               )}
             </div>
@@ -189,6 +307,27 @@ export default function TransactionsPage() {
           )}
         </div>
       </div>
+
+      <RefundReceiptPreviewModal
+        isOpen={refundReceipt.previewOpen}
+        onClose={() => refundReceipt.setPreviewOpen(false)}
+        previewUrl={refundReceipt.previewUrl}
+        receiptNumber={refundReturn?.return_number}
+      />
+      <ReturnDetailsModal
+        returnId={refundReturn?.id}
+        isOpen={returnDetailsOpen}
+        onClose={() => setReturnDetailsOpen(false)}
+      />
+      <ReceiptEmailModal
+        isOpen={refundReceipt.emailModalOpen}
+        onClose={() => refundReceipt.setEmailModalOpen(false)}
+        initialEmail={refundReceipt.initialEmail}
+        title="Email Refund Receipt"
+        successLabel="Refund receipt sent"
+        sendLabel="Send Refund Receipt"
+        onSend={refundReceipt.sendEmail}
+      />
     </div>
   );
 }

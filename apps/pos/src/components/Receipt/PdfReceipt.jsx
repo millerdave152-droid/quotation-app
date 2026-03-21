@@ -3,9 +3,8 @@
  * Downloads receipt as PDF via the backend ReceiptService
  */
 
-import api from '../../api/axios';
-
-const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:3001/api';
+const API_BASE = import.meta.env.VITE_API_URL || '/api';
+const getToken = () => localStorage.getItem('pos_token') || localStorage.getItem('auth_token') || '';
 
 /**
  * Download a receipt PDF for a given transaction
@@ -15,7 +14,7 @@ const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:3001/api';
 export async function downloadReceiptPdf(transactionId, transactionNumber) {
   const response = await fetch(`${API_BASE}/receipts/${transactionId}/pdf`, {
     headers: {
-      Authorization: `Bearer ${localStorage.getItem('pos_token')}`,
+      Authorization: `Bearer ${getToken()}`,
     },
   });
 

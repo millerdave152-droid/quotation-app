@@ -3,7 +3,7 @@ import { useParams, useSearchParams } from 'react-router-dom';
 import SignaturePad from '../components/common/SignaturePad';
 
 import { authFetch } from '../services/authFetch';
-const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:3001';
+const API_URL = process.env.REACT_APP_API_URL || '';
 
 /**
  * EnhancedCustomerPortal - Full customer quote experience
@@ -11,7 +11,7 @@ const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:3001';
  */
 const EnhancedCustomerPortal = () => {
   const { token } = useParams();
-  const [searchParams] = useSearchParams();
+  const [_searchParams] = useSearchParams();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [quote, setQuote] = useState(null);

@@ -158,7 +158,7 @@ class ProductMetricsService {
       // Get product with inventory
       const productQuery = `
         SELECT
-          p.id, p.model_number, p.name, p.manufacturer,
+          p.id, p.model, p.name, p.manufacturer,
           p.msrp_cents, p.cost_cents, p.map_cents, p.lap_cents, p.umrp_cents,
           p.qty_on_hand, p.qty_reserved, p.qty_available, p.qty_on_order,
           p.next_po_date, p.next_po_qty, p.last_stock_sync,
@@ -310,7 +310,7 @@ class ProductMetricsService {
 
     let query = `
       SELECT
-        p.id, p.model_number, p.name, p.manufacturer, p.category,
+        p.id, p.model, p.name, p.manufacturer, p.category,
         p.qty_on_hand, p.qty_available,
         pm.qty_sold_30d, pm.qty_sold_90d, pm.qty_quoted_30d,
         pm.win_rate_30d, pm.demand_tag, pm.last_calculated
@@ -366,7 +366,7 @@ class ProductMetricsService {
   async getStockoutRiskProducts() {
     const query = `
       SELECT
-        p.id, p.model_number, p.name, p.manufacturer,
+        p.id, p.model, p.name, p.manufacturer,
         p.qty_available, p.qty_on_order, p.next_po_date,
         pm.qty_sold_30d,
         CASE
@@ -399,7 +399,7 @@ class ProductMetricsService {
 
     const query = `
       SELECT
-        p.id, p.model_number, p.name, p.manufacturer,
+        p.id, p.model, p.name, p.manufacturer,
         p.msrp_cents, p.cost_cents,
         pm.qty_sold_30d, pm.qty_sold_90d, pm.qty_sold_365d,
         pm.win_rate_30d, pm.demand_tag

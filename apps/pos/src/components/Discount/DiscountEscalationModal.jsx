@@ -4,15 +4,9 @@
  */
 
 import { useState, useCallback, useMemo } from 'react';
-import {
-  ArrowUpCircleIcon,
-  ExclamationTriangleIcon,
-  CheckCircleIcon,
-  XMarkIcon,
-  ChartBarIcon,
-} from '@heroicons/react/24/outline';
 import { formatCurrency } from '../../utils/formatters';
 import { submitEscalation } from '../../api/discountAuthority';
+import { AlertTriangle, ArrowUpCircle, BarChart3, CheckCircle, X } from 'lucide-react';
 
 const COMMISSION_RATE = 0.05;
 
@@ -96,11 +90,11 @@ export function DiscountEscalationModal({
         {/* Header */}
         <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100 bg-amber-50">
           <div className="flex items-center gap-2">
-            <ArrowUpCircleIcon className="w-5 h-5 text-amber-600" />
+            <ArrowUpCircle className="w-5 h-5 text-amber-600" />
             <h2 className="text-base font-bold text-gray-900">Request Higher Discount</h2>
           </div>
           <button onClick={handleClose} className="p-1 hover:bg-amber-100 rounded-lg transition-colors">
-            <XMarkIcon className="w-5 h-5 text-gray-500" />
+            <X className="w-5 h-5 text-gray-500" />
           </button>
         </div>
 
@@ -108,7 +102,7 @@ export function DiscountEscalationModal({
           {submitted ? (
             /* Success State */
             <div className="text-center py-6 space-y-3">
-              <CheckCircleIcon className="w-14 h-14 text-green-500 mx-auto" />
+              <CheckCircle className="w-14 h-14 text-green-500 mx-auto" />
               <h3 className="text-lg font-bold text-gray-900">Request Submitted</h3>
               <p className="text-sm text-gray-500">
                 Your discount request has been sent to the manager approval queue.
@@ -133,7 +127,7 @@ export function DiscountEscalationModal({
 
               {/* Why Escalation is Required */}
               <div className="flex items-start gap-2 px-3 py-2.5 bg-amber-50 border border-amber-200 rounded-lg">
-                <ExclamationTriangleIcon className="w-4 h-4 text-amber-500 flex-shrink-0 mt-0.5" />
+                <AlertTriangle className="w-4 h-4 text-amber-500 flex-shrink-0 mt-0.5" />
                 <div>
                   <p className="text-xs font-semibold text-amber-800">Requires Manager Approval</p>
                   <p className="text-xs text-amber-700 mt-0.5">
@@ -146,7 +140,7 @@ export function DiscountEscalationModal({
               {cost > 0 && (
                 <div className="bg-white border border-gray-200 rounded-lg p-3">
                   <div className="flex items-center gap-1.5 mb-2">
-                    <ChartBarIcon className="w-3.5 h-3.5 text-blue-500" />
+                    <BarChart3 className="w-3.5 h-3.5 text-blue-500" />
                     <span className="text-xs font-semibold text-gray-700">Impact Summary</span>
                   </div>
                   <div className="grid grid-cols-2 gap-2 text-xs">
@@ -191,7 +185,7 @@ export function DiscountEscalationModal({
               {/* Error */}
               {error && (
                 <div className="flex items-center gap-2 px-3 py-2 bg-red-50 border border-red-200 rounded-lg">
-                  <ExclamationTriangleIcon className="w-4 h-4 text-red-500 flex-shrink-0" />
+                  <AlertTriangle className="w-4 h-4 text-red-500 flex-shrink-0" />
                   <span className="text-xs text-red-700">{error}</span>
                 </div>
               )}
@@ -218,7 +212,7 @@ export function DiscountEscalationModal({
                   {submitting ? (
                     <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
                   ) : (
-                    <ArrowUpCircleIcon className="w-4 h-4" />
+                    <ArrowUpCircle className="w-4 h-4" />
                   )}
                   {submitting ? 'Submitting...' : 'Submit Request'}
                 </button>

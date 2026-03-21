@@ -7,6 +7,7 @@ import React, { useMemo, useState } from 'react';
 import BulkActionToolbar from './BulkActionToolbar';
 import FilterChips from './FilterChips';
 import DraftList from './DraftList';
+import './QuoteList.css';
 
 /**
  * Tooltip wrapper component
@@ -16,39 +17,15 @@ const Tooltip = ({ children, text }) => {
 
   return (
     <div
-      style={{ position: 'relative', display: 'inline-block' }}
+      className="quote-tooltip-wrap"
       onMouseEnter={() => setIsVisible(true)}
       onMouseLeave={() => setIsVisible(false)}
     >
       {children}
       {isVisible && text && (
-        <div style={{
-          position: 'absolute',
-          bottom: '100%',
-          left: '50%',
-          transform: 'translateX(-50%)',
-          marginBottom: '6px',
-          padding: '6px 10px',
-          background: '#1f2937',
-          color: 'white',
-          fontSize: '11px',
-          fontWeight: '500',
-          borderRadius: '6px',
-          whiteSpace: 'nowrap',
-          zIndex: 1000,
-          boxShadow: '0 2px 8px rgba(0,0,0,0.2)'
-        }}>
+        <div className="quote-tooltip">
           {text}
-          {/* Arrow */}
-          <div style={{
-            position: 'absolute',
-            top: '100%',
-            left: '50%',
-            transform: 'translateX(-50%)',
-            borderWidth: '5px',
-            borderStyle: 'solid',
-            borderColor: '#1f2937 transparent transparent transparent'
-          }} />
+          <div className="quote-tooltip-arrow" />
         </div>
       )}
     </div>
@@ -59,16 +36,15 @@ const Tooltip = ({ children, text }) => {
  * StatusBadge - Displays quote status with tooltip
  */
 const StatusBadge = ({ status, createdAt }) => {
-  // Standardized color palette (WCAG 2.1 AA compliant - 4.5:1 contrast)
   const statusConfig = {
-    DRAFT: { bg: '#6b7280', text: 'white', label: 'DRAFT' },         // Gray - neutral
-    SENT: { bg: '#8b5cf6', text: 'white', label: 'SENT' },           // Purple - in progress
-    VIEWED: { bg: '#0ea5e9', text: 'white', label: 'VIEWED' },       // Sky blue - engaged
-    PENDING_APPROVAL: { bg: '#f59e0b', text: '#000000', label: 'PENDING' }, // Amber - needs attention
-    APPROVED: { bg: '#10b981', text: 'white', label: 'APPROVED' },   // Green - positive
-    WON: { bg: '#059669', text: 'white', label: 'WON' },             // Darker green - success
-    LOST: { bg: '#dc2626', text: 'white', label: 'LOST' },           // Red - negative
-    REJECTED: { bg: '#ef4444', text: 'white', label: 'REJECTED' }    // Lighter red - negative
+    DRAFT: { bg: '#6b7280', text: 'white', label: 'DRAFT' },
+    SENT: { bg: '#8b5cf6', text: 'white', label: 'SENT' },
+    VIEWED: { bg: '#0ea5e9', text: 'white', label: 'VIEWED' },
+    PENDING_APPROVAL: { bg: '#f59e0b', text: '#000000', label: 'PENDING' },
+    APPROVED: { bg: '#10b981', text: 'white', label: 'APPROVED' },
+    WON: { bg: '#059669', text: 'white', label: 'WON' },
+    LOST: { bg: '#dc2626', text: 'white', label: 'LOST' },
+    REJECTED: { bg: '#ef4444', text: 'white', label: 'REJECTED' }
   };
 
   const config = statusConfig[status] || { bg: '#6b7280', text: 'white', label: status };
@@ -84,16 +60,10 @@ const StatusBadge = ({ status, createdAt }) => {
 
   return (
     <Tooltip text={`Created on ${formatTooltipDate(createdAt)}`}>
-      <span style={{
-        display: 'inline-block',
-        padding: '4px 12px',
-        borderRadius: '9999px',
-        fontSize: '12px',
-        fontWeight: '600',
-        background: config.bg,
-        color: config.text,
-        cursor: 'default'
-      }}>
+      <span
+        className="quote-status-badge"
+        style={{ background: config.bg, color: config.text }}
+      >
         {config.label}
       </span>
     </Tooltip>
@@ -104,7 +74,6 @@ const StatusBadge = ({ status, createdAt }) => {
  * ExpiryBadge - Displays expiry status with tooltip (only for Draft/Sent)
  */
 const ExpiryBadge = ({ expiresAt, status }) => {
-  // Only show for Draft and Sent quotes
   if (status === 'WON' || status === 'LOST') return null;
   if (!expiresAt) return null;
 
@@ -116,7 +85,6 @@ const ExpiryBadge = ({ expiresAt, status }) => {
   const diffTime = expiryDate - today;
   const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
 
-  // Not expiring soon and not expired - don't show badge
   if (diffDays > 7) return null;
 
   const isExpired = diffDays < 0;
@@ -145,17 +113,8 @@ const ExpiryBadge = ({ expiresAt, status }) => {
   if (isExpired) {
     return (
       <Tooltip text={getTooltipText()}>
-        <span style={{
-          display: 'inline-flex',
-          alignItems: 'center',
-          padding: '4px 10px',
-          borderRadius: '9999px',
-          fontSize: '11px',
-          fontWeight: '600',
-          background: '#dc2626',
-          color: 'white',
-          cursor: 'default'
-        }}>
+        <span className="quote-expiry-badge expired">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>
           EXPIRED
         </span>
       </Tooltip>
@@ -165,17 +124,8 @@ const ExpiryBadge = ({ expiresAt, status }) => {
   if (isExpiringSoon) {
     return (
       <Tooltip text={getTooltipText()}>
-        <span style={{
-          display: 'inline-flex',
-          alignItems: 'center',
-          padding: '4px 10px',
-          borderRadius: '9999px',
-          fontSize: '11px',
-          fontWeight: '600',
-          background: '#f97316',
-          color: 'white',
-          cursor: 'default'
-        }}>
+        <span className="quote-expiry-badge expiring">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
           {diffDays === 0 ? 'EXPIRES TODAY' : diffDays === 1 ? 'EXPIRES IN 1 DAY' : `EXPIRES IN ${diffDays} DAYS`}
         </span>
       </Tooltip>
@@ -188,52 +138,40 @@ const ExpiryBadge = ({ expiresAt, status }) => {
 /**
  * SearchMatchBadge - Shows which field matched the search
  */
-const SearchMatchBadge = ({ match, searchTerm }) => {
+const SearchMatchBadge = ({ match }) => {
   if (!match || !match.type) return null;
 
-  const matchColors = {
-    quote_number: { bg: '#dbeafe', text: '#1d4ed8', icon: '#' },
-    customer_name: { bg: '#dcfce7', text: '#15803d', icon: '👤' },
-    customer_email: { bg: '#fef3c7', text: '#92400e', icon: '📧' },
-    customer_phone: { bg: '#f3e8ff', text: '#7c3aed', icon: '📞' },
-    customer_company: { bg: '#e0e7ff', text: '#4338ca', icon: '🏢' },
-    product: { bg: '#fce7f3', text: '#be185d', icon: '📦' },
-    internal_notes: { bg: '#fee2e2', text: '#dc2626', icon: '📝' },
-    notes: { bg: '#f3f4f6', text: '#374151', icon: '📋' }
+  const matchConfig = {
+    quote_number: { bg: '#dbeafe', text: '#1d4ed8', icon: <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M4 9h16"/><path d="M4 15h16"/><path d="M10 3 8 21"/><path d="M16 3 14 21"/></svg> },
+    customer_name: { bg: '#dcfce7', text: '#15803d', icon: <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg> },
+    customer_email: { bg: '#fef3c7', text: '#92400e', icon: <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg> },
+    customer_phone: { bg: '#f3e8ff', text: '#7c3aed', icon: <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg> },
+    customer_company: { bg: '#e0e7ff', text: '#4338ca', icon: <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="7" width="20" height="14" rx="2" ry="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></svg> },
+    product: { bg: '#fce7f3', text: '#be185d', icon: <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/></svg> },
+    internal_notes: { bg: '#fee2e2', text: '#dc2626', icon: <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg> },
+    notes: { bg: '#f3f4f6', text: '#374151', icon: <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg> }
   };
 
-  const colors = matchColors[match.type] || { bg: '#f3f4f6', text: '#6b7280', icon: '🔍' };
+  const config = matchConfig[match.type] || { bg: '#f3f4f6', text: '#6b7280', icon: <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg> };
 
   return (
     <div style={{ marginTop: '4px' }}>
-      <span style={{
-        display: 'inline-flex',
-        alignItems: 'center',
-        gap: '4px',
-        padding: '2px 8px',
-        borderRadius: '4px',
-        fontSize: '11px',
-        fontWeight: '500',
-        background: colors.bg,
-        color: colors.text
-      }}>
-        <span>{colors.icon}</span>
+      <span
+        className="search-match-badge"
+        style={{ background: config.bg, color: config.text }}
+      >
+        {config.icon}
         <span>Match: {match.field}</span>
       </span>
-      {/* Show matched product details */}
       {match.type === 'product' && match.matched_products && match.matched_products.length > 0 && (
-        <div style={{ marginTop: '2px' }}>
+        <div className="search-match-products">
           {match.matched_products.slice(0, 2).map((product, idx) => (
-            <div key={idx} style={{
-              fontSize: '10px',
-              color: '#6b7280',
-              paddingLeft: '12px'
-            }}>
-              • {product.manufacturer} {product.model || product.sku}
+            <div key={idx} className="search-match-product">
+              {product.manufacturer} {product.model || product.sku}
             </div>
           ))}
           {match.matched_products.length > 2 && (
-            <div style={{ fontSize: '10px', color: '#9ca3af', paddingLeft: '12px' }}>
+            <div className="search-match-more">
               +{match.matched_products.length - 2} more
             </div>
           )}
@@ -265,12 +203,8 @@ const QuoteList = ({
   setSortBy,
   sortOrder,
   setSortOrder,
-  showAdvancedFilters,
-  setShowAdvancedFilters,
   customerFilter,
   setCustomerFilter,
-  productFilter,
-  setProductFilter,
 
   // Actions
   onCreateNew,
@@ -283,7 +217,6 @@ const QuoteList = ({
   onViewFollowUps,
   onExport,
   onClearFilters,
-  getActiveFilterCount,
 
   // Bulk selection
   selectedIds = [],
@@ -295,7 +228,6 @@ const QuoteList = ({
   // Helpers
   formatCurrency,
   formatDate,
-  getStatusColor,
 
   // Filter chips
   filterRefreshTrigger,
@@ -362,7 +294,7 @@ const QuoteList = ({
         if (valueFilter === '1000-5000' && (total < 1000 || total > 5000)) return false;
         if (valueFilter === '5000-10000' && (total < 5000 || total > 10000)) return false;
         if (valueFilter === '10000+' && total < 10000) return false;
-        if (valueFilter === '5000+' && total < 5000) return false; // High value filter
+        if (valueFilter === '5000+' && total < 5000) return false;
       }
 
       // Expiring filter
@@ -377,20 +309,14 @@ const QuoteList = ({
 
       // Customer filter
       if (customerFilter === 'none') {
-        // No customer filter - only show quotes without a customer
         if (q.customer_id) return false;
       } else if (customerFilter !== 'all' && q.customer_id?.toString() !== customerFilter) {
         return false;
       }
 
-      // Product filter
-      if (productFilter) {
-        // Would need items to filter by product - skip for now
-      }
-
       return true;
     });
-  }, [quotations, searchTerm, statusFilter, dateFilter, valueFilter, expiringFilter, customerFilter, productFilter]);
+  }, [quotations, searchTerm, statusFilter, dateFilter, valueFilter, expiringFilter, customerFilter]);
 
   // Sort filtered quotes
   const sortedQuotes = useMemo(() => {
@@ -434,171 +360,59 @@ const QuoteList = ({
   };
 
   return (
-    <div style={{ padding: '24px' }}>
+    <div className="quote-list-container">
       {/* Header */}
-      <div style={{
-        display: 'flex',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        marginBottom: '24px',
-        flexWrap: 'wrap',
-        gap: '12px'
-      }}>
-        <h1 style={{ fontSize: '32px', fontWeight: 'bold', margin: 0 }}>
+      <div className="quote-list-header">
+        <h1 className="quote-list-title">
+          <span className="quote-title-icon">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
+          </span>
           Quotations
         </h1>
 
-        <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap', alignItems: 'center' }}>
-          {/* Navigation buttons - outline/ghost style */}
-          <button
-            onClick={onViewDashboard}
-            style={{
-              padding: '10px 20px',
-              background: 'transparent',
-              color: '#0ea5e9',
-              border: '2px solid #0ea5e9',
-              borderRadius: '8px',
-              fontSize: '14px',
-              fontWeight: '600',
-              cursor: 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '8px',
-              transition: 'all 0.2s ease'
-            }}
-            onMouseEnter={(e) => { e.target.style.background = '#0ea5e9'; e.target.style.color = 'white'; }}
-            onMouseLeave={(e) => { e.target.style.background = 'transparent'; e.target.style.color = '#0ea5e9'; }}
-          >
+        <div className="quote-header-actions">
+          {/* Navigation buttons */}
+          <button onClick={onViewDashboard} className="quote-nav-btn nav-dashboard">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
             Dashboard
           </button>
 
-          <button
-            onClick={onViewAnalytics}
-            style={{
-              padding: '10px 20px',
-              background: 'transparent',
-              color: '#8b5cf6',
-              border: '2px solid #8b5cf6',
-              borderRadius: '8px',
-              fontSize: '14px',
-              fontWeight: '600',
-              cursor: 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '8px',
-              transition: 'all 0.2s ease'
-            }}
-            onMouseEnter={(e) => { e.target.style.background = '#8b5cf6'; e.target.style.color = 'white'; }}
-            onMouseLeave={(e) => { e.target.style.background = 'transparent'; e.target.style.color = '#8b5cf6'; }}
-          >
+          <button onClick={onViewAnalytics} className="quote-nav-btn nav-analytics">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
             Analytics
           </button>
 
-          <button
-            onClick={onViewApprovals}
-            style={{
-              padding: '10px 20px',
-              background: 'transparent',
-              color: '#6366f1',
-              border: '2px solid #6366f1',
-              borderRadius: '8px',
-              fontSize: '14px',
-              fontWeight: '600',
-              cursor: 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '8px',
-              transition: 'all 0.2s ease'
-            }}
-            onMouseEnter={(e) => { e.target.style.background = '#6366f1'; e.target.style.color = 'white'; }}
-            onMouseLeave={(e) => { e.target.style.background = 'transparent'; e.target.style.color = '#6366f1'; }}
-          >
+          <button onClick={onViewApprovals} className="quote-nav-btn nav-approvals">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
             Approvals
           </button>
 
-          <button
-            onClick={onViewFollowUps}
-            style={{
-              padding: '10px 20px',
-              background: 'transparent',
-              color: '#ec4899',
-              border: '2px solid #ec4899',
-              borderRadius: '8px',
-              fontSize: '14px',
-              fontWeight: '600',
-              cursor: 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '8px',
-              transition: 'all 0.2s ease'
-            }}
-            onMouseEnter={(e) => { e.target.style.background = '#ec4899'; e.target.style.color = 'white'; }}
-            onMouseLeave={(e) => { e.target.style.background = 'transparent'; e.target.style.color = '#ec4899'; }}
-          >
+          <button onClick={onViewFollowUps} className="quote-nav-btn nav-followups">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
             Follow-Ups
             {(followUpStats?.overdue_count > 0 || followUpStats?.due_soon_count > 0) && (
-              <span style={{
-                background: '#dc2626',
-                color: 'white',
-                borderRadius: '12px',
-                padding: '2px 8px',
-                fontSize: '12px',
-                fontWeight: 'bold'
-              }}>
+              <span className="quote-nav-badge">
                 {(followUpStats.overdue_count || 0) + (followUpStats.due_soon_count || 0)}
               </span>
             )}
           </button>
 
-          {/* Export button - outline style */}
+          {/* Export button */}
           <button
             onClick={() => onExport?.(sortedQuotes)}
             disabled={sortedQuotes.length === 0}
-            style={{
-              padding: '10px 20px',
-              background: 'transparent',
-              color: sortedQuotes.length === 0 ? '#9ca3af' : '#10b981',
-              border: `2px solid ${sortedQuotes.length === 0 ? '#9ca3af' : '#10b981'}`,
-              borderRadius: '8px',
-              fontSize: '14px',
-              fontWeight: '600',
-              cursor: sortedQuotes.length === 0 ? 'not-allowed' : 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '8px',
-              transition: 'all 0.2s ease'
-            }}
-            onMouseEnter={(e) => { if (sortedQuotes.length > 0) { e.target.style.background = '#10b981'; e.target.style.color = 'white'; }}}
-            onMouseLeave={(e) => { e.target.style.background = 'transparent'; e.target.style.color = sortedQuotes.length === 0 ? '#9ca3af' : '#10b981'; }}
+            className="quote-nav-btn nav-export"
           >
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
             Export
           </button>
 
           {/* View Mode Toggle */}
           {onViewModeChange && (
-            <div style={{
-              display: 'flex',
-              backgroundColor: '#f3f4f6',
-              borderRadius: '8px',
-              padding: '4px',
-            }}>
+            <div className="quote-view-toggle">
               <button
                 onClick={() => onViewModeChange('list')}
-                style={{
-                  padding: '8px 16px',
-                  border: 'none',
-                  borderRadius: '6px',
-                  backgroundColor: listViewMode === 'list' ? 'white' : 'transparent',
-                  color: listViewMode === 'list' ? '#111827' : '#6b7280',
-                  fontSize: '13px',
-                  fontWeight: '600',
-                  cursor: 'pointer',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '6px',
-                  boxShadow: listViewMode === 'list' ? '0 1px 3px rgba(0,0,0,0.1)' : 'none',
-                  transition: 'all 0.15s ease',
-                }}
+                className={`quote-view-btn ${listViewMode === 'list' ? 'active' : ''}`}
               >
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                   <line x1="8" y1="6" x2="21" y2="6"></line>
@@ -612,21 +426,7 @@ const QuoteList = ({
               </button>
               <button
                 onClick={() => onViewModeChange('kanban')}
-                style={{
-                  padding: '8px 16px',
-                  border: 'none',
-                  borderRadius: '6px',
-                  backgroundColor: listViewMode === 'kanban' ? 'white' : 'transparent',
-                  color: listViewMode === 'kanban' ? '#111827' : '#6b7280',
-                  fontSize: '13px',
-                  fontWeight: '600',
-                  cursor: 'pointer',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '6px',
-                  boxShadow: listViewMode === 'kanban' ? '0 1px 3px rgba(0,0,0,0.1)' : 'none',
-                  transition: 'all 0.15s ease',
-                }}
+                className={`quote-view-btn ${listViewMode === 'kanban' ? 'active' : ''}`}
               >
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                   <rect x="3" y="3" width="5" height="18" rx="1"></rect>
@@ -638,133 +438,76 @@ const QuoteList = ({
             </div>
           )}
 
-          {/* Primary CTA - New Quote button - prominent filled style */}
-          <button
-            onClick={onCreateNew}
-            style={{
-              padding: '14px 28px',
-              background: '#22c55e',
-              color: 'white',
-              border: 'none',
-              borderRadius: '8px',
-              fontSize: '15px',
-              fontWeight: 'bold',
-              cursor: 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '8px',
-              boxShadow: '0 2px 8px rgba(34, 197, 94, 0.4)',
-              transition: 'all 0.2s ease'
-            }}
-            onMouseEnter={(e) => { e.target.style.background = '#16a34a'; e.target.style.boxShadow = '0 4px 12px rgba(34, 197, 94, 0.5)'; }}
-            onMouseLeave={(e) => { e.target.style.background = '#22c55e'; e.target.style.boxShadow = '0 2px 8px rgba(34, 197, 94, 0.4)'; }}
-          >
-            + New Quote
+          {/* Primary CTA - New Quote */}
+          <button onClick={onCreateNew} className="quote-new-btn">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+            New Quote
           </button>
         </div>
       </div>
 
       {/* Stats Cards */}
-      <div style={{
-        display: 'grid',
-        gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
-        gap: '16px',
-        marginBottom: '24px'
-      }}>
-        <div style={{
-          background: 'white',
-          padding: '20px',
-          borderRadius: '12px',
-          boxShadow: '0 1px 3px rgba(0,0,0,0.1)'
-        }}>
-          <div style={{ fontSize: '14px', color: '#6b7280', marginBottom: '8px' }}>
-            Total Quotes
+      <div className="quote-stats-grid">
+        <div className="quote-stat-card">
+          <div className="quote-stat-icon icon-blue">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
           </div>
-          <div style={{ fontSize: '32px', fontWeight: 'bold', color: '#3b82f6' }}>
-            {stats?.total_quotes || quotations.length || 0}
+          <div className="quote-stat-info">
+            <div className="quote-stat-label">Total Quotes</div>
+            <div className="quote-stat-value val-blue">
+              {stats?.total_quotes || quotations.length || 0}
+            </div>
           </div>
         </div>
 
-        <div style={{
-          background: 'white',
-          padding: '20px',
-          borderRadius: '12px',
-          boxShadow: '0 1px 3px rgba(0,0,0,0.1)'
-        }}>
-          <div style={{ fontSize: '14px', color: '#6b7280', marginBottom: '8px' }}>
-            Total Value
+        <div className="quote-stat-card">
+          <div className="quote-stat-icon icon-green">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
           </div>
-          <div style={{ fontSize: '32px', fontWeight: 'bold', color: '#10b981' }}>
-            {formatCurrency ? formatCurrency(stats?.total_value_cents || 0) : `$${((stats?.total_value_cents || 0) / 100).toFixed(2)}`}
+          <div className="quote-stat-info">
+            <div className="quote-stat-label">Total Value</div>
+            <div className="quote-stat-value val-green">
+              {formatCurrency ? formatCurrency(stats?.total_value_cents || 0) : `$${((stats?.total_value_cents || 0) / 100).toFixed(2)}`}
+            </div>
           </div>
         </div>
 
-        <div style={{
-          background: 'white',
-          padding: '20px',
-          borderRadius: '12px',
-          boxShadow: '0 1px 3px rgba(0,0,0,0.1)'
-        }}>
-          <div style={{ fontSize: '14px', color: '#6b7280', marginBottom: '8px' }}>
-            Won Rate
+        <div className="quote-stat-card">
+          <div className="quote-stat-icon icon-purple">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
           </div>
-          <div style={{ fontSize: '32px', fontWeight: 'bold', color: '#8b5cf6' }}>
-            {stats?.won_rate || stats?.win_rate || '0'}%
+          <div className="quote-stat-info">
+            <div className="quote-stat-label">Won Rate</div>
+            <div className="quote-stat-value val-purple">
+              {stats?.won_rate || stats?.win_rate || '0'}%
+            </div>
           </div>
         </div>
 
-        <div style={{
-          background: 'white',
-          padding: '20px',
-          borderRadius: '12px',
-          boxShadow: '0 1px 3px rgba(0,0,0,0.1)',
-          border: expiringSoonCount > 0 ? '2px solid #f59e0b' : 'none'
-        }}>
-          <div style={{ fontSize: '14px', color: '#6b7280', marginBottom: '8px' }}>
-            Expiring Soon
+        <div className={`quote-stat-card ${expiringSoonCount > 0 ? 'stat-expiring' : ''}`}>
+          <div className="quote-stat-icon icon-amber">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
           </div>
-          <div style={{ fontSize: '32px', fontWeight: 'bold', color: expiringSoonCount > 0 ? '#f59e0b' : '#6b7280' }}>
-            {expiringSoonCount}
-          </div>
-          <div style={{ fontSize: '11px', color: '#9ca3af', marginTop: '4px' }}>
-            Within 7 days
+          <div className="quote-stat-info">
+            <div className="quote-stat-label">Expiring Soon</div>
+            <div className={`quote-stat-value ${expiringSoonCount > 0 ? 'val-amber' : 'val-muted'}`}>
+              {expiringSoonCount}
+            </div>
+            <div className="quote-stat-sub">Within 7 days</div>
           </div>
         </div>
       </div>
 
       {/* Quick Filter Chips + Drafts Tab */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
-        {/* Drafts tab chip */}
+      <div className="quote-quick-filters">
         <button
           onClick={() => setActiveDraftTab && setActiveDraftTab(!activeDraftTab)}
-          style={{
-            display: 'inline-flex',
-            alignItems: 'center',
-            gap: '6px',
-            padding: '6px 14px',
-            borderRadius: '9999px',
-            border: activeDraftTab ? '2px solid #2563eb' : '1px solid #d1d5db',
-            background: activeDraftTab ? '#eff6ff' : 'white',
-            color: activeDraftTab ? '#2563eb' : '#374151',
-            fontSize: '13px',
-            fontWeight: '600',
-            cursor: 'pointer',
-            whiteSpace: 'nowrap',
-          }}
+          className={`quote-drafts-chip ${activeDraftTab ? 'active' : ''}`}
         >
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
           Drafts
           {localDrafts.length > 0 && (
-            <span style={{
-              background: activeDraftTab ? '#2563eb' : '#6b7280',
-              color: 'white',
-              borderRadius: '9999px',
-              padding: '0 6px',
-              fontSize: '11px',
-              fontWeight: '700',
-              lineHeight: '18px',
-              minWidth: '18px',
-              textAlign: 'center',
-            }}>
+            <span className="quote-drafts-badge">
               {localDrafts.length}
             </span>
           )}
@@ -788,57 +531,33 @@ const QuoteList = ({
       </div>
 
       {/* Filters */}
-      <div style={{
-        background: 'white',
-        padding: '16px',
-        borderRadius: '12px',
-        marginBottom: '24px',
-        boxShadow: '0 1px 3px rgba(0,0,0,0.1)'
-      }}>
-        <div style={{ display: 'flex', gap: '12px', marginBottom: '12px', flexWrap: 'wrap' }}>
+      <div className="quote-filters-bar">
+        <div className="quote-filters-row">
           {/* Enhanced Search Input */}
-          <div style={{ flex: '0 1 350px', minWidth: '200px', position: 'relative', overflow: 'hidden' }}>
+          <div className="quote-search-wrap">
+            <div className="quote-search-icon">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+            </div>
             <input
               type="text"
               placeholder="Search by quote #, customer, phone, SKU, model, notes..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              style={{
-                width: '100%',
-                boxSizing: 'border-box',
-                padding: '12px 40px 12px 12px',
-                border: `2px solid ${searchTerm.length >= 2 ? '#3b82f6' : '#d1d5db'}`,
-                borderRadius: '8px',
-                fontSize: '14px',
-                transition: 'border-color 0.2s'
-              }}
+              className={`quote-search-input ${searchTerm.length >= 2 ? 'active' : ''}`}
             />
-            {/* Search indicator */}
-            <div style={{
-              position: 'absolute',
-              right: '12px',
-              top: '50%',
-              transform: 'translateY(-50%)',
-              color: searchLoading ? '#3b82f6' : '#9ca3af'
-            }}>
+            <div className={`quote-search-indicator ${searchLoading ? 'searching' : ''}`}>
               {searchLoading ? (
-                <span style={{ animation: 'spin 1s linear infinite', display: 'inline-block' }}>⟳</span>
-              ) : (
-                <span>🔍</span>
-              )}
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg>
+              ) : searchTerm.length >= 2 ? (
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+              ) : null}
             </div>
           </div>
 
           <select
             value={statusFilter}
             onChange={(e) => setStatusFilter(e.target.value)}
-            style={{
-              padding: '12px',
-              border: '1px solid #d1d5db',
-              borderRadius: '8px',
-              fontSize: '14px',
-              minWidth: '120px'
-            }}
+            className="quote-filter-select"
           >
             <option value="all">All Status</option>
             <option value="DRAFT">Draft</option>
@@ -850,13 +569,7 @@ const QuoteList = ({
           <select
             value={dateFilter}
             onChange={(e) => setDateFilter(e.target.value)}
-            style={{
-              padding: '12px',
-              border: '1px solid #d1d5db',
-              borderRadius: '8px',
-              fontSize: '14px',
-              minWidth: '120px'
-            }}
+            className="quote-filter-select"
           >
             <option value="all">All Time</option>
             <option value="today">Today</option>
@@ -867,13 +580,7 @@ const QuoteList = ({
           <select
             value={valueFilter}
             onChange={(e) => setValueFilter(e.target.value)}
-            style={{
-              padding: '12px',
-              border: '1px solid #d1d5db',
-              borderRadius: '8px',
-              fontSize: '14px',
-              minWidth: '120px'
-            }}
+            className="quote-filter-select"
           >
             <option value="all">All Values</option>
             <option value="0-1000">$0 - $1,000</option>
@@ -884,36 +591,20 @@ const QuoteList = ({
 
           <button
             onClick={() => setExpiringFilter(!expiringFilter)}
-            style={{
-              padding: '12px 16px',
-              background: expiringFilter ? '#f59e0b' : 'white',
-              color: expiringFilter ? 'white' : '#6b7280',
-              border: expiringFilter ? 'none' : '1px solid #d1d5db',
-              borderRadius: '8px',
-              fontSize: '14px',
-              fontWeight: 'bold',
-              cursor: 'pointer',
-              whiteSpace: 'nowrap'
-            }}
+            className={`quote-expiring-toggle ${expiringFilter ? 'active' : ''}`}
           >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
             Expiring Soon
           </button>
         </div>
 
         {/* Sort Controls */}
-        <div style={{ display: 'flex', gap: '12px', alignItems: 'center', flexWrap: 'wrap' }}>
-          <span style={{ fontSize: '14px', color: '#6b7280', fontWeight: 'bold' }}>
-            Sort by:
-          </span>
+        <div className="quote-sort-row">
+          <span className="quote-sort-label">Sort by:</span>
           <select
             value={sortBy}
             onChange={(e) => setSortBy(e.target.value)}
-            style={{
-              padding: '8px 12px',
-              border: '1px solid #d1d5db',
-              borderRadius: '8px',
-              fontSize: '14px'
-            }}
+            className="quote-sort-select"
           >
             <option value="date">Date</option>
             <option value="value">Value</option>
@@ -923,38 +614,23 @@ const QuoteList = ({
 
           <button
             onClick={() => setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc')}
-            style={{
-              padding: '8px 12px',
-              background: 'white',
-              border: '1px solid #d1d5db',
-              borderRadius: '8px',
-              fontSize: '14px',
-              cursor: 'pointer',
-              fontWeight: 'bold'
-            }}
+            className="quote-sort-btn"
           >
-            {sortOrder === 'asc' ? '↑ Ascending' : '↓ Descending'}
+            {sortOrder === 'asc' ? (
+              <><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="19" x2="12" y2="5"/><polyline points="5 12 12 5 19 12"/></svg> Ascending</>
+            ) : (
+              <><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><polyline points="19 12 12 19 5 12"/></svg> Descending</>
+            )}
           </button>
 
           <div style={{ flex: 1 }} />
 
-          <button
-            onClick={onClearFilters}
-            style={{
-              padding: '8px 12px',
-              background: '#6b7280',
-              color: 'white',
-              border: 'none',
-              borderRadius: '8px',
-              fontSize: '14px',
-              cursor: 'pointer',
-              fontWeight: 'bold'
-            }}
-          >
+          <button onClick={onClearFilters} className="quote-clear-filters-btn">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
             Clear Filters
           </button>
 
-          <span style={{ fontSize: '14px', color: '#6b7280' }}>
+          <span className="quote-results-count">
             Showing {sortedQuotes.length} {searchTerm && searchTerm.length >= 2 ? 'results' : `of ${quotations.length}`}
           </span>
         </div>
@@ -962,41 +638,21 @@ const QuoteList = ({
 
       {/* Search Info Banner */}
       {searchTerm && searchTerm.length >= 2 && (
-        <div style={{
-          background: 'linear-gradient(135deg, #dbeafe 0%, #e0e7ff 100%)',
-          border: '1px solid #93c5fd',
-          borderRadius: '8px',
-          padding: '12px 16px',
-          marginBottom: '16px',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          gap: '12px'
-        }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <span style={{ fontSize: '18px' }}>🔍</span>
+        <div className="quote-search-banner">
+          <div className="quote-search-banner-text">
+            <span className="quote-search-banner-icon">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+            </span>
             <div>
-              <span style={{ fontWeight: '600', color: '#1e40af' }}>
+              <span className="quote-search-banner-title">
                 Searching for "{searchTerm}"
               </span>
-              <span style={{ marginLeft: '8px', fontSize: '13px', color: '#3b82f6' }}>
+              <span className="quote-search-banner-sub">
                 across quote #, customer, phone, email, SKU, model, notes
               </span>
             </div>
           </div>
-          <button
-            onClick={() => setSearchTerm('')}
-            style={{
-              padding: '6px 12px',
-              background: 'white',
-              border: '1px solid #93c5fd',
-              borderRadius: '6px',
-              fontSize: '13px',
-              cursor: 'pointer',
-              color: '#1e40af',
-              fontWeight: '500'
-            }}
-          >
+          <button onClick={() => setSearchTerm('')} className="quote-search-clear-btn">
             Clear Search
           </button>
         </div>
@@ -1004,12 +660,7 @@ const QuoteList = ({
 
       {/* Drafts view or Quote Table */}
       {activeDraftTab ? (
-        <div style={{
-          background: 'white',
-          borderRadius: '12px',
-          boxShadow: '0 1px 3px rgba(0,0,0,0.1)',
-          padding: '16px',
-        }}>
+        <div className="quote-table-wrap" style={{ padding: '16px' }}>
           <DraftList
             drafts={localDrafts}
             onResume={onResumeDraft}
@@ -1018,36 +669,30 @@ const QuoteList = ({
           />
         </div>
       ) : (
-      <div style={{
-        background: 'white',
-        borderRadius: '12px',
-        boxShadow: '0 1px 3px rgba(0,0,0,0.1)',
-        overflow: 'hidden'
-      }}>
+      <div className="quote-table-wrap">
         {sortedQuotes.length === 0 ? (
-          <div style={{
-            padding: '48px',
-            textAlign: 'center',
-            color: '#6b7280'
-          }}>
-            <div style={{ fontSize: '48px', marginBottom: '16px' }}>📋</div>
-            <div style={{ fontSize: '18px', fontWeight: 'bold', marginBottom: '8px' }}>
+          <div className="quote-empty-state">
+            <div className="quote-empty-icon">
+              <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+            </div>
+            <div className="quote-empty-title">
               No quotations found
             </div>
-            <div style={{ fontSize: '14px' }}>
+            <div className="quote-empty-desc">
               {searchTerm || statusFilter !== 'all' || dateFilter !== 'all' || valueFilter !== 'all'
                 ? 'Try adjusting your filters'
                 : 'Create your first quotation to get started'}
             </div>
           </div>
         ) : (
-          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+          <table className="quote-table">
             <thead>
-              <tr style={{ background: '#f9fafb', borderBottom: '1px solid #e5e7eb' }}>
+              <tr>
                 {/* Checkbox column */}
-                <th style={{ padding: '16px', textAlign: 'center', width: '50px' }} onClick={(e) => e.stopPropagation()}>
+                <th className="text-center" style={{ width: '50px' }} onClick={(e) => e.stopPropagation()}>
                   <input
                     type="checkbox"
+                    className="quote-checkbox"
                     checked={sortedQuotes.length > 0 && selectedIds.length === sortedQuotes.length}
                     onChange={(e) => {
                       e.stopPropagation();
@@ -1057,28 +702,15 @@ const QuoteList = ({
                         onClearSelection?.();
                       }
                     }}
-                    style={{ width: '18px', height: '18px', cursor: 'pointer' }}
                     title={selectedIds.length === sortedQuotes.length ? 'Deselect all' : 'Select all'}
                   />
                 </th>
-                <th style={{ padding: '16px', textAlign: 'left', fontSize: '14px', fontWeight: '600', color: '#374151' }}>
-                  Quote #
-                </th>
-                <th style={{ padding: '16px', textAlign: 'left', fontSize: '14px', fontWeight: '600', color: '#374151' }}>
-                  Customer
-                </th>
-                <th style={{ padding: '16px', textAlign: 'left', fontSize: '14px', fontWeight: '600', color: '#374151' }}>
-                  Status
-                </th>
-                <th style={{ padding: '16px', textAlign: 'right', fontSize: '14px', fontWeight: '600', color: '#374151' }}>
-                  Total
-                </th>
-                <th style={{ padding: '16px', textAlign: 'right', fontSize: '14px', fontWeight: '600', color: '#374151' }}>
-                  Date
-                </th>
-                <th style={{ padding: '16px', textAlign: 'center', fontSize: '14px', fontWeight: '600', color: '#374151' }}>
-                  Actions
-                </th>
+                <th>Quote #</th>
+                <th>Customer</th>
+                <th>Status</th>
+                <th className="text-right">Total</th>
+                <th className="text-right">Date</th>
+                <th className="text-center">Actions</th>
               </tr>
             </thead>
             <tbody>
@@ -1090,66 +722,46 @@ const QuoteList = ({
                 return (
                   <tr
                     key={quote.id}
-                    style={{
-                      borderBottom: '1px solid #e5e7eb',
-                      cursor: 'pointer',
-                      transition: 'background 0.2s',
-                      background: isSelected
-                        ? '#eff6ff'
-                        : expired && quote.status !== 'WON' && quote.status !== 'LOST'
-                          ? '#fef3c7'
-                          : 'white'
-                    }}
-                    onMouseEnter={(e) => {
-                      if (!isSelected) e.currentTarget.style.background = '#f9fafb';
-                    }}
-                    onMouseLeave={(e) => {
-                      e.currentTarget.style.background = isSelected
-                        ? '#eff6ff'
-                        : expired && quote.status !== 'WON' && quote.status !== 'LOST'
-                          ? '#fef3c7'
-                          : 'white';
-                    }}
+                    className={`${isSelected ? 'selected' : ''} ${expired && quote.status !== 'WON' && quote.status !== 'LOST' ? 'expired-row' : ''}`}
                     onClick={() => onViewQuote(quote.id)}
                   >
                     {/* Row checkbox */}
-                    <td style={{ padding: '16px', textAlign: 'center' }} onClick={(e) => e.stopPropagation()}>
+                    <td className="text-center" onClick={(e) => e.stopPropagation()}>
                       <input
                         type="checkbox"
+                        className="quote-checkbox"
                         checked={isSelected}
                         onChange={(e) => {
                           e.stopPropagation();
                           onToggleSelect?.(quote.id);
                         }}
-                        style={{ width: '18px', height: '18px', cursor: 'pointer' }}
                       />
                     </td>
-                    <td style={{ padding: '16px' }}>
-                      <div style={{ fontWeight: '600', color: '#3b82f6' }}>
+                    <td>
+                      <div className="quote-number-cell">
                         {quote.quotation_number || quote.quote_number}
                       </div>
                       {quote.item_count && (
-                        <div style={{ fontSize: '12px', color: '#9ca3af' }}>
+                        <div className="quote-items-count">
                           {quote.item_count} item{quote.item_count !== 1 ? 's' : ''}
                         </div>
                       )}
-                      {/* Search match indicator */}
                       {quote.search_match && searchTerm && (
                         <SearchMatchBadge match={quote.search_match} searchTerm={searchTerm} />
                       )}
                     </td>
-                    <td style={{ padding: '16px' }}>
-                      <div style={{ fontWeight: '500', color: '#111827' }}>
+                    <td>
+                      <div className="quote-customer-name">
                         {quote.customer_name || 'No customer'}
                       </div>
                       {quote.customer_company && (
-                        <div style={{ fontSize: '12px', color: '#6b7280' }}>
+                        <div className="quote-customer-company">
                           {quote.customer_company}
                         </div>
                       )}
                     </td>
-                    <td style={{ padding: '16px' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                    <td>
+                      <div className="quote-status-wrap">
                         <StatusBadge status={quote.status} createdAt={quote.created_at} />
                         <ExpiryBadge
                           expiresAt={quote.quote_expiry_date || quote.expires_at}
@@ -1157,61 +769,37 @@ const QuoteList = ({
                         />
                       </div>
                     </td>
-                    <td style={{ padding: '16px', textAlign: 'right' }}>
-                      <div style={{ fontWeight: '600', color: '#111827' }}>
+                    <td className="text-right">
+                      <div className="quote-total-cell">
                         ${((quote.total_cents || 0) / 100).toLocaleString('en-US', { minimumFractionDigits: 2 })}
                       </div>
                     </td>
-                    <td style={{ padding: '16px', textAlign: 'right' }}>
-                      <div style={{ fontSize: '14px', color: '#6b7280' }}>
+                    <td className="text-right">
+                      <div className="quote-date-cell">
                         {formatDate ? formatDate(quote.created_at) : new Date(quote.created_at).toLocaleDateString()}
                       </div>
                     </td>
-                    <td style={{ padding: '16px', textAlign: 'center' }} onClick={(e) => e.stopPropagation()}>
-                      <div style={{ display: 'flex', gap: '8px', justifyContent: 'center' }}>
+                    <td className="text-center" onClick={(e) => e.stopPropagation()}>
+                      <div className="quote-actions-cell">
                         <button
                           onClick={() => onViewQuote(quote.id)}
-                          style={{
-                            padding: '8px 12px',
-                            background: '#3b82f6',
-                            color: 'white',
-                            border: 'none',
-                            borderRadius: '6px',
-                            fontSize: '12px',
-                            fontWeight: '500',
-                            cursor: 'pointer'
-                          }}
+                          className="quote-action-btn btn-view"
                         >
+                          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
                           View
                         </button>
                         <button
                           onClick={() => onEditQuote(quote.id)}
-                          style={{
-                            padding: '8px 12px',
-                            background: '#6b7280',
-                            color: 'white',
-                            border: 'none',
-                            borderRadius: '6px',
-                            fontSize: '12px',
-                            fontWeight: '500',
-                            cursor: 'pointer'
-                          }}
+                          className="quote-action-btn btn-edit"
                         >
+                          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
                           Edit
                         </button>
                         <button
                           onClick={() => onDeleteQuote(quote.id)}
-                          style={{
-                            padding: '8px 12px',
-                            background: '#dc2626',
-                            color: 'white',
-                            border: 'none',
-                            borderRadius: '6px',
-                            fontSize: '12px',
-                            fontWeight: '500',
-                            cursor: 'pointer'
-                          }}
+                          className="quote-action-btn btn-delete"
                         >
+                          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
                           Delete
                         </button>
                       </div>

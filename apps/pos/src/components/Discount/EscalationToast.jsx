@@ -10,13 +10,7 @@
 
 import { useEffect, useRef, useCallback, memo } from 'react';
 import { createPortal } from 'react-dom';
-import {
-  CheckCircleIcon,
-  XCircleIcon,
-  ClockIcon,
-  XMarkIcon,
-} from '@heroicons/react/24/outline';
-
+import { CheckCircle, Clock, X, XCircle } from 'lucide-react';
 /**
  * Single escalation toast — memoized to prevent re-renders from polling
  */
@@ -72,10 +66,10 @@ const EscalationToastItem = memo(function EscalationToastItem({ escalationId, es
     >
       <div className={`p-2 rounded-lg ${iconBgClass}`}>
         {isApproved
-          ? <CheckCircleIcon className="w-5 h-5" />
+          ? <CheckCircle className="w-5 h-5" />
           : isExpired
-            ? <ClockIcon className="w-5 h-5" />
-            : <XCircleIcon className="w-5 h-5" />
+            ? <Clock className="w-5 h-5" />
+            : <XCircle className="w-5 h-5" />
         }
       </div>
 
@@ -122,7 +116,7 @@ const EscalationToastItem = memo(function EscalationToastItem({ escalationId, es
         className="p-1 rounded-lg hover:bg-black/5 transition-colors"
         aria-label="Dismiss"
       >
-        <XMarkIcon className="w-5 h-5 text-gray-400" />
+        <X className="w-5 h-5 text-gray-400" />
       </button>
     </div>
   );

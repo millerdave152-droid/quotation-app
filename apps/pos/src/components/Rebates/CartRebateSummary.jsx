@@ -4,16 +4,7 @@
  */
 
 import { useState } from 'react';
-import {
-  BanknotesIcon,
-  EnvelopeIcon,
-  InformationCircleIcon,
-  ChevronDownIcon,
-  ChevronUpIcon,
-  CheckCircleIcon,
-  ClockIcon,
-} from '@heroicons/react/24/outline';
-
+import { Banknote, CheckCircle, ChevronDown, ChevronUp, Clock, Info, Mail } from 'lucide-react';
 /**
  * Format currency
  */
@@ -46,7 +37,7 @@ function RebateLineItem({ icon: Icon, label, amount, type, onClick, children }) 
             onClick={onClick}
             className="p-0.5 text-gray-400 hover:text-blue-600 transition-colors"
           >
-            <InformationCircleIcon className="w-4 h-4" />
+            <Info className="w-4 h-4" />
           </button>
         )}
       </div>
@@ -88,7 +79,7 @@ export function CartRebateSummary({
         {hasInstant && (
           <div className="flex items-center justify-between text-sm">
             <span className="flex items-center gap-1.5 text-green-700">
-              <CheckCircleIcon className="w-4 h-4" />
+              <CheckCircle className="w-4 h-4" />
               Instant Rebates Applied
             </span>
             <span className="font-medium text-green-700">
@@ -103,12 +94,12 @@ export function CartRebateSummary({
             className="flex items-center justify-between w-full text-sm text-left hover:bg-blue-50 rounded px-1 -mx-1 transition-colors"
           >
             <span className="flex items-center gap-1.5 text-blue-700">
-              <EnvelopeIcon className="w-4 h-4" />
+              <Mail className="w-4 h-4" />
               Mail-in Rebates Available
             </span>
             <span className="flex items-center gap-1 font-medium text-blue-700">
               {formatCurrency(totalPotential)}
-              <InformationCircleIcon className="w-4 h-4" />
+              <Info className="w-4 h-4" />
             </span>
           </button>
         )}
@@ -126,7 +117,7 @@ export function CartRebateSummary({
       >
         <div className="flex items-center gap-2">
           <div className="p-1.5 bg-green-100 rounded-lg">
-            <BanknotesIcon className="w-5 h-5 text-green-600" />
+            <Banknote className="w-5 h-5 text-green-600" />
           </div>
           <div className="text-left">
             <p className="font-medium text-gray-900">Manufacturer Rebates</p>
@@ -142,9 +133,9 @@ export function CartRebateSummary({
             Save {formatCurrency(totalInstantSavings + totalPotential)}
           </span>
           {expanded ? (
-            <ChevronUpIcon className="w-5 h-5 text-gray-400" />
+            <ChevronUp className="w-5 h-5 text-gray-400" />
           ) : (
-            <ChevronDownIcon className="w-5 h-5 text-gray-400" />
+            <ChevronDown className="w-5 h-5 text-gray-400" />
           )}
         </div>
       </button>
@@ -164,7 +155,7 @@ export function CartRebateSummary({
                   className="flex items-center justify-between py-1.5 text-sm"
                 >
                   <div className="flex items-center gap-2">
-                    <CheckCircleIcon className="w-4 h-4 text-green-500" />
+                    <CheckCircle className="w-4 h-4 text-green-500" />
                     <span className="text-gray-700">
                       {rebate.productName}
                       {rebate.quantity > 1 && ` x${rebate.quantity}`}
@@ -204,7 +195,7 @@ export function CartRebateSummary({
                   className="flex items-center justify-between py-1.5 text-sm"
                 >
                   <div className="flex items-center gap-2">
-                    <ClockIcon className="w-4 h-4 text-blue-500" />
+                    <Clock className="w-4 h-4 text-blue-500" />
                     <span className="text-gray-700">
                       {rebate.productName}
                       {rebate.quantity > 1 && ` x${rebate.quantity}`}
@@ -224,7 +215,7 @@ export function CartRebateSummary({
               {/* Info Banner */}
               <div className="mt-3 p-2 bg-blue-100 rounded-lg">
                 <p className="text-xs text-blue-800">
-                  <InformationCircleIcon className="w-3.5 h-3.5 inline mr-1" />
+                  <Info className="w-3.5 h-3.5 inline mr-1" />
                   Customer must submit claim after purchase. Details will be printed on receipt.
                 </p>
               </div>
@@ -274,7 +265,7 @@ export function CheckoutRebateSummary({
           >
             <span className="text-base">{'\u{1F4EC}'}</span>
             <span>Mail-in Rebates Available</span>
-            <InformationCircleIcon className="w-4 h-4 text-blue-500" />
+            <Info className="w-4 h-4 text-blue-500" />
           </button>
           <span className="text-sm font-semibold text-blue-600">
             {formatCurrency(totalPotential)}
@@ -319,11 +310,11 @@ export function RebateNotification({
   const config = {
     instant: {
       bgColor: 'bg-green-600',
-      icon: BanknotesIcon,
+      icon: Banknote,
     },
     'mail_in': {
       bgColor: 'bg-blue-600',
-      icon: EnvelopeIcon,
+      icon: Mail,
     },
   };
 

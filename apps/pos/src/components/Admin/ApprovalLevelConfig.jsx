@@ -4,40 +4,33 @@
  */
 
 import { useState } from 'react';
-import {
-  UserIcon,
-  ShieldCheckIcon,
-  UserGroupIcon,
-  StarIcon,
-  InformationCircleIcon,
-} from '@heroicons/react/24/outline';
-
+import { Info, ShieldCheck, Star, User, Users } from 'lucide-react';
 const APPROVAL_LEVELS = [
   {
     id: 'shift_lead',
     name: 'Shift Lead',
-    icon: UserIcon,
+    icon: User,
     color: 'blue',
     description: 'Front-line supervisor approval',
   },
   {
     id: 'manager',
     name: 'Manager',
-    icon: UserGroupIcon,
+    icon: Users,
     color: 'purple',
     description: 'Store manager approval',
   },
   {
     id: 'area_manager',
     name: 'Area Manager',
-    icon: ShieldCheckIcon,
+    icon: ShieldCheck,
     color: 'orange',
     description: 'Regional manager approval',
   },
   {
     id: 'admin',
     name: 'Admin',
-    icon: StarIcon,
+    icon: Star,
     color: 'red',
     description: 'Full administrative access',
   },
@@ -248,7 +241,7 @@ export function ApprovalLevelConfig({ thresholdType, levels, onChange }) {
   return (
     <div className="space-y-4">
       <div className="flex items-start gap-2 p-3 bg-blue-50 rounded-lg">
-        <InformationCircleIcon className="w-5 h-5 text-blue-600 flex-shrink-0 mt-0.5" />
+        <Info className="w-5 h-5 text-blue-600 flex-shrink-0 mt-0.5" />
         <div className="text-sm text-blue-700">
           <p className="font-medium">Tiered Approval System</p>
           <p className="mt-1">

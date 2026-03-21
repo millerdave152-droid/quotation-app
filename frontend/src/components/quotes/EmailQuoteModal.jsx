@@ -16,7 +16,7 @@ import { generateCustomerPDF } from '../../services/pdfService';
 import companyConfig from '../../config/companyConfig';
 import { toast } from '../ui/Toast';
 
-const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:3001';
+const API_URL = process.env.REACT_APP_API_URL || '';
 
 // Default email templates
 const EMAIL_TEMPLATES = {
@@ -114,7 +114,7 @@ const EmailQuoteModal = ({
   const [ccEmails, setCcEmails] = useState('');
   const [sending, setSending] = useState(false);
   const [previewMode, setPreviewMode] = useState(false);
-  const [pdfPreviewUrl, setPdfPreviewUrl] = useState(null);
+  const [_pdfPreviewUrl, setPdfPreviewUrl] = useState(null);
 
   // Prepare merge data
   const getMergeData = useCallback(() => {

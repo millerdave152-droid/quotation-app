@@ -6,7 +6,7 @@
  * - Draft follow-up message
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   generateAISummary,
   generateProductSuggestions,
@@ -35,14 +35,8 @@ function AIHelperPanel({ leadId, lead, onUpdate }) {
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [selectedProducts, setSelectedProducts] = useState([]);
 
-  // Fetch next best actions on mount
-  useEffect(() => {
-    if (leadId) {
-      fetchNextActions();
-    }
-  }, [leadId]);
-
-  const fetchNextActions = async () => {
+  // Fetch next best actions
+  const fetchNextActions = useCallback(async () => {
     setLoading(prev => ({ ...prev, nextActions: true }));
     try {
       const response = await api.get(`/leads/${leadId}/next-actions`);
@@ -52,7 +46,14 @@ function AIHelperPanel({ leadId, lead, onUpdate }) {
     } finally {
       setLoading(prev => ({ ...prev, nextActions: false }));
     }
-  };
+  }, [leadId]);
+
+  // Fetch next best actions on mount
+  useEffect(() => {
+    if (leadId) {
+      fetchNextActions();
+    }
+  }, [leadId, fetchNextActions]);
 
   const toggleProductSelection = (product) => {
     setSelectedProducts(prev => {
@@ -371,7 +372,7 @@ function AIHelperPanel({ leadId, lead, onUpdate }) {
 }
 
 // Next Best Actions Panel Component
-function NextBestActionsPanel({ actions, loading, onRefresh, leadId, onActionTaken }) {
+function NextBestActionsPanel({ actions, loading, onRefresh, leadId, onActionTaken: _onActionTaken }) {
   const toast = useToast();
   const navigate = useNavigate();
 

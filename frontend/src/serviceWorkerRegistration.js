@@ -7,7 +7,7 @@ const isLocalhost = Boolean(
     window.location.hostname.match(/^127(?:\.(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)){3}$/)
 );
 
-const API_BASE = `${process.env.REACT_APP_API_URL || 'http://localhost:3001'}/api`;
+const API_BASE = `${process.env.REACT_APP_API_URL || ''}/api`;
 
 export function register(config) {
   if ('serviceWorker' in navigator) {
@@ -22,7 +22,6 @@ export function register(config) {
       if (isLocalhost) {
         checkValidServiceWorker(swUrl, config);
         navigator.serviceWorker.ready.then(() => {
-          console.log('This web app is being served cache-first by a service worker.');
         });
       } else {
         registerValidSW(swUrl, config);
@@ -35,7 +34,6 @@ function registerValidSW(swUrl, config) {
   navigator.serviceWorker
     .register(swUrl)
     .then((registration) => {
-      console.log('Service Worker registered:', registration);
 
       registration.onupdatefound = () => {
         const installingWorker = registration.installing;
@@ -46,13 +44,11 @@ function registerValidSW(swUrl, config) {
         installingWorker.onstatechange = () => {
           if (installingWorker.state === 'installed') {
             if (navigator.serviceWorker.controller) {
-              console.log('New content is available; please refresh.');
 
               if (config && config.onUpdate) {
                 config.onUpdate(registration);
               }
             } else {
-              console.log('Content is cached for offline use.');
 
               if (config && config.onSuccess) {
                 config.onSuccess(registration);
@@ -87,7 +83,6 @@ function checkValidServiceWorker(swUrl, config) {
       }
     })
     .catch(() => {
-      console.log('No internet connection found. App is running in offline mode.');
     });
 }
 
@@ -106,7 +101,6 @@ export function unregister() {
 // Request push notification permission
 export function requestNotificationPermission() {
   if (!('Notification' in window)) {
-    console.log('This browser does not support notifications');
     return Promise.resolve(false);
   }
 
@@ -126,7 +120,6 @@ export function requestNotificationPermission() {
 // Subscribe to push notifications
 export async function subscribeToPushNotifications() {
   if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
-    console.log('Push messaging is not supported');
     return null;
   }
 
@@ -155,7 +148,6 @@ export async function subscribeToPushNotifications() {
         body: JSON.stringify(subscription)
       });
 
-      console.log('✅ Successfully subscribed to push notifications');
     }
 
     return subscription;

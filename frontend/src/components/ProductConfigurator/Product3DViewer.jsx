@@ -2,7 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import '@google/model-viewer';
 
 import { authFetch } from '../../services/authFetch';
-const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:3001';
+const API_BASE_URL = process.env.REACT_APP_API_URL || '';
 const API_URL = `${API_BASE_URL}/api`;
 
 /**
@@ -20,7 +20,6 @@ const Product3DViewer = ({
   modelUrl,
   modelData,
   onMaterialChange,
-  onConfigurationSave,
   showControls = true,
   showMaterials = true,
   showHotspots = true,
@@ -45,34 +44,33 @@ const Product3DViewer = ({
     }
 
     if (productId) {
+      const fetchModelData = async () => {
+        try {
+          setLoading(true);
+          const response = await authFetch(`${API_URL}/product-3d/${productId}`);
+          if (!response.ok) {
+            if (response.status === 404) {
+              setError('No 3D model available for this product');
+            } else {
+              throw new Error('Failed to load 3D model');
+            }
+            return;
+          }
+          const data = await response.json();
+          setModel(data);
+        } catch (err) {
+          console.error('Error fetching 3D model:', err);
+          setError(err.message);
+        } finally {
+          setLoading(false);
+        }
+      };
       fetchModelData();
     } else if (modelUrl) {
       setModel({ model_url: modelUrl });
       setLoading(false);
     }
   }, [productId, modelUrl, modelData]);
-
-  const fetchModelData = async () => {
-    try {
-      setLoading(true);
-      const response = await authFetch(`${API_URL}/product-3d/${productId}`);
-      if (!response.ok) {
-        if (response.status === 404) {
-          setError('No 3D model available for this product');
-        } else {
-          throw new Error('Failed to load 3D model');
-        }
-        return;
-      }
-      const data = await response.json();
-      setModel(data);
-    } catch (err) {
-      console.error('Error fetching 3D model:', err);
-      setError(err.message);
-    } finally {
-      setLoading(false);
-    }
-  };
 
   // Handle material change
   const handleMaterialSelect = async (category, material) => {
@@ -83,7 +81,6 @@ const Product3DViewer = ({
     if (modelViewerRef.current && material.base_color_hex) {
       // Note: Actual material application requires model with named materials
       // This is a simplified example
-      console.log('Applied material:', material.display_name);
     }
 
     if (onMaterialChange) {

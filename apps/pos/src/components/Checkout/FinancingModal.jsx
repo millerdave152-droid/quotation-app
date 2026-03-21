@@ -4,12 +4,6 @@
  */
 
 import { useCallback } from 'react';
-import {
-  ArrowLeftIcon,
-  UserCircleIcon,
-  XMarkIcon,
-  ScaleIcon,
-} from '@heroicons/react/24/outline';
 import { formatCurrency } from '../../utils/formatters';
 import { useFinancing, FINANCING_STEPS } from '../../hooks/useFinancing';
 
@@ -19,7 +13,7 @@ import { FinancingComparison } from './FinancingComparison';
 import { FinancingApplicationForm } from './FinancingApplicationForm';
 import { FinancingApprovalResult } from './FinancingApprovalResult';
 import { FinancingTermsAcceptance } from './FinancingTermsAcceptance';
-import { FinancingSchedulePreview } from './FinancingSchedulePreview';
+import { ArrowLeft, CircleUser, Scale, X } from 'lucide-react';
 
 /**
  * Step indicator component
@@ -169,14 +163,14 @@ export function FinancingModal({
             onClick={onCancel}
             className="w-10 h-10 flex items-center justify-center text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
           >
-            <XMarkIcon className="w-6 h-6" />
+            <X className="w-6 h-6" />
           </button>
           <h2 className="text-xl font-bold text-gray-900">Financing</h2>
         </div>
 
         <div className="flex-1 flex flex-col items-center justify-center text-center">
           <div className="w-24 h-24 bg-yellow-100 rounded-full flex items-center justify-center mb-6">
-            <UserCircleIcon className="w-12 h-12 text-yellow-600" />
+            <CircleUser className="w-12 h-12 text-yellow-600" />
           </div>
           <h3 className="text-xl font-semibold text-gray-900 mb-2">
             Customer Required
@@ -199,7 +193,7 @@ export function FinancingModal({
           disabled={submitting}
           className="w-10 h-10 flex items-center justify-center text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors disabled:opacity-50"
         >
-          <ArrowLeftIcon className="w-6 h-6" />
+          <ArrowLeft className="w-6 h-6" />
         </button>
         <h2 className="text-xl font-bold text-gray-900">Financing</h2>
       </div>
@@ -284,7 +278,7 @@ export function FinancingModal({
                           }
                         `}
                       >
-                        <ScaleIcon className="w-4 h-4" />
+                        <Scale className="w-4 h-4" />
                       </button>
                     )}
                   </div>

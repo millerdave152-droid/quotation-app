@@ -91,6 +91,31 @@ router.get('/products/:id/with-variants', authenticate, requirePermission('produ
 }));
 
 // ============================================================================
+// PICKER STATE (POS variant selector)
+// ============================================================================
+
+router.get('/products/:parentId/picker-state', authenticate, requirePermission('product_variants.view'), asyncHandler(async (req, res) => {
+  const parentId = parseInt(req.params.parentId);
+  if (isNaN(parentId)) throw ApiError.badRequest('parentId must be an integer');
+
+  const { locationId, selectedValues } = req.query;
+  if (!locationId) throw ApiError.badRequest('locationId query parameter is required');
+
+  // Parse comma-separated value IDs into integer array
+  const selectedValueIds = selectedValues
+    ? selectedValues.split(',').map(Number).filter(n => !isNaN(n) && n > 0)
+    : [];
+
+  try {
+    const result = await variantService.getPickerState(parentId, selectedValueIds, locationId);
+    res.success(result);
+  } catch (err) {
+    if (err.code === 'VARIANT_NOT_FOUND') throw ApiError.notFound('Parent product');
+    throw err;
+  }
+}));
+
+// ============================================================================
 // GENERATE / ADD / UPDATE VARIANTS
 // ============================================================================
 

@@ -130,7 +130,6 @@ async function getStatus() {
  */
 function setRuntimeOverride(value) {
   runtimeOverride = value;
-  console.log(`[FeatureFlags] Runtime override set to: ${value}`);
 }
 
 /**
@@ -165,7 +164,6 @@ async function setDatabaseSetting(value, changedBy = 'system') {
     cachedDbSetting = null;
     lastDbCheck = 0;
 
-    console.log(`[FeatureFlags] Database setting updated to: ${value} by ${changedBy}`);
     return true;
   } catch (error) {
     console.error('[FeatureFlags] Failed to update database setting:', error.message);
@@ -204,7 +202,6 @@ function checkEnabled() {
 
     if (!enabled) {
       // Log the blocked request
-      console.log(`[FeatureFlags] AI request blocked (disabled): ${req.method} ${req.path}`);
 
       return res.status(503).json({
         success: false,

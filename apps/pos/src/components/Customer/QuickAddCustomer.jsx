@@ -4,14 +4,10 @@
  */
 
 import { useState, useCallback, useRef, useEffect } from 'react';
-import {
-  ArrowLeftIcon,
-  UserPlusIcon,
-  CheckCircleIcon,
-} from '@heroicons/react/24/outline';
 import { createCustomer } from '../../api/customers';
 import MarketingAttributionSelector from './MarketingAttributionSelector';
 import CommunicationPreferences from './CommunicationPreferences';
+import { ArrowLeft, CheckCircle, UserPlus } from 'lucide-react';
 
 /**
  * Format phone number as user types
@@ -156,7 +152,7 @@ export function QuickAddCustomer({
     return (
       <div className="flex flex-col items-center justify-center py-16 px-4">
         <div className="w-20 h-20 bg-green-100 rounded-full flex items-center justify-center mb-4">
-          <CheckCircleIcon className="w-12 h-12 text-green-600" />
+          <CheckCircle className="w-12 h-12 text-green-600" />
         </div>
         <h3 className="text-xl font-bold text-gray-900 mb-2">
           Customer Added!
@@ -184,7 +180,7 @@ export function QuickAddCustomer({
             transition-colors duration-150
           "
         >
-          <ArrowLeftIcon className="w-5 h-5" />
+          <ArrowLeft className="w-5 h-5" />
         </button>
         <div>
           <h2 className="text-lg font-bold text-gray-900">New Customer</h2>
@@ -341,7 +337,7 @@ export function QuickAddCustomer({
             </>
           ) : (
             <>
-              <UserPlusIcon className="w-6 h-6" />
+              <UserPlus className="w-6 h-6" />
               Add Customer
             </>
           )}

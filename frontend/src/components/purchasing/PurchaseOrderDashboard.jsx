@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { authFetch } from '../../services/authFetch';
 
-const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:3001';
+const API_URL = process.env.REACT_APP_API_URL || '';
 
 const STATUS_COLORS = {
   draft: '#94a3b8', submitted: '#f59e0b', confirmed: '#3b82f6',

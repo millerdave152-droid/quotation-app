@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import Product3DViewer from './Product3DViewer';
 
 import { authFetch } from '../../services/authFetch';
-const API_URL = `${process.env.REACT_APP_API_URL || 'http://localhost:3001'}/api`;
+const API_URL = `${process.env.REACT_APP_API_URL || ''}/api`;
 
 /**
  * ProductConfigurator3D - Full-screen modal for configuring products in 3D
@@ -31,64 +31,64 @@ const ProductConfigurator3D = ({
   // Fetch model data
   useEffect(() => {
     if (product?.id) {
+      const fetchModelData = async () => {
+        try {
+          setLoading(true);
+          const response = await authFetch(`${API_URL}/product-3d/${product.id}`);
+
+          if (!response.ok) {
+            if (response.status === 404) {
+              setError('No 3D model available for this product');
+            } else {
+              throw new Error('Failed to load 3D model');
+            }
+            return;
+          }
+
+          const data = await response.json();
+          setModelData(data);
+
+          // Load initial configuration if provided
+          if (initialConfiguration) {
+            setSelectedMaterials(initialConfiguration.materials || {});
+          }
+        } catch (err) {
+          console.error('Error fetching 3D model:', err);
+          setError(err.message);
+        } finally {
+          setLoading(false);
+        }
+      };
+
       fetchModelData();
     }
-  }, [product?.id]);
-
-  const fetchModelData = async () => {
-    try {
-      setLoading(true);
-      const response = await authFetch(`${API_URL}/product-3d/${product.id}`);
-
-      if (!response.ok) {
-        if (response.status === 404) {
-          setError('No 3D model available for this product');
-        } else {
-          throw new Error('Failed to load 3D model');
-        }
-        return;
-      }
-
-      const data = await response.json();
-      setModelData(data);
-
-      // Load initial configuration if provided
-      if (initialConfiguration) {
-        setSelectedMaterials(initialConfiguration.materials || {});
-      }
-    } catch (err) {
-      console.error('Error fetching 3D model:', err);
-      setError(err.message);
-    } finally {
-      setLoading(false);
-    }
-  };
+  }, [product?.id, initialConfiguration]);
 
   // Calculate price when materials change
   useEffect(() => {
     if (Object.keys(selectedMaterials).length > 0) {
+      const calculatePrice = async () => {
+        try {
+          const materialIds = Object.values(selectedMaterials).map(m => m.id);
+          const response = await authFetch(`${API_URL}/product-3d/${product.id}/calculate-price`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ selected_materials: materialIds })
+          });
+
+          if (response.ok) {
+            const data = await response.json();
+            setPriceAdjustment(data.adjustment_cents / 100);
+            setLeadTime(data.lead_time_days);
+          }
+        } catch (err) {
+          console.error('Error calculating price:', err);
+        }
+      };
+
       calculatePrice();
     }
-  }, [selectedMaterials]);
-
-  const calculatePrice = async () => {
-    try {
-      const materialIds = Object.values(selectedMaterials).map(m => m.id);
-      const response = await authFetch(`${API_URL}/product-3d/${product.id}/calculate-price`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ selected_materials: materialIds })
-      });
-
-      if (response.ok) {
-        const data = await response.json();
-        setPriceAdjustment(data.adjustment_cents / 100);
-        setLeadTime(data.lead_time_days);
-      }
-    } catch (err) {
-      console.error('Error calculating price:', err);
-    }
-  };
+  }, [selectedMaterials, product?.id]);
 
   const handleMaterialChange = useCallback((materials) => {
     setSelectedMaterials(materials);

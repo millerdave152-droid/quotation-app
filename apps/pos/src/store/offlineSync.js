@@ -45,14 +45,12 @@ class SyncManager {
 
   // Event handlers
   handleOnline() {
-    console.log('[SyncManager] Connection restored');
     this.isOnline = true;
     this.notifyListeners('online');
     this.processPendingOperations();
   }
 
   handleOffline() {
-    console.log('[SyncManager] Connection lost');
     this.isOnline = false;
     this.notifyListeners('offline');
   }
@@ -113,7 +111,6 @@ class SyncManager {
         return;
       }
 
-      console.log(`[SyncManager] Processing ${operations.length} pending operations`);
 
       // Batch sync with server
       const deviceId = getDeviceId();
@@ -143,7 +140,6 @@ class SyncManager {
         }
       }
 
-      console.log(`[SyncManager] Sync complete: ${successCount} success, ${failCount} failed`);
       this.notifyListeners('syncComplete', { successCount, failCount });
 
       // If there were failures and we're still online, retry after delay
@@ -244,7 +240,6 @@ class SyncManager {
           totalCents: snapshot.totalCents || 0,
           customerName: snapshot.customer?.name,
         });
-        console.log('[SyncManager] Auto-saved draft');
       }
     }, SYNC_CONFIG.autoSaveInterval);
   }
@@ -321,7 +316,20 @@ export const useOfflineSync = (options = {}) => {
     onOffline,
   } = options;
 
-  const store = useUnifiedStore();
+  const isOnlineState = useUnifiedStore((state) => state.isOnline);
+  const syncStatus = useUnifiedStore((state) => state.syncStatus);
+  const isDirty = useUnifiedStore((state) => state.isDirty);
+  const lastSavedAt = useUnifiedStore((state) => state.lastSavedAt);
+  const customer = useUnifiedStore((state) => state.customer);
+  const setOnline = useUnifiedStore((state) => state.setOnline);
+  const markSynced = useUnifiedStore((state) => state.markSynced);
+  const setSyncError = useUnifiedStore((state) => state.setSyncError);
+  const markDirty = useUnifiedStore((state) => state.markDirty);
+  const markSaved = useUnifiedStore((state) => state.markSaved);
+  const getDraftSnapshot = useUnifiedStore((state) => state.getDraftSnapshot);
+  const getItemCount = useUnifiedStore((state) => state.getItemCount);
+  const getTotal = useUnifiedStore((state) => state.getTotal);
+  const restoreFromDraft = useUnifiedStore((state) => state.restoreFromDraft);
   const managerRef = useRef(null);
   const unsubscribeRef = useRef(null);
 
@@ -334,19 +342,19 @@ export const useOfflineSync = (options = {}) => {
     const handleEvent = (event, data) => {
       switch (event) {
         case 'online':
-          store.setOnline(true);
+          setOnline(true);
           onOnline?.();
           break;
         case 'offline':
-          store.setOnline(false);
+          setOnline(false);
           onOffline?.();
           break;
         case 'syncComplete':
-          store.markSynced();
+          markSynced();
           onSyncComplete?.(data);
           break;
         case 'syncError':
-          store.setSyncError(data.error);
+          setSyncError(data.error);
           onSyncError?.(data);
           break;
       }
@@ -355,12 +363,12 @@ export const useOfflineSync = (options = {}) => {
     unsubscribeRef.current = manager.addListener(handleEvent);
 
     // Set initial online state
-    store.setOnline(navigator.onLine);
+    setOnline(navigator.onLine);
 
     // Start auto-save if enabled
     if (autoSave) {
       manager.startAutoSave(
-        () => store.getDraftSnapshot(),
+        () => getDraftSnapshot(),
         draftType,
         userId
       );
@@ -370,7 +378,7 @@ export const useOfflineSync = (options = {}) => {
       unsubscribeRef.current?.();
       manager.stopAutoSave();
     };
-  }, [draftType, userId, autoSave]);
+  }, [draftType, userId, autoSave, getDraftSnapshot, markSynced, onOffline, onOnline, onSyncComplete, onSyncError, setOnline, setSyncError]);
 
   // Subscribe to store changes for debounced save
   useEffect(() => {
@@ -382,9 +390,9 @@ export const useOfflineSync = (options = {}) => {
     const unsubscribe = useUnifiedStore.subscribe(
       (state) => state.items,
       () => {
-        store.markDirty();
+        markDirty();
         manager.debouncedSave(
-          () => store.getDraftSnapshot(),
+          () => getDraftSnapshot(),
           draftType,
           userId
         );
@@ -392,28 +400,28 @@ export const useOfflineSync = (options = {}) => {
     );
 
     return unsubscribe;
-  }, [draftType, userId, autoSave]);
+  }, [draftType, userId, autoSave, getDraftSnapshot, markDirty]);
 
   // Manual save function
   const saveDraft = useCallback(async (immediate = false) => {
     const manager = managerRef.current;
     if (!manager) return null;
 
-    const snapshot = store.getDraftSnapshot();
+    const snapshot = getDraftSnapshot();
     const draftKey = generateDraftKey(draftType, userId);
 
     const result = await manager.saveDraft({
       draftType,
       draftKey,
       data: snapshot,
-      itemCount: store.getItemCount(),
-      totalCents: store.getTotal(),
-      customerName: store.customer?.name,
+      itemCount: getItemCount(),
+      totalCents: getTotal(),
+      customerName: customer?.name,
     }, immediate);
 
-    store.markSaved();
+    markSaved();
     return result;
-  }, [draftType, userId]);
+  }, [customer?.name, draftType, getDraftSnapshot, getItemCount, getTotal, markSaved, userId]);
 
   // Load draft function
   const loadDraft = useCallback(async (draftKey) => {
@@ -422,11 +430,11 @@ export const useOfflineSync = (options = {}) => {
 
     const draft = await manager.loadDraft(draftKey || generateDraftKey(draftType, userId));
     if (draft && draft.data) {
-      store.restoreFromDraft(draft.data);
+      restoreFromDraft(draft.data);
       return draft;
     }
     return null;
-  }, [draftType, userId]);
+  }, [draftType, restoreFromDraft, userId]);
 
   // Force sync function
   const forceSync = useCallback(async () => {
@@ -444,10 +452,10 @@ export const useOfflineSync = (options = {}) => {
 
   return {
     // State
-    isOnline: store.isOnline,
-    syncStatus: store.syncStatus,
-    isDirty: store.isDirty,
-    lastSavedAt: store.lastSavedAt,
+    isOnline: isOnlineState,
+    syncStatus,
+    isDirty,
+    lastSavedAt,
 
     // Actions
     saveDraft,

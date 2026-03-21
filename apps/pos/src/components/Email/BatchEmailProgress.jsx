@@ -4,17 +4,7 @@
  */
 
 import { useState, useEffect, useCallback } from 'react';
-import {
-  EnvelopeIcon,
-  CheckCircleIcon,
-  XCircleIcon,
-  XMarkIcon,
-  ChevronUpIcon,
-  ChevronDownIcon,
-  ArrowPathIcon,
-  ExclamationTriangleIcon,
-} from '@heroicons/react/24/outline';
-
+import { AlertTriangle, CheckCircle, ChevronDown, ChevronUp, Mail, RefreshCw, X, XCircle } from 'lucide-react';
 /**
  * Floating progress indicator
  * Shows in corner of screen, doesn't block user interaction
@@ -97,7 +87,7 @@ export default function BatchEmailProgress({
             hover:opacity-90 transition-all
           `}
         >
-          <EnvelopeIcon className="w-4 h-4" />
+          <Mail className="w-4 h-4" />
           {isProcessing ? (
             <span className="text-sm font-medium">
               {currentCount}/{totalCount}
@@ -107,7 +97,7 @@ export default function BatchEmailProgress({
               {status.sent_count || 0} sent
             </span>
           )}
-          <ChevronUpIcon className="w-4 h-4" />
+          <ChevronUp className="w-4 h-4" />
         </button>
       </div>
     );
@@ -120,11 +110,11 @@ export default function BatchEmailProgress({
         <div className={`${c.bgLight} px-4 py-3 flex items-center justify-between`}>
           <div className="flex items-center gap-2">
             {isProcessing ? (
-              <ArrowPathIcon className={`w-5 h-5 ${c.text} animate-spin`} />
+              <RefreshCw className={`w-5 h-5 ${c.text} animate-spin`} />
             ) : hasFailed ? (
-              <ExclamationTriangleIcon className={`w-5 h-5 ${c.text}`} />
+              <AlertTriangle className={`w-5 h-5 ${c.text}`} />
             ) : (
-              <CheckCircleIcon className={`w-5 h-5 ${c.text}`} />
+              <CheckCircle className={`w-5 h-5 ${c.text}`} />
             )}
             <span className={`font-semibold ${c.text}`}>
               {isProcessing ? 'Sending Emails' : hasFailed ? 'Completed with Errors' : 'Emails Sent'}
@@ -135,7 +125,7 @@ export default function BatchEmailProgress({
               onClick={() => setIsMinimized(true)}
               className="p-1 text-gray-400 hover:text-gray-600 rounded"
             >
-              <ChevronDownIcon className="w-4 h-4" />
+              <ChevronDown className="w-4 h-4" />
             </button>
             {isComplete && (
               <button
@@ -145,7 +135,7 @@ export default function BatchEmailProgress({
                 }}
                 className="p-1 text-gray-400 hover:text-gray-600 rounded"
               >
-                <XMarkIcon className="w-4 h-4" />
+                <X className="w-4 h-4" />
               </button>
             )}
           </div>
@@ -178,12 +168,12 @@ export default function BatchEmailProgress({
           {/* Stats */}
           <div className="flex items-center gap-4 text-sm">
             <div className="flex items-center gap-1">
-              <CheckCircleIcon className="w-4 h-4 text-green-500" />
+              <CheckCircle className="w-4 h-4 text-green-500" />
               <span className="text-gray-600">{status.sent_count || 0} sent</span>
             </div>
             {(status.failed_count || 0) > 0 && (
               <div className="flex items-center gap-1">
-                <XCircleIcon className="w-4 h-4 text-red-500" />
+                <XCircle className="w-4 h-4 text-red-500" />
                 <span className="text-gray-600">{status.failed_count} failed</span>
               </div>
             )}
