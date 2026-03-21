@@ -7,7 +7,7 @@
 const express = require('express');
 const router = express.Router();
 const { ApiError, asyncHandler } = require('../middleware/errorHandler');
-const { authenticate } = require('../middleware/auth');
+const { authenticate, requireRole } = require('../middleware/auth');
 const { auditLogMiddleware } = require('../middleware/auditLog');
 const DynamicPricingService = require('../services/DynamicPricingService');
 
@@ -19,7 +19,7 @@ module.exports = (pool, cache, pricingService) => {
    * GET /api/pricing/tiers
    * Get all customer pricing tiers
    */
-  router.get('/tiers', authenticate, asyncHandler(async (req, res) => {
+  router.get('/tiers', authenticate, requireRole('admin', 'manager'), asyncHandler(async (req, res) => {
     const result = await pool.query(`
       SELECT * FROM customer_price_tiers ORDER BY discount_percent ASC
     `);
@@ -45,7 +45,7 @@ module.exports = (pool, cache, pricingService) => {
    * GET /api/pricing/:productId/margins
    * Calculate margins at different price points
    */
-  router.get('/:productId/margins', authenticate, asyncHandler(async (req, res) => {
+  router.get('/:productId/margins', authenticate, requireRole('admin', 'manager'), asyncHandler(async (req, res) => {
     const productId = parseInt(req.params.productId);
 
     if (isNaN(productId)) {
@@ -62,7 +62,7 @@ module.exports = (pool, cache, pricingService) => {
    * POST /api/pricing/:productId/simulate
    * Simulate margin at a proposed price
    */
-  router.post('/:productId/simulate', authenticate, asyncHandler(async (req, res) => {
+  router.post('/:productId/simulate', authenticate, requireRole('admin', 'manager'), asyncHandler(async (req, res) => {
     const productId = parseInt(req.params.productId);
 
     if (isNaN(productId)) {
@@ -85,7 +85,7 @@ module.exports = (pool, cache, pricingService) => {
    * POST /api/pricing/:productId/check-violations
    * Check for price violations
    */
-  router.post('/:productId/check-violations', authenticate, asyncHandler(async (req, res) => {
+  router.post('/:productId/check-violations', authenticate, requireRole('admin', 'manager'), asyncHandler(async (req, res) => {
     const productId = parseInt(req.params.productId);
 
     if (isNaN(productId)) {
@@ -152,7 +152,7 @@ module.exports = (pool, cache, pricingService) => {
    * GET /api/pricing/violations/list
    * List price violations
    */
-  router.get('/violations/list', authenticate, asyncHandler(async (req, res) => {
+  router.get('/violations/list', authenticate, requireRole('admin', 'manager'), asyncHandler(async (req, res) => {
     const violations = await pricingService.getPendingViolations({
       status: req.query.status || 'pending',
       limit: parseInt(req.query.limit) || 50
@@ -165,7 +165,7 @@ module.exports = (pool, cache, pricingService) => {
    * POST /api/pricing/violations
    * Log a new price violation
    */
-  router.post('/violations', authenticate, asyncHandler(async (req, res) => {
+  router.post('/violations', authenticate, requireRole('admin', 'manager'), asyncHandler(async (req, res) => {
     const { productId, violationType, quotedPriceCents, thresholdPriceCents } = req.body;
 
     if (!productId) {
@@ -250,7 +250,7 @@ module.exports = (pool, cache, pricingService) => {
    * GET /api/pricing/dynamic/rules
    * Get current pricing rules configuration
    */
-  router.get('/dynamic/rules', authenticate, asyncHandler(async (req, res) => {
+  router.get('/dynamic/rules', authenticate, requireRole('admin', 'manager'), asyncHandler(async (req, res) => {
     const rules = await dynamicPricingService.getPricingRules();
     res.json({ success: true, data: rules });
   }));
@@ -259,7 +259,7 @@ module.exports = (pool, cache, pricingService) => {
    * GET /api/pricing/dynamic/:productId
    * Get dynamic price recommendation for a product
    */
-  router.get('/dynamic/:productId', authenticate, asyncHandler(async (req, res) => {
+  router.get('/dynamic/:productId', authenticate, requireRole('admin', 'manager'), asyncHandler(async (req, res) => {
     const productId = parseInt(req.params.productId);
     const { customerId, quantity = 1 } = req.query;
 
@@ -282,7 +282,7 @@ module.exports = (pool, cache, pricingService) => {
    * POST /api/pricing/dynamic/bulk
    * Get bulk price recommendations for multiple products
    */
-  router.post('/dynamic/bulk', authenticate, asyncHandler(async (req, res) => {
+  router.post('/dynamic/bulk', authenticate, requireRole('admin', 'manager'), asyncHandler(async (req, res) => {
     const { productIds, customerId } = req.body;
 
     if (!productIds || !Array.isArray(productIds)) {
@@ -301,7 +301,7 @@ module.exports = (pool, cache, pricingService) => {
    * GET /api/pricing/dynamic/quote/:quoteId/analyze
    * Analyze pricing for an existing quote
    */
-  router.get('/dynamic/quote/:quoteId/analyze', authenticate, asyncHandler(async (req, res) => {
+  router.get('/dynamic/quote/:quoteId/analyze', authenticate, requireRole('admin', 'manager'), asyncHandler(async (req, res) => {
     const quoteId = parseInt(req.params.quoteId);
 
     if (isNaN(quoteId)) {

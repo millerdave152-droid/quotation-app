@@ -60,7 +60,7 @@ router.post('/run-customer/:id', authenticate, requireRole('admin', 'manager'), 
  * GET /api/clv/job-status
  * Get current CLV job status
  */
-router.get('/job-status', authenticate, asyncHandler(async (req, res) => {
+router.get('/job-status', authenticate, requireRole('admin', 'manager'), asyncHandler(async (req, res) => {
   res.success(clvCalculationJob.getStatus());
 }));
 
@@ -68,7 +68,7 @@ router.get('/job-status', authenticate, asyncHandler(async (req, res) => {
  * GET /api/clv/job-history
  * Get CLV job execution history
  */
-router.get('/job-history', authenticate, asyncHandler(async (req, res) => {
+router.get('/job-history', authenticate, requireRole('admin', 'manager'), asyncHandler(async (req, res) => {
   const { limit = 20 } = req.query;
   const limitNum = Math.min(parseInt(limit) || 20, 100);
 
@@ -88,7 +88,7 @@ router.get('/job-history', authenticate, asyncHandler(async (req, res) => {
  * GET /api/clv/history/:customerId
  * Get CLV history for a specific customer (for trend charts)
  */
-router.get('/history/:customerId', authenticate, asyncHandler(async (req, res) => {
+router.get('/history/:customerId', authenticate, requireRole('admin', 'manager'), asyncHandler(async (req, res) => {
   const customerId = parseInt(req.params.customerId);
   if (isNaN(customerId)) {
     throw ApiError.badRequest('Invalid customer ID');
@@ -113,7 +113,7 @@ router.get('/history/:customerId', authenticate, asyncHandler(async (req, res) =
  * GET /api/clv/trends
  * Get aggregate CLV trends over time (for dashboard trend chart)
  */
-router.get('/trends', authenticate, asyncHandler(async (req, res) => {
+router.get('/trends', authenticate, requireRole('admin', 'manager'), asyncHandler(async (req, res) => {
   const { days = 30 } = req.query;
   const daysNum = Math.min(parseInt(days) || 30, 365);
 

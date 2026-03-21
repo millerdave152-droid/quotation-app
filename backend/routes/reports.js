@@ -7,7 +7,7 @@
 const express = require('express');
 const router = express.Router();
 const { ApiError, asyncHandler } = require('../middleware/errorHandler');
-const { authenticate } = require('../middleware/auth');
+const { authenticate, requireRole } = require('../middleware/auth');
 const { auditLogMiddleware } = require('../middleware/auditLog');
 const ReportBuilderService = require('../services/ReportBuilderService');
 const logger = require('../utils/logger');
@@ -41,7 +41,7 @@ const init = (deps) => {
  * GET /api/reports/metrics
  * Get available metrics for report builder
  */
-router.get('/metrics', authenticate, asyncHandler(async (req, res) => {
+router.get('/metrics', authenticate, requireRole('admin', 'manager'), asyncHandler(async (req, res) => {
   const metrics = reportService.getAvailableMetrics();
   res.json({ success: true, data: metrics });
 }));
@@ -50,7 +50,7 @@ router.get('/metrics', authenticate, asyncHandler(async (req, res) => {
  * GET /api/reports/dimensions
  * Get available dimensions for report builder
  */
-router.get('/dimensions', authenticate, asyncHandler(async (req, res) => {
+router.get('/dimensions', authenticate, requireRole('admin', 'manager'), asyncHandler(async (req, res) => {
   const dimensions = reportService.getAvailableDimensions();
   res.json({ success: true, data: dimensions });
 }));
@@ -59,7 +59,7 @@ router.get('/dimensions', authenticate, asyncHandler(async (req, res) => {
  * GET /api/reports/prebuilt
  * Get pre-built report templates
  */
-router.get('/prebuilt', authenticate, asyncHandler(async (req, res) => {
+router.get('/prebuilt', authenticate, requireRole('admin', 'manager'), asyncHandler(async (req, res) => {
   const templates = reportService.getPrebuiltTemplates();
   res.json({ success: true, data: templates });
 }));
@@ -72,7 +72,7 @@ router.get('/prebuilt', authenticate, asyncHandler(async (req, res) => {
  * GET /api/reports/templates
  * Get all report templates
  */
-router.get('/templates', authenticate, asyncHandler(async (req, res) => {
+router.get('/templates', authenticate, requireRole('admin', 'manager'), asyncHandler(async (req, res) => {
   const userId = req.user?.username || req.user?.id;
   const templates = await reportService.getTemplates(userId);
   res.json({ success: true, data: templates });
@@ -82,7 +82,7 @@ router.get('/templates', authenticate, asyncHandler(async (req, res) => {
  * GET /api/reports/templates/:id
  * Get a single report template
  */
-router.get('/templates/:id', authenticate, asyncHandler(async (req, res) => {
+router.get('/templates/:id', authenticate, requireRole('admin', 'manager'), asyncHandler(async (req, res) => {
   const templateId = parseInt(req.params.id);
 
   if (isNaN(templateId)) {
@@ -102,7 +102,7 @@ router.get('/templates/:id', authenticate, asyncHandler(async (req, res) => {
  * POST /api/reports/templates
  * Create a new report template
  */
-router.post('/templates', authenticate, asyncHandler(async (req, res) => {
+router.post('/templates', authenticate, requireRole('admin', 'manager'), asyncHandler(async (req, res) => {
   const { name, description, config, isPublic } = req.body;
 
   if (!name) {
@@ -128,7 +128,7 @@ router.post('/templates', authenticate, asyncHandler(async (req, res) => {
  * PUT /api/reports/templates/:id
  * Update a report template
  */
-router.put('/templates/:id', authenticate, asyncHandler(async (req, res) => {
+router.put('/templates/:id', authenticate, requireRole('admin', 'manager'), asyncHandler(async (req, res) => {
   const templateId = parseInt(req.params.id);
 
   if (isNaN(templateId)) {
@@ -148,7 +148,7 @@ router.put('/templates/:id', authenticate, asyncHandler(async (req, res) => {
  * DELETE /api/reports/templates/:id
  * Delete a report template
  */
-router.delete('/templates/:id', authenticate, asyncHandler(async (req, res) => {
+router.delete('/templates/:id', authenticate, requireRole('admin', 'manager'), asyncHandler(async (req, res) => {
   const templateId = parseInt(req.params.id);
 
   if (isNaN(templateId)) {
@@ -167,7 +167,7 @@ router.delete('/templates/:id', authenticate, asyncHandler(async (req, res) => {
  * POST /api/reports/execute
  * Execute a report with given configuration
  */
-router.post('/execute', authenticate, auditLogMiddleware('report_access', 'report'), asyncHandler(async (req, res) => {
+router.post('/execute', authenticate, requireRole('admin', 'manager'), auditLogMiddleware('report_access', 'report'), asyncHandler(async (req, res) => {
   const { config, templateId } = req.body;
 
   if (!config && !templateId) {
@@ -203,7 +203,7 @@ router.post('/execute', authenticate, auditLogMiddleware('report_access', 'repor
  * POST /api/reports/templates/:id/execute
  * Execute a report template
  */
-router.post('/templates/:id/execute', authenticate, auditLogMiddleware('report_access', 'report'), asyncHandler(async (req, res) => {
+router.post('/templates/:id/execute', authenticate, requireRole('admin', 'manager'), auditLogMiddleware('report_access', 'report'), asyncHandler(async (req, res) => {
   const templateId = parseInt(req.params.id);
 
   if (isNaN(templateId)) {
@@ -241,7 +241,7 @@ router.post('/templates/:id/execute', authenticate, auditLogMiddleware('report_a
  * GET /api/reports/executions
  * Get report execution history
  */
-router.get('/executions', authenticate, asyncHandler(async (req, res) => {
+router.get('/executions', authenticate, requireRole('admin', 'manager'), asyncHandler(async (req, res) => {
   const templateId = req.query.templateId ? parseInt(req.query.templateId) : null;
   const limit = parseInt(req.query.limit) || 50;
 
@@ -257,7 +257,7 @@ router.get('/executions', authenticate, asyncHandler(async (req, res) => {
  * GET /api/reports/scheduled
  * Get all scheduled reports
  */
-router.get('/scheduled', authenticate, asyncHandler(async (req, res) => {
+router.get('/scheduled', authenticate, requireRole('admin', 'manager'), asyncHandler(async (req, res) => {
   const templateId = req.query.templateId ? parseInt(req.query.templateId) : null;
   const schedules = await reportService.getScheduledReports(templateId);
   res.json({ success: true, data: schedules });
@@ -267,7 +267,7 @@ router.get('/scheduled', authenticate, asyncHandler(async (req, res) => {
  * POST /api/reports/scheduled
  * Create a scheduled report
  */
-router.post('/scheduled', authenticate, asyncHandler(async (req, res) => {
+router.post('/scheduled', authenticate, requireRole('admin', 'manager'), asyncHandler(async (req, res) => {
   const { templateId, scheduleType, scheduleConfig, recipients } = req.body;
 
   if (!templateId) {
@@ -297,7 +297,7 @@ router.post('/scheduled', authenticate, asyncHandler(async (req, res) => {
  * PUT /api/reports/scheduled/:id
  * Update a scheduled report
  */
-router.put('/scheduled/:id', authenticate, asyncHandler(async (req, res) => {
+router.put('/scheduled/:id', authenticate, requireRole('admin', 'manager'), asyncHandler(async (req, res) => {
   const scheduleId = parseInt(req.params.id);
 
   if (isNaN(scheduleId)) {
@@ -317,7 +317,7 @@ router.put('/scheduled/:id', authenticate, asyncHandler(async (req, res) => {
  * DELETE /api/reports/scheduled/:id
  * Delete a scheduled report
  */
-router.delete('/scheduled/:id', authenticate, asyncHandler(async (req, res) => {
+router.delete('/scheduled/:id', authenticate, requireRole('admin', 'manager'), asyncHandler(async (req, res) => {
   const scheduleId = parseInt(req.params.id);
 
   if (isNaN(scheduleId)) {
@@ -332,7 +332,7 @@ router.delete('/scheduled/:id', authenticate, asyncHandler(async (req, res) => {
  * POST /api/reports/scheduled/process
  * Process due scheduled reports (for cron job)
  */
-router.post('/scheduled/process', authenticate, asyncHandler(async (req, res) => {
+router.post('/scheduled/process', authenticate, requireRole('admin', 'manager'), asyncHandler(async (req, res) => {
   const results = await reportService.processScheduledReports();
   res.json({
     success: true,

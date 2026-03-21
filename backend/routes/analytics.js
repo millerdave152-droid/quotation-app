@@ -9,7 +9,7 @@ const express = require('express');
 const router = express.Router();
 const { ApiError, asyncHandler } = require('../middleware/errorHandler');
 const cache = require('../cache');
-const { authenticate } = require('../middleware/auth');
+const { authenticate, requireRole } = require('../middleware/auth');
 const RevenueForecastService = require('../services/RevenueForecastService');
 const ConversionAnalyticsService = require('../services/ConversionAnalyticsService');
 const LeadSourceAnalyticsService = require('../services/LeadSourceAnalyticsService');
@@ -43,7 +43,7 @@ const init = (deps) => {
  *
  * OPTIMIZED: Cached for 5 minutes to reduce database load
  */
-router.get('/revenue-features', authenticate, asyncHandler(async (req, res) => {
+router.get('/revenue-features', authenticate, requireRole('admin', 'manager'), asyncHandler(async (req, res) => {
   const { startDate, endDate, period = '30' } = req.query;
 
   // Calculate date range (default to last 30 days)
@@ -193,7 +193,7 @@ router.get('/revenue-features', authenticate, asyncHandler(async (req, res) => {
  * OPTIMIZED: Uses single query with aggregations instead of N+1 pattern
  * OPTIMIZED: Cached for 5 minutes
  */
-router.get('/top-features', authenticate, asyncHandler(async (req, res) => {
+router.get('/top-features', authenticate, requireRole('admin', 'manager'), asyncHandler(async (req, res) => {
   const { limit = 10 } = req.query;
 
   // Try to get from cache
@@ -270,7 +270,7 @@ router.get('/top-features', authenticate, asyncHandler(async (req, res) => {
  * GET /api/analytics/forecast/revenue
  * Get revenue forecast for specified days (30/60/90)
  */
-router.get('/forecast/revenue', authenticate, asyncHandler(async (req, res) => {
+router.get('/forecast/revenue', authenticate, requireRole('admin', 'manager'), asyncHandler(async (req, res) => {
   const days = parseInt(req.query.days) || 30;
 
   if (![30, 60, 90].includes(days)) {
@@ -296,7 +296,7 @@ router.get('/forecast/revenue', authenticate, asyncHandler(async (req, res) => {
  * GET /api/analytics/forecast/pipeline
  * Get pipeline-based revenue forecast
  */
-router.get('/forecast/pipeline', authenticate, asyncHandler(async (req, res) => {
+router.get('/forecast/pipeline', authenticate, requireRole('admin', 'manager'), asyncHandler(async (req, res) => {
   // Try to get from cache
   const cacheKey = 'analytics:forecast:pipeline';
   const cached = cache.get('short', cacheKey);
@@ -316,7 +316,7 @@ router.get('/forecast/pipeline', authenticate, asyncHandler(async (req, res) => 
  * GET /api/analytics/forecast/summary
  * Get combined forecast summary with all metrics
  */
-router.get('/forecast/summary', authenticate, asyncHandler(async (req, res) => {
+router.get('/forecast/summary', authenticate, requireRole('admin', 'manager'), asyncHandler(async (req, res) => {
   // Try to get from cache
   const cacheKey = 'analytics:forecast:summary';
   const cached = cache.get('short', cacheKey);
@@ -336,7 +336,7 @@ router.get('/forecast/summary', authenticate, asyncHandler(async (req, res) => {
  * GET /api/analytics/seasonality
  * Get seasonality analysis patterns
  */
-router.get('/seasonality', authenticate, asyncHandler(async (req, res) => {
+router.get('/seasonality', authenticate, requireRole('admin', 'manager'), asyncHandler(async (req, res) => {
   // Try to get from cache
   const cacheKey = 'analytics:seasonality';
   const cached = cache.get('short', cacheKey);
@@ -356,7 +356,7 @@ router.get('/seasonality', authenticate, asyncHandler(async (req, res) => {
  * GET /api/analytics/sales-velocity
  * Get sales velocity metrics by salesperson
  */
-router.get('/sales-velocity', authenticate, asyncHandler(async (req, res) => {
+router.get('/sales-velocity', authenticate, requireRole('admin', 'manager'), asyncHandler(async (req, res) => {
   const days = parseInt(req.query.days) || 30;
 
   // Try to get from cache
@@ -382,7 +382,7 @@ router.get('/sales-velocity', authenticate, asyncHandler(async (req, res) => {
  * GET /api/analytics/funnel
  * Get complete funnel analysis
  */
-router.get('/funnel', authenticate, asyncHandler(async (req, res) => {
+router.get('/funnel', authenticate, requireRole('admin', 'manager'), asyncHandler(async (req, res) => {
   const days = parseInt(req.query.days) || 90;
 
   // Try to get from cache
@@ -404,7 +404,7 @@ router.get('/funnel', authenticate, asyncHandler(async (req, res) => {
  * GET /api/analytics/funnel/stages
  * Get stage conversion rates only
  */
-router.get('/funnel/stages', authenticate, asyncHandler(async (req, res) => {
+router.get('/funnel/stages', authenticate, requireRole('admin', 'manager'), asyncHandler(async (req, res) => {
   const days = parseInt(req.query.days) || 90;
 
   const cacheKey = `analytics:funnel:stages:${days}`;
@@ -424,7 +424,7 @@ router.get('/funnel/stages', authenticate, asyncHandler(async (req, res) => {
  * GET /api/analytics/funnel/timing
  * Get stage timing analysis
  */
-router.get('/funnel/timing', authenticate, asyncHandler(async (req, res) => {
+router.get('/funnel/timing', authenticate, requireRole('admin', 'manager'), asyncHandler(async (req, res) => {
   const days = parseInt(req.query.days) || 90;
 
   const cacheKey = `analytics:funnel:timing:${days}`;
@@ -444,7 +444,7 @@ router.get('/funnel/timing', authenticate, asyncHandler(async (req, res) => {
  * GET /api/analytics/funnel/trends
  * Get conversion trends over time
  */
-router.get('/funnel/trends', authenticate, asyncHandler(async (req, res) => {
+router.get('/funnel/trends', authenticate, requireRole('admin', 'manager'), asyncHandler(async (req, res) => {
   const days = parseInt(req.query.days) || 90;
 
   const cacheKey = `analytics:funnel:trends:${days}`;
@@ -464,7 +464,7 @@ router.get('/funnel/trends', authenticate, asyncHandler(async (req, res) => {
  * GET /api/analytics/funnel/by-source
  * Get conversion rates by lead source
  */
-router.get('/funnel/by-source', authenticate, asyncHandler(async (req, res) => {
+router.get('/funnel/by-source', authenticate, requireRole('admin', 'manager'), asyncHandler(async (req, res) => {
   const days = parseInt(req.query.days) || 90;
 
   const cacheKey = `analytics:funnel:by-source:${days}`;
@@ -488,7 +488,7 @@ router.get('/funnel/by-source', authenticate, asyncHandler(async (req, res) => {
  * GET /api/analytics/lead-sources
  * Get comprehensive lead source analytics
  */
-router.get('/lead-sources', authenticate, asyncHandler(async (req, res) => {
+router.get('/lead-sources', authenticate, requireRole('admin', 'manager'), asyncHandler(async (req, res) => {
   const days = parseInt(req.query.days) || 90;
 
   const cacheKey = `analytics:lead-sources:${days}`;
@@ -508,7 +508,7 @@ router.get('/lead-sources', authenticate, asyncHandler(async (req, res) => {
  * GET /api/analytics/lead-sources/breakdown
  * Get lead source breakdown
  */
-router.get('/lead-sources/breakdown', authenticate, asyncHandler(async (req, res) => {
+router.get('/lead-sources/breakdown', authenticate, requireRole('admin', 'manager'), asyncHandler(async (req, res) => {
   const days = parseInt(req.query.days) || 90;
 
   const cacheKey = `analytics:lead-sources:breakdown:${days}`;
@@ -528,7 +528,7 @@ router.get('/lead-sources/breakdown', authenticate, asyncHandler(async (req, res
  * GET /api/analytics/lead-sources/performance
  * Get lead source performance with revenue
  */
-router.get('/lead-sources/performance', authenticate, asyncHandler(async (req, res) => {
+router.get('/lead-sources/performance', authenticate, requireRole('admin', 'manager'), asyncHandler(async (req, res) => {
   const days = parseInt(req.query.days) || 90;
 
   const cacheKey = `analytics:lead-sources:performance:${days}`;
@@ -548,7 +548,7 @@ router.get('/lead-sources/performance', authenticate, asyncHandler(async (req, r
  * GET /api/analytics/lead-sources/top
  * Get top performing lead sources
  */
-router.get('/lead-sources/top', authenticate, asyncHandler(async (req, res) => {
+router.get('/lead-sources/top', authenticate, requireRole('admin', 'manager'), asyncHandler(async (req, res) => {
   const days = parseInt(req.query.days) || 90;
 
   const cacheKey = `analytics:lead-sources:top:${days}`;

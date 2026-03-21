@@ -38,7 +38,7 @@ const paginationSchema = Joi.object({
  * GET /api/reports/dashboard
  * Get dashboard summary with key metrics
  */
-router.get('/dashboard', authenticate, asyncHandler(async (req, res) => {
+router.get('/dashboard', authenticate, requireRole('admin', 'manager'), asyncHandler(async (req, res) => {
   const summary = await reportingService.getDashboardSummary();
 
   res.json({
@@ -55,7 +55,7 @@ router.get('/dashboard', authenticate, asyncHandler(async (req, res) => {
  * GET /api/reports/sales/summary
  * Get sales summary for a period
  */
-router.get('/sales/summary', authenticate, asyncHandler(async (req, res) => {
+router.get('/sales/summary', authenticate, requireRole('admin', 'manager'), asyncHandler(async (req, res) => {
   const { error, value } = dateRangeSchema.validate(req.query);
   if (error) {
     throw ApiError.badRequest(error.details[0].message);
@@ -73,7 +73,7 @@ router.get('/sales/summary', authenticate, asyncHandler(async (req, res) => {
  * GET /api/reports/sales/daily
  * Get daily sales report
  */
-router.get('/sales/daily', authenticate, asyncHandler(async (req, res) => {
+router.get('/sales/daily', authenticate, requireRole('admin', 'manager'), asyncHandler(async (req, res) => {
   const date = req.query.date || new Date().toISOString().split('T')[0];
   const data = await reportingService.getDailySalesReport(date);
 
@@ -87,7 +87,7 @@ router.get('/sales/daily', authenticate, asyncHandler(async (req, res) => {
  * GET /api/reports/sales/monthly-trend
  * Get monthly sales trend
  */
-router.get('/sales/monthly-trend', authenticate, asyncHandler(async (req, res) => {
+router.get('/sales/monthly-trend', authenticate, requireRole('admin', 'manager'), asyncHandler(async (req, res) => {
   const months = parseInt(req.query.months) || 12;
   const data = await reportingService.getMonthlySalesTrend({ months });
 
@@ -101,7 +101,7 @@ router.get('/sales/monthly-trend', authenticate, asyncHandler(async (req, res) =
  * GET /api/reports/sales/hourly-patterns
  * Get hourly sales patterns for scheduling optimization
  */
-router.get('/sales/hourly-patterns', authenticate, asyncHandler(async (req, res) => {
+router.get('/sales/hourly-patterns', authenticate, requireRole('admin', 'manager'), asyncHandler(async (req, res) => {
   const dayOfWeek = req.query.dayOfWeek;
   const data = await reportingService.getHourlySalesPatterns({
     dayOfWeek: dayOfWeek !== undefined ? parseInt(dayOfWeek) : undefined
@@ -121,7 +121,7 @@ router.get('/sales/hourly-patterns', authenticate, asyncHandler(async (req, res)
  * GET /api/reports/quotes/conversion
  * Get quote conversion metrics
  */
-router.get('/quotes/conversion', authenticate, asyncHandler(async (req, res) => {
+router.get('/quotes/conversion', authenticate, requireRole('admin', 'manager'), asyncHandler(async (req, res) => {
   const { error, value } = dateRangeSchema.validate(req.query);
   if (error) {
     throw ApiError.badRequest(error.details[0].message);
@@ -143,7 +143,7 @@ router.get('/quotes/conversion', authenticate, asyncHandler(async (req, res) => 
  * GET /api/reports/quotes/conversion-trend
  * Get quote conversion trend over time
  */
-router.get('/quotes/conversion-trend', authenticate, asyncHandler(async (req, res) => {
+router.get('/quotes/conversion-trend', authenticate, requireRole('admin', 'manager'), asyncHandler(async (req, res) => {
   const { error, value } = dateRangeSchema.validate(req.query);
   if (error) {
     throw ApiError.badRequest(error.details[0].message);
@@ -165,7 +165,7 @@ router.get('/quotes/conversion-trend', authenticate, asyncHandler(async (req, re
  * GET /api/reports/aov/comparison
  * Compare average order value between quotes and POS
  */
-router.get('/aov/comparison', authenticate, asyncHandler(async (req, res) => {
+router.get('/aov/comparison', authenticate, requireRole('admin', 'manager'), asyncHandler(async (req, res) => {
   const { error, value } = dateRangeSchema.validate(req.query);
   if (error) {
     throw ApiError.badRequest(error.details[0].message);
@@ -187,7 +187,7 @@ router.get('/aov/comparison', authenticate, asyncHandler(async (req, res) => {
  * GET /api/reports/products/performance
  * Get product performance across channels
  */
-router.get('/products/performance', authenticate, asyncHandler(async (req, res) => {
+router.get('/products/performance', authenticate, requireRole('admin', 'manager'), asyncHandler(async (req, res) => {
   const schema = dateRangeSchema.keys({
     category: Joi.string(),
     limit: Joi.number().integer().min(1).max(500).default(50)
@@ -210,7 +210,7 @@ router.get('/products/performance', authenticate, asyncHandler(async (req, res) 
  * GET /api/reports/products/categories
  * Get category performance summary
  */
-router.get('/products/categories', authenticate, asyncHandler(async (req, res) => {
+router.get('/products/categories', authenticate, requireRole('admin', 'manager'), asyncHandler(async (req, res) => {
   const { error, value } = dateRangeSchema.validate(req.query);
   if (error) {
     throw ApiError.badRequest(error.details[0].message);
@@ -232,7 +232,7 @@ router.get('/products/categories', authenticate, asyncHandler(async (req, res) =
  * GET /api/reports/customers/purchase-history
  * Get customer purchase history summary
  */
-router.get('/customers/purchase-history', authenticate, asyncHandler(async (req, res) => {
+router.get('/customers/purchase-history', authenticate, requireRole('admin', 'manager'), asyncHandler(async (req, res) => {
   const schema = paginationSchema.keys({
     customerId: Joi.number().integer().positive()
   });
@@ -254,7 +254,7 @@ router.get('/customers/purchase-history', authenticate, asyncHandler(async (req,
  * GET /api/reports/customers/:customerId/transactions
  * Get detailed transaction history for a customer
  */
-router.get('/customers/:customerId/transactions', authenticate, asyncHandler(async (req, res) => {
+router.get('/customers/:customerId/transactions', authenticate, requireRole('admin', 'manager'), asyncHandler(async (req, res) => {
   const customerId = parseInt(req.params.customerId, 10);
 
   if (isNaN(customerId)) {
