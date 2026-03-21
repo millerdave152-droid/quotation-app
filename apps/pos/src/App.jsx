@@ -25,6 +25,12 @@ const PayrollSummaryPage = lazy(() => import('./pages/PayrollSummaryPage'));
 const ReturnInitiation = lazy(() => import('./pages/ReturnInitiation'));
 const TransactionsPage = lazy(() => import('./pages/Transactions'));
 
+// Lazy-loaded checkout flow components
+const CheckoutPaymentNew = lazy(() => import('./components/pos/CheckoutPaymentNew'));
+const CashPaymentNew = lazy(() => import('./components/pos/CashPaymentNew'));
+const CardPaymentNew = lazy(() => import('./components/pos/CardPaymentNew'));
+const PaymentCompleteNew = lazy(() => import('./components/pos/PaymentCompleteNew'));
+
 // Lazy-loaded report components
 const ShiftReportPage = lazy(() =>
   import('./components/Reports').then(mod => ({ default: mod.ShiftReportPage }))
@@ -51,6 +57,7 @@ import {
 
 // Notifications
 import { ExpiringQuotesToast } from './components/Notifications';
+import BugReportForm from './components/BugReportForm';
 
 // ============================================================================
 // ENVIRONMENT BADGE
@@ -376,7 +383,7 @@ function App() {
           path="/reports/shift"
           element={
             <ManagerRoute>
-              <ShiftReportPage onBack={() => window.history.back()} />
+              <ShiftReportPage />
             </ManagerRoute>
           }
         />
@@ -518,12 +525,71 @@ function App() {
         />
 
         {/* ============================================ */}
+        {/* CHECKOUT FLOW — Requires Active Shift */}
+        {/* ============================================ */}
+
+        <Route
+          path="/pos"
+          element={
+            <ProtectedRoute>
+              <ShiftRequired>
+                <POSMain />
+              </ShiftRequired>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/checkout"
+          element={
+            <ProtectedRoute>
+              <ShiftRequired>
+                <CheckoutPaymentNew />
+              </ShiftRequired>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/checkout/cash"
+          element={
+            <ProtectedRoute>
+              <ShiftRequired>
+                <CashPaymentNew />
+              </ShiftRequired>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/checkout/card"
+          element={
+            <ProtectedRoute>
+              <ShiftRequired>
+                <CardPaymentNew />
+              </ShiftRequired>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/checkout/complete"
+          element={
+            <ProtectedRoute>
+              <ShiftRequired>
+                <PaymentCompleteNew />
+              </ShiftRequired>
+            </ProtectedRoute>
+          }
+        />
+
+        {/* ============================================ */}
         {/* 404 - NOT FOUND */}
         {/* ============================================ */}
 
         <Route path="*" element={<NotFound />} />
       </Routes>
       </Suspense>
+
+      {isAuthenticated && (
+        <BugReportForm reportedBy={user?.name || user?.email || 'Staff'} />
+      )}
     </div>
   );
 }
