@@ -6,11 +6,13 @@
 
 import { useLocation, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
+import { useState } from 'react';
 import {
   CheckCircle,
   Printer,
   Mail,
   MessageSquare,
+  FileText,
   PlusCircle,
   Truck,
   TrendingUp,
@@ -20,6 +22,7 @@ import {
 import { useRegister } from '../../context/RegisterContext';
 import { useAuth } from '../../context/AuthContext';
 import { formatCents } from '../../utils/formatCents';
+import api from '../../api/axios';
 
 // ─── Component ─────────────────────────────────────────────────
 
@@ -35,7 +38,42 @@ export default function PaymentCompleteNew() {
   const cashTendered = location.state?.cashTendered;
   const changeGiven = location.state?.changeGiven;
 
+  const [emailSent, setEmailSent] = useState(false);
+  const [smsSent, setSmsSent] = useState(false);
+
   const fmtDollars = (v) => formatCents((v || 0) * 100);
+
+  const transactionId = txn.transaction_id || txn.transactionId || txn.id;
+
+  const handlePrintReceipt = () => {
+    if (!transactionId) return;
+    window.open(`/api/receipts/${transactionId}/pdf`, '_blank');
+  };
+
+  const handleEmailReceipt = async () => {
+    if (!transactionId) return;
+    try {
+      await api.post(`/receipts/${transactionId}/email`);
+      setEmailSent(true);
+    } catch (err) {
+      console.error('[PaymentComplete] Email receipt error:', err);
+    }
+  };
+
+  const handleSmsReceipt = async () => {
+    if (!transactionId) return;
+    try {
+      await api.post(`/receipts/${transactionId}/sms`);
+      setSmsSent(true);
+    } catch (err) {
+      console.error('[PaymentComplete] SMS receipt error:', err);
+    }
+  };
+
+  const handlePrintSalesOrder = () => {
+    if (!transactionId) return;
+    window.open(`/api/sales-orders/${transactionId}/view`, '_blank');
+  };
 
   // Derive display values from API response
   const txnNumber = txn.transaction_number || txn.transactionNumber || txn.id || '—';
@@ -142,9 +180,10 @@ export default function PaymentCompleteNew() {
             </div>
           </motion.div>
 
-          {/* Receipt Buttons — kept hardcoded, receipt printing not wired yet */}
-          <div className="flex items-center gap-3">
+          {/* Receipt & Sales Order Buttons */}
+          <div className="flex items-center gap-3 flex-wrap justify-center">
             <motion.button
+              onClick={handlePrintReceipt}
               whileHover={{ scale: 1.03 }}
               whileTap={{ scale: 0.97 }}
               className="flex items-center gap-1.5 bg-background border border-border rounded-lu-pill px-4 h-10 shadow-lu-sm"
@@ -153,20 +192,35 @@ export default function PaymentCompleteNew() {
               <span className="font-primary text-sm font-medium text-foreground">Print Receipt</span>
             </motion.button>
             <motion.button
+              onClick={handleEmailReceipt}
               whileHover={{ scale: 1.03 }}
               whileTap={{ scale: 0.97 }}
               className="flex items-center gap-1.5 bg-background border border-border rounded-lu-pill px-4 h-10 shadow-lu-sm"
             >
-              <Mail size={20} className="text-foreground" />
-              <span className="font-primary text-sm font-medium text-foreground">Email Receipt</span>
+              <Mail size={20} className={emailSent ? 'text-[#22C55E]' : 'text-foreground'} />
+              <span className="font-primary text-sm font-medium text-foreground">
+                {emailSent ? 'Email Sent' : 'Email Receipt'}
+              </span>
             </motion.button>
             <motion.button
+              onClick={handleSmsReceipt}
               whileHover={{ scale: 1.03 }}
               whileTap={{ scale: 0.97 }}
               className="flex items-center gap-1.5 bg-background border border-border rounded-lu-pill px-4 h-10 shadow-lu-sm"
             >
-              <MessageSquare size={20} className="text-foreground" />
-              <span className="font-primary text-sm font-medium text-foreground">SMS Receipt</span>
+              <MessageSquare size={20} className={smsSent ? 'text-[#22C55E]' : 'text-foreground'} />
+              <span className="font-primary text-sm font-medium text-foreground">
+                {smsSent ? 'SMS Sent' : 'SMS Receipt'}
+              </span>
+            </motion.button>
+            <motion.button
+              onClick={handlePrintSalesOrder}
+              whileHover={{ scale: 1.03 }}
+              whileTap={{ scale: 0.97 }}
+              className="flex items-center gap-1.5 bg-background border border-border rounded-lu-pill px-4 h-10 shadow-lu-sm"
+            >
+              <FileText size={20} className="text-foreground" />
+              <span className="font-primary text-sm font-medium text-foreground">Print Sales Order</span>
             </motion.button>
           </div>
         </div>
