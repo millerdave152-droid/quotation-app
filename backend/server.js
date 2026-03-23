@@ -57,6 +57,7 @@ const POSPaymentService = require('./services/POSPaymentService');
 const ReceiptService = require('./services/ReceiptService');
 const CashDrawerService = require('./services/CashDrawerService');
 const POSInvoiceService = require('./services/POSInvoiceService');
+const SalesOrderService = require('./services/SalesOrderService');
 const UnifiedReportingService = require('./services/UnifiedReportingService');
 const VolumeDiscountService = require('./services/VolumeDiscountService');
 const POSPromotionService = require('./services/POSPromotionService');
@@ -171,6 +172,7 @@ const { init: initPosPaymentsRoutes } = require('./routes/pos-payments');
 const { init: initReceiptsRoutes } = require('./routes/receipts');
 const { init: initCashDrawerRoutes } = require('./routes/cash-drawer');
 const { init: initPosInvoicesRoutes } = require('./routes/pos-invoices');
+const { init: initSalesOrderRoutes } = require('./routes/sales-orders');
 const { init: initUnifiedReportsRoutes } = require('./routes/unified-reports');
 const { init: initRecommendationsRoutes } = require('./routes/recommendations');
 const { init: initFinancingRoutes } = require('./routes/financing');
@@ -268,6 +270,7 @@ const posPaymentService = new POSPaymentService(pool, cache, monerisService);
 const receiptService = new ReceiptService(pool, cache);
 const cashDrawerService = new CashDrawerService(pool, cache);
 const posInvoiceService = new POSInvoiceService(pool, cache);
+const salesOrderService = new SalesOrderService(pool, cache);
 const reportingService = new UnifiedReportingService(pool, cache);
 const volumeDiscountService = new VolumeDiscountService(pool, cache);
 const posPromotionService = new POSPromotionService(pool);
@@ -1050,6 +1053,8 @@ logger.info('Cash drawer routes loaded');
 // ============================================
 app.use('/api/pos-invoices', initPosInvoicesRoutes({ posInvoiceService }));
 logger.info('POS invoice routes loaded');
+app.use('/api/sales-orders', initSalesOrderRoutes({ salesOrderService }));
+logger.info('Sales order routes loaded');
 
 // ============================================
 // UNIFIED REPORTS (Combined Quote + POS Analytics)
