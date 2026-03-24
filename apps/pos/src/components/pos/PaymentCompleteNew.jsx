@@ -75,6 +75,13 @@ export default function PaymentCompleteNew() {
     window.open(`/api/sales-orders/${transactionId}/view`, '_blank');
   };
 
+  const handlePrintDeliverySlip = () => {
+    if (!transactionId) return;
+    window.open(`/api/delivery-slips/transaction/${transactionId}/view`, '_blank');
+  };
+
+  const hasDelivery = !!(txn.delivery_address || txn.deliveryAddress || location.state?.fulfillment?.address);
+
   // Derive display values from API response
   const txnNumber = txn.transaction_number || txn.transactionNumber || txn.id || '—';
   const totalAmount = txn.total_amount || txn.totalAmount || txn.total || 0;
@@ -222,6 +229,17 @@ export default function PaymentCompleteNew() {
               <FileText size={20} className="text-foreground" />
               <span className="font-primary text-sm font-medium text-foreground">Print Sales Order</span>
             </motion.button>
+            {hasDelivery && (
+              <motion.button
+                onClick={handlePrintDeliverySlip}
+                whileHover={{ scale: 1.03 }}
+                whileTap={{ scale: 0.97 }}
+                className="flex items-center gap-1.5 bg-background border border-border rounded-lu-pill px-4 h-10 shadow-lu-sm"
+              >
+                <Truck size={20} className="text-foreground" />
+                <span className="font-primary text-sm font-medium text-foreground">Print Delivery Slip</span>
+              </motion.button>
+            )}
           </div>
         </div>
 
