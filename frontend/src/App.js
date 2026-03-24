@@ -32,6 +32,7 @@ const PowerFeatures2026 = React.lazy(() => import('./components/PowerFeatures202
 const SearchResults = React.lazy(() => import('./components/SearchResults'));
 const UserManagement = React.lazy(() => import('./components/admin/UserManagement'));
 const CustomerQuoteView = React.lazy(() => import('./pages/CustomerQuoteView'));
+const ManufacturerRADashboard = React.lazy(() => import('./components/returns/ManufacturerRADashboard'));
 
 // Enterprise Phase 2 Components
 const InvoiceManager = React.lazy(() => import('./components/invoices/InvoiceManager'));
@@ -558,6 +559,11 @@ function App() {
           <Route path="/admin/product-variants" element={
             <ProtectedRoute requiredRoles={['admin', 'manager']}>
               <VariantManager />
+            </ProtectedRoute>
+          } />
+          <Route path="/manufacturer-ras" element={
+            <ProtectedRoute requiredRoles={['admin', 'manager']}>
+              <ManufacturerRADashboard />
             </ProtectedRoute>
           } />
           <Route path="/admin/pending-amendments" element={

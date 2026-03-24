@@ -58,6 +58,7 @@ const ReceiptService = require('./services/ReceiptService');
 const CashDrawerService = require('./services/CashDrawerService');
 const POSInvoiceService = require('./services/POSInvoiceService');
 const SalesOrderService = require('./services/SalesOrderService');
+const ManufacturerRAService = require('./services/ManufacturerRAService');
 const UnifiedReportingService = require('./services/UnifiedReportingService');
 const VolumeDiscountService = require('./services/VolumeDiscountService');
 const POSPromotionService = require('./services/POSPromotionService');
@@ -173,6 +174,7 @@ const { init: initReceiptsRoutes } = require('./routes/receipts');
 const { init: initCashDrawerRoutes } = require('./routes/cash-drawer');
 const { init: initPosInvoicesRoutes } = require('./routes/pos-invoices');
 const { init: initSalesOrderRoutes } = require('./routes/sales-orders');
+const { init: initManufacturerRARoutes } = require('./routes/manufacturer-ras');
 const { init: initUnifiedReportsRoutes } = require('./routes/unified-reports');
 const { init: initRecommendationsRoutes } = require('./routes/recommendations');
 const { init: initFinancingRoutes } = require('./routes/financing');
@@ -271,6 +273,7 @@ const receiptService = new ReceiptService(pool, cache);
 const cashDrawerService = new CashDrawerService(pool, cache);
 const posInvoiceService = new POSInvoiceService(pool, cache);
 const salesOrderService = new SalesOrderService(pool, cache);
+const manufacturerRAService = new ManufacturerRAService(pool, cache);
 const reportingService = new UnifiedReportingService(pool, cache);
 const volumeDiscountService = new VolumeDiscountService(pool, cache);
 const posPromotionService = new POSPromotionService(pool);
@@ -1055,6 +1058,8 @@ app.use('/api/pos-invoices', initPosInvoicesRoutes({ posInvoiceService }));
 logger.info('POS invoice routes loaded');
 app.use('/api/sales-orders', initSalesOrderRoutes({ salesOrderService, posInvoiceService, managerOverrideService, pool }));
 logger.info('Sales order routes loaded');
+app.use('/api/manufacturer-ras', initManufacturerRARoutes({ manufacturerRAService, pool }));
+logger.info('Manufacturer RA routes loaded');
 
 // ============================================
 // UNIFIED REPORTS (Combined Quote + POS Analytics)

@@ -73,6 +73,7 @@ const navItems = {
   'inventory-receiving': { path: '/inventory/receiving', icon: Package, label: 'Receiving' },
   'inventory-counts': { path: '/inventory-counts', icon: ClipboardCheck, label: 'Inventory Counts' },
   'count-review': { path: '/inventory/count-review', icon: ListChecks, label: 'Count Review' },
+  'manufacturer-ras': { path: '/manufacturer-ras', icon: Truck, label: 'Manufacturer RAs', isAdmin: true },
   'work-orders': { path: '/work-orders', icon: Wrench, label: 'Work Orders' },
   'special-orders': { path: '/special-orders', icon: ShoppingCart, label: 'Special Orders' },
   'customer-accounts': { path: '/customer-accounts', icon: DollarSign, label: 'Customer Accounts' },
@@ -101,7 +102,7 @@ const navSections = [
     id: 'inventory',
     title: 'Inventory',
     icon: Package,
-    items: ['products', 'admin-product-variants', 'product-visualization', 'inventory', 'inventory-transfers', 'inventory-receiving', 'inventory-counts', 'count-review', 'admin-serial-numbers', 'admin-purchase-orders', 'pricing', 'manufacturer-promotions']
+    items: ['products', 'admin-product-variants', 'product-visualization', 'inventory', 'inventory-transfers', 'inventory-receiving', 'inventory-counts', 'count-review', 'admin-serial-numbers', 'admin-purchase-orders', 'manufacturer-ras', 'pricing', 'manufacturer-promotions']
   },
   {
     id: 'marketplace',
