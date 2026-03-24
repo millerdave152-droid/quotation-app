@@ -318,6 +318,7 @@ export function Cart({
               onRequestApproval={onRequestApproval}
               onBudgetUpdate={onBudgetUpdate}
               myEscalations={myEscalations}
+              customerPricingLoading={cart.customerPricingLoading && !item.customerPriceApplied && !item.priceOverride}
               disabled={isProcessing}
             />
           ))}

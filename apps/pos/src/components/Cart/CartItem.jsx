@@ -6,7 +6,7 @@
 import { useState, useRef, useCallback, memo } from 'react';
 import { formatCurrency } from '../../utils/formatters';
 import { DiscountSlider } from '../Discount/DiscountSlider';
-import { AlertTriangle, ChevronDown, ChevronUp, Minus, Plus, ShieldCheck, SquarePen, Trash2 } from 'lucide-react';
+import { AlertTriangle, ChevronDown, ChevronUp, Minus, Plus, ShieldCheck, SquarePen, Tag, Trash2 } from 'lucide-react';
 
 /**
  * Cart item component
@@ -32,6 +32,7 @@ export const CartItem = memo(function CartItem({
   onRequestApproval,
   onBudgetUpdate,
   myEscalations,
+  customerPricingLoading = false,
   disabled = false,
 }) {
   const [swipeOffset, setSwipeOffset] = useState(0);
@@ -164,15 +165,40 @@ export const CartItem = memo(function CartItem({
 
               {/* Price per unit */}
               <div className="mt-1 flex items-center gap-2">
-                <span className="text-sm text-gray-600">
-                  {formatCurrency(item.unitPrice)} × {item.quantity}
-                </span>
+                {item.customerPriceApplied && item.originalPrice != null ? (
+                  <>
+                    <span className="text-sm text-gray-400 line-through">
+                      {formatCurrency(item.originalPrice)}
+                    </span>
+                    <span className="text-sm font-semibold text-green-700">
+                      {formatCurrency(item.unitPrice)} × {item.quantity}
+                    </span>
+                  </>
+                ) : (
+                  <span className="text-sm text-gray-600">
+                    {formatCurrency(item.unitPrice)} × {item.quantity}
+                  </span>
+                )}
                 {item.discountPercent > 0 && (
                   <span className="text-xs text-green-600 font-medium">
                     -{item.discountPercent}%
                   </span>
                 )}
               </div>
+
+              {/* Customer pricing badge or loading spinner */}
+              {customerPricingLoading && (
+                <div className="mt-0.5 inline-flex items-center gap-1 text-[10px] text-gray-400">
+                  <div className="w-2.5 h-2.5 border border-gray-300 border-t-blue-500 rounded-full animate-spin" />
+                  Checking customer price...
+                </div>
+              )}
+              {item.customerPriceApplied && !customerPricingLoading && (
+                <div className="mt-0.5 inline-flex items-center gap-1 px-1.5 py-0.5 bg-green-50 text-green-700 rounded text-[10px] font-medium leading-tight">
+                  <Tag className="w-2.5 h-2.5" />
+                  Customer price
+                </div>
+              )}
 
               {/* Discount savings */}
               {item.discountPercent > 0 && (
@@ -358,6 +384,11 @@ export const CartItem = memo(function CartItem({
               <span>Unit: {formatCurrency(item.unitPrice)}</span>
               {item.priceOverride && (
                 <span className="text-blue-600 font-medium">Price override applied</span>
+              )}
+              {item.customerPriceApplied && item.originalPrice != null && (
+                <span className="text-green-600 font-medium">
+                  Was {formatCurrency(item.originalPrice)} — save {formatCurrency(item.originalPrice - item.unitPrice)}
+                </span>
               )}
               {stockQty !== null && (
                 <span>Stock: {stockQty}</span>

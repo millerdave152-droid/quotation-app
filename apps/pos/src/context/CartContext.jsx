@@ -183,6 +183,9 @@ export function CartProvider({ children }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
 
+  // Customer pricing loading state (separate from general loading)
+  const [customerPricingLoading, setCustomerPricingLoading] = useState(false);
+
   // Track if initial load is done (always true now since we load synchronously)
   const initialLoadDone = useRef(true);
 
@@ -212,6 +215,147 @@ export function CartProvider({ children }) {
       tradeIns,
     });
   }, [items, customer, quoteId, discount, province, salespersonId, appliedPromotion, selectedFulfillment, tradeIns]);
+
+  // ============================================================================
+  // AUTO-APPLY CUSTOMER PRICING
+  // ============================================================================
+
+  // Track the customer ID that pricing was last applied for
+  const lastPricedCustomerRef = useRef(null);
+  const pricingAbortRef = useRef(null);
+
+  useEffect(() => {
+    const customerId = customer?.customerId || customer?.customer_id || customer?.id;
+
+    // Customer cleared — revert all items to original prices
+    if (!customerId) {
+      lastPricedCustomerRef.current = null;
+      setItems((currentItems) => {
+        const needsRevert = currentItems.some((i) => i.customerPriceApplied);
+        if (!needsRevert) return currentItems;
+        return currentItems.map((item) =>
+          item.customerPriceApplied
+            ? {
+                ...item,
+                unitPrice: item.originalPrice ?? item.unitPrice,
+                customerPriceApplied: false,
+                pricingSource: null,
+                originalPrice: undefined,
+              }
+            : item
+        );
+      });
+      return;
+    }
+
+    // Skip if already priced for this customer with same item count
+    if (lastPricedCustomerRef.current === customerId && items.every((i) => i.customerPriceApplied || i.priceOverride)) {
+      return;
+    }
+
+    // No items to price
+    if (items.length === 0) return;
+
+    // Abort any in-flight pricing request
+    if (pricingAbortRef.current) {
+      pricingAbortRef.current.abort();
+    }
+    const abortController = new AbortController();
+    pricingAbortRef.current = abortController;
+
+    const applyCustomerPricing = async () => {
+      setCustomerPricingLoading(true);
+
+      try {
+        const token = localStorage.getItem('pos_token');
+        const apiBase = import.meta.env.VITE_API_URL || '/api';
+
+        // Build items list — skip items with manual price overrides
+        const itemsToPrice = items
+          .filter((i) => !i.priceOverride)
+          .map((i) => ({ productId: i.productId, quantity: i.quantity }));
+
+        if (itemsToPrice.length === 0) {
+          lastPricedCustomerRef.current = customerId;
+          return;
+        }
+
+        const response = await fetch(`${apiBase}/customer-pricing/calculate-bulk`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: token ? `Bearer ${token}` : '',
+          },
+          body: JSON.stringify({ customerId, items: itemsToPrice }),
+          signal: abortController.signal,
+        });
+
+        if (!response.ok) {
+          console.warn('[Cart] Customer pricing API returned', response.status);
+          return;
+        }
+
+        const result = await response.json();
+        if (!result.success || !result.data?.items) return;
+
+        // Build a lookup map by productId
+        const priceMap = {};
+        result.data.items.forEach((p) => {
+          priceMap[p.productId] = p;
+        });
+
+        setItems((currentItems) =>
+          currentItems.map((item) => {
+            // Don't touch manually overridden items
+            if (item.priceOverride) return item;
+
+            const pricing = priceMap[item.productId];
+            if (!pricing) return item;
+
+            // Only apply if customer price differs from base price
+            const customerPrice = pricing.customerPrice; // already in dollars
+            const basePrice = item.originalPrice ?? item.unitPrice;
+
+            if (customerPrice >= basePrice) {
+              // No discount — ensure item is in original state
+              if (item.customerPriceApplied) {
+                return {
+                  ...item,
+                  unitPrice: basePrice,
+                  customerPriceApplied: false,
+                  pricingSource: null,
+                  originalPrice: undefined,
+                };
+              }
+              return item;
+            }
+
+            return {
+              ...item,
+              originalPrice: item.originalPrice ?? item.unitPrice,
+              unitPrice: customerPrice,
+              customerPriceApplied: true,
+              pricingSource: pricing.pricingSource || 'customer_tier',
+            };
+          })
+        );
+
+        lastPricedCustomerRef.current = customerId;
+      } catch (err) {
+        if (err.name === 'AbortError') return;
+        console.error('[Cart] Customer pricing failed:', err);
+      } finally {
+        setCustomerPricingLoading(false);
+      }
+    };
+
+    applyCustomerPricing();
+
+    return () => {
+      abortController.abort();
+    };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [customer, items.length]);
 
   // ============================================================================
   // CALCULATED VALUES
@@ -1044,6 +1188,7 @@ export function CartProvider({ children }) {
     selectedFulfillment,
     tradeIns,
     loading,
+    customerPricingLoading,
     error,
 
     // Calculations
