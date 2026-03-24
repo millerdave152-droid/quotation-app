@@ -1053,7 +1053,7 @@ logger.info('Cash drawer routes loaded');
 // ============================================
 app.use('/api/pos-invoices', initPosInvoicesRoutes({ posInvoiceService }));
 logger.info('POS invoice routes loaded');
-app.use('/api/sales-orders', initSalesOrderRoutes({ salesOrderService, posInvoiceService, pool }));
+app.use('/api/sales-orders', initSalesOrderRoutes({ salesOrderService, posInvoiceService, managerOverrideService, pool }));
 logger.info('Sales order routes loaded');
 
 // ============================================
