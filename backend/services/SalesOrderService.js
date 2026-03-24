@@ -29,12 +29,12 @@ const COLORS = {
   primaryLight: '#3b82f6',
   text: '#1f2937',
   textSecondary: '#374151',
-  textMuted: '#6b7280',
-  textLight: '#9ca3af',
+  textMuted: '#333333',
+  textLight: '#444444',
   bgLight: '#f8fafc',
   bgMuted: '#fafafa',
   border: '#e5e7eb',
-  borderMedium: '#d1d5db',
+  borderMedium: '#888888',
   success: '#10b981',
   error: '#dc2626',
   warning: '#f59e0b'
@@ -208,16 +208,22 @@ class SalesOrderService {
     const data = await this.getTransactionData(transactionId);
     const { transaction, items, payments, salesRep, delivery } = data;
     const orderNumber = this.generateOrderNumber(transaction);
-    const qrBuffer = await this.generateQRCode(`${process.env.APP_URL || 'https://app.eikansupply.com'}/orders/${orderNumber}`);
 
     const totalPaid = payments.reduce((sum, p) => sum + parseFloat(p.amount || 0), 0);
     const totalDue = parseFloat(transaction.total_amount || 0);
     const balanceDue = Math.max(0, totalDue - totalPaid);
 
-    const hasLogo = fs.existsSync(LOGO_PATH);
+    const PAGE_W = 612;
+    const PAGE_H = 792;
+    const MARGIN = 50;
+    const CONTENT_W = PAGE_W - MARGIN * 2; // 512
 
     return new Promise((resolve, reject) => {
-      const doc = new PDFDocument({ size: 'LETTER', margin: 50, bufferPages: true });
+      const doc = new PDFDocument({
+        size: 'LETTER',
+        margins: { top: MARGIN, bottom: MARGIN, left: MARGIN, right: MARGIN },
+        bufferPages: true
+      });
       const chunks = [];
       doc.on('data', chunk => chunks.push(chunk));
       doc.on('end', () => resolve(Buffer.concat(chunks)));
@@ -225,417 +231,416 @@ class SalesOrderService {
 
       let yPos = 0;
 
-      // ============================================
-      // TOP ACCENT BAR
-      // ============================================
-      doc.rect(0, 0, 612, 4).fill(COLORS.primary);
+      // ──────────────────────────────────────────
+      // Helper: measure text height without drawing
+      // ──────────────────────────────────────────
+      const measureText = (text, fontSize, width, font = 'Helvetica') => {
+        doc.save();
+        doc.fontSize(fontSize).font(font);
+        const h = doc.heightOfString(text || '', { width });
+        doc.restore();
+        return h;
+      };
+
+      // ──────────────────────────────────────────
+      // Helper: draw table header row
+      // ──────────────────────────────────────────
+      const cols = {
+        qty:    { x: MARGIN,       w: 40 },
+        desc:   { x: MARGIN + 40,  w: 180 },
+        brand:  { x: MARGIN + 220, w: 70 },
+        model:  { x: MARGIN + 290, w: 90 },
+        serial: { x: MARGIN + 380, w: 80 },
+        price:  { x: MARGIN + 460, w: 60 },
+        amount: { x: MARGIN + 520, w: 60 - 8 }
+      };
+
+      const drawTableHeader = (y) => {
+        doc.rect(MARGIN, y, CONTENT_W, 20).fill(COLORS.primary);
+        doc.fontSize(7).font('Helvetica-Bold').fillColor('white');
+        doc.text('QTY', cols.qty.x + 4, y + 6, { width: cols.qty.w - 8, align: 'center' });
+        doc.text('PRODUCT DESCRIPTION', cols.desc.x + 4, y + 6, { width: cols.desc.w - 8 });
+        doc.text('BRAND', cols.brand.x + 4, y + 6, { width: cols.brand.w - 8 });
+        doc.text('MODEL', cols.model.x + 4, y + 6, { width: cols.model.w - 8 });
+        doc.text('SERIAL NO', cols.serial.x + 4, y + 6, { width: cols.serial.w - 8 });
+        doc.text('PRICE', cols.price.x + 4, y + 6, { width: cols.price.w - 8, align: 'right' });
+        doc.text('AMOUNT', cols.amount.x + 4, y + 6, { width: cols.amount.w - 4, align: 'right' });
+        return y + 20;
+      };
+
+      // ──────────────────────────────────────────
+      // Helper: check if we need a new page
+      // ──────────────────────────────────────────
+      const ensureSpace = (needed) => {
+        if (yPos + needed > 720) {
+          doc.addPage();
+          yPos = MARGIN;
+          return true;
+        }
+        return false;
+      };
 
       // ============================================
-      // HEADER — Logo / Company / Order Badge
+      // HEADER SECTION
       // ============================================
-      let headerY = 16;
-      if (hasLogo) {
-        try {
-          doc.image(LOGO_PATH, 50, 14, { width: 120 });
-          headerY = 44;
-        } catch {
-          doc.fontSize(26).font('Helvetica-Bold').fillColor(COLORS.primary)
-            .text('Teletime', 50, 16);
-          headerY = 44;
-        }
+
+      // "Teletime" brand text top left
+      doc.fontSize(26).font('Helvetica-Bold').fillColor(COLORS.primary)
+        .text('Teletime', MARGIN, 16);
+
+      // "Teletime Superstores" below
+      doc.fontSize(14).font('Helvetica-Bold').fillColor(COLORS.primary)
+        .text('Teletime Superstores', MARGIN, 44);
+
+      // Tagline
+      doc.fontSize(8).font('Helvetica-Oblique').fillColor(COLORS.textMuted)
+        .text('TVs-Electronics-Appliances-Furniture', MARGIN, 60);
+
+      // "Sales Order" title — right-aligned
+      doc.fontSize(22).font('Helvetica-BoldOblique').fillColor(COLORS.primary)
+        .text('Sales Order', MARGIN, 16, { width: CONTENT_W, align: 'right' });
+
+      // Company address block centered
+      doc.fontSize(8).font('Helvetica').fillColor(COLORS.textMuted);
+      const addrBlockY = 76;
+      doc.text('3125 Wolfedale Road, Mississauga, ON L5C 1V8', MARGIN, addrBlockY, { width: CONTENT_W, align: 'center' });
+      doc.text('TEL: (905) 273-5550', MARGIN, addrBlockY + 10, { width: CONTENT_W, align: 'center' });
+      doc.text('www.teletime.ca, Email: info@teletime.ca', MARGIN, addrBlockY + 20, { width: CONTENT_W, align: 'center' });
+      doc.font('Helvetica-Bold').text('HST #: 802845461RT0001', MARGIN, addrBlockY + 30, { width: CONTENT_W, align: 'center' });
+
+      // ============================================
+      // 3 INFO BOXES (BILL TO, SHIP TO, ORDER DETAILS)
+      // ============================================
+      yPos = 120;
+      const boxGap = 6;
+      const boxW = Math.floor((CONTENT_W - boxGap * 2) / 3); // ~170
+      const boxPad = 10;
+      const boxInnerW = boxW - boxPad * 2;
+
+      // --- Measure dynamic heights for each box ---
+      // BILL TO content
+      const billLines = [];
+      billLines.push({ text: transaction.customer_name || 'Walk-in Customer', bold: true });
+      if (transaction.customer_address) billLines.push({ text: transaction.customer_address });
+      const billCityLine = [transaction.customer_city, transaction.customer_province, transaction.customer_postal].filter(Boolean).join(', ');
+      if (billCityLine) billLines.push({ text: billCityLine });
+      if (transaction.customer_phone) billLines.push({ text: transaction.customer_phone });
+      if (transaction.customer_email) billLines.push({ text: transaction.customer_email });
+
+      // SHIP TO content
+      const shipLines = [];
+      if (delivery && delivery.delivery_address) {
+        shipLines.push({ text: transaction.customer_name || 'Customer', bold: true });
+        shipLines.push({ text: delivery.delivery_address });
+        const shipCity = [delivery.delivery_city, delivery.delivery_province, delivery.delivery_postal_code].filter(Boolean).join(', ');
+        if (shipCity) shipLines.push({ text: shipCity });
+        if (transaction.customer_phone) shipLines.push({ text: transaction.customer_phone });
       } else {
-        doc.fontSize(26).font('Helvetica-Bold').fillColor(COLORS.primary)
-          .text('Teletime', 50, 16);
-        headerY = 44;
+        shipLines.push({ text: 'Same as billing address' });
       }
 
-      // Company contact info
-      doc.fontSize(9).font('Helvetica').fillColor(COLORS.textMuted);
-      if (this.companyAddress) { doc.text(this.companyAddress, 50, headerY); headerY += 11; }
-      if (this.companyCity) { doc.text(this.companyCity, 50, headerY); headerY += 11; }
-      if (this.companyPhone) { doc.text(`Tel: ${this.companyPhone}`, 50, headerY); headerY += 11; }
-      if (this.hstNumber) { doc.text(`HST #: ${this.hstNumber}`, 50, headerY); }
-
-      // Order Badge Box (right side)
-      doc.roundedRect(400, 12, 162, 85, 4)
-        .fillAndStroke(COLORS.bgLight, COLORS.border);
-
-      doc.fontSize(8).font('Helvetica-Bold').fillColor(COLORS.primary)
-        .text('SALES ORDER CONFIRMATION', 402, 18, { width: 158, align: 'center' });
-
-      doc.fontSize(13).font('Helvetica-Bold').fillColor(COLORS.text)
-        .text(orderNumber, 402, 34, { width: 158, align: 'center' });
-
-      doc.fontSize(8).font('Helvetica').fillColor(COLORS.textMuted)
-        .text(this.formatDateTime(transaction.created_at), 402, 52, { width: 158, align: 'center' });
-
-      // Status badge
-      const isPaid = balanceDue <= 0;
-      const statusColor = isPaid ? COLORS.success : COLORS.warning;
-      const statusBg = isPaid ? '#dcfce7' : '#fef3c7';
-      const statusLabel = isPaid ? 'PAID' : 'BALANCE DUE';
-      doc.roundedRect(430, 66, 102, 18, 3).fill(statusBg);
-      doc.fontSize(9).font('Helvetica-Bold').fillColor(statusColor)
-        .text(statusLabel, 430, 71, { width: 102, align: 'center' });
-
-      // ============================================
-      // SOLD TO CARD
-      // ============================================
-      yPos = 108;
-      const soldToHeight = 80;
-      doc.roundedRect(50, yPos, 250, soldToHeight, 6)
-        .fillAndStroke(COLORS.bgMuted, COLORS.border);
-
-      doc.fontSize(9).font('Helvetica-Bold').fillColor(COLORS.primaryLight)
-        .text('SOLD TO', 60, yPos + 10);
-      doc.moveTo(60, yPos + 22).lineTo(150, yPos + 22)
-        .strokeColor(COLORS.border).lineWidth(0.5).stroke();
-
-      let custY = yPos + 28;
-      doc.fontSize(11).font('Helvetica-Bold').fillColor(COLORS.text)
-        .text(transaction.customer_name || 'Walk-in Customer', 60, custY, { width: 230 });
-
-      if (transaction.company_name && transaction.company_name !== transaction.customer_name) {
-        custY += 14;
-        doc.fontSize(9).font('Helvetica').fillColor(COLORS.textMuted)
-          .text(transaction.company_name, 60, custY, { width: 230 });
-      }
-      if (transaction.customer_phone) {
-        custY += 12;
-        doc.fontSize(9).font('Helvetica').fillColor(COLORS.textSecondary)
-          .text(`Tel: ${transaction.customer_phone}`, 60, custY);
-      }
-      if (transaction.customer_email) {
-        custY += 11;
-        doc.fontSize(9).font('Helvetica').fillColor(COLORS.primaryLight)
-          .text(transaction.customer_email, 60, custY);
-      }
-
-      // Customer address (below sold-to card if present)
-      const hasAddress = transaction.customer_address || transaction.customer_city;
-      if (hasAddress) {
-        const addrY = yPos + soldToHeight + 4;
-        doc.fontSize(8).font('Helvetica').fillColor(COLORS.textMuted);
-        let addrLine = addrY;
-        if (transaction.customer_address) {
-          doc.text(transaction.customer_address, 60, addrLine);
-          addrLine += 10;
-        }
-        const cityLine = [transaction.customer_city, transaction.customer_province, transaction.customer_postal].filter(Boolean).join(', ');
-        if (cityLine) doc.text(cityLine, 60, addrLine);
-      }
-
-      // ============================================
-      // SALES DETAILS CARD (right side)
-      // ============================================
-      doc.roundedRect(315, yPos, 247, soldToHeight, 6)
-        .fillAndStroke(COLORS.bgMuted, COLORS.border);
-
-      doc.fontSize(9).font('Helvetica-Bold').fillColor(COLORS.primaryLight)
-        .text('SALES DETAILS', 325, yPos + 10);
-      doc.moveTo(325, yPos + 22).lineTo(430, yPos + 22)
-        .strokeColor(COLORS.border).lineWidth(0.5).stroke();
-
-      let detY = yPos + 28;
-      const detLabelX = 325;
-      const detValueX = 410;
-
-      const detailRows = [
-        ['Sales Rep:', salesRep || transaction.cashier_name || 'N/A'],
-        ['Processed by:', transaction.cashier_name || 'N/A'],
-        ['Register:', transaction.register_name || 'N/A'],
-        ['Txn Ref:', transaction.transaction_number || 'N/A']
+      // ORDER DETAILS content
+      const orderDetailLines = [
+        { label: 'Order No:', value: orderNumber, bold: true },
+        { label: 'Order Date:', value: this.formatDate(transaction.created_at) },
+        { label: 'Sales Person:', value: salesRep || transaction.cashier_name || 'N/A' },
+        { label: 'Customer PO No:', value: transaction.transaction_number || 'N/A' },
+        { label: 'Confirmation No:', value: orderNumber },
+        { label: 'Delivery Mode:', value: delivery ? 'Delivery' : 'Pickup' },
+        { label: 'Delivery Date:', value: delivery && delivery.delivery_date ? this.formatDate(delivery.delivery_date) : 'TBD', bold: true }
       ];
 
-      if (transaction.shift_id) {
-        detailRows.push(['Shift:', `#${transaction.shift_id}`]);
-      }
+      // Calculate each box content height
+      const lineH = 11;
+      const headerLineH = 18; // label + underline
+      const billContentH = headerLineH + billLines.length * lineH + boxPad;
+      const shipContentH = headerLineH + shipLines.length * lineH + boxPad;
+      const orderContentH = headerLineH + orderDetailLines.length * lineH + boxPad;
+      const minBoxH = 120;
+      const boxH = Math.max(minBoxH, billContentH, shipContentH, orderContentH) + boxPad;
 
-      for (const [label, value] of detailRows) {
-        doc.fontSize(8).font('Helvetica').fillColor(COLORS.textLight)
-          .text(label, detLabelX, detY);
-        doc.fontSize(9).font('Helvetica').fillColor(COLORS.textSecondary)
-          .text(value, detValueX, detY, { width: 140 });
-        detY += 12;
-      }
+      // Draw 3 boxes
+      const box1X = MARGIN;
+      const box2X = MARGIN + boxW + boxGap;
+      const box3X = MARGIN + (boxW + boxGap) * 2;
+
+      const drawInfoBox = (x, y, title, lines, isOrderDetails) => {
+        doc.roundedRect(x, y, boxW, boxH, 4)
+          .fillAndStroke(COLORS.bgLight, COLORS.border);
+
+        let cy = y + boxPad;
+        doc.fontSize(8).font('Helvetica-Bold').fillColor(COLORS.primary)
+          .text(title, x + boxPad, cy);
+        cy += 12;
+        doc.moveTo(x + boxPad, cy).lineTo(x + boxW - boxPad, cy)
+          .strokeColor(COLORS.border).lineWidth(0.5).stroke();
+        cy += 6;
+
+        if (isOrderDetails) {
+          for (const row of lines) {
+            doc.fontSize(7).font('Helvetica').fillColor(COLORS.textLight)
+              .text(row.label, x + boxPad, cy, { width: boxInnerW * 0.45, continued: false });
+            doc.fontSize(7).font(row.bold ? 'Helvetica-Bold' : 'Helvetica')
+              .fillColor(row.bold ? '#000000' : COLORS.textMuted)
+              .text(row.value, x + boxPad + boxInnerW * 0.45, cy, { width: boxInnerW * 0.55 });
+            cy += lineH;
+          }
+        } else {
+          for (const line of lines) {
+            doc.fontSize(8).font(line.bold ? 'Helvetica-Bold' : 'Helvetica')
+              .fillColor(line.bold ? '#000000' : COLORS.textMuted)
+              .text(line.text, x + boxPad, cy, { width: boxInnerW });
+            cy += lineH;
+          }
+        }
+      };
+
+      drawInfoBox(box1X, yPos, 'BILL TO', billLines, false);
+      drawInfoBox(box2X, yPos, 'SHIP TO', shipLines, false);
+      drawInfoBox(box3X, yPos, 'ORDER DETAILS', orderDetailLines, true);
+
+      yPos += boxH + 10;
 
       // ============================================
       // ITEMS TABLE
       // ============================================
-      yPos = yPos + soldToHeight + (hasAddress ? 30 : 15);
-      const tableTop = yPos;
-      const cols = {
-        item: { x: 50, w: 230 },
-        serial: { x: 280, w: 80 },
-        qty: { x: 360, w: 35 },
-        price: { x: 395, w: 70 },
-        total: { x: 465, w: 97 }
-      };
-
-      // Table header
-      doc.rect(50, tableTop, 512, 22).fill(COLORS.primary);
-      doc.fontSize(7).font('Helvetica-Bold').fillColor('white');
-      doc.text('DESCRIPTION', cols.item.x + 8, tableTop + 7);
-      doc.text('SERIAL #', cols.serial.x, tableTop + 7, { width: cols.serial.w, align: 'center' });
-      doc.text('QTY', cols.qty.x, tableTop + 7, { width: cols.qty.w, align: 'center' });
-      doc.text('UNIT PRICE', cols.price.x, tableTop + 7, { width: cols.price.w, align: 'right' });
-      doc.text('TOTAL', cols.total.x, tableTop + 7, { width: cols.total.w, align: 'right' });
-
-      yPos = tableTop + 22;
-      const rowHeight = 34;
+      yPos = drawTableHeader(yPos);
 
       items.forEach((item, index) => {
-        if (yPos > 640) {
+        // Measure description height to support multi-line — NO truncation
+        const descText = item.product_name || '';
+        const descH = measureText(descText, 8, cols.desc.w - 8);
+        const rowH = Math.max(20, descH + 8);
+
+        // Page break check
+        if (yPos + rowH > 720) {
           doc.addPage();
-          doc.rect(0, 0, 612, 4).fill(COLORS.primary);
-          yPos = 30;
-          // Repeat header
-          doc.rect(50, yPos, 512, 22).fill(COLORS.primary);
-          doc.fontSize(7).font('Helvetica-Bold').fillColor('white');
-          doc.text('DESCRIPTION', cols.item.x + 8, yPos + 7);
-          doc.text('SERIAL #', cols.serial.x, yPos + 7, { width: cols.serial.w, align: 'center' });
-          doc.text('QTY', cols.qty.x, yPos + 7, { width: cols.qty.w, align: 'center' });
-          doc.text('UNIT PRICE', cols.price.x, yPos + 7, { width: cols.price.w, align: 'right' });
-          doc.text('TOTAL', cols.total.x, yPos + 7, { width: cols.total.w, align: 'right' });
-          yPos += 22;
+          yPos = MARGIN;
+          yPos = drawTableHeader(yPos);
         }
 
         // Zebra striping
-        if (index % 2 === 0) doc.rect(50, yPos, 512, rowHeight).fill(COLORS.bgLight);
-        doc.moveTo(50, yPos + rowHeight).lineTo(562, yPos + rowHeight)
-          .strokeColor(COLORS.border).lineWidth(0.5).stroke();
-
-        const rowY = yPos + 5;
-
-        // Product name
-        doc.fontSize(9).font('Helvetica-Bold').fillColor(COLORS.text)
-          .text(item.product_name.substring(0, 38), cols.item.x + 8, rowY, { width: cols.item.w - 12 });
-
-        // SKU + Manufacturer/model
-        let subLine = item.product_sku || '';
-        if (item.manufacturer) subLine += subLine ? ` | ${item.manufacturer}` : item.manufacturer;
-        if (item.model_number) subLine += ` ${item.model_number}`;
-        if (subLine) {
-          doc.fontSize(7).font('Helvetica').fillColor(COLORS.textMuted)
-            .text(subLine.substring(0, 50), cols.item.x + 8, rowY + 12, { width: cols.item.w - 12 });
+        if (index % 2 === 0) {
+          doc.rect(MARGIN, yPos, CONTENT_W, rowH).fill(COLORS.bgLight);
         }
 
-        // Serial number
-        if (item.serial_number) {
-          doc.fontSize(8).font('Helvetica').fillColor(COLORS.textSecondary)
-            .text(item.serial_number, cols.serial.x, rowY + 4, { width: cols.serial.w, align: 'center' });
-        } else {
-          doc.fontSize(7).font('Helvetica').fillColor(COLORS.textLight)
-            .text('—', cols.serial.x, rowY + 4, { width: cols.serial.w, align: 'center' });
-        }
+        // Row divider
+        doc.moveTo(MARGIN, yPos + rowH).lineTo(MARGIN + CONTENT_W, yPos + rowH)
+          .strokeColor(COLORS.border).lineWidth(0.75).stroke();
+
+        const textY = yPos + 4;
 
         // Qty
-        doc.fontSize(9).font('Helvetica-Bold').fillColor(COLORS.text)
-          .text(item.quantity.toString(), cols.qty.x, rowY + 4, { width: cols.qty.w, align: 'center' });
+        doc.fontSize(8).font('Helvetica').fillColor(COLORS.text)
+          .text(item.quantity.toString(), cols.qty.x + 4, textY, { width: cols.qty.w - 8, align: 'center' });
 
-        // Unit price
-        doc.fontSize(9).font('Helvetica').fillColor(COLORS.textSecondary)
-          .text(this.formatCurrency(item.unit_price), cols.price.x, rowY + 4, { width: cols.price.w, align: 'right' });
+        // Product Description — full text, no truncation
+        doc.fontSize(8).font('Helvetica').fillColor(COLORS.text)
+          .text(descText, cols.desc.x + 4, textY, { width: cols.desc.w - 8 });
 
-        // Line total
-        doc.fontSize(9).font('Helvetica-Bold').fillColor(COLORS.text)
-          .text(this.formatCurrency(item.line_total), cols.total.x, rowY + 4, { width: cols.total.w, align: 'right' });
+        // Brand
+        doc.fontSize(8).font('Helvetica').fillColor(COLORS.text)
+          .text(item.manufacturer || '', cols.brand.x + 4, textY, { width: cols.brand.w - 8 });
 
-        // Discount
-        if (parseFloat(item.discount_amount) > 0) {
-          doc.fontSize(7).font('Helvetica').fillColor(COLORS.error)
-            .text(`Disc: -${this.formatCurrency(item.discount_amount)}`, cols.total.x, rowY + 16, { width: cols.total.w, align: 'right' });
-        }
+        // Model
+        doc.fontSize(8).font('Helvetica').fillColor(COLORS.text)
+          .text(item.model_number || '', cols.model.x + 4, textY, { width: cols.model.w - 8 });
 
-        yPos += rowHeight;
+        // Serial No
+        doc.fontSize(8).font('Helvetica').fillColor(COLORS.text)
+          .text(item.serial_number || '', cols.serial.x + 4, textY, { width: cols.serial.w - 8 });
+
+        // Price (right-aligned)
+        doc.fontSize(8).font('Helvetica').fillColor(COLORS.text)
+          .text(this.formatCurrency(item.unit_price), cols.price.x + 4, textY, { width: cols.price.w - 8, align: 'right' });
+
+        // Amount (right-aligned)
+        doc.fontSize(8).font('Helvetica-Bold').fillColor(COLORS.text)
+          .text(this.formatCurrency(item.line_total), cols.amount.x + 4, textY, { width: cols.amount.w - 4, align: 'right' });
+
+        yPos += rowH;
       });
 
-      // ============================================
-      // DELIVERY SECTION
-      // ============================================
-      yPos += 12;
-      if (yPos > 580) { doc.addPage(); doc.rect(0, 0, 612, 4).fill(COLORS.primary); yPos = 30; }
-
-      doc.fontSize(10).font('Helvetica-Bold').fillColor(COLORS.text)
-        .text('DELIVERY INFORMATION', 50, yPos);
-      yPos += 14;
-
-      const deliveryBoxHeight = 70;
-      doc.roundedRect(50, yPos, 512, deliveryBoxHeight, 4)
-        .fillAndStroke(COLORS.bgMuted, COLORS.border);
-
-      let delY = yPos + 10;
-      doc.fontSize(8).font('Helvetica').fillColor(COLORS.textLight).text('Delivery Date:', 60, delY);
-      doc.fontSize(9).font('Helvetica').fillColor(COLORS.textSecondary)
-        .text(delivery && delivery.delivery_date ? this.formatDate(delivery.delivery_date) : 'To be scheduled', 150, delY);
-
-      delY += 14;
-      doc.fontSize(8).fillColor(COLORS.textLight).text('Deliver To:', 60, delY);
-      if (delivery && delivery.delivery_address) {
-        const delAddr = [
-          delivery.delivery_address,
-          [delivery.delivery_city, delivery.delivery_province, delivery.delivery_postal_code].filter(Boolean).join(', ')
-        ].filter(Boolean).join(', ');
-        doc.fontSize(9).fillColor(COLORS.textSecondary).text(delAddr, 150, delY, { width: 380 });
-      } else {
-        doc.fontSize(9).fillColor(COLORS.textMuted).text('Same as billing address', 150, delY);
-      }
-
-      delY += 14;
-      doc.fontSize(8).fillColor(COLORS.textLight).text('Instructions:', 60, delY);
-      doc.fontSize(9).fillColor(COLORS.textSecondary)
-        .text(delivery && delivery.delivery_notes ? delivery.delivery_notes : '—', 150, delY, { width: 380 });
-
-      delY += 16;
-      doc.fontSize(8).fillColor(COLORS.textLight).text('Delivery confirmed by:', 60, delY);
-      doc.moveTo(170, delY + 10).lineTo(400, delY + 10)
-        .strokeColor(COLORS.borderMedium).lineWidth(0.5).dash(3, { space: 3 }).stroke().undash();
-
-      yPos += deliveryBoxHeight + 12;
+      yPos += 10;
 
       // ============================================
-      // PAYMENT SUMMARY
+      // PAYMENT & TOTALS (2 columns)
       // ============================================
-      if (yPos > 520) { doc.addPage(); doc.rect(0, 0, 612, 4).fill(COLORS.primary); yPos = 30; }
+      ensureSpace(160);
 
-      // Totals card (right side)
-      const totalsBoxX = 350;
-      const totalsBoxW = 212;
-      const totalsBoxH = balanceDue > 0 ? 155 : 130;
+      const leftColX = MARGIN;
+      const leftColW = CONTENT_W * 0.5 - 5;
+      const rightColX = MARGIN + CONTENT_W * 0.5 + 5;
+      const rightColW = CONTENT_W * 0.5 - 5;
 
-      doc.roundedRect(totalsBoxX, yPos, totalsBoxW, totalsBoxH, 4)
-        .fillAndStroke(COLORS.bgMuted, COLORS.border);
+      // --- LEFT COLUMN: PAYMENT RECEIVED table ---
+      doc.fontSize(9).font('Helvetica-Bold').fillColor('#000000')
+        .text('PAYMENT RECEIVED', leftColX, yPos);
 
-      const lblX = totalsBoxX + 15;
-      const valX = totalsBoxX + totalsBoxW - 15;
-      let tY = yPos + 15;
+      let pmtTableY = yPos + 14;
+      // Payment table header
+      doc.rect(leftColX, pmtTableY, leftColW, 16).fill(COLORS.primary);
+      doc.fontSize(7).font('Helvetica-Bold').fillColor('white');
+      doc.text('AMOUNT', leftColX + 8, pmtTableY + 5, { width: leftColW * 0.4 });
+      doc.text('PAID BY', leftColX + leftColW * 0.4, pmtTableY + 5, { width: leftColW * 0.6 - 8 });
+      pmtTableY += 16;
 
-      doc.fontSize(9).font('Helvetica').fillColor(COLORS.textMuted).text('Subtotal', lblX, tY);
-      doc.fillColor(COLORS.textSecondary).text(this.formatCurrency(transaction.subtotal), valX - 80, tY, { width: 80, align: 'right' });
-
-      if (parseFloat(transaction.discount_amount) > 0) {
-        tY += 16;
-        doc.fillColor(COLORS.textMuted).text('Discount', lblX, tY);
-        doc.fillColor(COLORS.error).text(`-${this.formatCurrency(transaction.discount_amount)}`, valX - 80, tY, { width: 80, align: 'right' });
-      }
-
-      const hst = parseFloat(transaction.hst_amount || 0);
-      const gst = parseFloat(transaction.gst_amount || 0);
-      const pst = parseFloat(transaction.pst_amount || 0);
-      if (hst > 0) { tY += 16; doc.fillColor(COLORS.textMuted).text('HST (13%)', lblX, tY); doc.fillColor(COLORS.textSecondary).text(this.formatCurrency(hst), valX - 80, tY, { width: 80, align: 'right' }); }
-      if (gst > 0) { tY += 16; doc.fillColor(COLORS.textMuted).text('GST (5%)', lblX, tY); doc.fillColor(COLORS.textSecondary).text(this.formatCurrency(gst), valX - 80, tY, { width: 80, align: 'right' }); }
-      if (pst > 0) { tY += 16; doc.fillColor(COLORS.textMuted).text('PST', lblX, tY); doc.fillColor(COLORS.textSecondary).text(this.formatCurrency(pst), valX - 80, tY, { width: 80, align: 'right' }); }
-
-      tY += 18;
-      doc.moveTo(lblX, tY).lineTo(valX, tY).strokeColor(COLORS.borderMedium).lineWidth(0.5).stroke();
-
-      tY += 10;
-      doc.fontSize(10).font('Helvetica-Bold').fillColor(COLORS.text).text('Total', lblX, tY);
-      doc.text(this.formatCurrency(totalDue), valX - 80, tY, { width: 80, align: 'right' });
-
-      if (totalPaid > 0) {
-        tY += 16;
-        doc.fontSize(9).font('Helvetica').fillColor(COLORS.success).text('Paid', lblX, tY);
-        doc.text(`-${this.formatCurrency(totalPaid)}`, valX - 80, tY, { width: 80, align: 'right' });
-      }
-
-      // Balance due badge
-      tY += 22;
-      const balColor = balanceDue <= 0 ? COLORS.success : COLORS.primary;
-      doc.roundedRect(totalsBoxX + 10, tY, totalsBoxW - 20, 28, 3).fill(balColor);
-      doc.fontSize(10).font('Helvetica-Bold').fillColor('white').text('BALANCE DUE', lblX, tY + 8);
-      doc.fontSize(13).text(this.formatCurrency(balanceDue), valX - 85, tY + 6, { width: 80, align: 'right' });
-
-      // Payment method list (left of totals)
-      doc.fontSize(10).font('Helvetica-Bold').fillColor(COLORS.text)
-        .text('PAYMENT RECEIVED', 50, yPos);
-
-      let pmtY = yPos + 16;
       if (payments.length > 0) {
-        const pmtBoxH = 12 + (payments.length * 18);
-        doc.roundedRect(50, pmtY, 280, pmtBoxH, 4).fillAndStroke(COLORS.bgLight, COLORS.border);
-        let py = pmtY + 8;
-        for (const p of payments) {
+        payments.forEach((p, idx) => {
+          if (idx % 2 === 0) {
+            doc.rect(leftColX, pmtTableY, leftColW, 16).fill(COLORS.bgLight);
+          }
           let method = p.payment_method.toUpperCase();
           if (p.card_brand && p.card_last_four) method = `${p.card_brand} ****${p.card_last_four}`;
-          doc.fontSize(8).font('Helvetica').fillColor(COLORS.textMuted).text(this.formatDate(p.processed_at), 60, py);
-          doc.fillColor(COLORS.textSecondary).text(method, 140, py);
-          doc.font('Helvetica-Bold').fillColor(COLORS.success).text(this.formatCurrency(p.amount), 250, py, { width: 70, align: 'right' });
-          py += 18;
-        }
+          doc.fontSize(8).font('Helvetica').fillColor(COLORS.text)
+            .text(this.formatCurrency(p.amount), leftColX + 8, pmtTableY + 4, { width: leftColW * 0.4 });
+          doc.text(method, leftColX + leftColW * 0.4, pmtTableY + 4, { width: leftColW * 0.6 - 8 });
+          pmtTableY += 16;
+        });
       } else {
-        doc.fontSize(9).font('Helvetica').fillColor(COLORS.textMuted)
-          .text('No payments recorded', 60, pmtY + 6);
+        doc.rect(leftColX, pmtTableY, leftColW, 16).fill(COLORS.bgLight);
+        doc.fontSize(8).font('Helvetica').fillColor(COLORS.textMuted)
+          .text('No payments recorded', leftColX + 8, pmtTableY + 4);
+        pmtTableY += 16;
       }
 
-      yPos += totalsBoxH + 15;
+      // Credits Issued, Restocking Charges, Total Returns
+      pmtTableY += 6;
+      doc.fontSize(8).font('Helvetica').fillColor(COLORS.textMuted);
+      doc.text('Credits Issued:', leftColX, pmtTableY);
+      doc.text('$0.00', leftColX + 120, pmtTableY);
+      pmtTableY += 12;
+      doc.text('Restocking Charges:', leftColX, pmtTableY);
+      doc.text('$0.00', leftColX + 120, pmtTableY);
+      pmtTableY += 12;
+      doc.text('Total Returns:', leftColX, pmtTableY);
+      doc.text('$0.00', leftColX + 120, pmtTableY);
+
+      // --- RIGHT COLUMN: Totals ---
+      let tY = yPos;
+      const totLblX = rightColX;
+      const totValX = rightColX + rightColW - 80;
+
+      doc.fontSize(9).font('Helvetica').fillColor(COLORS.textMuted)
+        .text('Sales Sub Total', totLblX, tY);
+      doc.fillColor(COLORS.text)
+        .text(this.formatCurrency(transaction.subtotal), totValX, tY, { width: 80, align: 'right' });
+
+      tY += 14;
+      doc.fillColor(COLORS.textMuted).text('Environmental Fee', totLblX, tY);
+      doc.fillColor(COLORS.text).text('$0.00', totValX, tY, { width: 80, align: 'right' });
+
+      tY += 14;
+      doc.fillColor(COLORS.textMuted).text('Sub Total', totLblX, tY);
+      doc.fillColor(COLORS.text).text(this.formatCurrency(transaction.subtotal), totValX, tY, { width: 80, align: 'right' });
+
+      tY += 14;
+      const hst = parseFloat(transaction.hst_amount || 0);
+      const gst = parseFloat(transaction.gst_amount || 0);
+      doc.fillColor(COLORS.textMuted).text('GST/HST 13.000%', totLblX, tY);
+      doc.fillColor(COLORS.text).text(this.formatCurrency(hst + gst), totValX, tY, { width: 80, align: 'right' });
+
+      tY += 14;
+      doc.fillColor(COLORS.textMuted).text('PST 0.000%', totLblX, tY);
+      doc.fillColor(COLORS.text).text('$0.00', totValX, tY, { width: 80, align: 'right' });
+
+      tY += 18;
+      doc.moveTo(totLblX, tY).lineTo(rightColX + rightColW, tY)
+        .strokeColor(COLORS.borderMedium).lineWidth(0.75).stroke();
+
+      tY += 8;
+      doc.fontSize(12).font('Helvetica-Bold').fillColor('#000000')
+        .text('TOTAL', totLblX, tY);
+      doc.text(this.formatCurrency(totalDue), totValX - 20, tY, { width: 100, align: 'right' });
+
+      tY += 18;
+      doc.fontSize(9).font('Helvetica-Bold').fillColor('#000000')
+        .text('Paid', totLblX, tY);
+      doc.text(this.formatCurrency(totalPaid), totValX, tY, { width: 80, align: 'right' });
+
+      tY += 14;
+      const balanceColor = balanceDue <= 0 ? COLORS.success : COLORS.error;
+      doc.fontSize(9).font('Helvetica-Bold').fillColor(balanceColor)
+        .text('Balance', totLblX, tY);
+      doc.text(this.formatCurrency(balanceDue), totValX, tY, { width: 80, align: 'right' });
+
+      yPos = Math.max(pmtTableY, tY) + 16;
 
       // ============================================
-      // SIGNATURE SECTION
+      // CUSTOMER SECTION
       // ============================================
-      if (yPos > 600) { doc.addPage(); doc.rect(0, 0, 612, 4).fill(COLORS.primary); yPos = 30; }
+      ensureSpace(70);
 
-      doc.fontSize(10).font('Helvetica-Bold').fillColor(COLORS.text)
-        .text('SIGNATURES', 50, yPos);
-      yPos += 16;
+      // "Thanks For Shopping" italic left
+      doc.fontSize(10).font('Helvetica-Oblique').fillColor(COLORS.textMuted)
+        .text('Thanks For Shopping, See You Again', MARGIN, yPos);
 
-      const sigBoxH = 80;
-      doc.roundedRect(50, yPos, 512, sigBoxH, 4)
-        .fillAndStroke(COLORS.bgMuted, COLORS.border);
+      // Customer Note(s) box on right
+      const noteBoxW = 200;
+      const noteBoxH = 40;
+      const noteBoxX = MARGIN + CONTENT_W - noteBoxW;
+      doc.fontSize(8).font('Helvetica-Bold').fillColor('#000000')
+        .text('Customer Note(s):', noteBoxX, yPos);
+      doc.rect(noteBoxX, yPos + 12, noteBoxW, noteBoxH)
+        .strokeColor(COLORS.border).lineWidth(0.75).stroke();
 
-      // Customer signature
-      const sigLnY = yPos + 40;
-      doc.fontSize(8).font('Helvetica').fillColor(COLORS.textLight)
-        .text('Customer Signature', 60, yPos + 10);
-      doc.moveTo(60, sigLnY).lineTo(280, sigLnY)
-        .strokeColor(COLORS.borderMedium).lineWidth(0.5).stroke();
-      doc.fontSize(7).fillColor(COLORS.textLight)
-        .text('Print Name: ______________________________', 60, sigLnY + 6)
-        .text('Date: ______________', 60, sigLnY + 18);
+      yPos += 14;
 
-      // Staff signature
-      doc.fontSize(8).fillColor(COLORS.textLight)
-        .text('Staff Signature', 320, yPos + 10);
-      doc.moveTo(320, sigLnY).lineTo(550, sigLnY)
-        .strokeColor(COLORS.borderMedium).lineWidth(0.5).stroke();
-      doc.fontSize(7).fillColor(COLORS.textLight)
-        .text('Print Name: ______________________________', 320, sigLnY + 6)
-        .text('Date: ______________', 320, sigLnY + 18);
+      // Accepted By (Name): with signature line
+      doc.fontSize(8).font('Helvetica-Bold').fillColor('#000000')
+        .text('Accepted By (Name):', MARGIN, yPos);
+      doc.moveTo(MARGIN + 110, yPos + 10).lineTo(MARGIN + 280, yPos + 10)
+        .strokeColor('#000000').lineWidth(1.5).stroke();
 
-      yPos += sigBoxH + 12;
+      yPos += 18;
 
-      // ============================================
-      // PAYMENT SLIP ATTACHMENT AREA
-      // ============================================
-      if (yPos > 650) { doc.addPage(); doc.rect(0, 0, 612, 4).fill(COLORS.primary); yPos = 30; }
+      // Signature: with line
+      doc.fontSize(8).font('Helvetica-Bold').fillColor('#000000')
+        .text('Signature:', MARGIN, yPos);
+      doc.moveTo(MARGIN + 55, yPos + 10).lineTo(MARGIN + 280, yPos + 10)
+        .strokeColor('#000000').lineWidth(1.5).stroke();
 
-      const slipBoxH = 60;
-      doc.roundedRect(50, yPos, 512, slipBoxH, 4)
-        .dash(4, { space: 4 })
-        .strokeColor(COLORS.borderMedium)
-        .lineWidth(1)
-        .stroke()
-        .undash();
+      yPos += 18;
 
-      doc.fontSize(9).font('Helvetica-Bold').fillColor(COLORS.textMuted)
-        .text('ATTACH PAYMENT RECEIPT HERE', 50, yPos + 22, { width: 512, align: 'center' });
-      doc.fontSize(7).font('Helvetica').fillColor(COLORS.textLight)
-        .text('Staple or tape e-Transfer confirmation, cheque copy, or credit card slip', 50, yPos + 36, { width: 512, align: 'center' });
+      // Date: with line
+      doc.fontSize(8).font('Helvetica-Bold').fillColor('#000000')
+        .text('Date:', MARGIN, yPos);
+      doc.moveTo(MARGIN + 30, yPos + 10).lineTo(MARGIN + 180, yPos + 10)
+        .strokeColor('#000000').lineWidth(1.5).stroke();
 
-      yPos += slipBoxH + 10;
+      yPos += 20;
 
       // ============================================
-      // QR CODE
+      // TERMS & CONDITIONS
       // ============================================
-      if (qrBuffer) {
-        try {
-          doc.image(qrBuffer, 50, yPos, { width: 55, height: 55 });
-          doc.fontSize(6).font('Helvetica').fillColor(COLORS.textMuted)
-            .text('Scan to view', 48, yPos + 57, { width: 60, align: 'center' })
-            .text('order online', 48, yPos + 64, { width: 60, align: 'center' });
-        } catch (e) {
-          console.error('[SalesOrderService] QR embed error:', e);
+      ensureSpace(90);
+
+      doc.fontSize(7).font('Helvetica-Bold').fillColor('#000000')
+        .text('TERMS & CONDITIONS', MARGIN, yPos);
+      yPos += 10;
+
+      const terms = [
+        'EXCHANGES: 15 days from delivery/invoice in unused original condition with all packaging. 20% restocking fee applies on non-defective items.',
+        'MATTRESSES: 90-Night Comfort Guarantee with mattress protector purchase (min. 21 nights slept on; one-time exchange; delivery fee applies).',
+        'DEFECTIVE/DOA: Report within 72 hours of delivery for exchange or repair at no charge. After 72 hours, manufacturer warranty applies. Appliances once installed or used are covered under manufacturer warranty only.',
+        'DEPOSITS & CANCELLATIONS: All deposits are non-refundable. A 20% cancellation fee applies to orders already placed with suppliers.',
+        'DELIVERY: Standard delivery to front door only. Damage to property or goods beyond front door entry is the customer\'s responsibility. Ensure proper measurements before delivery \u2014 re-delivery due to sizing issues subject to a minimum $100.00 fee. Teletime is not responsible for removal of existing customer property.',
+        'DAMAGE REPORTING: Inspect goods at delivery. Report visible damage at time of delivery; concealed damage within 72 hours. Unreported damage is not covered. Mishandled products are not covered under any warranty.',
+        'PRICE MATCH: We match any authorized Canadian retailer\'s advertised price on the same brand/model within 30 days of purchase, with valid proof.',
+        'FINAL SALE: Special/custom orders, clearance, floor models, opened bedding/accessories, and gift cards are non-refundable.',
+        'WARRANTY: All products carry applicable manufacturer\'s warranty. Extended protection plans available \u2014 ask your sales associate.',
+        'CONSUMER RIGHTS: These terms do not affect your rights under Ontario\'s Consumer Protection Act, 2002. For full terms visit www.teletime.ca'
+      ];
+
+      doc.fontSize(6).font('Helvetica').fillColor(COLORS.textLight);
+      for (const term of terms) {
+        if (yPos > 725) {
+          doc.addPage();
+          yPos = MARGIN;
         }
+        const termH = measureText(term, 6, CONTENT_W);
+        doc.text(term, MARGIN, yPos, { width: CONTENT_W });
+        yPos += termH + 2;
       }
 
       // ============================================
@@ -646,24 +651,20 @@ class SalesOrderService {
         doc.switchToPage(i);
 
         // Footer line
-        doc.moveTo(50, 740).lineTo(562, 740)
-          .strokeColor(COLORS.border).lineWidth(0.5).stroke();
+        doc.moveTo(MARGIN, 740).lineTo(MARGIN + CONTENT_W, 740)
+          .strokeColor(COLORS.border).lineWidth(1).stroke();
 
-        // HST number
-        doc.fontSize(8).font('Helvetica-Bold').fillColor(COLORS.textMuted)
-          .text(`HST #: ${this.hstNumber}`, 50, 745);
-
-        // Return policy
+        // Page X of Y (left)
         doc.fontSize(7).font('Helvetica').fillColor(COLORS.textLight)
-          .text('Returns accepted within 30 days with original receipt. Items must be in original packaging.', 50, 756, { width: 400 });
+          .text(`Page ${i + 1} of ${pageCount}`, MARGIN, 745, { lineBreak: false });
 
-        // Page number
-        doc.fontSize(8).fillColor(COLORS.textLight)
-          .text(`Page ${i + 1} of ${pageCount}`, 450, 745, { width: 112, align: 'right' });
+        // HST number (center)
+        doc.fontSize(7).font('Helvetica-Bold').fillColor(COLORS.textMuted)
+          .text('HST #: 802845461RT0001', MARGIN, 745, { width: CONTENT_W, align: 'center', lineBreak: false });
 
         // Contact line
-        const contactParts = [this.companyWebsite, this.companyPhone, this.companyEmail].filter(Boolean);
-        doc.fontSize(7).text(contactParts.join('  |  '), 50, 768, { width: 512, align: 'center' });
+        doc.fontSize(7).font('Helvetica').fillColor(COLORS.textLight)
+          .text('www.teletime.ca | (905) 273-5550 | info@teletime.ca', MARGIN, 756, { width: CONTENT_W, align: 'center', lineBreak: false });
       }
 
       doc.end();

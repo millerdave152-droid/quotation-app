@@ -59,6 +59,7 @@ const CashDrawerService = require('./services/CashDrawerService');
 const POSInvoiceService = require('./services/POSInvoiceService');
 const SalesOrderService = require('./services/SalesOrderService');
 const DeliverySlipService = require('./services/DeliverySlipService');
+const DeliveryWaiverService = require('./services/DeliveryWaiverService');
 const ManufacturerRAService = require('./services/ManufacturerRAService');
 const UnifiedReportingService = require('./services/UnifiedReportingService');
 const VolumeDiscountService = require('./services/VolumeDiscountService');
@@ -276,6 +277,7 @@ const cashDrawerService = new CashDrawerService(pool, cache);
 const posInvoiceService = new POSInvoiceService(pool, cache);
 const salesOrderService = new SalesOrderService(pool, cache);
 const deliverySlipService = new DeliverySlipService(pool, cache);
+const deliveryWaiverService = new DeliveryWaiverService(pool, cache);
 const manufacturerRAService = new ManufacturerRAService(pool, cache);
 const reportingService = new UnifiedReportingService(pool, cache);
 const volumeDiscountService = new VolumeDiscountService(pool, cache);
@@ -324,6 +326,7 @@ app.set('vaultService', vaultService);
 app.set('employeeMonitorService', employeeMonitorService);
 app.set('velocityService', velocityService);
 app.set('wsService', wsService);
+app.set('deliveryWaiverService', deliveryWaiverService);
 
 // ── Scheduled jobs ──────────────────────────────────────────────────────────
 // Hourly: Refresh employee fraud metrics and detect anomalies
@@ -1061,7 +1064,7 @@ app.use('/api/pos-invoices', initPosInvoicesRoutes({ posInvoiceService }));
 logger.info('POS invoice routes loaded');
 app.use('/api/sales-orders', initSalesOrderRoutes({ salesOrderService, posInvoiceService, managerOverrideService, pool }));
 logger.info('Sales order routes loaded');
-app.use('/api/delivery-slips', initDeliverySlipRoutes({ deliverySlipService, pool }));
+app.use('/api/delivery-slips', initDeliverySlipRoutes({ deliverySlipService, deliveryWaiverService, pool }));
 logger.info('Delivery slip routes loaded');
 app.use('/api/manufacturer-ras', initManufacturerRARoutes({ manufacturerRAService, pool }));
 logger.info('Manufacturer RA routes loaded');

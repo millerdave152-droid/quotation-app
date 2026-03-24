@@ -17,6 +17,8 @@ import {
   CheckCircle2,
   AlertTriangle,
   Loader2,
+  FileText,
+  Mail,
 } from 'lucide-react';
 import apiClient from '../../services/apiClient';
 import { useToast } from '../ui/Toast';
@@ -74,6 +76,8 @@ export default function OrderDetailNew({ orderId, onClose }) {
   const [error, setError] = useState(null);
   const [statusLoading, setStatusLoading] = useState(false);
   const [cancelLoading, setCancelLoading] = useState(false);
+  const [emailingSO, setEmailingSO] = useState(false);
+  const [emailingDS, setEmailingDS] = useState(false);
 
   const fetchOrder = useCallback(async () => {
     try {
@@ -116,6 +120,30 @@ export default function OrderDetailNew({ orderId, onClose }) {
       toast.error(err.response?.data?.message || 'Failed to cancel order');
     } finally {
       setCancelLoading(false);
+    }
+  };
+
+  const handleEmailSalesOrder = async () => {
+    setEmailingSO(true);
+    try {
+      await apiClient.post(`/api/sales-orders/${order.transaction_id || orderId}/email`);
+      toast.success('Sales order emailed to customer');
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Failed to email sales order');
+    } finally {
+      setEmailingSO(false);
+    }
+  };
+
+  const handleEmailDeliverySlip = async () => {
+    setEmailingDS(true);
+    try {
+      await apiClient.post(`/api/delivery-slips/transaction/${order.transaction_id || orderId}/email`);
+      toast.success('Delivery slip emailed to customer');
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Failed to email delivery slip');
+    } finally {
+      setEmailingDS(false);
     }
   };
 
@@ -287,6 +315,57 @@ export default function OrderDetailNew({ orderId, onClose }) {
                   <span className="text-muted-foreground font-secondary">Notes</span>
                   <p className="text-foreground font-secondary font-medium">{order.delivery_notes || order.notes || '—'}</p>
                 </div>
+              </div>
+            </div>
+
+            {/* Documents / Print Actions */}
+            <div className="flex flex-col gap-2 bg-card border border-border border-l-4 border-l-indigo-500 rounded-xl p-4">
+              <div className="flex items-center gap-2 pb-2 border-b border-border/50 mb-1">
+                <FileText size={16} className="text-primary" />
+                <span className="text-foreground font-primary text-sm font-semibold">Documents</span>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <button
+                  onClick={() => window.open(`/api/sales-orders/${order.transaction_id || orderId}/view`, '_blank')}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[12px] font-semibold bg-blue-500/10 text-blue-600 hover:bg-blue-500/20 transition-colors"
+                >
+                  <FileText size={14} />
+                  Print Sales Order
+                </button>
+                <button
+                  onClick={handleEmailSalesOrder}
+                  disabled={emailingSO}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[12px] font-semibold bg-purple-500/10 text-purple-600 hover:bg-purple-500/20 transition-colors disabled:opacity-50"
+                >
+                  {emailingSO ? <Loader2 size={14} className="animate-spin" /> : <Mail size={14} />}
+                  {emailingSO ? 'Sending...' : 'Email Sales Order'}
+                </button>
+                {(order.delivery_date || order.delivery_address) && (
+                  <>
+                    <button
+                      onClick={() => window.open(`/api/delivery-slips/transaction/${order.transaction_id || orderId}/view`, '_blank')}
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[12px] font-semibold bg-cyan-500/10 text-cyan-600 hover:bg-cyan-500/20 transition-colors"
+                    >
+                      <Truck size={14} />
+                      Print Delivery Slip
+                    </button>
+                    <button
+                      onClick={() => window.open(`/api/delivery-slips/transaction/${order.transaction_id || orderId}/waiver`, '_blank')}
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[12px] font-semibold bg-amber-500/10 text-amber-600 hover:bg-amber-500/20 transition-colors"
+                    >
+                      <FileText size={14} />
+                      Print Delivery Waiver
+                    </button>
+                    <button
+                      onClick={handleEmailDeliverySlip}
+                      disabled={emailingDS}
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[12px] font-semibold bg-teal-500/10 text-teal-600 hover:bg-teal-500/20 transition-colors disabled:opacity-50"
+                    >
+                      {emailingDS ? <Loader2 size={14} className="animate-spin" /> : <Mail size={14} />}
+                      {emailingDS ? 'Sending...' : 'Email Delivery Slip'}
+                    </button>
+                  </>
+                )}
               </div>
             </div>
 

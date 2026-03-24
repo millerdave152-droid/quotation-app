@@ -20,12 +20,12 @@ const COLORS = {
   primaryLight: '#3b82f6',
   text: '#1f2937',
   textSecondary: '#374151',
-  textMuted: '#6b7280',
-  textLight: '#9ca3af',
+  textMuted: '#333333',
+  textLight: '#444444',
   bgLight: '#f8fafc',
   bgMuted: '#fafafa',
   border: '#e5e7eb',
-  borderMedium: '#d1d5db',
+  borderMedium: '#888888',
   success: '#10b981',
   error: '#dc2626',
   warning: '#f59e0b'
@@ -303,10 +303,10 @@ class DeliverySlipService {
       doc.roundedRect(50, yPos, 512, deliverH, 6)
         .fillAndStroke('#f0f7ff', COLORS.primaryLight);
 
-      doc.fontSize(9).font('Helvetica-Bold').fillColor(COLORS.primaryLight)
+      doc.fontSize(9).font('Helvetica-Bold').fillColor('#000000')
         .text('DELIVER TO', 62, yPos + 10);
       doc.moveTo(62, yPos + 22).lineTo(180, yPos + 22)
-        .strokeColor(COLORS.primaryLight).lineWidth(0.5).stroke();
+        .strokeColor(COLORS.primaryLight).lineWidth(0.75).stroke();
 
       let dY = yPos + 28;
       doc.fontSize(14).font('Helvetica-Bold').fillColor(COLORS.text)
@@ -393,7 +393,7 @@ class DeliverySlipService {
         // Zebra striping
         if (index % 2 === 0) doc.rect(50, yPos, 512, rowH).fill(COLORS.bgLight);
         doc.moveTo(50, yPos + rowH).lineTo(562, yPos + rowH)
-          .strokeColor(COLORS.border).lineWidth(0.5).stroke();
+          .strokeColor(COLORS.border).lineWidth(0.75).stroke();
 
         const rY = yPos + 4;
 
@@ -447,7 +447,7 @@ class DeliverySlipService {
       doc.roundedRect(50, yPos, 512, refH, 4)
         .fillAndStroke(COLORS.bgMuted, COLORS.border);
 
-      doc.fontSize(8).font('Helvetica-Bold').fillColor(COLORS.primaryLight)
+      doc.fontSize(8).font('Helvetica-Bold').fillColor('#000000')
         .text('SALES REFERENCE', 62, yPos + 8);
 
       let refY = yPos + 22;
@@ -490,7 +490,7 @@ class DeliverySlipService {
       // ============================================
       if (yPos > 580) { doc.addPage(); doc.rect(0, 0, 612, 4).fill(COLORS.primary); yPos = 30; }
 
-      doc.fontSize(9).font('Helvetica-Bold').fillColor(COLORS.text)
+      doc.fontSize(9).font('Helvetica-Bold').fillColor('#000000')
         .text('WAREHOUSE', 50, yPos);
       yPos += 14;
 
@@ -501,7 +501,7 @@ class DeliverySlipService {
       const whLines = ['Pulled by', 'Checked by', 'Loaded by'];
       let whY = yPos + 8;
       for (const label of whLines) {
-        doc.fontSize(8).font('Helvetica').fillColor(COLORS.textMuted)
+        doc.fontSize(8).font('Helvetica').fillColor('#222222')
           .text(`${label}: _________________________`, 62, whY);
         doc.text('Date: ___________   Time: ___________', 310, whY);
         whY += 16;
@@ -512,7 +512,7 @@ class DeliverySlipService {
       // ============================================
       // DRIVER SECTION
       // ============================================
-      doc.fontSize(9).font('Helvetica-Bold').fillColor(COLORS.text)
+      doc.fontSize(9).font('Helvetica-Bold').fillColor('#000000')
         .text('DRIVER', 50, yPos);
       yPos += 14;
 
@@ -536,37 +536,38 @@ class DeliverySlipService {
       doc.roundedRect(50, yPos, 512, sigBoxH, 6)
         .dash(3, { space: 3 })
         .strokeColor(COLORS.primaryLight)
-        .lineWidth(1.5)
+        .lineWidth(2)
         .stroke()
         .undash();
 
       // Header
-      doc.fontSize(12).font('Helvetica-Bold').fillColor(COLORS.primary)
+      doc.fontSize(12).font('Helvetica-Bold').fillColor('#000000')
         .text('DELIVERY CONFIRMATION', 50, yPos + 10, { width: 512, align: 'center' });
 
       let sigY = yPos + 30;
 
       // Signature line (large space)
-      doc.fontSize(8).font('Helvetica').fillColor(COLORS.textLight)
+      doc.fontSize(10).font('Helvetica-Bold').fillColor('#000000')
         .text('Customer Signature', 70, sigY);
       sigY += 10;
       doc.moveTo(70, sigY + 22).lineTo(350, sigY + 22)
-        .strokeColor(COLORS.borderMedium).lineWidth(0.5).stroke();
+        .strokeColor('#000000').lineWidth(1.5).stroke();
       sigY += 30;
 
       // Print name + date/time
-      doc.fontSize(8).font('Helvetica').fillColor(COLORS.textMuted)
+      doc.fontSize(8).font('Helvetica-Bold').fillColor('#000000')
         .text('Print Name: ___________________________________________', 70, sigY);
       sigY += 16;
-      doc.text('Date of Delivery: _______________________   Time of Delivery: _______________________', 70, sigY);
+      doc.font('Helvetica-Bold').fillColor('#000000')
+        .text('Date of Delivery: _______________________   Time of Delivery: _______________________', 70, sigY);
       sigY += 20;
 
       // Checkboxes
-      doc.rect(70, sigY, 10, 10).strokeColor(COLORS.borderMedium).lineWidth(0.8).stroke();
+      doc.rect(70, sigY, 10, 10).strokeColor('#000000').lineWidth(1).stroke();
       doc.fontSize(8).font('Helvetica').fillColor(COLORS.text)
         .text('Items received in good condition', 86, sigY + 1);
 
-      doc.rect(310, sigY, 10, 10).strokeColor(COLORS.borderMedium).lineWidth(0.8).stroke();
+      doc.rect(310, sigY, 10, 10).strokeColor('#000000').lineWidth(1).stroke();
       doc.fontSize(8).font('Helvetica').fillColor(COLORS.text)
         .text('Items received with damage (describe below)', 326, sigY + 1);
 
@@ -589,7 +590,7 @@ class DeliverySlipService {
         doc.switchToPage(i);
 
         doc.moveTo(50, 740).lineTo(562, 740)
-          .strokeColor(COLORS.border).lineWidth(0.5).stroke();
+          .strokeColor(COLORS.border).lineWidth(1).stroke();
 
         doc.fontSize(8).font('Helvetica-Bold').fillColor(COLORS.textMuted)
           .text(`HST #: ${this.hstNumber}`, 50, 745, { lineBreak: false });

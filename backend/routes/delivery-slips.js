@@ -12,6 +12,7 @@ const { authenticate, requireRole } = require('../middleware/auth');
 // MODULE STATE
 // ============================================================================
 let deliverySlipService = null;
+let deliveryWaiverService = null;
 let pool = null;
 
 // ============================================================================
@@ -191,11 +192,128 @@ router.patch('/:id/status', authenticate, asyncHandler(async (req, res) => {
 }));
 
 // ============================================================================
+// EMAIL
+// ============================================================================
+
+/**
+ * POST /api/delivery-slips/:id/email — Email delivery slip PDF to customer
+ */
+router.post('/:id/email', authenticate, asyncHandler(async (req, res) => {
+  const slipId = parseInt(req.params.id);
+  if (isNaN(slipId)) throw ApiError.badRequest('Invalid slip ID');
+
+  // Get slip data to find customer email
+  const data = await deliverySlipService.getSlipData(slipId);
+  const slip = data.slip;
+
+  const email = req.body.email || slip.customer_email;
+  if (!email) throw ApiError.badRequest('No email address available');
+
+  // Validate email format
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  if (!emailRegex.test(email)) throw ApiError.badRequest('Invalid email address');
+
+  // Generate PDF
+  const pdfBuffer = await deliverySlipService.generateDeliverySlipPdf(slipId);
+
+  // Build raw MIME email with PDF attachment (same pattern as ReceiptService)
+  const { SESv2Client, SendEmailCommand } = require('@aws-sdk/client-sesv2');
+  const ses = new SESv2Client({ region: process.env.AWS_REGION || 'us-east-1' });
+  const fromEmail = process.env.EMAIL_FROM || 'deliveries@teletime.ca';
+  const companyName = process.env.COMPANY_NAME || 'Teletime';
+
+  const pdfBase64 = pdfBuffer.toString('base64');
+  const boundary = `----=_Part_${Date.now()}_${Math.random().toString(36).substr(2)}`;
+  const slipNumber = slip.slip_number || `DS-${slipId}`;
+  const filename = `${slipNumber}.pdf`;
+  const customerName = slip.customer_name || 'Customer';
+
+  const emailHtml = `<!DOCTYPE html><html><body style="margin:0;padding:0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;background:#f3f4f6;">
+    <div style="max-width:600px;margin:0 auto;background:#ffffff;">
+      <div style="background:linear-gradient(135deg,#1e40af 0%,#3b82f6 100%);padding:30px;text-align:center;">
+        <h1 style="color:white;margin:0;">Delivery Slip</h1>
+      </div>
+      <div style="padding:30px;">
+        <p style="font-size:16px;color:#374151;">Dear ${customerName},</p>
+        <p style="color:#374151;">Please find your delivery slip attached with the details of your upcoming delivery.</p>
+        <div style="background:#f8fafc;border:1px solid #e5e7eb;border-radius:8px;padding:20px;margin:20px 0;text-align:center;">
+          <p style="margin:0 0 4px;font-size:12px;color:#6b7280;font-weight:600;">DELIVERY SLIP</p>
+          <p style="margin:0;font-size:20px;font-weight:700;color:#1e40af;">${slipNumber}</p>
+        </div>
+        <p style="color:#374151;">Thank you for shopping at Teletime Superstores!</p>
+        <p style="color:#6b7280;font-size:14px;">Questions? Call us at (905) 273-5550</p>
+      </div>
+      <div style="padding:20px;text-align:center;color:#9ca3af;font-size:12px;">
+        &copy; ${new Date().getFullYear()} ${companyName}. All rights reserved.
+      </div>
+    </div>
+  </body></html>`;
+
+  const rawEmail = [
+    `From: ${companyName} <${fromEmail}>`,
+    `To: ${email}`,
+    `Subject: Your Delivery Slip ${slipNumber} — Teletime Superstores`,
+    'MIME-Version: 1.0',
+    `Content-Type: multipart/mixed; boundary="${boundary}"`,
+    '',
+    `--${boundary}`,
+    'Content-Type: text/html; charset=UTF-8',
+    'Content-Transfer-Encoding: 7bit',
+    '',
+    emailHtml,
+    '',
+    `--${boundary}`,
+    `Content-Type: application/pdf; name="${filename}"`,
+    'Content-Transfer-Encoding: base64',
+    `Content-Disposition: attachment; filename="${filename}"`,
+    '',
+    pdfBase64,
+    '',
+    `--${boundary}--`
+  ].join('\r\n');
+
+  const command = new SendEmailCommand({
+    FromEmailAddress: fromEmail,
+    Destination: { ToAddresses: [email] },
+    Content: { Raw: { Data: Buffer.from(rawEmail) } }
+  });
+
+  await ses.send(command);
+
+  auditLog(req, 'delivery_slip_emailed', 'delivery', 'info', slipId, {
+    slip_number: slipNumber,
+    recipient: email
+  });
+
+  res.success({ message: 'Delivery slip emailed', email });
+}));
+
+// ============================================================================
+// WAIVER
+// ============================================================================
+
+/**
+ * GET /api/delivery-slips/:id/waiver — Generate delivery waiver PDF
+ */
+router.get('/:id/waiver', authenticate, asyncHandler(async (req, res) => {
+  const slipId = parseInt(req.params.id);
+  if (isNaN(slipId)) throw ApiError.badRequest('Invalid slip ID');
+
+  const pdfBuffer = await deliveryWaiverService.generateWaiverPdf(slipId);
+
+  res.setHeader('Content-Type', 'application/pdf');
+  res.setHeader('Content-Disposition', 'inline');
+  res.setHeader('Content-Length', pdfBuffer.length);
+  res.send(pdfBuffer);
+}));
+
+// ============================================================================
 // INIT
 // ============================================================================
 
 const init = (deps) => {
   deliverySlipService = deps.deliverySlipService;
+  deliveryWaiverService = deps.deliveryWaiverService;
   pool = deps.pool;
   return router;
 };
