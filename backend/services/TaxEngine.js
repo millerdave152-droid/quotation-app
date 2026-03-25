@@ -58,11 +58,18 @@ class TaxEngine {
     const combined = `${cat} ${name} ${desc}`;
 
     // TV — size-tiered
-    if (cat.includes('tv') || cat.includes('television') || combined.includes('tv') || combined.includes('television')) {
-      // Try to extract screen size from name/description (e.g., "65 inch", "55\"", "43-inch")
-      const sizeMatch = (product.name || '').match(/(\d{2,3})\s*["\'″]|(\d{2,3})\s*-?\s*inch/i)
-        || (product.description || '').match(/(\d{2,3})\s*["\'″]|(\d{2,3})\s*-?\s*inch/i);
-      const screenSize = sizeMatch ? parseInt(sizeMatch[1] || sizeMatch[2], 10) : null;
+    if (cat.includes('tv') || cat.includes('television') || cat.includes('qled') || cat.includes('oled') || cat.includes('uhd')
+        || combined.includes(' tv ') || combined.includes(' tv,') || combined.includes('television')
+        || combined.includes('qled') || combined.includes('oled')) {
+      // Priority: 1) screen_size_inches from DB, 2) regex on name/sku, 3) default to largest tier
+      let screenSize = product.screen_size_inches || product.screenSizeInches || null;
+      if (!screenSize) {
+        const sizeMatch = (product.name || '').match(/(\d{2,3})\s*["\'″]|(\d{2,3})\s*-?\s*inch/i)
+          || (product.sku || '').match(/^[A-Za-z]{0,5}(\d{2})/);
+        screenSize = sizeMatch ? parseInt(sizeMatch[1] || sizeMatch[2], 10) : null;
+        // Validate range (24-98 inches)
+        if (screenSize && (screenSize < 24 || screenSize > 98)) screenSize = null;
+      }
       return { fee: this.getEHFForTV(screenSize, province), category: 'Television', screenSize };
     }
 

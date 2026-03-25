@@ -33,6 +33,7 @@ export function CartTotals({
   taxAmount = 0,
   total = 0,
   province = 'ON',
+  ehfTotal = 0,
   tradeInTotal = 0,
   hasPendingTradeIns = false,
   className = '',
@@ -90,6 +91,16 @@ export function CartTotals({
           </span>
           <span className="font-medium text-emerald-600 tabular-nums">
             -{formatCurrency(tradeInTotal)}
+          </span>
+        </div>
+      )}
+
+      {/* EHF — not taxable */}
+      {ehfTotal > 0 && (
+        <div className="flex justify-between items-center text-sm mt-1">
+          <span className="text-amber-700 font-medium">EHF (not taxable)</span>
+          <span className="font-medium text-amber-700 tabular-nums">
+            {formatCurrency(ehfTotal)}
           </span>
         </div>
       )}

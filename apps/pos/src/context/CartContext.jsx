@@ -45,6 +45,48 @@ const TAX_RATES = {
 const DEFAULT_PROVINCE = import.meta.env.VITE_DEFAULT_TAX_PROVINCE || 'ON';
 
 // ============================================================================
+// EHF CALCULATION (Ontario Environmental Handling Fees — electronics only)
+// ============================================================================
+
+function calculateItemEHF(item) {
+  const name = (item.productName || item.name || '').toLowerCase();
+  const sku = (item.sku || '').toLowerCase();
+  const cat = (item.category || '').toLowerCase();
+  const combined = `${name} ${sku} ${cat}`;
+
+  // TV check — category or name contains tv/qled/oled/uhd/television
+  if (cat.includes('tv') || cat.includes('qled') || cat.includes('oled') || cat.includes('uhd')
+      || cat.includes('television') || combined.includes(' tv ') || combined.includes('television')) {
+    const size = item.screen_size_inches || item.screenSizeInches || null;
+    // If no DB size, try to parse from SKU (e.g. QN65, UN43, 75QNED, OLED55)
+    let screenSize = size;
+    if (!screenSize) {
+      const skuMatch = (item.sku || '').match(/^[A-Za-z]{0,5}(\d{2})/);
+      if (skuMatch) {
+        const parsed = parseInt(skuMatch[1], 10);
+        if (parsed >= 24 && parsed <= 98) screenSize = parsed;
+      }
+    }
+    if (!screenSize) screenSize = 65; // default to largest common tier
+    if (screenSize <= 29) return 825;   // $8.25 in cents
+    if (screenSize <= 45) return 1465;  // $14.65
+    return 1925;                         // $19.25
+  }
+
+  // Blu-ray / DVD players
+  if (combined.includes('blu-ray') || combined.includes('bluray') || combined.includes('dvd player')) {
+    return 225; // $2.25
+  }
+
+  // Projectors
+  if (combined.includes('projector')) {
+    return 450; // $4.50
+  }
+
+  return 0; // no EHF
+}
+
+// ============================================================================
 // CONTEXT
 // ============================================================================
 
@@ -398,11 +440,18 @@ export function CartProvider({ children }) {
     // Calculate taxes
     const taxes = calculateTaxes(subtotalAfterDiscount, province);
 
+    // EHF (Environmental Handling Fee — not taxable, per unit)
+    let ehfTotalCents = 0;
+    items.forEach((item) => {
+      ehfTotalCents += calculateItemEHF(item) * item.quantity;
+    });
+    const ehfTotal = Math.round(ehfTotalCents) / 100;
+
     // Delivery fee
     const deliveryFee = selectedFulfillment?.fee || 0;
 
-    // Order total before trade-in (subtotal after discounts + tax + delivery)
-    const orderTotal = subtotalAfterDiscount + taxes.totalTax + deliveryFee;
+    // Order total before trade-in (subtotal after discounts + tax + delivery + EHF)
+    const orderTotal = subtotalAfterDiscount + taxes.totalTax + deliveryFee + ehfTotal;
 
     // Trade-in calculations
     const tradeInCount = tradeIns.length;
@@ -437,6 +486,7 @@ export function CartProvider({ children }) {
       pstAmount: taxes.pstAmount,
       taxAmount: taxes.totalTax,
       taxLabel: taxes.rates.label,
+      ehfTotal: Math.round(ehfTotal * 100) / 100,
       deliveryFee: Math.round(deliveryFee * 100) / 100,
       // Order total before trade-in
       orderTotal: Math.round(orderTotal * 100) / 100,

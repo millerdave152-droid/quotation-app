@@ -959,6 +959,15 @@ class ReceiptService {
            .text(`-${this.formatCurrency(transaction.discount_amount)}`, valueX - 80, lineY, { width: 80, align: 'right' });
       }
 
+      // EHF (Environmental Handling Fee — not taxable)
+      const ehfAmount = parseFloat(transaction.environmental_fee || transaction.ehf_amount || 0);
+      if (ehfAmount > 0) {
+        lineY += 16;
+        doc.fillColor('#92400e').text('EHF (not taxable)', labelX, lineY);
+        doc.fillColor('#92400e')
+           .text(this.formatCurrency(ehfAmount), valueX - 80, lineY, { width: 80, align: 'right' });
+      }
+
       // Taxes
       const hst = parseFloat(transaction.hst_amount || 0);
       const gst = parseFloat(transaction.gst_amount || 0);
@@ -1618,6 +1627,12 @@ class ReceiptService {
 
     if (parseFloat(transaction.discount_amount) > 0) {
       lines.push(formatLine('Discount:', `-${this.formatCurrency(transaction.discount_amount)}`));
+    }
+
+    // EHF
+    const thermalEhf = parseFloat(transaction.environmental_fee || transaction.ehf_amount || 0);
+    if (thermalEhf > 0) {
+      lines.push(formatLine('EHF (not taxable):', this.formatCurrency(thermalEhf)));
     }
 
     // Taxes

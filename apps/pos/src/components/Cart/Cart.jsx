@@ -438,6 +438,7 @@ export function Cart({
           gstAmount={cart.gstAmount}
           pstAmount={cart.pstAmount}
           taxAmount={cart.taxAmount}
+          ehfTotal={cart.ehfTotal}
           total={cart.total}
           province={cart.province}
           tradeInTotal={tradeInTotal}
