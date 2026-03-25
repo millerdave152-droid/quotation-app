@@ -5,12 +5,30 @@
 
 import { useEffect, useState } from 'react';
 import { formatCurrency, formatDateTime } from '../../utils/formatters';
-import { CheckCircle, CloudUpload, CreditCard, Mail, Printer, RefreshCw, X } from 'lucide-react';
+import { CheckCircle, ClipboardList, CloudUpload, CreditCard, FileText, Mail, Printer, RefreshCw, Truck, X } from 'lucide-react';
 
 const API_BASE = import.meta.env.VITE_API_URL || '/api';
 
 function getToken() {
   return localStorage.getItem('pos_token') || localStorage.getItem('auth_token') || '';
+}
+
+/**
+ * Fetch a PDF with auth headers and open in new tab
+ */
+async function openAuthPdf(url) {
+  try {
+    const res = await fetch(url, {
+      headers: { Authorization: `Bearer ${getToken()}` }
+    });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const blob = await res.blob();
+    const blobUrl = URL.createObjectURL(blob);
+    window.open(blobUrl, '_blank');
+  } catch (err) {
+    console.error('[PaymentComplete] PDF fetch error:', err);
+    alert('Failed to generate document. Please try again.');
+  }
 }
 
 /**
@@ -165,9 +183,17 @@ export function PaymentComplete({
   };
 
   // Extract transaction details
+  const transactionId = transaction?.transactionId || transaction?.transaction_id || transaction?.id;
   const transactionNumber = transaction?.transactionNumber || transaction?.transaction_number || 'N/A';
   const totalAmount = transaction?.totalAmount || transaction?.total_amount
     || transaction?.totals?.totalAmount || transaction?.totals?.amountDue || 0;
+  const hasDelivery = !!(
+    transaction?.delivery_address || transaction?.deliveryAddress
+    || transaction?.fulfillment_type === 'local_delivery'
+    || transaction?.fulfillment_type === 'shipping'
+    || transaction?.fulfillmentType === 'local_delivery'
+    || transaction?.fulfillmentType === 'shipping'
+  );
 
   // Handle receipt action
   const handleReceiptAction = async () => {
@@ -187,6 +213,7 @@ export function PaymentComplete({
       setSent(true);
     } catch (error) {
       console.error('Receipt error:', error);
+      alert(error.message || 'Failed to send receipt. Please try again.');
     } finally {
       setIsSending(false);
     }
@@ -350,6 +377,57 @@ export function PaymentComplete({
       {saveCardState === 'error' && (
         <div className="w-full max-w-md mb-6 p-4 bg-amber-50 border border-amber-200 rounded-xl text-center text-sm text-amber-700">
           Could not save card. You can add it later from the customer profile.
+        </div>
+      )}
+
+      {/* Document Buttons — Print Sales Order / Delivery Slip / Waiver */}
+      {transactionId && (
+        <div className="w-full max-w-md mb-6 p-4 bg-white border-2 border-blue-200 rounded-xl">
+          <h3 className="text-sm font-semibold text-gray-800 mb-3">Documents</h3>
+          <div className="flex flex-wrap gap-2">
+            <button
+              type="button"
+              onClick={() => openAuthPdf(`${API_BASE}/sales-orders/${transactionId}/view`)}
+              className="
+                flex items-center gap-2 px-4 py-2.5
+                border-2 border-blue-200 rounded-xl
+                bg-blue-50 hover:bg-blue-100
+                text-blue-700 text-sm font-semibold
+                transition-colors duration-150
+              "
+            >
+              <FileText className="w-5 h-5" />
+              Print Sales Order
+            </button>
+            <button
+              type="button"
+              onClick={() => openAuthPdf(`${API_BASE}/delivery-slips/transaction/${transactionId}/view`)}
+              className="
+                flex items-center gap-2 px-4 py-2.5
+                border-2 border-cyan-200 rounded-xl
+                bg-cyan-50 hover:bg-cyan-100
+                text-cyan-700 text-sm font-semibold
+                transition-colors duration-150
+              "
+            >
+              <Truck className="w-5 h-5" />
+              Print Delivery Slip
+            </button>
+            <button
+              type="button"
+              onClick={() => openAuthPdf(`${API_BASE}/delivery-slips/transaction/${transactionId}/waiver`)}
+              className="
+                flex items-center gap-2 px-4 py-2.5
+                border-2 border-amber-200 rounded-xl
+                bg-amber-50 hover:bg-amber-100
+                text-amber-700 text-sm font-semibold
+                transition-colors duration-150
+              "
+            >
+              <ClipboardList className="w-5 h-5" />
+              Print Delivery Waiver
+            </button>
+          </div>
         </div>
       )}
 

@@ -126,12 +126,13 @@ router.post('/:id/email', authenticate, asyncHandler(async (req, res) => {
     throw ApiError.badRequest(error.details[0].message);
   }
 
-  const result = await receiptService.emailReceipt(transactionId, value.email);
-
-  res.json({
-    success: true,
-    data: result
-  });
+  try {
+    const result = await receiptService.emailReceipt(transactionId, value.email);
+    res.json({ success: true, data: result });
+  } catch (emailErr) {
+    const msg = emailErr.message || 'Failed to send email';
+    res.status(400).json({ success: false, error: msg });
+  }
 }));
 
 /**

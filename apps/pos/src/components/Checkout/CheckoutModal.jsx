@@ -499,7 +499,6 @@ export function CheckoutModal({
         if (result.offline) {
           setTransaction(result.transaction);
           setStep('complete');
-          onComplete?.(result.transaction);
           return;
         }
 
@@ -532,7 +531,8 @@ export function CheckoutModal({
 
         setTransaction(result.transaction);
         setStep('complete');
-        onComplete?.(result.transaction);
+        // Do NOT call onComplete here — let PaymentComplete screen show first.
+        // onComplete will be called when the user clicks "New Transaction".
       } else if (result.code === 'FRAUD_BLOCKED' && result.fraudAssessment) {
         // Transaction blocked by fraud detection
         setFraudAssessment(result.fraudAssessment);

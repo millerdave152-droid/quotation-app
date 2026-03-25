@@ -137,7 +137,7 @@ class SalesOrderService {
         ti.product_name, ti.product_sku, ti.quantity,
         ti.unit_price, ti.discount_percent, ti.discount_amount,
         ti.tax_amount, ti.line_total,
-        p.manufacturer, p.model_number,
+        p.manufacturer, p.model AS model_number,
         ti.serial_number
       FROM transaction_items ti
       LEFT JOIN products p ON ti.product_id = p.id
@@ -213,6 +213,13 @@ class SalesOrderService {
     const totalDue = parseFloat(transaction.total_amount || 0);
     const balanceDue = Math.max(0, totalDue - totalPaid);
 
+    // Back-calculate subtotal and HST from the tax-inclusive total
+    // total_amount already includes 13% HST in Ontario
+    const itemSubtotal = items.reduce((sum, item) => sum + parseFloat(item.line_total || 0), 0);
+    const subtotal = itemSubtotal > 0 ? itemSubtotal : Math.round(totalDue / 1.13 * 100) / 100;
+    const taxAmount = parseFloat(transaction.tax_amount || 0) || Math.round((totalDue - subtotal) * 100) / 100;
+    const hasLogo = fs.existsSync(LOGO_PATH);
+
     const PAGE_W = 612;
     const PAGE_H = 792;
     const MARGIN = 50;
@@ -221,8 +228,7 @@ class SalesOrderService {
     return new Promise((resolve, reject) => {
       const doc = new PDFDocument({
         size: 'LETTER',
-        margins: { top: MARGIN, bottom: MARGIN, left: MARGIN, right: MARGIN },
-        bufferPages: true
+        margins: { top: MARGIN, bottom: 0, left: MARGIN, right: MARGIN }
       });
       const chunks = [];
       doc.on('data', chunk => chunks.push(chunk));
@@ -245,14 +251,16 @@ class SalesOrderService {
       // ──────────────────────────────────────────
       // Helper: draw table header row
       // ──────────────────────────────────────────
+      // Column widths must total CONTENT_W (512)
+      // 35 + 175 + 62 + 80 + 70 + 45 + 45 = 512
       const cols = {
-        qty:    { x: MARGIN,       w: 40 },
-        desc:   { x: MARGIN + 40,  w: 180 },
-        brand:  { x: MARGIN + 220, w: 70 },
-        model:  { x: MARGIN + 290, w: 90 },
-        serial: { x: MARGIN + 380, w: 80 },
-        price:  { x: MARGIN + 460, w: 60 },
-        amount: { x: MARGIN + 520, w: 60 - 8 }
+        qty:    { x: MARGIN,        w: 35 },
+        desc:   { x: MARGIN + 35,   w: 175 },
+        brand:  { x: MARGIN + 210,  w: 62 },
+        model:  { x: MARGIN + 272,  w: 80 },
+        serial: { x: MARGIN + 352,  w: 70 },
+        price:  { x: MARGIN + 422,  w: 45 },
+        amount: { x: MARGIN + 467,  w: 45 }
       };
 
       const drawTableHeader = (y) => {
@@ -263,8 +271,8 @@ class SalesOrderService {
         doc.text('BRAND', cols.brand.x + 4, y + 6, { width: cols.brand.w - 8 });
         doc.text('MODEL', cols.model.x + 4, y + 6, { width: cols.model.w - 8 });
         doc.text('SERIAL NO', cols.serial.x + 4, y + 6, { width: cols.serial.w - 8 });
-        doc.text('PRICE', cols.price.x + 4, y + 6, { width: cols.price.w - 8, align: 'right' });
-        doc.text('AMOUNT', cols.amount.x + 4, y + 6, { width: cols.amount.w - 4, align: 'right' });
+        doc.text('PRICE', cols.price.x + 2, y + 6, { width: cols.price.w - 4, align: 'right' });
+        doc.text('AMOUNT', cols.amount.x + 2, y + 6, { width: cols.amount.w - 4, align: 'right' });
         return y + 20;
       };
 
@@ -284,9 +292,18 @@ class SalesOrderService {
       // HEADER SECTION
       // ============================================
 
-      // "Teletime" brand text top left
-      doc.fontSize(26).font('Helvetica-Bold').fillColor(COLORS.primary)
-        .text('Teletime', MARGIN, 16);
+      // Logo or text fallback
+      if (hasLogo) {
+        try {
+          doc.image(LOGO_PATH, MARGIN, 12, { width: 120 });
+        } catch {
+          doc.fontSize(26).font('Helvetica-Bold').fillColor(COLORS.primary)
+            .text('Teletime', MARGIN, 16);
+        }
+      } else {
+        doc.fontSize(26).font('Helvetica-Bold').fillColor(COLORS.primary)
+          .text('Teletime', MARGIN, 16);
+      }
 
       // "Teletime Superstores" below
       doc.fontSize(14).font('Helvetica-Bold').fillColor(COLORS.primary)
@@ -356,7 +373,7 @@ class SalesOrderService {
       const billContentH = headerLineH + billLines.length * lineH + boxPad;
       const shipContentH = headerLineH + shipLines.length * lineH + boxPad;
       const orderContentH = headerLineH + orderDetailLines.length * lineH + boxPad;
-      const minBoxH = 120;
+      const minBoxH = 100;
       const boxH = Math.max(minBoxH, billContentH, shipContentH, orderContentH) + boxPad;
 
       // Draw 3 boxes
@@ -387,7 +404,7 @@ class SalesOrderService {
           }
         } else {
           for (const line of lines) {
-            doc.fontSize(8).font(line.bold ? 'Helvetica-Bold' : 'Helvetica')
+            doc.fontSize(9).font(line.bold ? 'Helvetica-Bold' : 'Helvetica')
               .fillColor(line.bold ? '#000000' : COLORS.textMuted)
               .text(line.text, x + boxPad, cy, { width: boxInnerW });
             cy += lineH;
@@ -452,11 +469,11 @@ class SalesOrderService {
 
         // Price (right-aligned)
         doc.fontSize(8).font('Helvetica').fillColor(COLORS.text)
-          .text(this.formatCurrency(item.unit_price), cols.price.x + 4, textY, { width: cols.price.w - 8, align: 'right' });
+          .text(this.formatCurrency(item.unit_price), cols.price.x + 2, textY, { width: cols.price.w - 4, align: 'right' });
 
         // Amount (right-aligned)
         doc.fontSize(8).font('Helvetica-Bold').fillColor(COLORS.text)
-          .text(this.formatCurrency(item.line_total), cols.amount.x + 4, textY, { width: cols.amount.w - 4, align: 'right' });
+          .text(this.formatCurrency(item.line_total), cols.amount.x + 2, textY, { width: cols.amount.w - 4, align: 'right' });
 
         yPos += rowH;
       });
@@ -466,7 +483,6 @@ class SalesOrderService {
       // ============================================
       // PAYMENT & TOTALS (2 columns)
       // ============================================
-      ensureSpace(160);
 
       const leftColX = MARGIN;
       const leftColW = CONTENT_W * 0.5 - 5;
@@ -524,7 +540,7 @@ class SalesOrderService {
       doc.fontSize(9).font('Helvetica').fillColor(COLORS.textMuted)
         .text('Sales Sub Total', totLblX, tY);
       doc.fillColor(COLORS.text)
-        .text(this.formatCurrency(transaction.subtotal), totValX, tY, { width: 80, align: 'right' });
+        .text(this.formatCurrency(subtotal), totValX, tY, { width: 80, align: 'right' });
 
       tY += 14;
       doc.fillColor(COLORS.textMuted).text('Environmental Fee', totLblX, tY);
@@ -532,13 +548,11 @@ class SalesOrderService {
 
       tY += 14;
       doc.fillColor(COLORS.textMuted).text('Sub Total', totLblX, tY);
-      doc.fillColor(COLORS.text).text(this.formatCurrency(transaction.subtotal), totValX, tY, { width: 80, align: 'right' });
+      doc.fillColor(COLORS.text).text(this.formatCurrency(subtotal), totValX, tY, { width: 80, align: 'right' });
 
       tY += 14;
-      const hst = parseFloat(transaction.hst_amount || 0);
-      const gst = parseFloat(transaction.gst_amount || 0);
       doc.fillColor(COLORS.textMuted).text('GST/HST 13.000%', totLblX, tY);
-      doc.fillColor(COLORS.text).text(this.formatCurrency(hst + gst), totValX, tY, { width: 80, align: 'right' });
+      doc.fillColor(COLORS.text).text(this.formatCurrency(taxAmount), totValX, tY, { width: 80, align: 'right' });
 
       tY += 14;
       doc.fillColor(COLORS.textMuted).text('PST 0.000%', totLblX, tY);
@@ -569,7 +583,6 @@ class SalesOrderService {
       // ============================================
       // CUSTOMER SECTION
       // ============================================
-      ensureSpace(70);
 
       // "Thanks For Shopping" italic left
       doc.fontSize(10).font('Helvetica-Oblique').fillColor(COLORS.textMuted)
@@ -577,46 +590,44 @@ class SalesOrderService {
 
       // Customer Note(s) box on right
       const noteBoxW = 200;
-      const noteBoxH = 40;
+      const noteBoxH = 36;
       const noteBoxX = MARGIN + CONTENT_W - noteBoxW;
       doc.fontSize(8).font('Helvetica-Bold').fillColor('#000000')
         .text('Customer Note(s):', noteBoxX, yPos);
       doc.rect(noteBoxX, yPos + 12, noteBoxW, noteBoxH)
-        .strokeColor(COLORS.border).lineWidth(0.75).stroke();
+        .strokeColor('#000000').lineWidth(1).stroke();
 
-      yPos += 14;
+      yPos += noteBoxH + 16;
 
-      // Accepted By (Name): with signature line
+      // Accepted By (Name): with drawn line
       doc.fontSize(8).font('Helvetica-Bold').fillColor('#000000')
-        .text('Accepted By (Name):', MARGIN, yPos);
-      doc.moveTo(MARGIN + 110, yPos + 10).lineTo(MARGIN + 280, yPos + 10)
-        .strokeColor('#000000').lineWidth(1.5).stroke();
+        .text('Accepted By (Name):', MARGIN, yPos, { lineBreak: false });
+      const nameLineX = MARGIN + 115;
+      doc.moveTo(nameLineX, yPos + 10).lineTo(nameLineX + 250, yPos + 10)
+        .strokeColor('#000000').lineWidth(1).stroke();
+      yPos += 15;
 
+      // Signature: with drawn line
+      doc.fontSize(8).font('Helvetica-Bold').fillColor('#000000')
+        .text('Signature:', MARGIN, yPos, { lineBreak: false });
+      const sigLineX = MARGIN + 58;
+      doc.moveTo(sigLineX, yPos + 10).lineTo(sigLineX + 250, yPos + 10)
+        .strokeColor('#000000').lineWidth(1).stroke();
+      yPos += 15;
+
+      // Date: with drawn line
+      doc.fontSize(8).font('Helvetica-Bold').fillColor('#000000')
+        .text('Date:', MARGIN, yPos, { lineBreak: false });
+      const dateLineX = MARGIN + 32;
+      doc.moveTo(dateLineX, yPos + 10).lineTo(dateLineX + 150, yPos + 10)
+        .strokeColor('#000000').lineWidth(1).stroke();
       yPos += 18;
-
-      // Signature: with line
-      doc.fontSize(8).font('Helvetica-Bold').fillColor('#000000')
-        .text('Signature:', MARGIN, yPos);
-      doc.moveTo(MARGIN + 55, yPos + 10).lineTo(MARGIN + 280, yPos + 10)
-        .strokeColor('#000000').lineWidth(1.5).stroke();
-
-      yPos += 18;
-
-      // Date: with line
-      doc.fontSize(8).font('Helvetica-Bold').fillColor('#000000')
-        .text('Date:', MARGIN, yPos);
-      doc.moveTo(MARGIN + 30, yPos + 10).lineTo(MARGIN + 180, yPos + 10)
-        .strokeColor('#000000').lineWidth(1.5).stroke();
-
-      yPos += 20;
 
       // ============================================
       // TERMS & CONDITIONS
       // ============================================
-      ensureSpace(90);
-
       doc.fontSize(7).font('Helvetica-Bold').fillColor('#000000')
-        .text('TERMS & CONDITIONS', MARGIN, yPos);
+        .text('TERMS & CONDITIONS', MARGIN, yPos, { lineBreak: false });
       yPos += 10;
 
       const terms = [
@@ -632,40 +643,32 @@ class SalesOrderService {
         'CONSUMER RIGHTS: These terms do not affect your rights under Ontario\'s Consumer Protection Act, 2002. For full terms visit www.teletime.ca'
       ];
 
-      doc.fontSize(6).font('Helvetica').fillColor(COLORS.textLight);
+      // Footer zone starts here — T&C must fit above it
+      const footerY = PAGE_H - 42;
+      const maxTermY = footerY - 24; // leave room for footer
+
+      doc.fontSize(5).font('Helvetica').fillColor(COLORS.textLight);
       for (const term of terms) {
-        if (yPos > 725) {
-          doc.addPage();
-          yPos = MARGIN;
-        }
-        const termH = measureText(term, 6, CONTENT_W);
-        doc.text(term, MARGIN, yPos, { width: CONTENT_W });
-        yPos += termH + 2;
+        if (yPos >= maxTermY) break; // stop if we'd overrun the footer
+        const termH = measureText(term, 5, CONTENT_W);
+        doc.text(term, MARGIN, yPos, { width: CONTENT_W, height: termH + 1, lineBreak: true, ellipsis: true });
+        yPos += termH + 1;
       }
 
       // ============================================
-      // FOOTER (on every page)
+      // FOOTER — absolute position on current page
       // ============================================
-      const pageCount = doc.bufferedPageRange().count;
-      for (let i = 0; i < pageCount; i++) {
-        doc.switchToPage(i);
+      doc.moveTo(MARGIN, footerY).lineTo(MARGIN + CONTENT_W, footerY)
+        .strokeColor(COLORS.border).lineWidth(1).stroke();
 
-        // Footer line
-        doc.moveTo(MARGIN, 740).lineTo(MARGIN + CONTENT_W, 740)
-          .strokeColor(COLORS.border).lineWidth(1).stroke();
+      doc.fontSize(7).font('Helvetica').fillColor(COLORS.textLight)
+        .text('Page 1 of 1', MARGIN, footerY + 4, { lineBreak: false });
 
-        // Page X of Y (left)
-        doc.fontSize(7).font('Helvetica').fillColor(COLORS.textLight)
-          .text(`Page ${i + 1} of ${pageCount}`, MARGIN, 745, { lineBreak: false });
+      doc.fontSize(7).font('Helvetica-Bold').fillColor(COLORS.textMuted)
+        .text('HST #: 802845461RT0001', MARGIN + 150, footerY + 4, { lineBreak: false });
 
-        // HST number (center)
-        doc.fontSize(7).font('Helvetica-Bold').fillColor(COLORS.textMuted)
-          .text('HST #: 802845461RT0001', MARGIN, 745, { width: CONTENT_W, align: 'center', lineBreak: false });
-
-        // Contact line
-        doc.fontSize(7).font('Helvetica').fillColor(COLORS.textLight)
-          .text('www.teletime.ca | (905) 273-5550 | info@teletime.ca', MARGIN, 756, { width: CONTENT_W, align: 'center', lineBreak: false });
-      }
+      doc.fontSize(7).font('Helvetica').fillColor(COLORS.textLight)
+        .text('www.teletime.ca | (905) 273-5550 | info@teletime.ca', MARGIN + 300, footerY + 4, { lineBreak: false });
 
       doc.end();
     });

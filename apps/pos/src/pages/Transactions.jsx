@@ -12,6 +12,17 @@ import { ReceiptEmailModal, RefundReceiptPreviewModal } from '../components/Rece
 import { ReturnDetailsModal } from '../components/Returns';
 import { useRefundReceiptActions } from '../hooks/useRefundReceiptActions';
 import { formatCurrency } from '../utils/formatters';
+import { ClipboardList, FileText, Printer, Truck } from 'lucide-react';
+
+const API_BASE = import.meta.env.VITE_API_URL || '/api';
+const getToken = () => localStorage.getItem('pos_token') || localStorage.getItem('auth_token') || '';
+
+function openAuthPdf(url) {
+  fetch(url, { headers: { Authorization: `Bearer ${getToken()}` } })
+    .then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.blob(); })
+    .then(b => window.open(URL.createObjectURL(b), '_blank'))
+    .catch(() => alert('Failed to load document. Please try again.'));
+}
 
 export default function TransactionsPage() {
   const navigate = useNavigate();
@@ -270,6 +281,47 @@ export default function TransactionsPage() {
                   )}
                 </div>
               )}
+            </div>
+          )}
+
+          {/* Document Reprint Buttons */}
+          {details && (
+            <div className="mt-5 pt-4 border-t border-gray-200">
+              <h3 className="text-sm font-semibold text-gray-700 mb-3">Documents</h3>
+              <div className="flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  onClick={() => openAuthPdf(`${API_BASE}/receipts/${selectedTransactionId}/preview`)}
+                  className="inline-flex items-center gap-1.5 px-3 py-2 border border-gray-200 rounded-lg bg-gray-50 hover:bg-gray-100 text-gray-700 text-xs font-medium transition-colors"
+                >
+                  <Printer className="w-3.5 h-3.5" />
+                  Receipt
+                </button>
+                <button
+                  type="button"
+                  onClick={() => openAuthPdf(`${API_BASE}/sales-orders/${selectedTransactionId}/view`)}
+                  className="inline-flex items-center gap-1.5 px-3 py-2 border border-blue-200 rounded-lg bg-blue-50 hover:bg-blue-100 text-blue-700 text-xs font-medium transition-colors"
+                >
+                  <FileText className="w-3.5 h-3.5" />
+                  Sales Order
+                </button>
+                <button
+                  type="button"
+                  onClick={() => openAuthPdf(`${API_BASE}/delivery-slips/transaction/${selectedTransactionId}/view`)}
+                  className="inline-flex items-center gap-1.5 px-3 py-2 border border-cyan-200 rounded-lg bg-cyan-50 hover:bg-cyan-100 text-cyan-700 text-xs font-medium transition-colors"
+                >
+                  <Truck className="w-3.5 h-3.5" />
+                  Delivery Slip
+                </button>
+                <button
+                  type="button"
+                  onClick={() => openAuthPdf(`${API_BASE}/delivery-slips/transaction/${selectedTransactionId}/waiver`)}
+                  className="inline-flex items-center gap-1.5 px-3 py-2 border border-amber-200 rounded-lg bg-amber-50 hover:bg-amber-100 text-amber-700 text-xs font-medium transition-colors"
+                >
+                  <ClipboardList className="w-3.5 h-3.5" />
+                  Delivery Waiver
+                </button>
+              </div>
             </div>
           )}
 

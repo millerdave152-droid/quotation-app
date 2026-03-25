@@ -125,8 +125,6 @@ router.get('/transaction/:transactionId/view', authenticate, asyncHandler(async 
     // Auto-create from transaction data
     const txnResult = await pool.query(`
       SELECT t.transaction_id, t.customer_id,
-             t.delivery_date, t.delivery_address, t.delivery_city,
-             t.delivery_province, t.delivery_postal_code, t.delivery_notes,
              so.id AS sales_order_id
       FROM transactions t
       LEFT JOIN sales_orders so ON so.transaction_id = t.transaction_id
@@ -141,13 +139,7 @@ router.get('/transaction/:transactionId/view', authenticate, asyncHandler(async 
     const slip = await deliverySlipService.createSlip({
       salesOrderId: txn.sales_order_id,
       transactionId: txn.transaction_id,
-      customerId: txn.customer_id,
-      deliveryDate: txn.delivery_date,
-      deliveryAddress: txn.delivery_address,
-      deliveryCity: txn.delivery_city,
-      deliveryProvince: txn.delivery_province,
-      deliveryPostalCode: txn.delivery_postal_code,
-      deliveryNotes: txn.delivery_notes
+      customerId: txn.customer_id
     }, req.user?.id);
 
     existing = { id: slip.id };
@@ -300,6 +292,47 @@ router.get('/:id/waiver', authenticate, asyncHandler(async (req, res) => {
   if (isNaN(slipId)) throw ApiError.badRequest('Invalid slip ID');
 
   const pdfBuffer = await deliveryWaiverService.generateWaiverPdf(slipId);
+
+  res.setHeader('Content-Type', 'application/pdf');
+  res.setHeader('Content-Disposition', 'inline');
+  res.setHeader('Content-Length', pdfBuffer.length);
+  res.send(pdfBuffer);
+}));
+
+/**
+ * GET /api/delivery-slips/transaction/:transactionId/waiver — Waiver by transaction (auto-create slip if needed)
+ */
+router.get('/transaction/:transactionId/waiver', authenticate, asyncHandler(async (req, res) => {
+  const transactionId = parseInt(req.params.transactionId);
+  if (isNaN(transactionId)) throw ApiError.badRequest('Invalid transaction ID');
+
+  // Find existing or create slip (same logic as /transaction/:id/view)
+  let existing = await deliverySlipService.getSlipByTransaction(transactionId);
+
+  if (!existing) {
+    const txnResult = await pool.query(`
+      SELECT t.transaction_id, t.customer_id,
+             so.id AS sales_order_id
+      FROM transactions t
+      LEFT JOIN sales_orders so ON so.transaction_id = t.transaction_id
+      WHERE t.transaction_id = $1
+    `, [transactionId]);
+
+    if (!txnResult.rows.length) {
+      throw ApiError.notFound('Transaction not found');
+    }
+
+    const txn = txnResult.rows[0];
+    const slip = await deliverySlipService.createSlip({
+      salesOrderId: txn.sales_order_id,
+      transactionId: txn.transaction_id,
+      customerId: txn.customer_id
+    }, req.user?.id);
+
+    existing = { id: slip.id };
+  }
+
+  const pdfBuffer = await deliveryWaiverService.generateWaiverPdf(existing.id);
 
   res.setHeader('Content-Type', 'application/pdf');
   res.setHeader('Content-Disposition', 'inline');

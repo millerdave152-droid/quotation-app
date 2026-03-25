@@ -48,6 +48,7 @@ const navItems = {
   quotes: { path: '/quotes', icon: FileText, label: 'Quotations', hasBadge: true },
   'sales-performance': { path: '/sales-performance', icon: TrendingUp, label: 'Sales Performance' },
   invoices: { path: '/invoices', icon: Receipt, label: 'Invoices' },
+  documents: { path: '/documents', icon: FileText, label: 'Document Center' },
   inventory: { path: '/inventory', icon: Warehouse, label: 'Inventory' },
   pricing: { path: '/pricing', icon: DollarSign, label: 'Pricing Rules' },
   'manufacturer-promotions': { path: '/manufacturer-promotions', icon: Tag, label: 'Mfr Promotions' },
@@ -96,7 +97,7 @@ const navSections = [
     id: 'sales',
     title: 'Sales',
     icon: Users,
-    items: ['customers', 'leads', 'quotes', 'sales-performance', 'team-commissions', 'invoices', 'special-orders', 'customer-accounts', 'pre-orders']
+    items: ['customers', 'leads', 'quotes', 'sales-performance', 'team-commissions', 'invoices', 'documents', 'special-orders', 'customer-accounts', 'pre-orders']
   },
   {
     id: 'inventory',

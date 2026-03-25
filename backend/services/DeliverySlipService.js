@@ -14,6 +14,10 @@
  */
 
 const PDFDocument = require('pdfkit');
+const path = require('path');
+const fs = require('fs');
+
+const LOGO_PATH = path.join(__dirname, '..', 'assets', 'logos', 'teletime-logo-colour-400.png');
 
 const COLORS = {
   primary: '#1e40af',
@@ -90,7 +94,7 @@ class DeliverySlipService {
         t.transaction_number,
         t.total_amount,
         t.user_id    AS cashier_id,
-        so.order_number AS sales_order_number
+        so.sales_order_number
       FROM delivery_slips ds
       LEFT JOIN customers c   ON ds.customer_id = c.id
       LEFT JOIN transactions t ON ds.transaction_id = t.transaction_id
@@ -111,7 +115,7 @@ class DeliverySlipService {
         SELECT
           ti.product_name, ti.product_sku, ti.quantity,
           ti.serial_number,
-          p.manufacturer, p.model_number, p.model
+          p.manufacturer, p.model AS model_number, p.model
         FROM transaction_items ti
         LEFT JOIN products p ON ti.product_id = p.id
         WHERE ti.transaction_id = $1
@@ -166,7 +170,7 @@ class DeliverySlipService {
         status, driver_name, vehicle_number,
         created_by, tenant_id
       ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,
-        current_setting('app.current_tenant', true)::INTEGER)
+        current_setting('app.current_tenant', true)::UUID)
       RETURNING *
     `, [
       data.salesOrderId || null,
@@ -264,8 +268,13 @@ class DeliverySlipService {
       // ============================================
       // HEADER — Logo / Company / Slip Badge
       // ============================================
-      doc.fontSize(26).font('Helvetica-Bold').fillColor(COLORS.primary)
-        .text('Teletime', 50, 16);
+      if (fs.existsSync(LOGO_PATH)) {
+        try { doc.image(LOGO_PATH, 50, 12, { width: 120 }); } catch {
+          doc.fontSize(26).font('Helvetica-Bold').fillColor(COLORS.primary).text('Teletime', 50, 16);
+        }
+      } else {
+        doc.fontSize(26).font('Helvetica-Bold').fillColor(COLORS.primary).text('Teletime', 50, 16);
+      }
       let headerY = 44;
 
       doc.fontSize(9).font('Helvetica').fillColor(COLORS.textMuted);
@@ -549,18 +558,27 @@ class DeliverySlipService {
       // Signature line (large space)
       doc.fontSize(10).font('Helvetica-Bold').fillColor('#000000')
         .text('Customer Signature', 70, sigY);
-      sigY += 10;
-      doc.moveTo(70, sigY + 22).lineTo(350, sigY + 22)
+      sigY += 14;
+      doc.moveTo(70, sigY + 24).lineTo(450, sigY + 24)
         .strokeColor('#000000').lineWidth(1.5).stroke();
-      sigY += 30;
+      sigY += 34;
 
-      // Print name + date/time
+      // Print name with drawn line
       doc.fontSize(8).font('Helvetica-Bold').fillColor('#000000')
-        .text('Print Name: ___________________________________________', 70, sigY);
-      sigY += 16;
-      doc.font('Helvetica-Bold').fillColor('#000000')
-        .text('Date of Delivery: _______________________   Time of Delivery: _______________________', 70, sigY);
-      sigY += 20;
+        .text('Print Name:', 70, sigY);
+      doc.moveTo(140, sigY + 10).lineTo(350, sigY + 10)
+        .strokeColor('#000000').lineWidth(1).stroke();
+      sigY += 18;
+
+      // Date and time with drawn lines
+      doc.fontSize(8).font('Helvetica-Bold').fillColor('#000000')
+        .text('Date of Delivery:', 70, sigY);
+      doc.moveTo(155, sigY + 10).lineTo(270, sigY + 10)
+        .strokeColor('#000000').lineWidth(1).stroke();
+      doc.text('Time of Delivery:', 290, sigY);
+      doc.moveTo(380, sigY + 10).lineTo(500, sigY + 10)
+        .strokeColor('#000000').lineWidth(1).stroke();
+      sigY += 22;
 
       // Checkboxes
       doc.rect(70, sigY, 10, 10).strokeColor('#000000').lineWidth(1).stroke();
@@ -588,6 +606,7 @@ class DeliverySlipService {
       const pageCount = doc.bufferedPageRange().count;
       for (let i = 0; i < pageCount; i++) {
         doc.switchToPage(i);
+        doc.save();
 
         doc.moveTo(50, 740).lineTo(562, 740)
           .strokeColor(COLORS.border).lineWidth(1).stroke();
@@ -606,8 +625,10 @@ class DeliverySlipService {
 
         const contactParts = [this.companyWebsite, this.companyPhone, this.companyEmail].filter(Boolean);
         doc.fontSize(7).text(contactParts.join('  |  '), 50, 768, { width: 512, align: 'center', lineBreak: false });
+        doc.restore();
       }
 
+      if (pageCount > 0) doc.switchToPage(pageCount - 1);
       doc.end();
     });
   }

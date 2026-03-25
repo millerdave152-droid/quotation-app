@@ -3,13 +3,13 @@
  *
  * Generates a 2-page Delivery Waiver PDF using PDFKit.
  * Page 1: Pre-delivery preparation instructions and delivery challenges.
- * Page 2: Post-delivery sign-off with signature lines.
+ * Page 2: Appliance installation, post-delivery, note, and delivery sign-off with signature lines.
  */
 
 const PDFDocument = require('pdfkit');
 
 const COLORS = {
-  primary: '#1e40af',
+  primary: '#1e3a6e',
   text: '#1f2937',
   textSecondary: '#374151',
   textMuted: '#333333',
@@ -27,16 +27,14 @@ class DeliveryWaiverService {
   }
 
   /**
-   * Query delivery slip data joined with customers and transactions
-   * @param {number} slipId - Delivery slip ID
-   * @returns {Promise<object>} - Slip data with customer and transaction info
+   * Query delivery slip data joined with customers and transactions.
+   * Falls back to first_name/last_name if name is null, and defaults to 'Walk-in Customer'.
    */
   async getSlipData(slipId) {
     const query = `
       SELECT
         ds.*,
-        c.first_name AS customer_first_name,
-        c.last_name AS customer_last_name,
+        c.name AS customer_name,
         c.email AS customer_email,
         c.phone AS customer_phone,
         c.address AS customer_address,
@@ -57,8 +55,6 @@ class DeliveryWaiverService {
 
   /**
    * Generate a 2-page Delivery Waiver PDF for a given delivery slip
-   * @param {number} slipId - Delivery slip ID
-   * @returns {Promise<Buffer>} - PDF as a buffer
    */
   async generateWaiverPdf(slipId) {
     const slip = await this.getSlipData(slipId);
@@ -67,7 +63,7 @@ class DeliveryWaiverService {
       try {
         const doc = new PDFDocument({
           size: 'LETTER',
-          margins: { top: 40, bottom: 60, left: 50, right: 50 }
+          margins: { top: 40, bottom: 0, left: 50, right: 50 }
         });
 
         const chunks = [];
@@ -77,22 +73,21 @@ class DeliveryWaiverService {
 
         const pageWidth = doc.page.width;
         const marginLeft = 50;
-        const marginRight = 50;
-        const contentWidth = pageWidth - marginLeft - marginRight;
+        const contentWidth = pageWidth - marginLeft - 50;
 
         // =====================================================================
-        // PAGE 1 — DELIVERY WAIVER
+        // PAGE 1 — Header + Preparing for Delivery + Delivery Challenges
         // =====================================================================
         this._drawPage1Header(doc, slip, marginLeft, contentWidth);
         this._drawPage1Body(doc, marginLeft, contentWidth);
-        this._drawFooter(doc, 1, marginLeft, contentWidth);
+        this._drawFooterAbsolute(doc, 1, marginLeft, contentWidth);
 
         // =====================================================================
-        // PAGE 2 — POST-DELIVERY SIGN-OFF
+        // PAGE 2 — Installation + Post-Delivery + Note + Sign-Off
         // =====================================================================
         doc.addPage();
         this._drawPage2Body(doc, marginLeft, contentWidth);
-        this._drawFooter(doc, 2, marginLeft, contentWidth);
+        this._drawFooterAbsolute(doc, 2, marginLeft, contentWidth);
 
         doc.end();
       } catch (err) {
@@ -105,9 +100,7 @@ class DeliveryWaiverService {
    * Draw page 1 header with store name, title, and order details
    */
   _drawPage1Header(doc, slip, marginLeft, contentWidth) {
-    const customerName = [slip.customer_first_name, slip.customer_last_name]
-      .filter(Boolean)
-      .join(' ') || 'N/A';
+    const customerName = slip.customer_name || 'Walk-in Customer';
     const deliveryDate = slip.delivery_date
       ? new Date(slip.delivery_date).toLocaleDateString('en-CA')
       : 'TBD';
@@ -135,7 +128,7 @@ class DeliveryWaiverService {
   }
 
   /**
-   * Draw page 1 body — preparation instructions and delivery challenges
+   * Page 1 body — PREPARING FOR YOUR APPLIANCE DELIVERY + DELIVERY CHALLENGES only
    */
   _drawPage1Body(doc, marginLeft, contentWidth) {
     let y = 108;
@@ -177,21 +170,17 @@ class DeliveryWaiverService {
         .text(`${i + 1}.`, marginLeft, y, { width: numberWidth });
 
       doc.fontSize(8).font('Helvetica').fillColor(COLORS.textMuted);
-      const textHeight = doc.heightOfString(bullets[i], {
-        width: bulletTextWidth
-      });
-      doc.text(bullets[i], marginLeft + numberWidth, y, {
-        width: bulletTextWidth
-      });
-      y += textHeight + 6;
+      const textHeight = doc.heightOfString(bullets[i], { width: bulletTextWidth });
+      doc.text(bullets[i], marginLeft + numberWidth, y, { width: bulletTextWidth });
+      y += textHeight + 5;
     }
 
-    y += 10;
+    y += 8;
 
     // Section: DELIVERY CHALLENGES
     doc.fontSize(10).font('Helvetica-Bold').fillColor(COLORS.text)
       .text('DELIVERY CHALLENGES', marginLeft, y);
-    y += 16;
+    y += 14;
 
     doc.fontSize(8).font('Helvetica').fillColor(COLORS.textMuted);
     const challenge1 = 'Please inform your sales associate if we are delivering to a townhome or second floor kitchen location.';
@@ -203,34 +192,33 @@ class DeliveryWaiverService {
   }
 
   /**
-   * Draw page 2 body — post-delivery info and signature section
+   * Page 2 body — APPLIANCE INSTALLATION + POST-DELIVERY + NOTE + DELIVERY SIGN-OFF
    */
   _drawPage2Body(doc, marginLeft, contentWidth) {
     let y = 50;
 
-    // Section: APPLIANCE INSTALLATION
+    // ── APPLIANCE INSTALLATION ──
     doc.fontSize(10).font('Helvetica-Bold').fillColor(COLORS.text)
       .text('APPLIANCE INSTALLATION', marginLeft, y);
-    y += 16;
+    y += 14;
 
     doc.fontSize(8).font('Helvetica').fillColor(COLORS.textMuted);
     doc.text(
       'Please remember, if you have any questions, contact your Sales Associate at (905) 273-5550',
       marginLeft, y, { width: contentWidth }
     );
-    y += 14;
+    y += 12;
 
     const installNote = 'If you require installation of any gas or built-in appliances (dishwashers, wall ovens, pro appliances, etc), please see your Sales Associate.';
     doc.text(`\u2022  ${installNote}`, marginLeft, y, { width: contentWidth });
-    y += doc.heightOfString(`\u2022  ${installNote}`, { width: contentWidth }) + 14;
+    y += doc.heightOfString(`\u2022  ${installNote}`, { width: contentWidth }) + 12;
 
-    // Section: POST-DELIVERY
+    // ── POST-DELIVERY ──
     doc.fontSize(10).font('Helvetica-Bold').fillColor(COLORS.text)
       .text('POST-DELIVERY', marginLeft, y);
-    y += 16;
+    y += 14;
 
     doc.fontSize(8).font('Helvetica').fillColor(COLORS.textMuted);
-
     const postItems = [
       'It is our expectation that our delivery personnel will present themselves in a clean, professional and courteous manner. Should you have any questions or concerns regarding your delivery, please write your comments on the sign-off sheet, or contact our delivery office at 905-273-5550. Your feedback is essential to help us maintain the highest possible level of service.',
       'Should you have any questions regarding the operation or performance of your product please contact your sales associate or feel free to call 905-273-5550. We look forward to assisting you!',
@@ -240,85 +228,80 @@ class DeliveryWaiverService {
     for (const item of postItems) {
       const bulletText = `\u2022  ${item}`;
       doc.text(bulletText, marginLeft, y, { width: contentWidth });
-      y += doc.heightOfString(bulletText, { width: contentWidth }) + 6;
+      y += doc.heightOfString(bulletText, { width: contentWidth }) + 5;
     }
 
-    y += 10;
+    y += 6;
 
-    // NOTE
+    // ── NOTE ──
     doc.fontSize(8).font('Helvetica-Bold').fillColor(COLORS.text);
     const noteText = 'NOTE: Our delivery personnel are authorized to decline any delivery that they feel will cause excessive damage, personal injury, or if they are being subjected to verbal or physical abuse.';
     doc.text(noteText, marginLeft, y, { width: contentWidth });
-    y += doc.heightOfString(noteText, { width: contentWidth }) + 24;
+    y += doc.heightOfString(noteText, { width: contentWidth }) + 16;
 
     // =====================================================================
-    // SIGNATURE SECTION
+    // DELIVERY SIGN-OFF — drawn lines for each field
     // =====================================================================
-    this._drawSignatureSection(doc, marginLeft, contentWidth, y);
-  }
 
-  /**
-   * Draw signature fields with bold labels and drawn lines
-   */
-  _drawSignatureSection(doc, marginLeft, contentWidth, startY) {
-    let y = startY;
-    const labelWidth = 120;
-    const lineStartX = marginLeft + labelWidth;
-    const lineLength = contentWidth - labelWidth;
-    const rowSpacing = 36;
+    // Thick blue horizontal rule
+    doc.moveTo(marginLeft, y)
+      .lineTo(marginLeft + contentWidth, y)
+      .strokeColor(COLORS.primary)
+      .lineWidth(2)
+      .stroke();
+    y += 8;
 
-    const drawField = (label, yPos) => {
-      doc.fontSize(9).font('Helvetica-Bold').fillColor(COLORS.text)
-        .text(label, marginLeft, yPos);
-      doc.moveTo(lineStartX, yPos + 12)
-        .lineTo(lineStartX + lineLength, yPos + 12)
+    // Section header
+    doc.fontSize(13).font('Helvetica-Bold').fillColor(COLORS.primary)
+      .text('DELIVERY SIGN-OFF', marginLeft, y, { lineBreak: false });
+    y += 20;
+
+    // Signature fields with drawn lines
+    const x = marginLeft;
+
+    const drawField = (label, labelW, lineEnd, extraGap) => {
+      doc.fontSize(10).font('Helvetica-Bold').fillColor('#000000')
+        .text(label, x, y, { lineBreak: false });
+      doc.moveTo(x + labelW, y + 10)
+        .lineTo(x + lineEnd, y + 10)
         .strokeColor('#000000')
         .lineWidth(1.5)
         .stroke();
+      y += extraGap;
     };
 
-    drawField('Customer Name:', y);
-    y += rowSpacing;
-    drawField('Date:', y);
-    y += rowSpacing;
-    drawField('Signature:', y);
-    y += rowSpacing;
-    drawField('Invoice #:', y);
-    y += rowSpacing + 10;
+    // Customer fields
+    drawField('Customer Name:', 110, 400, 35);
+    drawField('Date:', 42, 300, 35);
+    drawField('Signature:', 75, 450, 45);
+    drawField('Invoice #:', 70, 300, 35);
 
-    drawField('Employee Name:', y);
-    y += rowSpacing;
-    drawField('Date:', y);
-    y += rowSpacing;
-    drawField('Signature:', y);
+    // Employee fields
+    drawField('Employee Name:', 110, 400, 35);
+    drawField('Date:', 42, 300, 35);
+    drawField('Signature:', 75, 450, 45);
   }
 
   /**
-   * Draw footer on the current page
+   * Draw footer at absolute bottom of current page
    */
-  _drawFooter(doc, pageNumber, marginLeft, contentWidth) {
-    const footerY = 740;
+  _drawFooterAbsolute(doc, pageNumber, marginLeft, contentWidth) {
+    const footerY = 752;
 
-    // Horizontal rule
     doc.moveTo(marginLeft, footerY)
       .lineTo(marginLeft + contentWidth, footerY)
       .strokeColor(COLORS.borderMedium)
       .lineWidth(1)
       .stroke();
 
-    doc.fontSize(8).font('Helvetica').fillColor(COLORS.textLight);
-    doc.text(`Page ${pageNumber} of 2`, marginLeft, footerY + 8, {
-      width: contentWidth,
-      align: 'left'
-    });
-    doc.text('Teletime Superstores | (905) 273-5550', marginLeft, footerY + 8, {
-      width: contentWidth,
-      align: 'center'
-    });
-    doc.text('www.teletime.ca', marginLeft, footerY + 8, {
-      width: contentWidth,
-      align: 'right'
-    });
+    doc.fontSize(8).font('Helvetica').fillColor(COLORS.textLight)
+      .text(`Page ${pageNumber} of 2`, marginLeft, footerY + 5, { lineBreak: false });
+
+    doc.fontSize(8).font('Helvetica').fillColor(COLORS.textLight)
+      .text('Teletime Superstores | (905) 273-5550', marginLeft + 130, footerY + 5, { lineBreak: false });
+
+    doc.fontSize(8).font('Helvetica').fillColor(COLORS.textLight)
+      .text('www.teletime.ca', marginLeft + contentWidth - 80, footerY + 5, { lineBreak: false });
   }
 }
 

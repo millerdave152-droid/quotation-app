@@ -11,11 +11,8 @@
  */
 
 const PDFDocument = require('pdfkit');
-const path = require('path');
-const fs = require('fs');
 const { SESv2Client, SendEmailCommand } = require('@aws-sdk/client-sesv2');
 
-const LOGO_PATH = path.join(__dirname, '..', 'assets', 'logos', 'teletime-logo-colour-400.png');
 
 // QR Code generation - will be dynamically loaded if available
 let QRCode = null;
@@ -33,12 +30,12 @@ const COLORS = {
   primaryLight: '#3b82f6',  // Light blue - links
   text: '#1f2937',          // Near black - main text
   textSecondary: '#374151', // Dark gray
-  textMuted: '#6b7280',     // Medium gray
-  textLight: '#9ca3af',     // Light gray
+  textMuted: '#333333',     // Medium gray - darkened for print
+  textLight: '#444444',     // Light gray - darkened for print
   bgLight: '#f8fafc',       // Off-white
   bgMuted: '#fafafa',       // Very light
   border: '#e5e7eb',        // Light gray border
-  borderMedium: '#d1d5db',  // Medium border
+  borderMedium: '#888888',  // Medium border - darkened for print
   success: '#10b981',       // Green
   error: '#dc2626',         // Red
   warning: '#f59e0b'        // Amber
@@ -682,17 +679,12 @@ class ReceiptService {
       // HEADER - Logo & Company Info & Receipt Badge
       // ============================================
 
-      // Company Logo (falls back to text name if logo file missing)
+      // Company name as professional text header
+      doc.fontSize(26)
+         .font('Helvetica-Bold')
+         .fillColor(COLORS.primary)
+         .text('Teletime', 50, 16);
       let headerY = 44;
-      if (fs.existsSync(LOGO_PATH)) {
-        doc.image(LOGO_PATH, 50, 14, { width: 160 });
-        headerY = 50;
-      } else {
-        doc.fontSize(22)
-           .font('Helvetica-Bold')
-           .fillColor(COLORS.primary)
-           .text(this.companyName, 50, 20);
-      }
 
       // Company contact info (below logo/name)
       doc.fontSize(9)
@@ -763,7 +755,7 @@ class ReceiptService {
         doc.moveTo(60, yPos + 18)
            .lineTo(120, yPos + 18)
            .strokeColor(COLORS.border)
-           .lineWidth(0.5)
+           .lineWidth(0.75)
            .stroke();
 
         let custY = yPos + 24;
@@ -828,7 +820,7 @@ class ReceiptService {
         doc.moveTo(50, yPos + rowHeight)
            .lineTo(562, yPos + rowHeight)
            .strokeColor(COLORS.border)
-           .lineWidth(0.5)
+           .lineWidth(0.75)
            .stroke();
 
         const rowY = yPos + 7;
@@ -886,7 +878,7 @@ class ReceiptService {
             doc.moveTo(50, yPos + warrantyRowHeight)
                .lineTo(562, yPos + warrantyRowHeight)
                .strokeColor(COLORS.border)
-               .lineWidth(0.5)
+               .lineWidth(0.75)
                .stroke();
 
             const wRowY = yPos + 5;
@@ -1025,7 +1017,7 @@ class ReceiptService {
 
       doc.fontSize(10)
          .font('Helvetica-Bold')
-         .fillColor(COLORS.text)
+         .fillColor('#000000')
          .text('PAYMENT DETAILS', 50, yPos);
 
       yPos += 14;
@@ -1096,21 +1088,25 @@ class ReceiptService {
       if (sigs.length > 0) {
         doc.fontSize(10)
           .font('Helvetica-Bold')
-          .fillColor(COLORS.text)
+          .fillColor('#000000')
           .text('SIGNATURES ON FILE', 50, yPos);
 
         yPos += 10;
         for (const sig of sigs) {
           const label = `${(sig.signatureType || 'signature').toUpperCase()} - ${sig.signerName || 'Customer'}`;
           doc.fontSize(8)
-            .font('Helvetica')
-            .fillColor(COLORS.textSecondary)
+            .font('Helvetica-Bold')
+            .fillColor('#000000')
             .text(label, 60, yPos + 6);
 
           if (sig.capturedAt) {
             doc.fontSize(7)
+              .font('Helvetica-Bold')
+              .fillColor('#000000')
+              .text('Date:', 60, yPos + 18);
+            doc.font('Helvetica')
               .fillColor(COLORS.textMuted)
-              .text(this.formatDate(sig.capturedAt), 60, yPos + 18);
+              .text(this.formatDate(sig.capturedAt), 85, yPos + 18);
           }
 
           const imgBuffer = this.signatureToImageBuffer(sig);
@@ -1121,9 +1117,22 @@ class ReceiptService {
               console.error('[ReceiptService] Signature image embed error:', imgErr);
             }
           } else {
+            // Signature line
+            doc.moveTo(320, yPos + 45)
+              .lineTo(500, yPos + 45)
+              .strokeColor('#000000')
+              .lineWidth(1.5)
+              .stroke();
+
             doc.fontSize(7)
-              .fillColor(COLORS.textMuted)
-              .text('Signature stored (image not embedded in PDF)', 320, yPos + 18, { width: 220 });
+              .font('Helvetica-Bold')
+              .fillColor('#000000')
+              .text('Print Name:', 320, yPos + 50);
+            doc.moveTo(380, yPos + 58)
+              .lineTo(500, yPos + 58)
+              .strokeColor('#000000')
+              .lineWidth(1.5)
+              .stroke();
           }
 
           yPos += 60;
@@ -1441,7 +1450,7 @@ class ReceiptService {
         doc.moveTo(50, 745)
            .lineTo(562, 745)
            .strokeColor(COLORS.border)
-           .lineWidth(0.5)
+           .lineWidth(1)
            .stroke();
 
         // Contact info
@@ -2736,6 +2745,9 @@ class ReceiptService {
       };
     } catch (error) {
       console.error('[ReceiptService] Email send error:', error);
+      if (error.name === 'MessageRejected' && error.message.includes('not verified')) {
+        throw new Error('Email could not be sent. The recipient address has not been verified with our email provider. Please contact the store to verify this email address or try a different one.');
+      }
       throw new Error(`Failed to send email: ${error.message}`);
     }
   }

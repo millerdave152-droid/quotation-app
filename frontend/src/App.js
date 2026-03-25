@@ -96,6 +96,7 @@ const PreOrderManager = React.lazy(() => import('./components/sales/PreOrderMana
 const SurveyDashboard = React.lazy(() => import('./components/marketing/SurveyDashboard'));
 const CatalogExportManager = React.lazy(() => import('./components/marketing/CatalogExportManager'));
 const AudienceSyncManager = React.lazy(() => import('./components/marketing/AudienceSyncManager'));
+const DocumentCenter = React.lazy(() => import('./components/documents/DocumentCenter'));
 
 // Team Commissions (Rules, Payroll, Export)
 const TeamCommissions = React.lazy(() => import('./components/commissions/TeamCommissions'));
@@ -493,6 +494,7 @@ function App() {
           <Route path="/orders/:id" element={<OrdersNew />} />
           <Route path="/invoices" element={<InvoiceManager />} />
           <Route path="/invoices/ar" element={<ARDashboardNew />} />
+          <Route path="/documents" element={<DocumentCenter />} />
           <Route path="/inventory" element={<InventoryDashboard />} />
           <Route path="/quote-expiry" element={<QuoteExpiryManager />} />
           {/* Advanced Pricing */}

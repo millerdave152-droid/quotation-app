@@ -5,7 +5,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { formatCurrency, formatDateTime } from '../../utils/formatters';
-import { AlertTriangle, CheckCircle, Clock, ExternalLink, Mail, MinusCircle, PlusCircle, Printer, ShieldCheck, SquarePen, Trash2, X } from 'lucide-react';
+import { AlertTriangle, CheckCircle, ClipboardList, Clock, ExternalLink, FileText, Mail, MinusCircle, PlusCircle, Printer, ShieldCheck, SquarePen, Trash2, Truck, X } from 'lucide-react';
 
 const API_BASE = import.meta.env.VITE_API_URL || '/api';
 const getToken = () => localStorage.getItem('pos_token') || localStorage.getItem('auth_token') || '';
@@ -620,6 +620,69 @@ export function TransactionDetails({
                   </div>
                 </div>
               )}
+
+              {/* Document Reprint Buttons */}
+              <div>
+                <h3 className="font-semibold text-gray-900 mb-3">Documents</h3>
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const url = `${API_BASE}/receipts/${transactionId}/preview`;
+                      fetch(url, { headers: { Authorization: `Bearer ${getToken()}` } })
+                        .then(r => r.blob())
+                        .then(b => window.open(URL.createObjectURL(b), '_blank'))
+                        .catch(() => alert('Failed to load receipt'));
+                    }}
+                    className="inline-flex items-center gap-1.5 px-3 py-2 border border-gray-200 rounded-lg bg-gray-50 hover:bg-gray-100 text-gray-700 text-sm font-medium transition-colors"
+                  >
+                    <Printer className="w-4 h-4" />
+                    Receipt
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const url = `${API_BASE}/sales-orders/${transactionId}/view`;
+                      fetch(url, { headers: { Authorization: `Bearer ${getToken()}` } })
+                        .then(r => r.blob())
+                        .then(b => window.open(URL.createObjectURL(b), '_blank'))
+                        .catch(() => alert('Failed to load sales order'));
+                    }}
+                    className="inline-flex items-center gap-1.5 px-3 py-2 border border-blue-200 rounded-lg bg-blue-50 hover:bg-blue-100 text-blue-700 text-sm font-medium transition-colors"
+                  >
+                    <FileText className="w-4 h-4" />
+                    Sales Order
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const url = `${API_BASE}/delivery-slips/transaction/${transactionId}/view`;
+                      fetch(url, { headers: { Authorization: `Bearer ${getToken()}` } })
+                        .then(r => r.blob())
+                        .then(b => window.open(URL.createObjectURL(b), '_blank'))
+                        .catch(() => alert('Failed to load delivery slip'));
+                    }}
+                    className="inline-flex items-center gap-1.5 px-3 py-2 border border-cyan-200 rounded-lg bg-cyan-50 hover:bg-cyan-100 text-cyan-700 text-sm font-medium transition-colors"
+                  >
+                    <Truck className="w-4 h-4" />
+                    Delivery Slip
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const url = `${API_BASE}/delivery-slips/transaction/${transactionId}/waiver`;
+                      fetch(url, { headers: { Authorization: `Bearer ${getToken()}` } })
+                        .then(r => r.blob())
+                        .then(b => window.open(URL.createObjectURL(b), '_blank'))
+                        .catch(() => alert('Failed to load delivery waiver'));
+                    }}
+                    className="inline-flex items-center gap-1.5 px-3 py-2 border border-amber-200 rounded-lg bg-amber-50 hover:bg-amber-100 text-amber-700 text-sm font-medium transition-colors"
+                  >
+                    <ClipboardList className="w-4 h-4" />
+                    Delivery Waiver
+                  </button>
+                </div>
+              </div>
 
               {/* Amendment Form */}
               {showAmendForm && (
