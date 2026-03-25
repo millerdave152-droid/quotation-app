@@ -255,7 +255,7 @@ const QuoteBuilder = ({
     // EHF calculation — only TVs, Blu-ray/DVD, Projectors (not taxable)
     let ehfTotal = 0;
     for (const item of quoteItems) {
-      const combined = `${item.model || ''} ${item.name || ''} ${item.category || ''} ${item.description || ''} ${item.manufacturer || ''}`.toLowerCase();
+      const combined = `${item.model || ''} ${item.name || ''} ${item.category || ''} ${item.description || ''} ${item.manufacturer || ''} ${item.product_name || ''}`.toLowerCase();
       let ehfPerUnit = 0;
       if (combined.includes('tv') || combined.includes('television')) {
         const sizeMatch = (item.model || item.name || '').match(/(\d{2,3})\s*["\'″]|(\d{2,3})\s*-?\s*inch/i)
@@ -1743,12 +1743,10 @@ const QuoteBuilder = ({
                 <span style={{ fontWeight: 'bold' }}>${totals.tax.toFixed(2)}</span>
               </div>
 
-              {totals.ehfTotal > 0 && (
-                <div style={{ marginBottom: '12px', display: 'flex', justifyContent: 'space-between', color: '#92400e' }}>
-                  <span>Env. Handling Fee (EHF):</span>
-                  <span style={{ fontWeight: 'bold' }}>${totals.ehfTotal.toFixed(2)}</span>
-                </div>
-              )}
+              <div style={{ marginBottom: '12px', display: 'flex', justifyContent: 'space-between', color: totals.ehfTotal > 0 ? '#92400e' : '#9ca3af' }}>
+                <span>Env. Handling Fee (EHF):</span>
+                <span style={{ fontWeight: 'bold' }}>${totals.ehfTotal.toFixed(2)}</span>
+              </div>
 
               <div style={{ paddingTop: '12px', marginTop: '12px', borderTop: '2px solid #333', display: 'flex', justifyContent: 'space-between', fontSize: '20px' }}>
                 <span style={{ fontWeight: 'bold' }}>TOTAL:</span>

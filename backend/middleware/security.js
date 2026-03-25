@@ -103,7 +103,7 @@ const corsOptions = (req, callback) => {
 
   const options = {
     origin: isAllowed,
-    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
     allowedHeaders: [
       'Content-Type',
       'Authorization',
@@ -128,7 +128,7 @@ const corsOptions = (req, callback) => {
  */
 const generalLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: process.env.NODE_ENV === 'production' ? 100 : 10000, // Much more lenient in development
+  max: process.env.NODE_ENV === 'production' ? 1000 : 10000, // 1000 per 15min in prod (POS needs high throughput)
   message: {
     success: false,
     message: 'Too many requests from this IP, please try again later.',
@@ -163,14 +163,14 @@ const generalLimiter = rateLimit({
  */
 const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: process.env.NODE_ENV === 'production' ? 5 : 500, // 5 in production, 500 in development
+  max: process.env.NODE_ENV === 'production' ? 30 : 500, // 30 in prod (allows token refreshes + retries)
   message: {
     success: false,
     message: 'Too many login attempts, please try again later.',
   },
   standardHeaders: true,
   legacyHeaders: false,
-  skipSuccessfulRequests: false, // Count successful requests
+  skipSuccessfulRequests: true, // Only count failed attempts (brute force protection)
   handler: (req, res) => {
     (req.log || logger).warn({ ip: req.ip, path: req.path }, `Auth rate limit exceeded for IP: ${req.ip}, Path: ${req.path}`);
     res.status(429).json({
