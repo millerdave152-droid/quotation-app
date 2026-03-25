@@ -293,6 +293,28 @@ router.get('/exemption-reasons', asyncHandler(async (req, res) => {
   });
 }));
 
+// ============================================================================
+// EHF CALCULATION
+// ============================================================================
+
+/**
+ * POST /api/tax/ehf/calculate
+ * Calculate Environmental Handling Fees for cart items.
+ * Body: { items: [{ id, name, category, description, quantity }], province: 'ON' }
+ * Returns: { totalEHF, items: [{ productId, name, ehfPerUnit, quantity, ehfTotal, ehfCategory }] }
+ */
+router.post('/ehf/calculate', asyncHandler(async (req, res) => {
+  const { items, province = 'ON' } = req.body;
+  if (!items || !Array.isArray(items)) {
+    throw ApiError.badRequest('items array is required');
+  }
+
+  const taxEngine = require('../services/TaxEngine');
+  const result = taxEngine.calculateCartEHF(items, province);
+
+  res.json({ success: true, data: result });
+}));
+
 module.exports = { init: initTaxRoutes };
 
 function initTaxRoutes({ taxService }) {

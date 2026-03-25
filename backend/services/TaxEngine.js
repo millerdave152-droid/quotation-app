@@ -40,6 +40,97 @@ class TaxEngine {
   }
 
   // ─── Environmental Handling Fee lookup ──────────────────────────────
+  // Ontario TV EHF is size-tiered per EPRA schedule
+  getEHFForTV(screenSizeInches, province) {
+    if (province !== 'ON') return this.getEHF('TVs', province).ehfAmount;
+    if (!screenSizeInches || screenSizeInches <= 0) return 19.25; // default to largest tier
+    if (screenSizeInches <= 29) return 8.25;
+    if (screenSizeInches <= 45) return 14.65;
+    return 19.25; // 46" and larger
+  }
+
+  // Calculate EHF for a single product based on category and attributes
+  getProductEHF(product, province) {
+    if (!province) province = 'ON'; // default to Ontario
+    const cat = (product.category || '').toLowerCase();
+    const name = (product.name || '').toLowerCase();
+    const desc = (product.description || '').toLowerCase();
+    const combined = `${cat} ${name} ${desc}`;
+
+    // TV — size-tiered
+    if (cat.includes('tv') || cat.includes('television') || combined.includes('tv') || combined.includes('television')) {
+      // Try to extract screen size from name/description (e.g., "65 inch", "55\"", "43-inch")
+      const sizeMatch = (product.name || '').match(/(\d{2,3})\s*["\'″]|(\d{2,3})\s*-?\s*inch/i)
+        || (product.description || '').match(/(\d{2,3})\s*["\'″]|(\d{2,3})\s*-?\s*inch/i);
+      const screenSize = sizeMatch ? parseInt(sizeMatch[1] || sizeMatch[2], 10) : null;
+      return { fee: this.getEHFForTV(screenSize, province), category: 'Television', screenSize };
+    }
+
+    // Blu-ray / DVD players
+    if (combined.includes('blu-ray') || combined.includes('bluray') || combined.includes('dvd player')
+      || (cat.includes('audio') && combined.includes('player'))) {
+      return { fee: 2.25, category: 'Audio/Video Player' };
+    }
+
+    // Projectors
+    if (combined.includes('projector')) {
+      return { fee: 4.50, category: 'Projector' };
+    }
+
+    // Other categories — use flat rate table
+    const ehfData = this.getEHF(this._mapCategoryToEHF(cat, combined), province);
+    return { fee: ehfData.ehfAmount, category: ehfData.category || cat };
+  }
+
+  // Map product category to EHF rate table key
+  _mapCategoryToEHF(cat, combined) {
+    if (cat.includes('refriger') || combined.includes('fridge')) return 'Refrigerators';
+    if (cat.includes('freezer')) return 'Freezers';
+    if (cat.includes('washer') && !cat.includes('dish')) return 'Washers';
+    if (cat.includes('dryer')) return 'Dryers';
+    if (cat.includes('dishwasher')) return 'Dishwashers';
+    if (cat.includes('range') || cat.includes('stove') || cat.includes('oven')) return 'Ranges';
+    if (cat.includes('microwave')) return 'Microwaves';
+    if (cat.includes('air') && combined.includes('condition')) return 'Air_Conditioners';
+    if (cat.includes('monitor')) return 'Monitors';
+    if (cat.includes('computer') || cat.includes('laptop') || cat.includes('desktop')) return 'Computers';
+    if (cat.includes('printer')) return 'Printers';
+    if (cat.includes('audio') || cat.includes('speaker') || cat.includes('soundbar') || cat.includes('headphone')) return 'Audio';
+    if (cat.includes('phone') || cat.includes('smartphone')) return 'Phones';
+    if (cat.includes('tablet') || cat.includes('ipad')) return 'Tablets';
+    if (cat.includes('small appliance')) return 'Small_Appliance';
+    return '';
+  }
+
+  // Calculate total EHF for an array of cart items
+  // Returns { totalEHF, items: [{ productId, name, ehfPerUnit, quantity, ehfTotal, ehfCategory }] }
+  calculateCartEHF(cartItems, province) {
+    if (!province) province = 'ON';
+    let totalEHF = 0;
+    const items = [];
+
+    for (const item of cartItems) {
+      const qty = item.quantity || 1;
+      const result = this.getProductEHF(item, province);
+      const ehfPerUnit = result.fee || 0;
+      const ehfTotal = Math.round(ehfPerUnit * qty * 100) / 100;
+
+      if (ehfPerUnit > 0) {
+        items.push({
+          productId: item.id || item.productId,
+          name: item.name || item.productName,
+          ehfPerUnit,
+          quantity: qty,
+          ehfTotal,
+          ehfCategory: result.category
+        });
+        totalEHF += ehfTotal;
+      }
+    }
+
+    return { totalEHF: Math.round(totalEHF * 100) / 100, items };
+  }
+
   getEHF(productCategory, province) {
     // EHF rates by province — Ontario has the most comprehensive program
     // Rates from Ontario Electronic Stewardship / EPRA / CSSA
@@ -48,7 +139,7 @@ class TaxEngine {
         'Refrigerators': 29.58, 'Freezers': 16.67, 'Washers': 7.35,
         'Dryers': 3.45, 'Dishwashers': 7.35, 'Ranges': 7.35,
         'Microwaves': 7.35, 'Air_Conditioners': 7.35,
-        'TVs': 26.39, 'Monitors': 10.71, 'Computers': 4.42,
+        'TVs': 19.25, 'Monitors': 10.71, 'Computers': 4.42,
         'Printers': 3.23, 'Small_Appliance': 1.52, 'Audio': 1.52,
         'Phones': 0.18, 'Tablets': 0.18
       },

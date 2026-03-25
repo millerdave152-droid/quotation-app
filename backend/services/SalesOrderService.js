@@ -264,6 +264,16 @@ class SalesOrderService {
     // Back-calculate subtotal and HST from the tax-inclusive total
     // total_amount already includes 13% HST in Ontario
     const itemSubtotal = items.reduce((sum, item) => sum + parseFloat(item.line_total || 0), 0);
+
+    // Calculate EHF for items
+    let totalEHF = 0;
+    try {
+      const taxEngine = require('./TaxEngine');
+      const ehfResult = taxEngine.calculateCartEHF(items.map(i => ({
+        name: i.product_name, category: i.manufacturer || '', description: '', quantity: i.quantity
+      })), 'ON');
+      totalEHF = ehfResult.totalEHF;
+    } catch { /* EHF calculation optional */ }
     const subtotal = itemSubtotal > 0 ? itemSubtotal : Math.round(totalDue / 1.13 * 100) / 100;
     const taxAmount = parseFloat(transaction.tax_amount || 0) || Math.round((totalDue - subtotal) * 100) / 100;
     const hasLogo = fs.existsSync(LOGO_PATH);
@@ -591,12 +601,12 @@ class SalesOrderService {
         .text(this.formatCurrency(subtotal), totValX, tY, { width: 80, align: 'right' });
 
       tY += 14;
-      doc.fillColor(COLORS.textMuted).text('Environmental Fee', totLblX, tY);
-      doc.fillColor(COLORS.text).text('$0.00', totValX, tY, { width: 80, align: 'right' });
+      doc.fillColor(COLORS.textMuted).text('Env. Handling Fee (EHF)', totLblX, tY);
+      doc.fillColor(COLORS.text).text(this.formatCurrency(totalEHF), totValX, tY, { width: 80, align: 'right' });
 
       tY += 14;
       doc.fillColor(COLORS.textMuted).text('Sub Total', totLblX, tY);
-      doc.fillColor(COLORS.text).text(this.formatCurrency(subtotal), totValX, tY, { width: 80, align: 'right' });
+      doc.fillColor(COLORS.text).text(this.formatCurrency(subtotal + totalEHF), totValX, tY, { width: 80, align: 'right' });
 
       tY += 14;
       doc.fillColor(COLORS.textMuted).text('GST/HST 13.000%', totLblX, tY);
