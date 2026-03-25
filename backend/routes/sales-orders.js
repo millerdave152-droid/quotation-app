@@ -91,21 +91,91 @@ async function findOrCreateSalesOrder(transactionId, userId, req) {
 }
 
 /**
- * If balance_due > 0, auto-generate an invoice and link it to the sales order.
+ * If balance_due > 0, create a real invoice record and link it to the sales order.
+ * Also generates the PDF for immediate viewing.
  */
 async function autoConvertToInvoice(salesOrder, transactionId) {
   if (salesOrder.balance_due <= 0) return salesOrder;
   if (salesOrder.status === 'invoiced') return salesOrder;
 
   try {
-    await posInvoiceService.generateInvoicePdf(transactionId);
+    // Fetch transaction details for invoice creation
+    const txnResult = await pool.query(
+      `SELECT t.*, c.name AS customer_name
+       FROM transactions t
+       LEFT JOIN customers c ON t.customer_id = c.id
+       WHERE t.transaction_id = $1`,
+      [transactionId]
+    );
+    const txn = txnResult.rows[0];
+    if (!txn) return salesOrder;
 
+    // Fetch payments to calculate amount paid
+    const payResult = await pool.query(
+      `SELECT COALESCE(SUM(amount), 0) AS total_paid
+       FROM payments WHERE transaction_id = $1 AND status = 'completed'`,
+      [transactionId]
+    );
+    const totalPaidDollars = parseFloat(payResult.rows[0].total_paid) || 0;
+    const totalPaidCents = Math.round(totalPaidDollars * 100);
+    const totalCents = salesOrder.total_amount; // already in cents
+    const balanceDueCents = Math.max(0, totalCents - totalPaidCents);
+
+    // Generate invoice number: INV-YYYYMMDD-NNNN
+    const today = new Date();
+    const dateStr = today.toISOString().slice(0, 10).replace(/-/g, '');
+    const seqResult = await pool.query(
+      `SELECT COUNT(*) + 1 AS next_seq FROM invoices
+       WHERE invoice_number LIKE $1`,
+      [`INV-${dateStr}-%`]
+    );
+    const seq = String(seqResult.rows[0].next_seq).padStart(4, '0');
+    const invoiceNumber = `INV-${dateStr}-${seq}`;
+
+    // Determine status
+    const invoiceStatus = balanceDueCents <= 0 ? 'paid' : 'sent';
+
+    // Back-calculate subtotal and tax from total (total includes 13% HST)
+    const subtotalCents = Math.round(totalCents / 1.13);
+    const taxCents = totalCents - subtotalCents;
+
+    // Insert invoice record
+    const invoiceResult = await pool.query(`
+      INSERT INTO invoices (
+        invoice_number, customer_id, status,
+        subtotal_cents, tax_cents, tax_rate, discount_cents, total_cents,
+        amount_paid_cents, balance_due_cents,
+        invoice_date, due_date, payment_terms,
+        notes, created_by, created_at, updated_at
+      ) VALUES (
+        $1, $2, $3,
+        $4, $5, 13.00, 0, $6,
+        $7, $8,
+        CURRENT_DATE, CURRENT_DATE + INTERVAL '30 days', 'Net 30',
+        $9, $10, NOW(), NOW()
+      ) RETURNING id
+    `, [
+      invoiceNumber,
+      txn.customer_id,
+      invoiceStatus,
+      subtotalCents,
+      taxCents,
+      totalCents,
+      totalPaidCents,
+      balanceDueCents,
+      `Auto-generated from Sales Order ${salesOrder.sales_order_number}`,
+      'system'
+    ]);
+
+    const invoiceId = invoiceResult.rows[0].id;
+
+    // Link invoice to sales order
     const updated = await pool.query(`
       UPDATE sales_orders
-      SET status = 'invoiced', updated_at = NOW()
-      WHERE id = $1
+      SET status = 'invoiced', invoice_id = $1, updated_at = NOW()
+      WHERE id = $2
       RETURNING *
-    `, [salesOrder.id]);
+    `, [invoiceId, salesOrder.id]);
 
     return updated.rows[0] || salesOrder;
   } catch (err) {

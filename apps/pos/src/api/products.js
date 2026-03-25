@@ -257,7 +257,7 @@ export const quickSearch = async (query, limit = 10) => {
 
   try {
     // Use the dedicated search endpoint
-    const response = await api.get(`/products/search?q=${encodeURIComponent(query)}&limit=${limit}&requirePrice=true`);
+    const response = await api.get(`/products/search?q=${encodeURIComponent(query)}&limit=${limit}`);
 
     // Response is already unwrapped by axios interceptor
     // Backend returns array directly from searchForAutocomplete

@@ -191,12 +191,60 @@ class SalesOrderService {
       // delivery columns may not exist yet
     }
 
+    // Financing info (if financed transaction)
+    let financing = null;
+    try {
+      const finResult = await this.pool.query(`
+        SELECT fo.name AS plan_name, fo.provider, fo.term_months, fo.apr,
+               fo.display_text, fo.highlight_text, fo.monthly_payment_formula,
+               fa.approved_amount_cents
+        FROM financing_applications fa
+        JOIN financing_options fo ON fa.financing_option_id = fo.id
+        WHERE fa.order_id = $1 OR fa.id = (
+          SELECT financing_application_id FROM transactions WHERE transaction_id = $1
+        )
+        LIMIT 1
+      `, [transactionId]);
+      if (finResult.rows.length) {
+        financing = finResult.rows[0];
+      }
+    } catch {
+      // financing tables may not exist
+    }
+
+    // Also check quote_financing if transaction came from a quote
+    if (!financing) {
+      try {
+        const qfResult = await this.pool.query(`
+          SELECT qf.* FROM quote_financing qf
+          JOIN quotations q ON q.id = qf.quote_id
+          JOIN orders o ON o.quotation_id = q.id
+          JOIN transactions t ON t.order_id = o.id
+          WHERE t.transaction_id = $1
+          LIMIT 1
+        `, [transactionId]);
+        if (qfResult.rows.length) {
+          const qf = qfResult.rows[0];
+          financing = {
+            plan_name: qf.financing_type === 'deferred' ? 'Deferred Payment' : 'Equal Monthly Payments',
+            provider: qf.provider || 'Flexiti',
+            term_months: qf.term_months,
+            apr: qf.interest_rate || 0,
+            monthly_payment_cents: qf.monthly_payment_cents
+          };
+        }
+      } catch {
+        // quote_financing may not exist
+      }
+    }
+
     return {
       transaction,
       items: itemsResult.rows,
       payments: paymentsResult.rows,
       salesRep,
-      delivery
+      delivery,
+      financing
     };
   }
 
@@ -206,7 +254,7 @@ class SalesOrderService {
 
   async generateSalesOrderPdf(transactionId) {
     const data = await this.getTransactionData(transactionId);
-    const { transaction, items, payments, salesRep, delivery } = data;
+    const { transaction, items, payments, salesRep, delivery, financing } = data;
     const orderNumber = this.generateOrderNumber(transaction);
 
     const totalPaid = payments.reduce((sum, p) => sum + parseFloat(p.amount || 0), 0);
@@ -579,6 +627,33 @@ class SalesOrderService {
       doc.text(this.formatCurrency(balanceDue), totValX, tY, { width: 80, align: 'right' });
 
       yPos = Math.max(pmtTableY, tY) + 16;
+
+      // ============================================
+      // FINANCING TERMS (if applicable)
+      // ============================================
+      if (financing) {
+        const monthlyPayment = financing.monthly_payment_cents
+          ? financing.monthly_payment_cents / 100
+          : (financing.term_months > 0 ? totalDue / financing.term_months : 0);
+        const isDeferred = (financing.plan_name || '').toLowerCase().includes('defer');
+
+        doc.roundedRect(MARGIN, yPos, CONTENT_W, 38, 3)
+          .fillAndStroke('#f0f7ff', '#93c5fd');
+
+        doc.fontSize(7).font('Helvetica-Bold').fillColor('#1e40af')
+          .text('FINANCING TERMS', MARGIN + 8, yPos + 5);
+
+        doc.fontSize(7).font('Helvetica').fillColor(COLORS.text);
+        const finY = yPos + 16;
+        doc.text(`Provider: ${(financing.provider || 'Flexiti').charAt(0).toUpperCase() + (financing.provider || 'flexiti').slice(1)}`, MARGIN + 8, finY);
+        doc.text(`Plan: ${financing.plan_name || 'N/A'}`, MARGIN + 140, finY);
+        doc.text(`Term: ${financing.term_months} months`, MARGIN + 300, finY);
+        doc.text(`Rate: ${parseFloat(financing.apr || 0).toFixed(1)}%`, MARGIN + 390, finY);
+        doc.font('Helvetica-Bold')
+          .text(`Monthly: ${isDeferred ? '$0.00 (deferred)' : this.formatCurrency(monthlyPayment)}`, MARGIN + 440, finY);
+
+        yPos += 44;
+      }
 
       // ============================================
       // CUSTOMER SECTION

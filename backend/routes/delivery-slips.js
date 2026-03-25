@@ -180,6 +180,64 @@ router.patch('/:id/status', authenticate, asyncHandler(async (req, res) => {
     transaction_id: updated.transaction_id
   });
 
+  // When delivered, auto-create invoice if one doesn't exist yet
+  if (status === 'delivered' && updated.transaction_id) {
+    try {
+      const soResult = await pool.query(
+        'SELECT * FROM sales_orders WHERE transaction_id = $1 LIMIT 1',
+        [updated.transaction_id]
+      );
+      const so = soResult.rows[0];
+      if (so && so.status !== 'invoiced') {
+        const existingInvoice = await pool.query(
+          'SELECT id FROM invoices WHERE id = $1', [so.invoice_id]
+        );
+        if (!existingInvoice.rows.length) {
+          // Fetch payment totals
+          const payResult = await pool.query(
+            `SELECT COALESCE(SUM(amount), 0) AS total_paid
+             FROM payments WHERE transaction_id = $1 AND status = 'completed'`,
+            [updated.transaction_id]
+          );
+          const totalPaidCents = Math.round(parseFloat(payResult.rows[0].total_paid) * 100);
+          const totalCents = so.total_amount;
+          const balanceDueCents = Math.max(0, totalCents - totalPaidCents);
+          const invoiceStatus = balanceDueCents <= 0 ? 'paid' : 'sent';
+          const subtotalCents = Math.round(totalCents / 1.13);
+          const taxCents = totalCents - subtotalCents;
+
+          const today = new Date();
+          const dateStr = today.toISOString().slice(0, 10).replace(/-/g, '');
+          const seqResult = await pool.query(
+            `SELECT COUNT(*) + 1 AS next_seq FROM invoices WHERE invoice_number LIKE $1`,
+            [`INV-${dateStr}-%`]
+          );
+          const seq = String(seqResult.rows[0].next_seq).padStart(4, '0');
+          const invoiceNumber = `INV-${dateStr}-${seq}`;
+
+          const invResult = await pool.query(`
+            INSERT INTO invoices (
+              invoice_number, customer_id, status,
+              subtotal_cents, tax_cents, tax_rate, discount_cents, total_cents,
+              amount_paid_cents, balance_due_cents,
+              invoice_date, due_date, payment_terms,
+              notes, created_by, created_at, updated_at
+            ) VALUES ($1,$2,$3,$4,$5,13.00,0,$6,$7,$8,CURRENT_DATE,CURRENT_DATE+INTERVAL '30 days','Net 30',$9,'system',NOW(),NOW())
+            RETURNING id
+          `, [invoiceNumber, so.customer_id, invoiceStatus, subtotalCents, taxCents, totalCents, totalPaidCents, balanceDueCents,
+              `Auto-generated on delivery of ${updated.slip_number}`]);
+
+          await pool.query(
+            'UPDATE sales_orders SET status = $1, invoice_id = $2, updated_at = NOW() WHERE id = $3',
+            ['invoiced', invResult.rows[0].id, so.id]
+          );
+        }
+      }
+    } catch (invoiceErr) {
+      console.error('[DeliverySlips] Delivery-triggered invoice creation failed:', invoiceErr.message);
+    }
+  }
+
   res.success(updated);
 }));
 
