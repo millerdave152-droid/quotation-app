@@ -255,10 +255,11 @@ const QuoteBuilder = ({
     // EHF calculation — only TVs, Blu-ray/DVD, Projectors (not taxable)
     let ehfTotal = 0;
     for (const item of quoteItems) {
-      const combined = `${item.name || ''} ${item.category || ''} ${item.description || ''}`.toLowerCase();
+      const combined = `${item.model || ''} ${item.name || ''} ${item.category || ''} ${item.description || ''} ${item.manufacturer || ''}`.toLowerCase();
       let ehfPerUnit = 0;
       if (combined.includes('tv') || combined.includes('television')) {
-        const sizeMatch = (item.name || '').match(/(\d{2,3})\s*["\'″]|(\d{2,3})\s*-?\s*inch/i);
+        const sizeMatch = (item.model || item.name || '').match(/(\d{2,3})\s*["\'″]|(\d{2,3})\s*-?\s*inch/i)
+          || (item.description || '').match(/(\d{2,3})\s*["\'″]|(\d{2,3})\s*-?\s*inch/i);
         const size = sizeMatch ? parseInt(sizeMatch[1] || sizeMatch[2], 10) : 65;
         ehfPerUnit = size <= 29 ? 8.25 : size <= 45 ? 14.65 : 19.25;
       } else if (combined.includes('blu-ray') || combined.includes('bluray') || combined.includes('dvd player')) {

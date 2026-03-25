@@ -137,7 +137,7 @@ class SalesOrderService {
         ti.product_name, ti.product_sku, ti.quantity,
         ti.unit_price, ti.discount_percent, ti.discount_amount,
         ti.tax_amount, ti.line_total,
-        p.manufacturer, p.model AS model_number,
+        p.manufacturer, p.model AS model_number, p.category AS product_category,
         ti.serial_number
       FROM transaction_items ti
       LEFT JOIN products p ON ti.product_id = p.id
@@ -270,7 +270,7 @@ class SalesOrderService {
     try {
       const taxEngine = require('./TaxEngine');
       const ehfResult = taxEngine.calculateCartEHF(items.map(i => ({
-        name: i.product_name, category: i.manufacturer || '', description: '', quantity: i.quantity
+        name: i.product_name, category: i.product_category || '', description: i.model_number || '', quantity: i.quantity
       })), 'ON');
       totalEHF = ehfResult.totalEHF;
     } catch { /* EHF calculation optional */ }
