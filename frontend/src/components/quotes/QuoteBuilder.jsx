@@ -1,5 +1,6 @@
 import { authFetch } from '../../services/authFetch';
 import { getRelativeTime } from '../../utils/relativeTime';
+import FinancingSelector from './FinancingSelector';
 /**
  * QuoteBuilder Component
  * Handles quote creation and editing with customer selection,
@@ -1753,6 +1754,14 @@ const QuoteBuilder = ({
               </div>
             </div>
           </div>
+
+          {/* Flexiti Financing Selector */}
+          <FinancingSelector
+            quoteId={editingQuoteId}
+            quoteTotal={totals.total}
+            quoteFinancing={quoteFinancing}
+            setQuoteFinancing={setQuoteFinancing}
+          />
 
           {/* Quote Protection Settings */}
           <div style={{ background: 'white', borderRadius: '12px', padding: '24px', marginTop: '24px', boxShadow: '0 2px 4px rgba(0,0,0,0.1)' }}>
