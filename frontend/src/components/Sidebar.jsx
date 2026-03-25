@@ -48,7 +48,7 @@ const navItems = {
   quotes: { path: '/quotes', icon: FileText, label: 'Quotations', hasBadge: true },
   'sales-performance': { path: '/sales-performance', icon: TrendingUp, label: 'Sales Performance' },
   invoices: { path: '/invoices', icon: Receipt, label: 'Invoices' },
-  documents: { path: '/documents', icon: FileText, label: 'Document Center' },
+  documents: { path: '/documents', icon: FileText, label: 'Document Centre' },
   inventory: { path: '/inventory', icon: Warehouse, label: 'Inventory' },
   pricing: { path: '/pricing', icon: DollarSign, label: 'Pricing Rules' },
   'manufacturer-promotions': { path: '/manufacturer-promotions', icon: Tag, label: 'Mfr Promotions' },

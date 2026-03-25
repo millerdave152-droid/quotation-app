@@ -3,14 +3,10 @@ import axios from 'axios';
 import { useAuth } from '../../contexts/AuthContext';
 import {
   Search, FileText, Receipt, Truck, ClipboardList, FileSpreadsheet,
-  Mail, X, Calendar, ChevronRight, AlertCircle, Loader2
+  Mail, X, Calendar, AlertCircle, Loader2, Printer
 } from 'lucide-react';
 
 const API_URL = process.env.REACT_APP_API_URL || '';
-
-// ─────────────────────────────────────────────
-// Helpers
-// ─────────────────────────────────────────────
 
 async function openAuthPdf(url, token) {
   try {
@@ -22,7 +18,7 @@ async function openAuthPdf(url, token) {
     window.open(URL.createObjectURL(blob), '_blank');
   } catch (err) {
     alert('Failed to load document. Please try again.');
-    console.error('[DocumentCenter] PDF error:', err);
+    console.error('[DocumentCentre] PDF error:', err);
   }
 }
 
@@ -36,104 +32,43 @@ async function emailDocument(url, email, token) {
     const result = await res.json();
     if (!res.ok || !result.success) throw new Error(result.error || result.message || 'Email failed');
     alert('Document emailed successfully.');
-    return true;
   } catch (err) {
     alert(err.message || 'Failed to email document.');
-    return false;
   }
 }
 
-const formatCurrency = (v) => {
-  const num = parseFloat(v) || 0;
-  return new Intl.NumberFormat('en-CA', { style: 'currency', currency: 'CAD' }).format(num);
-};
-const formatDate = (d) => d ? new Date(d).toLocaleDateString('en-CA', { year: 'numeric', month: 'short', day: 'numeric' }) : '';
-const formatDateTime = (d) => d ? new Date(d).toLocaleString('en-CA', { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : '';
-
-// ─────────────────────────────────────────────
-// Sub-components
-// ─────────────────────────────────────────────
+const fmt = (v) => new Intl.NumberFormat('en-CA', { style: 'currency', currency: 'CAD' }).format(parseFloat(v) || 0);
+const fmtDate = (d) => d ? new Date(d).toLocaleDateString('en-CA', { year: 'numeric', month: 'short', day: 'numeric' }) : '';
+const fmtDT = (d) => d ? new Date(d).toLocaleString('en-CA', { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : '';
 
 function StatusBadge({ status }) {
-  const config = {
-    completed: 'bg-emerald-50 text-emerald-700 ring-emerald-600/20',
-    pending: 'bg-amber-50 text-amber-700 ring-amber-600/20',
-    voided: 'bg-red-50 text-red-700 ring-red-600/20',
-    refunded: 'bg-purple-50 text-purple-700 ring-purple-600/20'
-  };
-  return (
-    <span className={`inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-semibold ring-1 ring-inset ${config[status] || 'bg-gray-50 text-gray-600 ring-gray-500/20'}`}>
-      {(status || 'unknown').charAt(0).toUpperCase() + (status || 'unknown').slice(1)}
-    </span>
-  );
+  const c = {
+    completed: 'bg-emerald-100 text-emerald-800',
+    pending: 'bg-amber-100 text-amber-800',
+    voided: 'bg-red-100 text-red-800',
+    refunded: 'bg-purple-100 text-purple-800'
+  }[status] || 'bg-gray-100 text-gray-700';
+  return <span className={`px-2.5 py-1 rounded-full text-[11px] font-bold ${c}`}>{(status || '').charAt(0).toUpperCase() + (status || '').slice(1)}</span>;
 }
 
-function SkeletonRows({ count = 5 }) {
-  return Array.from({ length: count }).map((_, i) => (
+function SkeletonRows() {
+  return Array.from({ length: 8 }).map((_, i) => (
     <tr key={i} className="animate-pulse">
-      <td className="px-4 py-3"><div className="h-3 bg-gray-200 rounded w-20" /></td>
-      <td className="px-4 py-3"><div className="h-3 bg-gray-200 rounded w-32" /></td>
-      <td className="px-4 py-3"><div className="h-3 bg-gray-200 rounded w-24" /></td>
-      <td className="px-4 py-3"><div className="h-3 bg-gray-200 rounded w-16 ml-auto" /></td>
-      <td className="px-4 py-3"><div className="h-3 bg-gray-200 rounded w-16" /></td>
-      <td className="px-4 py-3"><div className="h-3 bg-gray-200 rounded w-20 mx-auto" /></td>
+      {[16, 28, 20, 14, 14, 24].map((w, j) => (
+        <td key={j} className="px-5 py-4"><div className={`h-3.5 bg-gray-200 rounded-full`} style={{ width: `${w * 4}px` }} /></td>
+      ))}
     </tr>
   ));
 }
 
-function DocIconButton({ icon: Icon, tooltip, color, onClick }) {
-  const colors = {
-    gray: 'text-gray-500 hover:text-gray-700 hover:bg-gray-100',
-    blue: 'text-blue-500 hover:text-blue-700 hover:bg-blue-50',
-    cyan: 'text-cyan-600 hover:text-cyan-700 hover:bg-cyan-50',
-    amber: 'text-amber-500 hover:text-amber-700 hover:bg-amber-50',
-    green: 'text-green-500 hover:text-green-700 hover:bg-green-50'
-  };
-  return (
-    <button
-      type="button"
-      onClick={(e) => { e.stopPropagation(); onClick(); }}
-      title={tooltip}
-      className={`p-1.5 rounded-md transition-colors ${colors[color] || colors.gray}`}
-    >
-      <Icon className="w-4 h-4" />
-    </button>
-  );
-}
-
-function DocLabelButton({ icon: Icon, label, color, onClick, small }) {
-  const colors = {
-    gray: 'bg-gray-500/10 text-gray-600 hover:bg-gray-500/20',
-    blue: 'bg-blue-500/10 text-blue-600 hover:bg-blue-500/20',
-    cyan: 'bg-cyan-500/10 text-cyan-600 hover:bg-cyan-500/20',
-    amber: 'bg-amber-500/10 text-amber-600 hover:bg-amber-500/20',
-    green: 'bg-green-500/10 text-green-600 hover:bg-green-500/20',
-    purple: 'bg-purple-500/10 text-purple-600 hover:bg-purple-500/20'
-  };
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg font-semibold transition-colors ${colors[color] || colors.gray} ${small ? 'text-[11px]' : 'text-[12px]'}`}
-    >
-      <Icon size={small ? 13 : 14} />
-      {label}
-    </button>
-  );
-}
-
-// ─────────────────────────────────────────────
-// Main Component
-// ─────────────────────────────────────────────
-
 export default function DocumentCenter() {
   const { token } = useAuth();
-  const [searchQuery, setSearchQuery] = useState('');
+  const [query, setQuery] = useState('');
   const [results, setResults] = useState([]);
   const [loading, setLoading] = useState(false);
   const [searched, setSearched] = useState(false);
-  const [selectedTxn, setSelectedTxn] = useState(null);
-  const [detailData, setDetailData] = useState(null);
+  const [selected, setSelected] = useState(null);
+  const [detail, setDetail] = useState(null);
   const [detailLoading, setDetailLoading] = useState(false);
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
@@ -141,207 +76,177 @@ export default function DocumentCenter() {
 
   const handleSearch = useCallback(async (e) => {
     if (e) e.preventDefault();
-    if (!searchQuery.trim() && !dateFrom && !dateTo && !statusFilter) return;
-
+    if (!query.trim() && !dateFrom && !dateTo && !statusFilter) return;
     setLoading(true);
     setSearched(true);
-    setSelectedTxn(null);
-    setDetailData(null);
-
+    setSelected(null);
+    setDetail(null);
     try {
-      const params = new URLSearchParams();
-      if (searchQuery.trim()) params.append('search', searchQuery.trim());
-      if (dateFrom) params.append('startDate', dateFrom);
-      if (dateTo) params.append('endDate', dateTo);
-      if (statusFilter) params.append('status', statusFilter);
-      params.append('limit', '50');
-
-      const res = await axios.get(`${API_URL}/api/transactions?${params.toString()}`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-
+      const p = new URLSearchParams();
+      if (query.trim()) p.append('search', query.trim());
+      if (dateFrom) p.append('startDate', dateFrom);
+      if (dateTo) p.append('endDate', dateTo);
+      if (statusFilter) p.append('status', statusFilter);
+      p.append('limit', '50');
+      const res = await axios.get(`${API_URL}/api/transactions?${p}`, { headers: { Authorization: `Bearer ${token}` } });
       setResults(res.data?.data || []);
-    } catch (err) {
-      console.error('[DocumentCenter] Search error:', err);
-      setResults([]);
-    } finally {
-      setLoading(false);
-    }
-  }, [searchQuery, dateFrom, dateTo, statusFilter, token]);
+    } catch { setResults([]); }
+    finally { setLoading(false); }
+  }, [query, dateFrom, dateTo, statusFilter, token]);
 
-  const handleSelectTransaction = useCallback(async (txn) => {
-    setSelectedTxn(txn);
+  const handleSelect = useCallback(async (txn) => {
+    setSelected(txn);
     setDetailLoading(true);
-
     try {
-      const res = await axios.get(`${API_URL}/api/receipts/${txn.transactionId}/data`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      setDetailData(res.data?.data || null);
-    } catch {
-      setDetailData(null);
-    } finally {
-      setDetailLoading(false);
-    }
+      const res = await axios.get(`${API_URL}/api/receipts/${txn.transactionId}/data`, { headers: { Authorization: `Bearer ${token}` } });
+      setDetail(res.data?.data || null);
+    } catch { setDetail(null); }
+    finally { setDetailLoading(false); }
   }, [token]);
 
-  const promptEmail = (docLabel, emailAction) => {
-    const email = prompt(`Email ${docLabel} to:`);
-    if (email && email.includes('@')) emailAction(email);
+  const promptEmail = (label, action) => {
+    const email = prompt(`Email ${label} to:`);
+    if (email && email.includes('@')) action(email);
   };
 
-  const txnId = selectedTxn?.transactionId;
+  const id = selected?.transactionId;
 
   return (
-    <div className="min-h-screen bg-gray-50/50">
-      {/* Header */}
-      <div className="bg-white border-b border-gray-200">
-        <div className="px-6 py-5">
-          <div className="flex items-center gap-3">
-            <div className="p-2 bg-indigo-50 rounded-lg">
-              <FileText className="w-6 h-6 text-indigo-600" />
-            </div>
-            <div>
-              <h1 className="text-xl font-bold text-gray-900">Document Center</h1>
-              <p className="text-sm text-gray-500">Search past transactions and reprint or email documents</p>
-            </div>
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', minHeight: 0 }}>
+
+      {/* ── PAGE HEADER ── */}
+      <div style={{ padding: '28px 32px 0', flexShrink: 0 }}>
+        <h1 style={{ fontSize: 22, fontWeight: 700, color: '#111827', margin: 0 }}>Document Centre</h1>
+        <p style={{ fontSize: 13, color: '#6b7280', marginTop: 4 }}>Search past transactions and reprint or email documents</p>
+
+        {/* Search */}
+        <form onSubmit={handleSearch} style={{ marginTop: 20, display: 'flex', gap: 10 }}>
+          <div style={{ flex: 1, position: 'relative' }}>
+            <Search style={{ position: 'absolute', left: 14, top: '50%', transform: 'translateY(-50%)', width: 18, height: 18, color: '#9ca3af', pointerEvents: 'none' }} />
+            <input
+              type="text"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="Search by customer name, order #, transaction #..."
+              style={{
+                width: '100%', padding: '12px 16px 12px 42px', fontSize: 14, border: '1px solid #d1d5db',
+                borderRadius: 10, outline: 'none', background: '#f9fafb', transition: 'all 0.15s'
+              }}
+              onFocus={(e) => { e.target.style.borderColor = '#6366f1'; e.target.style.background = '#fff'; e.target.style.boxShadow = '0 0 0 3px rgba(99,102,241,0.1)'; }}
+              onBlur={(e) => { e.target.style.borderColor = '#d1d5db'; e.target.style.background = '#f9fafb'; e.target.style.boxShadow = 'none'; }}
+            />
           </div>
+          <button
+            type="submit"
+            disabled={loading}
+            style={{
+              padding: '12px 28px', fontSize: 14, fontWeight: 600, color: '#fff', background: '#4f46e5',
+              border: 'none', borderRadius: 10, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 8,
+              opacity: loading ? 0.6 : 1, transition: 'background 0.15s'
+            }}
+            onMouseEnter={(e) => { if (!loading) e.target.style.background = '#4338ca'; }}
+            onMouseLeave={(e) => { e.target.style.background = '#4f46e5'; }}
+          >
+            {loading ? <Loader2 style={{ width: 16, height: 16, animation: 'spin 1s linear infinite' }} /> : <Search style={{ width: 16, height: 16 }} />}
+            Search
+          </button>
+        </form>
+
+        {/* Filters */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginTop: 14, marginBottom: 20, flexWrap: 'wrap' }}>
+          <span style={{ fontSize: 11, fontWeight: 600, color: '#9ca3af', textTransform: 'uppercase', letterSpacing: 1, display: 'flex', alignItems: 'center', gap: 4 }}>
+            <Calendar style={{ width: 13, height: 13 }} /> Filters
+          </span>
+          <input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)}
+            style={{ padding: '7px 12px', fontSize: 13, border: '1px solid #e5e7eb', borderRadius: 8, outline: 'none', color: '#374151', background: '#f9fafb' }} />
+          <span style={{ color: '#d1d5db', fontSize: 13 }}>to</span>
+          <input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)}
+            style={{ padding: '7px 12px', fontSize: 13, border: '1px solid #e5e7eb', borderRadius: 8, outline: 'none', color: '#374151', background: '#f9fafb' }} />
+          <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}
+            style={{ padding: '7px 14px', fontSize: 13, border: '1px solid #e5e7eb', borderRadius: 8, outline: 'none', color: '#374151', background: '#f9fafb', cursor: 'pointer' }}>
+            <option value="">All Statuses</option>
+            <option value="completed">Completed</option>
+            <option value="pending">Pending</option>
+            <option value="voided">Voided</option>
+            <option value="refunded">Refunded</option>
+          </select>
+          {(dateFrom || dateTo || statusFilter) && (
+            <button type="button" onClick={() => { setDateFrom(''); setDateTo(''); setStatusFilter(''); }}
+              style={{ fontSize: 12, color: '#ef4444', background: 'none', border: 'none', cursor: 'pointer', fontWeight: 600 }}>
+              Clear Filters
+            </button>
+          )}
         </div>
       </div>
 
-      <div className="flex h-[calc(100vh-97px)]">
-        {/* ── LEFT: Search + Results ── */}
-        <div className={`flex flex-col transition-all duration-200 ${selectedTxn ? 'w-[55%]' : 'w-full'} border-r border-gray-200`}>
+      {/* ── CONTENT AREA ── */}
+      <div style={{ display: 'flex', flex: 1, minHeight: 0, borderTop: '1px solid #e5e7eb' }}>
 
-          {/* Search Bar */}
-          <form onSubmit={handleSearch} className="p-4 bg-white border-b border-gray-100">
-            <div className="flex gap-2">
-              <div className="flex-1 relative">
-                <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4.5 h-4.5 text-gray-400 pointer-events-none" />
-                <input
-                  type="text"
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  placeholder="Search by customer name, order #, transaction #..."
-                  className="w-full pl-10 pr-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm placeholder:text-gray-400 focus:bg-white focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-400 transition-all outline-none"
-                />
-              </div>
-              <button
-                type="submit"
-                disabled={loading}
-                className="px-5 py-2.5 bg-indigo-600 text-white rounded-xl text-sm font-semibold hover:bg-indigo-700 disabled:opacity-50 transition-colors shadow-sm shadow-indigo-600/20"
-              >
-                {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Search'}
-              </button>
-            </div>
-
-            {/* Filters */}
-            <div className="flex items-center gap-2 mt-3">
-              <div className="flex items-center gap-1.5 text-gray-400">
-                <Calendar className="w-3.5 h-3.5" />
-                <span className="text-[11px] font-medium uppercase tracking-wider">Filters</span>
-              </div>
-              <input
-                type="date"
-                value={dateFrom}
-                onChange={(e) => setDateFrom(e.target.value)}
-                className="px-2.5 py-1 bg-gray-50 border border-gray-200 rounded-lg text-xs text-gray-600 focus:ring-1 focus:ring-indigo-400 outline-none"
-              />
-              <span className="text-gray-300 text-xs">—</span>
-              <input
-                type="date"
-                value={dateTo}
-                onChange={(e) => setDateTo(e.target.value)}
-                className="px-2.5 py-1 bg-gray-50 border border-gray-200 rounded-lg text-xs text-gray-600 focus:ring-1 focus:ring-indigo-400 outline-none"
-              />
-              <select
-                value={statusFilter}
-                onChange={(e) => setStatusFilter(e.target.value)}
-                className="px-2.5 py-1 bg-gray-50 border border-gray-200 rounded-lg text-xs text-gray-600 focus:ring-1 focus:ring-indigo-400 outline-none appearance-none pr-6"
-              >
-                <option value="">All Statuses</option>
-                <option value="completed">Completed</option>
-                <option value="pending">Pending</option>
-                <option value="voided">Voided</option>
-                <option value="refunded">Refunded</option>
-              </select>
-              {(dateFrom || dateTo || statusFilter) && (
-                <button
-                  type="button"
-                  onClick={() => { setDateFrom(''); setDateTo(''); setStatusFilter(''); }}
-                  className="text-[11px] text-gray-400 hover:text-red-500 transition-colors"
-                >
-                  Clear
-                </button>
-              )}
-            </div>
-          </form>
-
-          {/* Results */}
-          <div className="flex-1 overflow-y-auto">
+        {/* LEFT: Results Table */}
+        <div style={{ flex: selected ? '0 0 55%' : '1 1 100%', display: 'flex', flexDirection: 'column', minHeight: 0, borderRight: selected ? '1px solid #e5e7eb' : 'none', transition: 'flex 0.2s' }}>
+          <div style={{ flex: 1, overflow: 'auto' }}>
             {!searched ? (
-              <div className="flex flex-col items-center justify-center h-full text-gray-400 px-8">
-                <div className="w-20 h-20 bg-gray-100 rounded-2xl flex items-center justify-center mb-5">
-                  <Search className="w-9 h-9 text-gray-300" />
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', color: '#9ca3af', padding: 40 }}>
+                <div style={{ width: 80, height: 80, background: '#f3f4f6', borderRadius: 20, display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 20 }}>
+                  <Search style={{ width: 36, height: 36, color: '#d1d5db' }} />
                 </div>
-                <p className="text-base font-semibold text-gray-500">Search for a transaction</p>
-                <p className="text-sm text-gray-400 mt-1 text-center">
+                <p style={{ fontSize: 16, fontWeight: 600, color: '#6b7280' }}>Search for a transaction</p>
+                <p style={{ fontSize: 13, color: '#9ca3af', marginTop: 6, textAlign: 'center', maxWidth: 340 }}>
                   Find by customer name, order number, or transaction number to view and reprint documents
                 </p>
               </div>
             ) : loading ? (
-              <table className="w-full text-sm">
-                <thead className="bg-gray-50/80 sticky top-0 z-10">
-                  <tr className="text-left text-[11px] font-semibold text-gray-500 uppercase tracking-wider">
-                    <th className="px-4 py-2.5">Date</th>
-                    <th className="px-4 py-2.5">Transaction</th>
-                    <th className="px-4 py-2.5">Customer</th>
-                    <th className="px-4 py-2.5 text-right">Total</th>
-                    <th className="px-4 py-2.5">Status</th>
-                    <th className="px-4 py-2.5 text-center">Documents</th>
-                  </tr>
-                </thead>
-                <tbody><SkeletonRows count={6} /></tbody>
+              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+                <thead><tr style={{ background: '#f9fafb', borderBottom: '1px solid #e5e7eb' }}>
+                  {['Date', 'Transaction', 'Customer', 'Total', 'Status', 'Documents'].map(h => (
+                    <th key={h} style={{ padding: '10px 20px', textAlign: h === 'Total' ? 'right' : 'left', fontSize: 11, fontWeight: 700, color: '#6b7280', textTransform: 'uppercase', letterSpacing: 0.5 }}>{h}</th>
+                  ))}
+                </tr></thead>
+                <tbody><SkeletonRows /></tbody>
               </table>
             ) : results.length === 0 ? (
-              <div className="flex flex-col items-center justify-center h-48 text-gray-400">
-                <AlertCircle className="w-10 h-10 mb-3 text-gray-300" />
-                <p className="text-sm font-medium text-gray-500">No transactions found</p>
-                <p className="text-xs text-gray-400 mt-1">Try a different search term or adjust filters</p>
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: 200, color: '#9ca3af' }}>
+                <AlertCircle style={{ width: 40, height: 40, marginBottom: 12, color: '#d1d5db' }} />
+                <p style={{ fontSize: 14, fontWeight: 600, color: '#6b7280' }}>No transactions found</p>
+                <p style={{ fontSize: 12, color: '#9ca3af', marginTop: 4 }}>Try a different search term or adjust filters</p>
               </div>
             ) : (
-              <table className="w-full text-sm">
-                <thead className="bg-gray-50/80 sticky top-0 z-10">
-                  <tr className="text-left text-[11px] font-semibold text-gray-500 uppercase tracking-wider">
-                    <th className="px-4 py-2.5">Date</th>
-                    <th className="px-4 py-2.5">Transaction</th>
-                    <th className="px-4 py-2.5">Customer</th>
-                    <th className="px-4 py-2.5 text-right">Total</th>
-                    <th className="px-4 py-2.5">Status</th>
-                    <th className="px-4 py-2.5 text-center">Documents</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-100">
+              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+                <thead><tr style={{ background: '#f9fafb', borderBottom: '2px solid #e5e7eb', position: 'sticky', top: 0, zIndex: 5 }}>
+                  {['Date', 'Transaction', 'Customer', 'Total', 'Status', 'Documents'].map(h => (
+                    <th key={h} style={{ padding: '10px 20px', textAlign: h === 'Total' ? 'right' : h === 'Documents' ? 'center' : 'left', fontSize: 11, fontWeight: 700, color: '#6b7280', textTransform: 'uppercase', letterSpacing: 0.5 }}>{h}</th>
+                  ))}
+                </tr></thead>
+                <tbody>
                   {results.map((txn) => {
-                    const id = txn.transactionId;
-                    const isSelected = selectedTxn?.transactionId === id;
+                    const tid = txn.transactionId;
+                    const isSel = selected?.transactionId === tid;
                     return (
-                      <tr
-                        key={id}
-                        onClick={() => handleSelectTransaction(txn)}
-                        className={`cursor-pointer transition-colors ${isSelected ? 'bg-indigo-50/60' : 'hover:bg-gray-50/80'}`}
-                      >
-                        <td className="px-4 py-2.5 text-gray-500 text-[12px]">{formatDate(txn.createdAt)}</td>
-                        <td className="px-4 py-2.5 font-semibold text-gray-900 text-[12px]">{txn.transactionNumber}</td>
-                        <td className="px-4 py-2.5 text-gray-600 text-[12px]">{txn.customerName || 'Walk-in'}</td>
-                        <td className="px-4 py-2.5 text-right font-semibold text-gray-900 text-[12px] tabular-nums">{formatCurrency(txn.totalAmount)}</td>
-                        <td className="px-4 py-2.5"><StatusBadge status={txn.status} /></td>
-                        <td className="px-4 py-2.5">
-                          <div className="flex items-center justify-center gap-0.5">
-                            <DocIconButton icon={Receipt} tooltip="Receipt" color="gray" onClick={() => openAuthPdf(`/api/receipts/${id}/preview`, token)} />
-                            <DocIconButton icon={FileText} tooltip="Sales Order" color="blue" onClick={() => openAuthPdf(`/api/sales-orders/${id}/view`, token)} />
-                            <DocIconButton icon={Truck} tooltip="Delivery Slip" color="cyan" onClick={() => openAuthPdf(`/api/delivery-slips/transaction/${id}/view`, token)} />
-                            <DocIconButton icon={ClipboardList} tooltip="Delivery Waiver" color="amber" onClick={() => openAuthPdf(`/api/delivery-slips/transaction/${id}/waiver`, token)} />
+                      <tr key={tid} onClick={() => handleSelect(txn)}
+                        style={{ cursor: 'pointer', background: isSel ? '#eef2ff' : 'transparent', borderBottom: '1px solid #f3f4f6', transition: 'background 0.1s' }}
+                        onMouseEnter={(e) => { if (!isSel) e.currentTarget.style.background = '#f9fafb'; }}
+                        onMouseLeave={(e) => { if (!isSel) e.currentTarget.style.background = 'transparent'; }}>
+                        <td style={{ padding: '12px 20px', color: '#6b7280' }}>{fmtDate(txn.createdAt)}</td>
+                        <td style={{ padding: '12px 20px', fontWeight: 600, color: '#111827' }}>{txn.transactionNumber}</td>
+                        <td style={{ padding: '12px 20px', color: '#374151' }}>{txn.customerName || 'Walk-in'}</td>
+                        <td style={{ padding: '12px 20px', textAlign: 'right', fontWeight: 700, color: '#111827', fontVariantNumeric: 'tabular-nums' }}>{fmt(txn.totalAmount)}</td>
+                        <td style={{ padding: '12px 20px' }}><StatusBadge status={txn.status} /></td>
+                        <td style={{ padding: '8px 12px' }}>
+                          <div style={{ display: 'flex', justifyContent: 'center', gap: 2 }}>
+                            {[
+                              { icon: Receipt, tip: 'Receipt', color: '#6b7280', url: `/api/receipts/${tid}/preview` },
+                              { icon: FileText, tip: 'Sales Order', color: '#3b82f6', url: `/api/sales-orders/${tid}/view` },
+                              { icon: Truck, tip: 'Delivery Slip', color: '#06b6d4', url: `/api/delivery-slips/transaction/${tid}/view` },
+                              { icon: ClipboardList, tip: 'Waiver', color: '#f59e0b', url: `/api/delivery-slips/transaction/${tid}/waiver` }
+                            ].map(({ icon: I, tip, color, url }) => (
+                              <button key={tip} title={tip} type="button"
+                                onClick={(e) => { e.stopPropagation(); openAuthPdf(url, token); }}
+                                style={{ padding: 5, borderRadius: 6, border: 'none', background: 'transparent', cursor: 'pointer', color, display: 'flex', transition: 'background 0.1s' }}
+                                onMouseEnter={(e) => { e.currentTarget.style.background = '#f3f4f6'; }}
+                                onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; }}>
+                                <I style={{ width: 16, height: 16 }} />
+                              </button>
+                            ))}
                           </div>
                         </td>
                       </tr>
@@ -353,137 +258,103 @@ export default function DocumentCenter() {
           </div>
         </div>
 
-        {/* ── RIGHT: Detail Panel ── */}
-        {selectedTxn && (
-          <div className="w-[45%] flex flex-col overflow-hidden bg-white">
-            {/* Detail Header */}
-            <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100 bg-gray-50/50">
+        {/* RIGHT: Detail Panel */}
+        {selected && (
+          <div style={{ flex: '0 0 45%', display: 'flex', flexDirection: 'column', minHeight: 0, background: '#fafbfc' }}>
+            {/* Header */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '20px 24px', borderBottom: '1px solid #e5e7eb', background: '#fff', flexShrink: 0 }}>
               <div>
-                <p className="text-[11px] font-semibold text-indigo-600 uppercase tracking-wider">Transaction</p>
-                <h2 className="text-lg font-bold text-gray-900 -mt-0.5">{selectedTxn.transactionNumber}</h2>
+                <p style={{ fontSize: 11, fontWeight: 700, color: '#4f46e5', textTransform: 'uppercase', letterSpacing: 1, margin: 0 }}>Transaction</p>
+                <h2 style={{ fontSize: 18, fontWeight: 800, color: '#111827', margin: '2px 0 0' }}>{selected.transactionNumber}</h2>
               </div>
-              <button
-                onClick={() => { setSelectedTxn(null); setDetailData(null); }}
-                className="p-1.5 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
-              >
-                <X className="w-5 h-5" />
+              <button onClick={() => { setSelected(null); setDetail(null); }}
+                style={{ padding: 6, borderRadius: 8, border: 'none', background: 'transparent', cursor: 'pointer', color: '#9ca3af' }}
+                onMouseEnter={(e) => { e.currentTarget.style.background = '#f3f4f6'; }}
+                onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; }}>
+                <X style={{ width: 20, height: 20 }} />
               </button>
             </div>
 
-            <div className="flex-1 overflow-y-auto px-5 py-4 space-y-4">
+            <div style={{ flex: 1, overflow: 'auto', padding: 24 }}>
               {detailLoading ? (
-                <div className="flex items-center justify-center h-40">
-                  <Loader2 className="w-7 h-7 text-indigo-500 animate-spin" />
+                <div style={{ display: 'flex', justifyContent: 'center', paddingTop: 60 }}>
+                  <Loader2 style={{ width: 28, height: 28, color: '#4f46e5', animation: 'spin 1s linear infinite' }} />
                 </div>
               ) : (
-                <>
-                  {/* Info Card */}
-                  <div className="bg-white border border-gray-200 border-l-4 border-l-indigo-500 rounded-xl p-4">
-                    <div className="grid grid-cols-2 gap-3 text-[12px]">
-                      <div>
-                        <span className="text-gray-400 font-medium">Date</span>
-                        <p className="text-gray-900 font-semibold">{formatDateTime(selectedTxn.createdAt)}</p>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+                  {/* Info Grid */}
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                    {[
+                      { label: 'Date', value: fmtDT(selected.createdAt) },
+                      { label: 'Status', value: null, badge: selected.status },
+                      { label: 'Customer', value: selected.customerName || 'Walk-in Customer' },
+                      { label: 'Total', value: fmt(selected.totalAmount), bold: true, large: true },
+                      { label: 'Cashier', value: selected.cashierName || 'N/A' },
+                      { label: 'Items', value: String(selected.itemCount || detail?.items?.length || 0) }
+                    ].map((f, i) => (
+                      <div key={i} style={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: 10, padding: '14px 16px' }}>
+                        <p style={{ fontSize: 11, fontWeight: 600, color: '#9ca3af', textTransform: 'uppercase', letterSpacing: 0.5, margin: 0 }}>{f.label}</p>
+                        {f.badge ? (
+                          <div style={{ marginTop: 6 }}><StatusBadge status={f.badge} /></div>
+                        ) : (
+                          <p style={{ fontSize: f.large ? 18 : 14, fontWeight: f.bold ? 800 : 600, color: '#111827', margin: '6px 0 0' }}>{f.value}</p>
+                        )}
                       </div>
-                      <div>
-                        <span className="text-gray-400 font-medium">Status</span>
-                        <p className="mt-0.5"><StatusBadge status={selectedTxn.status} /></p>
-                      </div>
-                      <div>
-                        <span className="text-gray-400 font-medium">Customer</span>
-                        <p className="text-gray-900 font-semibold">{selectedTxn.customerName || 'Walk-in Customer'}</p>
-                      </div>
-                      <div>
-                        <span className="text-gray-400 font-medium">Total</span>
-                        <p className="text-gray-900 font-bold text-base">{formatCurrency(selectedTxn.totalAmount)}</p>
-                      </div>
-                      <div>
-                        <span className="text-gray-400 font-medium">Cashier</span>
-                        <p className="text-gray-900 font-medium">{selectedTxn.cashierName || 'N/A'}</p>
-                      </div>
-                      <div>
-                        <span className="text-gray-400 font-medium">Items</span>
-                        <p className="text-gray-900 font-medium">{selectedTxn.itemCount || detailData?.items?.length || 0}</p>
-                      </div>
-                    </div>
+                    ))}
                   </div>
 
-                  {/* Items Card */}
-                  {detailData?.items && detailData.items.length > 0 && (
-                    <div className="bg-white border border-gray-200 border-l-4 border-l-emerald-500 rounded-xl p-4">
-                      <div className="flex items-center gap-2 pb-2 border-b border-gray-100 mb-3">
-                        <Receipt size={14} className="text-emerald-600" />
-                        <span className="text-[12px] font-semibold text-gray-700">Items ({detailData.items.length})</span>
+                  {/* Items */}
+                  {detail?.items?.length > 0 && (
+                    <div style={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: 12, overflow: 'hidden' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '12px 16px', borderBottom: '1px solid #f3f4f6' }}>
+                        <Receipt style={{ width: 15, height: 15, color: '#10b981' }} />
+                        <span style={{ fontSize: 13, fontWeight: 700, color: '#374151' }}>Items ({detail.items.length})</span>
                       </div>
-                      <div className="space-y-1.5 max-h-48 overflow-y-auto">
-                        {detailData.items.map((item, i) => (
-                          <div key={i} className="flex justify-between items-center py-1.5 px-2 rounded-md hover:bg-gray-50">
-                            <div className="flex-1 min-w-0">
-                              <p className="text-[12px] font-medium text-gray-900 truncate">{item.name}</p>
-                              <p className="text-[11px] text-gray-400">{item.quantity} x {formatCurrency(item.unitPrice)}</p>
+                      <div style={{ maxHeight: 200, overflow: 'auto' }}>
+                        {detail.items.map((item, i) => (
+                          <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 16px', borderBottom: i < detail.items.length - 1 ? '1px solid #f9fafb' : 'none' }}>
+                            <div style={{ flex: 1, minWidth: 0 }}>
+                              <p style={{ fontSize: 13, fontWeight: 600, color: '#111827', margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.name}</p>
+                              <p style={{ fontSize: 11, color: '#9ca3af', margin: '2px 0 0' }}>{item.quantity} x {fmt(item.unitPrice)}</p>
                             </div>
-                            <p className="text-[12px] font-semibold text-gray-900 ml-3 tabular-nums">{formatCurrency(item.total)}</p>
+                            <p style={{ fontSize: 13, fontWeight: 700, color: '#111827', marginLeft: 12, fontVariantNumeric: 'tabular-nums' }}>{fmt(item.total)}</p>
                           </div>
                         ))}
                       </div>
                     </div>
                   )}
 
-                  {/* Documents Card */}
-                  <div className="bg-white border border-gray-200 border-l-4 border-l-indigo-500 rounded-xl p-4">
-                    <div className="flex items-center gap-2 pb-2 border-b border-gray-100 mb-3">
-                      <FileText size={14} className="text-indigo-600" />
-                      <span className="text-[12px] font-semibold text-gray-700">Documents</span>
+                  {/* Documents */}
+                  <div style={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: 12, overflow: 'hidden' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '12px 16px', borderBottom: '1px solid #f3f4f6' }}>
+                      <Printer style={{ width: 15, height: 15, color: '#4f46e5' }} />
+                      <span style={{ fontSize: 13, fontWeight: 700, color: '#374151' }}>Print / Email Documents</span>
                     </div>
-                    <div className="flex flex-wrap gap-2">
-                      <DocLabelButton
-                        icon={Receipt}
-                        label="Receipt"
-                        color="gray"
-                        onClick={() => openAuthPdf(`/api/receipts/${txnId}/preview`, token)}
-                      />
-                      <DocLabelButton
-                        icon={Mail}
-                        label="Email Receipt"
-                        color="purple"
-                        onClick={() => promptEmail('Receipt', (email) =>
-                          emailDocument(`/api/receipts/${txnId}/email`, email, token)
-                        )}
-                      />
-                      <DocLabelButton
-                        icon={FileText}
-                        label="Sales Order"
-                        color="blue"
-                        onClick={() => openAuthPdf(`/api/sales-orders/${txnId}/view`, token)}
-                      />
-                      <DocLabelButton
-                        icon={Mail}
-                        label="Email Sales Order"
-                        color="purple"
-                        onClick={() => promptEmail('Sales Order', (email) =>
-                          emailDocument(`/api/sales-orders/${txnId}/email`, email, token)
-                        )}
-                      />
-                      <DocLabelButton
-                        icon={Truck}
-                        label="Delivery Slip"
-                        color="cyan"
-                        onClick={() => openAuthPdf(`/api/delivery-slips/transaction/${txnId}/view`, token)}
-                      />
-                      <DocLabelButton
-                        icon={ClipboardList}
-                        label="Delivery Waiver"
-                        color="amber"
-                        onClick={() => openAuthPdf(`/api/delivery-slips/transaction/${txnId}/waiver`, token)}
-                      />
-                      <DocLabelButton
-                        icon={FileSpreadsheet}
-                        label="Invoice"
-                        color="green"
-                        onClick={() => openAuthPdf(`/api/pos-invoices/${txnId}/preview`, token)}
-                      />
+                    <div style={{ padding: 16, display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                      {[
+                        { icon: Receipt, label: 'Receipt', bg: '#f3f4f6', color: '#374151', action: () => openAuthPdf(`/api/receipts/${id}/preview`, token) },
+                        { icon: Mail, label: 'Email Receipt', bg: '#f5f3ff', color: '#7c3aed', action: () => promptEmail('Receipt', (em) => emailDocument(`/api/receipts/${id}/email`, em, token)) },
+                        { icon: FileText, label: 'Sales Order', bg: '#eff6ff', color: '#2563eb', action: () => openAuthPdf(`/api/sales-orders/${id}/view`, token) },
+                        { icon: Mail, label: 'Email Sales Order', bg: '#f5f3ff', color: '#7c3aed', action: () => promptEmail('Sales Order', (em) => emailDocument(`/api/sales-orders/${id}/email`, em, token)) },
+                        { icon: Truck, label: 'Delivery Slip', bg: '#ecfeff', color: '#0891b2', action: () => openAuthPdf(`/api/delivery-slips/transaction/${id}/view`, token) },
+                        { icon: ClipboardList, label: 'Delivery Waiver', bg: '#fffbeb', color: '#d97706', action: () => openAuthPdf(`/api/delivery-slips/transaction/${id}/waiver`, token) },
+                        { icon: FileSpreadsheet, label: 'Invoice', bg: '#f0fdf4', color: '#16a34a', action: () => openAuthPdf(`/api/pos-invoices/${id}/preview`, token) }
+                      ].map(({ icon: I, label, bg, color, action }) => (
+                        <button key={label} type="button" onClick={action}
+                          style={{
+                            display: 'inline-flex', alignItems: 'center', gap: 6, padding: '8px 14px',
+                            fontSize: 12, fontWeight: 650, color, background: bg, border: 'none',
+                            borderRadius: 8, cursor: 'pointer', transition: 'filter 0.1s'
+                          }}
+                          onMouseEnter={(e) => { e.currentTarget.style.filter = 'brightness(0.95)'; }}
+                          onMouseLeave={(e) => { e.currentTarget.style.filter = 'none'; }}>
+                          <I style={{ width: 14, height: 14 }} />
+                          {label}
+                        </button>
+                      ))}
                     </div>
                   </div>
-                </>
+                </div>
               )}
             </div>
           </div>
