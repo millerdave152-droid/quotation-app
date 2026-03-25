@@ -77,29 +77,9 @@ class TaxEngine {
       return { fee: 4.50, category: 'Projector' };
     }
 
-    // Other categories — use flat rate table
-    const ehfData = this.getEHF(this._mapCategoryToEHF(cat, combined), province);
-    return { fee: ehfData.ehfAmount, category: ehfData.category || cat };
-  }
-
-  // Map product category to EHF rate table key
-  _mapCategoryToEHF(cat, combined) {
-    if (cat.includes('refriger') || combined.includes('fridge')) return 'Refrigerators';
-    if (cat.includes('freezer')) return 'Freezers';
-    if (cat.includes('washer') && !cat.includes('dish')) return 'Washers';
-    if (cat.includes('dryer')) return 'Dryers';
-    if (cat.includes('dishwasher')) return 'Dishwashers';
-    if (cat.includes('range') || cat.includes('stove') || cat.includes('oven')) return 'Ranges';
-    if (cat.includes('microwave')) return 'Microwaves';
-    if (cat.includes('air') && combined.includes('condition')) return 'Air_Conditioners';
-    if (cat.includes('monitor')) return 'Monitors';
-    if (cat.includes('computer') || cat.includes('laptop') || cat.includes('desktop')) return 'Computers';
-    if (cat.includes('printer')) return 'Printers';
-    if (cat.includes('audio') || cat.includes('speaker') || cat.includes('soundbar') || cat.includes('headphone')) return 'Audio';
-    if (cat.includes('phone') || cat.includes('smartphone')) return 'Phones';
-    if (cat.includes('tablet') || cat.includes('ipad')) return 'Tablets';
-    if (cat.includes('small appliance')) return 'Small_Appliance';
-    return '';
+    // EHF only applies to TVs, Blu-ray/DVD players, and Projectors
+    // No EHF on appliances, furniture, or other categories
+    return { fee: 0, category: cat };
   }
 
   // Calculate total EHF for an array of cart items

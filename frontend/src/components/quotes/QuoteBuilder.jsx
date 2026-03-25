@@ -252,7 +252,7 @@ const QuoteBuilder = ({
     const tradeInCredit = quoteTradeIns.reduce((sum, t) => sum + ((t.estimatedValueCents || 0) / 100), 0);
     const rebateCredit = quoteRebates.reduce((sum, r) => sum + ((r.rebate_amount_cents || 0) / 100), 0);
 
-    // EHF calculation (not taxable — added after tax calc)
+    // EHF calculation — only TVs, Blu-ray/DVD, Projectors (not taxable)
     let ehfTotal = 0;
     for (const item of quoteItems) {
       const combined = `${item.name || ''} ${item.category || ''} ${item.description || ''}`.toLowerCase();
@@ -261,24 +261,10 @@ const QuoteBuilder = ({
         const sizeMatch = (item.name || '').match(/(\d{2,3})\s*["\'″]|(\d{2,3})\s*-?\s*inch/i);
         const size = sizeMatch ? parseInt(sizeMatch[1] || sizeMatch[2], 10) : 65;
         ehfPerUnit = size <= 29 ? 8.25 : size <= 45 ? 14.65 : 19.25;
-      } else if (combined.includes('blu-ray') || combined.includes('dvd player')) {
+      } else if (combined.includes('blu-ray') || combined.includes('bluray') || combined.includes('dvd player')) {
         ehfPerUnit = 2.25;
       } else if (combined.includes('projector')) {
         ehfPerUnit = 4.50;
-      } else if (combined.includes('refriger') || combined.includes('fridge')) {
-        ehfPerUnit = 29.58;
-      } else if (combined.includes('washer') && !combined.includes('dish')) {
-        ehfPerUnit = 7.35;
-      } else if (combined.includes('dryer')) {
-        ehfPerUnit = 3.45;
-      } else if (combined.includes('dishwasher')) {
-        ehfPerUnit = 7.35;
-      } else if (combined.includes('range') || combined.includes('stove')) {
-        ehfPerUnit = 7.35;
-      } else if (combined.includes('microwave')) {
-        ehfPerUnit = 7.35;
-      } else if (combined.includes('freezer')) {
-        ehfPerUnit = 16.67;
       }
       ehfTotal += ehfPerUnit * (item.quantity || 1);
     }
