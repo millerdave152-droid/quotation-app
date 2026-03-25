@@ -31,8 +31,9 @@ const OVERRIDE_REASONS = [
 ];
 
 // Tier boundaries (mirrors backend approval_tier_settings)
+// Products with no price (0 or null) → Tier 0 (auto-approve any entry)
 function calculateTier(retailPrice, overridePrice) {
-  if (retailPrice <= 0) return 2;
+  if (!retailPrice || retailPrice <= 0) return 0; // unpriced product — auto-approve
   const pct = ((retailPrice - overridePrice) / retailPrice) * 100;
   if (pct <= 10)  return 1;
   if (pct <= 25)  return 2;
@@ -41,6 +42,7 @@ function calculateTier(retailPrice, overridePrice) {
 }
 
 const TIER_LABELS = {
+  0: 'No price set – Auto-approved',
   1: 'Tier 1 – Auto-approved',
   2: 'Tier 2 – Manager Required',
   3: 'Tier 3 – Senior Manager Required',
@@ -112,7 +114,7 @@ export function PriceOverrideModal({
       percentFromBase,
       percentFromCustomer,
       totalSavings: discountFromBase * quantity,
-      isValid: overridePrice > 0 && overridePrice <= safeOriginalPrice,
+      isValid: overridePrice > 0 && (safeOriginalPrice <= 0 || overridePrice <= safeOriginalPrice),
       isIncrease: overridePrice > safeCustomerPrice,
     };
   }, [overridePrice, safeOriginalPrice, safeCustomerPrice, quantity]);
@@ -126,6 +128,7 @@ export function PriceOverrideModal({
   );
 
   const needsManagerApproval = tier !== null && tier >= 2 && !canApproveOverrides;
+  const isUnpricedProduct = !safeOriginalPrice || safeOriginalPrice <= 0;
 
   // Reason text
   const reasonText = useMemo(() => {
@@ -168,11 +171,13 @@ export function PriceOverrideModal({
         return;
       }
 
+      // Unpriced products (original price $0 or null) → auto-approve any price entry
+      const isUnpriced = !safeOriginalPrice || safeOriginalPrice <= 0;
       const discountPct = safeOriginalPrice > 0
         ? ((safeOriginalPrice - overridePrice) / safeOriginalPrice) * 100
         : 0;
 
-      if (discountPct <= 10) {
+      if (isUnpriced || discountPct <= 10) {
         // Tier 1: Auto-approve via API, consume token, apply to cart
         const res = await createApprovalRequest({
           productId: product.productId || product.id,

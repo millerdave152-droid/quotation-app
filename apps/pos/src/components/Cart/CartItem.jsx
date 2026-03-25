@@ -165,7 +165,12 @@ export const CartItem = memo(function CartItem({
 
               {/* Price per unit */}
               <div className="mt-1 flex items-center gap-2">
-                {item.customerPriceApplied && item.originalPrice != null ? (
+                {(!item.unitPrice || item.unitPrice <= 0) ? (
+                  <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-amber-100 text-amber-800 text-[11px] font-bold">
+                    <AlertTriangle className="w-3 h-3" />
+                    Price needed
+                  </span>
+                ) : item.customerPriceApplied && item.originalPrice != null ? (
                   <>
                     <span className="text-sm text-gray-400 line-through">
                       {formatCurrency(item.originalPrice)}
