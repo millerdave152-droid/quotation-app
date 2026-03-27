@@ -205,10 +205,7 @@ router.get('/:id/for-sale', asyncHandler(async (req, res) => {
 
   const quote = quoteResult.rows[0];
 
-  // Check if quote is already converted
-  if (quote.status === 'converted') {
-    throw ApiError.badRequest('Quote has already been converted to a sale');
-  }
+  // Note: converted quotes are still loadable for reprint/review purposes
 
   // Check if quote is expired
   const now = new Date();

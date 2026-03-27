@@ -135,8 +135,10 @@ class SalesOrderService {
     const itemsResult = await this.pool.query(`
       SELECT
         ti.product_name, ti.product_sku, ti.quantity,
-        ti.unit_price, ti.discount_percent, ti.discount_amount,
-        ti.tax_amount, ti.line_total,
+        CASE WHEN COALESCE(ti.unit_price, 0) = 0 THEN COALESCE(p.price, p.msrp_cents / 100.0, 0) ELSE ti.unit_price END AS unit_price,
+        ti.discount_percent, ti.discount_amount,
+        ti.tax_amount,
+        CASE WHEN COALESCE(ti.line_total, 0) = 0 THEN COALESCE(p.price, p.msrp_cents / 100.0, 0) * ti.quantity ELSE ti.line_total END AS line_total,
         p.manufacturer, p.model AS model_number, p.category AS product_category, p.screen_size_inches,
         ti.serial_number
       FROM transaction_items ti
