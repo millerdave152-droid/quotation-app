@@ -531,12 +531,15 @@ export function CartProvider({ children }) {
     setItems((currentItems) => {
       // Check if product already exists (by productId, and no serial number)
       // Items with serial numbers are always added as new items
+      // Warranties are always added as new items (different covered products = different prices)
       const pid = product.productId || product.product_id || product.id;
-      const existingIndex = currentItems.findIndex(
+      const isWarrantyItem = options.isWarranty || (product.sku && product.sku.startsWith('WRN-'));
+      const existingIndex = isWarrantyItem ? -1 : currentItems.findIndex(
         (item) =>
           item.productId === pid &&
           !item.serialNumber &&
-          !serialNumber
+          !serialNumber &&
+          !item.isWarranty
       );
 
       if (existingIndex >= 0) {
