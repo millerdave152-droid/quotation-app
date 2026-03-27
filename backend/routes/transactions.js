@@ -537,7 +537,19 @@ router.post('/', authenticate, paymentLimiter, validateBody(schemas.transactionC
     // Recalculate taxes after transaction discount if needed
     const taxes = calculateTaxes(finalSubtotal, taxProvince);
     const effectiveDeliveryFee = deliveryFee || fulfillment?.fee || 0;
-    const totalAmount = finalSubtotal + taxes.totalTax + effectiveDeliveryFee;
+
+    // Calculate EHF (Environmental Handling Fee — not taxable)
+    let ehfAmount = 0;
+    try {
+      const taxEngine = require('../services/TaxEngine');
+      const ehfResult = taxEngine.calculateCartEHF(processedItems.map(i => ({
+        name: i.productName, sku: i.productSku, category: '', quantity: i.quantity,
+        screen_size_inches: i.screen_size_inches
+      })), taxProvince);
+      ehfAmount = ehfResult.totalEHF;
+    } catch { /* EHF optional */ }
+
+    const totalAmount = finalSubtotal + taxes.totalTax + effectiveDeliveryFee + ehfAmount;
 
     // Validate payment total (skip for deposit payments)
     const paymentTotal = payments.reduce((sum, p) => sum + p.amount, 0);
@@ -585,9 +597,10 @@ router.post('/', authenticate, paymentLimiter, validateBody(schemas.transactionC
         client_transaction_id,
         subtotal_cents, discount_amount_cents,
         hst_amount_cents, gst_amount_cents, pst_amount_cents,
-        total_amount_cents, deposit_amount_cents, balance_due_cents
+        total_amount_cents, deposit_amount_cents, balance_due_cents,
+        environmental_fee
       ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24,
-        $25, $26, $27, $28, $29, $30, $31, $32)
+        $25, $26, $27, $28, $29, $30, $31, $32, $33)
       RETURNING transaction_id, transaction_number, created_at`;
     const txParams = [
         transactionNumber,
@@ -621,7 +634,8 @@ router.post('/', authenticate, paymentLimiter, validateBody(schemas.transactionC
         dollarsToCents(taxes.pstAmount),
         dollarsToCents(totalAmount),
         depositAmount != null ? dollarsToCents(depositAmount) : null,
-        balanceDue != null ? dollarsToCents(balanceDue) : null
+        balanceDue != null ? dollarsToCents(balanceDue) : null,
+        ehfAmount
       ];
     const transactionResult = await client.query(txQuery, txParams);
     const transaction = transactionResult.rows[0];
@@ -1054,6 +1068,8 @@ router.post('/', authenticate, paymentLimiter, validateBody(schemas.transactionC
           status: 'deposit_paid',
         } : null,
         status: transactionStatus,
+        fulfillmentType: fulfillment?.type || 'pickup_now',
+        deliveryAddress: fulfillment?.address?.street || fulfillment?.deliveryAddress || null,
         fraudAssessment: req.fraudAssessment || null,
       }
     });
