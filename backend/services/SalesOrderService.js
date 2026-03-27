@@ -263,9 +263,12 @@ class SalesOrderService {
     const totalDue = parseFloat(transaction.total_amount || 0);
     const balanceDue = Math.max(0, totalDue - totalPaid);
 
-    // Back-calculate subtotal and HST from the tax-inclusive total
-    // total_amount already includes 13% HST in Ontario
-    const itemSubtotal = items.reduce((sum, item) => sum + parseFloat(item.line_total || 0), 0);
+    // Calculate pre-tax subtotal from unit_price * quantity (line_total includes tax)
+    const itemSubtotal = items.reduce((sum, item) => {
+      const price = parseFloat(item.unit_price || 0);
+      const qty = parseInt(item.quantity || 1);
+      return sum + (price * qty);
+    }, 0);
 
     // Calculate EHF for items (exclude warranties — they contain "TV" in name but aren't TVs)
     let totalEHF = 0;
@@ -543,7 +546,7 @@ class SalesOrderService {
 
         // Amount (right-aligned)
         doc.fontSize(8).font('Helvetica-Bold').fillColor(COLORS.text)
-          .text(this.formatCurrency(item.line_total), cols.amount.x + 2, textY, { width: cols.amount.w - 4, align: 'right' });
+          .text(this.formatCurrency(parseFloat(item.unit_price || 0) * parseInt(item.quantity || 1)), cols.amount.x + 2, textY, { width: cols.amount.w - 4, align: 'right' });
 
         yPos += rowH;
       });
@@ -623,10 +626,6 @@ class SalesOrderService {
       tY += 14;
       doc.fillColor(COLORS.textMuted).text('GST/HST 13.000%', totLblX, tY);
       doc.fillColor(COLORS.text).text(this.formatCurrency(taxAmount), totValX, tY, { width: 80, align: 'right' });
-
-      tY += 14;
-      doc.fillColor(COLORS.textMuted).text('PST 0.000%', totLblX, tY);
-      doc.fillColor(COLORS.text).text('$0.00', totValX, tY, { width: 80, align: 'right' });
 
       tY += 18;
       doc.moveTo(totLblX, tY).lineTo(rightColX + rightColW, tY)
