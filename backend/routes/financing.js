@@ -5,7 +5,7 @@
 
 const express = require('express');
 const { ApiError, asyncHandler } = require('../middleware/errorHandler');
-const { authenticate, requireRole } = require('../middleware/auth');
+const { requireRole } = require('../middleware/auth');
 
 /**
  * Initialize financing routes
@@ -13,7 +13,7 @@ const { authenticate, requireRole } = require('../middleware/auth');
  * @param {object} deps.financingService - FinancingService instance
  * @returns {express.Router}
  */
-function init({ financingService }) {
+function init({ financingService, authenticate }) {
   const router = express.Router();
 
   // ===========================================================================
@@ -113,7 +113,7 @@ function init({ financingService }) {
    * Get all applications with optional filters (for admin pages)
    * Query: status, provider, customerId, includeAll, page, limit
    */
-  router.get('/applications', asyncHandler(async (req, res) => {
+  router.get('/applications', authenticate, asyncHandler(async (req, res) => {
     const { status, provider, customerId, includeAll, page = 1, limit = 100 } = req.query;
 
     let query = `
@@ -178,7 +178,7 @@ function init({ financingService }) {
    * GET /api/financing/applications/:id
    * Get financing application details
    */
-  router.get('/applications/:id', asyncHandler(async (req, res) => {
+  router.get('/applications/:id', authenticate, asyncHandler(async (req, res) => {
     const { id } = req.params;
     const application = await financingService.getApplication(parseInt(id, 10));
 
@@ -302,7 +302,7 @@ function init({ financingService }) {
    * GET /api/financing/agreements/:id
    * Get agreement details
    */
-  router.get('/agreements/:id', asyncHandler(async (req, res) => {
+  router.get('/agreements/:id', authenticate, asyncHandler(async (req, res) => {
     const { id } = req.params;
 
     const pool = financingService.pool;
@@ -346,7 +346,7 @@ function init({ financingService }) {
    * GET /api/financing/customer/:customerId
    * Get customer's financing information
    */
-  router.get('/customer/:customerId', asyncHandler(async (req, res) => {
+  router.get('/customer/:customerId', authenticate, asyncHandler(async (req, res) => {
     const { customerId } = req.params;
     const result = await financingService.getCustomerFinancing(parseInt(customerId, 10));
 
@@ -389,7 +389,7 @@ function init({ financingService }) {
    * GET /api/financing/agreements/:agreementId/payoff
    * Calculate early payoff amount
    */
-  router.get('/agreements/:agreementId/payoff', asyncHandler(async (req, res) => {
+  router.get('/agreements/:agreementId/payoff', authenticate, asyncHandler(async (req, res) => {
     const { agreementId } = req.params;
     const result = await financingService.calculatePayoffAmount(parseInt(agreementId, 10));
 
@@ -519,7 +519,7 @@ function init({ financingService }) {
    * List financing applications with filters
    * Query: status, customerId, provider, page, limit
    */
-  router.get('/admin/applications', asyncHandler(async (req, res) => {
+  router.get('/admin/applications', authenticate, asyncHandler(async (req, res) => {
     const { status, customerId, provider, page = 1, limit = 50 } = req.query;
 
     let query = `
@@ -572,7 +572,7 @@ function init({ financingService }) {
    * GET /api/financing/admin/agreements
    * List financing agreements with filters
    */
-  router.get('/admin/agreements', asyncHandler(async (req, res) => {
+  router.get('/admin/agreements', authenticate, asyncHandler(async (req, res) => {
     const { status, customerId, page = 1, limit = 50 } = req.query;
 
     let query = `
@@ -621,7 +621,7 @@ function init({ financingService }) {
    * GET /api/financing/admin/upcoming-payments
    * Get payments due soon (for collections/reminders)
    */
-  router.get('/admin/upcoming-payments', asyncHandler(async (req, res) => {
+  router.get('/admin/upcoming-payments', authenticate, asyncHandler(async (req, res) => {
     const { days = 7 } = req.query;
 
     const pool = financingService.pool;
@@ -645,7 +645,7 @@ function init({ financingService }) {
    * GET /api/financing/admin/overdue
    * Get overdue payments
    */
-  router.get('/admin/overdue', asyncHandler(async (req, res) => {
+  router.get('/admin/overdue', authenticate, asyncHandler(async (req, res) => {
     const pool = financingService.pool;
     const { rows } = await pool.query(`
       SELECT
@@ -775,7 +775,7 @@ function init({ financingService }) {
    * Get collections data (past due accounts)
    * Query: riskLevel, minDaysOverdue, limit
    */
-  router.get('/admin/collections', asyncHandler(async (req, res) => {
+  router.get('/admin/collections', authenticate, asyncHandler(async (req, res) => {
     const { riskLevel, minDaysOverdue, limit } = req.query;
 
     const result = await financingService.getCollections({
@@ -815,7 +815,7 @@ function init({ financingService }) {
    * GET /api/financing/admin/dashboard
    * Get financing dashboard summary
    */
-  router.get('/admin/dashboard', asyncHandler(async (req, res) => {
+  router.get('/admin/dashboard', authenticate, asyncHandler(async (req, res) => {
     const pool = financingService.pool;
 
     // Get summary stats

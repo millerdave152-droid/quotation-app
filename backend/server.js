@@ -609,6 +609,14 @@ app.get('/api/health', (req, res) => {
 app.use('/api/auth', authLimiter, authRoutes);
 
 // ============================================
+// SALES ORDERS & DELIVERY SLIPS (mounted early for Express 5 reliability)
+// ============================================
+app.use('/api/sales-orders', initSalesOrderRoutes({ salesOrderService, posInvoiceService, managerOverrideService, pool }));
+logger.info('Sales order routes loaded');
+app.use('/api/delivery-slips', initDeliverySlipRoutes({ deliverySlipService, deliveryWaiverService, pool }));
+logger.info('Delivery slip routes loaded');
+
+// ============================================
 // USER MANAGEMENT ROUTES
 // ============================================
 const usersRoutes = require('./routes/users');
@@ -1004,6 +1012,8 @@ const { init: initTransactionsRoutes } = require('./routes/transactions');
 app.use('/api/transactions', initTransactionsRoutes({ pool, cache, discountAuthorityService }));
 logger.info('POS transactions routes loaded');
 
+// NOTE: sales-orders and delivery-slips routes mounted after auth routes above
+
 // POS RETURNS
 const { init: initReturnsRoutes } = require('./routes/returns');
 app.use('/api/returns', initReturnsRoutes({ pool, cache, monerisService, receiptService }));
@@ -1062,10 +1072,7 @@ logger.info('Cash drawer routes loaded');
 // ============================================
 app.use('/api/pos-invoices', initPosInvoicesRoutes({ posInvoiceService }));
 logger.info('POS invoice routes loaded');
-app.use('/api/sales-orders', initSalesOrderRoutes({ salesOrderService, posInvoiceService, managerOverrideService, pool }));
-logger.info('Sales order routes loaded');
-app.use('/api/delivery-slips', initDeliverySlipRoutes({ deliverySlipService, deliveryWaiverService, pool }));
-logger.info('Delivery slip routes loaded');
+// NOTE: sales-orders and delivery-slips routes are mounted earlier (after transactions)
 app.use('/api/manufacturer-ras', initManufacturerRARoutes({ manufacturerRAService, pool }));
 logger.info('Manufacturer RA routes loaded');
 
@@ -1271,7 +1278,7 @@ app.use('/api/upsell', upsellRoutes);
 logger.info('Upsell routes loaded');
 
 // Financing Service
-app.use('/api/financing', initFinancingRoutes({ financingService }));
+app.use('/api/financing', initFinancingRoutes({ financingService, authenticate }));
 logger.info('Financing routes loaded');
 
 // Commission Service
@@ -2329,8 +2336,8 @@ app.get('/api/warranty-plans', async (req, res) => {
     const params = [];
 
     if (productCategory) {
-      params.push(productCategory);
-      query += ` AND (product_category = $${params.length} OR product_category IS NULL)`;
+      params.push(productCategory.toLowerCase());
+      query += ` AND (LOWER(product_category) = $${params.length} OR product_category IS NULL)`;
     }
 
     if (productPrice) {
