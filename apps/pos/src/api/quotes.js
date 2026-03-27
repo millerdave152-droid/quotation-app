@@ -91,8 +91,11 @@ export const getQuoteForSale = async (quoteId) => {
             productName: item.productName || item.product_name || item.name,
             productSku: item.productSku || item.product_sku || item.sku,
             quantity: item.quantity,
-            unitPrice: parseFloat(item.unitPrice || item.unit_price || item.price || 0),
-            unitCost: parseFloat(item.unitCost || item.unit_cost || 0),
+            unitPrice: parseFloat(item.unitPrice || item.unit_price || item.price || 0)
+              || (item.sell_cents ? parseFloat(item.sell_cents) / 100 : 0)
+              || (item.msrp_cents ? parseFloat(item.msrp_cents) / 100 : 0),
+            unitCost: parseFloat(item.unitCost || item.unit_cost || 0)
+              || (item.cost_cents ? parseFloat(item.cost_cents) / 100 : 0),
             discountPercent: item.discountPercent || item.discount_percent || 0,
             discountAmount: item.discountAmount || item.discount_amount || 0,
             taxable: item.taxable !== false,

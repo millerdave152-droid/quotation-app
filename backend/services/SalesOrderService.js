@@ -265,11 +265,17 @@ class SalesOrderService {
     // total_amount already includes 13% HST in Ontario
     const itemSubtotal = items.reduce((sum, item) => sum + parseFloat(item.line_total || 0), 0);
 
-    // Calculate EHF for items
+    // Calculate EHF for items (exclude warranties — they contain "TV" in name but aren't TVs)
     let totalEHF = 0;
     try {
       const taxEngine = require('./TaxEngine');
-      const ehfResult = taxEngine.calculateCartEHF(items.map(i => ({
+      const nonWarrantyItems = items.filter(i => {
+        const name = (i.product_name || '').toLowerCase();
+        const sku = (i.product_sku || '').toLowerCase();
+        return !name.includes('warranty') && !name.includes('protection') && !name.includes('guardian')
+          && !name.includes('excelsior') && !sku.startsWith('wrn-');
+      });
+      const ehfResult = taxEngine.calculateCartEHF(nonWarrantyItems.map(i => ({
         name: i.product_name, category: i.product_category || '', description: i.model_number || '', quantity: i.quantity, screen_size_inches: i.screen_size_inches, sku: i.product_sku
       })), 'ON');
       totalEHF = ehfResult.totalEHF;
@@ -601,20 +607,20 @@ class SalesOrderService {
         .text(this.formatCurrency(subtotal), totValX, tY, { width: 80, align: 'right' });
 
       tY += 14;
-      doc.fillColor(COLORS.textMuted).text('Env. Handling Fee (EHF)', totLblX, tY);
-      doc.fillColor(COLORS.text).text(this.formatCurrency(totalEHF), totValX, tY, { width: 80, align: 'right' });
-
-      tY += 14;
-      doc.fillColor(COLORS.textMuted).text('Sub Total', totLblX, tY);
-      doc.fillColor(COLORS.text).text(this.formatCurrency(subtotal + totalEHF), totValX, tY, { width: 80, align: 'right' });
-
-      tY += 14;
       doc.fillColor(COLORS.textMuted).text('GST/HST 13.000%', totLblX, tY);
       doc.fillColor(COLORS.text).text(this.formatCurrency(taxAmount), totValX, tY, { width: 80, align: 'right' });
 
       tY += 14;
       doc.fillColor(COLORS.textMuted).text('PST 0.000%', totLblX, tY);
       doc.fillColor(COLORS.text).text('$0.00', totValX, tY, { width: 80, align: 'right' });
+
+      if (totalEHF > 0) {
+        tY += 14;
+        doc.fillColor('#92400e').font('Helvetica-Bold')
+          .text('Env. Handling Fee (EHF)*', totLblX, tY);
+        doc.text(this.formatCurrency(totalEHF), totValX, tY, { width: 80, align: 'right' });
+        doc.font('Helvetica');
+      }
 
       tY += 18;
       doc.moveTo(totLblX, tY).lineTo(rightColX + rightColW, tY)

@@ -54,6 +54,12 @@ function calculateItemEHF(item) {
   const cat = (item.category || '').toLowerCase();
   const combined = `${name} ${sku} ${cat}`;
 
+  // Skip warranties/protection plans — they contain "TV" in name but aren't TVs
+  if (name.includes('warranty') || name.includes('protection') || name.includes('guardian')
+    || name.includes('excelsior') || sku.startsWith('wrn-') || item.isWarranty) {
+    return 0;
+  }
+
   // TV check — category or name contains tv/qled/oled/uhd/television
   if (cat.includes('tv') || cat.includes('qled') || cat.includes('oled') || cat.includes('uhd')
       || cat.includes('television') || combined.includes(' tv ') || combined.includes(' tv,')

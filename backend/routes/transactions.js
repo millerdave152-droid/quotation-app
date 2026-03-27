@@ -538,11 +538,17 @@ router.post('/', authenticate, paymentLimiter, validateBody(schemas.transactionC
     const taxes = calculateTaxes(finalSubtotal, taxProvince);
     const effectiveDeliveryFee = deliveryFee || fulfillment?.fee || 0;
 
-    // Calculate EHF (Environmental Handling Fee — not taxable)
+    // Calculate EHF (Environmental Handling Fee — not taxable, exclude warranties)
     let ehfAmount = 0;
     try {
       const taxEngine = require('../services/TaxEngine');
-      const ehfResult = taxEngine.calculateCartEHF(processedItems.map(i => ({
+      const nonWarrantyItems = processedItems.filter(i => {
+        const name = (i.productName || '').toLowerCase();
+        const sku = (i.productSku || i.sku || '').toLowerCase();
+        return !name.includes('warranty') && !name.includes('protection') && !name.includes('guardian')
+          && !name.includes('excelsior') && !sku.startsWith('wrn-');
+      });
+      const ehfResult = taxEngine.calculateCartEHF(nonWarrantyItems.map(i => ({
         name: i.productName, sku: i.productSku, category: '', quantity: i.quantity,
         screen_size_inches: i.screen_size_inches
       })), taxProvince);

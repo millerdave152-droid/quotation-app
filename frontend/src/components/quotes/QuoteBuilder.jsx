@@ -252,10 +252,15 @@ const QuoteBuilder = ({
     const tradeInCredit = quoteTradeIns.reduce((sum, t) => sum + ((t.estimatedValueCents || 0) / 100), 0);
     const rebateCredit = quoteRebates.reduce((sum, r) => sum + ((r.rebate_amount_cents || 0) / 100), 0);
 
-    // EHF calculation — only TVs, Blu-ray/DVD, Projectors (not taxable)
+    // EHF calculation — only TVs, Blu-ray/DVD, Projectors (not taxable, skip warranties)
     let ehfTotal = 0;
     for (const item of quoteItems) {
       const combined = `${item.model || ''} ${item.name || ''} ${item.category || ''} ${item.description || ''} ${item.manufacturer || ''} ${item.sku || ''}`.toLowerCase();
+      // Skip warranty/protection items
+      if (combined.includes('warranty') || combined.includes('protection') || combined.includes('guardian')
+        || combined.includes('excelsior') || (item.sku || '').toLowerCase().startsWith('wrn-')) {
+        continue;
+      }
       let ehfPerUnit = 0;
       const isTV = (item.category || '').toLowerCase().match(/tv|qled|oled|uhd|television/)
         || combined.includes(' tv ') || combined.includes(' tv,') || combined.includes('television');

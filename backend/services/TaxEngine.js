@@ -55,7 +55,14 @@ class TaxEngine {
     const cat = (product.category || '').toLowerCase();
     const name = (product.name || '').toLowerCase();
     const desc = (product.description || '').toLowerCase();
+    const sku = (product.sku || '').toLowerCase();
     const combined = `${cat} ${name} ${desc}`;
+
+    // Skip warranties/protection plans — they may contain "TV" in name
+    if (name.includes('warranty') || name.includes('protection') || name.includes('guardian')
+      || name.includes('excelsior') || sku.startsWith('wrn-')) {
+      return { fee: 0, category: 'Warranty' };
+    }
 
     // TV — size-tiered
     if (cat.includes('tv') || cat.includes('television') || cat.includes('qled') || cat.includes('oled') || cat.includes('uhd')
