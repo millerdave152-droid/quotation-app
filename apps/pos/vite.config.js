@@ -6,13 +6,15 @@ import path from 'path';
 export default defineConfig({
   plugins: [
     react(),
-    VitePWA({
+    // VitePWA disabled in dev to prevent service worker caching issues
+    // Re-enable for production builds
+    ...(process.env.NODE_ENV === 'production' ? [VitePWA({
       strategies: 'injectManifest',
       srcDir: 'src',
       filename: 'sw.js',
       manifest: false,
       injectRegister: false,
-    }),
+    })] : []),
   ],
   resolve: {
     alias: {
