@@ -283,7 +283,10 @@ class SalesOrderService {
       totalEHF = ehfResult.totalEHF;
     } catch { /* EHF calculation optional */ }
     const subtotal = itemSubtotal > 0 ? itemSubtotal : Math.round(totalDue / 1.13 * 100) / 100;
-    const taxAmount = parseFloat(transaction.tax_amount || 0) || Math.round((totalDue - subtotal) * 100) / 100;
+    // Always recalculate tax from subtotal (13% HST) — DB tax may be stale if prices were $0 at creation
+    const taxAmount = Math.round(subtotal * 0.13 * 100) / 100;
+    // Recalculate correct total: subtotal + tax + EHF
+    const recalculatedTotal = Math.round((subtotal + taxAmount + totalEHF) * 100) / 100;
     const hasLogo = fs.existsSync(LOGO_PATH);
 
     const PAGE_W = 612;
@@ -631,7 +634,7 @@ class SalesOrderService {
       tY += 8;
       doc.fontSize(12).font('Helvetica-Bold').fillColor('#000000')
         .text('TOTAL', totLblX, tY);
-      doc.text(this.formatCurrency(totalDue), totValX - 20, tY, { width: 100, align: 'right' });
+      doc.text(this.formatCurrency(recalculatedTotal), totValX - 20, tY, { width: 100, align: 'right' });
 
       tY += 18;
       doc.fontSize(9).font('Helvetica-Bold').fillColor('#000000')
@@ -639,10 +642,11 @@ class SalesOrderService {
       doc.text(this.formatCurrency(totalPaid), totValX, tY, { width: 80, align: 'right' });
 
       tY += 14;
-      const balanceColor = balanceDue <= 0 ? COLORS.success : COLORS.error;
+      const recalculatedBalance = Math.max(0, recalculatedTotal - totalPaid);
+      const balanceColor = recalculatedBalance <= 0 ? COLORS.success : COLORS.error;
       doc.fontSize(9).font('Helvetica-Bold').fillColor(balanceColor)
         .text('Balance', totLblX, tY);
-      doc.text(this.formatCurrency(balanceDue), totValX, tY, { width: 80, align: 'right' });
+      doc.text(this.formatCurrency(recalculatedBalance), totValX, tY, { width: 80, align: 'right' });
 
       yPos = Math.max(pmtTableY, tY) + 16;
 
