@@ -1750,14 +1750,16 @@ const QuoteBuilder = ({
                 <span style={{ fontWeight: 'bold' }}>${totals.afterAddOns.toFixed(2)}</span>
               </div>
 
-              <div style={{ marginBottom: '12px', display: 'flex', justifyContent: 'space-between' }}>
-                <span>HST (13%):</span>
-                <span style={{ fontWeight: 'bold' }}>${totals.tax.toFixed(2)}</span>
-              </div>
+              {totals.ehfTotal > 0 && (
+                <div style={{ marginBottom: '12px', display: 'flex', justifyContent: 'space-between', color: '#92400e' }}>
+                  <span style={{ fontWeight: '600' }}>Env. Handling Fee (EHF):</span>
+                  <span style={{ fontWeight: 'bold' }}>${totals.ehfTotal.toFixed(2)}</span>
+                </div>
+              )}
 
-              <div style={{ marginBottom: '12px', display: 'flex', justifyContent: 'space-between', color: totals.ehfTotal > 0 ? '#92400e' : '#9ca3af' }}>
-                <span>Env. Handling Fee (EHF):</span>
-                <span style={{ fontWeight: 'bold' }}>${totals.ehfTotal.toFixed(2)}</span>
+              <div style={{ marginBottom: '12px', display: 'flex', justifyContent: 'space-between' }}>
+                <span>HST (13%){totals.ehfTotal > 0 ? ' (incl. EHF)' : ''}:</span>
+                <span style={{ fontWeight: 'bold' }}>${totals.tax.toFixed(2)}</span>
               </div>
 
               <div style={{ paddingTop: '12px', marginTop: '12px', borderTop: '2px solid #333', display: 'flex', justifyContent: 'space-between', fontSize: '20px' }}>
