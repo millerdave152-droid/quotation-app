@@ -45,7 +45,7 @@ function WarrantyStatusBadge({ status, daysRemaining }) {
       claimed: {
         bg: 'bg-blue-100',
         text: 'text-blue-700',
-        icon: ShieldCheckSolid,
+        icon: ShieldCheck,
         label: 'Claimed',
       },
       cancelled: {
@@ -292,7 +292,7 @@ export function CustomerWarranties({
         <div className="flex items-center justify-between p-4 bg-white border-b border-gray-200">
           <div className="flex items-center gap-3">
             <div className="p-2 bg-blue-100 rounded-lg">
-              <ShieldCheckSolid className="w-6 h-6 text-blue-600" />
+              <ShieldCheck className="w-6 h-6 text-blue-600" />
             </div>
             <div>
               <h2 className="text-lg font-bold text-gray-900">Customer Warranties</h2>

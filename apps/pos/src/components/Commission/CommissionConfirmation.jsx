@@ -109,7 +109,7 @@ export function CommissionToast({
     >
       <div className="flex items-center gap-3 px-4 py-3 bg-white rounded-xl shadow-lg border border-green-200">
         <div className="p-2 bg-green-100 rounded-full">
-          <CheckCircleSolid className="w-5 h-5 text-green-600" />
+          <CheckCircle className="w-5 h-5 text-green-600" />
         </div>
         <div>
           <div className="text-sm font-medium text-slate-900">Commission Earned</div>

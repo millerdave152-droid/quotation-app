@@ -461,7 +461,7 @@ export function ApprovalRulesPage() {
               </button>
               <div className="flex items-center gap-3">
                 <div className="p-2 bg-blue-100 rounded-lg">
-                  <ShieldCheckSolid className="w-6 h-6 text-blue-600" />
+                  <ShieldCheck className="w-6 h-6 text-blue-600" />
                 </div>
                 <div>
                   <h1 className="text-xl font-bold text-gray-900">Approval Rules</h1>

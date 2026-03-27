@@ -193,7 +193,7 @@ function ProductWarrantyRow({
             ${selectedWarranty ? 'bg-green-100' : 'bg-blue-100'}
           `}>
             {selectedWarranty ? (
-              <ShieldCheckSolid className="w-5 h-5 text-green-600" />
+              <ShieldCheck className="w-5 h-5 text-green-600" />
             ) : (
               <ShieldCheck className="w-5 h-5 text-blue-600" />
             )}
@@ -541,7 +541,7 @@ export function WarrantyUpsell({
         <div className="mb-4 p-4 bg-green-50 border border-green-200 rounded-lg">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
-              <ShieldCheckSolid className="w-5 h-5 text-green-600" />
+              <ShieldCheck className="w-5 h-5 text-green-600" />
               <span className="text-sm font-medium text-green-800">
                 {protectedItems} item{protectedItems > 1 ? 's' : ''} protected
               </span>
