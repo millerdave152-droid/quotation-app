@@ -283,8 +283,8 @@ const QuoteBuilder = ({
     ehfTotal = Math.round(ehfTotal * 100) / 100;
 
     const afterAddOns = afterPromo + deliveryCost + warrantiesCost - tradeInCredit - rebateCredit;
-    const tax = afterAddOns * 0.13; // 13% HST (EHF is NOT taxable)
-    const total = afterAddOns + tax + ehfTotal;
+    const tax = (afterAddOns + ehfTotal) * 0.13; // 13% HST applies to subtotal + EHF
+    const total = afterAddOns + ehfTotal + tax;
 
     const totalCost = quoteItems.reduce((sum, item) => sum + (item.cost * item.quantity), 0);
     const profit = afterAddOns - totalCost;

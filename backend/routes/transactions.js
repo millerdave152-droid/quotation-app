@@ -534,11 +534,9 @@ router.post('/', authenticate, paymentLimiter, validateBody(schemas.transactionC
     // Apply transaction-level discount
     const finalSubtotal = subtotal - (discountAmount || 0);
 
-    // Recalculate taxes after transaction discount if needed
-    const taxes = calculateTaxes(finalSubtotal, taxProvince);
     const effectiveDeliveryFee = deliveryFee || fulfillment?.fee || 0;
 
-    // Calculate EHF (Environmental Handling Fee — not taxable, exclude warranties)
+    // Calculate EHF (Environmental Handling Fee — taxable, exclude warranties)
     let ehfAmount = 0;
     try {
       const taxEngine = require('../services/TaxEngine');
@@ -555,7 +553,10 @@ router.post('/', authenticate, paymentLimiter, validateBody(schemas.transactionC
       ehfAmount = ehfResult.totalEHF;
     } catch { /* EHF optional */ }
 
-    const totalAmount = finalSubtotal + taxes.totalTax + effectiveDeliveryFee + ehfAmount;
+    // Recalculate taxes on subtotal + EHF (EHF is taxable in Ontario)
+    const taxes = calculateTaxes(finalSubtotal + ehfAmount, taxProvince);
+
+    const totalAmount = finalSubtotal + ehfAmount + taxes.totalTax + effectiveDeliveryFee;
 
     // Validate payment total (skip for deposit payments)
     const paymentTotal = payments.reduce((sum, p) => sum + p.amount, 0);

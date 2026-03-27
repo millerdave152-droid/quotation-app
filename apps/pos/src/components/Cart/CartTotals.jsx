@@ -95,10 +95,10 @@ export function CartTotals({
         </div>
       )}
 
-      {/* EHF — not taxable */}
+      {/* EHF — taxable */}
       {ehfTotal > 0 && (
         <div className="flex justify-between items-center text-sm mt-1">
-          <span className="text-amber-700 font-medium">EHF (not taxable)</span>
+          <span className="text-amber-700 font-medium">Env. Handling Fee (EHF)</span>
           <span className="font-medium text-amber-700 tabular-nums">
             {formatCurrency(ehfTotal)}
           </span>

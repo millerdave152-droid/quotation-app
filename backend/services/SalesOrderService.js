@@ -283,10 +283,11 @@ class SalesOrderService {
       totalEHF = ehfResult.totalEHF;
     } catch { /* EHF calculation optional */ }
     const subtotal = itemSubtotal > 0 ? itemSubtotal : Math.round(totalDue / 1.13 * 100) / 100;
-    // Always recalculate tax from subtotal (13% HST) — DB tax may be stale if prices were $0 at creation
-    const taxAmount = Math.round(subtotal * 0.13 * 100) / 100;
-    // Recalculate correct total: subtotal + tax + EHF
-    const recalculatedTotal = Math.round((subtotal + taxAmount + totalEHF) * 100) / 100;
+    // Always recalculate tax from subtotal + EHF (EHF is taxable in Ontario)
+    const taxableAmount = subtotal + totalEHF;
+    const taxAmount = Math.round(taxableAmount * 0.13 * 100) / 100;
+    // Recalculate correct total: subtotal + EHF + tax
+    const recalculatedTotal = Math.round((taxableAmount + taxAmount) * 100) / 100;
     const hasLogo = fs.existsSync(LOGO_PATH);
 
     const PAGE_W = 612;
@@ -611,6 +612,14 @@ class SalesOrderService {
       doc.fillColor(COLORS.text)
         .text(this.formatCurrency(subtotal), totValX, tY, { width: 80, align: 'right' });
 
+      if (totalEHF > 0) {
+        tY += 14;
+        doc.fillColor('#92400e').font('Helvetica-Bold')
+          .text('Env. Handling Fee (EHF)', totLblX, tY);
+        doc.text(this.formatCurrency(totalEHF), totValX, tY, { width: 80, align: 'right' });
+        doc.font('Helvetica');
+      }
+
       tY += 14;
       doc.fillColor(COLORS.textMuted).text('GST/HST 13.000%', totLblX, tY);
       doc.fillColor(COLORS.text).text(this.formatCurrency(taxAmount), totValX, tY, { width: 80, align: 'right' });
@@ -618,14 +627,6 @@ class SalesOrderService {
       tY += 14;
       doc.fillColor(COLORS.textMuted).text('PST 0.000%', totLblX, tY);
       doc.fillColor(COLORS.text).text('$0.00', totValX, tY, { width: 80, align: 'right' });
-
-      if (totalEHF > 0) {
-        tY += 14;
-        doc.fillColor('#92400e').font('Helvetica-Bold')
-          .text('Env. Handling Fee (EHF)*', totLblX, tY);
-        doc.text(this.formatCurrency(totalEHF), totValX, tY, { width: 80, align: 'right' });
-        doc.font('Helvetica');
-      }
 
       tY += 18;
       doc.moveTo(totLblX, tY).lineTo(rightColX + rightColW, tY)

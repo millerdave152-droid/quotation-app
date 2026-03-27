@@ -3,16 +3,37 @@
  * Shows pending quotes for selected customer
  */
 
+import { useState } from 'react';
 import { formatCurrency, formatDate } from '../../utils/formatters';
-import { ArrowLeft, ArrowRight, Calendar, FileText, ShoppingCart, User } from 'lucide-react';
+import { getQuoteForSale } from '../../api/quotes';
+import { ArrowLeft, ArrowRight, Calendar, FileText, Loader2, ShoppingCart, User } from 'lucide-react';
 
 /**
  * Quote card component
  */
 function QuoteCard({ quote, onLoad }) {
+  const [loading, setLoading] = useState(false);
   const quoteNumber = quote.quoteNumber || quote.quote_number || quote.quotation_number;
   const total = quote.totalAmount || quote.total_amount || (quote.total_cents / 100) || 0;
   const itemCount = quote.itemCount || quote.item_count || quote.items?.length || 0;
+
+  const handleLoad = async () => {
+    const quoteId = quote.quoteId || quote.quote_id || quote.id;
+    setLoading(true);
+    try {
+      const result = await getQuoteForSale(quoteId);
+      if (result.success && result.data) {
+        onLoad(result.data);
+      } else {
+        // Fallback to raw quote if fetch fails
+        onLoad(quote);
+      }
+    } catch {
+      onLoad(quote);
+    } finally {
+      setLoading(false);
+    }
+  };
   const createdAt = quote.createdAt || quote.created_at;
   const salesperson = quote.salespersonName || quote.salesperson_name || quote.userName || quote.user_name;
   const status = quote.status || 'pending';
@@ -60,18 +81,20 @@ function QuoteCard({ quote, onLoad }) {
 
       <button
         type="button"
-        onClick={() => onLoad(quote)}
+        onClick={handleLoad}
+        disabled={loading}
         className="
           w-full h-11
           flex items-center justify-center gap-2
           bg-blue-600 hover:bg-blue-700
+          disabled:bg-blue-400
           text-white font-medium
           rounded-lg
           transition-colors duration-150
         "
       >
-        <ShoppingCart className="w-5 h-5" />
-        Load Quote
+        {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : <ShoppingCart className="w-5 h-5" />}
+        {loading ? 'Loading...' : 'Load Quote'}
       </button>
     </div>
   );

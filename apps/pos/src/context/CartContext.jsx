@@ -443,21 +443,21 @@ export function CartProvider({ children }) {
     // Total discounts (all types combined)
     const discountTotal = itemDiscountTotal + cartDiscount + promoDiscount;
 
-    // Calculate taxes
-    const taxes = calculateTaxes(subtotalAfterDiscount, province);
-
-    // EHF (Environmental Handling Fee — not taxable, per unit)
+    // EHF (Environmental Handling Fee — taxable in Ontario, per unit)
     let ehfTotalCents = 0;
     items.forEach((item) => {
       ehfTotalCents += calculateItemEHF(item) * item.quantity;
     });
     const ehfTotal = Math.round(ehfTotalCents) / 100;
 
+    // Calculate taxes on subtotal + EHF (EHF is taxable)
+    const taxes = calculateTaxes(subtotalAfterDiscount + ehfTotal, province);
+
     // Delivery fee
     const deliveryFee = selectedFulfillment?.fee || 0;
 
-    // Order total before trade-in (subtotal after discounts + tax + delivery + EHF)
-    const orderTotal = subtotalAfterDiscount + taxes.totalTax + deliveryFee + ehfTotal;
+    // Order total before trade-in (subtotal after discounts + EHF + tax + delivery)
+    const orderTotal = subtotalAfterDiscount + ehfTotal + taxes.totalTax + deliveryFee;
 
     // Trade-in calculations
     const tradeInCount = tradeIns.length;
