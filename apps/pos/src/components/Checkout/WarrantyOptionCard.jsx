@@ -137,7 +137,7 @@ export function WarrantyOptionCard({
       {/* Selected indicator */}
       {isSelected && (
         <div className="absolute top-4 right-4">
-          <CheckCircleSolid className="w-6 h-6 text-blue-500" />
+          <CheckCircle className="w-6 h-6 text-blue-500" />
         </div>
       )}
 

@@ -36,7 +36,7 @@ function WarrantyStatusBadge({ status, daysRemaining }) {
     claimed: {
       bg: 'bg-blue-100',
       text: 'text-blue-700',
-      icon: ShieldCheckSolid,
+      icon: ShieldCheck,
       label: 'Claimed',
     },
     cancelled: {
