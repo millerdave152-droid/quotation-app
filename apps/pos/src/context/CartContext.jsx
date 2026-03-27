@@ -318,9 +318,9 @@ export function CartProvider({ children }) {
         const token = localStorage.getItem('pos_token');
         const apiBase = import.meta.env.VITE_API_URL || '/api';
 
-        // Build items list — skip items with manual price overrides
+        // Build items list — skip items with manual price overrides or from quotes
         const itemsToPrice = items
-          .filter((i) => !i.priceOverride)
+          .filter((i) => !i.priceOverride && !i.fromQuote)
           .map((i) => ({ productId: i.productId, quantity: i.quantity }));
 
         if (itemsToPrice.length === 0) {
@@ -354,8 +354,8 @@ export function CartProvider({ children }) {
 
         setItems((currentItems) =>
           currentItems.map((item) => {
-            // Don't touch manually overridden items
-            if (item.priceOverride) return item;
+            // Don't touch manually overridden items or quote items
+            if (item.priceOverride || item.fromQuote) return item;
 
             const pricing = priceMap[item.productId];
             if (!pricing) return item;
