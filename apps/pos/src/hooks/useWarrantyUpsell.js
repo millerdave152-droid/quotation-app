@@ -81,9 +81,13 @@ export function useWarrantyUpsell({
     }
 
     try {
-      // Filter out warranty items (SKU starts with WRN-) and zero-price items
+      // Filter out warranty items and items that already have warranties
       const eligibleCartItems = cartItems.filter(
-        (item) => item.productId && !(item.sku && item.sku.startsWith('WRN-'))
+        (item) => item.productId
+          && !(item.sku && item.sku.startsWith('WRN-'))
+          && !item.isWarranty
+          && !(item.productName || '').toLowerCase().includes('protection')
+          && !(item.productName || '').toLowerCase().includes('warranty')
       );
 
       if (eligibleCartItems.length === 0) {

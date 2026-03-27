@@ -17,10 +17,19 @@ class WarrantyService {
     this.eligibleCategories = new Set([
       'electronics',
       'appliances',
+      'major_appliances',
+      'small_appliances',
       'computers',
       'phones',
       'tablets',
       'tvs',
+      'tv',
+      'televisions',
+      'tvs_and_displays',
+      'qled_tv',
+      'oled_tv',
+      'uhd_tv',
+      'led_tv',
       'audio',
       'cameras',
       'gaming',
@@ -52,12 +61,14 @@ class WarrantyService {
         };
       }
 
-      // Use provided price, fall back to product price, retail_price_cents, map_price_cents, then cost
+      // Use provided price, fall back to product price, msrp_cents, retail_price_cents, map_price_cents, then cost
       let price = 0;
       if (productPrice && productPrice > 0) {
         price = productPrice;
       } else if (parseFloat(product.price) > 0) {
         price = parseFloat(product.price);
+      } else if (parseInt(product.msrp_cents) > 0) {
+        price = parseInt(product.msrp_cents) / 100;
       } else if (parseInt(product.retail_price_cents) > 0) {
         price = parseInt(product.retail_price_cents) / 100;
       } else if (parseInt(product.map_price_cents) > 0) {
@@ -82,8 +93,8 @@ class WarrantyService {
 
       // Resolve category_id - if null, try to infer from the category string column
       let categoryId = product.category_id;
-      if (!categoryId && product.category_string) {
-        categoryId = await this._resolveCategoryId(product.category_string);
+      if (!categoryId && (product.category_string || product.category)) {
+        categoryId = await this._resolveCategoryId(product.category_string || product.category);
       }
       // Last resort: find the most common category_id for this product's manufacturer
       if (!categoryId) {
@@ -700,6 +711,7 @@ class WarrantyService {
         p.sku,
         p.price,
         p.cost,
+        p.msrp_cents,
         p.category_id,
         p.category as category_string,
         p.retail_price_cents,
