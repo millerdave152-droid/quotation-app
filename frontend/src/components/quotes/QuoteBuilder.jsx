@@ -255,12 +255,18 @@ const QuoteBuilder = ({
     // EHF calculation — only TVs, Blu-ray/DVD, Projectors (not taxable)
     let ehfTotal = 0;
     for (const item of quoteItems) {
-      const combined = `${item.model || ''} ${item.name || ''} ${item.category || ''} ${item.description || ''} ${item.manufacturer || ''} ${item.product_name || ''}`.toLowerCase();
+      const combined = `${item.model || ''} ${item.name || ''} ${item.category || ''} ${item.description || ''} ${item.manufacturer || ''} ${item.sku || ''}`.toLowerCase();
       let ehfPerUnit = 0;
-      if (combined.includes('tv') || combined.includes('television')) {
-        const sizeMatch = (item.model || item.name || '').match(/(\d{2,3})\s*["\'″]|(\d{2,3})\s*-?\s*inch/i)
-          || (item.description || '').match(/(\d{2,3})\s*["\'″]|(\d{2,3})\s*-?\s*inch/i);
-        const size = sizeMatch ? parseInt(sizeMatch[1] || sizeMatch[2], 10) : 65;
+      const isTV = (item.category || '').toLowerCase().match(/tv|qled|oled|uhd|television/)
+        || combined.includes(' tv ') || combined.includes(' tv,') || combined.includes('television');
+      if (isTV) {
+        // Priority: DB screen_size, then SKU parse, then default 65"
+        let size = item.screen_size_inches || null;
+        if (!size) {
+          const skuMatch = (item.sku || item.model || '').match(/^[A-Za-z]{0,5}(\d{2})/);
+          if (skuMatch) { const p = parseInt(skuMatch[1], 10); if (p >= 24 && p <= 98) size = p; }
+        }
+        if (!size) size = 65;
         ehfPerUnit = size <= 29 ? 8.25 : size <= 45 ? 14.65 : 19.25;
       } else if (combined.includes('blu-ray') || combined.includes('bluray') || combined.includes('dvd player')) {
         ehfPerUnit = 2.25;
@@ -349,6 +355,7 @@ const QuoteBuilder = ({
         upc: product.upc || null,
         data_source: product.data_source || null,
         ce_specs: product.ce_specs || null,
+        screen_size_inches: product.screen_size_inches || null,
         notes: ''
       };
       setQuoteItems(prev => [...prev, newItem]);

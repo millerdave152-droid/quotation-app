@@ -56,10 +56,10 @@ function calculateItemEHF(item) {
 
   // TV check — category or name contains tv/qled/oled/uhd/television
   if (cat.includes('tv') || cat.includes('qled') || cat.includes('oled') || cat.includes('uhd')
-      || cat.includes('television') || combined.includes(' tv ') || combined.includes('television')) {
-    const size = item.screen_size_inches || item.screenSizeInches || null;
-    // If no DB size, try to parse from SKU (e.g. QN65, UN43, 75QNED, OLED55)
-    let screenSize = size;
+      || cat.includes('television') || combined.includes(' tv ') || combined.includes(' tv,')
+      || combined.includes('television') || sku.startsWith('qn') || sku.startsWith('un')) {
+    // Priority: 1) DB screen_size_inches, 2) SKU pattern, 3) default 65"
+    let screenSize = item.screen_size_inches || item.screenSizeInches || null;
     if (!screenSize) {
       const skuMatch = (item.sku || '').match(/^[A-Za-z]{0,5}(\d{2})/);
       if (skuMatch) {
@@ -67,7 +67,7 @@ function calculateItemEHF(item) {
         if (parsed >= 24 && parsed <= 98) screenSize = parsed;
       }
     }
-    if (!screenSize) screenSize = 65; // default to largest common tier
+    if (!screenSize) screenSize = 65;
     if (screenSize <= 29) return 825;   // $8.25 in cents
     if (screenSize <= 45) return 1465;  // $14.65
     return 1925;                         // $19.25
@@ -553,7 +553,9 @@ export function CartProvider({ children }) {
           : null;
 
       // Resolve price: check dollars fields first, then cents conversion
-      const rawPrice = product.price || product.unitPrice || product.unit_price;
+      const rawPrice = product.price || product.unitPrice || product.unit_price
+        || (product.unitPriceCents ? product.unitPriceCents / 100 : 0)
+        || (product.sell_cents ? product.sell_cents / 100 : 0);
       const resolvedPrice = rawPrice
         ? (parseFloat(rawPrice) || 0)
         : product.msrp_cents
@@ -575,6 +577,8 @@ export function CartProvider({ children }) {
         serialNumber,
         imageUrl: product.imageUrl || product.image_url || null,
         barcode: product.barcode || product.upc || null,
+        screen_size_inches: product.screen_size_inches || null,
+        category: product.category || '',
       };
 
       // Track as favorite
@@ -855,7 +859,10 @@ export function CartProvider({ children }) {
     const quoteItems = quoteData.items || [];
     const cartItems = quoteItems.map((item) => {
       const rawCost = item.unitCost || item.unit_cost || item.cost;
-      const rawPrice = item.unitPrice || item.unit_price || item.price;
+      const rawPrice = item.unitPrice || item.unit_price || item.price
+        || (item.unitPriceCents ? item.unitPriceCents / 100 : 0)
+        || (item.sell_cents ? item.sell_cents / 100 : 0)
+        || (item.unit_price_cents ? item.unit_price_cents / 100 : 0);
       return {
       id: generateItemId(),
       productId: item.productId || item.product_id || item.id,
@@ -866,6 +873,8 @@ export function CartProvider({ children }) {
       quantity: item.quantity || 1,
       discountPercent: item.discountPercent || item.discount_percent || 0,
       taxable: item.taxable !== false,
+      screen_size_inches: item.screen_size_inches || null,
+      category: item.category || '',
       serialNumber: null,
       fromQuote: true,
     };

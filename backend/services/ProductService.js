@@ -796,7 +796,7 @@ class ProductService {
     const priceFilter = opts.requirePrice ? 'AND price IS NOT NULL AND price > 0' : '';
     const result = await this.pool.query(`
       SELECT id, model, manufacturer, name, description, msrp_cents, cost_cents,
-             price, cost, stock_quantity, qty_on_hand, category
+             price, cost, stock_quantity, qty_on_hand, category, screen_size_inches
       FROM products
       WHERE (active = true OR active IS NULL)
         AND (

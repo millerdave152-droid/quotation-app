@@ -74,15 +74,22 @@ function formatQuoteForPOS(quote) {
  * Format quote item for POS
  */
 function formatQuoteItem(item) {
+  const priceCents = parseInt(item.unit_price_cents) || 0;
   return {
     productId: item.product_id,
     productName: item.product_name || item.name,
     productSku: item.product_sku || item.model,
+    sku: item.product_sku || item.model,
+    name: item.product_name || item.name,
     quantity: parseInt(item.quantity) || 1,
-    unitPrice: parseFloat(item.unit_price_cents || 0) / 100,
+    unitPrice: priceCents / 100,
+    unitPriceCents: priceCents,
+    sell_cents: priceCents,
     unitCost: parseFloat(item.unit_cost_cents || 0) / 100,
     discountPercent: parseFloat(item.discount_percent) || 0,
     stockQuantity: parseInt(item.stock_quantity) || 0,
+    screen_size_inches: item.screen_size_inches ? parseInt(item.screen_size_inches) : null,
+    category: item.product_category || '',
   };
 }
 
@@ -126,7 +133,7 @@ router.get('/lookup', asyncHandler(async (req, res) => {
       q.created_at,
       q.quote_expiry_date,
       q.expires_at,
-      (SELECT COUNT(*) FROM quote_items qi WHERE qi.quotation_id = q.id) as item_count
+      (SELECT COUNT(*) FROM quotation_items qi WHERE qi.quotation_id = q.id) as item_count
     FROM quotations q
     LEFT JOIN customers c ON q.customer_id = c.id
     LEFT JOIN users u ON q.created_by::text = u.id::text
@@ -218,11 +225,13 @@ router.get('/:id/for-sale', asyncHandler(async (req, res) => {
       COALESCE(p.name, qi.description) as product_name,
       COALESCE(p.model, qi.model) as product_sku,
       qi.quantity,
-      COALESCE(NULLIF(qi.sell_cents, 0), (qi.unit_price * 100)::int) as unit_price_cents,
+      COALESCE(NULLIF(qi.sell_cents, 0), qi.msrp_cents, qi.cost_cents, 0) as unit_price_cents,
       qi.cost_cents as unit_cost_cents,
       qi.discount_percent,
-      COALESCE(p.qty_on_hand, 0) as stock_quantity
-    FROM quote_items qi
+      COALESCE(p.qty_on_hand, 0) as stock_quantity,
+      p.screen_size_inches,
+      p.category as product_category
+    FROM quotation_items qi
     LEFT JOIN products p ON qi.product_id = p.id
     WHERE qi.quotation_id = $1
     ORDER BY qi.id
@@ -405,7 +414,7 @@ router.get('/pending', asyncHandler(async (req, res) => {
       c.name as customer_name,
       q.total_cents,
       q.created_at,
-      (SELECT COUNT(*) FROM quote_items qi WHERE qi.quotation_id = q.id) as item_count
+      (SELECT COUNT(*) FROM quotation_items qi WHERE qi.quotation_id = q.id) as item_count
     FROM quotations q
     LEFT JOIN customers c ON q.customer_id = c.id
     WHERE
