@@ -328,7 +328,9 @@ const ScanCountScreen = ({ session, onComplete, onBack }) => {
         received: 0,
         damaged: 0,
         isDamaged: false,
-        damageNotes: ''
+        damageNotes: '',
+        is_serialized: item.is_serialized === true || item.is_serialized === 't',
+        serialNumbers: []
       })));
     }
   }, [mode, expectedItems, receivedItems.length]);
@@ -407,9 +409,32 @@ const ScanCountScreen = ({ session, onComplete, onBack }) => {
   };
 
   const updateReceived = (idx, delta) => {
-    setReceivedItems((prev) => prev.map((item, i) =>
-      i === idx ? { ...item, received: Math.max(0, item.received + delta) } : item
-    ));
+    setReceivedItems((prev) => prev.map((item, i) => {
+      if (i !== idx) return item;
+      // For serialized items, received count is driven by serialNumbers array length
+      if (item.is_serialized) return item;
+      return { ...item, received: Math.max(0, item.received + delta) };
+    }));
+  };
+
+  const addSerial = (idx, serialValue) => {
+    const val = (serialValue || '').trim();
+    if (!val) return;
+    setReceivedItems((prev) => prev.map((item, i) => {
+      if (i !== idx || !item.is_serialized) return item;
+      if (item.serialNumbers.includes(val)) return item; // duplicate guard
+      if (item.serialNumbers.length >= item.expected) return item; // can't exceed expected
+      const updated = [...item.serialNumbers, val];
+      return { ...item, serialNumbers: updated, received: updated.length };
+    }));
+  };
+
+  const removeSerial = (idx, serialIdx) => {
+    setReceivedItems((prev) => prev.map((item, i) => {
+      if (i !== idx || !item.is_serialized) return item;
+      const updated = item.serialNumbers.filter((_, si) => si !== serialIdx);
+      return { ...item, serialNumbers: updated, received: updated.length };
+    }));
   };
 
   const updateDamaged = (idx, val) => {
@@ -464,7 +489,8 @@ const ScanCountScreen = ({ session, onComplete, onBack }) => {
             purchaseOrderItemId: i.poItemId,
             quantityReceived: i.received - i.damaged,
             quantityDamaged: i.damaged,
-            notes: i.damageNotes || (carrier ? `Carrier: ${carrier}` : null)
+            notes: i.damageNotes || (carrier ? `Carrier: ${carrier}` : null),
+            ...(i.is_serialized && i.serialNumbers.length > 0 ? { serialNumbers: i.serialNumbers } : {})
           }));
 
         if (items.length === 0) {
@@ -743,24 +769,60 @@ const ScanCountScreen = ({ session, onComplete, onBack }) => {
                     </TableCell>
                   )}
                   <TableCell align="center">
-                    <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 0.5 }}>
-                      <IconButton
-                        onClick={() => updateReceived(idx, -1)}
-                        disabled={item.received <= 0}
-                        sx={{ minWidth: 48, minHeight: 48, bgcolor: 'grey.100' }}
-                      >
-                        <Minus />
-                      </IconButton>
-                      <Typography variant="h6" sx={{ fontWeight: 'bold', minWidth: 40, textAlign: 'center', fontSize: '1.3rem' }}>
-                        {item.received}
-                      </Typography>
-                      <IconButton
-                        onClick={() => updateReceived(idx, 1)}
-                        sx={{ minWidth: 48, minHeight: 48, bgcolor: 'success.50', '&:hover': { bgcolor: 'success.100' } }}
-                      >
-                        <Plus />
-                      </IconButton>
-                    </Box>
+                    {item.is_serialized ? (
+                      <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 0.5 }}>
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                          <TextField
+                            size="small"
+                            placeholder="Scan/enter serial..."
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter' && e.target.value.trim()) {
+                                addSerial(idx, e.target.value);
+                                e.target.value = '';
+                              }
+                            }}
+                            disabled={item.serialNumbers.length >= item.expected}
+                            sx={{ width: 180, '& input': { fontSize: '0.85rem', py: '8px' } }}
+                            autoFocus={item.serialNumbers.length === 0}
+                          />
+                          <Typography variant="body2" sx={{ fontWeight: 'bold', color: item.serialNumbers.length === item.expected ? 'success.main' : 'warning.main', whiteSpace: 'nowrap' }}>
+                            {item.serialNumbers.length}/{item.expected}
+                          </Typography>
+                        </Box>
+                        {item.serialNumbers.map((sn, si) => (
+                          <Box key={si} sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                            <Chip label={sn} size="small" color="primary" variant="outlined"
+                              onDelete={() => removeSerial(idx, si)}
+                              sx={{ fontFamily: 'monospace', fontSize: '0.8rem' }}
+                            />
+                          </Box>
+                        ))}
+                        {item.serialNumbers.length < item.expected && (
+                          <Typography variant="caption" color="warning.main">
+                            {item.expected - item.serialNumbers.length} serial{item.expected - item.serialNumbers.length !== 1 ? 's' : ''} remaining
+                          </Typography>
+                        )}
+                      </Box>
+                    ) : (
+                      <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 0.5 }}>
+                        <IconButton
+                          onClick={() => updateReceived(idx, -1)}
+                          disabled={item.received <= 0}
+                          sx={{ minWidth: 48, minHeight: 48, bgcolor: 'grey.100' }}
+                        >
+                          <Minus />
+                        </IconButton>
+                        <Typography variant="h6" sx={{ fontWeight: 'bold', minWidth: 40, textAlign: 'center', fontSize: '1.3rem' }}>
+                          {item.received}
+                        </Typography>
+                        <IconButton
+                          onClick={() => updateReceived(idx, 1)}
+                          sx={{ minWidth: 48, minHeight: 48, bgcolor: 'success.50', '&:hover': { bgcolor: 'success.100' } }}
+                        >
+                          <Plus />
+                        </IconButton>
+                      </Box>
+                    )}
                   </TableCell>
                   <TableCell align="center">
                     <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 0.5 }}>
