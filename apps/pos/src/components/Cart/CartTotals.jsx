@@ -34,6 +34,8 @@ export function CartTotals({
   total = 0,
   province = 'ON',
   ehfTotal = 0,
+  deliveryFee = 0,
+  quoteFinancingInfo = null,
   tradeInTotal = 0,
   hasPendingTradeIns = false,
   className = '',
@@ -92,6 +94,32 @@ export function CartTotals({
           <span className="font-medium text-emerald-600 tabular-nums">
             -{formatCurrency(tradeInTotal)}
           </span>
+        </div>
+      )}
+
+      {/* Delivery Fee */}
+      {deliveryFee > 0 && (
+        <div className="flex justify-between items-center text-sm mt-1">
+          <span className="text-blue-600 font-medium">Delivery</span>
+          <span className="font-medium text-blue-600 tabular-nums">
+            +{formatCurrency(deliveryFee)}
+          </span>
+        </div>
+      )}
+
+      {/* Quote Financing Info */}
+      {quoteFinancingInfo && (
+        <div className="mt-2 py-2 px-3 bg-amber-50 rounded-lg border border-amber-200">
+          <div className="text-xs font-bold text-amber-800">
+            Financing: {quoteFinancingInfo.planName}
+          </div>
+          <div className="text-xs text-amber-700 mt-0.5">
+            {quoteFinancingInfo.termMonths}mo @ {quoteFinancingInfo.aprPercent}% APR
+            {quoteFinancingInfo.provider ? ` · ${quoteFinancingInfo.provider}` : ''}
+            {quoteFinancingInfo.monthlyPaymentCents > 0
+              ? ` · ${formatCurrency(quoteFinancingInfo.monthlyPaymentCents / 100)}/mo`
+              : ''}
+          </div>
         </div>
       )}
 

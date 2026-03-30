@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { AlertTriangle, CheckCircle, CreditCard, Download, Eye, Landmark, Plus, Receipt, RefreshCw, Search, Send, XCircle } from 'lucide-react';
 import {
   Box,
   Paper,
@@ -44,7 +45,6 @@ const api = createAuthorizedClient({
   baseURL: API_BASE
 });
 
-import { AlertTriangle, CheckCircle, CreditCard, Download, Eye, Landmark, Plus, Receipt, RefreshCw, Search, Send, XCircle } from 'lucide-react';
 const formatCurrency = (cents) => {
   if (!cents && cents !== 0) return '$0.00';
   return `$${(cents / 100).toLocaleString('en-CA', { minimumFractionDigits: 2 })}`;

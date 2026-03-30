@@ -823,35 +823,16 @@ const Header = ({ isMobile }) => {
         gap: '12px',
         flexShrink: 0,
       }}>
-        {/* TELETIME Logo */}
-        <img
-          src="/teletime-logo.png"
-          alt="TELETIME"
-          style={{
-            height: '38px',
-            width: 'auto',
-            objectFit: 'contain',
-          }}
-          onError={(e) => {
-            e.target.style.display = 'none';
-            e.target.nextSibling.style.display = 'flex';
-          }}
-        />
-        {/* Fallback logo icon */}
-        <div style={{
-          display: 'none',
-          width: '36px',
-          height: '36px',
-          borderRadius: '8px',
-          background: 'linear-gradient(135deg, #0066b2 0%, #0096d6 100%)',
-          alignItems: 'center',
-          justifyContent: 'center',
-          color: 'white',
-          fontSize: '16px',
-          fontWeight: 'bold',
+        {/* TELETIME Text Logo */}
+        <span style={{
+          fontSize: '22px',
+          fontWeight: '700',
+          color: '#1e40af',
+          letterSpacing: '-0.5px',
+          lineHeight: 1,
         }}>
-          TT
-        </div>
+          Teletime
+        </span>
 
         {/* Title - Hide on mobile */}
         {!isMobile && (

@@ -11,9 +11,10 @@ class SerialNumberService {
     this.cache = cache;
     this.CACHE_TTL = 300;
 
-    this.VALID_STATUSES = ['available', 'sold', 'returned', 'warranty_repair', 'recalled', 'damaged', 'scrapped'];
+    this.VALID_STATUSES = ['available', 'reserved', 'sold', 'returned', 'warranty_repair', 'recalled', 'damaged', 'scrapped'];
     this.STATUS_TRANSITIONS = {
-      available:       ['sold', 'damaged', 'scrapped', 'recalled'],
+      available:       ['reserved', 'sold', 'damaged', 'scrapped', 'recalled'],
+      reserved:        ['available', 'sold'],
       sold:            ['returned', 'warranty_repair', 'damaged', 'recalled'],
       returned:        ['available', 'damaged', 'scrapped'],
       warranty_repair: ['sold', 'available', 'damaged', 'scrapped'],
@@ -273,6 +274,88 @@ class SerialNumberService {
   }
 
   // ---------------------------------------------------------------------------
+  // QUOTE RESERVATION
+  // ---------------------------------------------------------------------------
+
+  async reserveForQuote(serialNumber, quotationId, performedBy) {
+    const client = await this.pool.connect();
+    try {
+      await client.query('BEGIN');
+
+      const { rows } = await client.query(
+        'SELECT id, status, product_id FROM product_serials WHERE serial_number = $1',
+        [serialNumber]
+      );
+      if (!rows.length) throw ApiError.notFound('Serial number not found in registry');
+
+      const serial = rows[0];
+      if (serial.status !== 'available') {
+        throw ApiError.badRequest(`Serial is currently "${serial.status}", must be "available" to reserve`);
+      }
+
+      const result = await this._changeStatus(serial.id, 'reserved', performedBy, {
+        eventType: 'reserved',
+        referenceType: 'quotation',
+        referenceId: quotationId,
+        notes: `Reserved for quotation #${quotationId}`,
+      }, client);
+
+      await client.query('COMMIT');
+      return result;
+    } catch (err) {
+      await client.query('ROLLBACK');
+      throw err;
+    } finally {
+      client.release();
+    }
+  }
+
+  async releaseReservation(serialNumber, performedBy, reason) {
+    const client = await this.pool.connect();
+    try {
+      await client.query('BEGIN');
+
+      const { rows } = await client.query(
+        'SELECT id, status FROM product_serials WHERE serial_number = $1',
+        [serialNumber]
+      );
+      if (!rows.length) throw ApiError.notFound('Serial number not found in registry');
+
+      const serial = rows[0];
+      if (serial.status !== 'reserved') {
+        throw ApiError.badRequest(`Serial is currently "${serial.status}", must be "reserved" to release`);
+      }
+
+      const result = await this._changeStatus(serial.id, 'available', performedBy, {
+        eventType: 'reserved',
+        referenceType: 'quotation',
+        notes: reason || 'Reservation released',
+      }, client);
+
+      await client.query('COMMIT');
+      return result;
+    } catch (err) {
+      await client.query('ROLLBACK');
+      throw err;
+    } finally {
+      client.release();
+    }
+  }
+
+  async getAvailableForProduct(productId) {
+    const { rows } = await this.pool.query(
+      `SELECT ps.id, ps.serial_number, ps.location_id, ps.received_at,
+              l.name AS location_name
+       FROM product_serials ps
+       LEFT JOIN locations l ON l.id = ps.location_id
+       WHERE ps.product_id = $1 AND ps.status = 'available'
+       ORDER BY ps.received_at ASC`,
+      [productId]
+    );
+    return rows;
+  }
+
+  // ---------------------------------------------------------------------------
   // VALIDATION
   // ---------------------------------------------------------------------------
 
@@ -283,7 +366,9 @@ class SerialNumberService {
     );
     if (!rows.length) return { valid: false, reason: 'Serial number not found in registry' };
     if (rows[0].product_id !== productId) return { valid: false, reason: 'Serial does not match this product' };
-    if (rows[0].status !== 'available') return { valid: false, reason: `Serial is currently "${rows[0].status}", must be "available"` };
+    if (rows[0].status !== 'available' && rows[0].status !== 'reserved') {
+      return { valid: false, reason: `Serial is currently "${rows[0].status}", must be "available" or "reserved"` };
+    }
     return { valid: true, serialId: rows[0].id };
   }
 

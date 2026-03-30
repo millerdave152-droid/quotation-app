@@ -7,11 +7,13 @@ const express = require('express');
 const router = express.Router();
 const { ApiError, asyncHandler } = require('../middleware/errorHandler');
 const LeadService = require('../services/LeadService');
-const { authenticate } = require('../middleware/auth');
+const { authenticate, requireRole } = require('../middleware/auth');
 const { validateJoi, leadSchemas } = require('../middleware/validation');
+const ReminderService = require('../services/ReminderService');
 
-// Module-level service instance
+// Module-level service instances
 let leadService = null;
+let reminderService = null;
 let cache = null;
 
 /**
@@ -23,6 +25,7 @@ let cache = null;
 const init = (deps) => {
   cache = deps.cache;
   leadService = new LeadService(deps.pool, deps.cache);
+  reminderService = new ReminderService(deps.pool);
   return router;
 };
 
@@ -72,8 +75,93 @@ router.get('/search', authenticate, asyncHandler(async (req, res) => {
 }));
 
 /**
+ * GET /api/leads/store/:storeLocationId
+ * Get leads for a store location with filtering and pagination
+ */
+router.get('/store/:storeLocationId', authenticate, asyncHandler(async (req, res) => {
+  const result = await leadService.getLeadsByStore(parseInt(req.params.storeLocationId), req.query);
+  res.success(result);
+}));
+
+/**
+ * GET /api/leads/customer/:customerId
+ * Get all leads for a customer
+ */
+router.get('/customer/:customerId', authenticate, asyncHandler(async (req, res) => {
+  const leads = await leadService.getLeadsByCustomer(parseInt(req.params.customerId));
+  res.success(leads);
+}));
+
+// ============================================
+// REMINDER ROUTES (must be before /:id)
+// ============================================
+
+/**
+ * GET /api/leads/reminders/mine
+ * Get unacknowledged reminders for the current user
+ */
+router.get('/reminders/mine', authenticate, asyncHandler(async (req, res) => {
+  const reminders = await reminderService.getUnacknowledgedRemindersForUser(req.user.id);
+  res.success(reminders);
+}));
+
+/**
+ * GET /api/leads/reminders/count
+ * Get count of unacknowledged reminders for badge display
+ */
+router.get('/reminders/count', authenticate, asyncHandler(async (req, res) => {
+  const reminders = await reminderService.getUnacknowledgedRemindersForUser(req.user.id);
+  res.success({ count: reminders.length });
+}));
+
+/**
+ * GET /api/leads/reminders/store/:storeLocationId
+ * Manager view: all unacknowledged reminders for a store
+ */
+router.get('/reminders/store/:storeLocationId', authenticate, requireRole('manager', 'admin'),
+  asyncHandler(async (req, res) => {
+    const reminders = await reminderService.getUnacknowledgedRemindersForStore(
+      parseInt(req.params.storeLocationId)
+    );
+    res.success(reminders);
+  })
+);
+
+/**
+ * PATCH /api/leads/reminders/:reminderId/acknowledge
+ * Acknowledge a reminder
+ */
+router.patch('/reminders/:reminderId/acknowledge', authenticate, asyncHandler(async (req, res) => {
+  try {
+    const reminder = await reminderService.acknowledgeReminder(
+      parseInt(req.params.reminderId), req.user.id
+    );
+    res.success(reminder);
+  } catch (error) {
+    if (error.message === 'Reminder not found') {
+      throw ApiError.notFound('Reminder');
+    }
+    if (error.message === 'Forbidden') {
+      throw ApiError.forbidden('You can only acknowledge your own reminders');
+    }
+    throw error;
+  }
+}));
+
+/**
+ * POST /api/leads/reminders/generate/:storeLocationId
+ * Manually trigger reminder generation for a store (admin only)
+ */
+router.post('/reminders/generate/:storeLocationId', authenticate, requireRole('admin'),
+  asyncHandler(async (req, res) => {
+    const result = await reminderService.generateStoreReminders(parseInt(req.params.storeLocationId));
+    res.success(result);
+  })
+);
+
+/**
  * GET /api/leads/:id
- * Get a single lead with full details
+ * Get a single lead with full details (includes linked quotes and follow-ups)
  */
 router.get('/:id', authenticate, asyncHandler(async (req, res) => {
   const { id } = req.params;
@@ -149,6 +237,29 @@ router.put('/:id/status', authenticate, validateJoi(leadSchemas.status), asyncHa
   } catch (error) {
     if (error.message.includes('Invalid status transition')) {
       throw ApiError.badRequest(error.message);
+    }
+    throw error;
+  }
+}));
+
+/**
+ * PATCH /api/leads/:id/status
+ * Update lead status (pipeline-aware state machine)
+ */
+router.patch('/:id/status', authenticate, validateJoi(leadSchemas.status), asyncHandler(async (req, res) => {
+  const { id } = req.params;
+  const { status } = req.body;
+
+  try {
+    const lead = await leadService.updatePipelineStatus(parseInt(id), status, req.user?.id);
+    cache.invalidatePattern('leads:stats');
+    res.success(lead);
+  } catch (error) {
+    if (error.message.includes('Invalid status transition')) {
+      throw ApiError.badRequest(error.message);
+    }
+    if (error.message === 'Lead not found') {
+      throw ApiError.notFound('Lead');
     }
     throw error;
   }
@@ -1063,6 +1174,121 @@ router.get('/assignment/stats', authenticate, asyncHandler(async (req, res) => {
   }
   const stats = await service.getStats();
   res.success(stats);
+}));
+
+// ============================================
+// QUOTE-TO-LEAD PIPELINE ROUTES
+// ============================================
+
+/**
+ * POST /api/leads/pipeline
+ * Create a lead via the quote pipeline
+ */
+router.post('/pipeline', authenticate, asyncHandler(async (req, res) => {
+  const { customerId, assignedStaffId, storeLocationId, source, notes } = req.body;
+
+  if (!customerId) {
+    throw ApiError.validation('customerId is required');
+  }
+
+  const lead = await leadService.createPipelineLead({
+    customerId,
+    assignedStaffId: assignedStaffId || req.user?.id,
+    storeLocationId,
+    source,
+    notes
+  });
+
+  cache.invalidatePattern('leads:stats');
+  res.created(lead);
+}));
+
+/**
+ * POST /api/leads/:id/link-quote
+ * Link a quotation to an existing lead
+ */
+router.post('/:id/link-quote', authenticate, asyncHandler(async (req, res) => {
+  const { id } = req.params;
+  const { quoteId, isPrimary } = req.body;
+
+  if (!quoteId) {
+    throw ApiError.validation('quoteId is required');
+  }
+
+  const linkRecord = await leadService.linkQuoteToLead(
+    parseInt(id),
+    parseInt(quoteId),
+    isPrimary === true
+  );
+
+  res.created(linkRecord);
+}));
+
+/**
+ * POST /api/leads/:id/followups
+ * Schedule a follow-up for a lead
+ */
+router.post('/:id/followups', authenticate, asyncHandler(async (req, res) => {
+  const { id } = req.params;
+  const { followupType, scheduledAt, notes } = req.body;
+
+  if (!scheduledAt) {
+    throw ApiError.validation('scheduledAt is required');
+  }
+
+  const followup = await leadService.scheduleFollowup(
+    parseInt(id),
+    { followupType, scheduledAt, notes },
+    req.user?.id
+  );
+
+  res.created(followup);
+}));
+
+/**
+ * PATCH /api/leads/:id/followups/:followupId/complete
+ * Mark a follow-up as completed
+ */
+router.patch('/:id/followups/:followupId/complete', authenticate, asyncHandler(async (req, res) => {
+  const { followupId } = req.params;
+  const { outcome, notes } = req.body;
+
+  try {
+    const followup = await leadService.completeFollowup(
+      parseInt(followupId),
+      { outcome, notes },
+      req.user?.id
+    );
+    res.success(followup);
+  } catch (error) {
+    if (error.message === 'Follow-up not found') {
+      throw ApiError.notFound('Follow-up');
+    }
+    throw error;
+  }
+}));
+
+/**
+ * POST /api/leads/find-or-create
+ * Find an existing open lead for a customer or create one, linking a quote
+ */
+router.post('/find-or-create', authenticate, asyncHandler(async (req, res) => {
+  const { customerId, assignedStaffId, storeLocationId, source, quoteId } = req.body;
+
+  if (!customerId || !quoteId) {
+    throw ApiError.validation('customerId and quoteId are required');
+  }
+
+  const result = await leadService.findOrCreateLeadForCustomer({
+    customerId,
+    assignedStaffId: assignedStaffId || req.user?.id,
+    storeLocationId,
+    source,
+    quoteId
+  });
+
+  cache.invalidatePattern('leads:stats');
+  res.success(result);
 }));
 
 module.exports = { router, init };

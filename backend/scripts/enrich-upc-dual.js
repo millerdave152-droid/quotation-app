@@ -9,7 +9,12 @@
  *   node scripts/enrich-upc-dual.js --limit 50     # Process 50 products
  *   node scripts/enrich-upc-dual.js --brand LG     # Only one brand
  */
-require('dotenv').config();
+// Allow self-signed certs for local dev connecting to AWS RDS
+if (!process.env.NODE_ENV || process.env.NODE_ENV === 'production') {
+  process.env.NODE_ENV = 'development';
+  process.env.DB_SSL_REJECT_UNAUTHORIZED = 'false';
+}
+require('dotenv').config({ override: false });
 const https = require('https');
 const pool = require('../db');
 

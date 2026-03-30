@@ -489,6 +489,7 @@ export function useCart() {
     margin: cart.margin,
     marginPercent: cart.marginPercent,
     taxRates: cart.taxRates,
+    ehfTotal: cart.ehfTotal || 0,
 
     // Promotion (from context)
     appliedPromotion: cart.appliedPromotion,
@@ -567,6 +568,10 @@ export function useCart() {
     selectedFulfillment: cart.selectedFulfillment,
     setFulfillment: cart.setFulfillment,
     hasFulfillment: cart.hasFulfillment,
+    deliveryFee: cart.deliveryFee || 0,
+
+    // Quote financing info (from context)
+    quoteFinancingInfo: cart.quoteFinancingInfo || null,
 
     // Trade-ins (from context)
     tradeIns: cart.tradeIns || [],

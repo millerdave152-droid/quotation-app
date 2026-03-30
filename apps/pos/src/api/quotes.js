@@ -352,6 +352,48 @@ export const checkQuoteValidity = async (quoteId) => {
   }
 };
 
+/**
+ * Get revenue features (add-ons) for a quote
+ * Fetches warranties, financing, delivery, rebates, and trade-ins
+ * @param {number} quoteId - Quote ID
+ * @returns {Promise<object>} Revenue features
+ */
+export const getQuoteRevenueFeatures = async (quoteId) => {
+  try {
+    const [financingRes, deliveryRes, warrantiesRes, rebatesRes, tradeInsRes] = await Promise.allSettled([
+      api.get(`/quotations/${quoteId}/financing`),
+      api.get(`/quotations/${quoteId}/delivery`),
+      api.get(`/quotations/${quoteId}/warranties`),
+      api.get(`/quotations/${quoteId}/rebates`),
+      api.get(`/quotations/${quoteId}/trade-ins`)
+    ]);
+
+    const extract = (res) => {
+      if (res.status !== 'fulfilled') return null;
+      const d = res.value?.data || res.value;
+      return d?.data || d;
+    };
+
+    return {
+      success: true,
+      data: {
+        financing: extract(financingRes),
+        delivery: extract(deliveryRes),
+        warranties: extract(warrantiesRes) || [],
+        rebates: extract(rebatesRes) || [],
+        tradeIns: extract(tradeInsRes) || []
+      }
+    };
+  } catch (error) {
+    console.error('[Quotes] getQuoteRevenueFeatures error:', error);
+    return {
+      success: false,
+      error: error.message,
+      data: { financing: null, delivery: null, warranties: [], rebates: [], tradeIns: [] }
+    };
+  }
+};
+
 export default {
   lookupQuote,
   getQuoteForSale,
@@ -361,4 +403,5 @@ export default {
   getPendingQuotes,
   searchQuotes,
   checkQuoteValidity,
+  getQuoteRevenueFeatures,
 };

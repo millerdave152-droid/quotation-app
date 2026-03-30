@@ -73,7 +73,7 @@ const transactionCreateSchema = z.object({
   salespersonId: positiveIntId,
 
   items: z.array(z.object({
-    productId: positiveIntId,
+    productId: positiveIntId.nullable(),
     quantity: z.coerce.number().int().min(1, 'Quantity must be at least 1'),
     unitPrice: z.coerce.number(),
     unitCost: z.coerce.number().optional().nullable(),
@@ -296,6 +296,8 @@ function validateBody(schema) {
         message: issue.message,
         code: issue.code,
       }));
+
+      console.error('[ZodValidation] FAILED:', JSON.stringify(errors));
 
       return res.status(400).json({
         success: false,

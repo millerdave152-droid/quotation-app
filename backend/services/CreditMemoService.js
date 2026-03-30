@@ -8,10 +8,7 @@
 
 const { SESv2Client, SendEmailCommand } = require('@aws-sdk/client-sesv2');
 const PDFDocument = require('pdfkit');
-const path = require('path');
-const fs = require('fs');
 
-const LOGO_PATH = path.join(__dirname, '..', 'assets', 'logos', 'teletime-logo-colour-400.png');
 
 // ============================================================================
 // Tax Rate Constants (Canadian provinces) — mirrors OrderModificationService
@@ -911,10 +908,10 @@ class CreditMemoService {
           primaryLight: '#3b82f6',
           text: '#1f2937',
           textSecondary: '#374151',
-          textMuted: '#6b7280',
-          textLight: '#9ca3af',
+          textMuted: '#333333',
+          textLight: '#444444',
           border: '#e5e7eb',
-          borderMedium: '#d1d5db',
+          borderMedium: '#888888',
           background: '#f9fafb',
           bgLight: '#f8fafc',
           bgMuted: '#fafafa',
@@ -940,18 +937,12 @@ class CreditMemoService {
         // ============================================
         doc.rect(0, 0, 612, 4).fill(colors.primary);
 
-        // Company Logo (falls back to text name if logo file missing)
+        // Company name as professional text header
+        doc.fontSize(26)
+           .font('Helvetica-Bold')
+           .fillColor(colors.primary)
+           .text('Teletime', 50, 16);
         let headerY = 44;
-        if (fs.existsSync(LOGO_PATH)) {
-          doc.image(LOGO_PATH, 50, 14, { width: 160 });
-          headerY = 50;
-        } else {
-          doc
-            .fontSize(22)
-            .font('Helvetica-Bold')
-            .fillColor(colors.primary)
-            .text(this.companyName, 50, 20);
-        }
 
         doc.fontSize(9).font('Helvetica').fillColor(colors.textMuted);
         if (this.companyAddress) {
@@ -1073,14 +1064,14 @@ class CreditMemoService {
         doc
           .fontSize(9)
           .font('Helvetica-Bold')
-          .fillColor(colors.primaryLight)
+          .fillColor('#000000')
           .text('BILL TO', 60, custY + 10);
 
         doc
           .moveTo(60, custY + 22)
           .lineTo(150, custY + 22)
           .strokeColor(colors.border)
-          .lineWidth(0.5)
+          .lineWidth(0.75)
           .stroke();
 
         doc
@@ -1099,14 +1090,14 @@ class CreditMemoService {
         doc
           .fontSize(9)
           .font('Helvetica-Bold')
-          .fillColor(colors.primaryLight)
+          .fillColor('#000000')
           .text('CONTACT', 315, custY + 10);
 
         doc
           .moveTo(315, custY + 22)
           .lineTo(405, custY + 22)
           .strokeColor(colors.border)
-          .lineWidth(0.5)
+          .lineWidth(0.75)
           .stroke();
 
         doc.fontSize(8).font('Helvetica').fillColor(colors.textLight);
@@ -1183,7 +1174,7 @@ class CreditMemoService {
             .moveTo(50, yPos + rowHeight)
             .lineTo(562, yPos + rowHeight)
             .strokeColor(colors.border)
-            .lineWidth(0.5)
+            .lineWidth(0.75)
             .stroke();
 
           const rowTextY = yPos + 8;
@@ -1376,7 +1367,7 @@ class CreditMemoService {
           .moveTo(labelX, lineY)
           .lineTo(valueX, lineY)
           .strokeColor(colors.borderMedium)
-          .lineWidth(0.5)
+          .lineWidth(1.5)
           .stroke();
 
         // TOTAL CREDIT badge
@@ -1414,7 +1405,7 @@ class CreditMemoService {
         doc
           .fontSize(10)
           .font('Helvetica-Bold')
-          .fillColor(colors.text)
+          .fillColor('#000000')
           .text('AUTHORIZATION', 50, authStartY);
 
         authStartY += 14;
@@ -1426,7 +1417,7 @@ class CreditMemoService {
         let authLineY = authStartY + 10;
 
         // Authorized By
-        doc.fontSize(8).font('Helvetica').fillColor(colors.textMuted);
+        doc.fontSize(8).font('Helvetica-Bold').fillColor('#000000');
         doc.text('Authorized By:', 60, authLineY);
         doc
           .font('Helvetica-Bold')
@@ -1439,7 +1430,7 @@ class CreditMemoService {
 
         // Date
         authLineY += 14;
-        doc.font('Helvetica').fillColor(colors.textMuted);
+        doc.font('Helvetica-Bold').fillColor('#000000');
         doc.text('Date:', 60, authLineY);
         doc
           .font('Helvetica-Bold')
@@ -1454,7 +1445,7 @@ class CreditMemoService {
             store_credit: 'Store Credit',
             manual_adjustment: 'Manual Adjustment',
           };
-          doc.font('Helvetica').fillColor(colors.textMuted);
+          doc.font('Helvetica-Bold').fillColor('#000000');
           doc.text('Application Method:', 60, authLineY);
           doc
             .font('Helvetica-Bold')
@@ -1467,7 +1458,7 @@ class CreditMemoService {
 
           if (memo.appliedAt) {
             authLineY += 14;
-            doc.font('Helvetica').fillColor(colors.textMuted);
+            doc.font('Helvetica-Bold').fillColor('#000000');
             doc.text('Applied:', 60, authLineY);
             doc
               .font('Helvetica-Bold')
@@ -1523,7 +1514,7 @@ class CreditMemoService {
             .moveTo(50, 745)
             .lineTo(562, 745)
             .strokeColor(colors.border)
-            .lineWidth(0.5)
+            .lineWidth(1)
             .stroke();
 
           // Footer accent line

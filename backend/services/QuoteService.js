@@ -6,6 +6,8 @@
 const ActivityService = require('./ActivityService');
 const emailService = require('./EmailService');
 const { buildQuoteSnapshot, SnapshotBuildError } = require('./skulytics/SkulyticsSnapshotService');
+const LeadService = require('./LeadService');
+const logger = require('../utils/logger');
 
 class QuoteService {
   constructor(pool) {
@@ -201,7 +203,7 @@ class QuoteService {
    * @param {number} taxRate - Tax rate (as decimal like 0.13 or percentage like 13)
    * @returns {object} Calculated totals
    */
-  calculateTotals(items, discountPercent = 0, taxRate = 0.13) {
+  calculateTotals(items, discountPercent = 0, taxRate = 0.13, addOns = null) {
     // Calculate subtotal from items
     const subtotal_cents = items.reduce((sum, item) => {
       const sell_cents = item.sell_cents || Math.round((item.sell || 0) * 100);
@@ -212,10 +214,43 @@ class QuoteService {
     const discount_cents = Math.round((subtotal_cents * discountPercent) / 100);
     const after_discount = subtotal_cents - discount_cents;
 
+    // Add-on costs (warranties, delivery, trade-in credits, rebates)
+    const warranty_cents = addOns?.warranty_cents || 0;
+    const delivery_cents = addOns?.delivery_cents || 0;
+    const trade_in_credit_cents = addOns?.trade_in_credit_cents || 0;
+    const rebate_credit_cents = addOns?.rebate_credit_cents || 0;
+    const add_on_total_cents = warranty_cents + delivery_cents;
+    const credit_total_cents = trade_in_credit_cents + rebate_credit_cents;
+    const after_add_ons = after_discount + add_on_total_cents - credit_total_cents;
+
+    // Calculate EHF (Environmental Handling Fee) for TVs, Blu-ray/DVD, Projectors
+    let ehf_cents = 0;
+    try {
+      const taxEngine = require('../services/TaxEngine');
+      // Exclude warranty items from EHF calc
+      const nonWarrantyItems = items.filter(i => {
+        const combined = `${i.model || ''} ${i.description || ''} ${i.category || ''} ${i.manufacturer || ''} ${i.sku || ''}`.toLowerCase();
+        return !combined.includes('warranty') && !combined.includes('protection')
+          && !combined.includes('guardian') && !combined.includes('excelsior')
+          && !(i.sku || '').toLowerCase().startsWith('wrn-');
+      });
+      const ehfResult = taxEngine.calculateCartEHF(nonWarrantyItems.map(i => ({
+        name: i.description || i.model || i.name || '',
+        category: i.category || '',
+        description: i.model || '',
+        quantity: i.quantity || 1,
+        screen_size_inches: i.screen_size_inches || null,
+        sku: i.sku || i.model || ''
+      })), 'ON');
+      ehf_cents = Math.round((ehfResult.totalEHF || 0) * 100);
+    } catch { /* EHF calculation optional */ }
+
     // Normalize tax rate (convert 0.13 to 13 if needed)
     const tax_rate_percent = taxRate < 1 ? taxRate * 100 : taxRate;
-    const tax_cents = Math.round((after_discount * tax_rate_percent) / 100);
-    const total_cents = after_discount + tax_cents;
+    // EHF is taxable in Ontario — tax applies to (after_add_ons + EHF)
+    const taxable_amount = after_add_ons + ehf_cents;
+    const tax_cents = Math.round((taxable_amount * tax_rate_percent) / 100);
+    const total_cents = after_add_ons + ehf_cents + tax_cents;
 
     // Calculate cost and profit
     const total_cost_cents = items.reduce((sum, item) => {
@@ -223,21 +258,50 @@ class QuoteService {
       return sum + (cost_cents * (item.quantity || 1));
     }, 0);
 
-    const gross_profit_cents = after_discount - total_cost_cents;
-    const margin_percent = after_discount > 0
-      ? Math.round((gross_profit_cents / after_discount) * 10000) / 100
+    const gross_profit_cents = after_add_ons - total_cost_cents;
+    const margin_percent = after_add_ons > 0
+      ? Math.round((gross_profit_cents / after_add_ons) * 10000) / 100
       : 0;
 
     return {
       subtotal_cents,
       discount_percent: discountPercent,
       discount_cents,
+      ehf_cents,
       tax_rate: tax_rate_percent,
       tax_cents,
       total_cents,
       total_cost_cents,
       gross_profit_cents,
-      margin_percent
+      margin_percent,
+      warranty_cents,
+      delivery_cents,
+      trade_in_credit_cents,
+      rebate_credit_cents
+    };
+  }
+
+  /**
+   * Fetch add-on costs from revenue feature tables for a quote
+   * @param {number} quoteId
+   * @param {object} client - Optional DB client
+   * @returns {Promise<object>} Add-on cost totals in cents
+   */
+  async getQuoteAddOnCosts(quoteId, client = null) {
+    const db = client || this.pool;
+
+    const [warrantiesRes, deliveryRes, rebatesRes, tradeInsRes] = await Promise.all([
+      db.query('SELECT COALESCE(SUM(warranty_cost_cents), 0) AS total FROM quote_warranties WHERE quote_id = $1', [quoteId]),
+      db.query('SELECT COALESCE(total_delivery_cost_cents, 0) AS total FROM quote_delivery WHERE quote_id = $1', [quoteId]),
+      db.query('SELECT COALESCE(SUM(rebate_amount_cents), 0) AS total FROM quote_rebates WHERE quote_id = $1', [quoteId]),
+      db.query('SELECT COALESCE(SUM(trade_in_value_cents), 0) AS total FROM quote_trade_ins WHERE quote_id = $1', [quoteId])
+    ]);
+
+    return {
+      warranty_cents: parseInt(warrantiesRes.rows[0]?.total || 0),
+      delivery_cents: parseInt(deliveryRes.rows[0]?.total || 0),
+      trade_in_credit_cents: parseInt(tradeInsRes.rows[0]?.total || 0),
+      rebate_credit_cents: parseInt(rebatesRes.rows[0]?.total || 0)
     };
   }
 
@@ -996,6 +1060,10 @@ class QuoteService {
         deposit_amount_cents = 0,
         // Created by
         created_by = 'User',
+        // Lead pipeline
+        lead_opt_in = false,
+        created_by_user_id = null,
+        store_location_id = null,
         // Tenant context (for Skulytics override lookups)
         tenant_id = null
       } = quoteData;
@@ -1023,6 +1091,7 @@ class QuoteService {
       const {
         subtotal_cents,
         discount_cents,
+        ehf_cents,
         tax_cents,
         total_cents,
         gross_profit_cents
@@ -1053,6 +1122,7 @@ class QuoteService {
         `INSERT INTO quotations (
           quote_number, customer_id, status, subtotal_cents, discount_percent,
           discount_cents, tax_rate, tax_cents, total_cents, gross_profit_cents,
+          ehf_cents,
           notes, internal_notes, terms, expires_at,
           hide_model_numbers, watermark_text, watermark_enabled,
           delivery_address, delivery_city, delivery_postal_code, delivery_date,
@@ -1061,14 +1131,15 @@ class QuoteService {
           sales_rep_name, commission_percent, commission_amount_cents,
           referral_source, referral_name, priority_level, special_instructions,
           payment_method, deposit_required, deposit_amount_cents, created_by,
-          tenant_id
+          tenant_id, lead_opt_in
         ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14,
                   $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27,
-                  $28, $29, $30, $31, $32, $33, $34, $35, $36, $37, $38, $39)
+                  $28, $29, $30, $31, $32, $33, $34, $35, $36, $37, $38, $39, $40, $41)
         RETURNING *`,
         [
           quote_number, customer_id, status, subtotal_cents, discount_percent,
           discount_cents, tax_rate, tax_cents, total_cents, gross_profit_cents,
+          ehf_cents || 0,
           notes, internal_notes, terms, expires_at,
           hide_model_numbers, watermark_text, watermark_enabled,
           delivery_address || null, delivery_city || null, delivery_postal_code || null, delivery_date || null,
@@ -1077,7 +1148,7 @@ class QuoteService {
           sales_rep_name || null, commission_percent, commission_amount_cents,
           referral_source || null, referral_name || null, priority_level, special_instructions || null,
           payment_method || null, deposit_required, deposit_amount_cents, created_by,
-          tenant_id
+          tenant_id, lead_opt_in
         ]
       );
 
@@ -1152,6 +1223,22 @@ class QuoteService {
       // Attach Skulytics warnings (discontinued products, etc.)
       if (skulyticsWarnings.length > 0) {
         createdQuote.warnings = skulyticsWarnings;
+      }
+
+      // Quote-to-Lead opt-in trigger (post-commit, non-blocking)
+      if (lead_opt_in === true && customer_id) {
+        try {
+          const leadService = new LeadService(this.pool);
+          await leadService.findOrCreateLeadForCustomer({
+            customerId: customer_id,
+            assignedStaffId: created_by_user_id || null,
+            storeLocationId: store_location_id || null,
+            source: 'quote_generated',
+            quoteId: createdQuote.id
+          });
+        } catch (leadError) {
+          logger.error({ err: leadError, quoteId: createdQuote.id }, 'Lead creation failed after quote');
+        }
       }
 
       // Check margin and auto-trigger approval if needed (post-commit)
@@ -1593,7 +1680,7 @@ class QuoteService {
    * @param {Map|null} [skulyticsData=null] - Map of product_id -> { skulytics_id, snapshot, ... }
    */
   async insertQuoteItems(client, quotationId, items, skulyticsData = null) {
-    const valuesPerRow = 18;
+    const valuesPerRow = 19;
     const placeholders = items.map((_, i) =>
       `(${Array.from({length: valuesPerRow}, (_, j) => `$${i * valuesPerRow + j + 1}`).join(', ')})`
     ).join(', ');
@@ -1615,6 +1702,7 @@ class QuoteService {
         item.line_profit_cents || Math.round(((item.sell || 0) - (item.cost || 0)) * (item.quantity || 1) * 100),
         item.margin_bp || 0,
         item.item_notes || item.notes || '',
+        item.serial_number || null,
         // Skulytics columns
         skuData?.skulytics_id || null,
         skuData?.snapshot ? JSON.stringify(skuData.snapshot) : null,
@@ -1628,7 +1716,7 @@ class QuoteService {
       `INSERT INTO quotation_items (
         quotation_id, product_id, manufacturer, model, description, category,
         quantity, cost_cents, msrp_cents, sell_cents, line_total_cents,
-        line_profit_cents, margin_bp, item_notes,
+        line_profit_cents, margin_bp, item_notes, serial_number,
         skulytics_id, skulytics_snapshot,
         discontinued_acknowledged_by, discontinued_acknowledged_at
       ) VALUES ${placeholders}`,

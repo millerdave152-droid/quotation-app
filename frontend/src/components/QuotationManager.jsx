@@ -136,6 +136,7 @@ const QuotationManager = () => {
   const [quoteExpiryDate, setQuoteExpiryDate] = useState('');
   const [emailTemplates, setEmailTemplates] = useState([]);
   const [selectedEmailTemplate, setSelectedEmailTemplate] = useState(null);
+  const [leadOptIn, setLeadOptIn] = useState(false);
 
   // ============================================
   // INSTITUTIONAL BUYER STATE
@@ -190,6 +191,11 @@ const QuotationManager = () => {
   const [interactionNotes, setInteractionNotes] = useState('');
   const [nextAction, setNextAction] = useState('');
   const [nextActionDate, setNextActionDate] = useState('');
+
+  // ============================================
+  // STAFF SIGNATURE STATE (for new quotes)
+  // ============================================
+  const [pendingStaffSignature, setPendingStaffSignature] = useState(null);
 
   // ============================================
   // DRAFT PERSISTENCE STATE
@@ -893,6 +899,309 @@ const QuotationManager = () => {
   }, [quotations, searchTerm, searchResults, statusFilter, dateFilter, valueFilter, expiringFilter,
       customerFilter, productFilter, createdByFilter, sortBy, sortOrder, isExpiringSoon]);
 
+  // ============================================
+  // REVENUE FEATURES PERSISTENCE HELPERS
+  // ============================================
+
+  const saveRevenueFeatures = async (quoteId) => {
+    // Debug: log what add-on state exists at save time
+    const addOnState = {
+      financing: quoteFinancing ? 'SET' : 'null',
+      delivery: quoteDelivery ? 'SET' : 'null',
+      warranties: quoteWarranties.length,
+      rebates: quoteRebates.length,
+      tradeIns: quoteTradeIns.length
+    };
+    logger.log('[saveRevenueFeatures] Add-on state at save:', JSON.stringify(addOnState));
+    console.log('[saveRevenueFeatures] quoteFinancing:', quoteFinancing);
+    console.log('[saveRevenueFeatures] quoteDelivery:', quoteDelivery);
+    console.log('[saveRevenueFeatures] quoteWarranties:', quoteWarranties);
+    console.log('[saveRevenueFeatures] quoteRebates:', quoteRebates);
+    console.log('[saveRevenueFeatures] quoteTradeIns:', quoteTradeIns);
+
+    const token = localStorage.getItem('auth_token');
+    const headers = {
+      'Content-Type': 'application/json',
+      ...(token && { 'Authorization': `Bearer ${token}` })
+    };
+
+    // Helper: POST and check response, log errors with detail
+    const postAddOn = async (endpoint, payload, label) => {
+      try {
+        const res = await authFetch(`${API_URL}/api/quotations/${quoteId}/${endpoint}`, {
+          method: 'POST',
+          headers,
+          body: JSON.stringify(payload)
+        });
+        if (!res.ok) {
+          const errBody = await res.text().catch(() => '');
+          logger.error(`[saveRevenueFeatures] ${label} failed (${res.status}):`, errBody);
+          return false;
+        }
+        return true;
+      } catch (err) {
+        logger.error(`[saveRevenueFeatures] ${label} network error:`, err);
+        return false;
+      }
+    };
+
+    const promises = [];
+
+    // Save financing (include plan details for display on reload)
+    if (quoteFinancing?.plan && quoteFinancing?.calculation) {
+      const calc = quoteFinancing.calculation;
+      const plan = quoteFinancing.plan;
+      promises.push(postAddOn('financing', {
+        financed_amount_cents: calc.financedAmountCents || 0,
+        down_payment_cents: calc.downPaymentCents || 0,
+        monthly_payment_cents: calc.monthlyPaymentCents || 0,
+        total_interest_cents: calc.totalInterestCents || 0,
+        total_cost_cents: (calc.financedAmountCents || 0) + (calc.totalInterestCents || 0),
+        plan_name: plan.plan_name || null,
+        provider: plan.provider || quoteFinancing.provider || null,
+        term_months: plan.term_months || quoteFinancing.termMonths || 0,
+        apr_percent: plan.apr_percent !== undefined ? plan.apr_percent : 0,
+        financing_type: quoteFinancing.planType || quoteFinancing.financing_type || null
+      }, 'Financing'));
+    }
+
+    // Save delivery options
+    if (quoteDelivery?.service && quoteDelivery?.calculation) {
+      const calc = quoteDelivery.calculation;
+      const details = quoteDelivery.details || {};
+      promises.push(postAddOn('delivery', {
+        delivery_address: details.address || deliveryAddress || '',
+        delivery_date: details.deliveryDate || deliveryDate || null,
+        delivery_time_slot: details.timeSlot || deliveryTimeSlot || '',
+        total_delivery_cost_cents: calc.totalCents || 0,
+        distance_miles: details.distanceMiles || null,
+        floor_level: details.floorLevel || null,
+        weekend_delivery: details.isWeekend || false,
+        evening_delivery: details.isEvening || false,
+        special_instructions: deliveryInstructions || ''
+      }, 'Delivery'));
+    }
+
+    // Delete existing array add-ons before re-inserting (prevents duplication on re-save)
+    const deleteExisting = async (endpoint, label) => {
+      try {
+        await authFetch(`${API_URL}/api/quotations/${quoteId}/${endpoint}`, {
+          method: 'DELETE', headers
+        });
+      } catch (err) {
+        logger.error(`[saveRevenueFeatures] Failed to clear old ${label}:`, err);
+      }
+    };
+
+    // Clear existing warranties, rebates, trade-ins before re-saving
+    if (quoteWarranties.length > 0 || editingQuoteId) {
+      await deleteExisting('warranties', 'warranties');
+    }
+    if (quoteRebates.length > 0 || editingQuoteId) {
+      await deleteExisting('rebates', 'rebates');
+    }
+    if (quoteTradeIns.length > 0 || editingQuoteId) {
+      await deleteExisting('trade-ins', 'trade-ins');
+    }
+
+    // Save warranties (include product info and plan details)
+    if (quoteWarranties.length > 0) {
+      for (const w of quoteWarranties) {
+        const plan = w.plan || {};
+        const product = w.product || {};
+        promises.push(postAddOn('warranties', {
+          product_name: plan.plan_name || 'Extended Warranty',
+          warranty_cost_cents: w.cost || 0,
+          warranty_years: plan.duration_years || 0,
+          covered_product_model: product.model || product.description || null,
+          covered_product_manufacturer: product.manufacturer || null,
+          provider: plan.provider || null,
+          coverage_details: plan.coverage_details || null
+        }, `Warranty: ${plan.plan_name || 'unknown'}`));
+      }
+    }
+
+    // Save rebates
+    if (quoteRebates.length > 0) {
+      for (const r of quoteRebates) {
+        promises.push(postAddOn('rebates', {
+          rebate_id: r.id || null,
+          rebate_amount_cents: r.rebate_amount_cents || 0,
+          rebate_status: 'pending'
+        }, `Rebate: ${r.rebate_name || r.id}`));
+      }
+    }
+
+    // Save trade-ins
+    if (quoteTradeIns.length > 0) {
+      for (const t of quoteTradeIns) {
+        promises.push(postAddOn('trade-ins', {
+          product_description: [t.productCategory, t.brand, t.modelNumber].filter(Boolean).join(' ') || 'Trade-In',
+          brand: t.brand || '',
+          model: t.modelNumber || t.model || '',
+          age_years: t.ageYears || t.age_years || 0,
+          condition: t.condition || 'good',
+          trade_in_value_cents: t.estimatedValueCents || t.trade_in_value_cents || 0,
+          notes: t.notes || ''
+        }, `Trade-in: ${t.brand || 'item'}`));
+      }
+    }
+
+    if (promises.length > 0) {
+      const results = await Promise.allSettled(promises);
+      const succeeded = results.filter(r => r.status === 'fulfilled' && r.value === true).length;
+      const failed = promises.length - succeeded;
+      logger.log(`[saveRevenueFeatures] Saved ${succeeded}/${promises.length} add-on(s) for quote ${quoteId}`);
+      if (failed > 0) {
+        toast.warning(
+          `${failed} add-on(s) failed to save (financing, delivery, etc.). Try editing the quote to re-save them.`,
+          'Add-On Save Warning'
+        );
+      }
+    }
+  };
+
+  const loadRevenueFeatures = async (quoteId) => {
+    const token = localStorage.getItem('auth_token');
+    const headers = {
+      'Content-Type': 'application/json',
+      ...(token && { 'Authorization': `Bearer ${token}` })
+    };
+
+    try {
+      const [financingRes, deliveryRes, warrantiesRes, rebatesRes, tradeInsRes] = await Promise.allSettled([
+        authFetch(`${API_URL}/api/quotations/${quoteId}/financing`, { headers }),
+        authFetch(`${API_URL}/api/quotations/${quoteId}/delivery`, { headers }),
+        authFetch(`${API_URL}/api/quotations/${quoteId}/warranties`, { headers }),
+        authFetch(`${API_URL}/api/quotations/${quoteId}/rebates`, { headers }),
+        authFetch(`${API_URL}/api/quotations/${quoteId}/trade-ins`, { headers })
+      ]);
+
+      // Load financing (actual DB columns: financing_plan_id, financed_amount_cents, monthly_payment_cents, plan_name, etc.)
+      if (financingRes.status === 'fulfilled' && financingRes.value.ok) {
+        const data = await financingRes.value.json();
+        const fin = data?.data || data;
+        if (fin && (fin.financed_amount_cents || fin.monthly_payment_cents)) {
+          setQuoteFinancing({
+            provider: fin.provider || '',
+            planType: fin.financing_type || 'equal_monthly',
+            termMonths: fin.term_months || 0,
+            term_months: fin.term_months || 0,
+            financing_type: fin.financing_type || '',
+            plan: {
+              plan_name: fin.plan_name || 'Financing Plan',
+              provider: fin.provider || '',
+              term_months: fin.term_months || 0,
+              apr_percent: fin.apr_percent != null ? parseFloat(fin.apr_percent) : 0
+            },
+            calculation: {
+              financedAmountCents: fin.financed_amount_cents,
+              downPaymentCents: fin.down_payment_cents,
+              monthlyPaymentCents: fin.monthly_payment_cents,
+              totalInterestCents: fin.total_interest_cents
+            }
+          });
+        }
+      }
+
+      // Load delivery (actual DB columns: delivery_service_id, total_delivery_cost_cents, etc.)
+      if (deliveryRes.status === 'fulfilled' && deliveryRes.value.ok) {
+        const data = await deliveryRes.value.json();
+        const del = data?.data || data;
+        if (del && del.total_delivery_cost_cents) {
+          setQuoteDelivery({
+            service: { service_name: 'Delivery' },
+            calculation: { totalCents: del.total_delivery_cost_cents || 0 },
+            details: {
+              deliveryDate: del.delivery_date,
+              timeSlot: del.delivery_time_slot,
+              address: del.delivery_address
+            }
+          });
+        }
+      }
+
+      // Load warranties (actual DB columns: product_name, warranty_cost_cents, warranty_years, covered_product_*, etc.)
+      if (warrantiesRes.status === 'fulfilled' && warrantiesRes.value.ok) {
+        const data = await warrantiesRes.value.json();
+        const warranties = Array.isArray(data) ? data : Array.isArray(data?.data) ? data.data : [];
+        if (warranties.length > 0) {
+          setQuoteWarranties(warranties.map(w => ({
+            product: {
+              product_id: w.quote_item_id,
+              model: w.covered_product_model || '',
+              manufacturer: w.covered_product_manufacturer || ''
+            },
+            plan: {
+              plan_name: w.product_name || 'Extended Warranty',
+              duration_years: w.warranty_years || (w.coverage_end_date && w.coverage_start_date
+                ? Math.round((new Date(w.coverage_end_date) - new Date(w.coverage_start_date)) / (365.25 * 24 * 60 * 60 * 1000))
+                : 0),
+              provider: w.provider || '',
+              coverage_details: w.coverage_details || ''
+            },
+            cost: w.warranty_cost_cents
+          })));
+        }
+      }
+
+      // Load rebates (actual DB columns: rebate_id, rebate_amount_cents, rebate_status)
+      if (rebatesRes.status === 'fulfilled' && rebatesRes.value.ok) {
+        const data = await rebatesRes.value.json();
+        const rebates = Array.isArray(data) ? data : Array.isArray(data?.data) ? data.data : [];
+        if (rebates.length > 0) {
+          setQuoteRebates(rebates.map(r => ({
+            id: r.id,
+            rebate_name: r.rebate_name || 'Manufacturer Rebate',
+            rebate_type: r.rebate_type || r.rebate_status || 'instant',
+            rebate_amount_cents: r.rebate_amount_cents,
+            manufacturer: r.manufacturer || ''
+          })));
+        }
+      }
+
+      // Load trade-ins (actual DB columns: product_description, brand, model, etc.)
+      if (tradeInsRes.status === 'fulfilled' && tradeInsRes.value.ok) {
+        const data = await tradeInsRes.value.json();
+        const tradeIns = Array.isArray(data) ? data : Array.isArray(data?.data) ? data.data : [];
+        if (tradeIns.length > 0) {
+          setQuoteTradeIns(tradeIns.map(t => ({
+            productCategory: t.product_description || '',
+            brand: t.brand,
+            modelNumber: t.model,
+            ageYears: t.age_years,
+            condition: t.condition,
+            estimatedValueCents: t.trade_in_value_cents,
+            notes: t.notes
+          })));
+        }
+      }
+
+      logger.log(`Loaded revenue features for quote ${quoteId}`);
+    } catch (err) {
+      logger.error('Error loading revenue features:', err);
+    }
+  };
+
+  // Save staff signature for a newly created quote
+  const saveStaffSignatureForQuote = async (quoteId, signatureData, signerName) => {
+    if (!signatureData || !signerName) return;
+    try {
+      await authFetch(`${API_URL}/api/quotations/${quoteId}/staff-signature`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          signature_data: signatureData,
+          signer_name: signerName.trim(),
+          legal_text: 'Staff signature acknowledging quote preparation and accuracy'
+        })
+      });
+      logger.log('Staff signature saved for new quote', quoteId);
+    } catch (err) {
+      logger.error('Error saving staff signature for new quote:', err);
+    }
+  };
+
   const saveQuote = async () => {
     if (!selectedCustomer) {
       toast.warning('Please select a customer before saving', 'Missing Customer');
@@ -944,14 +1253,10 @@ const QuotationManager = () => {
         payment_method: paymentMethod,
         deposit_required: depositRequired,
         deposit_amount_cents: Math.round(depositAmount * 100),
-        // Revenue features
-        revenue_features: {
-          financing: quoteFinancing,
-          warranties: quoteWarranties,
-          delivery: quoteDelivery,
-          rebates: quoteRebates,
-          tradeIns: quoteTradeIns
-        },
+        // Lead pipeline opt-in
+        lead_opt_in: leadOptIn,
+        // Note: Revenue features (financing, warranties, delivery, rebates, trade-ins)
+        // are saved separately via dedicated endpoints after the main quote save
         // Institutional buyer fields (only included when profile exists)
         ...(institutionalFields.institutional_profile_id ? {
           institutional_profile_id: institutionalFields.institutional_profile_id,
@@ -1020,6 +1325,16 @@ const QuotationManager = () => {
       const quoteNumber = savedQuote.quote_number || savedQuote.quotation_number;
       const quoteId = savedQuote.id;
 
+      // Save revenue features (financing, warranties, delivery, rebates, trade-ins)
+      if (quoteId) {
+        await saveRevenueFeatures(quoteId);
+      }
+
+      // Save staff signature for new quotes (QuoteBuilder stores it locally)
+      if (!editingQuoteId && quoteId && pendingStaffSignature) {
+        await saveStaffSignatureForQuote(quoteId, pendingStaffSignature.data, pendingStaffSignature.name);
+      }
+
       // Clear local draft on successful submit
       await draftPersistence.clearActiveDraft();
 
@@ -1072,6 +1387,9 @@ const QuotationManager = () => {
         terms,
         discount_percent: discountPercent,
         created_by: salesRepName || 'User',
+        // Idempotency: attach the client draft UUID
+        client_draft_id: activeDraftId || undefined,
+        // Quote protection settings
         hide_model_numbers: hideModelNumbers,
         watermark_text: watermarkText,
         watermark_enabled: watermarkEnabled,
@@ -1098,19 +1416,24 @@ const QuotationManager = () => {
         payment_method: paymentMethod,
         deposit_required: depositRequired,
         deposit_amount_cents: Math.round(depositAmount * 100),
-        revenue_features: {
-          financing: quoteFinancing,
-          warranties: quoteWarranties,
-          delivery: quoteDelivery,
-          rebates: quoteRebates,
-          tradeIns: quoteTradeIns
-        }
+        // Institutional buyer fields (only included when profile exists)
+        ...(institutionalFields.institutional_profile_id ? {
+          institutional_profile_id: institutionalFields.institutional_profile_id,
+          po_number: institutionalFields.po_number || null,
+          budget_code: institutionalFields.budget_code || null,
+          department_reference: institutionalFields.department_reference || null,
+          payment_terms: institutionalFields.payment_terms || null,
+          delivery_address_id: institutionalFields.delivery_address_id || null,
+          tax_exempt_cert_id: institutionalFields.tax_exempt_cert_id || null,
+          consolidated_invoice_group: institutionalFields.consolidated_invoice_group || null,
+        } : {}),
       };
 
       const token = localStorage.getItem('auth_token');
       const headers = {
         'Content-Type': 'application/json',
-        ...(token && { 'Authorization': `Bearer ${token}` })
+        ...(token && { 'Authorization': `Bearer ${token}` }),
+        ...(activeDraftId && { 'X-Idempotency-Key': activeDraftId }),
       };
 
       let res;
@@ -1135,6 +1458,20 @@ const QuotationManager = () => {
       // Handle different response formats (standardized API returns { data: {...} })
       const savedQuote = result.data || result.quote || result;
       const quoteNumber = savedQuote.quote_number;
+      const quoteId = savedQuote.id;
+
+      // Save revenue features (financing, warranties, delivery, rebates, trade-ins)
+      if (quoteId) {
+        await saveRevenueFeatures(quoteId);
+      }
+
+      // Save staff signature for new quotes
+      if (!editingQuoteId && quoteId && pendingStaffSignature) {
+        await saveStaffSignatureForQuote(quoteId, pendingStaffSignature.data, pendingStaffSignature.name);
+      }
+
+      // Clear local draft on successful submit
+      await draftPersistence.clearActiveDraft();
 
       toast.success(
         `Quote ${quoteNumber} saved. Opening email...`,
@@ -1225,6 +1562,9 @@ const QuotationManager = () => {
 
     // Reset institutional fields
     setInstitutionalFields({});
+
+    // Reset pending staff signature
+    setPendingStaffSignature(null);
   };
 
   // ============================================
@@ -1436,6 +1776,98 @@ const QuotationManager = () => {
       // Validate quote data has required fields
       if (!data || !data.id) {
         throw new Error('Invalid quote data received');
+      }
+
+      // Fetch revenue feature add-ons and attach to quote for QuoteViewer
+      try {
+        const [finRes, delRes, warRes, rebRes, tiRes] = await Promise.allSettled([
+          authFetch(`${API_URL}/api/quotations/${id}/financing`, { headers }),
+          authFetch(`${API_URL}/api/quotations/${id}/delivery`, { headers }),
+          authFetch(`${API_URL}/api/quotations/${id}/warranties`, { headers }),
+          authFetch(`${API_URL}/api/quotations/${id}/rebates`, { headers }),
+          authFetch(`${API_URL}/api/quotations/${id}/trade-ins`, { headers })
+        ]);
+
+        const extract = async (res) => {
+          if (res.status !== 'fulfilled' || !res.value.ok) return null;
+          const json = await res.value.json();
+          return json?.data || json;
+        };
+
+        const financing = await extract(finRes);
+        const delivery = await extract(delRes);
+        const warranties = (await extract(warRes)) || [];
+        const rebates = (await extract(rebRes)) || [];
+        const tradeIns = (await extract(tiRes)) || [];
+
+        logger.log('[viewQuote] Add-on fetch results:',
+          'financing:', financing ? 'SET' : 'NULL',
+          'delivery:', delivery ? 'SET' : 'NULL',
+          'warranties:', (Array.isArray(warranties) ? warranties : []).length,
+          'rebates:', (Array.isArray(rebates) ? rebates : []).length,
+          'tradeIns:', (Array.isArray(tradeIns) ? tradeIns : []).length
+        );
+
+        // Attach in the shape QuoteViewer expects
+        data.revenue_features = {
+          financing: financing ? {
+            plan: {
+              plan_name: financing.plan_name || financing.financing_type || 'Financing Plan',
+              provider: financing.provider || '',
+              term_months: financing.term_months || 0,
+              apr_percent: financing.apr_percent != null ? parseFloat(financing.apr_percent) : (financing.interest_rate || 0)
+            },
+            calculation: {
+              financedAmountCents: financing.financed_amount_cents,
+              downPaymentCents: financing.down_payment_cents,
+              monthlyPaymentCents: financing.monthly_payment_cents,
+              totalInterestCents: financing.total_interest_cents
+            }
+          } : null,
+          delivery: delivery ? {
+            service: { service_name: delivery.delivery_type || 'Delivery' },
+            calculation: { totalCents: delivery.total_delivery_cost_cents || 0 },
+            details: {
+              deliveryDate: delivery.delivery_date,
+              timeSlot: delivery.delivery_time_slot,
+              address: delivery.delivery_address
+            }
+          } : null,
+          warranties: (Array.isArray(warranties) ? warranties : []).map(w => ({
+            product: {
+              product_id: w.quote_item_id,
+              model: w.covered_product_model || '',
+              manufacturer: w.covered_product_manufacturer || ''
+            },
+            plan: {
+              plan_name: w.product_name || 'Extended Warranty',
+              duration_years: w.warranty_years || (w.coverage_end_date && w.coverage_start_date
+                ? Math.round((new Date(w.coverage_end_date) - new Date(w.coverage_start_date)) / (365.25 * 24 * 60 * 60 * 1000))
+                : 0),
+              provider: w.provider || '',
+              coverage_details: w.coverage_details || ''
+            },
+            cost: w.warranty_cost_cents
+          })),
+          rebates: (Array.isArray(rebates) ? rebates : []).map(r => ({
+            id: r.id,
+            rebate_name: r.rebate_name || 'Manufacturer Rebate',
+            rebate_type: r.rebate_type || r.rebate_status || 'instant',
+            rebate_amount_cents: r.rebate_amount_cents,
+            manufacturer: r.manufacturer || ''
+          })),
+          tradeIns: (Array.isArray(tradeIns) ? tradeIns : []).map(t => ({
+            productCategory: t.product_description || '',
+            brand: t.brand,
+            modelNumber: t.model,
+            item_description: t.product_description || [t.brand, t.model].filter(Boolean).join(' '),
+            condition: t.condition,
+            estimatedValueCents: t.trade_in_value_cents,
+            ageYears: t.age_years
+          }))
+        };
+      } catch (addOnErr) {
+        logger.error('Error fetching quote add-ons for viewer:', addOnErr);
       }
 
       setSelectedQuote(data);
@@ -1745,6 +2177,9 @@ const QuotationManager = () => {
 
       setQuoteItems(items);
       setView('builder');
+
+      // Load revenue features from backend
+      await loadRevenueFeatures(quoteId);
 
       toast.success(`Editing quote ${data.quote_number}`, 'info');
     } catch (err) {
@@ -3087,9 +3522,14 @@ const QuotationManager = () => {
           depositAmount={depositAmount}
           setDepositAmount={setDepositAmount}
           editingQuoteNumber={editingQuoteNumber}
+          // Lead pipeline
+          leadOptIn={leadOptIn}
+          setLeadOptIn={setLeadOptIn}
           // Institutional buyer
           institutionalFields={institutionalFields}
           setInstitutionalFields={setInstitutionalFields}
+          // Staff signature for new quotes
+          onPendingStaffSignature={setPendingStaffSignature}
           lastSavedAt={draftPersistence.lastSavedAt}
           isSaving={draftPersistence.isSaving}
           onSave={saveQuote}

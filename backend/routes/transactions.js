@@ -23,6 +23,7 @@ let pool = null;
 let cache = null;
 let discountAuthorityService = null;
 let commissionService = null;
+let serialNumberService = null;
 
 // ============================================================================
 // TAX RATES BY PROVINCE
@@ -126,7 +127,7 @@ async function resolveLocationId(client, shiftId) {
 // ============================================================================
 
 const transactionItemSchema = Joi.object({
-  productId: Joi.number().integer().required(),
+  productId: Joi.number().integer().allow(null).required(),
   productName: Joi.string().max(500).optional().allow('', null),
   sku: Joi.string().max(200).optional().allow('', null),
   quantity: Joi.number().integer().min(1).required(),
@@ -347,6 +348,8 @@ router.post('/', authenticate, paymentLimiter, validateBody(schemas.transactionC
 
   if (error) {
     const validationDetails = error.details.map(d => `${d.path.join('.')}: ${d.message}`);
+    console.error('[Transaction JOI] Validation errors:', validationDetails);
+    console.error('[Transaction JOI] Item productIds:', req.body.items?.map(i => ({ productId: i.productId, type: typeof i.productId })));
     req.log.error({ validationDetails }, '[Transaction] Validation errors');
     throw ApiError.badRequest('Validation failed: ' + validationDetails.join('; '), validationDetails);
   }
@@ -414,7 +417,9 @@ router.post('/', authenticate, paymentLimiter, validateBody(schemas.transactionC
       missingFields.push({ field: 'fulfillment.pathwayConfirmed', message: 'Pathway confirmation is required for delivery orders' });
     }
     if (missingFields.length > 0) {
-      throw ApiError.badRequest('Validation failed');
+      const details = missingFields.map(f => `${f.field}: ${f.message}`);
+      console.error('[Transaction] Delivery validation errors:', details);
+      throw ApiError.badRequest('Validation failed: ' + details.join('; '), missingFields);
     }
   }
 
@@ -983,6 +988,38 @@ router.post('/', authenticate, paymentLimiter, validateBody(schemas.transactionC
     }
 
     await client.query('COMMIT');
+
+    // Sync serial numbers to product_serials registry (after commit, non-blocking)
+    if (serialNumberService && transactionStatus === 'completed') {
+      let serialWarning = false;
+      for (const item of processedItems) {
+        if (!item.serialNumber) continue;
+        try {
+          await serialNumberService.markAsSold(
+            item.serialNumber,
+            transaction.transaction_id,
+            customerId || null,
+            req.user.id
+          );
+          req.log.info({ serial: item.serialNumber, transactionId: transaction.transaction_id }, '[Transaction] Serial marked as sold');
+        } catch (serialErr) {
+          serialWarning = true;
+          req.log.error({ err: serialErr, serial: item.serialNumber, transactionId: transaction.transaction_id },
+            '[Transaction] Serial sync failed (non-fatal)');
+        }
+      }
+      if (serialWarning) {
+        try {
+          await pool.query(
+            'UPDATE transactions SET serial_sync_warning = true WHERE transaction_id = $1',
+            [transaction.transaction_id]
+          );
+          req.log.warn({ transactionId: transaction.transaction_id }, '[Transaction] Serial sync warning flagged');
+        } catch (flagErr) {
+          req.log.error({ err: flagErr }, '[Transaction] Failed to flag serial_sync_warning');
+        }
+      }
+    }
 
     // Mark approved escalations as used (after commit so transaction ID is final)
     if (req._discountEnforcementResult?.itemEscalations) {
@@ -2042,6 +2079,7 @@ const init = (deps) => {
   pool = deps.pool;
   cache = deps.cache;
   discountAuthorityService = deps.discountAuthorityService || null;
+  serialNumberService = deps.serialNumberService || null;
 
   // Initialize CommissionService if not provided directly
   if (deps.commissionService) {

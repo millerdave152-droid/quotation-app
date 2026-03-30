@@ -272,6 +272,25 @@ function OrderSummary({
             {formatCurrency(cart.total)}
           </span>
         </div>
+
+        {/* Quote financing info (informational) */}
+        {cart.quoteFinancingInfo && (
+          <div style={{
+            padding: '10px 12px', marginTop: '8px',
+            background: '#fefce8', border: '1px solid #fde68a', borderRadius: '8px'
+          }}>
+            <div style={{ fontWeight: 'bold', color: '#854d0e', fontSize: '13px' }}>
+              Financing: {cart.quoteFinancingInfo.planName}
+            </div>
+            <div style={{ fontSize: '12px', color: '#92400e', marginTop: '4px' }}>
+              {cart.quoteFinancingInfo.termMonths}mo @ {cart.quoteFinancingInfo.aprPercent}% APR
+              {cart.quoteFinancingInfo.provider ? ` · ${cart.quoteFinancingInfo.provider}` : ''}
+              {cart.quoteFinancingInfo.monthlyPaymentCents > 0
+                ? ` · ${formatCurrency(cart.quoteFinancingInfo.monthlyPaymentCents / 100)}/mo`
+                : ''}
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

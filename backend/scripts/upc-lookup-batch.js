@@ -13,14 +13,19 @@
  * so it can resume across sessions.
  */
 
-require('dotenv').config();
+// Allow self-signed certs for local dev connecting to AWS RDS
+if (!process.env.NODE_ENV || process.env.NODE_ENV === 'production') {
+  process.env.NODE_ENV = 'development';
+  process.env.DB_SSL_REJECT_UNAUTHORIZED = 'false';
+}
+require('dotenv').config({ override: false });
 const https = require('https');
 const fs = require('fs');
 const path = require('path');
 const pool = require('../db');
 
 const PROGRESS_FILE = path.join(__dirname, 'upc-lookup-progress.json');
-const DELAY_MS = 60000; // 60s between requests — free tier burst-limits aggressively
+const DELAY_MS = 5000; // 5s between API requests
 const DEFAULT_LIMIT = 95; // leave some headroom on the 100/day limit
 
 // Brands to prioritize (electronics/appliances with high UPC coverage)
@@ -49,6 +54,28 @@ function loadProgress() {
     console.warn('Could not load progress file, starting fresh');
   }
   return { looked_up: {}, not_found: [], updated: [], last_run: null };
+}
+
+/**
+ * Generate model variants to try (strips Canadian suffixes).
+ * e.g. DVE54CG7550VAC -> [DVE54CG7550VAC, DVE54CG7550V, DVE54CG7550]
+ */
+function getModelVariants(model) {
+  const variants = [model];
+  // /AC, /ZC, /ZA, /XAA, /EXP suffixes
+  if (/\/[A-Z]{2,3}$/.test(model)) variants.push(model.replace(/\/[A-Z]{2,3}$/, ''));
+  // TAC, VAC suffix (Canadian models)
+  if (/[TV]AC$/.test(model)) {
+    variants.push(model.replace(/[TV]AC$/, ''));
+    variants.push(model.replace(/AC$/, ''));
+  }
+  // AA suffix
+  if (/AA$/.test(model) && model.length > 6) variants.push(model.replace(/AA$/, ''));
+  // AFXZC, FXZC suffix
+  if (/A?FXZC$/.test(model)) variants.push(model.replace(/A?FXZC$/, ''));
+  // UC suffix (Bosch)
+  if (/UC$/.test(model) && model.length > 6) variants.push(model.replace(/UC$/, ''));
+  return [...new Set(variants)];
 }
 
 function saveProgress(progress) {
@@ -117,12 +144,17 @@ function findBestMatch(results, expectedModel, expectedBrand) {
   for (const item of results.items) {
     const itemModel = (item.model || '').toUpperCase().replace(/[\s\-\/]/g, '');
     const itemBrand = (item.brand || '').toUpperCase();
+    const itemTitle = (item.title || '').toUpperCase().replace(/[\s\-\/]/g, '');
 
-    // Model must match exactly (after normalization)
-    if (itemModel !== normModel) continue;
+    // Model must match exactly OR appear in title (after normalization)
+    const modelMatch = itemModel === normModel || itemTitle.includes(normModel);
+    if (!modelMatch) continue;
 
-    // Brand should be in acceptable list
-    const brandOk = acceptableBrands.some((b) => itemBrand.includes(b) || b.includes(itemBrand));
+    // Brand should be in acceptable list (check brand field and title)
+    const brandOk = acceptableBrands.some((b) =>
+      itemBrand.includes(b) || b.includes(itemBrand) ||
+      (item.title || '').toUpperCase().includes(b)
+    );
     if (!brandOk && itemBrand) continue;
 
     // Must have a valid UPC
@@ -201,29 +233,47 @@ async function main() {
     process.stdout.write(`[${lookupCount + 1}/${Math.min(candidates.length, limit)}] ${brand} ${model} ... `);
 
     try {
-      const result = await searchUPCitemdb(model);
+      const variants = getModelVariants(model);
+      let match = null;
+      let lastResult = null;
+      let rateLimited = false;
 
-      if (result.rateLimited) {
-        console.log('RATE LIMITED - waiting 60s then retrying...');
-        await delay(60000);
-        // Retry once
-        const retry = await searchUPCitemdb(model);
-        if (retry.rateLimited || retry.error) {
-          console.log('Still rate limited - stopping');
+      for (const variant of variants) {
+        const result = await searchUPCitemdb(variant);
+
+        if (result.rateLimited) {
+          console.log('RATE LIMITED - waiting 60s then retrying...');
+          await delay(60000);
+          const retry = await searchUPCitemdb(variant);
+          if (retry.rateLimited || retry.error) {
+            console.log('Still rate limited - stopping');
+            rateLimited = true;
+            break;
+          }
+          Object.assign(result, retry);
+        }
+
+        if (result.error) {
+          // 404 means not found, try next variant
+          if (result.status === 404) {
+            lastResult = result;
+            await delay(DELAY_MS);
+            lookupCount++;
+            continue;
+          }
+          lastResult = result;
           break;
         }
-        // Process the retry result instead
-        Object.assign(result, retry);
-      }
 
-      if (result.error) {
-        console.log(`ERROR: ${result.status || result.parseError}`);
+        lastResult = result;
+        match = findBestMatch(result, variant, brand);
+        if (match) break;
+
         lookupCount++;
         await delay(DELAY_MS);
-        continue;
       }
 
-      const match = findBestMatch(result, model, brand);
+      if (rateLimited) break;
 
       if (match) {
         console.log(`FOUND: ${match.upc} (${match.title?.substring(0, 50)})`);
@@ -236,7 +286,7 @@ async function main() {
         progress.looked_up[key] = { upc: match.upc, found: true };
         progress.updated.push({ id: product.id, model, brand, upc: match.upc });
       } else {
-        console.log(`NOT FOUND (${result.total || 0} results, no brand/model match)`);
+        console.log(`NOT FOUND (${lastResult?.total || 0} results, no brand/model match)`);
         notFoundCount++;
         progress.looked_up[key] = { found: false };
         progress.not_found.push(key);

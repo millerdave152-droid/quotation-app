@@ -43,6 +43,7 @@ const navItems = {
   dashboard: { path: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
   customers: { path: '/customers', icon: Users, label: 'Customers' },
   leads: { path: '/leads', icon: ClipboardCheck, label: 'Leads' },
+  'lead-pipeline': { path: '/leads/pipeline', icon: Activity, label: 'Lead Pipeline', hasReminderBadge: true },
   products: { path: '/products', icon: Package, label: 'Products' },
   'product-visualization': { path: '/product-visualization', icon: Image, label: 'Product Gallery' },
   quotes: { path: '/quotes', icon: FileText, label: 'Quotations', hasBadge: true },
@@ -136,6 +137,7 @@ const Sidebar = ({ children, isLayoutMode = false }) => {
   const [isMobile, setIsMobile] = useState(window.innerWidth < 1024);
   const [pendingApprovalsCount, setPendingApprovalsCount] = useState(0);
   const [fraudAlertCount, setFraudAlertCount] = useState(0);
+  const [reminderCount, setReminderCount] = useState(0);
   const [expandedSections, setExpandedSections] = useState(() => {
     // Load from localStorage or default all expanded
     const saved = localStorage.getItem('sidebar_sections');
@@ -232,6 +234,23 @@ const Sidebar = ({ children, isLayoutMode = false }) => {
       if (ws) ws.close();
     };
   }, [isAdmin]);
+
+  // Fetch lead reminder count (30-second poll)
+  useEffect(() => {
+    const fetchReminderCount = async () => {
+      try {
+        const res = await authFetch(`${API_URL}/api/leads/reminders/count`);
+        const data = await res.json();
+        if (data.success) {
+          setReminderCount(data.data?.count || 0);
+        }
+      } catch { /* ignore */ }
+    };
+
+    fetchReminderCount();
+    const interval = setInterval(fetchReminderCount, 30000);
+    return () => clearInterval(interval);
+  }, []);
 
   // Close sidebar on route change (mobile)
   useEffect(() => {
@@ -377,6 +396,15 @@ const Sidebar = ({ children, isLayoutMode = false }) => {
           )}
           {item.hasFraudBadge && isAdmin && fraudAlertCount > 0 && (
             <span style={styles.badge}>{fraudAlertCount > 99 ? '99+' : fraudAlertCount}</span>
+          )}
+          {item.hasReminderBadge && reminderCount > 0 && (
+            <span style={{
+              ...styles.badge,
+              background: 'linear-gradient(135deg, #C8614A 0%, #a8503d 100%)',
+              boxShadow: '0 2px 4px rgba(200, 97, 74, 0.3)'
+            }}>
+              {reminderCount > 99 ? '99+' : reminderCount}
+            </span>
           )}
         </NavLink>
       </li>

@@ -647,7 +647,7 @@ const leadSchema = Joi.object({
     .optional().allow(null, ''),
   best_time_to_contact: Joi.string().max(100).optional().allow('', null),
   lead_source: Joi.string()
-    .valid('walk_in', 'phone', 'website', 'referral', 'realtor', 'builder', 'social_media', 'email', 'other')
+    .valid('walk_in', 'phone', 'website', 'referral', 'realtor', 'builder', 'social_media', 'email', 'quote_generated', 'other')
     .optional().allow(null, ''),
   source_details: Joi.string().max(500).optional().allow('', null),
   inquiry_reason: Joi.string()
@@ -662,6 +662,8 @@ const leadSchema = Joi.object({
   assigned_to: Joi.number().integer().positive().optional().allow(null),
   follow_up_date: Joi.date().iso().optional().allow(null, ''),
   customer_id: Joi.number().integer().positive().optional().allow(null),
+  quote_id: Joi.number().integer().positive().optional().allow(null),
+  store_location_id: Joi.number().integer().positive().optional().allow(null),
   requirements: Joi.array().items(
     Joi.object({
       category: Joi.string().max(100).required(),
@@ -720,7 +722,8 @@ const leadUpdateSchema = Joi.object({
 
 const leadStatusSchema = Joi.object({
   status: Joi.string()
-    .valid('new', 'contacted', 'qualified', 'quote_created', 'converted', 'lost')
+    .valid('new', 'contacted', 'qualified', 'quote_created', 'converted', 'lost',
+           'quoted', 'follow_up_scheduled', 'negotiating', 'won', 'expired')
     .required(),
   lost_reason: Joi.string().max(500).optional().allow('', null)
 });

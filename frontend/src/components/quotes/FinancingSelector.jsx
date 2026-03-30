@@ -62,7 +62,7 @@ export default function FinancingSelector({ quoteId, quoteTotal, quoteFinancing,
         termMonths,
         interestRate: 0,
         monthlyPaymentCents: Math.round(monthlyPayment * 100),
-        plan: { plan_name: selectedPlanConfig.label, provider: 'flexiti', term_months: termMonths, apr: 0 },
+        plan: { plan_name: selectedPlanConfig.label, provider: 'flexiti', term_months: termMonths, apr_percent: 0 },
         calculation: { monthlyPaymentCents: Math.round(monthlyPayment * 100), termMonths, totalInterestCents: 0 }
       };
       setQuoteFinancing(financingData);
@@ -79,9 +79,11 @@ export default function FinancingSelector({ quoteId, quoteTotal, quoteFinancing,
         body: JSON.stringify({
           financing_type: planType,
           provider: 'flexiti',
+          plan_name: selectedPlanConfig.label,
           financed_amount_cents: Math.round(quoteTotal * 100),
           down_payment_cents: 0,
           term_months: termMonths,
+          apr_percent: 0,
           interest_rate: 0,
           monthly_payment_cents: Math.round(monthlyPayment * 100),
           total_interest_cents: 0
@@ -95,7 +97,7 @@ export default function FinancingSelector({ quoteId, quoteTotal, quoteFinancing,
         termMonths,
         interestRate: 0,
         monthlyPaymentCents: Math.round(monthlyPayment * 100),
-        plan: { plan_name: selectedPlanConfig.label, provider: 'flexiti', term_months: termMonths, apr: 0 },
+        plan: { plan_name: selectedPlanConfig.label, provider: 'flexiti', term_months: termMonths, apr_percent: 0 },
         calculation: { monthlyPaymentCents: Math.round(monthlyPayment * 100), termMonths, totalInterestCents: 0 }
       };
       setQuoteFinancing(financingData);

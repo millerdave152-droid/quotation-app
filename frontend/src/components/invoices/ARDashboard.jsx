@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { AlertTriangle, BarChart3, CheckCircle, Clock, DollarSign, Download, Landmark, Phone, RefreshCw, Send, TrendingDown, TrendingUp } from 'lucide-react';
 import {
   Box,
   Paper,
@@ -50,7 +51,6 @@ const API_BASE = (process.env.REACT_APP_API_URL || '') + '/api';
 
 const api = createAuthorizedClient({ baseURL: API_BASE });
 
-import { AlertTriangle, BarChart3, CheckCircle, Clock, DollarSign, Download, Landmark, Phone, RefreshCw, Send, TrendingDown, TrendingUp } from 'lucide-react';
 const formatCurrency = (cents) => {
   if (!cents && cents !== 0) return '$0.00';
   return `$${(cents / 100).toLocaleString('en-CA', { minimumFractionDigits: 2 })}`;

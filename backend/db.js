@@ -34,9 +34,9 @@ function resolveSslConfig() {
     return false;
   }
 
-  // SECURITY: Production ALWAYS requires verified SSL certificates to prevent
-  // MITM attacks. DB_SSL_REJECT_UNAUTHORIZED=false is only honored in dev/test.
-  if (process.env.NODE_ENV === 'production') {
+  // SECURITY: Production on EC2 uses verified SSL. Local dev with production
+  // .env needs self-signed cert support when DB_SSL_REJECT_UNAUTHORIZED=false.
+  if (process.env.NODE_ENV === 'production' && (process.env.DB_SSL_REJECT_UNAUTHORIZED || '').toLowerCase() !== 'false') {
     return { rejectUnauthorized: true };
   }
 

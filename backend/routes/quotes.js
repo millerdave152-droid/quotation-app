@@ -762,11 +762,15 @@ router.post('/:id/recalculate', authenticate, asyncHandler(async (req, res) => {
     throw ApiError.notFound('Quotation');
   }
 
-  // Calculate totals from items
+  // Fetch add-on costs from revenue feature tables
+  const addOns = await quoteService.getQuoteAddOnCosts(id);
+
+  // Calculate totals from items + add-ons
   const totals = quoteService.calculateTotals(
     quote.items || [],
     quote.discount_percent || 0,
-    quote.tax_rate || 13
+    quote.tax_rate || 13,
+    addOns
   );
 
   // Update the quote with calculated totals
@@ -972,6 +976,85 @@ router.post('/:id/events', authenticate, asyncHandler(async (req, res) => {
 // Note: Approval workflow endpoints (request-approval, approvals) are defined in server.js
 // with full email notification support via AWS SES
 
+/**
+ * Recalculate and update quote totals including all add-ons
+ * Called after saving any revenue feature (warranty, delivery, financing, rebate, trade-in)
+ */
+async function recalcQuoteTotals(quoteId) {
+  try {
+    // Get base item subtotal
+    const itemsRes = await pool.query(
+      'SELECT COALESCE(SUM(line_total_cents), 0) AS subtotal_cents FROM quotation_items WHERE quotation_id = $1',
+      [quoteId]
+    );
+    const quoteRes = await pool.query(
+      'SELECT discount_percent, tax_rate FROM quotations WHERE id = $1',
+      [quoteId]
+    );
+    if (quoteRes.rows.length === 0) return;
+
+    const subtotal_cents = parseInt(itemsRes.rows[0].subtotal_cents) || 0;
+    const discount_percent = parseFloat(quoteRes.rows[0].discount_percent) || 0;
+    const tax_rate = parseFloat(quoteRes.rows[0].tax_rate) || 13;
+
+    const discount_cents = Math.round((subtotal_cents * discount_percent) / 100);
+    const after_discount = subtotal_cents - discount_cents;
+
+    // Sum add-ons
+    const wRes = await pool.query('SELECT COALESCE(SUM(warranty_cost_cents), 0) AS total FROM quote_warranties WHERE quote_id = $1', [quoteId]);
+    const dRes = await pool.query('SELECT COALESCE(SUM(total_delivery_cost_cents), 0) AS total FROM quote_delivery WHERE quote_id = $1', [quoteId]);
+    const rRes = await pool.query('SELECT COALESCE(SUM(rebate_amount_cents), 0) AS total FROM quote_rebates WHERE quote_id = $1', [quoteId]);
+    const tRes = await pool.query('SELECT COALESCE(SUM(trade_in_value_cents), 0) AS total FROM quote_trade_ins WHERE quote_id = $1', [quoteId]);
+
+    const warranty_cents = parseInt(wRes.rows[0].total) || 0;
+    const delivery_cents = parseInt(dRes.rows[0].total) || 0;
+    const rebate_cents = parseInt(rRes.rows[0].total) || 0;
+    const trade_in_cents = parseInt(tRes.rows[0].total) || 0;
+
+    // Calculate EHF from quote items (TVs, Blu-ray/DVD, Projectors)
+    let ehf_cents = 0;
+    try {
+      const taxEngine = require('../services/TaxEngine');
+      const allItems = await pool.query(
+        'SELECT qi.*, p.category AS product_category, p.screen_size_inches FROM quotation_items qi LEFT JOIN products p ON qi.product_id = p.id WHERE qi.quotation_id = $1',
+        [quoteId]
+      );
+      // Exclude warranty items
+      const nonWarrantyItems = allItems.rows.filter(i => {
+        const combined = `${i.model || ''} ${i.description || ''} ${i.category || ''} ${i.manufacturer || ''} ${i.sku || ''}`.toLowerCase();
+        return !combined.includes('warranty') && !combined.includes('protection')
+          && !combined.includes('guardian') && !combined.includes('excelsior')
+          && !(i.sku || '').toLowerCase().startsWith('wrn-');
+      });
+      const ehfResult = taxEngine.calculateCartEHF(nonWarrantyItems.map(i => ({
+        name: i.description || i.model || '',
+        category: i.product_category || i.category || '',
+        description: i.model || '',
+        quantity: i.quantity || 1,
+        screen_size_inches: i.screen_size_inches || null,
+        sku: i.sku || i.model || ''
+      })), 'ON');
+      ehf_cents = Math.round((ehfResult.totalEHF || 0) * 100);
+    } catch (ehfErr) {
+      // EHF calculation is optional — don't fail the save
+      console.error(`[recalcQuoteTotals] EHF calc error for quote ${quoteId}:`, ehfErr.message);
+    }
+
+    const after_add_ons = after_discount + warranty_cents + delivery_cents - rebate_cents - trade_in_cents;
+    // EHF is taxable in Ontario — tax applies to (after_add_ons + EHF)
+    const taxable_amount = after_add_ons + ehf_cents;
+    const tax_cents = Math.round((taxable_amount * tax_rate) / 100);
+    const total_cents = after_add_ons + ehf_cents + tax_cents;
+
+    await pool.query(
+      'UPDATE quotations SET subtotal_cents = $1, discount_cents = $2, ehf_cents = $3, tax_cents = $4, total_cents = $5 WHERE id = $6',
+      [Math.round(subtotal_cents), Math.round(discount_cents), Math.round(ehf_cents), Math.round(tax_cents), Math.round(total_cents), quoteId]
+    );
+  } catch (err) {
+    console.error(`[recalcQuoteTotals] Error for quote ${quoteId}:`, err.message);
+  }
+}
+
 // ============================================
 // DELIVERY
 // ============================================
@@ -983,48 +1066,36 @@ router.post('/:id/events', authenticate, asyncHandler(async (req, res) => {
 router.post('/:quoteId/delivery', authenticate, asyncHandler(async (req, res) => {
   const { quoteId } = req.params;
   const {
-    delivery_type,
-    delivery_address,
-    delivery_date,
-    delivery_time_slot,
-    delivery_cost_cents,
-    installation_required,
-    installation_cost_cents,
-    haul_away_required,
-    haul_away_cost_cents,
-    notes
+    delivery_service_id, delivery_date, delivery_time_slot,
+    delivery_address, distance_miles, floor_level,
+    weekend_delivery, evening_delivery, special_instructions,
+    total_delivery_cost_cents,
+    // Accept legacy field names from frontend
+    delivery_type, delivery_cost_cents, notes
   } = req.body;
 
-  const total_delivery_cost_cents = (delivery_cost_cents || 0) +
-    (installation_cost_cents || 0) +
-    (haul_away_cost_cents || 0);
+  const totalCents = Math.round(total_delivery_cost_cents || delivery_cost_cents || 0);
+  const svcId = delivery_service_id || null;
+
+  // Delete existing then insert (avoids ON CONFLICT + RLS issues)
+  await pool.query('DELETE FROM quote_delivery WHERE quote_id = $1', [quoteId]);
 
   const result = await pool.query(`
     INSERT INTO quote_delivery (
-      quote_id, delivery_type, delivery_address, delivery_date, delivery_time_slot,
-      delivery_cost_cents, installation_required, installation_cost_cents,
-      haul_away_required, haul_away_cost_cents, total_delivery_cost_cents, notes
-    ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
-    ON CONFLICT (quote_id) DO UPDATE SET
-      delivery_type = EXCLUDED.delivery_type,
-      delivery_address = EXCLUDED.delivery_address,
-      delivery_date = EXCLUDED.delivery_date,
-      delivery_time_slot = EXCLUDED.delivery_time_slot,
-      delivery_cost_cents = EXCLUDED.delivery_cost_cents,
-      installation_required = EXCLUDED.installation_required,
-      installation_cost_cents = EXCLUDED.installation_cost_cents,
-      haul_away_required = EXCLUDED.haul_away_required,
-      haul_away_cost_cents = EXCLUDED.haul_away_cost_cents,
-      total_delivery_cost_cents = EXCLUDED.total_delivery_cost_cents,
-      notes = EXCLUDED.notes,
-      updated_at = CURRENT_TIMESTAMP
+      quote_id, delivery_service_id, delivery_date, delivery_time_slot,
+      delivery_address, distance_miles, floor_level,
+      weekend_delivery, evening_delivery, special_instructions,
+      total_delivery_cost_cents
+    ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
     RETURNING *
   `, [
-    quoteId, delivery_type, delivery_address, delivery_date, delivery_time_slot,
-    delivery_cost_cents, installation_required, installation_cost_cents,
-    haul_away_required, haul_away_cost_cents, total_delivery_cost_cents, notes
+    quoteId, svcId, delivery_date || null, delivery_time_slot || null,
+    delivery_address || notes || '', distance_miles || null, floor_level || null,
+    weekend_delivery || false, evening_delivery || false,
+    special_instructions || notes || '', totalCents
   ]);
 
+  await recalcQuoteTotals(quoteId);
   res.success(result.rows[0], { message: 'Delivery options saved' });
 }));
 
@@ -1051,13 +1122,41 @@ router.get('/:quoteId/delivery', authenticate, asyncHandler(async (req, res) => 
  */
 router.post('/:quoteId/warranties', authenticate, asyncHandler(async (req, res) => {
   const { quoteId } = req.params;
-  const { product_id, warranty_type, warranty_years, warranty_cost_cents, coverage_details } = req.body;
+  const {
+    warranty_plan_id, product_name, product_price_cents, warranty_cost_cents,
+    coverage_start_date, coverage_end_date,
+    // Accept legacy field names from frontend and map them
+    product_id, warranty_type, warranty_years, coverage_details,
+    // Product info fields
+    covered_product_model, covered_product_manufacturer, provider
+  } = req.body;
+
+  // Map legacy fields: use warranty_plan_id if provided, otherwise null
+  const planId = warranty_plan_id || null;
+  const prodName = product_name || warranty_type || 'Extended Warranty';
+  const prodPrice = Math.round(product_price_cents || 0);
+  const costCents = Math.round(warranty_cost_cents || 0);
+  const years = warranty_years || 0;
+  // Calculate coverage dates from warranty_years if explicit dates not given
+  const startDate = coverage_start_date || new Date().toISOString().split('T')[0];
+  const endDate = coverage_end_date || (warranty_years
+    ? new Date(Date.now() + warranty_years * 365.25 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
+    : null);
 
   const result = await pool.query(`
-    INSERT INTO quote_warranties (quote_id, product_id, warranty_type, warranty_years, warranty_cost_cents, coverage_details)
-    VALUES ($1, $2, $3, $4, $5, $6) RETURNING *
-  `, [quoteId, product_id, warranty_type, warranty_years, warranty_cost_cents, coverage_details]);
+    INSERT INTO quote_warranties (
+      quote_id, warranty_plan_id, product_name, product_price_cents, warranty_cost_cents,
+      coverage_start_date, coverage_end_date, warranty_years,
+      covered_product_model, covered_product_manufacturer, provider, coverage_details
+    )
+    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12) RETURNING *
+  `, [
+    quoteId, planId, prodName, prodPrice, costCents, startDate, endDate, years,
+    covered_product_model || null, covered_product_manufacturer || null,
+    provider || null, coverage_details || null
+  ]);
 
+  await recalcQuoteTotals(quoteId);
   res.created(result.rows[0]);
 }));
 
@@ -1068,13 +1167,22 @@ router.post('/:quoteId/warranties', authenticate, asyncHandler(async (req, res) 
 router.get('/:quoteId/warranties', authenticate, asyncHandler(async (req, res) => {
   const { quoteId } = req.params;
   const result = await pool.query(`
-    SELECT qw.*, p.model, p.manufacturer
+    SELECT qw.*
     FROM quote_warranties qw
-    LEFT JOIN products p ON qw.product_id = p.id
     WHERE qw.quote_id = $1
     ORDER BY qw.created_at
   `, [quoteId]);
   res.json(result.rows);
+}));
+
+/**
+ * DELETE /api/quotations/:quoteId/warranties
+ * Remove all warranties for a quote (called before re-inserting to prevent duplicates)
+ */
+router.delete('/:quoteId/warranties', authenticate, asyncHandler(async (req, res) => {
+  const { quoteId } = req.params;
+  await pool.query('DELETE FROM quote_warranties WHERE quote_id = $1', [quoteId]);
+  res.success(null, { message: 'Warranties cleared' });
 }));
 
 // ============================================
@@ -1085,36 +1193,47 @@ router.get('/:quoteId/warranties', authenticate, asyncHandler(async (req, res) =
  * POST /api/quotations/:quoteId/financing
  * Add financing to quote
  */
-router.post('/:quoteId/financing', authenticate, asyncHandler(async (req, res) => {
-  const { quoteId } = req.params;
-  const {
-    financing_type, provider, financed_amount_cents, down_payment_cents,
-    term_months, interest_rate, monthly_payment_cents, total_interest_cents
-  } = req.body;
+router.post('/:quoteId/financing', authenticate, async (req, res) => {
+  try {
+    const { quoteId } = req.params;
+    const {
+      financing_plan_id, down_payment_cents, financed_amount_cents,
+      monthly_payment_cents, total_interest_cents, total_cost_cents,
+      plan_name, provider, term_months, apr_percent,
+      financing_type, interest_rate
+    } = req.body;
 
-  const result = await pool.query(`
-    INSERT INTO quote_financing (
-      quote_id, financing_type, provider, financed_amount_cents, down_payment_cents,
-      term_months, interest_rate, monthly_payment_cents, total_interest_cents
-    ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
-    ON CONFLICT (quote_id) DO UPDATE SET
-      financing_type = EXCLUDED.financing_type,
-      provider = EXCLUDED.provider,
-      financed_amount_cents = EXCLUDED.financed_amount_cents,
-      down_payment_cents = EXCLUDED.down_payment_cents,
-      term_months = EXCLUDED.term_months,
-      interest_rate = EXCLUDED.interest_rate,
-      monthly_payment_cents = EXCLUDED.monthly_payment_cents,
-      total_interest_cents = EXCLUDED.total_interest_cents,
-      updated_at = CURRENT_TIMESTAMP
-    RETURNING *
-  `, [
-    quoteId, financing_type, provider, financed_amount_cents, down_payment_cents,
-    term_months, interest_rate, monthly_payment_cents, total_interest_cents
-  ]);
+    const planId = financing_plan_id || null;
+    // CRITICAL: All _cents columns are bigint — must be integers, never floats
+    const financedCents = Math.round(financed_amount_cents || 0);
+    const downCents = Math.round(down_payment_cents || 0);
+    const monthlyCents = Math.round(monthly_payment_cents || 0);
+    const interestCents = Math.round(total_interest_cents || 0);
+    const totalCostCents = Math.round(total_cost_cents || (financedCents + interestCents));
 
-  res.success(result.rows[0], { message: 'Financing options saved' });
-}));
+    // Delete then insert (avoids ON CONFLICT + RLS issues)
+    await pool.query('DELETE FROM quote_financing WHERE quote_id = $1', [quoteId]);
+
+    const result = await pool.query(`
+      INSERT INTO quote_financing (
+        quote_id, financing_plan_id, down_payment_cents,
+        financed_amount_cents, monthly_payment_cents, total_interest_cents, total_cost_cents,
+        plan_name, provider, term_months, apr_percent, financing_type
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+      RETURNING *
+    `, [
+      quoteId, planId, downCents, financedCents, monthlyCents, interestCents, totalCostCents,
+      plan_name || null, provider || null, Math.round(term_months || 0), apr_percent || interest_rate || 0,
+      financing_type || null
+    ]);
+
+    await recalcQuoteTotals(quoteId);
+    res.success(result.rows[0], { message: 'Financing options saved' });
+  } catch (err) {
+    console.error('[financing POST] Error:', err.message, err.stack);
+    res.status(500).json({ success: false, error: { code: 'FINANCING_SAVE_ERROR', message: err.message } });
+  }
+});
 
 /**
  * GET /api/quotations/:quoteId/financing
@@ -1139,13 +1258,18 @@ router.get('/:quoteId/financing', authenticate, asyncHandler(async (req, res) =>
  */
 router.post('/:quoteId/rebates', authenticate, asyncHandler(async (req, res) => {
   const { quoteId } = req.params;
-  const { product_id, rebate_type, rebate_name, rebate_amount_cents, rebate_code, expiry_date } = req.body;
+  const {
+    rebate_id, rebate_amount_cents, rebate_status,
+    // Accept legacy field names from frontend
+    product_id, rebate_type, rebate_name, rebate_code, expiry_date
+  } = req.body;
 
   const result = await pool.query(`
-    INSERT INTO quote_rebates (quote_id, product_id, rebate_type, rebate_name, rebate_amount_cents, rebate_code, expiry_date)
-    VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *
-  `, [quoteId, product_id, rebate_type, rebate_name, rebate_amount_cents, rebate_code, expiry_date]);
+    INSERT INTO quote_rebates (quote_id, rebate_id, rebate_amount_cents, rebate_status)
+    VALUES ($1, $2, $3, $4) RETURNING *
+  `, [quoteId, rebate_id || product_id || null, Math.round(rebate_amount_cents || 0), rebate_status || 'pending']);
 
+  await recalcQuoteTotals(quoteId);
   res.created(result.rows[0]);
 }));
 
@@ -1156,13 +1280,23 @@ router.post('/:quoteId/rebates', authenticate, asyncHandler(async (req, res) => 
 router.get('/:quoteId/rebates', authenticate, asyncHandler(async (req, res) => {
   const { quoteId } = req.params;
   const result = await pool.query(`
-    SELECT qr.*, p.model, p.manufacturer
+    SELECT qr.*, r.name AS rebate_name, r.rebate_type, r.manufacturer
     FROM quote_rebates qr
-    LEFT JOIN products p ON qr.product_id = p.id
+    LEFT JOIN rebates r ON qr.rebate_id = r.id
     WHERE qr.quote_id = $1
     ORDER BY qr.created_at
   `, [quoteId]);
   res.json(result.rows);
+}));
+
+/**
+ * DELETE /api/quotations/:quoteId/rebates
+ * Remove all rebates for a quote (called before re-inserting to prevent duplicates)
+ */
+router.delete('/:quoteId/rebates', authenticate, asyncHandler(async (req, res) => {
+  const { quoteId } = req.params;
+  await pool.query('DELETE FROM quote_rebates WHERE quote_id = $1', [quoteId]);
+  res.success(null, { message: 'Rebates cleared' });
 }));
 
 // ============================================
@@ -1176,17 +1310,22 @@ router.get('/:quoteId/rebates', authenticate, asyncHandler(async (req, res) => {
 router.post('/:quoteId/trade-ins', authenticate, asyncHandler(async (req, res) => {
   const { quoteId } = req.params;
   const {
-    item_type, brand, model, age_years, condition,
-    trade_in_value_cents, description, serial_number
+    brand, model, age_years, condition,
+    trade_in_value_cents, notes,
+    // Accept legacy field names from frontend
+    item_type, description, serial_number
   } = req.body;
+
+  const productDescription = [item_type, brand, model].filter(Boolean).join(' ') || description || 'Trade-In Item';
 
   const result = await pool.query(`
     INSERT INTO quote_trade_ins (
-      quote_id, item_type, brand, model, age_years, condition,
-      trade_in_value_cents, description, serial_number
-    ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING *
-  `, [quoteId, item_type, brand, model, age_years, condition, trade_in_value_cents, description, serial_number]);
+      quote_id, product_description, brand, model, age_years, condition,
+      trade_in_value_cents, notes
+    ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING *
+  `, [quoteId, productDescription, brand || '', model || '', age_years || 0, condition || 'good', Math.round(trade_in_value_cents || 0), notes || description || '']);
 
+  await recalcQuoteTotals(quoteId);
   res.created(result.rows[0]);
 }));
 
@@ -1201,6 +1340,16 @@ router.get('/:quoteId/trade-ins', authenticate, asyncHandler(async (req, res) =>
     [quoteId]
   );
   res.json(result.rows);
+}));
+
+/**
+ * DELETE /api/quotations/:quoteId/trade-ins
+ * Remove all trade-ins for a quote (called before re-inserting to prevent duplicates)
+ */
+router.delete('/:quoteId/trade-ins', authenticate, asyncHandler(async (req, res) => {
+  const { quoteId } = req.params;
+  await pool.query('DELETE FROM quote_trade_ins WHERE quote_id = $1', [quoteId]);
+  res.success(null, { message: 'Trade-ins cleared' });
 }));
 
 // ============================================

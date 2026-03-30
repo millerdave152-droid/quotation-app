@@ -1,14 +1,14 @@
 import { authFetch } from '../../../services/authFetch';
-/**
- * RecommendationRulesPage - Admin interface for managing product recommendations
- * Location: Admin > Products > Recommendation Rules
- */
-
 import { useState, useCallback } from 'react';
+import { AlertCircle, CheckCircle, FlaskConical, Layers, Link, RefreshCw, Sparkles } from 'lucide-react';
 import AutoRelationshipsTable from './AutoRelationshipsTable';
 import CuratedRelationshipEditor from './CuratedRelationshipEditor';
 import CategoryRulesEditor from './CategoryRulesEditor';
 import RecommendationTester from './RecommendationTester';
+/**
+ * RecommendationRulesPage - Admin interface for managing product recommendations
+ * Location: Admin > Products > Recommendation Rules
+ */
 
 const API_BASE = process.env.REACT_APP_API_URL || '';
 
@@ -42,7 +42,6 @@ const TABS = [
   },
 ];
 
-import { AlertCircle, CheckCircle, FlaskConical, Layers, Link, RefreshCw, Sparkles } from 'lucide-react';
 /**
  * Stats card component
  */

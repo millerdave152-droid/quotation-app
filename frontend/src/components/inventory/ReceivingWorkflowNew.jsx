@@ -2,11 +2,12 @@
  * ReceivingWorkflowNew.jsx — Screen 75
  * TeleTime Design System · Receiving Workflow
  * Design frame: HkWqO
+ *
+ * Serial number capture for serialized products (is_serialized = true).
  */
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { Loader2 } from 'lucide-react';
-// import LunarisSidebar from '../shared/LunarisSidebar'; // removed — MainLayout provides sidebar
 import { useToast } from '../ui/Toast';
 import apiClient from '../../services/apiClient';
 
@@ -44,7 +45,7 @@ const itemCols = [
   { label: 'Expected', w: 'w-[70px]' },
   { label: 'Received', w: 'w-[70px]' },
   { label: 'Status',   w: 'w-[80px]' },
-  { label: 'Actions',  w: 'w-[60px]' },
+  { label: 'Actions',  w: 'w-[90px]' },
 ];
 
 /* ------------------------------------------------------------------ */
@@ -70,19 +71,20 @@ function useReceivingQueue() {
   const [queue, setQueue] = useState([]);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    (async () => {
-      try {
-        const res = await apiClient.get('/api/purchase-orders/receiving-queue');
-        const payload = res.data?.data || res.data;
-        setQueue(Array.isArray(payload) ? payload : (payload.queue || payload.purchaseOrders || []));
-      } catch { /* ignore */ } finally {
-        setLoading(false);
-      }
-    })();
+  const refresh = useCallback(async () => {
+    try {
+      setLoading(true);
+      const res = await apiClient.get('/api/purchase-orders/receiving-queue');
+      const payload = res.data?.data || res.data;
+      setQueue(Array.isArray(payload) ? payload : (payload.queue || payload.purchaseOrders || []));
+    } catch { /* ignore */ } finally {
+      setLoading(false);
+    }
   }, []);
 
-  return { queue, loading };
+  useEffect(() => { refresh(); }, [refresh]);
+
+  return { queue, loading, refresh };
 }
 
 function usePODetail(poId) {
@@ -106,6 +108,215 @@ function usePODetail(poId) {
 }
 
 /* ------------------------------------------------------------------ */
+/*  SerialInputRow — one input per unit for serialized products        */
+/* ------------------------------------------------------------------ */
+
+function SerialInputRow({ index, value, onChange, autoFocus }) {
+  const ref = useRef(null);
+
+  useEffect(() => {
+    if (autoFocus && ref.current) ref.current.focus();
+  }, [autoFocus]);
+
+  const handleKeyDown = (e) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      // Move focus to next sibling input if it exists
+      const next = ref.current?.parentElement?.nextElementSibling?.querySelector('input');
+      if (next) next.focus();
+    }
+  };
+
+  return (
+    <div className="flex items-center gap-2">
+      <span className="text-muted-foreground font-secondary text-[10px] w-[18px] text-right shrink-0">
+        {index + 1}.
+      </span>
+      <input
+        ref={ref}
+        type="text"
+        value={value}
+        onChange={(e) => onChange(index, e.target.value)}
+        onKeyDown={handleKeyDown}
+        placeholder={`Scan or enter serial #${index + 1}...`}
+        className="flex-1 h-8 px-3 rounded bg-background border border-input text-foreground font-secondary text-xs outline-none placeholder:text-muted-foreground focus:border-primary focus:ring-1 focus:ring-primary/30"
+      />
+      {value && (
+        <span className="text-[#22C55E] font-secondary text-[10px] shrink-0">&#10003;</span>
+      )}
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/*  ReceiveItemPanel — per-item receiving with serial capture           */
+/* ------------------------------------------------------------------ */
+
+function ReceiveItemPanel({ item, poId, onReceived }) {
+  const toast = useToast();
+  const expected = item.quantity_ordered || item.quantityOrdered || 0;
+  const alreadyReceived = item.quantity_received || item.quantityReceived || 0;
+  const remaining = Math.max(0, expected - alreadyReceived);
+  const isSerialized = item.is_serialized === true || item.is_serialized === 't';
+
+  const [open, setOpen] = useState(false);
+  const [qtyToReceive, setQtyToReceive] = useState(remaining);
+  const [qtyDamaged, setQtyDamaged] = useState(0);
+  const [serials, setSerials] = useState([]);
+  const [submitting, setSubmitting] = useState(false);
+
+  // Reset serials array when qty changes
+  useEffect(() => {
+    if (isSerialized) {
+      setSerials((prev) => {
+        const arr = [...prev];
+        while (arr.length < qtyToReceive) arr.push('');
+        return arr.slice(0, qtyToReceive);
+      });
+    }
+  }, [qtyToReceive, isSerialized]);
+
+  const handleSerialChange = (idx, val) => {
+    setSerials((prev) => {
+      const arr = [...prev];
+      arr[idx] = val.trim();
+      return arr;
+    });
+  };
+
+  const filledSerials = serials.filter((s) => s.length > 0);
+  const serialsComplete = !isSerialized || filledSerials.length === qtyToReceive;
+  const hasDuplicateSerials = isSerialized && new Set(filledSerials).size !== filledSerials.length;
+  const canSubmit = remaining > 0 && qtyToReceive > 0 && qtyToReceive <= remaining && serialsComplete && !hasDuplicateSerials;
+
+  const handleSubmit = async () => {
+    if (!canSubmit) return;
+    setSubmitting(true);
+    try {
+      const payload = {
+        items: [{
+          purchaseOrderItemId: item.id,
+          quantityReceived: qtyToReceive,
+          quantityDamaged: qtyDamaged,
+          ...(isSerialized && filledSerials.length > 0 ? { serialNumbers: filledSerials } : {})
+        }]
+      };
+      await apiClient.post(`/api/purchase-orders/${poId}/receive`, payload);
+      toast.success(`Received ${qtyToReceive} × ${item.product_name || item.product_sku}`);
+      setOpen(false);
+      setSerials([]);
+      onReceived();
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Receive failed');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  if (remaining <= 0) return null;
+
+  return (
+    <div className="flex flex-col">
+      <button
+        onClick={() => setOpen(!open)}
+        className="h-7 px-3 rounded bg-primary/10 text-primary font-secondary text-[11px] font-medium hover:bg-primary/20 transition-colors"
+      >
+        {open ? 'Cancel' : 'Receive'}
+      </button>
+
+      {open && (
+        <div
+          className="flex flex-col gap-3 mt-2 p-3 rounded-lg border border-border bg-secondary/30"
+          style={{ marginLeft: '-300px', width: '440px', position: 'relative', zIndex: 10 }}
+        >
+          <div className="flex items-center gap-4">
+            <label className="flex flex-col gap-1">
+              <span className="text-muted-foreground font-secondary text-[10px]">Qty to receive</span>
+              <input
+                type="number"
+                min={1}
+                max={remaining}
+                value={qtyToReceive}
+                onChange={(e) => setQtyToReceive(Math.max(1, Math.min(remaining, parseInt(e.target.value) || 1)))}
+                className="h-8 w-[70px] px-2 rounded bg-background border border-input text-foreground font-primary text-xs text-center outline-none"
+              />
+            </label>
+            <label className="flex flex-col gap-1">
+              <span className="text-muted-foreground font-secondary text-[10px]">Qty damaged</span>
+              <input
+                type="number"
+                min={0}
+                max={qtyToReceive}
+                value={qtyDamaged}
+                onChange={(e) => setQtyDamaged(Math.max(0, Math.min(qtyToReceive, parseInt(e.target.value) || 0)))}
+                className="h-8 w-[70px] px-2 rounded bg-background border border-input text-foreground font-primary text-xs text-center outline-none"
+              />
+            </label>
+            <span className="text-muted-foreground font-secondary text-[10px] mt-3">
+              {remaining} remaining of {expected}
+            </span>
+          </div>
+
+          {/* Serial number inputs for serialized products */}
+          {isSerialized && qtyToReceive > 0 && (
+            <div className="flex flex-col gap-2">
+              <div className="flex items-center justify-between">
+                <span className="text-foreground font-secondary text-[11px] font-semibold">
+                  Serial Numbers Required
+                </span>
+                <span
+                  className="font-secondary text-[11px] font-medium"
+                  style={{ color: serialsComplete ? '#22C55E' : '#F59E0B' }}
+                >
+                  {filledSerials.length} of {qtyToReceive} entered
+                </span>
+              </div>
+              <div className="flex flex-col gap-1.5 max-h-[200px] overflow-auto">
+                {serials.map((val, idx) => (
+                  <SerialInputRow
+                    key={idx}
+                    index={idx}
+                    value={val}
+                    onChange={handleSerialChange}
+                    autoFocus={idx === 0}
+                  />
+                ))}
+              </div>
+              {hasDuplicateSerials && (
+                <span className="text-[#EF4444] font-secondary text-[10px]">
+                  Duplicate serial numbers detected — each serial must be unique
+                </span>
+              )}
+            </div>
+          )}
+
+          {/* Submit */}
+          <div className="flex items-center justify-between">
+            {!serialsComplete && (
+              <span className="text-[#F59E0B] font-secondary text-[10px]">
+                Enter all {qtyToReceive} serial numbers to receive
+              </span>
+            )}
+            {serialsComplete && !hasDuplicateSerials && <span />}
+            <button
+              onClick={handleSubmit}
+              disabled={!canSubmit || submitting}
+              className={`h-8 px-4 rounded font-secondary text-[11px] font-medium transition-colors ${
+                canSubmit && !submitting
+                  ? 'bg-primary text-primary-foreground hover:bg-primary/90'
+                  : 'bg-muted text-muted-foreground cursor-not-allowed'
+              }`}
+            >
+              {submitting ? 'Receiving...' : `Confirm Receive ${qtyToReceive}`}
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------------ */
 /*  Component                                                          */
 /* ------------------------------------------------------------------ */
 
@@ -116,8 +327,8 @@ export default function ReceivingWorkflowNew() {
   const [lastScanned, setLastScanned] = useState('');
 
   const stats = useReceivingStats();
-  const { queue, loading: queueLoading } = useReceivingQueue();
-  const { po, loading: poLoading } = usePODetail(selectedPOId);
+  const { queue, loading: queueLoading, refresh: refreshQueue } = useReceivingQueue();
+  const { po, loading: poLoading, refresh: refreshPO } = usePODetail(selectedPOId);
 
   /* Auto-select first PO */
   useEffect(() => {
@@ -135,6 +346,11 @@ export default function ReceivingWorkflowNew() {
 
   const handleKeyDown = (e) => {
     if (e.key === 'Enter') handleScan();
+  };
+
+  const handleItemReceived = () => {
+    refreshPO();
+    refreshQueue();
   };
 
   const poItems = po?.items || [];
@@ -303,36 +519,53 @@ export default function ReceivingWorkflowNew() {
                   const expected = item.quantity_ordered || item.quantityOrdered || 0;
                   const received = item.quantity_received || item.quantityReceived || 0;
                   const badge = itemStatusStyle(expected, received);
+                  const isSerialized = item.is_serialized === true || item.is_serialized === 't';
+                  const remaining = Math.max(0, expected - received);
                   return (
                     <div
                       key={item.id || i}
-                      className="flex items-center px-4 py-2.5"
+                      className="flex flex-col px-4 py-2.5"
                       style={i < poItems.length - 1 ? { borderBottom: '1px solid var(--border)' } : {}}
                     >
-                      <span className="w-[100px] shrink-0 text-muted-foreground font-primary text-[11px]">
-                        {item.sku || item.product_sku || '—'}
-                      </span>
-                      <span className="flex-1 shrink-0 text-foreground font-secondary text-xs">
-                        {item.product_name || item.productName || '—'}
-                      </span>
-                      <span className="w-[70px] shrink-0 text-foreground font-primary text-xs font-semibold text-center">
-                        {expected}
-                      </span>
-                      <span className="w-[70px] shrink-0 text-foreground font-primary text-xs font-semibold text-center">
-                        {received}
-                      </span>
-                      <div className="w-[80px] shrink-0">
-                        <span
-                          className="inline-flex items-center px-2 py-0.5 rounded-full font-secondary text-[9px] font-medium"
-                          style={{ backgroundColor: badge.bg, color: badge.color }}
-                        >
-                          {badge.label}
+                      <div className="flex items-center">
+                        <span className="w-[100px] shrink-0 text-muted-foreground font-primary text-[11px]">
+                          {item.sku || item.product_sku || '—'}
                         </span>
-                      </div>
-                      <div className="w-[60px] shrink-0 flex justify-end">
-                        <span className="material-symbols-rounded text-[16px] text-muted-foreground cursor-pointer hover:text-foreground">
-                          more_vert
+                        <div className="flex-1 shrink-0 flex flex-col">
+                          <span className="text-foreground font-secondary text-xs">
+                            {item.product_name || item.productName || '—'}
+                          </span>
+                          {isSerialized && (
+                            <span className="text-[10px] font-secondary" style={{ color: '#3B82F6' }}>
+                              Serialized product
+                            </span>
+                          )}
+                        </div>
+                        <span className="w-[70px] shrink-0 text-foreground font-primary text-xs font-semibold text-center">
+                          {expected}
                         </span>
+                        <span className="w-[70px] shrink-0 text-foreground font-primary text-xs font-semibold text-center">
+                          {received}
+                        </span>
+                        <div className="w-[80px] shrink-0">
+                          <span
+                            className="inline-flex items-center px-2 py-0.5 rounded-full font-secondary text-[9px] font-medium"
+                            style={{ backgroundColor: badge.bg, color: badge.color }}
+                          >
+                            {badge.label}
+                          </span>
+                        </div>
+                        <div className="w-[90px] shrink-0 flex justify-end">
+                          {remaining > 0 ? (
+                            <ReceiveItemPanel
+                              item={item}
+                              poId={selectedPOId}
+                              onReceived={handleItemReceived}
+                            />
+                          ) : (
+                            <span className="text-[#22C55E] font-secondary text-[10px]">Done</span>
+                          )}
+                        </div>
                       </div>
                     </div>
                   );

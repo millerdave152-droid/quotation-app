@@ -11,11 +11,8 @@
  */
 
 const PDFDocument = require('pdfkit');
-const path = require('path');
-const fs = require('fs');
 const { SESv2Client, SendEmailCommand } = require('@aws-sdk/client-sesv2');
 
-const LOGO_PATH = path.join(__dirname, '..', 'assets', 'logos', 'teletime-logo-colour-400.png');
 
 // QR Code generation - optional
 let QRCode = null;
@@ -33,12 +30,12 @@ const COLORS = {
   primaryLight: '#3b82f6',  // Light blue - links
   text: '#1f2937',          // Near black - main text
   textSecondary: '#374151', // Dark gray
-  textMuted: '#6b7280',     // Medium gray
-  textLight: '#9ca3af',     // Light gray
+  textMuted: '#333333',     // Medium gray — print-optimized
+  textLight: '#444444',     // Light gray — print-optimized
   bgLight: '#f8fafc',       // Off-white
   bgMuted: '#fafafa',       // Very light
   border: '#e5e7eb',        // Light gray border
-  borderMedium: '#d1d5db',  // Medium border
+  borderMedium: '#888888',  // Medium border — print-optimized
   success: '#10b981',       // Green - paid
   error: '#dc2626',         // Red - overdue
   warning: '#f59e0b'        // Amber - pending
@@ -253,15 +250,10 @@ class POSInvoiceService {
       // TOP ACCENT BAR
       doc.rect(0, 0, 612, 4).fill(COLORS.primary);
 
-      // HEADER — Logo (falls back to text name if logo file missing)
+      // HEADER — Company name as professional text
+      doc.fontSize(26).font('Helvetica-Bold').fillColor(COLORS.primary)
+         .text('Teletime', 50, 16);
       let headerY = 44;
-      if (fs.existsSync(LOGO_PATH)) {
-        doc.image(LOGO_PATH, 50, 14, { width: 160 });
-        headerY = 50;
-      } else {
-        doc.fontSize(22).font('Helvetica-Bold').fillColor(COLORS.primary)
-           .text(this.companyName, 50, 20);
-      }
 
       doc.fontSize(9).font('Helvetica').fillColor(COLORS.textMuted);
       if (this.companyAddress) { doc.text(this.companyAddress, 50, headerY); headerY += 11; }
@@ -297,7 +289,7 @@ class POSInvoiceService {
       doc.fontSize(9).font('Helvetica-Bold').fillColor(COLORS.primaryLight)
          .text('BILL TO', 60, customerCardY + 10);
       doc.moveTo(60, customerCardY + 22).lineTo(150, customerCardY + 22)
-         .strokeColor(COLORS.border).lineWidth(0.5).stroke();
+         .strokeColor(COLORS.border).lineWidth(0.75).stroke();
 
       let leftY = customerCardY + 28;
       const customerName = transaction.customer_name || 'Walk-in Customer';
@@ -329,7 +321,7 @@ class POSInvoiceService {
       doc.fontSize(9).font('Helvetica-Bold').fillColor(COLORS.primaryLight)
          .text('INVOICE DETAILS', 315, customerCardY + 10);
       doc.moveTo(315, customerCardY + 22).lineTo(430, customerCardY + 22)
-         .strokeColor(COLORS.border).lineWidth(0.5).stroke();
+         .strokeColor(COLORS.border).lineWidth(0.75).stroke();
 
       let rightY = customerCardY + 28;
       doc.fontSize(8).font('Helvetica').fillColor(COLORS.textLight).text('Transaction:', 315, rightY);
@@ -384,7 +376,7 @@ class POSInvoiceService {
         }
 
         if (index % 2 === 0) doc.rect(50, yPos, 512, rowHeight).fill(COLORS.bgLight);
-        doc.moveTo(50, yPos + rowHeight).lineTo(562, yPos + rowHeight).strokeColor(COLORS.border).lineWidth(0.5).stroke();
+        doc.moveTo(50, yPos + rowHeight).lineTo(562, yPos + rowHeight).strokeColor(COLORS.border).lineWidth(0.75).stroke();
 
         const rowY = yPos + 7;
         doc.fontSize(9).font('Helvetica-Bold').fillColor(COLORS.text)
@@ -439,7 +431,7 @@ class POSInvoiceService {
       if (pst > 0) { lineY += 16; doc.fillColor(COLORS.textMuted).text('PST', labelX, lineY); doc.fillColor(COLORS.textSecondary).text(this.formatCurrency(pst), valueX - 80, lineY, { width: 80, align: 'right' }); }
 
       lineY += 18;
-      doc.moveTo(labelX, lineY).lineTo(valueX, lineY).strokeColor(COLORS.borderMedium).lineWidth(0.5).stroke();
+      doc.moveTo(labelX, lineY).lineTo(valueX, lineY).strokeColor(COLORS.borderMedium).lineWidth(1.5).stroke();
 
       lineY += 10;
       doc.fontSize(10).font('Helvetica-Bold').fillColor(COLORS.text).text('Invoice Total', labelX, lineY);
@@ -462,7 +454,7 @@ class POSInvoiceService {
         yPos += totalsBoxHeight + 20;
         if (yPos > 650) { doc.addPage(); doc.rect(0, 0, 612, 4).fill(COLORS.primary); yPos = 30; }
 
-        doc.fontSize(10).font('Helvetica-Bold').fillColor(COLORS.text).text('PAYMENT HISTORY', 50, yPos);
+        doc.fontSize(10).font('Helvetica-Bold').fillColor('#000000').text('PAYMENT HISTORY', 50, yPos);
         yPos += 14;
         doc.roundedRect(50, yPos, 280, 16 + (payments.length * 18), 4).fillAndStroke(COLORS.bgLight, COLORS.border);
 
@@ -493,7 +485,7 @@ class POSInvoiceService {
       // PAYMENT INSTRUCTIONS (unpaid)
       if (paymentStatus !== 'paid' && paymentStatus !== 'void') {
         const instructionsY = 620;
-        doc.fontSize(9).font('Helvetica-Bold').fillColor(COLORS.text).text('PAYMENT INSTRUCTIONS', 50, instructionsY);
+        doc.fontSize(9).font('Helvetica-Bold').fillColor('#000000').text('PAYMENT INSTRUCTIONS', 50, instructionsY);
         doc.roundedRect(50, instructionsY + 14, 512, 80, 4).fillAndStroke('#f0fdf4', '#bbf7d0');
 
         let lineY = instructionsY + 24;
@@ -522,7 +514,7 @@ class POSInvoiceService {
       const pageCount = doc.bufferedPageRange().count;
       for (let i = 0; i < pageCount; i++) {
         doc.switchToPage(i);
-        doc.moveTo(50, 745).lineTo(562, 745).strokeColor(COLORS.border).lineWidth(0.5).stroke();
+        doc.moveTo(50, 745).lineTo(562, 745).strokeColor(COLORS.border).lineWidth(1).stroke();
         doc.fontSize(9).font('Helvetica').fillColor(COLORS.textMuted).text('Thank you for your business!', 50, 752);
         doc.fontSize(8).fillColor(COLORS.textLight).text(`Page ${i + 1} of ${pageCount}`, 450, 752, { width: 112, align: 'right' });
         const contactParts = [this.companyWebsite, this.companyPhone, this.companyEmail].filter(Boolean);

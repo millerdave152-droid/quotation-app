@@ -7,7 +7,7 @@ import FinancingSelector from './FinancingSelector';
  * product search, item management, and revenue features
  */
 
-import React, { useState, useMemo, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import {
   FinancingCalculator,
   WarrantySelector,
@@ -38,6 +38,83 @@ const SERVICE_ITEMS = [
   { name: 'Premium Installation', description: 'Full setup and configuration', sku: 'SRV-INS-PRE', cost: 80.00, msrp: 300.00, sell: 199.00, is_service: true, manufacturer: 'Service', category: 'Service' },
   { name: 'Haul Away', description: 'Remove and dispose of old appliance', sku: 'SRV-HAL-AWY', cost: 20.00, msrp: 120.00, sell: 79.00, is_service: true, manufacturer: 'Service', category: 'Service' }
 ];
+
+/**
+ * SerialSelector — dropdown of available serials or manual entry fallback
+ */
+function SerialSelector({ productId, value, onChange, editingQuoteId }) {
+  const [options, setOptions] = useState(null); // null = loading, [] = empty
+  const [manualMode, setManualMode] = useState(false);
+
+  useEffect(() => {
+    if (!productId) return;
+    let cancelled = false;
+    const token = localStorage.getItem('auth_token');
+    fetch(`${process.env.REACT_APP_API_URL || ''}/api/serial-numbers/available/${productId}`, {
+      headers: token ? { Authorization: `Bearer ${token}` } : {}
+    })
+      .then(r => r.json())
+      .then(res => {
+        if (cancelled) return;
+        const list = res.data || res || [];
+        setOptions(Array.isArray(list) ? list : []);
+        if (list.length === 0) setManualMode(true);
+      })
+      .catch(() => { if (!cancelled) { setOptions([]); setManualMode(true); } });
+    return () => { cancelled = true; };
+  }, [productId]);
+
+  if (options === null) {
+    return <span style={{ fontSize: '11px', color: '#9ca3af' }}>Loading serials...</span>;
+  }
+
+  if (manualMode || options.length === 0) {
+    return (
+      <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+        <input
+          type="text"
+          value={value || ''}
+          onChange={(e) => onChange(e.target.value || null)}
+          placeholder="Enter serial #"
+          style={{ width: '140px', padding: '4px 8px', border: '1px solid #d1d5db', borderRadius: '4px', fontSize: '12px' }}
+        />
+        {options.length > 0 && (
+          <button
+            onClick={() => setManualMode(false)}
+            title="Switch to dropdown"
+            style={{ padding: '2px 6px', border: '1px solid #d1d5db', borderRadius: '4px', fontSize: '10px', cursor: 'pointer', background: '#f9fafb' }}
+          >
+            List
+          </button>
+        )}
+      </div>
+    );
+  }
+
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+      <select
+        value={value || ''}
+        onChange={(e) => onChange(e.target.value || null)}
+        style={{ width: '140px', padding: '4px 6px', border: '1px solid #d1d5db', borderRadius: '4px', fontSize: '12px', background: 'white' }}
+      >
+        <option value="">Select serial...</option>
+        {options.map((s) => (
+          <option key={s.id} value={s.serial_number}>
+            {s.serial_number} {s.received_at ? `(${new Date(s.received_at).toLocaleDateString()})` : ''}
+          </option>
+        ))}
+      </select>
+      <button
+        onClick={() => setManualMode(true)}
+        title="Enter manually"
+        style={{ padding: '2px 6px', border: '1px solid #d1d5db', borderRadius: '4px', fontSize: '10px', cursor: 'pointer', background: '#f9fafb' }}
+      >
+        Type
+      </button>
+    </div>
+  );
+}
 
 const QuoteBuilder = ({
   // Data
@@ -132,9 +209,16 @@ const QuoteBuilder = ({
   depositAmount,
   setDepositAmount,
 
+  // Lead pipeline
+  leadOptIn = false,
+  setLeadOptIn,
+
   // Institutional buyer
   institutionalFields = {},
   setInstitutionalFields,
+
+  // Staff signature callback for new quotes
+  onPendingStaffSignature,
 
   // Actions
   onSave,
@@ -177,6 +261,7 @@ const QuoteBuilder = ({
   const [staffSignatureSaved, setStaffSignatureSaved] = useState(false);
   const [staffSignatureSaving, setStaffSignatureSaving] = useState(false);
   const signaturePadRef = useRef(null);
+  const revenueRef = useRef(null);
 
   // Promo code state
   const [appliedPromo, setAppliedPromo] = useState(null);
@@ -337,34 +422,42 @@ const QuoteBuilder = ({
 
   // Add product to quote
   const addProductToQuote = useCallback((product) => {
-    const existingIndex = quoteItems.findIndex(item =>
-      (item.product_id === product.id) || (item.model === product.model)
-    );
+    const isSerialized = product.is_serialized === true || product.is_serialized === 't';
 
-    if (existingIndex >= 0) {
-      setQuoteItems(prev => prev.map((item, idx) =>
-        idx === existingIndex ? { ...item, quantity: item.quantity + 1 } : item
-      ));
-    } else {
-      const newItem = {
-        product_id: product.id,
-        manufacturer: product.manufacturer || '',
-        model: product.model || product.name || '',
-        description: product.description || product.name || '',
-        category: product.category || '',
-        quantity: 1,
-        cost: (product.cost_cents || 0) / 100,
-        msrp: (product.msrp_cents || 0) / 100,
-        sell: (product.msrp_cents || 0) / 100,
-        sku: product.sku || product.model,
-        upc: product.upc || null,
-        data_source: product.data_source || null,
-        ce_specs: product.ce_specs || null,
-        screen_size_inches: product.screen_size_inches || null,
-        notes: ''
-      };
-      setQuoteItems(prev => [...prev, newItem]);
+    // Serialized products always get their own line item (no qty merge)
+    if (!isSerialized) {
+      const existingIndex = quoteItems.findIndex(item =>
+        (item.product_id === product.id) || (item.model === product.model)
+      );
+      if (existingIndex >= 0) {
+        setQuoteItems(prev => prev.map((item, idx) =>
+          idx === existingIndex ? { ...item, quantity: item.quantity + 1 } : item
+        ));
+        setProductSearchTerm('');
+        return;
+      }
     }
+
+    const newItem = {
+      product_id: product.id,
+      manufacturer: product.manufacturer || '',
+      model: product.model || product.name || '',
+      description: product.description || product.name || '',
+      category: product.category || '',
+      quantity: 1,
+      cost: (product.cost_cents || 0) / 100,
+      msrp: (product.msrp_cents || 0) / 100,
+      sell: (product.msrp_cents || 0) / 100,
+      sku: product.sku || product.model,
+      upc: product.upc || null,
+      data_source: product.data_source || null,
+      ce_specs: product.ce_specs || null,
+      screen_size_inches: product.screen_size_inches || null,
+      is_serialized: isSerialized,
+      serial_number: null,
+      notes: ''
+    };
+    setQuoteItems(prev => [...prev, newItem]);
     setProductSearchTerm('');
   }, [quoteItems, setQuoteItems]);
 
@@ -460,8 +553,10 @@ const QuoteBuilder = ({
     }
 
     if (!editingQuoteId) {
-      // For new quotes, just store the signature locally
-      // It will be saved when the quote is created
+      // For new quotes, notify parent so it can save after quote creation
+      if (onPendingStaffSignature) {
+        onPendingStaffSignature({ data: staffSignature, name: staffSignerName.trim() });
+      }
       setStaffSignatureSaved(true);
       return;
     }
@@ -1233,6 +1328,32 @@ const QuoteBuilder = ({
                         </div>
                       </td>
                     </tr>
+                    {/* Serial number selector for serialized products */}
+                    {item.is_serialized && (
+                      <tr style={{ borderBottom: (isPriceBelowCost || isLowMargin) ? 'none' : '1px solid #e5e7eb' }}>
+                        <td colSpan="8" style={{ padding: '6px 12px', background: '#eff6ff' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                            <span style={{ fontSize: '12px', color: '#1d4ed8', fontWeight: '600' }}>Serial #:</span>
+                            <SerialSelector
+                              productId={item.product_id}
+                              value={item.serial_number}
+                              onChange={(serial) => updateQuoteItem(idx, 'serial_number', serial)}
+                              editingQuoteId={editingQuoteId}
+                            />
+                            {item.serial_number && (
+                              <span style={{ fontSize: '11px', color: '#16a34a', fontWeight: '500' }}>
+                                {'\u2713'} {item.serial_number}
+                              </span>
+                            )}
+                            {!item.serial_number && (
+                              <span style={{ fontSize: '11px', color: '#d97706' }}>
+                                Serialized — assign a serial number
+                              </span>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    )}
                     {(isPriceBelowCost || isLowMargin) && (
                       <tr style={{ borderBottom: '1px solid #e5e7eb' }}>
                         <td colSpan="8" style={{ padding: '8px 12px', background: '#fef2f2' }}>
@@ -1266,6 +1387,140 @@ const QuoteBuilder = ({
                   </React.Fragment>
                 );
               })}
+
+              {/* ── Add-On Line Items ── */}
+              {(quoteWarranties.length > 0 || quoteDelivery || quoteTradeIns.length > 0 || quoteRebates.length > 0) && (
+                <tr style={{ borderBottom: '2px solid #e5e7eb', background: '#f0fdf4' }}>
+                  <td colSpan="8" style={{ padding: '10px 12px', fontWeight: 'bold', fontSize: '13px', color: '#166534', letterSpacing: '0.5px' }}>
+                    ADD-ONS &amp; ADJUSTMENTS
+                  </td>
+                </tr>
+              )}
+
+              {/* Warranty line items */}
+              {quoteWarranties.map((w, wIdx) => {
+                const costDollars = (w.cost || 0) / 100;
+                const productLabel = [w.product?.manufacturer, w.product?.model].filter(Boolean).join(' ');
+                const years = w.plan?.duration_years || 0;
+                return (
+                  <tr key={`wrn-${wIdx}`} style={{ borderBottom: '1px solid #e5e7eb', background: '#f0fdf4' }}>
+                    <td style={{ padding: '12px' }}>
+                      <div style={{ fontWeight: 'bold', color: '#166534' }}>
+                        🛡️ {w.plan?.plan_name || 'Extended Warranty'}
+                        {years > 0 && (
+                          <span style={{ marginLeft: '8px', background: '#dcfce7', color: '#166534', padding: '2px 8px', borderRadius: '10px', fontSize: '11px', fontWeight: '700' }}>
+                            {years} {years === 1 ? 'YEAR' : 'YEARS'}
+                          </span>
+                        )}
+                      </div>
+                      <div style={{ fontSize: '12px', color: '#6b7280' }}>
+                        {productLabel ? `For: ${productLabel}` : ''}
+                        {w.plan?.provider ? ` · ${w.plan.provider}` : ''}
+                      </div>
+                    </td>
+                    <td style={{ padding: '12px', textAlign: 'center' }}>1</td>
+                    <td style={{ padding: '12px', textAlign: 'right', color: '#6b7280' }}>—</td>
+                    <td style={{ padding: '12px', textAlign: 'right', color: '#6b7280' }}>—</td>
+                    <td style={{ padding: '12px', textAlign: 'right' }}>${costDollars.toFixed(2)}</td>
+                    <td style={{ padding: '12px', textAlign: 'right', color: '#10b981', fontWeight: 'bold' }}>100%</td>
+                    <td style={{ padding: '12px', textAlign: 'right', fontWeight: 'bold' }}>${costDollars.toFixed(2)}</td>
+                    <td style={{ padding: '12px', textAlign: 'center' }}>
+                      <button onClick={() => setQuoteWarranties(quoteWarranties.filter((_, i) => i !== wIdx))} style={{ padding: '4px 8px', background: '#ef4444', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>×</button>
+                    </td>
+                  </tr>
+                );
+              })}
+
+              {/* Delivery line item */}
+              {quoteDelivery && (() => {
+                const costDollars = (quoteDelivery.calculation?.totalCents || 0) / 100;
+                return (
+                  <tr style={{ borderBottom: '1px solid #e5e7eb', background: '#f0fdf4' }}>
+                    <td style={{ padding: '12px' }}>
+                      <div style={{ fontWeight: 'bold', color: '#166534' }}>🚚 {quoteDelivery.service?.service_name || 'Delivery'}</div>
+                      <div style={{ fontSize: '12px', color: '#6b7280' }}>
+                        {quoteDelivery.details?.deliveryDate ? `Date: ${quoteDelivery.details.deliveryDate}` : ''}
+                        {quoteDelivery.details?.timeSlot ? ` · ${quoteDelivery.details.timeSlot}` : ''}
+                      </div>
+                    </td>
+                    <td style={{ padding: '12px', textAlign: 'center' }}>1</td>
+                    <td style={{ padding: '12px', textAlign: 'right', color: '#6b7280' }}>—</td>
+                    <td style={{ padding: '12px', textAlign: 'right', color: '#6b7280' }}>—</td>
+                    <td style={{ padding: '12px', textAlign: 'right' }}>${costDollars.toFixed(2)}</td>
+                    <td style={{ padding: '12px', textAlign: 'right', color: '#10b981', fontWeight: 'bold' }}>—</td>
+                    <td style={{ padding: '12px', textAlign: 'right', fontWeight: 'bold' }}>${costDollars.toFixed(2)}</td>
+                    <td style={{ padding: '12px', textAlign: 'center' }}>
+                      <button onClick={() => setQuoteDelivery(null)} style={{ padding: '4px 8px', background: '#ef4444', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>×</button>
+                    </td>
+                  </tr>
+                );
+              })()}
+
+              {/* Trade-in credit line items */}
+              {quoteTradeIns.map((t, tIdx) => {
+                const creditDollars = (t.estimatedValueCents || 0) / 100;
+                return (
+                  <tr key={`ti-${tIdx}`} style={{ borderBottom: '1px solid #e5e7eb', background: '#eff6ff' }}>
+                    <td style={{ padding: '12px' }}>
+                      <div style={{ fontWeight: 'bold', color: '#1e40af' }}>🔄 Trade-In: {t.brand || ''} {t.modelNumber || ''}</div>
+                      <div style={{ fontSize: '12px', color: '#6b7280' }}>{t.productCategory || ''} · {t.condition || ''} condition{t.ageYears ? ` · ${t.ageYears}yr old` : ''}</div>
+                    </td>
+                    <td style={{ padding: '12px', textAlign: 'center' }}>1</td>
+                    <td style={{ padding: '12px', textAlign: 'right', color: '#6b7280' }}>—</td>
+                    <td style={{ padding: '12px', textAlign: 'right', color: '#6b7280' }}>—</td>
+                    <td style={{ padding: '12px', textAlign: 'right', color: '#2563eb' }}>-${creditDollars.toFixed(2)}</td>
+                    <td style={{ padding: '12px', textAlign: 'right', color: '#6b7280' }}>—</td>
+                    <td style={{ padding: '12px', textAlign: 'right', fontWeight: 'bold', color: '#2563eb' }}>-${creditDollars.toFixed(2)}</td>
+                    <td style={{ padding: '12px', textAlign: 'center' }}>
+                      <button onClick={() => setQuoteTradeIns(quoteTradeIns.filter((_, i) => i !== tIdx))} style={{ padding: '4px 8px', background: '#ef4444', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>×</button>
+                    </td>
+                  </tr>
+                );
+              })}
+
+              {/* Rebate credit line items */}
+              {quoteRebates.map((r, rIdx) => {
+                const creditDollars = (r.rebate_amount_cents || 0) / 100;
+                return (
+                  <tr key={`reb-${rIdx}`} style={{ borderBottom: '1px solid #e5e7eb', background: '#eff6ff' }}>
+                    <td style={{ padding: '12px' }}>
+                      <div style={{ fontWeight: 'bold', color: '#1e40af' }}>💰 {r.rebate_name || 'Manufacturer Rebate'}</div>
+                      <div style={{ fontSize: '12px', color: '#6b7280' }}>{r.manufacturer || ''} · {r.rebate_type === 'instant' ? 'Instant Rebate' : 'Mail-In Rebate'}</div>
+                    </td>
+                    <td style={{ padding: '12px', textAlign: 'center' }}>1</td>
+                    <td style={{ padding: '12px', textAlign: 'right', color: '#6b7280' }}>—</td>
+                    <td style={{ padding: '12px', textAlign: 'right', color: '#6b7280' }}>—</td>
+                    <td style={{ padding: '12px', textAlign: 'right', color: '#2563eb' }}>
+                      {r.rebate_percent ? `-${r.rebate_percent}%` : `-$${creditDollars.toFixed(2)}`}
+                    </td>
+                    <td style={{ padding: '12px', textAlign: 'right', color: '#6b7280' }}>—</td>
+                    <td style={{ padding: '12px', textAlign: 'right', fontWeight: 'bold', color: '#2563eb' }}>-${creditDollars.toFixed(2)}</td>
+                    <td style={{ padding: '12px', textAlign: 'center' }}>
+                      <button onClick={() => setQuoteRebates(quoteRebates.filter((_, i) => i !== rIdx))} style={{ padding: '4px 8px', background: '#ef4444', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>×</button>
+                    </td>
+                  </tr>
+                );
+              })}
+
+              {/* Financing info row (no cost impact, informational) */}
+              {quoteFinancing && (
+                <tr style={{ borderBottom: '1px solid #e5e7eb', background: '#fefce8' }}>
+                  <td colSpan="5" style={{ padding: '12px' }}>
+                    <div style={{ fontWeight: 'bold', color: '#854d0e' }}>💳 Financing: {quoteFinancing.plan?.plan_name || 'Financing Plan'}</div>
+                    <div style={{ fontSize: '12px', color: '#6b7280' }}>
+                      {quoteFinancing.plan?.term_months || quoteFinancing.calculation?.termMonths || 0} months
+                      {quoteFinancing.plan?.apr_percent !== undefined ? ` @ ${quoteFinancing.plan.apr_percent}% APR` : ''}
+                      {quoteFinancing.calculation?.monthlyPaymentCents ? ` · $${(quoteFinancing.calculation.monthlyPaymentCents / 100).toFixed(2)}/mo` : ''}
+                    </div>
+                  </td>
+                  <td colSpan="2" style={{ padding: '12px', textAlign: 'right', fontWeight: 'bold', color: '#854d0e' }}>
+                    ${quoteFinancing.calculation?.monthlyPaymentCents ? (quoteFinancing.calculation.monthlyPaymentCents / 100).toFixed(2) : '0.00'}/mo
+                  </td>
+                  <td style={{ padding: '12px', textAlign: 'center' }}>
+                    <button onClick={() => setQuoteFinancing(null)} style={{ padding: '4px 8px', background: '#ef4444', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>×</button>
+                  </td>
+                </tr>
+              )}
             </tbody>
           </table>
         </div>
@@ -1289,7 +1544,7 @@ const QuoteBuilder = ({
 
       {/* Revenue Features */}
       {quoteItems.length > 0 && (
-        <div style={{ marginTop: '30px', padding: '20px', backgroundColor: '#f8f9fa', borderRadius: '8px', border: '2px solid #4CAF50' }}>
+        <div ref={revenueRef} style={{ marginTop: '30px', padding: '20px', backgroundColor: '#f8f9fa', borderRadius: '8px', border: '2px solid #4CAF50' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
             <h3 style={{ margin: 0, color: '#4CAF50' }}>Revenue Features - Maximize Your Sale!</h3>
             <button onClick={() => setShowRevenueFeatures(!showRevenueFeatures)} style={{ padding: '10px 20px', backgroundColor: '#4CAF50', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold' }}>
@@ -1630,8 +1885,12 @@ const QuoteBuilder = ({
           <SmartSuggestions
             quoteItems={quoteItems}
             customerId={selectedCustomer?.id}
-            onActionClick={() => {
-              // Handle different actions based on suggestion.action
+            onActionClick={(suggestion) => {
+              // Open Revenue Features and scroll to it
+              setShowRevenueFeatures(true);
+              setTimeout(() => {
+                revenueRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+              }, 100);
             }}
           />
           <UpsellRecommendations
@@ -1832,6 +2091,34 @@ const QuoteBuilder = ({
               </div>
             </div>
           </div>
+
+          {/* Lead Pipeline Opt-In */}
+          {!editingQuoteId && (
+            <div style={{ background: 'white', borderRadius: '12px', padding: '24px', marginTop: '24px', boxShadow: '0 2px 4px rgba(0,0,0,0.1)' }}>
+              <label style={{ display: 'flex', alignItems: 'center', gap: '12px', cursor: 'pointer', padding: '12px', background: '#f9fafb', borderRadius: '8px' }}>
+                <input
+                  type="checkbox"
+                  checked={leadOptIn}
+                  onChange={(e) => setLeadOptIn(e.target.checked)}
+                  style={{ width: '20px', height: '20px', cursor: 'pointer' }}
+                />
+                <div>
+                  <div style={{ fontWeight: '600', fontSize: '14px' }}>Create a Lead for this quote</div>
+                  <div style={{ fontSize: '12px', color: '#6b7280' }}>Track follow-ups and pipeline status</div>
+                </div>
+              </label>
+              {leadOptIn && selectedCustomer && (
+                <div style={{
+                  margin: '12px 12px 0', padding: '10px 14px',
+                  background: '#EFF6FF', border: '1px solid #BFDBFE',
+                  borderRadius: '8px', fontSize: '13px', color: '#1E40AF'
+                }}>
+                  A lead will be created for <strong>{selectedCustomer.name}</strong> when this quote is saved.
+                  If an open lead already exists for this customer, the quote will be added to it.
+                </div>
+              )}
+            </div>
+          )}
 
           {/* Staff Signature Section */}
           <div style={{ background: 'white', borderRadius: '12px', padding: '24px', marginTop: '24px', boxShadow: '0 2px 4px rgba(0,0,0,0.1)', border: '2px solid #3b82f6' }}>

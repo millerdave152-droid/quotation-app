@@ -18,6 +18,35 @@ const getAuthHeaders = () => {
 };
 
 // ===================================
+// FETCH QUOTE ADD-ONS (revenue features)
+// ===================================
+const fetchQuoteAddOns = async (quoteId, headers) => {
+  const addOns = { warranties: [], delivery: null, rebates: [], tradeIns: [], financing: null };
+  try {
+    const [warRes, delRes, rebRes, tiRes, finRes] = await Promise.allSettled([
+      authFetch(`${API_BASE}/quotations/${quoteId}/warranties`, { headers }),
+      authFetch(`${API_BASE}/quotations/${quoteId}/delivery`, { headers }),
+      authFetch(`${API_BASE}/quotations/${quoteId}/rebates`, { headers }),
+      authFetch(`${API_BASE}/quotations/${quoteId}/trade-ins`, { headers }),
+      authFetch(`${API_BASE}/quotations/${quoteId}/financing`, { headers })
+    ]);
+    const extract = async (res) => {
+      if (res.status !== 'fulfilled' || !res.value.ok) return null;
+      const json = await res.value.json();
+      return json?.data || json;
+    };
+    addOns.warranties = (await extract(warRes)) || [];
+    addOns.delivery = await extract(delRes);
+    addOns.rebates = (await extract(rebRes)) || [];
+    addOns.tradeIns = (await extract(tiRes)) || [];
+    addOns.financing = await extract(finRes);
+  } catch (err) {
+    logger.error('Error fetching quote add-ons for PDF:', err);
+  }
+  return addOns;
+};
+
+// ===================================
 // PREVIEW QUOTE PDF (Opens in new tab)
 // ===================================
 export const previewQuotePDF = async (quoteId, type = 'customer') => {
@@ -62,10 +91,13 @@ export const previewQuotePDF = async (quoteId, type = 'customer') => {
       return;
     }
 
+    // Fetch revenue feature add-ons
+    const addOns = await fetchQuoteAddOns(quoteId, headers);
+
     // Generate PDF based on type
     const doc = type === 'internal'
-      ? generateInternalPDF(quote, customer, items)
-      : generateCustomerPDF(quote, customer, items);
+      ? generateInternalPDF(quote, customer, items, addOns)
+      : generateCustomerPDF(quote, customer, items, addOns);
 
     // Open in new tab
     const pdfBlob = doc.output('blob');
@@ -123,9 +155,12 @@ export const downloadQuotePDF = async (quoteId, type = 'customer') => {
       return;
     }
 
+    // Fetch revenue feature add-ons
+    const addOns = await fetchQuoteAddOns(quoteId, headers);
+
     const doc = type === 'internal'
-      ? generateInternalPDF(quote, customer, items)
-      : generateCustomerPDF(quote, customer, items);
+      ? generateInternalPDF(quote, customer, items, addOns)
+      : generateCustomerPDF(quote, customer, items, addOns);
 
     const filename = type === 'internal'
       ? `Quote_${quote.quote_number || quote.id}_INTERNAL.pdf`
@@ -278,7 +313,7 @@ const addExpiryWarning = (doc, expiryDate, currentY) => {
 // ENTERPRISE COLOR SCHEME
 // ===================================
 const colors = {
-  primary: [30, 64, 175],       // Deep blue #1e40af
+  primary: [53, 99, 233],       // Blue #3563E9
   primaryLight: [59, 130, 246], // Light blue #3b82f6
   text: [31, 41, 55],           // Near black #1f2937
   textSecondary: [55, 65, 81],  // Dark gray #374151
@@ -296,7 +331,7 @@ const colors = {
 // ===================================
 // GENERATE CUSTOMER-FACING PDF (Enterprise Design)
 // ===================================
-export const generateCustomerPDF = (quote, customer, items) => {
+export const generateCustomerPDF = (quote, customer, items, addOns = {}) => {
   const doc = new jsPDF();
   const pageWidth = doc.internal.pageSize.getWidth();
   const pageHeight = doc.internal.pageSize.getHeight();
@@ -304,88 +339,56 @@ export const generateCustomerPDF = (quote, customer, items) => {
   const hideModelNumbers = quote.hide_model_numbers || false;
   const expiryDate = quote.quote_expiry_date || quote.expires_at || new Date(Date.now() + 14*24*60*60*1000);
   const { address, contact } = companyConfig;
+  const hstNumber = companyConfig.business?.hstNumber || '802845461RT0001';
 
-  // ========== TOP ACCENT BAR (4pt) ==========
+  // Currency formatter from cents
+  const fmtDollars = (cents) => `$${(cents / 100).toLocaleString('en-CA', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+
+  // ========== TOP ACCENT BAR (4mm) ==========
   doc.setFillColor(...colors.primary);
   doc.rect(0, 0, pageWidth, 4, 'F');
 
-  // ========== HEADER SECTION ==========
-  // Company name / Logo (left side)
-  const { logo } = companyConfig;
-  if (logo.base64) {
-    try {
-      // Reset any stroke state before adding image
-      doc.setDrawColor(255, 255, 255);
-      doc.setLineWidth(0);
-      // Auto-detect image format from base64 data URI
-      const imageFormat = logo.base64.includes('image/png') ? 'PNG' : 'JPEG';
-      doc.addImage(logo.base64, imageFormat, 14, 12, logo.width || 40, logo.height || 20);
-    } catch (e) {
-      // Fallback to company name
-      doc.setFontSize(20);
-      doc.setFont(undefined, 'bold');
-      doc.setTextColor(...colors.primary);
-      doc.text(companyConfig.name, 14, 28);
-    }
-  } else {
-    doc.setFontSize(20);
-    doc.setFont(undefined, 'bold');
-    doc.setTextColor(...colors.primary);
-    doc.text(companyConfig.name, 14, 28);
-  }
-
-  // Company contact info (below logo/name) - positioned after logo height
-  const logoBottomY = 12 + (logo.height || 20) + 4; // Logo Y + height + spacing
-  doc.setFontSize(8);
-  doc.setFont(undefined, 'normal');
-  doc.setTextColor(...colors.textMuted);
-  doc.text(address.street, 14, logoBottomY);
-  doc.text(`${address.city}, ${address.province} ${address.postalCode}`, 14, logoBottomY + 5);
-  doc.text(`${contact.phone} | ${contact.email}`, 14, logoBottomY + 10);
-
-  // Quote Badge Box (right side)
-  doc.setFillColor(...colors.bgLight);
-  doc.setDrawColor(...colors.border);
-  doc.roundedRect(145, 10, 50, 48, 3, 3, 'FD');
-
-  // Badge content
-  doc.setFontSize(8);
+  // ========== HEADER SECTION (Sales Order style) ==========
+  // "Teletime" left-aligned
+  doc.setFontSize(26);
   doc.setFont(undefined, 'bold');
   doc.setTextColor(...colors.primary);
-  doc.text('QUOTATION', 170, 18, { align: 'center' });
+  doc.text('Teletime', 14, 18);
 
-  const quoteNumber = quote.quote_number || `QT-2025-${String(quote.id).padStart(4, '0')}`;
-  doc.setFontSize(10);
-  doc.setTextColor(...colors.text);
-  doc.text(quoteNumber, 170, 26, { align: 'center' });
+  // "Quotation" right-aligned
+  doc.setFontSize(22);
+  doc.setFont(undefined, 'bolditalic');
+  doc.setTextColor(...colors.primary);
+  doc.text('Quotation', pageWidth - 14, 18, { align: 'right' });
 
-  doc.setFontSize(7);
+  // "Teletime Superstores" below
+  doc.setFontSize(14);
+  doc.setFont(undefined, 'bold');
+  doc.setTextColor(...colors.primary);
+  doc.text('Teletime Superstores', 14, 28);
+
+  // Tagline italic
+  doc.setFontSize(8);
+  doc.setFont(undefined, 'italic');
+  doc.setTextColor(...colors.textMuted);
+  doc.text('TVs-Electronics-Appliances-Furniture', 14, 35);
+
+  // Centered company info block
+  const addrBlockY = 42;
+  doc.setFontSize(8);
   doc.setFont(undefined, 'normal');
   doc.setTextColor(...colors.textMuted);
-  doc.text('Date:', 150, 35);
-  doc.text('Valid Until:', 150, 41);
-  doc.text('Status:', 150, 47);
-
-  doc.setTextColor(...colors.text);
-  doc.text(new Date(quote.created_at).toLocaleDateString('en-CA'), 190, 35, { align: 'right' });
-  doc.text(new Date(expiryDate).toLocaleDateString('en-CA'), 190, 41, { align: 'right' });
-
-  // Status with color
-  const status = quote.status?.toUpperCase() || 'DRAFT';
-  if (status === 'APPROVED' || status === 'ACCEPTED') {
-    doc.setTextColor(...colors.success);
-  } else if (status === 'REJECTED' || status === 'EXPIRED') {
-    doc.setTextColor(...colors.error);
-  } else {
-    doc.setTextColor(...colors.text);
-  }
-  doc.text(status, 190, 47, { align: 'right' });
+  doc.text(`${address.street}, ${address.city}, ${address.province} ${address.postalCode}`, pageWidth / 2, addrBlockY, { align: 'center' });
+  doc.text(`TEL: ${contact.phone}`, pageWidth / 2, addrBlockY + 5, { align: 'center' });
+  doc.text(`${contact.website}, Email: ${contact.email}`, pageWidth / 2, addrBlockY + 10, { align: 'center' });
+  doc.setFont(undefined, 'bold');
+  doc.text(`HST #: ${hstNumber}`, pageWidth / 2, addrBlockY + 15, { align: 'center' });
 
   // ========== EXPIRY WARNING ==========
-  let currentY = 65; // Adjusted for taller header with logo
+  let currentY = 64;
   currentY = addExpiryWarning(doc, expiryDate, currentY);
 
-  // ========== CUSTOMER INFO CARD (Two Column) ==========
+  // ========== 3-SECTION CUSTOMER INFO (autoTable) ==========
   const customerName = customer?.name || 'Customer';
   const customerEmail = customer?.email || '';
   const customerPhone = customer?.phone || '';
@@ -394,112 +397,132 @@ export const generateCustomerPDF = (quote, customer, items) => {
   const customerProvince = customer?.province || '';
   const customerPostalCode = customer?.postal_code || '';
   const customerCompany = customer?.company || '';
-
-  // Build full city/province/postal line
   const locationParts = [customerCity, customerProvince, customerPostalCode].filter(Boolean);
   const customerLocation = locationParts.join(', ');
 
-  // Calculate card height - increased to fit all contact info
-  let cardHeight = 48;
-  if (customerAddress) cardHeight += 4;
-  if (customerLocation) cardHeight += 4;
+  const quoteNumber = quote.quote_number || `QT-2025-${String(quote.id).padStart(4, '0')}`;
+  const createdDate = quote.created_at ? new Date(quote.created_at).toLocaleDateString('en-CA', { year: 'numeric', month: 'short', day: 'numeric' }) : 'N/A';
+  const expiryDateStr = new Date(expiryDate).toLocaleDateString('en-CA', { year: 'numeric', month: 'short', day: 'numeric' });
+  const quoteStatus = (quote.status || 'draft').charAt(0).toUpperCase() + (quote.status || 'draft').slice(1);
 
-  doc.setFillColor(...colors.bgMuted);
-  doc.setDrawColor(...colors.border);
-  doc.roundedRect(14, currentY, 182, cardHeight, 4, 4, 'FD');
+  // Build BILL TO content
+  const billToLines = [customerName];
+  if (customerCompany) billToLines.push(customerCompany);
+  if (customerAddress) billToLines.push(customerAddress);
+  if (customerLocation) billToLines.push(customerLocation);
 
-  // Left column - BILL TO
-  const leftColX = 20;
-  doc.setFontSize(9);
-  doc.setFont(undefined, 'bold');
-  doc.setTextColor(...colors.primary);
-  doc.text('BILL TO', leftColX, currentY + 8);
+  // Build CONTACT content
+  const contactLines = [customerName, `Tel: ${customerPhone || 'N/A'}`, `Email: ${customerEmail || 'N/A'}`];
+  if (quote.sales_rep_name) contactLines.push(`Sales Rep: ${quote.sales_rep_name}`);
 
-  doc.setFontSize(10);
-  doc.setTextColor(...colors.text);
-  doc.text(customerName, leftColX, currentY + 15);
+  // Build QUOTE DETAILS content
+  const detailLines = [`Quote No: ${quoteNumber}`, `Date: ${createdDate}`, `Valid Until: ${expiryDateStr}`, `Status: ${quoteStatus}`];
 
-  doc.setFontSize(8);
-  doc.setFont(undefined, 'normal');
-  doc.setTextColor(...colors.textSecondary);
-  let leftY = currentY + 21;
+  doc.autoTable({
+    startY: currentY,
+    head: [['BILL TO', 'CONTACT', 'QUOTE DETAILS']],
+    body: [[
+      billToLines.join('\n'),
+      contactLines.join('\n'),
+      detailLines.join('\n')
+    ]],
+    theme: 'plain',
+    headStyles: {
+      fillColor: colors.primary,
+      textColor: 255,
+      fontStyle: 'bold',
+      fontSize: 8,
+      cellPadding: 3
+    },
+    bodyStyles: {
+      fontSize: 7.5,
+      cellPadding: { top: 4, right: 4, bottom: 4, left: 4 },
+      textColor: colors.text,
+      fillColor: colors.bgLight,
+      lineWidth: 0.3,
+      lineColor: colors.border
+    },
+    columnStyles: {
+      0: { cellWidth: 62 },
+      1: { cellWidth: 60 },
+      2: { cellWidth: 60 }
+    },
+    margin: { left: 14, right: 14 },
+    didParseCell: function(data) {
+      if (data.section === 'body') {
+        // Make first line of each cell bold
+        data.cell.styles.cellPadding = { top: 4, right: 4, bottom: 4, left: 4 };
+      }
+    }
+  });
 
-  if (customerCompany) {
-    doc.text(customerCompany, leftColX, leftY);
-    leftY += 4;
-  }
-  if (customerAddress) {
-    doc.text(customerAddress, leftColX, leftY);
-    leftY += 4;
-  }
-  if (customerLocation) {
-    doc.text(customerLocation, leftColX, leftY);
-    leftY += 4;
-  }
+  currentY = doc.lastAutoTable.finalY + 6;
 
-  // Right column - CONTACT (Billing Contact Info)
-  const rightColX = 115;
-  doc.setFontSize(9);
-  doc.setFont(undefined, 'bold');
-  doc.setTextColor(...colors.primary);
-  doc.text('CONTACT', rightColX, currentY + 8);
-
-  let rightY = currentY + 15;
-  doc.setFontSize(8);
-
-  // Contact Name (billing contact person)
-  doc.setFont(undefined, 'bold');
-  doc.setTextColor(...colors.text);
-  doc.text(customerName, rightColX, rightY);
-  rightY += 5;
-
-  // Phone
-  doc.setFont(undefined, 'normal');
-  doc.setTextColor(...colors.textSecondary);
-  if (customerPhone) {
-    doc.text(`Tel: ${customerPhone}`, rightColX, rightY);
-    rightY += 5;
-  }
-
-  // Email
-  if (customerEmail) {
-    doc.setTextColor(...colors.primaryLight);
-    doc.text(customerEmail, rightColX, rightY);
-    rightY += 5;
-  }
-
-  // Prepared by (Sales Rep)
-  if (quote.sales_rep_name) {
-    doc.setTextColor(...colors.textMuted);
-    doc.text(`Prepared by: ${quote.sales_rep_name}`, rightColX, rightY);
-  }
-
-  currentY += cardHeight + 8;
-
-  // ========== ITEMS TABLE (Enterprise Design) ==========
+  // ========== ITEMS TABLE ==========
   const tableData = items.map(item => {
     const unitPrice = (item.sell_cents || item.unit_price_cents || 0) / 100;
     const quantity = item.quantity || 1;
     const lineTotal = (item.line_total_cents || 0) / 100 || (quantity * unitPrice);
     const discountPct = item.discount_percent || 0;
-    const sku = item.sku || item.product_code || '-';
     const manufacturer = item.manufacturer || '-';
+    const model = (item.model && item.model !== 'undefined') ? item.model : '';
     const description = formatProductDescription(item, hideModelNumbers);
 
     return [
-      sku.substring(0, 12),
-      manufacturer.substring(0, 10),
-      description.substring(0, 45),
       quantity.toString(),
+      description.substring(0, 45),
+      manufacturer.substring(0, 12),
+      model.substring(0, 15),
       `$${unitPrice.toLocaleString('en-CA', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
       discountPct > 0 ? `${discountPct}%` : '-',
       `$${lineTotal.toLocaleString('en-CA', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
     ];
   });
 
+  // Add add-on rows to table
+  const hasAddOns = addOns.warranties?.length > 0 || addOns.delivery || addOns.tradeIns?.length > 0 || addOns.rebates?.length > 0;
+
+  if (hasAddOns) {
+    tableData.push([{ content: 'ADD-ONS & ADJUSTMENTS', colSpan: 7, styles: { fillColor: [240, 253, 244], fontStyle: 'bold', textColor: [22, 101, 52], fontSize: 7 } }]);
+  }
+
+  (addOns.warranties || []).forEach(w => {
+    const warnName = w.product_name || w.warranty_type || 'Extended Warranty';
+    const yearsLabel = w.warranty_years ? ` (${w.warranty_years} ${w.warranty_years === 1 ? 'Year' : 'Years'})` : '';
+    const productLabel = w.covered_product_model
+      ? `${w.covered_product_manufacturer || ''} ${w.covered_product_model}`.trim()
+      : [w.manufacturer, w.model].filter(Boolean).join(' ');
+    const detail = [productLabel ? `For: ${productLabel}` : '', w.provider ? `Provider: ${w.provider}` : ''].filter(Boolean).join(' · ');
+    tableData.push(['1', `${warnName}${yearsLabel}${detail ? ' - ' + detail : ''}`, '', 'WRN', fmtDollars(w.warranty_cost_cents || 0), '-', `+${fmtDollars(w.warranty_cost_cents || 0)}`]);
+  });
+
+  if (addOns.delivery) {
+    const del = addOns.delivery;
+    const totalCents = del.total_delivery_cost_cents || del.delivery_cost_cents || 0;
+    tableData.push(['1', `Delivery: ${del.delivery_type || 'Standard'}`, '', 'DLV', fmtDollars(totalCents), '-', `+${fmtDollars(totalCents)}`]);
+  }
+
+  (addOns.tradeIns || []).forEach(t => {
+    const label = `Trade-In: ${[t.brand, t.model, t.item_type].filter(Boolean).join(' ')}`;
+    tableData.push(['1', label, '', 'TRD', '', '-', `-${fmtDollars(t.trade_in_value_cents || 0)}`]);
+  });
+
+  (addOns.rebates || []).forEach(r => {
+    tableData.push(['1', r.rebate_name || 'Manufacturer Rebate', '', 'REB', '', '-', `-${fmtDollars(r.rebate_amount_cents || 0)}`]);
+  });
+
+  if (addOns.financing) {
+    const fin = addOns.financing;
+    const finLabel = fin.plan_name || fin.financing_type || 'Financing';
+    const aprVal = fin.apr_percent != null ? parseFloat(fin.apr_percent) : (fin.interest_rate || 0);
+    const detail = `${finLabel} - ${fin.term_months || 0}mo @ ${aprVal}%${fin.provider ? ` · ${fin.provider}` : ''}`;
+    const monthly = fin.monthly_payment_cents ? `${fmtDollars(fin.monthly_payment_cents)}/mo` : '';
+    tableData.push([{ content: `Financing: ${detail}  ${monthly}`, colSpan: 7, styles: { fillColor: [254, 252, 232], fontStyle: 'italic', textColor: [133, 77, 14], fontSize: 7 } }]);
+  }
+
   doc.autoTable({
     startY: currentY,
-    head: [['SKU', 'MFR', 'DESCRIPTION', 'QTY', 'PRICE', 'DISC', 'TOTAL']],
+    head: [['QTY', 'DESCRIPTION', 'BRAND', 'MODEL', 'PRICE', 'DISC', 'AMOUNT']],
     body: tableData,
     theme: 'plain',
     headStyles: {
@@ -520,21 +543,20 @@ export const generateCustomerPDF = (quote, customer, items) => {
       fillColor: colors.bgLight
     },
     columnStyles: {
-      0: { cellWidth: 22, halign: 'left' },           // SKU - left
-      1: { cellWidth: 20, halign: 'left' },           // MFR - left
-      2: { cellWidth: 65, halign: 'left' },           // Description - left
-      3: { cellWidth: 15, halign: 'center', fontStyle: 'bold' }, // Qty - center
-      4: { cellWidth: 25, halign: 'right' },          // Price - right
-      5: { cellWidth: 18, halign: 'center' },         // Disc - center
-      6: { cellWidth: 27, halign: 'right', fontStyle: 'bold' }   // Total - right
+      0: { cellWidth: 14, halign: 'center', fontStyle: 'bold' }, // QTY - center
+      1: { cellWidth: 60, halign: 'left' },                      // DESCRIPTION - left
+      2: { cellWidth: 22, halign: 'left' },                      // BRAND - left
+      3: { cellWidth: 24, halign: 'left' },                      // MODEL - left
+      4: { cellWidth: 24, halign: 'right' },                     // PRICE - right
+      5: { cellWidth: 16, halign: 'center' },                    // DISC - center
+      6: { cellWidth: 27, halign: 'right', fontStyle: 'bold' }   // AMOUNT - right
     },
     margin: { left: 14, right: 14 },
-    tableLineWidth: 0,  // Remove cell borders for cleaner look
+    tableLineWidth: 0,
     didParseCell: function(data) {
-      // Match header alignment to body column alignment
       if (data.section === 'head') {
         const colIndex = data.column.index;
-        if (colIndex === 3 || colIndex === 5) {
+        if (colIndex === 0 || colIndex === 5) {
           data.cell.styles.halign = 'center';
         } else if (colIndex === 4 || colIndex === 6) {
           data.cell.styles.halign = 'right';
@@ -552,29 +574,25 @@ export const generateCustomerPDF = (quote, customer, items) => {
     }
   });
 
-  // ========== TOTALS CARD ==========
+  // ========== TOTALS SECTION (right-aligned, no card) ==========
   const subtotal = (quote.subtotal_cents || 0) / 100;
   const discountPercent = parseFloat(quote.discount_percent) || 0;
   const discountAmount = (quote.discount_cents || 0) / 100;
-  const netAmount = subtotal - discountAmount;
   const taxRatePercent = getTaxRatePercent(quote.tax_rate);
   const taxAmount = (quote.tax_cents || 0) / 100;
   const total = (quote.total_cents || 0) / 100;
   const taxName = companyConfig.tax.taxName || 'HST';
+  const ehfCents = quote.ehf_cents || 0;
+
+  const wTotal = (addOns.warranties || []).reduce((s, w) => s + (w.warranty_cost_cents || 0), 0);
+  const dTotal = addOns.delivery ? (addOns.delivery.total_delivery_cost_cents || addOns.delivery.delivery_cost_cents || 0) : 0;
+  const tiTotal = (addOns.tradeIns || []).reduce((s, t) => s + (t.trade_in_value_cents || 0), 0);
+  const rTotal = (addOns.rebates || []).reduce((s, r) => s + (r.rebate_amount_cents || 0), 0);
 
   let totalsY = doc.lastAutoTable.finalY + 6;
-  const totalsCardX = 110;      // Moved left for more room
-  const totalsCardWidth = 86;   // Wider card to fit amounts
-  let totalsCardHeight = 52;    // Taller for better spacing
-  if (discountAmount > 0) totalsCardHeight += 16;
-
-  // Totals card background (fill only, no border line)
-  doc.setFillColor(...colors.bgLight);
-  doc.roundedRect(totalsCardX, totalsY, totalsCardWidth, totalsCardHeight, 3, 3, 'F');
-
-  const labelX = totalsCardX + 6;
-  const amountX = totalsCardX + totalsCardWidth - 6;
-  let lineY = totalsY + 10;
+  const labelX = 130;
+  const amountX = pageWidth - 14;
+  let lineY = totalsY;
 
   doc.setFontSize(8);
   doc.setFont(undefined, 'normal');
@@ -587,115 +605,226 @@ export const generateCustomerPDF = (quote, customer, items) => {
 
   // Discount (if any)
   if (discountAmount > 0) {
-    lineY += 9;
+    lineY += 7;
     doc.setTextColor(...colors.error);
     doc.text(`Discount (${discountPercent}%)`, labelX, lineY);
     doc.text(`-$${discountAmount.toLocaleString('en-CA', { minimumFractionDigits: 2 })}`, amountX, lineY, { align: 'right' });
+  }
 
-    lineY += 9;
-    doc.setTextColor(...colors.textMuted);
-    doc.text('Net Amount', labelX, lineY);
-    doc.setTextColor(...colors.text);
-    doc.text(`$${netAmount.toLocaleString('en-CA', { minimumFractionDigits: 2 })}`, amountX, lineY, { align: 'right' });
+  // Warranties (+)
+  if (wTotal > 0) {
+    lineY += 7;
+    doc.setTextColor(22, 101, 52);
+    doc.text('Warranties', labelX, lineY);
+    doc.text(`+$${(wTotal / 100).toLocaleString('en-CA', { minimumFractionDigits: 2 })}`, amountX, lineY, { align: 'right' });
+  }
+
+  // Delivery (+)
+  if (dTotal > 0) {
+    lineY += 7;
+    doc.setTextColor(22, 101, 52);
+    doc.text('Delivery', labelX, lineY);
+    doc.text(`+$${(dTotal / 100).toLocaleString('en-CA', { minimumFractionDigits: 2 })}`, amountX, lineY, { align: 'right' });
+  }
+
+  // Trade-In (-)
+  if (tiTotal > 0) {
+    lineY += 7;
+    doc.setTextColor(37, 99, 235);
+    doc.text('Trade-In Credit', labelX, lineY);
+    doc.text(`-$${(tiTotal / 100).toLocaleString('en-CA', { minimumFractionDigits: 2 })}`, amountX, lineY, { align: 'right' });
+  }
+
+  // Rebates (-)
+  if (rTotal > 0) {
+    lineY += 7;
+    doc.setTextColor(37, 99, 235);
+    doc.text('Rebates', labelX, lineY);
+    doc.text(`-$${(rTotal / 100).toLocaleString('en-CA', { minimumFractionDigits: 2 })}`, amountX, lineY, { align: 'right' });
+  }
+
+  // EHF (if > 0)
+  if (ehfCents > 0) {
+    lineY += 7;
+    doc.setTextColor(146, 64, 14);
+    doc.text('Env. Handling Fee (EHF)', labelX, lineY);
+    doc.text(`$${(ehfCents / 100).toLocaleString('en-CA', { minimumFractionDigits: 2 })}`, amountX, lineY, { align: 'right' });
   }
 
   // Tax
-  lineY += 9;
+  lineY += 7;
   doc.setTextColor(...colors.textMuted);
   doc.text(`${taxName} (${taxRatePercent.toFixed(0)}%)`, labelX, lineY);
   doc.setTextColor(...colors.text);
   doc.text(`$${taxAmount.toLocaleString('en-CA', { minimumFractionDigits: 2 })}`, amountX, lineY, { align: 'right' });
 
-  // TOTAL DUE - Emphasized box
-  lineY += 12;
-  doc.setFillColor(...colors.primary);
-  doc.roundedRect(labelX - 3, lineY - 6, totalsCardWidth - 6, 16, 2, 2, 'F');
+  // Divider line before TOTAL
+  lineY += 4;
+  doc.setDrawColor(...colors.borderMedium);
+  doc.setLineWidth(0.5);
+  doc.line(labelX, lineY, amountX, lineY);
 
-  doc.setFontSize(8);
-  doc.setFont(undefined, 'bold');
-  doc.setTextColor(255, 255, 255);
-  doc.text('TOTAL DUE', labelX, lineY + 2);
+  // TOTAL DUE
+  lineY += 8;
   doc.setFontSize(10);
-  doc.text(`$${total.toLocaleString('en-CA', { minimumFractionDigits: 2 })}`, amountX - 3, lineY + 2, { align: 'right' });
+  doc.setFont(undefined, 'bold');
+  doc.setTextColor(...colors.primary);
+  doc.text('TOTAL', labelX, lineY);
+  doc.text(`$${total.toLocaleString('en-CA', { minimumFractionDigits: 2 })}`, amountX, lineY, { align: 'right' });
 
-  // ========== NOTES SECTION ==========
-  let contentY = totalsY;
+  const totalsEndY = lineY + 4;
+
+  // ========== NOTES SECTION (left side, beside totals) ==========
   doc.setTextColor(...colors.text);
 
   if (quote.notes && quote.notes.trim()) {
-    doc.setFillColor(...colors.bgMuted);
-    doc.setDrawColor(...colors.border);
-    doc.roundedRect(14, contentY, 100, 30, 3, 3, 'FD');
-
     doc.setFontSize(8);
     doc.setFont(undefined, 'bold');
     doc.setTextColor(...colors.primary);
-    doc.text('NOTES', 18, contentY + 7);
+    doc.text('NOTES', 14, totalsY);
 
     doc.setFont(undefined, 'normal');
     doc.setFontSize(7);
     doc.setTextColor(...colors.textSecondary);
-    const splitNotes = doc.splitTextToSize(quote.notes, 90);
-    doc.text(splitNotes.slice(0, 4), 18, contentY + 13);
+    const splitNotes = doc.splitTextToSize(quote.notes, 100);
+    doc.text(splitNotes.slice(0, 5), 14, totalsY + 6);
   }
 
-  // ========== TERMS & CONDITIONS ==========
-  let termsY = totalsY + totalsCardHeight + 10;
+  // ========== FINANCING BOX (if financing exists) ==========
+  let financingEndY = totalsEndY;
+  if (addOns.financing) {
+    const fin = addOns.financing;
+    const finBoxY = totalsEndY + 6;
+
+    // Check page overflow
+    if (finBoxY > pageHeight - 100) {
+      doc.addPage();
+      financingEndY = 20;
+    } else {
+      financingEndY = finBoxY;
+    }
+
+    // Light blue box
+    doc.setFillColor(240, 247, 255);   // #f0f7ff
+    doc.setDrawColor(147, 197, 253);   // #93c5fd
+    doc.roundedRect(14, financingEndY, 182, 20, 3, 3, 'FD');
+
+    doc.setFontSize(7);
+    doc.setFont(undefined, 'bold');
+    doc.setTextColor(30, 64, 175); // #1e40af
+    doc.text('FINANCING TERMS', 18, financingEndY + 5);
+
+    const aprVal = fin.apr_percent != null ? parseFloat(fin.apr_percent) : (fin.interest_rate || 0);
+    const providerName = fin.provider ? fin.provider.charAt(0).toUpperCase() + fin.provider.slice(1) : 'Flexiti';
+
+    doc.setFontSize(7);
+    doc.setFont(undefined, 'normal');
+    doc.setTextColor(...colors.text);
+    const finInfoY = financingEndY + 12;
+    doc.text(`Provider: ${providerName}`, 18, finInfoY);
+    doc.text(`Plan: ${fin.plan_name || 'N/A'}`, 60, finInfoY);
+    doc.text(`Term: ${fin.term_months || 0} months`, 108, finInfoY);
+    doc.text(`Rate: ${aprVal.toFixed(1)}%`, 145, finInfoY);
+    if (fin.monthly_payment_cents) {
+      doc.setFont(undefined, 'bold');
+      doc.text(`Monthly: ${fmtDollars(fin.monthly_payment_cents)}`, 165, finInfoY);
+    }
+
+    financingEndY += 26;
+  }
+
+  // ========== TERMS & CONDITIONS (comprehensive Teletime terms) ==========
+  let termsY = Math.max(financingEndY, totalsEndY) + 8;
   if (termsY > pageHeight - 80) {
     doc.addPage();
     termsY = 20;
   }
 
-  const terms = quote.terms || companyConfig.quotes.defaultTerms || 'Payment due within 30 days. All prices in CAD.';
+  // Determine whether to use comprehensive terms
+  const defaultTermsText = 'Payment due within 30 days';
+  const useComprehensiveTerms = !quote.terms || quote.terms === defaultTermsText || quote.terms === companyConfig.quotes.defaultTerms;
 
-  doc.setFillColor(...colors.bgLight);
-  doc.setDrawColor(...colors.border);
-  doc.roundedRect(14, termsY, 182, 28, 3, 3, 'FD');
-
-  doc.setFontSize(8);
-  doc.setFont(undefined, 'bold');
-  doc.setTextColor(...colors.textSecondary);
-  doc.text('TERMS & CONDITIONS', 18, termsY + 7);
+  const comprehensiveTerms = [
+    'EXCHANGES: 15 days from delivery/invoice in unused original condition with all packaging. 20% restocking fee applies on non-defective items.',
+    'MATTRESSES: 90-Night Comfort Guarantee with mattress protector purchase (min. 21 nights slept on; one-time exchange; delivery fee applies).',
+    'DEFECTIVE/DOA: Report within 72 hours of delivery for exchange or repair at no charge. After 72 hours, manufacturer warranty applies. Appliances once installed or used are covered under manufacturer warranty only.',
+    'DEPOSITS & CANCELLATIONS: All deposits are non-refundable. A 20% cancellation fee applies to orders already placed with suppliers.',
+    'DELIVERY: Standard delivery to front door only. Damage to property or goods beyond front door entry is the customer\'s responsibility. Ensure proper measurements before delivery - re-delivery due to sizing issues subject to a minimum $100.00 fee. Teletime is not responsible for removal of existing customer property.',
+    'DAMAGE REPORTING: Inspect goods at delivery. Report visible damage at time of delivery; concealed damage within 72 hours. Unreported damage is not covered. Mishandled products are not covered under any warranty.',
+    'PRICE MATCH: We match any authorized Canadian retailer\'s advertised price on the same brand/model within 30 days of purchase, with valid proof.',
+    'FINAL SALE: Special/custom orders, clearance, floor models, opened bedding/accessories, and gift cards are non-refundable.',
+    'WARRANTY: All products carry applicable manufacturer\'s warranty. Extended protection plans available - ask your sales associate.',
+    'CONSUMER RIGHTS: These terms do not affect your rights under Ontario\'s Consumer Protection Act, 2002. For full terms visit www.teletime.ca'
+  ];
 
   doc.setFontSize(7);
+  doc.setFont(undefined, 'bold');
+  doc.setTextColor(...colors.text);
+  doc.text('TERMS & CONDITIONS', 14, termsY);
+  termsY += 5;
+
+  doc.setFontSize(5);
   doc.setFont(undefined, 'normal');
-  doc.setTextColor(...colors.textMuted);
-  const splitTerms = doc.splitTextToSize(terms, 175);
-  doc.text(splitTerms.slice(0, 3), 18, termsY + 13);
+  doc.setTextColor(...colors.textLight);
+
+  if (useComprehensiveTerms) {
+    for (const term of comprehensiveTerms) {
+      if (termsY > pageHeight - 55) {
+        doc.addPage();
+        termsY = 20;
+      }
+      const splitTerm = doc.splitTextToSize(term, 182);
+      doc.text(splitTerm, 14, termsY);
+      termsY += splitTerm.length * 3 + 1;
+    }
+  } else {
+    const splitTerms = doc.splitTextToSize(quote.terms, 182);
+    doc.text(splitTerms, 14, termsY);
+    termsY += splitTerms.length * 3 + 2;
+  }
 
   // ========== DUAL SIGNATURE AREA ==========
-  let signatureY = termsY + 35;
+  let signatureY = termsY + 6;
   if (signatureY > pageHeight - 50) {
     doc.addPage();
     signatureY = 20;
   }
 
   // Company Representative (left)
-  doc.setFillColor(...colors.primary);
-  doc.rect(14, signatureY, 85, 5, 'F');
-  doc.setFontSize(7);
+  doc.setFontSize(8);
   doc.setFont(undefined, 'bold');
-  doc.setTextColor(255, 255, 255);
-  doc.text('COMPANY REPRESENTATIVE', 18, signatureY + 3.5);
+  doc.setTextColor(...colors.primaryLight);
+  doc.text('COMPANY REPRESENTATIVE', 14, signatureY);
 
   doc.setDrawColor(...colors.borderMedium);
-  doc.setLineWidth(0.3);
-  doc.line(14, signatureY + 25, 99, signatureY + 25);
+  doc.setLineWidth(0.5);
+  doc.line(14, signatureY + 18, 99, signatureY + 18);
   doc.setFontSize(7);
-  doc.setTextColor(...colors.textMuted);
-  doc.text('Signature', 14, signatureY + 30);
-  doc.text('Date: _______________', 14, signatureY + 36);
+  doc.setFont(undefined, 'bold');
+  doc.setTextColor(...colors.text);
+  doc.text('Authorized Signature', 14, signatureY + 23);
+  doc.text('Print Name: ________________________', 14, signatureY + 30);
+  doc.text('Date: _____________________________', 14, signatureY + 37);
 
   // Customer Acceptance (right)
-  doc.setFillColor(...colors.success);
-  doc.rect(111, signatureY, 85, 5, 'F');
-  doc.setTextColor(255, 255, 255);
-  doc.text('CUSTOMER ACCEPTANCE', 115, signatureY + 3.5);
+  doc.setFontSize(8);
+  doc.setFont(undefined, 'bold');
+  doc.setTextColor(...colors.success);
+  doc.text('CUSTOMER ACCEPTANCE', 111, signatureY);
 
-  doc.line(111, signatureY + 25, 196, signatureY + 25);
-  doc.setTextColor(...colors.textMuted);
-  doc.text('Signature', 111, signatureY + 30);
-  doc.text('Date: _______________', 111, signatureY + 36);
+  doc.line(111, signatureY + 18, 196, signatureY + 18);
+  doc.setFontSize(7);
+  doc.setTextColor(...colors.text);
+  doc.text('Authorized Signature', 111, signatureY + 23);
+  doc.text('Print Name: ________________________', 111, signatureY + 30);
+  doc.text('Date: _____________________________', 111, signatureY + 37);
+
+  // Legal text below signatures
+  const legalY = signatureY + 43;
+  doc.setFontSize(6);
+  doc.setFont(undefined, 'italic');
+  doc.setTextColor(...colors.textLight);
+  doc.text('By signing above, customer agrees to the terms and conditions stated in this quotation.', pageWidth / 2, legalY, { align: 'center' });
 
   // ========== FOOTER ON ALL PAGES ==========
   const totalPages = doc.internal.getNumberOfPages();
@@ -705,20 +834,23 @@ export const generateCustomerPDF = (quote, customer, items) => {
     // Bottom accent line
     doc.setDrawColor(...colors.primary);
     doc.setLineWidth(0.5);
-    doc.line(14, pageHeight - 18, pageWidth - 14, pageHeight - 18);
+    doc.line(14, pageHeight - 16, pageWidth - 14, pageHeight - 16);
 
-    // Thank you message
-    doc.setFontSize(8);
-    doc.setFont(undefined, 'normal');
-    doc.setTextColor(...colors.textMuted);
-    doc.text('Thank you for your business!', 14, pageHeight - 12);
-
-    // Contact info center
+    // Left: Page X of Y
     doc.setFontSize(7);
-    doc.text(`${contact.phone} | ${contact.email}`, pageWidth / 2, pageHeight - 12, { align: 'center' });
+    doc.setFont(undefined, 'normal');
+    doc.setTextColor(...colors.textLight);
+    doc.text(`Page ${i} of ${totalPages}`, 14, pageHeight - 10);
 
-    // Page number
-    doc.text(`Page ${i} of ${totalPages}`, pageWidth - 14, pageHeight - 12, { align: 'right' });
+    // Center: HST #
+    doc.setFont(undefined, 'bold');
+    doc.setTextColor(...colors.textMuted);
+    doc.text(`HST #: ${hstNumber}`, pageWidth / 2, pageHeight - 10, { align: 'center' });
+
+    // Right: contact info
+    doc.setFont(undefined, 'normal');
+    doc.setTextColor(...colors.textLight);
+    doc.text(`${contact.website} | ${contact.phone} | ${contact.email}`, pageWidth - 14, pageHeight - 10, { align: 'right' });
   }
 
   // ========== WATERMARK ==========
@@ -737,7 +869,7 @@ export const generateCustomerPDF = (quote, customer, items) => {
 // ===================================
 // GENERATE INTERNAL PDF (Enterprise Design)
 // ===================================
-export const generateInternalPDF = (quote, customer, items) => {
+export const generateInternalPDF = (quote, customer, items, addOns = {}) => {
   const doc = new jsPDF();
   const pageWidth = doc.internal.pageSize.getWidth();
   const pageHeight = doc.internal.pageSize.getHeight();
@@ -859,6 +991,36 @@ export const generateInternalPDF = (quote, customer, items) => {
       `$${lineProfit.toFixed(2)}`,
       `${marginPercent.toFixed(1)}%`
     ];
+  });
+
+  // Add add-on rows to internal table
+  const fmtD = (cents) => `$${(cents / 100).toFixed(2)}`;
+  const hasInternalAddOns = addOns.warranties?.length > 0 || addOns.delivery || addOns.tradeIns?.length > 0 || addOns.rebates?.length > 0;
+
+  if (hasInternalAddOns) {
+    tableData.push([{ content: 'ADD-ONS & ADJUSTMENTS', colSpan: 9, styles: { fillColor: [240, 253, 244], fontStyle: 'bold', textColor: [22, 101, 52], fontSize: 6 } }]);
+  }
+
+  (addOns.warranties || []).forEach(w => {
+    const c = w.warranty_cost_cents || 0;
+    const warnName = w.product_name || w.warranty_type || 'Extended Warranty';
+    const yearsLabel = w.warranty_years ? ` (${w.warranty_years}yr)` : '';
+    tableData.push(['WRN', '', `${warnName}${yearsLabel}`, '1', '$0.00', fmtD(c), `+${fmtD(c)}`, fmtD(c), '100%']);
+  });
+
+  if (addOns.delivery) {
+    const c = addOns.delivery.total_delivery_cost_cents || addOns.delivery.delivery_cost_cents || 0;
+    tableData.push(['DLV', '', `Delivery: ${addOns.delivery.delivery_type || 'Standard'}`, '1', '$0.00', fmtD(c), `+${fmtD(c)}`, fmtD(c), '-']);
+  }
+
+  (addOns.tradeIns || []).forEach(t => {
+    const c = t.trade_in_value_cents || 0;
+    tableData.push(['TRD', '', `Trade-In: ${[t.brand, t.model].filter(Boolean).join(' ')}`, '1', '', '', `-${fmtD(c)}`, '', '-']);
+  });
+
+  (addOns.rebates || []).forEach(r => {
+    const c = r.rebate_amount_cents || 0;
+    tableData.push(['REB', '', r.rebate_name || 'Rebate', '1', '', '', `-${fmtD(c)}`, '', '-']);
   });
 
   doc.autoTable({

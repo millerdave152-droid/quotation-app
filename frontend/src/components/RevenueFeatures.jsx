@@ -174,6 +174,18 @@ export const WarrantySelector = ({ products, onWarrantyAdded }) => {
   const [warrantyCost, setWarrantyCost] = useState(0);
   const [loading, setLoading] = useState(false);
 
+  // Quote items use product_id, sell/msrp (dollars), category, description/sku
+  const getProductId = (p) => p.product_id || p.id;
+  const getProductPriceDollars = (p) => parseFloat(p.sell) || parseFloat(p.msrp) || parseFloat(p.price) || 0;
+  const getProductPriceCents = (p) => Math.round(getProductPriceDollars(p) * 100);
+  const getProductLabel = (p) => p.description || p.model || p.sku || 'Unknown Product';
+  const getProductCategory = (p) => {
+    const cat = (p.category || '').toLowerCase();
+    if (cat.includes('tv') || cat.includes('television')) return 'tv';
+    if (cat.includes('furniture') || cat.includes('sofa') || cat.includes('mattress')) return 'furniture';
+    return 'appliance';
+  };
+
   useEffect(() => {
     if (selectedProduct) {
       fetchWarrantyPlans(selectedProduct);
@@ -182,29 +194,33 @@ export const WarrantySelector = ({ products, onWarrantyAdded }) => {
 
   const fetchWarrantyPlans = async (product) => {
     setLoading(true);
+    setWarrantyPlans([]);
+    setSelectedPlan(null);
+    setWarrantyCost(0);
     try {
-      const productPrice = product.price_cents || (product.price * 100);
+      const priceCents = getProductPriceCents(product);
+      const category = getProductCategory(product);
       const response = await authFetch(
-        `${API_BASE}/warranty-plans?productCategory=${product.category || 'appliance'}&productPrice=${productPrice}`
+        `${API_BASE}/warranty-plans?productCategory=${category}&productPrice=${priceCents}`
       );
       const data = await response.json();
-      setWarrantyPlans(data);
-      setLoading(false);
+      setWarrantyPlans(Array.isArray(data) ? data : []);
     } catch (error) {
       console.error('Error fetching warranty plans:', error);
+    } finally {
       setLoading(false);
     }
   };
 
   const calculateWarranty = async (plan, product) => {
     try {
-      const productPrice = product.price_cents || (product.price * 100);
+      const priceCents = getProductPriceCents(product);
       const response = await authFetch(`${API_BASE}/warranty-plans/calculate`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           planId: plan.id,
-          productPriceCents: productPrice
+          productPriceCents: priceCents
         })
       });
       const data = await response.json();
@@ -226,10 +242,12 @@ export const WarrantySelector = ({ products, onWarrantyAdded }) => {
       setSelectedProduct(null);
       setSelectedPlan(null);
       setWarrantyCost(0);
+      setWarrantyPlans([]);
     }
   };
 
   const formatCurrency = (cents) => `$${(cents / 100).toFixed(2)}`;
+  const formatDollars = (dollars) => `$${parseFloat(dollars || 0).toFixed(2)}`;
 
   return (
     <div style={styles.featureContainer}>
@@ -239,22 +257,30 @@ export const WarrantySelector = ({ products, onWarrantyAdded }) => {
         <label>Select Product to Protect:</label>
         <select
           onChange={(e) => {
-            const product = products.find(p => p.id === parseInt(e.target.value));
-            setSelectedProduct(product);
+            const pid = e.target.value;
+            if (!pid) { setSelectedProduct(null); return; }
+            const product = products.find(p => String(getProductId(p)) === pid);
+            setSelectedProduct(product || null);
           }}
           style={styles.select}
-          value={selectedProduct?.id || ''}
+          value={selectedProduct ? String(getProductId(selectedProduct)) : ''}
         >
           <option value="">Choose a product...</option>
-          {products.map(product => (
-            <option key={product.id} value={product.id}>
-              {product.description || product.sku} - {formatCurrency(product.price_cents || product.price * 100)}
+          {products.map((product, idx) => (
+            <option key={getProductId(product) || idx} value={String(getProductId(product))}>
+              {getProductLabel(product)} - {formatDollars(getProductPriceDollars(product))}
             </option>
           ))}
         </select>
       </div>
 
       {loading && <div>Loading warranty options...</div>}
+
+      {!loading && selectedProduct && warrantyPlans.length === 0 && (
+        <div style={{ padding: '12px', color: '#666', fontStyle: 'italic' }}>
+          No warranty plans available for this product category.
+        </div>
+      )}
 
       {warrantyPlans.length > 0 && (
         <div style={styles.planGrid}>
@@ -263,7 +289,8 @@ export const WarrantySelector = ({ products, onWarrantyAdded }) => {
               key={plan.id}
               style={{
                 ...styles.planCard,
-                ...(selectedPlan?.id === plan.id ? styles.selectedPlan : {})
+                ...(selectedPlan?.id === plan.id ? styles.selectedPlan : {}),
+                cursor: 'pointer'
               }}
               onClick={() => calculateWarranty(plan, selectedProduct)}
             >

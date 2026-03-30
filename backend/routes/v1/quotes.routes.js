@@ -49,6 +49,7 @@ const { buildQuoteSnapshot, SnapshotBuildError } = require('../../services/skuly
 // Module state - initialized via init()
 let pool = null;
 let quoteService = null;
+let serialNumberService = null;
 
 // ============================================================================
 // DRAFT PERSISTENCE (must be before /:id routes)
@@ -871,6 +872,29 @@ router.patch('/:id/status',
       params
     );
 
+    // Release reserved serials on cancellation/expiry/loss (non-blocking)
+    if (['CANCELLED', 'EXPIRED', 'LOST'].includes(newStatus) && serialNumberService) {
+      try {
+        const itemsResult = await pool.query(
+          "SELECT serial_number FROM quotation_items WHERE quotation_id = $1 AND serial_number IS NOT NULL AND serial_number != ''",
+          [quoteId]
+        );
+        const reasonMap = { CANCELLED: 'Quote cancelled', EXPIRED: 'Quote expired', LOST: 'Quote lost' };
+        for (const item of itemsResult.rows) {
+          try {
+            await serialNumberService.releaseReservation(item.serial_number, userId, reasonMap[newStatus]);
+          } catch (relErr) {
+            // Serial may already have been sold or released — log and continue
+            const logger = require('../../utils/logger');
+            logger.warn({ err: relErr, serial: item.serial_number, quoteId }, '[Quotes] Serial release failed (non-fatal)');
+          }
+        }
+      } catch (err) {
+        const logger = require('../../utils/logger');
+        logger.error({ err, quoteId }, '[Quotes] Serial release query failed (non-fatal)');
+      }
+    }
+
     // Log event
     await pool.query(`
       INSERT INTO quote_events (quotation_id, event_type, event_data, created_by)
@@ -1299,6 +1323,7 @@ async function checkApprovalRequired(client, items) {
 const init = (deps) => {
   pool = deps.pool || deps.db?.pool;
   quoteService = deps.quoteService;
+  serialNumberService = deps.serialNumberService || null;
   return router;
 };
 

@@ -449,6 +449,15 @@ const QuoteViewer = ({
     revenueFeatures.tradeIns?.length > 0
   );
 
+  // Debug: log revenue features state for troubleshooting
+  if (quote?.id) {
+    console.log('[QuoteViewer] quote.revenue_features:', quote.revenue_features ? 'SET' : 'NULL',
+      'hasRevenueFeatures:', hasRevenueFeatures,
+      'warranties:', revenueFeatures?.warranties?.length || 0,
+      'financing:', revenueFeatures?.financing ? 'SET' : 'NULL',
+      'delivery:', revenueFeatures?.delivery ? 'SET' : 'NULL');
+  }
+
   const hasPendingApproval = quoteApprovals.some(a => a.status === 'PENDING');
 
   // Check if quote needs approval before sending
@@ -744,6 +753,18 @@ const QuoteViewer = ({
                 <span>Status:</span>
                 <StatusBadge status={quote.status} createdAt={quote.created_at} size="small" />
                 <ExpiryBadge expiresAt={quote.expires_at} status={quote.status} size="small" />
+                {quote.lead_id && (
+                  <span
+                    onClick={(e) => { e.stopPropagation(); window.location.href = `/leads/${quote.lead_id}`; }}
+                    style={{
+                      display: 'inline-block', padding: '2px 10px', borderRadius: '9999px',
+                      fontSize: '11px', fontWeight: '600', background: '#C8614A', color: '#fff',
+                      cursor: 'pointer'
+                    }}
+                  >
+                    Linked Lead
+                  </span>
+                )}
               </div>
               {quote.created_by && (
                 <div style={{ marginBottom: '4px' }}>
@@ -936,6 +957,115 @@ const QuoteViewer = ({
                   </tr>
                 );
               })}
+
+              {/* Add-on line items from revenue features */}
+              {hasRevenueFeatures && (
+                <tr style={{ background: '#f0fdf4', borderBottom: '2px solid #e5e7eb' }}>
+                  <td colSpan="7" style={{ padding: '10px 8px', fontWeight: 'bold', fontSize: '12px', color: '#166534', letterSpacing: '0.5px' }}>
+                    ADD-ONS &amp; ADJUSTMENTS
+                  </td>
+                </tr>
+              )}
+
+              {revenueFeatures?.warranties?.map((w, wIdx) => {
+                const costDollars = (w.cost || 0) / 100;
+                const years = w.plan?.duration_years || 0;
+                const productLabel = [w.product?.manufacturer, w.product?.model].filter(Boolean).join(' ');
+                return (
+                  <tr key={`wrn-${wIdx}`} style={{ borderBottom: '1px solid #e5e7eb', background: '#f0fdf4' }}>
+                    <td style={{ padding: '12px 8px', textAlign: 'center', fontSize: '13px', color: '#166534' }}>WRN</td>
+                    <td style={{ padding: '12px 8px', textAlign: 'center', fontSize: '13px', color: '#166534' }}>—</td>
+                    <td style={{ padding: '12px 8px', textAlign: 'left', fontSize: '13px', color: '#166534' }}>
+                      <div style={{ fontWeight: '500' }}>
+                        {w.plan?.plan_name || 'Extended Warranty'}
+                        {years > 0 && (
+                          <span style={{ marginLeft: '8px', background: '#dcfce7', color: '#166534', padding: '2px 8px', borderRadius: '10px', fontSize: '11px', fontWeight: '700' }}>
+                            {years} {years === 1 ? 'YEAR' : 'YEARS'}
+                          </span>
+                        )}
+                      </div>
+                      <div style={{ fontSize: '12px', color: '#6b7280' }}>
+                        {productLabel ? `For: ${productLabel}` : ''}
+                        {w.plan?.provider ? ` · Provider: ${w.plan.provider}` : ''}
+                      </div>
+                    </td>
+                    <td style={{ padding: '12px 8px', textAlign: 'center', fontSize: '13px' }}>1</td>
+                    <td style={{ padding: '12px 8px', textAlign: 'right', fontSize: '13px', color: '#166534' }}>${costDollars.toFixed(2)}</td>
+                    <td style={{ padding: '12px 8px', textAlign: 'center', fontSize: '13px' }}>-</td>
+                    <td style={{ padding: '12px 8px', textAlign: 'right', fontSize: '13px', fontWeight: '600', color: '#166534' }}>+${costDollars.toFixed(2)}</td>
+                  </tr>
+                );
+              })}
+
+              {revenueFeatures?.delivery?.service && (() => {
+                const costDollars = (revenueFeatures.delivery.calculation?.totalCents || 0) / 100;
+                return (
+                  <tr style={{ borderBottom: '1px solid #e5e7eb', background: '#f0fdf4' }}>
+                    <td style={{ padding: '12px 8px', textAlign: 'center', fontSize: '13px', color: '#166534' }}>DLV</td>
+                    <td style={{ padding: '12px 8px', textAlign: 'center', fontSize: '13px', color: '#166534' }}>—</td>
+                    <td style={{ padding: '12px 8px', textAlign: 'left', fontSize: '13px', color: '#166534' }}>
+                      <div style={{ fontWeight: '500' }}>{revenueFeatures.delivery.service.service_name}</div>
+                      {revenueFeatures.delivery.details?.deliveryDate && (
+                        <div style={{ fontSize: '12px', color: '#6b7280' }}>Date: {revenueFeatures.delivery.details.deliveryDate}</div>
+                      )}
+                    </td>
+                    <td style={{ padding: '12px 8px', textAlign: 'center', fontSize: '13px' }}>1</td>
+                    <td style={{ padding: '12px 8px', textAlign: 'right', fontSize: '13px', color: '#166534' }}>${costDollars.toFixed(2)}</td>
+                    <td style={{ padding: '12px 8px', textAlign: 'center', fontSize: '13px' }}>-</td>
+                    <td style={{ padding: '12px 8px', textAlign: 'right', fontSize: '13px', fontWeight: '600', color: '#166534' }}>+${costDollars.toFixed(2)}</td>
+                  </tr>
+                );
+              })()}
+
+              {revenueFeatures?.tradeIns?.map((t, tIdx) => {
+                const creditDollars = (t.estimatedValueCents || 0) / 100;
+                return (
+                  <tr key={`ti-${tIdx}`} style={{ borderBottom: '1px solid #e5e7eb', background: '#eff6ff' }}>
+                    <td style={{ padding: '12px 8px', textAlign: 'center', fontSize: '13px', color: '#1e40af' }}>TRD</td>
+                    <td style={{ padding: '12px 8px', textAlign: 'center', fontSize: '13px', color: '#1e40af' }}>—</td>
+                    <td style={{ padding: '12px 8px', textAlign: 'left', fontSize: '13px', color: '#1e40af' }}>
+                      <div style={{ fontWeight: '500' }}>Trade-In: {t.brand || ''} {t.modelNumber || ''}</div>
+                      <div style={{ fontSize: '12px', color: '#6b7280' }}>{t.productCategory || ''} · {t.condition || ''} condition</div>
+                    </td>
+                    <td style={{ padding: '12px 8px', textAlign: 'center', fontSize: '13px' }}>1</td>
+                    <td style={{ padding: '12px 8px', textAlign: 'right', fontSize: '13px', color: '#2563eb' }}>-${creditDollars.toFixed(2)}</td>
+                    <td style={{ padding: '12px 8px', textAlign: 'center', fontSize: '13px' }}>-</td>
+                    <td style={{ padding: '12px 8px', textAlign: 'right', fontSize: '13px', fontWeight: '600', color: '#2563eb' }}>-${creditDollars.toFixed(2)}</td>
+                  </tr>
+                );
+              })}
+
+              {revenueFeatures?.rebates?.map((r, rIdx) => {
+                const creditDollars = (r.rebate_amount_cents || 0) / 100;
+                return (
+                  <tr key={`reb-${rIdx}`} style={{ borderBottom: '1px solid #e5e7eb', background: '#eff6ff' }}>
+                    <td style={{ padding: '12px 8px', textAlign: 'center', fontSize: '13px', color: '#1e40af' }}>REB</td>
+                    <td style={{ padding: '12px 8px', textAlign: 'center', fontSize: '13px', color: '#1e40af' }}>—</td>
+                    <td style={{ padding: '12px 8px', textAlign: 'left', fontSize: '13px', color: '#1e40af' }}>
+                      <div style={{ fontWeight: '500' }}>{r.rebate_name || 'Manufacturer Rebate'}</div>
+                      <div style={{ fontSize: '12px', color: '#6b7280' }}>{r.manufacturer || ''} · {r.rebate_type === 'instant' ? 'Instant' : 'Mail-In'}</div>
+                    </td>
+                    <td style={{ padding: '12px 8px', textAlign: 'center', fontSize: '13px' }}>1</td>
+                    <td style={{ padding: '12px 8px', textAlign: 'right', fontSize: '13px', color: '#2563eb' }}>-${creditDollars.toFixed(2)}</td>
+                    <td style={{ padding: '12px 8px', textAlign: 'center', fontSize: '13px' }}>-</td>
+                    <td style={{ padding: '12px 8px', textAlign: 'right', fontSize: '13px', fontWeight: '600', color: '#2563eb' }}>-${creditDollars.toFixed(2)}</td>
+                  </tr>
+                );
+              })}
+
+              {revenueFeatures?.financing?.plan && (
+                <tr style={{ borderBottom: '1px solid #e5e7eb', background: '#fefce8' }}>
+                  <td colSpan="5" style={{ padding: '12px 8px', fontSize: '13px', color: '#854d0e' }}>
+                    <span style={{ fontWeight: '500' }}>Financing: {revenueFeatures.financing.plan.plan_name}</span>
+                    <span style={{ color: '#6b7280', marginLeft: '8px' }}>
+                      {revenueFeatures.financing.plan.term_months}mo @ {revenueFeatures.financing.plan.apr_percent}% APR
+                    </span>
+                  </td>
+                  <td colSpan="2" style={{ padding: '12px 8px', textAlign: 'right', fontSize: '13px', fontWeight: '600', color: '#854d0e' }}>
+                    ${revenueFeatures.financing.calculation?.monthlyPaymentCents ? ((revenueFeatures.financing.calculation.monthlyPaymentCents / 100).toFixed(2) + '/mo') : ''}
+                  </td>
+                </tr>
+              )}
             </tbody>
           </table>
         </div>
@@ -958,8 +1088,38 @@ const QuoteViewer = ({
               <span style={{ fontWeight: 'bold' }}>-${((quote.promo_discount_cents || 0) / 100).toFixed(2)}</span>
             </div>
           )}
+          {revenueFeatures?.warranties?.length > 0 && (
+            <div style={{ marginBottom: '8px', color: '#166534' }}>
+              <span style={{ marginRight: '40px' }}>Warranties:</span>
+              <span style={{ fontWeight: 'bold' }}>+${(revenueFeatures.warranties.reduce((s, w) => s + ((w.cost || 0) / 100), 0)).toFixed(2)}</span>
+            </div>
+          )}
+          {revenueFeatures?.delivery?.calculation?.totalCents > 0 && (
+            <div style={{ marginBottom: '8px', color: '#166534' }}>
+              <span style={{ marginRight: '40px' }}>Delivery:</span>
+              <span style={{ fontWeight: 'bold' }}>+${((revenueFeatures.delivery.calculation.totalCents || 0) / 100).toFixed(2)}</span>
+            </div>
+          )}
+          {revenueFeatures?.tradeIns?.length > 0 && (
+            <div style={{ marginBottom: '8px', color: '#2563eb' }}>
+              <span style={{ marginRight: '40px' }}>Trade-In Credit:</span>
+              <span style={{ fontWeight: 'bold' }}>-${(revenueFeatures.tradeIns.reduce((s, t) => s + ((t.estimatedValueCents || 0) / 100), 0)).toFixed(2)}</span>
+            </div>
+          )}
+          {revenueFeatures?.rebates?.length > 0 && (
+            <div style={{ marginBottom: '8px', color: '#2563eb' }}>
+              <span style={{ marginRight: '40px' }}>Rebates:</span>
+              <span style={{ fontWeight: 'bold' }}>-${(revenueFeatures.rebates.reduce((s, r) => s + ((r.rebate_amount_cents || 0) / 100), 0)).toFixed(2)}</span>
+            </div>
+          )}
+          {(quote.ehf_cents || 0) > 0 && (
+            <div style={{ marginBottom: '8px', color: '#92400e' }}>
+              <span style={{ marginRight: '40px' }}>Env. Handling Fee (EHF):</span>
+              <span style={{ fontWeight: 'bold' }}>${((quote.ehf_cents || 0) / 100).toFixed(2)}</span>
+            </div>
+          )}
           <div style={{ marginBottom: '8px' }}>
-            <span style={{ marginRight: '40px' }}>HST (13%):</span>
+            <span style={{ marginRight: '40px' }}>HST (13%){(quote.ehf_cents || 0) > 0 ? ' (incl. EHF)' : ''}:</span>
             <span style={{ fontWeight: 'bold' }}>${((quote.tax_cents || 0) / 100).toFixed(2)}</span>
           </div>
           <div style={{ fontSize: '24px', marginTop: '16px', paddingTop: '16px', borderTop: '2px solid #e5e7eb' }}>
@@ -1013,11 +1173,26 @@ const QuoteViewer = ({
             {revenueFeatures.warranties?.length > 0 && (
               <div style={{ padding: '16px', background: '#f0fdf4', borderRadius: '8px', border: '1px solid #bbf7d0' }}>
                 <div style={{ fontWeight: 'bold', marginBottom: '8px', color: '#166534' }}>Extended Warranty</div>
-                {revenueFeatures.warranties.map((w, idx) => (
-                  <div key={idx} style={{ fontSize: '14px', color: '#6b7280', marginBottom: '4px' }}>
-                    {w.plan?.plan_name || 'Warranty'} - ${(w.cost / 100).toFixed(2)}
-                  </div>
-                ))}
+                {revenueFeatures.warranties.map((w, idx) => {
+                  const years = w.plan?.duration_years || 0;
+                  const productLabel = [w.product?.manufacturer, w.product?.model].filter(Boolean).join(' ');
+                  return (
+                    <div key={idx} style={{ fontSize: '14px', color: '#6b7280', marginBottom: '6px' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <span>{w.plan?.plan_name || 'Warranty'}</span>
+                        {years > 0 && (
+                          <span style={{ background: '#dcfce7', color: '#166534', padding: '1px 8px', borderRadius: '10px', fontSize: '11px', fontWeight: '700' }}>
+                            {years} {years === 1 ? 'YR' : 'YRS'}
+                          </span>
+                        )}
+                        <span style={{ fontWeight: '600', color: '#166534' }}>${((w.cost || 0) / 100).toFixed(2)}</span>
+                      </div>
+                      {productLabel && (
+                        <div style={{ fontSize: '12px', color: '#9ca3af', marginTop: '2px' }}>Covers: {productLabel}</div>
+                      )}
+                    </div>
+                  );
+                })}
               </div>
             )}
 
@@ -1026,6 +1201,13 @@ const QuoteViewer = ({
               <div style={{ padding: '16px', background: '#eff6ff', borderRadius: '8px', border: '1px solid #bfdbfe' }}>
                 <div style={{ fontWeight: 'bold', marginBottom: '8px', color: '#1e40af' }}>Financing Available</div>
                 <div style={{ fontSize: '14px', color: '#6b7280' }}>{revenueFeatures.financing.plan.plan_name}</div>
+                {revenueFeatures.financing.plan.term_months > 0 && (
+                  <div style={{ fontSize: '13px', color: '#6b7280', marginTop: '4px' }}>
+                    {revenueFeatures.financing.plan.term_months} months
+                    {revenueFeatures.financing.plan.apr_percent === 0 ? ' @ 0% APR' : ` @ ${revenueFeatures.financing.plan.apr_percent}% APR`}
+                    {revenueFeatures.financing.plan.provider ? ` · ${revenueFeatures.financing.plan.provider}` : ''}
+                  </div>
+                )}
                 {revenueFeatures.financing.calculation && (
                   <div style={{ fontSize: '20px', fontWeight: 'bold', color: '#1e40af', marginTop: '8px' }}>
                     ${(revenueFeatures.financing.calculation.monthlyPaymentCents / 100).toFixed(2)}/month
@@ -1352,6 +1534,32 @@ const QuoteViewer = ({
             <span style={{ fontSize: '14px', color: '#6b7280' }}>Current Status:</span>
             <StatusBadge status={quote.status} createdAt={quote.created_at} size="large" />
             <ExpiryBadge expiresAt={quote.expires_at} status={quote.status} size="large" />
+            {quote.lead_id && (
+              <span
+                onClick={() => {
+                  // Navigate to lead detail — open in leads route
+                  window.location.href = `/leads/${quote.lead_id}`;
+                }}
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  padding: '5px 14px',
+                  borderRadius: '9999px',
+                  fontSize: '13px',
+                  fontWeight: '600',
+                  background: '#C8614A',
+                  color: '#fff',
+                  cursor: 'pointer',
+                  transition: 'opacity 0.15s'
+                }}
+                title="Click to view linked lead"
+                onMouseEnter={(e) => e.currentTarget.style.opacity = '0.85'}
+                onMouseLeave={(e) => e.currentTarget.style.opacity = '1'}
+              >
+                Linked Lead{quote.lead_status ? `: ${quote.lead_status}` : ''}
+              </span>
+            )}
           </div>
 
           {/* Status Dates */}

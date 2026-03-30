@@ -224,6 +224,9 @@ export function CartProvider({ children }) {
   // Trade-ins state
   const [tradeIns, setTradeIns] = useState(() => initialCart?.tradeIns || []);
 
+  // Quote financing info (for display in checkout)
+  const [quoteFinancingInfo, setQuoteFinancingInfo] = useState(null);
+
   // Held carts
   const [heldCarts, setHeldCarts] = useState(() => loadHeldCarts());
 
@@ -297,7 +300,7 @@ export function CartProvider({ children }) {
     }
 
     // Skip if already priced for this customer with same item count
-    if (lastPricedCustomerRef.current === customerId && items.every((i) => i.customerPriceApplied || i.priceOverride)) {
+    if (lastPricedCustomerRef.current === customerId && items.every((i) => i.customerPriceApplied || i.priceOverride || i.isWarranty || (i.sku && i.sku.startsWith('WRN-')))) {
       return;
     }
 
@@ -318,9 +321,9 @@ export function CartProvider({ children }) {
         const token = localStorage.getItem('pos_token');
         const apiBase = import.meta.env.VITE_API_URL || '/api';
 
-        // Build items list — skip items with manual price overrides or from quotes
+        // Build items list — skip items with manual price overrides, from quotes, or warranties
         const itemsToPrice = items
-          .filter((i) => !i.priceOverride && !i.fromQuote)
+          .filter((i) => !i.priceOverride && !i.fromQuote && !i.isWarranty && !(i.sku && i.sku.startsWith('WRN-')))
           .map((i) => ({ productId: i.productId, quantity: i.quantity }));
 
         if (itemsToPrice.length === 0) {
@@ -354,8 +357,8 @@ export function CartProvider({ children }) {
 
         setItems((currentItems) =>
           currentItems.map((item) => {
-            // Don't touch manually overridden items or quote items
-            if (item.priceOverride || item.fromQuote) return item;
+            // Don't touch manually overridden items, quote items, or warranties
+            if (item.priceOverride || item.fromQuote || item.isWarranty || (item.sku && item.sku.startsWith('WRN-'))) return item;
 
             const pricing = priceMap[item.productId];
             if (!pricing) return item;
@@ -588,6 +591,7 @@ export function CartProvider({ children }) {
         barcode: product.barcode || product.upc || null,
         screen_size_inches: product.screen_size_inches || null,
         category: product.category || '',
+        ...(isWarrantyItem && { isWarranty: true, coversItemId: options.coversItemId }),
       };
 
       // Track as favorite
@@ -841,13 +845,23 @@ export function CartProvider({ children }) {
   /**
    * Load items from a quote
    */
-  const loadFromQuote = useCallback((quoteData) => {
+  const loadFromQuote = useCallback(async (quoteData) => {
+    // DEBUG: Log exactly what data we receive
+    console.log('[loadFromQuote] RECEIVED DATA KEYS:', Object.keys(quoteData));
+    console.log('[loadFromQuote] warranties:', quoteData.warranties?.length, 'financing:', !!quoteData.financing, 'delivery:', !!quoteData.delivery);
+    console.log('[loadFromQuote] items:', quoteData.items?.length);
+
     // Clear current cart first
     setItems([]);
     setDiscountState({ amount: 0, reason: '' });
+    setTradeIns([]);
+    setSelectedFulfillment(null);
+    setQuoteFinancingInfo(null);
+
+    const qId = quoteData.quoteId || quoteData.quote_id;
 
     // Set quote ID
-    setQuoteId(quoteData.quoteId || quoteData.quote_id);
+    setQuoteId(qId);
 
     // Set customer if available
     if (quoteData.customer || quoteData.customerId) {
@@ -897,6 +911,126 @@ export function CartProvider({ children }) {
         amount: parseFloat(quoteData.discountAmount || quoteData.discount_amount) || 0,
         reason: quoteData.discountReason || quoteData.discount_reason || 'Quote discount',
       });
+    }
+
+    // Load revenue features (add-ons) — always try inline data first, then separate fetch
+    console.log('[loadFromQuote] Checking inline add-ons: warranties=', quoteData.warranties, 'financing=', quoteData.financing, 'delivery=', quoteData.delivery);
+
+    let featureData = null;
+
+    // Option 1: Data included directly from for-sale endpoint
+    if (quoteData.warranties || quoteData.financing || quoteData.delivery) {
+      console.log('[loadFromQuote] Using INLINE add-on data');
+      featureData = quoteData;
+    }
+    // Option 2: Separate API call fallback
+    else if (qId) {
+      console.log('[loadFromQuote] INLINE add-ons not found, falling back to API call for quote', qId);
+      try {
+        const { getQuoteRevenueFeatures } = await import('../api/quotes');
+        const result = await getQuoteRevenueFeatures(qId);
+        if (result.success) featureData = result.data;
+      } catch (err) {
+        console.error('[Cart] Error fetching quote revenue features:', err);
+      }
+    }
+
+    console.log('[loadFromQuote] featureData:', featureData ? 'SET' : 'NULL');
+    if (featureData) {
+      const { financing, delivery, warranties, rebates, tradeIns: quoteTradeIns } = featureData;
+      console.log('[loadFromQuote] Destructured: financing=', !!financing, 'delivery=', !!delivery, 'warranties=', warranties?.length);
+
+      // Apply delivery as fulfillment
+      const deliveryCents = parseInt(delivery?.total_delivery_cost_cents || delivery?.delivery_cost_cents || 0);
+      if (delivery && deliveryCents > 0) {
+        console.log('[Cart] Setting delivery fulfillment:', deliveryCents, 'cents');
+        // Parse address components from delivery_address string
+        const addrStr = delivery.delivery_address || '';
+        const addrParts = addrStr.split(',').map(s => s.trim());
+        setSelectedFulfillment({
+          type: 'local_delivery',
+          fee: deliveryCents / 100,
+          address: {
+            street: addrParts[0] || addrStr,
+            streetNumber: '',
+            streetName: addrParts[0] || addrStr,
+            city: addrParts[1] || '',
+            province: addrParts[2] || 'ON',
+            postalCode: addrParts[3] || '',
+          },
+          date: delivery.delivery_date || null,
+          timeSlot: delivery.delivery_time_slot || '',
+          notes: delivery.special_instructions || delivery.notes || '',
+          // Required delivery fields — defaults for quote-sourced deliveries
+          dwellingType: 'house',
+          entryPoint: 'front_door',
+          pathwayConfirmed: true,
+          elevatorRequired: false,
+          fromQuote: true,
+        });
+      }
+
+      // Add warranty items as cart line items
+      if (warranties && warranties.length > 0) {
+        const warrantyItems = warranties.map((w) => ({
+          id: generateItemId(),
+          productId: w.product_id || null,
+          productName: w.product_name || w.warranty_type || 'Extended Warranty',
+          sku: `WRN-${w.id || 'QTE'}`,
+          unitPrice: (w.warranty_cost_cents || 0) / 100,
+          unitCost: 0,
+          quantity: 1,
+          discountPercent: 0,
+          taxable: true,
+          isWarranty: true,
+          fromQuote: true,
+          warrantyDetails: {
+            coverage: w.coverage_details,
+            years: w.warranty_years,
+            coveredProductModel: w.covered_product_model || '',
+            provider: w.provider || '',
+            linkedProductId: w.product_id,
+          },
+        }));
+        setItems((prev) => [...prev, ...warrantyItems]);
+      }
+
+      // Add trade-ins
+      if (quoteTradeIns && quoteTradeIns.length > 0) {
+        const tradeInItems = quoteTradeIns.map((t) => ({
+          id: t.id || `quote-ti-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+          itemType: t.item_type || t.product_description || '',
+          brand: t.brand || '',
+          model: t.model || t.modelNumber || '',
+          condition: t.condition || 'good',
+          valueCents: t.trade_in_value_cents || t.estimatedValueCents || 0,
+          value: (t.trade_in_value_cents || t.estimatedValueCents || 0) / 100,
+          description: t.product_description || t.notes || '',
+          fromQuote: true,
+        }));
+        setTradeIns(tradeInItems);
+      }
+
+      // Store financing info for display in checkout
+      if (financing && (financing.plan_name || financing.financing_type || financing.monthly_payment_cents)) {
+        console.log('[Cart] Setting financing info:', financing.plan_name, financing.term_months + 'mo');
+        setQuoteFinancingInfo({
+          planName: financing.plan_name || financing.financing_type || 'Financing',
+          provider: financing.provider || '',
+          termMonths: parseInt(financing.term_months) || 0,
+          aprPercent: parseFloat(financing.apr_percent || financing.interest_rate || 0),
+          monthlyPaymentCents: parseInt(financing.monthly_payment_cents) || 0,
+          fromQuote: true,
+        });
+      }
+
+      console.log('[Cart] Quote add-ons loaded:',
+        'warranties:', (warranties || []).length,
+        'financing:', financing ? 'SET' : 'none',
+        'delivery:', delivery ? '$' + ((delivery.total_delivery_cost_cents || 0) / 100) : 'none',
+        'tradeIns:', (quoteTradeIns || []).length,
+        'ehf_cents:', featureData.ehf_cents || 0
+      );
     }
   }, []);
 
@@ -984,6 +1118,7 @@ export function CartProvider({ children }) {
     setTradeIns([]);
     setSalespersonId(null);
     setCommissionSplit(null);
+    setQuoteFinancingInfo(null);
     setError(null);
   }, []);
 
@@ -1188,9 +1323,9 @@ export function CartProvider({ children }) {
       quoteId: quoteId || null,
       salespersonId: Number.isFinite(Number(salespersonId)) ? Number(salespersonId) : (user?.id || null),
       items: items.map((item) => ({
-        productId: item.productId,
-        productName: item.productName,
-        sku: item.sku,
+        productId: item.productId || null,
+        productName: item.productName || '',
+        sku: item.sku || '',
         quantity: item.quantity,
         unitPrice: item.unitPrice,
         unitCost: item.unitCost,
@@ -1304,6 +1439,10 @@ export function CartProvider({ children }) {
     removeTradeIn,
     clearTradeIns,
     hasTradeIns: tradeIns.length > 0,
+
+    // Quote financing info
+    quoteFinancingInfo,
+    setQuoteFinancingInfo,
 
     // Held transactions
     heldCarts,

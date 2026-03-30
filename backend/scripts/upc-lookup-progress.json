@@ -1826,6 +1826,1256 @@
     "GE:JGP5030SLSS": {
       "upc": "840110518060",
       "found": true
+    },
+    "GE:JVX5300SJSSC": {
+      "upc": "4883400804845",
+      "found": true
+    },
+    "GE:PNE25NYRKFS": {
+      "upc": "757638377195",
+      "found": true
+    },
+    "GE:PP9030DJBB": {
+      "upc": "4883400671614",
+      "found": true
+    },
+    "GE:PT7800SHSS": {
+      "upc": "784672211857",
+      "found": true
+    },
+    "GE:PTD60EBMRDG": {
+      "upc": "757638372602",
+      "found": true
+    },
+    "GE:PTD90EBMTRS": {
+      "upc": "757638372640",
+      "found": true
+    },
+    "GE:PTS9200SNSS": {
+      "upc": "4883401019460",
+      "found": true
+    },
+    "GE:UVC9300SLSS": {
+      "upc": "4883400949720",
+      "found": true
+    },
+    "GE:UVW9361SLSS": {
+      "upc": "4883400950900",
+      "found": true
+    },
+    "GE:UXCHSS": {
+      "upc": "084691839057",
+      "found": true
+    },
+    "GE:UXDC733MDS": {
+      "upc": "084691849810",
+      "found": true
+    },
+    "GE CAFÃ:C2Y366P3TD1": {
+      "upc": "4883401012560",
+      "found": true
+    },
+    "GE CAFÃ:CC2S900P2MS1": {
+      "upc": "4883400933422",
+      "found": true
+    },
+    "GE CAFÃ:CCES750P4MW2": {
+      "upc": "4883400920651",
+      "found": true
+    },
+    "GE CAFÃ:CCGS750P4MW2": {
+      "upc": "4883400920613",
+      "found": true
+    },
+    "GE CAFÃ:CCHS950P3MD1": {
+      "upc": "067732154890",
+      "found": true
+    },
+    "GE CAFÃ:CDE06RP2NS1": {
+      "upc": "4883400950863",
+      "found": true
+    },
+    "GE CAFÃ:CGP95303MS2": {
+      "upc": "810134801400",
+      "found": true
+    },
+    "GE CAFÃ:CGY366P2TS1": {
+      "upc": "4883401013512",
+      "found": true
+    },
+    "GE CAFÃ:CGY366P4TW2": {
+      "upc": "4883401012591",
+      "found": true
+    },
+    "GE CAFÃ:CHP90362TSS": {
+      "upc": "084691897682",
+      "found": true
+    },
+    "GE CAFÃ:CSB923P3ND1": {
+      "upc": "4883400949751",
+      "found": true
+    },
+    "GE CAFÃ:CTC912P2NS1": {
+      "upc": "4883400971301",
+      "found": true
+    },
+    "GE CAFÃ:CTS90DP3ND1": {
+      "upc": "4883401013543",
+      "found": true
+    },
+    "GE CAFÃ:CVW93643PDS": {
+      "upc": "4883401021166",
+      "found": true
+    },
+    "GE CAFÃ:CVW93644PWM": {
+      "upc": "846918518066",
+      "found": true
+    },
+    "GE CAFÃ:CXFCGHKPMBZ": {
+      "upc": "4883400920934",
+      "found": true
+    },
+    "GE CAFÃ:CYE22TP2MS1": {
+      "upc": "4883400930759",
+      "found": true
+    },
+    "GE CAFÃ:CYE22TP4MW2": {
+      "upc": "4883400920750",
+      "found": true
+    },
+    "GE CAFÃ:HK36HERFDX": {
+      "upc": "8059304885846",
+      "found": true
+    },
+    "GE CAFE:CCHS950P4MW2": {
+      "upc": "4883400920590",
+      "found": true
+    },
+    "GE CAFE:CWE23SP4MW2": {
+      "upc": "4883400920736",
+      "found": true
+    },
+    "GE PROFILE:PCS980YMFS": {
+      "upc": "4883400996304",
+      "found": true
+    },
+    "HAIER:QDT125SSLSS": {
+      "upc": "4883400889286",
+      "found": true
+    },
+    "HISENSE:32A4NF": {
+      "upc": "888143023120",
+      "found": true
+    },
+    "HISENSE:32A4NV": {
+      "upc": "888143022284",
+      "found": true
+    },
+    "HISENSE:40A4NF": {
+      "upc": "888143023113",
+      "found": true
+    },
+    "HISENSE:RB17N6DWE": {
+      "upc": "618455606939",
+      "found": true
+    },
+    "HISENSE:RF225C3CSEI": {
+      "upc": "810088362606",
+      "found": true
+    },
+    "HISENSE:RF27A3FSE": {
+      "upc": "810088361432",
+      "found": true
+    },
+    "JENNAIR:JAC3030HS": {
+      "upc": "883049467740",
+      "found": true
+    },
+    "JENNAIR:JBBFX24NHX": {
+      "upc": "883049465838",
+      "found": true
+    },
+    "JENNAIR:JBC7624BS": {
+      "upc": "883049289441",
+      "found": true
+    },
+    "JENNAIR:JBFFS42NHM": {
+      "upc": "883049472577",
+      "found": true
+    },
+    "JENNAIR:JBRFL30IGX": {
+      "upc": "883049438306",
+      "found": true
+    },
+    "JENNAIR:JBRFR24IGX": {
+      "upc": "883049438290",
+      "found": true
+    },
+    "JENNAIR:JBRFR30IGX": {
+      "upc": "883049438313",
+      "found": true
+    },
+    "JENNAIR:JBRFR36IGX": {
+      "upc": "883049438337",
+      "found": true
+    },
+    "JENNAIR:JBSFS42NHL": {
+      "upc": "883049472584",
+      "found": true
+    },
+    "JENNAIR:JBSFS42NHM": {
+      "upc": "883049475332",
+      "found": true
+    },
+    "JENNAIR:JBSFS48NHM": {
+      "upc": "883049475363",
+      "found": true
+    },
+    "JENNAIR:JBZFL18IGX": {
+      "upc": "883049438221",
+      "found": true
+    },
+    "JENNAIR:JBZFL24IGX": {
+      "upc": "883049438245",
+      "found": true
+    },
+    "JENNAIR:JBZFR18IGX": {
+      "upc": "883049438238",
+      "found": true
+    },
+    "JENNAIR:JBZFR24IGX": {
+      "upc": "883049438252",
+      "found": true
+    },
+    "JENNAIR:JDAF3924RX": {
+      "upc": "883049663050",
+      "found": true
+    },
+    "JENNAIR:JDPSS244LM": {
+      "upc": "883049544908",
+      "found": true
+    },
+    "JENNAIR:JDPSS246LL": {
+      "upc": "883049544267",
+      "found": true
+    },
+    "JENNAIR:JDPSS246LM": {
+      "upc": "883049544274",
+      "found": true
+    },
+    "JENNAIR:JDRP430HL": {
+      "upc": "883049468501",
+      "found": true
+    },
+    "JENNAIR:JDRP536HL": {
+      "upc": "883049468532",
+      "found": true
+    },
+    "JENNAIR:JDRP536HM": {
+      "upc": "883049468570",
+      "found": true
+    },
+    "JENNAIR:JDRP548HL": {
+      "upc": "883049468594",
+      "found": true
+    },
+    "JENNAIR:JDRP548HM": {
+      "upc": "883049468648",
+      "found": true
+    },
+    "JENNAIR:JDRP636HL": {
+      "upc": "883049468549",
+      "found": true
+    },
+    "JENNAIR:JDS1750FP": {
+      "upc": "883049451527",
+      "found": true
+    },
+    "JENNAIR:JDS1750ML": {
+      "upc": "883049643694",
+      "found": true
+    },
+    "JENNAIR:JDSP536HL": {
+      "upc": "883049468556",
+      "found": true
+    },
+    "JENNAIR:JDTSS244GL": {
+      "upc": "883049486307",
+      "found": true
+    },
+    "JENNAIR:JDTSS246GM": {
+      "upc": "883049486291",
+      "found": true
+    },
+    "JENNAIR:JDTSS246GS": {
+      "upc": "883049439822",
+      "found": true
+    },
+    "JENNAIR:JED3536GS": {
+      "upc": "883049412771",
+      "found": true
+    },
+    "JENNAIR:JEF3115GS": {
+      "upc": "883049444024",
+      "found": true
+    },
+    "JENNAIR:JES1750FS": {
+      "upc": "883049451428",
+      "found": true
+    },
+    "JENNAIR:JES1750ML": {
+      "upc": "883049643670",
+      "found": true
+    },
+    "JENNAIR:JGC3115GS": {
+      "upc": "883049444062",
+      "found": true
+    },
+    "JENNAIR:JGCP430HL": {
+      "upc": "883049469164",
+      "found": true
+    },
+    "JENNAIR:JGCP430HM": {
+      "upc": "883049469171",
+      "found": true
+    },
+    "JENNAIR:JGCP536HL": {
+      "upc": "883049469805",
+      "found": true
+    },
+    "JENNAIR:JGCP636HL": {
+      "upc": "883049469829",
+      "found": true
+    },
+    "JENNAIR:JGCP648HM": {
+      "upc": "883049469874",
+      "found": true
+    },
+    "JENNAIR:JGCP748HM": {
+      "upc": "883049469898",
+      "found": true
+    },
+    "JENNAIR:JGD3536GS": {
+      "upc": "883049414416",
+      "found": true
+    },
+    "JENNAIR:JGRP536HM": {
+      "upc": "883049468426",
+      "found": true
+    },
+    "JENNAIR:JGRP636HL": {
+      "upc": "770884092995",
+      "found": true
+    },
+    "JENNAIR:JGRP748HM": {
+      "upc": "883049468495",
+      "found": true
+    },
+    "JENNAIR:JIC4715GS": {
+      "upc": "883049444017",
+      "found": true
+    },
+    "JENNAIR:JIC4730HB": {
+      "upc": "883049516691",
+      "found": true
+    },
+    "JENNAIR:JIC4730HS": {
+      "upc": "883049516707",
+      "found": true
+    },
+    "JENNAIR:JIS1450DS": {
+      "upc": "883049329727",
+      "found": true
+    },
+    "JENNAIR:JJB6424HL": {
+      "upc": "883049483016",
+      "found": true
+    },
+    "JENNAIR:JJB6424HM": {
+      "upc": "883049483009",
+      "found": true
+    },
+    "JENNAIR:JJD3024HL": {
+      "upc": "883049496719",
+      "found": true
+    },
+    "JENNAIR:JJD3030IL": {
+      "upc": "883049516264",
+      "found": true
+    },
+    "JENNAIR:JJW2427IL": {
+      "upc": "883049516110",
+      "found": true
+    },
+    "JENNAIR:JJW2830IM": {
+      "upc": "883049516097",
+      "found": true
+    },
+    "JENNAIR:JJW3830LL": {
+      "upc": "883049610221",
+      "found": true
+    },
+    "JENNAIR:JJW6024HM": {
+      "upc": "883049482378",
+      "found": true
+    },
+    "JENNAIR:JKCPL181GL": {
+      "upc": "883049514338",
+      "found": true
+    },
+    "JENNAIR:JKCPL241GL": {
+      "upc": "883049514352",
+      "found": true
+    },
+    "JENNAIR:JKCPL301GL": {
+      "upc": "883049514376",
+      "found": true
+    },
+    "JENNAIR:JKCPR241GL": {
+      "upc": "883049514369",
+      "found": true
+    },
+    "JENNAIR:JKCPR301GL": {
+      "upc": "883049514383",
+      "found": true
+    },
+    "JENNAIR:JMC2427LL": {
+      "upc": "883049610290",
+      "found": true
+    },
+    "JENNAIR:JMC2427LM": {
+      "upc": "883049610344",
+      "found": true
+    },
+    "JENNAIR:JPK42FNXWSS": {
+      "upc": "883049172033",
+      "found": true
+    },
+    "JENNAIR:JUBFL242HX": {
+      "upc": "883049485669",
+      "found": true
+    },
+    "JENNAIR:JUBFR242HL": {
+      "upc": "883049485676",
+      "found": true
+    },
+    "JENNAIR:JUBFR242HM": {
+      "upc": "883049485867",
+      "found": true
+    },
+    "JENNAIR:JUBFR242HX": {
+      "upc": "883049485683",
+      "found": true
+    },
+    "JENNAIR:JUCFP242HL": {
+      "upc": "883049485690",
+      "found": true
+    },
+    "JENNAIR:JUDFP242HL": {
+      "upc": "883049485713",
+      "found": true
+    },
+    "JENNAIR:JUG24FLERS": {
+      "upc": "883049366524",
+      "found": true
+    },
+    "JENNAIR:JUGFL242HL": {
+      "upc": "883049485737",
+      "found": true
+    },
+    "JENNAIR:JUGFL242HM": {
+      "upc": "883049485898",
+      "found": true
+    },
+    "JENNAIR:JUGFL242HX": {
+      "upc": "883049485744",
+      "found": true
+    },
+    "JENNAIR:JUR24FRERS": {
+      "upc": "883049350516",
+      "found": true
+    },
+    "JENNAIR:JUWFR242HL": {
+      "upc": "883049485836",
+      "found": true
+    },
+    "JENNAIR:JVD0303GS": {
+      "upc": "883049460772",
+      "found": true
+    },
+    "JENNAIR:JVR0430HS": {
+      "upc": "883049474205",
+      "found": true
+    },
+    "JENNAIR:JVR0436HS": {
+      "upc": "883049474212",
+      "found": true
+    },
+    "JENNAIR:JWD2030WS": {
+      "upc": "883049186139",
+      "found": true
+    },
+    "JENNAIR:JWD3030EP": {
+      "upc": "883049370507",
+      "found": true
+    },
+    "JENNAIR:JWD3030ES": {
+      "upc": "883049370408",
+      "found": true
+    },
+    "JENNAIR:JWD3030EX": {
+      "upc": "883049370514",
+      "found": true
+    },
+    "JENNAIR:JXD7030YS": {
+      "upc": "883049222424",
+      "found": true
+    },
+    "JENNAIR:JXD7036YS": {
+      "upc": "883049222431",
+      "found": true
+    },
+    "JENNAIR:JXL6536CSS": {
+      "upc": "883049325668",
+      "found": true
+    },
+    "JENNAIR:JXU9136HP": {
+      "upc": "883049494951",
+      "found": true
+    },
+    "JENNAIR:JXW8736DS": {
+      "upc": "883049336527",
+      "found": true
+    },
+    "JENNAIR:JXW9036HP": {
+      "upc": "883049494968",
+      "found": true
+    },
+    "JENNAIR:JXW9036WP": {
+      "upc": "883049179483",
+      "found": true
+    },
+    "JENNAIR:TC607X": {
+      "upc": "883049069036",
+      "found": true
+    },
+    "JENNAIR:W10285448": {
+      "upc": "883049198965",
+      "found": true
+    },
+    "JENNAIR:W10663564": {
+      "upc": "883049349152",
+      "found": true
+    },
+    "JENNAIR:W10675028": {
+      "upc": "883049354002",
+      "found": true
+    },
+    "JENNAIR:W10791229": {
+      "upc": "883049390536",
+      "found": true
+    },
+    "JENNAIR:W10801486": {
+      "upc": "883049391113",
+      "found": true
+    },
+    "JENNAIR:W10837579": {
+      "upc": "883049404431",
+      "found": true
+    },
+    "JENNAIR:W11194769": {
+      "upc": "883049521602",
+      "found": true
+    },
+    "JENNAIR:W11194770": {
+      "upc": "883049521596",
+      "found": true
+    },
+    "JENNAIR:W11231236": {
+      "upc": "883049527505",
+      "found": true
+    },
+    "JENNAIR:W11367367": {
+      "upc": "883049544854",
+      "found": true
+    },
+    "JVC:DLA-NX5BK": {
+      "upc": "7441913071016",
+      "found": true
+    },
+    "JVC:KS-GA100": {
+      "upc": "724086513642",
+      "found": true
+    },
+    "JVC:LX-FH50": {
+      "upc": "196455424628",
+      "found": true
+    },
+    "KLIPSCH:CA-650-T": {
+      "upc": "743878016031",
+      "found": true
+    },
+    "KLIPSCH:CS-18C": {
+      "upc": "754436638312",
+      "found": true
+    },
+    "KLIPSCH:R5502WII": {
+      "upc": "682895244952",
+      "found": true
+    },
+    "KLIPSCH:REFERENCE": {
+      "upc": "616528900687",
+      "found": true
+    },
+    "KLIPSCH:RP140SA": {
+      "upc": "743878029024",
+      "found": true
+    },
+    "KLIPSCH:RP-160M": {
+      "upc": "682962770810",
+      "found": true
+    },
+    "KLIPSCH:RP-500SA": {
+      "upc": "743878036527",
+      "found": true
+    },
+    "KOBE:IN2630SQB-700-2": {
+      "upc": "616483240224",
+      "found": true
+    },
+    "MAXAIR:MXR-R08-30": {
+      "upc": "628077501314",
+      "found": true
+    },
+    "MAXAIR:MXR-R19-42": {
+      "upc": "628077501437",
+      "found": true
+    },
+    "MAXAIR:MXR-Z01": {
+      "upc": "628077501833",
+      "found": true
+    },
+    "MAYTAG:MEC8830HB": {
+      "upc": "883049472737",
+      "found": true
+    },
+    "MAYTAG:MFT2772HEZ": {
+      "upc": "883049473499",
+      "found": true
+    },
+    "MAYTAG:MGD5630MBK": {
+      "upc": "883049626543",
+      "found": true
+    },
+    "MAYTAG:MGS8800FZ": {
+      "upc": "883049413808",
+      "found": true
+    },
+    "MAYTAG:YMED5630HW": {
+      "upc": "4883400908550",
+      "found": true
+    },
+    "MAYTAG:YMED5630MBK": {
+      "upc": "4883401121057",
+      "found": true
+    },
+    "MAYTAG:YMED6230HC": {
+      "upc": "883049464022",
+      "found": true
+    },
+    "MAYTAG:YMED6500MBK": {
+      "upc": "4883401121071",
+      "found": true
+    },
+    "MAYTAG:YMED8630HC": {
+      "upc": "600090850655",
+      "found": true
+    },
+    "MAYTAG:YMES8800FZ": {
+      "upc": "600088688239",
+      "found": true
+    },
+    "NAPOLEON:55028": {
+      "upc": "612314550289",
+      "found": true
+    },
+    "NAPOLEON:55202": {
+      "upc": "750140552029",
+      "found": true
+    },
+    "NAPOLEON:55204": {
+      "upc": "614901281217",
+      "found": true
+    },
+    "NAPOLEON:55208": {
+      "upc": "614901217766",
+      "found": true
+    },
+    "NAPOLEON:55209": {
+      "upc": "614901217773",
+      "found": true
+    },
+    "NAPOLEON:56008": {
+      "upc": "612314560080",
+      "found": true
+    },
+    "NAPOLEON:56027": {
+      "upc": "612314560271",
+      "found": true
+    },
+    "NAPOLEON:56028": {
+      "upc": "612314560288",
+      "found": true
+    },
+    "NAPOLEON:56029": {
+      "upc": "612314560295",
+      "found": true
+    },
+    "NAPOLEON:61286": {
+      "upc": "614046779549",
+      "found": true
+    },
+    "NAPOLEON:61287": {
+      "upc": "690730612873",
+      "found": true
+    },
+    "NAPOLEON:61288": {
+      "upc": "720609612885",
+      "found": true
+    },
+    "NAPOLEON:61425": {
+      "upc": "614046894471",
+      "found": true
+    },
+    "NAPOLEON:61427": {
+      "upc": "805890247340",
+      "found": true
+    },
+    "NAPOLEON:61485": {
+      "upc": "614046898530",
+      "found": true
+    },
+    "NAPOLEON:61500": {
+      "upc": "840998112381",
+      "found": true
+    },
+    "NAPOLEON:61527": {
+      "upc": "805890123637",
+      "found": true
+    },
+    "NAPOLEON:61627": {
+      "upc": "755547022298",
+      "found": true
+    },
+    "NAPOLEON:61665": {
+      "upc": "884904616655",
+      "found": true
+    },
+    "NAPOLEON:61915": {
+      "upc": "7316577095060",
+      "found": true
+    },
+    "NAPOLEON:62002": {
+      "upc": "759609047632",
+      "found": true
+    },
+    "NAPOLEON:62007": {
+      "upc": "655974227764",
+      "found": true
+    },
+    "NAPOLEON:62012": {
+      "upc": "743161477471",
+      "found": true
+    },
+    "NAPOLEON:62014": {
+      "upc": "805890085911",
+      "found": true
+    },
+    "NAPOLEON:62031": {
+      "upc": "641594089950",
+      "found": true
+    },
+    "NAPOLEON:62052": {
+      "upc": "641594821444",
+      "found": true
+    },
+    "NAPOLEON:62053": {
+      "upc": "641594703993",
+      "found": true
+    },
+    "NAPOLEON:62054": {
+      "upc": "805890007906",
+      "found": true
+    },
+    "NAPOLEON:62055": {
+      "upc": "641594273311",
+      "found": true
+    },
+    "NAPOLEON:62056": {
+      "upc": "805890016441",
+      "found": true
+    },
+    "NAPOLEON:62121": {
+      "upc": "637335007239",
+      "found": true
+    },
+    "NAPOLEON:62141": {
+      "upc": "805890100584",
+      "found": true
+    },
+    "NAPOLEON:64000": {
+      "upc": "686226640000",
+      "found": true
+    },
+    "NAPOLEON:67013": {
+      "upc": "705696670130",
+      "found": true
+    },
+    "NAPOLEON:67037": {
+      "upc": "805890036401",
+      "found": true
+    },
+    "NAPOLEON:67732": {
+      "upc": "629162677327",
+      "found": true
+    },
+    "NAPOLEON:68001": {
+      "upc": "750140680012",
+      "found": true
+    },
+    "NAPOLEON:68161": {
+      "upc": "698815681615",
+      "found": true
+    },
+    "NAPOLEON:68287": {
+      "upc": "833353682872",
+      "found": true
+    },
+    "NAPOLEON:68605": {
+      "upc": "740078801801",
+      "found": true
+    },
+    "NAPOLEON:69231": {
+      "upc": "614901691504",
+      "found": true
+    },
+    "NAPOLEON:69331": {
+      "upc": "617456590568",
+      "found": true
+    },
+    "NAPOLEON:69811": {
+      "upc": "675650021523",
+      "found": true
+    },
+    "NAPOLEON:70000": {
+      "upc": "830335009108",
+      "found": true
+    },
+    "NAPOLEON:70004": {
+      "upc": "673419189569",
+      "found": true
+    },
+    "NAPOLEON:70005": {
+      "upc": "811256027600",
+      "found": true
+    },
+    "NAPOLEON:70008": {
+      "upc": "792977913550",
+      "found": true
+    },
+    "NAPOLEON:70012": {
+      "upc": "646786700125",
+      "found": true
+    },
+    "NAPOLEON:70014": {
+      "upc": "830335011118",
+      "found": true
+    },
+    "NAPOLEON:70019": {
+      "upc": "792977851562",
+      "found": true
+    },
+    "NAPOLEON:70021": {
+      "upc": "830335014027",
+      "found": true
+    },
+    "NAPOLEON:70023": {
+      "upc": "830335009375",
+      "found": true
+    },
+    "NAPOLEON:70031": {
+      "upc": "802959460627",
+      "found": true
+    },
+    "NAPOLEON:70037": {
+      "upc": "787765014960",
+      "found": true
+    },
+    "NAPOLEON:70041": {
+      "upc": "614046388772",
+      "found": true
+    },
+    "NAPOLEON:70042": {
+      "upc": "802959460658",
+      "found": true
+    },
+    "NAPOLEON:70046": {
+      "upc": "830335011262",
+      "found": true
+    },
+    "NAPOLEON:70060": {
+      "upc": "707742042182",
+      "found": true
+    },
+    "NAPOLEON:70077": {
+      "upc": "633944003167",
+      "found": true
+    },
+    "NAPOLEON:BAC423": {
+      "upc": "634868923319",
+      "found": true
+    },
+    "NAPOLEON:BI-3024-2D": {
+      "upc": "629162131522",
+      "found": true
+    },
+    "NAPOLEON:BIB10IRNSS": {
+      "upc": "629162137616",
+      "found": true
+    },
+    "NAPOLEON:BIB18PBNSS": {
+      "upc": "629162138293",
+      "found": true
+    },
+    "NAPOLEON:BIB18RTNSS": {
+      "upc": "629162137630",
+      "found": true
+    },
+    "NAPOLEON:BIG38RBNSS": {
+      "upc": "629162138095",
+      "found": true
+    },
+    "NAPOLEON:BIG44RBNSS": {
+      "upc": "629162138118",
+      "found": true
+    },
+    "NAPOLEON:F365DNGT": {
+      "upc": "629162140500",
+      "found": true
+    },
+    "NAPOLEON:F365DPGT": {
+      "upc": "629162140494",
+      "found": true
+    },
+    "NAPOLEON:F425DNGT": {
+      "upc": "629162140524",
+      "found": true
+    },
+    "NAPOLEON:F425DPGT": {
+      "upc": "629162140517",
+      "found": true
+    },
+    "NAPOLEON:GPFGN-2": {
+      "upc": "629162121851",
+      "found": true
+    },
+    "NAPOLEON:GPFL48MHP": {
+      "upc": "629162114167",
+      "found": true
+    },
+    "NAPOLEON:GPFSE-WNDSCRN": {
+      "upc": "629162121912",
+      "found": true
+    },
+    "NAPOLEON:GPFTR-WNDSCRN": {
+      "upc": "629162121783",
+      "found": true
+    },
+    "NAPOLEON:IM3DCCN": {
+      "upc": "629162125651",
+      "found": true
+    },
+    "NAPOLEON:IMCEPCN": {
+      "upc": "629162125675",
+      "found": true
+    },
+    "NAPOLEON:IMFMPCN": {
+      "upc": "629162125699",
+      "found": true
+    },
+    "NAPOLEON:IM-UGC665-CN": {
+      "upc": "629162125750",
+      "found": true
+    },
+    "NAPOLEON:IMWDCCN": {
+      "upc": "629162125804",
+      "found": true
+    },
+    "NAPOLEON:NEFB27HG-3A": {
+      "upc": "629169059522",
+      "found": true
+    },
+    "NAPOLEON:NEFL74CHS-1": {
+      "upc": "629169080014",
+      "found": true
+    },
+    "NAPOLEON:NK22K-LEG-3": {
+      "upc": "629162146991",
+      "found": true
+    },
+    "NAPOLEON:P500RSIBPK-3": {
+      "upc": "629162131324",
+      "found": true
+    },
+    "NAPOLEON:PRO285N-BK": {
+      "upc": "629162119971",
+      "found": true
+    },
+    "NAPOLEON:PRO500RSIBPSS-3": {
+      "upc": "629162132123",
+      "found": true
+    },
+    "NAPOLEON:R425PK": {
+      "upc": "629162122018",
+      "found": true
+    },
+    "NAPOLEON:RSE625RSIBPSS-1": {
+      "upc": "629162134639",
+      "found": true
+    },
+    "NAPOLEON:RXT425PSS-1": {
+      "upc": "629162134752",
+      "found": true
+    },
+    "NAPOLEON:RXT525SIBNK-1": {
+      "upc": "629162134806",
+      "found": true
+    },
+    "NAPOLEON:RXT525SIBPK-1": {
+      "upc": "629162134790",
+      "found": true
+    },
+    "NAPOLEON:RXT525SIBPSS-1": {
+      "upc": "629162134813",
+      "found": true
+    },
+    "NAPOLEON:RXT625SIBNK-1": {
+      "upc": "629162134608",
+      "found": true
+    },
+    "NAPOLEON:RXT625SIBPK-1": {
+      "upc": "629162134592",
+      "found": true
+    },
+    "NAPOLEON:S83012": {
+      "upc": "666431414689",
+      "found": true
+    },
+    "NAPOLEON:STTR1-BZ": {
+      "upc": "629162130570",
+      "found": true
+    },
+    "NAPOLEON:TQ285-RD-1-A": {
+      "upc": "629162133922",
+      "found": true
+    },
+    "NAPOLEON:TQ285X-RD-1-A": {
+      "upc": "629162133939",
+      "found": true
+    },
+    "ONKYO:A-9150": {
+      "upc": "889951000990",
+      "found": true
+    },
+    "PANASONIC:NCEG3000": {
+      "upc": "818242126514",
+      "found": true
+    },
+    "PANASONIC:NNCS896S": {
+      "upc": "885170268012",
+      "found": true
+    },
+    "PANASONIC:NNSD66LS": {
+      "upc": "660357685413",
+      "found": true
+    },
+    "PANASONIC:NNSG158S": {
+      "upc": "885170355705",
+      "found": true
+    },
+    "PANASONIC:NNSG656S": {
+      "upc": "885170267817",
+      "found": true
+    },
+    "PANASONIC:NNST681SC": {
+      "upc": "885170290792",
+      "found": true
+    },
+    "SANUS:SFA29B": {
+      "upc": "793795420053",
+      "found": true
+    },
+    "SEALY:52613651": {
+      "upc": "000052613651",
+      "found": true
+    },
+    "SEALY:9662": {
+      "upc": "784689351133",
+      "found": true
+    },
+    "SILHOUETTE:SBC051D1BSS": {
+      "upc": "067638023078",
+      "found": true
+    },
+    "SILHOUETTE:SSWC056D1B-S": {
+      "upc": "067638013857",
+      "found": true
+    },
+    "SLEEPKING:QUEEN VELVET ROSE": {
+      "upc": "768649370549",
+      "found": true
+    },
+    "SOLUTIONS 2GO:DUALSENSE CHARGING STATION": {
+      "upc": "711719541950",
+      "found": true
+    },
+    "SOLUTIONS 2GO:DUALSENSE CONTROLLER RED": {
+      "upc": "711719546948",
+      "found": true
+    },
+    "SOLUTIONS 2GO:HD CAMERA WH": {
+      "upc": "859109023676",
+      "found": true
+    },
+    "SOLUTIONS 2GO:MEDIA REMOTE": {
+      "upc": "862704000201",
+      "found": true
+    },
+    "SOLUTIONS 2GO:NINTENDO SWITCH 2 CAMERA": {
+      "upc": "198957108983",
+      "found": true
+    },
+    "SOLUTIONS 2GO:XBOX CONTROLLER RED": {
+      "upc": "885370378061",
+      "found": true
+    },
+    "SOLUTIONS 2GO:XBOX HEADPHONES BL": {
+      "upc": "196188047415",
+      "found": true
+    },
+    "SONOS:ARCWMWW1BLK": {
+      "upc": "878269009122",
+      "found": true
+    },
+    "SONOS:BOOSTUS1": {
+      "upc": "878269000853",
+      "found": true
+    },
+    "SONOS:INCLGWW1": {
+      "upc": "878269007647",
+      "found": true
+    },
+    "SONOS:PBRWMWW1": {
+      "upc": "180501002892",
+      "found": true
+    },
+    "SONY:CFI-ZCT1W": {
+      "upc": "651357882384",
+      "found": true
+    },
+    "SONY:HTZ9F": {
+      "upc": "194026443016",
+      "found": true
+    },
+    "SONY:K65S20M2": {
+      "upc": "027242932760",
+      "found": true
+    },
+    "SONY:KD43X77L": {
+      "upc": "586971928654",
+      "found": true
+    },
+    "SONY:KD75X77L": {
+      "upc": "658917746391",
+      "found": true
+    },
+    "SONY:SA-SW3": {
+      "upc": "196641063457",
+      "found": true
+    },
+    "SONY:UBPX700": {
+      "upc": "667379325709",
+      "found": true
+    },
+    "SONY:VG-STSM11B": {
+      "upc": "887276221564",
+      "found": true
+    },
+    "SONY:WH1000XM5/S": {
+      "upc": "887401059604",
+      "found": true
+    },
+    "SONY:WHRF400": {
+      "upc": "696551792251",
+      "found": true
+    },
+    "TCL:S4310": {
+      "upc": "721762159224",
+      "found": true
+    },
+    "THOR:ARH36T": {
+      "upc": "850044461295",
+      "found": true
+    },
+    "THOR:HDW2401SS": {
+      "upc": "850018999335",
+      "found": true
+    },
+    "THOR:HRT4806U": {
+      "upc": "6926697000311",
+      "found": true
+    },
+    "THOR:TRF3601FD": {
+      "upc": "850018999892",
+      "found": true
+    },
+    "THOR:TRG3601": {
+      "upc": "850044461110",
+      "found": true
+    },
+    "TRAEGER:BAC360": {
+      "upc": "634868920509",
+      "found": true
+    },
+    "TRAEGER:BAC363": {
+      "upc": "634868920530",
+      "found": true
+    },
+    "TRAEGER:BAC409": {
+      "upc": "634868923081",
+      "found": true
+    },
+    "VENT-A-HOOD:BH340PSLBSS": {
+      "upc": "9005382073070",
+      "found": true
+    },
+    "VESTA:VRH-AUGUSTA-30SS": {
+      "upc": "675487201556",
+      "found": true
+    },
+    "VESTA:VRH-DB-30": {
+      "upc": "675487201020",
+      "found": true
+    },
+    "VESTA:VRH-UI11-30SS": {
+      "upc": "675487201556",
+      "found": true
+    },
+    "BERTAZZONI:DSMASGKSG": {
+      "found": false
+    },
+    "BLUESOUND:WM200 BLK": {
+      "found": false
     }
   },
   "not_found": [
@@ -1833,7 +3083,9 @@
     "BLUESOUND:POWERNODE 2 BLK",
     "BLUESOUND:PULSE SUB BLK",
     "BLUESOUND:WM100 BLK",
-    "BLUESOUND:WM100 WHT"
+    "BLUESOUND:WM100 WHT",
+    "BERTAZZONI:DSMASGKSG",
+    "BLUESOUND:WM200 BLK"
   ],
   "updated": [
     {
@@ -4553,7 +5805,1873 @@
       "model": "JGP5030SLSS",
       "brand": "GE",
       "upc": "840110518060"
+    },
+    {
+      "id": 26904,
+      "model": "JVX5300SJSSC",
+      "brand": "GE",
+      "upc": "4883400804845"
+    },
+    {
+      "id": 26911,
+      "model": "PNE25NYRKFS",
+      "brand": "GE",
+      "upc": "757638377195"
+    },
+    {
+      "id": 26893,
+      "model": "PP9030DJBB",
+      "brand": "GE",
+      "upc": "4883400671614"
+    },
+    {
+      "id": 26889,
+      "model": "PT7800SHSS",
+      "brand": "GE",
+      "upc": "784672211857"
+    },
+    {
+      "id": 25603,
+      "model": "PTD60EBMRDG",
+      "brand": "GE",
+      "upc": "757638372602"
+    },
+    {
+      "id": 26075,
+      "model": "PTD90EBMTRS",
+      "brand": "GE",
+      "upc": "757638372640"
+    },
+    {
+      "id": 26475,
+      "model": "PTS9200SNSS",
+      "brand": "GE",
+      "upc": "4883401019460"
+    },
+    {
+      "id": 26905,
+      "model": "UVC9300SLSS",
+      "brand": "GE",
+      "upc": "4883400949720"
+    },
+    {
+      "id": 26912,
+      "model": "UVW9361SLSS",
+      "brand": "GE",
+      "upc": "4883400950900"
+    },
+    {
+      "id": 26891,
+      "model": "UXCHSS",
+      "brand": "GE",
+      "upc": "084691839057"
+    },
+    {
+      "id": 26897,
+      "model": "UXDC733MDS",
+      "brand": "GE",
+      "upc": "084691849810"
+    },
+    {
+      "id": 26920,
+      "model": "C2Y366P3TD1",
+      "brand": "GE CAFÃ",
+      "upc": "4883401012560"
+    },
+    {
+      "id": 26921,
+      "model": "CC2S900P2MS1",
+      "brand": "GE CAFÃ",
+      "upc": "4883400933422"
+    },
+    {
+      "id": 26922,
+      "model": "CCES750P4MW2",
+      "brand": "GE CAFÃ",
+      "upc": "4883400920651"
+    },
+    {
+      "id": 26923,
+      "model": "CCGS750P4MW2",
+      "brand": "GE CAFÃ",
+      "upc": "4883400920613"
+    },
+    {
+      "id": 26927,
+      "model": "CCHS950P3MD1",
+      "brand": "GE CAFÃ",
+      "upc": "067732154890"
+    },
+    {
+      "id": 26928,
+      "model": "CDE06RP2NS1",
+      "brand": "GE CAFÃ",
+      "upc": "4883400950863"
+    },
+    {
+      "id": 26917,
+      "model": "CGP95303MS2",
+      "brand": "GE CAFÃ",
+      "upc": "810134801400"
+    },
+    {
+      "id": 26924,
+      "model": "CGY366P2TS1",
+      "brand": "GE CAFÃ",
+      "upc": "4883401013512"
+    },
+    {
+      "id": 26918,
+      "model": "CGY366P4TW2",
+      "brand": "GE CAFÃ",
+      "upc": "4883401012591"
+    },
+    {
+      "id": 26919,
+      "model": "CHP90362TSS",
+      "brand": "GE CAFÃ",
+      "upc": "084691897682"
+    },
+    {
+      "id": 26915,
+      "model": "CSB923P3ND1",
+      "brand": "GE CAFÃ",
+      "upc": "4883400949751"
+    },
+    {
+      "id": 26916,
+      "model": "CTC912P2NS1",
+      "brand": "GE CAFÃ",
+      "upc": "4883400971301"
+    },
+    {
+      "id": 26930,
+      "model": "CTS90DP3ND1",
+      "brand": "GE CAFÃ",
+      "upc": "4883401013543"
+    },
+    {
+      "id": 26929,
+      "model": "CVW93643PDS",
+      "brand": "GE CAFÃ",
+      "upc": "4883401021166"
+    },
+    {
+      "id": 26479,
+      "model": "CVW93644PWM",
+      "brand": "GE CAFÃ",
+      "upc": "846918518066"
+    },
+    {
+      "id": 26914,
+      "model": "CXFCGHKPMBZ",
+      "brand": "GE CAFÃ",
+      "upc": "4883400920934"
+    },
+    {
+      "id": 26925,
+      "model": "CYE22TP2MS1",
+      "brand": "GE CAFÃ",
+      "upc": "4883400930759"
+    },
+    {
+      "id": 26926,
+      "model": "CYE22TP4MW2",
+      "brand": "GE CAFÃ",
+      "upc": "4883400920750"
+    },
+    {
+      "id": 25909,
+      "model": "HK36HERFDX",
+      "brand": "GE CAFÃ",
+      "upc": "8059304885846"
+    },
+    {
+      "id": 26480,
+      "model": "CCHS950P4MW2",
+      "brand": "GE CAFE",
+      "upc": "4883400920590"
+    },
+    {
+      "id": 26931,
+      "model": "CWE23SP4MW2",
+      "brand": "GE CAFE",
+      "upc": "4883400920736"
+    },
+    {
+      "id": 26933,
+      "model": "PCS980YMFS",
+      "brand": "GE PROFILE",
+      "upc": "4883400996304"
+    },
+    {
+      "id": 26937,
+      "model": "QDT125SSLSS",
+      "brand": "HAIER",
+      "upc": "4883400889286"
+    },
+    {
+      "id": 26081,
+      "model": "32A4NF",
+      "brand": "HISENSE",
+      "upc": "888143023120"
+    },
+    {
+      "id": 26080,
+      "model": "32A4NV",
+      "brand": "HISENSE",
+      "upc": "888143022284"
+    },
+    {
+      "id": 26489,
+      "model": "40A4NF",
+      "brand": "HISENSE",
+      "upc": "888143023113"
+    },
+    {
+      "id": 26963,
+      "model": "RB17N6DWE",
+      "brand": "HISENSE",
+      "upc": "618455606939"
+    },
+    {
+      "id": 26962,
+      "model": "RF225C3CSEI",
+      "brand": "HISENSE",
+      "upc": "810088362606"
+    },
+    {
+      "id": 26490,
+      "model": "RF27A3FSE",
+      "brand": "HISENSE",
+      "upc": "810088361432"
+    },
+    {
+      "id": 26083,
+      "model": "JAC3030HS",
+      "brand": "JENNAIR",
+      "upc": "883049467740"
+    },
+    {
+      "id": 25810,
+      "model": "JBBFX24NHX",
+      "brand": "JENNAIR",
+      "upc": "883049465838"
+    },
+    {
+      "id": 26974,
+      "model": "JBC7624BS",
+      "brand": "JENNAIR",
+      "upc": "883049289441"
+    },
+    {
+      "id": 26501,
+      "model": "JBFFS42NHM",
+      "brand": "JENNAIR",
+      "upc": "883049472577"
+    },
+    {
+      "id": 26508,
+      "model": "JBRFL30IGX",
+      "brand": "JENNAIR",
+      "upc": "883049438306"
+    },
+    {
+      "id": 27005,
+      "model": "JBRFR24IGX",
+      "brand": "JENNAIR",
+      "upc": "883049438290"
+    },
+    {
+      "id": 26509,
+      "model": "JBRFR30IGX",
+      "brand": "JENNAIR",
+      "upc": "883049438313"
+    },
+    {
+      "id": 27006,
+      "model": "JBRFR36IGX",
+      "brand": "JENNAIR",
+      "upc": "883049438337"
+    },
+    {
+      "id": 25694,
+      "model": "JBSFS42NHL",
+      "brand": "JENNAIR",
+      "upc": "883049472584"
+    },
+    {
+      "id": 25913,
+      "model": "JBSFS42NHM",
+      "brand": "JENNAIR",
+      "upc": "883049475332"
+    },
+    {
+      "id": 26502,
+      "model": "JBSFS48NHM",
+      "brand": "JENNAIR",
+      "upc": "883049475363"
+    },
+    {
+      "id": 27007,
+      "model": "JBZFL18IGX",
+      "brand": "JENNAIR",
+      "upc": "883049438221"
+    },
+    {
+      "id": 26986,
+      "model": "JBZFL24IGX",
+      "brand": "JENNAIR",
+      "upc": "883049438245"
+    },
+    {
+      "id": 27008,
+      "model": "JBZFR18IGX",
+      "brand": "JENNAIR",
+      "upc": "883049438238"
+    },
+    {
+      "id": 26094,
+      "model": "JBZFR24IGX",
+      "brand": "JENNAIR",
+      "upc": "883049438252"
+    },
+    {
+      "id": 26982,
+      "model": "JDAF3924RX",
+      "brand": "JENNAIR",
+      "upc": "883049663050"
+    },
+    {
+      "id": 25604,
+      "model": "JDPSS244LM",
+      "brand": "JENNAIR",
+      "upc": "883049544908"
+    },
+    {
+      "id": 26983,
+      "model": "JDPSS246LL",
+      "brand": "JENNAIR",
+      "upc": "883049544267"
+    },
+    {
+      "id": 25807,
+      "model": "JDPSS246LM",
+      "brand": "JENNAIR",
+      "upc": "883049544274"
+    },
+    {
+      "id": 26995,
+      "model": "JDRP430HL",
+      "brand": "JENNAIR",
+      "upc": "883049468501"
+    },
+    {
+      "id": 26996,
+      "model": "JDRP536HL",
+      "brand": "JENNAIR",
+      "upc": "883049468532"
+    },
+    {
+      "id": 26504,
+      "model": "JDRP536HM",
+      "brand": "JENNAIR",
+      "upc": "883049468570"
+    },
+    {
+      "id": 26505,
+      "model": "JDRP548HL",
+      "brand": "JENNAIR",
+      "upc": "883049468594"
+    },
+    {
+      "id": 26088,
+      "model": "JDRP548HM",
+      "brand": "JENNAIR",
+      "upc": "883049468648"
+    },
+    {
+      "id": 26089,
+      "model": "JDRP636HL",
+      "brand": "JENNAIR",
+      "upc": "883049468549"
+    },
+    {
+      "id": 26997,
+      "model": "JDS1750FP",
+      "brand": "JENNAIR",
+      "upc": "883049451527"
+    },
+    {
+      "id": 26090,
+      "model": "JDS1750ML",
+      "brand": "JENNAIR",
+      "upc": "883049643694"
+    },
+    {
+      "id": 26091,
+      "model": "JDSP536HL",
+      "brand": "JENNAIR",
+      "upc": "883049468556"
+    },
+    {
+      "id": 26973,
+      "model": "JDTSS244GL",
+      "brand": "JENNAIR",
+      "upc": "883049486307"
+    },
+    {
+      "id": 25634,
+      "model": "JDTSS246GM",
+      "brand": "JENNAIR",
+      "upc": "883049486291"
+    },
+    {
+      "id": 26984,
+      "model": "JDTSS246GS",
+      "brand": "JENNAIR",
+      "upc": "883049439822"
+    },
+    {
+      "id": 25805,
+      "model": "JED3536GS",
+      "brand": "JENNAIR",
+      "upc": "883049412771"
+    },
+    {
+      "id": 26977,
+      "model": "JEF3115GS",
+      "brand": "JENNAIR",
+      "upc": "883049444024"
+    },
+    {
+      "id": 26999,
+      "model": "JES1750FS",
+      "brand": "JENNAIR",
+      "upc": "883049451428"
+    },
+    {
+      "id": 25914,
+      "model": "JES1750ML",
+      "brand": "JENNAIR",
+      "upc": "883049643670"
+    },
+    {
+      "id": 26496,
+      "model": "JGC3115GS",
+      "brand": "JENNAIR",
+      "upc": "883049444062"
+    },
+    {
+      "id": 25806,
+      "model": "JGCP430HL",
+      "brand": "JENNAIR",
+      "upc": "883049469164"
+    },
+    {
+      "id": 26084,
+      "model": "JGCP430HM",
+      "brand": "JENNAIR",
+      "upc": "883049469171"
+    },
+    {
+      "id": 26978,
+      "model": "JGCP536HL",
+      "brand": "JENNAIR",
+      "upc": "883049469805"
+    },
+    {
+      "id": 26979,
+      "model": "JGCP636HL",
+      "brand": "JENNAIR",
+      "upc": "883049469829"
+    },
+    {
+      "id": 26497,
+      "model": "JGCP648HM",
+      "brand": "JENNAIR",
+      "upc": "883049469874"
+    },
+    {
+      "id": 26980,
+      "model": "JGCP748HM",
+      "brand": "JENNAIR",
+      "upc": "883049469898"
+    },
+    {
+      "id": 25912,
+      "model": "JGD3536GS",
+      "brand": "JENNAIR",
+      "upc": "883049414416"
+    },
+    {
+      "id": 26506,
+      "model": "JGRP536HM",
+      "brand": "JENNAIR",
+      "upc": "883049468426"
+    },
+    {
+      "id": 27000,
+      "model": "JGRP636HL",
+      "brand": "JENNAIR",
+      "upc": "770884092995"
+    },
+    {
+      "id": 27001,
+      "model": "JGRP748HM",
+      "brand": "JENNAIR",
+      "upc": "883049468495"
+    },
+    {
+      "id": 26981,
+      "model": "JIC4715GS",
+      "brand": "JENNAIR",
+      "upc": "883049444017"
+    },
+    {
+      "id": 26085,
+      "model": "JIC4730HB",
+      "brand": "JENNAIR",
+      "upc": "883049516691"
+    },
+    {
+      "id": 26086,
+      "model": "JIC4730HS",
+      "brand": "JENNAIR",
+      "upc": "883049516707"
+    },
+    {
+      "id": 27002,
+      "model": "JIS1450DS",
+      "brand": "JENNAIR",
+      "upc": "883049329727"
+    },
+    {
+      "id": 26495,
+      "model": "JJB6424HL",
+      "brand": "JENNAIR",
+      "upc": "883049483016"
+    },
+    {
+      "id": 26975,
+      "model": "JJB6424HM",
+      "brand": "JENNAIR",
+      "upc": "883049483009"
+    },
+    {
+      "id": 27014,
+      "model": "JJD3024HL",
+      "brand": "JENNAIR",
+      "upc": "883049496719"
+    },
+    {
+      "id": 25739,
+      "model": "JJD3030IL",
+      "brand": "JENNAIR",
+      "upc": "883049516264"
+    },
+    {
+      "id": 27011,
+      "model": "JJW2427IL",
+      "brand": "JENNAIR",
+      "upc": "883049516110"
+    },
+    {
+      "id": 27013,
+      "model": "JJW2830IM",
+      "brand": "JENNAIR",
+      "upc": "883049516097"
+    },
+    {
+      "id": 25651,
+      "model": "JJW3830LL",
+      "brand": "JENNAIR",
+      "upc": "883049610221"
+    },
+    {
+      "id": 27012,
+      "model": "JJW6024HM",
+      "brand": "JENNAIR",
+      "upc": "883049482378"
+    },
+    {
+      "id": 26991,
+      "model": "JKCPL181GL",
+      "brand": "JENNAIR",
+      "upc": "883049514338"
+    },
+    {
+      "id": 26992,
+      "model": "JKCPL241GL",
+      "brand": "JENNAIR",
+      "upc": "883049514352"
+    },
+    {
+      "id": 26503,
+      "model": "JKCPL301GL",
+      "brand": "JENNAIR",
+      "upc": "883049514376"
+    },
+    {
+      "id": 26985,
+      "model": "JKCPR241GL",
+      "brand": "JENNAIR",
+      "upc": "883049514369"
+    },
+    {
+      "id": 26993,
+      "model": "JKCPR301GL",
+      "brand": "JENNAIR",
+      "upc": "883049514383"
+    },
+    {
+      "id": 25693,
+      "model": "JMC2427LL",
+      "brand": "JENNAIR",
+      "upc": "883049610290"
+    },
+    {
+      "id": 26500,
+      "model": "JMC2427LM",
+      "brand": "JENNAIR",
+      "upc": "883049610344"
+    },
+    {
+      "id": 26994,
+      "model": "JPK42FNXWSS",
+      "brand": "JENNAIR",
+      "upc": "883049172033"
+    },
+    {
+      "id": 26971,
+      "model": "JUBFL242HX",
+      "brand": "JENNAIR",
+      "upc": "883049485669"
+    },
+    {
+      "id": 27003,
+      "model": "JUBFR242HL",
+      "brand": "JENNAIR",
+      "upc": "883049485676"
+    },
+    {
+      "id": 26972,
+      "model": "JUBFR242HM",
+      "brand": "JENNAIR",
+      "upc": "883049485867"
+    },
+    {
+      "id": 26093,
+      "model": "JUBFR242HX",
+      "brand": "JENNAIR",
+      "upc": "883049485683"
+    },
+    {
+      "id": 25736,
+      "model": "JUCFP242HL",
+      "brand": "JENNAIR",
+      "upc": "883049485690"
+    },
+    {
+      "id": 25915,
+      "model": "JUDFP242HL",
+      "brand": "JENNAIR",
+      "upc": "883049485713"
+    },
+    {
+      "id": 27009,
+      "model": "JUG24FLERS",
+      "brand": "JENNAIR",
+      "upc": "883049366524"
+    },
+    {
+      "id": 27010,
+      "model": "JUGFL242HL",
+      "brand": "JENNAIR",
+      "upc": "883049485737"
+    },
+    {
+      "id": 26511,
+      "model": "JUGFL242HM",
+      "brand": "JENNAIR",
+      "upc": "883049485898"
+    },
+    {
+      "id": 25916,
+      "model": "JUGFL242HX",
+      "brand": "JENNAIR",
+      "upc": "883049485744"
+    },
+    {
+      "id": 26097,
+      "model": "JUR24FRERS",
+      "brand": "JENNAIR",
+      "upc": "883049350516"
+    },
+    {
+      "id": 26095,
+      "model": "JUWFR242HL",
+      "brand": "JENNAIR",
+      "upc": "883049485836"
+    },
+    {
+      "id": 26498,
+      "model": "JVD0303GS",
+      "brand": "JENNAIR",
+      "upc": "883049460772"
+    },
+    {
+      "id": 25606,
+      "model": "JVR0430HS",
+      "brand": "JENNAIR",
+      "upc": "883049474205"
+    },
+    {
+      "id": 26507,
+      "model": "JVR0436HS",
+      "brand": "JENNAIR",
+      "upc": "883049474212"
+    },
+    {
+      "id": 27015,
+      "model": "JWD2030WS",
+      "brand": "JENNAIR",
+      "upc": "883049186139"
+    },
+    {
+      "id": 27016,
+      "model": "JWD3030EP",
+      "brand": "JENNAIR",
+      "upc": "883049370507"
+    },
+    {
+      "id": 27017,
+      "model": "JWD3030ES",
+      "brand": "JENNAIR",
+      "upc": "883049370408"
+    },
+    {
+      "id": 25811,
+      "model": "JWD3030EX",
+      "brand": "JENNAIR",
+      "upc": "883049370514"
+    },
+    {
+      "id": 25605,
+      "model": "JXD7030YS",
+      "brand": "JENNAIR",
+      "upc": "883049222424"
+    },
+    {
+      "id": 25809,
+      "model": "JXD7036YS",
+      "brand": "JENNAIR",
+      "upc": "883049222431"
+    },
+    {
+      "id": 26989,
+      "model": "JXL6536CSS",
+      "brand": "JENNAIR",
+      "upc": "883049325668"
+    },
+    {
+      "id": 25672,
+      "model": "JXU9136HP",
+      "brand": "JENNAIR",
+      "upc": "883049494951"
+    },
+    {
+      "id": 26499,
+      "model": "JXW8736DS",
+      "brand": "JENNAIR",
+      "upc": "883049336527"
+    },
+    {
+      "id": 25650,
+      "model": "JXW9036HP",
+      "brand": "JENNAIR",
+      "upc": "883049494968"
+    },
+    {
+      "id": 26092,
+      "model": "JXW9036WP",
+      "brand": "JENNAIR",
+      "upc": "883049179483"
+    },
+    {
+      "id": 26976,
+      "model": "TC607X",
+      "brand": "JENNAIR",
+      "upc": "883049069036"
+    },
+    {
+      "id": 26970,
+      "model": "W10285448",
+      "brand": "JENNAIR",
+      "upc": "883049198965"
+    },
+    {
+      "id": 26494,
+      "model": "W10663564",
+      "brand": "JENNAIR",
+      "upc": "883049349152"
+    },
+    {
+      "id": 26510,
+      "model": "W10675028",
+      "brand": "JENNAIR",
+      "upc": "883049354002"
+    },
+    {
+      "id": 25737,
+      "model": "W10791229",
+      "brand": "JENNAIR",
+      "upc": "883049390536"
+    },
+    {
+      "id": 25738,
+      "model": "W10801486",
+      "brand": "JENNAIR",
+      "upc": "883049391113"
+    },
+    {
+      "id": 25808,
+      "model": "W10837579",
+      "brand": "JENNAIR",
+      "upc": "883049404431"
+    },
+    {
+      "id": 26988,
+      "model": "W11194769",
+      "brand": "JENNAIR",
+      "upc": "883049521602"
+    },
+    {
+      "id": 26096,
+      "model": "W11194770",
+      "brand": "JENNAIR",
+      "upc": "883049521596"
+    },
+    {
+      "id": 26087,
+      "model": "W11231236",
+      "brand": "JENNAIR",
+      "upc": "883049527505"
+    },
+    {
+      "id": 25578,
+      "model": "W11367367",
+      "brand": "JENNAIR",
+      "upc": "883049544854"
+    },
+    {
+      "id": 27019,
+      "model": "DLA-NX5BK",
+      "brand": "JVC",
+      "upc": "7441913071016"
+    },
+    {
+      "id": 26099,
+      "model": "KS-GA100",
+      "brand": "JVC",
+      "upc": "724086513642"
+    },
+    {
+      "id": 27018,
+      "model": "LX-FH50",
+      "brand": "JVC",
+      "upc": "196455424628"
+    },
+    {
+      "id": 26567,
+      "model": "CA-650-T",
+      "brand": "KLIPSCH",
+      "upc": "743878016031"
+    },
+    {
+      "id": 27089,
+      "model": "CS-18C",
+      "brand": "KLIPSCH",
+      "upc": "754436638312"
+    },
+    {
+      "id": 26568,
+      "model": "R5502WII",
+      "brand": "KLIPSCH",
+      "upc": "682895244952"
+    },
+    {
+      "id": 26565,
+      "model": "REFERENCE",
+      "brand": "KLIPSCH",
+      "upc": "616528900687"
+    },
+    {
+      "id": 27090,
+      "model": "RP140SA",
+      "brand": "KLIPSCH",
+      "upc": "743878029024"
+    },
+    {
+      "id": 26566,
+      "model": "RP-160M",
+      "brand": "KLIPSCH",
+      "upc": "682962770810"
+    },
+    {
+      "id": 27092,
+      "model": "RP-500SA",
+      "brand": "KLIPSCH",
+      "upc": "743878036527"
+    },
+    {
+      "id": 27095,
+      "model": "IN2630SQB-700-2",
+      "brand": "KOBE",
+      "upc": "616483240224"
+    },
+    {
+      "id": 27220,
+      "model": "MXR-R08-30",
+      "brand": "MAXAIR",
+      "upc": "628077501314"
+    },
+    {
+      "id": 27226,
+      "model": "MXR-R19-42",
+      "brand": "MAXAIR",
+      "upc": "628077501437"
+    },
+    {
+      "id": 27215,
+      "model": "MXR-Z01",
+      "brand": "MAXAIR",
+      "upc": "628077501833"
+    },
+    {
+      "id": 26603,
+      "model": "MEC8830HB",
+      "brand": "MAYTAG",
+      "upc": "883049472737"
+    },
+    {
+      "id": 27237,
+      "model": "MFT2772HEZ",
+      "brand": "MAYTAG",
+      "upc": "883049473499"
+    },
+    {
+      "id": 27228,
+      "model": "MGD5630MBK",
+      "brand": "MAYTAG",
+      "upc": "883049626543"
+    },
+    {
+      "id": 25949,
+      "model": "MGS8800FZ",
+      "brand": "MAYTAG",
+      "upc": "883049413808"
+    },
+    {
+      "id": 27229,
+      "model": "YMED5630HW",
+      "brand": "MAYTAG",
+      "upc": "4883400908550"
+    },
+    {
+      "id": 27230,
+      "model": "YMED5630MBK",
+      "brand": "MAYTAG",
+      "upc": "4883401121057"
+    },
+    {
+      "id": 27231,
+      "model": "YMED6230HC",
+      "brand": "MAYTAG",
+      "upc": "883049464022"
+    },
+    {
+      "id": 27232,
+      "model": "YMED6500MBK",
+      "brand": "MAYTAG",
+      "upc": "4883401121071"
+    },
+    {
+      "id": 27233,
+      "model": "YMED8630HC",
+      "brand": "MAYTAG",
+      "upc": "600090850655"
+    },
+    {
+      "id": 27235,
+      "model": "YMES8800FZ",
+      "brand": "MAYTAG",
+      "upc": "600088688239"
+    },
+    {
+      "id": 27275,
+      "model": "55028",
+      "brand": "NAPOLEON",
+      "upc": "612314550289"
+    },
+    {
+      "id": 25700,
+      "model": "55202",
+      "brand": "NAPOLEON",
+      "upc": "750140552029"
+    },
+    {
+      "id": 26629,
+      "model": "55204",
+      "brand": "NAPOLEON",
+      "upc": "614901281217"
+    },
+    {
+      "id": 27295,
+      "model": "55208",
+      "brand": "NAPOLEON",
+      "upc": "614901217766"
+    },
+    {
+      "id": 26638,
+      "model": "55209",
+      "brand": "NAPOLEON",
+      "upc": "614901217773"
+    },
+    {
+      "id": 27285,
+      "model": "56008",
+      "brand": "NAPOLEON",
+      "upc": "612314560080"
+    },
+    {
+      "id": 27294,
+      "model": "56027",
+      "brand": "NAPOLEON",
+      "upc": "612314560271"
+    },
+    {
+      "id": 27299,
+      "model": "56028",
+      "brand": "NAPOLEON",
+      "upc": "612314560288"
+    },
+    {
+      "id": 27304,
+      "model": "56029",
+      "brand": "NAPOLEON",
+      "upc": "612314560295"
+    },
+    {
+      "id": 25825,
+      "model": "61286",
+      "brand": "NAPOLEON",
+      "upc": "614046779549"
+    },
+    {
+      "id": 25749,
+      "model": "61287",
+      "brand": "NAPOLEON",
+      "upc": "690730612873"
+    },
+    {
+      "id": 25746,
+      "model": "61288",
+      "brand": "NAPOLEON",
+      "upc": "720609612885"
+    },
+    {
+      "id": 25959,
+      "model": "61425",
+      "brand": "NAPOLEON",
+      "upc": "614046894471"
+    },
+    {
+      "id": 27290,
+      "model": "61427",
+      "brand": "NAPOLEON",
+      "upc": "805890247340"
+    },
+    {
+      "id": 25960,
+      "model": "61485",
+      "brand": "NAPOLEON",
+      "upc": "614046898530"
+    },
+    {
+      "id": 25570,
+      "model": "61500",
+      "brand": "NAPOLEON",
+      "upc": "840998112381"
+    },
+    {
+      "id": 26637,
+      "model": "61527",
+      "brand": "NAPOLEON",
+      "upc": "805890123637"
+    },
+    {
+      "id": 27274,
+      "model": "61627",
+      "brand": "NAPOLEON",
+      "upc": "755547022298"
+    },
+    {
+      "id": 27291,
+      "model": "61665",
+      "brand": "NAPOLEON",
+      "upc": "884904616655"
+    },
+    {
+      "id": 25614,
+      "model": "61915",
+      "brand": "NAPOLEON",
+      "upc": "7316577095060"
+    },
+    {
+      "id": 25830,
+      "model": "62002",
+      "brand": "NAPOLEON",
+      "upc": "759609047632"
+    },
+    {
+      "id": 25557,
+      "model": "62007",
+      "brand": "NAPOLEON",
+      "upc": "655974227764"
+    },
+    {
+      "id": 25957,
+      "model": "62012",
+      "brand": "NAPOLEON",
+      "upc": "743161477471"
+    },
+    {
+      "id": 25535,
+      "model": "62014",
+      "brand": "NAPOLEON",
+      "upc": "805890085911"
+    },
+    {
+      "id": 25593,
+      "model": "62031",
+      "brand": "NAPOLEON",
+      "upc": "641594089950"
+    },
+    {
+      "id": 25569,
+      "model": "62052",
+      "brand": "NAPOLEON",
+      "upc": "641594821444"
+    },
+    {
+      "id": 25748,
+      "model": "62053",
+      "brand": "NAPOLEON",
+      "upc": "641594703993"
+    },
+    {
+      "id": 25558,
+      "model": "62054",
+      "brand": "NAPOLEON",
+      "upc": "805890007906"
+    },
+    {
+      "id": 25552,
+      "model": "62055",
+      "brand": "NAPOLEON",
+      "upc": "641594273311"
+    },
+    {
+      "id": 25556,
+      "model": "62056",
+      "brand": "NAPOLEON",
+      "upc": "805890016441"
+    },
+    {
+      "id": 25544,
+      "model": "62121",
+      "brand": "NAPOLEON",
+      "upc": "637335007239"
+    },
+    {
+      "id": 27289,
+      "model": "62141",
+      "brand": "NAPOLEON",
+      "upc": "805890100584"
+    },
+    {
+      "id": 25674,
+      "model": "64000",
+      "brand": "NAPOLEON",
+      "upc": "686226640000"
+    },
+    {
+      "id": 25615,
+      "model": "67013",
+      "brand": "NAPOLEON",
+      "upc": "705696670130"
+    },
+    {
+      "id": 25699,
+      "model": "67037",
+      "brand": "NAPOLEON",
+      "upc": "805890036401"
+    },
+    {
+      "id": 26639,
+      "model": "67732",
+      "brand": "NAPOLEON",
+      "upc": "629162677327"
+    },
+    {
+      "id": 25586,
+      "model": "68001",
+      "brand": "NAPOLEON",
+      "upc": "750140680012"
+    },
+    {
+      "id": 25673,
+      "model": "68161",
+      "brand": "NAPOLEON",
+      "upc": "698815681615"
+    },
+    {
+      "id": 27286,
+      "model": "68287",
+      "brand": "NAPOLEON",
+      "upc": "833353682872"
+    },
+    {
+      "id": 27292,
+      "model": "68605",
+      "brand": "NAPOLEON",
+      "upc": "740078801801"
+    },
+    {
+      "id": 27303,
+      "model": "69231",
+      "brand": "NAPOLEON",
+      "upc": "614901691504"
+    },
+    {
+      "id": 27302,
+      "model": "69331",
+      "brand": "NAPOLEON",
+      "upc": "617456590568"
+    },
+    {
+      "id": 27301,
+      "model": "69811",
+      "brand": "NAPOLEON",
+      "upc": "675650021523"
+    },
+    {
+      "id": 25952,
+      "model": "70000",
+      "brand": "NAPOLEON",
+      "upc": "830335009108"
+    },
+    {
+      "id": 27305,
+      "model": "70004",
+      "brand": "NAPOLEON",
+      "upc": "673419189569"
+    },
+    {
+      "id": 25594,
+      "model": "70005",
+      "brand": "NAPOLEON",
+      "upc": "811256027600"
+    },
+    {
+      "id": 26624,
+      "model": "70008",
+      "brand": "NAPOLEON",
+      "upc": "792977913550"
+    },
+    {
+      "id": 26634,
+      "model": "70012",
+      "brand": "NAPOLEON",
+      "upc": "646786700125"
+    },
+    {
+      "id": 26160,
+      "model": "70014",
+      "brand": "NAPOLEON",
+      "upc": "830335011118"
+    },
+    {
+      "id": 27308,
+      "model": "70019",
+      "brand": "NAPOLEON",
+      "upc": "792977851562"
+    },
+    {
+      "id": 25701,
+      "model": "70021",
+      "brand": "NAPOLEON",
+      "upc": "830335014027"
+    },
+    {
+      "id": 27293,
+      "model": "70023",
+      "brand": "NAPOLEON",
+      "upc": "830335009375"
+    },
+    {
+      "id": 27310,
+      "model": "70031",
+      "brand": "NAPOLEON",
+      "upc": "802959460627"
+    },
+    {
+      "id": 27309,
+      "model": "70037",
+      "brand": "NAPOLEON",
+      "upc": "787765014960"
+    },
+    {
+      "id": 25636,
+      "model": "70041",
+      "brand": "NAPOLEON",
+      "upc": "614046388772"
+    },
+    {
+      "id": 27280,
+      "model": "70042",
+      "brand": "NAPOLEON",
+      "upc": "802959460658"
+    },
+    {
+      "id": 27306,
+      "model": "70046",
+      "brand": "NAPOLEON",
+      "upc": "830335011262"
+    },
+    {
+      "id": 25655,
+      "model": "70060",
+      "brand": "NAPOLEON",
+      "upc": "707742042182"
+    },
+    {
+      "id": 25831,
+      "model": "70077",
+      "brand": "NAPOLEON",
+      "upc": "633944003167"
+    },
+    {
+      "id": 27300,
+      "model": "BAC423",
+      "brand": "NAPOLEON",
+      "upc": "634868923319"
+    },
+    {
+      "id": 27284,
+      "model": "BI-3024-2D",
+      "brand": "NAPOLEON",
+      "upc": "629162131522"
+    },
+    {
+      "id": 26640,
+      "model": "BIB10IRNSS",
+      "brand": "NAPOLEON",
+      "upc": "629162137616"
+    },
+    {
+      "id": 26630,
+      "model": "BIB18PBNSS",
+      "brand": "NAPOLEON",
+      "upc": "629162138293"
+    },
+    {
+      "id": 27281,
+      "model": "BIB18RTNSS",
+      "brand": "NAPOLEON",
+      "upc": "629162137630"
+    },
+    {
+      "id": 26631,
+      "model": "BIG38RBNSS",
+      "brand": "NAPOLEON",
+      "upc": "629162138095"
+    },
+    {
+      "id": 26632,
+      "model": "BIG44RBNSS",
+      "brand": "NAPOLEON",
+      "upc": "629162138118"
+    },
+    {
+      "id": 25953,
+      "model": "F365DNGT",
+      "brand": "NAPOLEON",
+      "upc": "629162140500"
+    },
+    {
+      "id": 25954,
+      "model": "F365DPGT",
+      "brand": "NAPOLEON",
+      "upc": "629162140494"
+    },
+    {
+      "id": 26154,
+      "model": "F425DNGT",
+      "brand": "NAPOLEON",
+      "upc": "629162140524"
+    },
+    {
+      "id": 26155,
+      "model": "F425DPGT",
+      "brand": "NAPOLEON",
+      "upc": "629162140517"
+    },
+    {
+      "id": 25829,
+      "model": "GPFGN-2",
+      "brand": "NAPOLEON",
+      "upc": "629162121851"
+    },
+    {
+      "id": 27296,
+      "model": "GPFL48MHP",
+      "brand": "NAPOLEON",
+      "upc": "629162114167"
+    },
+    {
+      "id": 27312,
+      "model": "GPFSE-WNDSCRN",
+      "brand": "NAPOLEON",
+      "upc": "629162121912"
+    },
+    {
+      "id": 27311,
+      "model": "GPFTR-WNDSCRN",
+      "brand": "NAPOLEON",
+      "upc": "629162121783"
+    },
+    {
+      "id": 27307,
+      "model": "IM3DCCN",
+      "brand": "NAPOLEON",
+      "upc": "629162125651"
+    },
+    {
+      "id": 25958,
+      "model": "IMCEPCN",
+      "brand": "NAPOLEON",
+      "upc": "629162125675"
+    },
+    {
+      "id": 26635,
+      "model": "IMFMPCN",
+      "brand": "NAPOLEON",
+      "upc": "629162125699"
+    },
+    {
+      "id": 27314,
+      "model": "IM-UGC665-CN",
+      "brand": "NAPOLEON",
+      "upc": "629162125750"
+    },
+    {
+      "id": 26641,
+      "model": "IMWDCCN",
+      "brand": "NAPOLEON",
+      "upc": "629162125804"
+    },
+    {
+      "id": 26161,
+      "model": "NEFB27HG-3A",
+      "brand": "NAPOLEON",
+      "upc": "629169059522"
+    },
+    {
+      "id": 26636,
+      "model": "NEFL74CHS-1",
+      "brand": "NAPOLEON",
+      "upc": "629169080014"
+    },
+    {
+      "id": 25747,
+      "model": "NK22K-LEG-3",
+      "brand": "NAPOLEON",
+      "upc": "629162146991"
+    },
+    {
+      "id": 27276,
+      "model": "P500RSIBPK-3",
+      "brand": "NAPOLEON",
+      "upc": "629162131324"
+    },
+    {
+      "id": 26626,
+      "model": "PRO285N-BK",
+      "brand": "NAPOLEON",
+      "upc": "629162119971"
+    },
+    {
+      "id": 26623,
+      "model": "PRO500RSIBPSS-3",
+      "brand": "NAPOLEON",
+      "upc": "629162132123"
+    },
+    {
+      "id": 26157,
+      "model": "R425PK",
+      "brand": "NAPOLEON",
+      "upc": "629162122018"
+    },
+    {
+      "id": 27279,
+      "model": "RSE625RSIBPSS-1",
+      "brand": "NAPOLEON",
+      "upc": "629162134639"
+    },
+    {
+      "id": 26628,
+      "model": "RXT425PSS-1",
+      "brand": "NAPOLEON",
+      "upc": "629162134752"
+    },
+    {
+      "id": 26158,
+      "model": "RXT525SIBNK-1",
+      "brand": "NAPOLEON",
+      "upc": "629162134806"
+    },
+    {
+      "id": 26159,
+      "model": "RXT525SIBPK-1",
+      "brand": "NAPOLEON",
+      "upc": "629162134790"
+    },
+    {
+      "id": 27273,
+      "model": "RXT525SIBPSS-1",
+      "brand": "NAPOLEON",
+      "upc": "629162134813"
+    },
+    {
+      "id": 25827,
+      "model": "RXT625SIBNK-1",
+      "brand": "NAPOLEON",
+      "upc": "629162134608"
+    },
+    {
+      "id": 25955,
+      "model": "RXT625SIBPK-1",
+      "brand": "NAPOLEON",
+      "upc": "629162134592"
+    },
+    {
+      "id": 26633,
+      "model": "S83012",
+      "brand": "NAPOLEON",
+      "upc": "666431414689"
+    },
+    {
+      "id": 27297,
+      "model": "STTR1-BZ",
+      "brand": "NAPOLEON",
+      "upc": "629162130570"
+    },
+    {
+      "id": 25956,
+      "model": "TQ285-RD-1-A",
+      "brand": "NAPOLEON",
+      "upc": "629162133922"
+    },
+    {
+      "id": 25828,
+      "model": "TQ285X-RD-1-A",
+      "brand": "NAPOLEON",
+      "upc": "629162133939"
+    },
+    {
+      "id": 27337,
+      "model": "A-9150",
+      "brand": "ONKYO",
+      "upc": "889951000990"
+    },
+    {
+      "id": 27338,
+      "model": "NCEG3000",
+      "brand": "PANASONIC",
+      "upc": "818242126514"
+    },
+    {
+      "id": 26644,
+      "model": "NNCS896S",
+      "brand": "PANASONIC",
+      "upc": "885170268012"
+    },
+    {
+      "id": 27343,
+      "model": "NNSD66LS",
+      "brand": "PANASONIC",
+      "upc": "660357685413"
+    },
+    {
+      "id": 27346,
+      "model": "NNSG158S",
+      "brand": "PANASONIC",
+      "upc": "885170355705"
+    },
+    {
+      "id": 27340,
+      "model": "NNSG656S",
+      "brand": "PANASONIC",
+      "upc": "885170267817"
+    },
+    {
+      "id": 27344,
+      "model": "NNST681SC",
+      "brand": "PANASONIC",
+      "upc": "885170290792"
+    },
+    {
+      "id": 26177,
+      "model": "SFA29B",
+      "brand": "SANUS",
+      "upc": "793795420053"
+    },
+    {
+      "id": 27420,
+      "model": "52613651",
+      "brand": "SEALY",
+      "upc": "000052613651"
+    },
+    {
+      "id": 26668,
+      "model": "9662",
+      "brand": "SEALY",
+      "upc": "784689351133"
+    },
+    {
+      "id": 27426,
+      "model": "SBC051D1BSS",
+      "brand": "SILHOUETTE",
+      "upc": "067638023078"
+    },
+    {
+      "id": 25972,
+      "model": "SSWC056D1B-S",
+      "brand": "SILHOUETTE",
+      "upc": "067638013857"
+    },
+    {
+      "id": 27455,
+      "model": "QUEEN VELVET ROSE",
+      "brand": "SLEEPKING",
+      "upc": "768649370549"
+    },
+    {
+      "id": 25539,
+      "model": "DUALSENSE CHARGING STATION",
+      "brand": "SOLUTIONS 2GO",
+      "upc": "711719541950"
+    },
+    {
+      "id": 25703,
+      "model": "DUALSENSE CONTROLLER RED",
+      "brand": "SOLUTIONS 2GO",
+      "upc": "711719546948"
+    },
+    {
+      "id": 25657,
+      "model": "HD CAMERA WH",
+      "brand": "SOLUTIONS 2GO",
+      "upc": "859109023676"
+    },
+    {
+      "id": 25540,
+      "model": "Media Remote",
+      "brand": "SOLUTIONS 2GO",
+      "upc": "862704000201"
+    },
+    {
+      "id": 27538,
+      "model": "NINTENDO SWITCH 2 CAMERA",
+      "brand": "SOLUTIONS 2GO",
+      "upc": "198957108983"
+    },
+    {
+      "id": 27539,
+      "model": "XBOX Controller RED",
+      "brand": "SOLUTIONS 2GO",
+      "upc": "885370378061"
+    },
+    {
+      "id": 26693,
+      "model": "XBOX Headphones BL",
+      "brand": "SOLUTIONS 2GO",
+      "upc": "196188047415"
+    },
+    {
+      "id": 27543,
+      "model": "ARCWMWW1BLK",
+      "brand": "SONOS",
+      "upc": "878269009122"
+    },
+    {
+      "id": 27540,
+      "model": "BOOSTUS1",
+      "brand": "SONOS",
+      "upc": "878269000853"
+    },
+    {
+      "id": 26193,
+      "model": "INCLGWW1",
+      "brand": "SONOS",
+      "upc": "878269007647"
+    },
+    {
+      "id": 26695,
+      "model": "PBRWMWW1",
+      "brand": "SONOS",
+      "upc": "180501002892"
+    },
+    {
+      "id": 25555,
+      "model": "CFI-ZCT1W",
+      "brand": "SONY",
+      "upc": "651357882384"
+    },
+    {
+      "id": 27551,
+      "model": "HTZ9F",
+      "brand": "SONY",
+      "upc": "194026443016"
+    },
+    {
+      "id": 27544,
+      "model": "K65S20M2",
+      "brand": "SONY",
+      "upc": "027242932760"
+    },
+    {
+      "id": 27556,
+      "model": "KD43X77L",
+      "brand": "SONY",
+      "upc": "586971928654"
+    },
+    {
+      "id": 27545,
+      "model": "KD75X77L",
+      "brand": "SONY",
+      "upc": "658917746391"
+    },
+    {
+      "id": 27552,
+      "model": "SA-SW3",
+      "brand": "SONY",
+      "upc": "196641063457"
+    },
+    {
+      "id": 25759,
+      "model": "UBPX700",
+      "brand": "SONY",
+      "upc": "667379325709"
+    },
+    {
+      "id": 26699,
+      "model": "VG-STSM11B",
+      "brand": "SONY",
+      "upc": "887276221564"
+    },
+    {
+      "id": 27548,
+      "model": "WH1000XM5/S",
+      "brand": "SONY",
+      "upc": "887401059604"
+    },
+    {
+      "id": 26194,
+      "model": "WHRF400",
+      "brand": "SONY",
+      "upc": "696551792251"
+    },
+    {
+      "id": 27559,
+      "model": "S4310",
+      "brand": "TCL",
+      "upc": "721762159224"
+    },
+    {
+      "id": 27563,
+      "model": "ARH36T",
+      "brand": "THOR",
+      "upc": "850044461295"
+    },
+    {
+      "id": 26704,
+      "model": "HDW2401SS",
+      "brand": "THOR",
+      "upc": "850018999335"
+    },
+    {
+      "id": 26198,
+      "model": "HRT4806U",
+      "brand": "THOR",
+      "upc": "6926697000311"
+    },
+    {
+      "id": 27564,
+      "model": "TRF3601FD",
+      "brand": "THOR",
+      "upc": "850018999892"
+    },
+    {
+      "id": 27562,
+      "model": "TRG3601",
+      "brand": "THOR",
+      "upc": "850044461110"
+    },
+    {
+      "id": 26199,
+      "model": "BAC360",
+      "brand": "TRAEGER",
+      "upc": "634868920509"
+    },
+    {
+      "id": 26707,
+      "model": "BAC363",
+      "brand": "TRAEGER",
+      "upc": "634868920530"
+    },
+    {
+      "id": 26706,
+      "model": "BAC409",
+      "brand": "TRAEGER",
+      "upc": "634868923081"
+    },
+    {
+      "id": 27577,
+      "model": "BH340PSLBSS",
+      "brand": "VENT-A-HOOD",
+      "upc": "9005382073070"
+    },
+    {
+      "id": 27590,
+      "model": "VRH-AUGUSTA-30SS",
+      "brand": "VESTA",
+      "upc": "675487201556"
+    },
+    {
+      "id": 25679,
+      "model": "VRH-DB-30",
+      "brand": "VESTA",
+      "upc": "675487201020"
+    },
+    {
+      "id": 25766,
+      "model": "VRH-UI11-30SS",
+      "brand": "VESTA",
+      "upc": "675487201556"
     }
   ],
-  "last_run": "2026-03-20T17:28:16.795Z"
+  "last_run": "2026-03-24T17:58:19.441Z"
 }

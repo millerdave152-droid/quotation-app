@@ -169,7 +169,7 @@ export function useWarrantyUpsell({
   }, [fetchEligibility, onComplete]);
 
   /**
-   * Select a warranty for the current item
+   * Select a warranty for the current item (tracks selection only, does NOT add to cart)
    */
   const selectWarranty = useCallback((warranty) => {
     if (!currentItem) return;
@@ -185,20 +185,14 @@ export function useWarrantyUpsell({
         coveredProductPrice: currentItem.productPrice,
       },
     }));
-
-    // Notify parent
-    onAddWarranty?.({
-      itemId,
-      warranty,
-      productName: currentItem.productName,
-    });
-  }, [currentItem, onAddWarranty]);
+  }, [currentItem]);
 
   /**
    * Add warranty and move to next item
    * FIXED: Uses refs to avoid stale closure issues when rapidly selecting warranties
    */
   const addAndContinue = useCallback((warranty) => {
+    // Track selection state
     selectWarranty(warranty);
 
     // Use refs to get LATEST values
@@ -206,6 +200,13 @@ export function useWarrantyUpsell({
     const currentIdx = currentIndexRef.current;
     const currentItemData = currentEligibleItems[currentIdx];
     const hasMore = currentIdx < currentEligibleItems.length - 1;
+
+    // Add warranty to cart (single point of cart addition)
+    onAddWarranty?.({
+      itemId: currentItemData.cartItem.id,
+      warranty,
+      productName: currentItemData.productName,
+    });
 
     if (hasMore) {
       setCurrentIndex((prev) => prev + 1);
@@ -228,7 +229,7 @@ export function useWarrantyUpsell({
         skipped: false,
       });
     }
-  }, [selectWarranty, onComplete]);
+  }, [selectWarranty, onAddWarranty, onComplete]);
 
   /**
    * Decline warranty for current item

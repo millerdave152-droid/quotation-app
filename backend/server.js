@@ -297,6 +297,7 @@ const batchEmailService = new BatchEmailService(pool, {
 });
 
 const serialNumberService = new SerialNumberService(pool, cache);
+manufacturerRAService.serialNumberService = serialNumberService;
 const purchaseOrderService = new PurchaseOrderService(pool, cache, serialNumberService);
 const productVariantService = new ProductVariantService(pool, cache);
 // Phase 2 Fraud Infrastructure: Redis + service wiring
@@ -462,6 +463,40 @@ setInterval(async () => {
     logger.error({ err }, '[EscalationExpiry] Error');
   }
 }, 5 * 60 * 1000);
+
+// Lead reminder generation — every 15 minutes
+const ReminderService = require('./services/ReminderService');
+const reminderService = new ReminderService(pool);
+
+setInterval(async () => {
+  try {
+    const result = await reminderService.generateAllStoreReminders();
+    if (result.created > 0) {
+      logger.info({ stores: result.stores, evaluated: result.evaluated, created: result.created },
+        '[LeadReminders] Generated reminders');
+    }
+  } catch (err) {
+    logger.error({ err }, '[LeadReminders] Reminder generation failed');
+  }
+}, 15 * 60 * 1000);
+logger.info('[LeadReminders] Reminder polling scheduled (every 15 min)');
+
+// Email reminder queue processor — every 15 minutes
+const EmailReminderService = require('./services/EmailReminderService');
+const emailReminderService = new EmailReminderService(pool);
+
+setInterval(async () => {
+  try {
+    const result = await emailReminderService.processEmailQueue();
+    if (result.sent > 0) {
+      logger.info({ processed: result.processed, sent: result.sent, errors: result.errors },
+        '[LeadEmailQueue] Processed email queue');
+    }
+  } catch (err) {
+    logger.error({ err }, '[LeadEmailQueue] Email queue processing failed');
+  }
+}, 15 * 60 * 1000);
+logger.info('[LeadEmailQueue] Email queue processor scheduled (every 15 min)');
 
 logger.info('Enterprise services initialized');
 
@@ -633,6 +668,24 @@ app.get('/api/users/me/permissions', authenticate, (req, res) => {
       posRoleName: req.user.posRoleName || null,
     }
   });
+});
+
+// PATCH /api/users/me/notifications — update notification preferences
+app.patch('/api/users/me/notifications', authenticate, async (req, res) => {
+  try {
+    const { lead_email_reminders } = req.body;
+    const prefs = { lead_email_reminders: lead_email_reminders !== false };
+
+    await pool.query(`
+      UPDATE users SET notification_preferences = notification_preferences || $1::jsonb
+      WHERE id = $2
+    `, [JSON.stringify(prefs), req.user.id]);
+
+    res.json({ success: true, data: prefs });
+  } catch (err) {
+    logger.error({ err }, 'Failed to update notification preferences');
+    res.status(500).json({ success: false, error: 'Failed to update preferences' });
+  }
 });
 
 logger.info('User management routes loaded');
@@ -1009,7 +1062,7 @@ logger.info('Quotation routes loaded (modular)');
 // POS TRANSACTIONS (TeleTime POS)
 // ============================================
 const { init: initTransactionsRoutes } = require('./routes/transactions');
-app.use('/api/transactions', initTransactionsRoutes({ pool, cache, discountAuthorityService }));
+app.use('/api/transactions', initTransactionsRoutes({ pool, cache, discountAuthorityService, serialNumberService }));
 logger.info('POS transactions routes loaded');
 
 // NOTE: sales-orders and delivery-slips routes mounted after auth routes above
@@ -1091,7 +1144,7 @@ app.use('/api/v1', initV1Routes({ db: { query: pool.query.bind(pool), pool }, se
   posPaymentService,
   pricingService,
   productService: categoryProductService
-}}));
+}, serialNumberService }));
 logger.info('API v1 routes loaded (standardized versioned API)');
 
 // ============================================

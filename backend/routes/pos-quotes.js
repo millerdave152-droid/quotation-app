@@ -190,6 +190,7 @@ router.get('/:id/for-sale', asyncHandler(async (req, res) => {
       q.total_cents,
       q.internal_notes,
       q.notes,
+      q.ehf_cents,
       q.created_at,
       q.quote_expiry_date,
       q.expires_at
@@ -239,6 +240,15 @@ router.get('/:id/for-sale', asyncHandler(async (req, res) => {
   // Check for any out of stock items
   const outOfStockItems = items.filter(item => item.stockQuantity < item.quantity);
 
+  // Fetch revenue feature add-ons
+  const [warrantiesRes, financingRes, deliveryRes, rebatesRes, tradeInsRes] = await Promise.all([
+    pool.query('SELECT * FROM quote_warranties WHERE quote_id = $1 ORDER BY created_at', [quoteId]),
+    pool.query('SELECT * FROM quote_financing WHERE quote_id = $1', [quoteId]),
+    pool.query('SELECT * FROM quote_delivery WHERE quote_id = $1', [quoteId]),
+    pool.query('SELECT * FROM quote_rebates WHERE quote_id = $1', [quoteId]),
+    pool.query('SELECT * FROM quote_trade_ins WHERE quote_id = $1 ORDER BY created_at', [quoteId])
+  ]);
+
   const formattedQuote = {
     ...formatQuoteForPOS(quote),
     items,
@@ -251,6 +261,12 @@ router.get('/:id/for-sale', asyncHandler(async (req, res) => {
       phone: quote.customer_phone,
       address: quote.customer_address,
     } : null,
+    warranties: warrantiesRes.rows,
+    financing: financingRes.rows[0] || null,
+    delivery: deliveryRes.rows[0] || null,
+    rebates: rebatesRes.rows,
+    tradeIns: tradeInsRes.rows,
+    ehf_cents: parseInt(quote.ehf_cents) || 0,
   };
 
   res.json({

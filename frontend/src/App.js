@@ -205,6 +205,7 @@ const RuleEditorDrawerNew = React.lazy(() => import('./components/admin/RuleEdit
 
 // Leads / Inquiry Capture
 const LeadCapture = React.lazy(() => import('./components/leads/LeadCapture'));
+const LeadsPipelineContainer = React.lazy(() => import('./components/leads/LeadsPipelineContainer'));
 
 // Delivery Management Dashboard
 const DeliveryDashboard = React.lazy(() => import('./pages/DeliveryDashboard'));
@@ -506,6 +507,7 @@ function App() {
           {/* Quick Search removed — use Ctrl+K command palette */}
           {/* Leads / Inquiry Capture */}
           <Route path="/leads" element={<LeadCapture />} />
+          <Route path="/leads/pipeline" element={<LeadsPipelineContainer />} />
           <Route path="/leads/:id" element={<LeadCapture />} />
           {/* Admin routes */}
           <Route path="/admin/users" element={

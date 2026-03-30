@@ -329,7 +329,8 @@ class PurchaseOrderService {
     const po = rows[0];
 
     const items = await this.pool.query(
-      `SELECT poi.*, p.name AS product_name, p.sku AS product_sku
+      `SELECT poi.*, p.name AS product_name, p.sku AS product_sku,
+              COALESCE(p.is_serialized, false) AS is_serialized
        FROM purchase_order_items poi
        LEFT JOIN products p ON p.id = poi.product_id
        WHERE poi.purchase_order_id = $1

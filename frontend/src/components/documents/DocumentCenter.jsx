@@ -120,8 +120,8 @@ export default function DocumentCenter() {
         <p style={{ fontSize: 13, color: '#6b7280', marginTop: 4 }}>Search past transactions and reprint or email documents</p>
 
         {/* Search */}
-        <form onSubmit={handleSearch} style={{ marginTop: 20, display: 'flex', gap: 10 }}>
-          <div style={{ flex: 1, position: 'relative' }}>
+        <form onSubmit={handleSearch} style={{ marginTop: 20, display: 'flex', gap: 10, alignItems: 'stretch' }}>
+          <div style={{ flex: '1 1 0%', minWidth: 0, position: 'relative' }}>
             <Search style={{ position: 'absolute', left: 14, top: '50%', transform: 'translateY(-50%)', width: 18, height: 18, color: '#9ca3af', pointerEvents: 'none' }} />
             <input
               type="text"
@@ -129,7 +129,7 @@ export default function DocumentCenter() {
               onChange={(e) => setQuery(e.target.value)}
               placeholder="Search by customer name, order #, transaction #..."
               style={{
-                width: '100%', padding: '12px 16px 12px 42px', fontSize: 14, border: '1px solid #d1d5db',
+                width: '100%', boxSizing: 'border-box', padding: '12px 16px 12px 42px', fontSize: 14, border: '1px solid #d1d5db',
                 borderRadius: 10, outline: 'none', background: '#f9fafb', transition: 'all 0.15s'
               }}
               onFocus={(e) => { e.target.style.borderColor = '#6366f1'; e.target.style.background = '#fff'; e.target.style.boxShadow = '0 0 0 3px rgba(99,102,241,0.1)'; }}
@@ -142,7 +142,7 @@ export default function DocumentCenter() {
             style={{
               padding: '12px 28px', fontSize: 14, fontWeight: 600, color: '#fff', background: '#4f46e5',
               border: 'none', borderRadius: 10, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 8,
-              opacity: loading ? 0.6 : 1, transition: 'background 0.15s'
+              opacity: loading ? 0.6 : 1, transition: 'background 0.15s', flexShrink: 0, whiteSpace: 'nowrap'
             }}
             onMouseEnter={(e) => { if (!loading) e.target.style.background = '#4338ca'; }}
             onMouseLeave={(e) => { e.target.style.background = '#4f46e5'; }}

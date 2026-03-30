@@ -122,6 +122,46 @@ router.get('/:id/history', authenticate, requirePermission('serial_numbers.view'
 }));
 
 // ============================================================================
+// AVAILABLE FOR PRODUCT (feeds QuoteBuilder dropdown)
+// ============================================================================
+
+router.get('/available/:productId', authenticate, asyncHandler(async (req, res) => {
+  const serials = await serialService.getAvailableForProduct(parseInt(req.params.productId));
+  res.success(serials);
+}));
+
+// ============================================================================
+// RESERVE FOR QUOTE
+// ============================================================================
+
+router.post('/:serialNumber/reserve', authenticate, asyncHandler(async (req, res) => {
+  const { quotationId } = req.body;
+  if (!quotationId) throw ApiError.badRequest('quotationId is required');
+
+  const result = await serialService.reserveForQuote(
+    req.params.serialNumber,
+    parseInt(quotationId),
+    req.user.id
+  );
+  res.success(result);
+}));
+
+// ============================================================================
+// RELEASE RESERVATION
+// ============================================================================
+
+router.post('/:serialNumber/release', authenticate, asyncHandler(async (req, res) => {
+  const { reason } = req.body;
+
+  const result = await serialService.releaseReservation(
+    req.params.serialNumber,
+    req.user.id,
+    reason || 'Manual release'
+  );
+  res.success(result);
+}));
+
+// ============================================================================
 // VALIDATE FOR SALE
 // ============================================================================
 
