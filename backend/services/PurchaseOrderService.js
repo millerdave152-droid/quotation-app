@@ -262,7 +262,7 @@ class PurchaseOrderService {
 
           // Insert inventory transaction
           await client.query(
-            `INSERT INTO inventory_transactions (product_id, location_id, type, quantity, reference_type, reference_id, notes, performed_by)
+            `INSERT INTO inventory_transactions (product_id, location_id, transaction_type, quantity, reference_type, reference_id, notes, created_by)
              VALUES ($1, $2, 'receipt', $3, 'purchase_order', $4, $5, $6)`,
             [poItem.product_id, po.location_id, qtyReceived, poId, `GR: ${receiptNumber}`, userId]
           );
