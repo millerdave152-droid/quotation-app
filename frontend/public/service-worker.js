@@ -116,27 +116,21 @@ self.addEventListener('sync', (event) => {
 
 // Push notification handler
 self.addEventListener('push', (event) => {
-  console.log('[ServiceWorker] Push notification received', event);
+  if (!event.data) return;
 
-  const data = event.data ? event.data.json() : {};
-  const title = data.title || 'Quotation Update';
+  const data = event.data.json();
+  const title = data.title || 'TeleTime Update';
   const options = {
     body: data.body || 'You have a new update',
-    icon: '/logo192.png',
-    badge: '/logo192.png',
+    icon: data.icon || '/logo192.png',
+    badge: data.badge || '/logo192.png',
     vibrate: [200, 100, 200],
-    tag: data.tag || 'quote-update',
-    data: data.url || '/',
+    tag: data.tag || 'teletime-update',
+    data: data.data || { url: '/' },
+    requireInteraction: data.requireInteraction || false,
     actions: [
-      {
-        action: 'view',
-        title: 'View',
-        icon: '/logo192.png'
-      },
-      {
-        action: 'dismiss',
-        title: 'Dismiss'
-      }
+      { action: 'view', title: 'View' },
+      { action: 'dismiss', title: 'Dismiss' }
     ]
   };
 
@@ -145,31 +139,27 @@ self.addEventListener('push', (event) => {
   );
 });
 
-// Notification click handler
+// Notification click handler — opens data.url or /leads
 self.addEventListener('notificationclick', (event) => {
-  console.log('[ServiceWorker] Notification click', event.action);
-
   event.notification.close();
 
-  if (event.action === 'view' || !event.action) {
-    const urlToOpen = event.notification.data || '/';
+  if (event.action === 'dismiss') return;
 
-    event.waitUntil(
-      clients.matchAll({ type: 'window', includeUncontrolled: true })
-        .then((clientList) => {
-          // Check if there's already a window open
-          for (let client of clientList) {
-            if (client.url === urlToOpen && 'focus' in client) {
-              return client.focus();
-            }
+  const url = event.notification.data?.url || '/leads';
+
+  event.waitUntil(
+    clients.matchAll({ type: 'window', includeUncontrolled: true })
+      .then((clientList) => {
+        for (const client of clientList) {
+          if (client.url.includes(url) && 'focus' in client) {
+            return client.focus();
           }
-          // Open new window
-          if (clients.openWindow) {
-            return clients.openWindow(urlToOpen);
-          }
-        })
-    );
-  }
+        }
+        if (clients.openWindow) {
+          return clients.openWindow(url);
+        }
+      })
+  );
 });
 
 // Helper function to sync quotes when back online

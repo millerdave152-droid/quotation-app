@@ -929,21 +929,63 @@ router.post('/:id/versions', authenticate, asyncHandler(async (req, res) => {
 
 /**
  * POST /api/quotations/:id/versions/:version/restore
- * Restore a quote to a previous version
+ * Restore a quote to a previous version.
+ * Returns 409 with price differences if snapshot prices are stale.
  */
 router.post('/:id/versions/:version/restore', authenticate, asyncHandler(async (req, res) => {
   const { id, version } = req.params;
-  const { restoredBy = 'User' } = req.body;
+  const restoredBy = req.body.restoredBy || `${req.user.firstName || ''} ${req.user.lastName || ''}`.trim() || 'User';
 
-  const quote = await quoteService.restoreVersion(
+  const result = await quoteService.restoreVersion(
     parseInt(id),
     parseInt(version),
     restoredBy
   );
 
+  // Pricing gate: requires confirmation before restoring stale prices
+  if (result.requiresConfirmation) {
+    return res.status(409).json({
+      success: false,
+      error: {
+        code: 'PRICING_CONFIRMATION_REQUIRED',
+        message: result.message,
+      },
+      data: {
+        quoteId: result.quoteId,
+        versionNumber: result.versionNumber,
+        priceDifferences: result.priceDifferences,
+      },
+    });
+  }
+
+  res.success({
+    quote: result,
+    message: `Quote restored to version ${version}`
+  });
+}));
+
+/**
+ * POST /api/quotations/:id/versions/:version/confirm-restore
+ * Confirm restore with explicit acceptStalePricing flag.
+ * Called after the user reviews the price differences from the 409 response.
+ */
+router.post('/:id/versions/:version/confirm-restore', authenticate, asyncHandler(async (req, res) => {
+  const { id, version } = req.params;
+  const restoredBy = req.body.restoredBy || `${req.user.firstName || ''} ${req.user.lastName || ''}`.trim() || 'User';
+
+  if (!req.body.acceptStalePricing) {
+    throw ApiError.badRequest('acceptStalePricing must be true to confirm restore with stale prices');
+  }
+
+  const quote = await quoteService.confirmRestoreVersion(
+    parseInt(id),
+    parseInt(version),
+    { acceptStalePricing: true, restoredBy }
+  );
+
   res.success({
     quote,
-    message: `Quote restored to version ${version}`
+    message: `Quote restored to version ${version} (stale pricing accepted)`
   });
 }));
 

@@ -3,6 +3,7 @@ const router = express.Router();
 const pushService = require('../services/pushNotificationService');
 const { authenticate } = require('../middleware/auth');
 const { ApiError, asyncHandler } = require('../middleware/errorHandler');
+let pool = require('../db');
 
 /**
  * GET /api/push/vapid-public-key
@@ -16,11 +17,15 @@ router.get('/vapid-public-key', (req, res) => {
 
 /**
  * POST /api/push/subscribe
- * Subscribe to push notifications (linked to authenticated user)
+ * Register a new push subscription for the authenticated user.
+ * Accepts { subscription: { endpoint, keys: { p256dh, auth } }, userAgent }
+ * Also accepts flat body { endpoint, keys: { p256dh, auth } } for backward compat.
+ * Sets push_notifications_enabled = true on users table.
  */
 router.post('/subscribe', authenticate, asyncHandler(async (req, res) => {
-  const subscription = req.body;
-  const userAgent = req.headers['user-agent'];
+  // Accept both wrapped and flat body shapes
+  const subscription = req.body.subscription || req.body;
+  const userAgent = req.body.userAgent || req.headers['user-agent'];
 
   if (!subscription || !subscription.endpoint || !subscription.keys) {
     throw ApiError.badRequest('Invalid subscription object');
@@ -28,7 +33,14 @@ router.post('/subscribe', authenticate, asyncHandler(async (req, res) => {
 
   const result = await pushService.subscribe(subscription, userAgent, req.user.id);
 
+  // Set push_notifications_enabled = true
+  await pool.query(
+    'UPDATE users SET push_notifications_enabled = true WHERE id = $1',
+    [req.user.id]
+  );
+
   res.status(201).json({
+    success: true,
     message: 'Successfully subscribed to push notifications',
     id: result.id
   });
@@ -36,7 +48,7 @@ router.post('/subscribe', authenticate, asyncHandler(async (req, res) => {
 
 /**
  * POST /api/push/unsubscribe
- * Unsubscribe from push notifications
+ * Remove a push subscription (backward compat)
  */
 router.post('/unsubscribe', authenticate, asyncHandler(async (req, res) => {
   const { endpoint } = req.body;
@@ -48,7 +60,39 @@ router.post('/unsubscribe', authenticate, asyncHandler(async (req, res) => {
   const removed = await pushService.unsubscribe(endpoint);
 
   if (removed) {
-    res.json({ message: 'Successfully unsubscribed from push notifications' });
+    res.json({ success: true, message: 'Successfully unsubscribed from push notifications' });
+  } else {
+    throw ApiError.notFound('Subscription');
+  }
+}));
+
+/**
+ * DELETE /api/push/unsubscribe
+ * Remove a push subscription
+ */
+router.delete('/unsubscribe', authenticate, asyncHandler(async (req, res) => {
+  const { endpoint } = req.body;
+
+  if (!endpoint) {
+    throw ApiError.badRequest('Endpoint is required');
+  }
+
+  const removed = await pushService.unsubscribe(endpoint);
+
+  // Check if user has any remaining subscriptions
+  const remaining = await pool.query(
+    'SELECT COUNT(*) FROM push_subscriptions WHERE user_id = $1',
+    [req.user.id]
+  );
+  if (parseInt(remaining.rows[0].count) === 0) {
+    await pool.query(
+      'UPDATE users SET push_notifications_enabled = false WHERE id = $1',
+      [req.user.id]
+    );
+  }
+
+  if (removed) {
+    res.json({ success: true, message: 'Successfully unsubscribed' });
   } else {
     throw ApiError.notFound('Subscription');
   }

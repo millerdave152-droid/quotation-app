@@ -217,26 +217,23 @@ router.put('/:id', authenticate, validateJoi(leadSchemas.update), asyncHandler(a
 
 /**
  * PUT /api/leads/:id/status
- * Update lead status
+ * Update lead status (unified — supports both original and pipeline statuses)
  */
 router.put('/:id/status', authenticate, validateJoi(leadSchemas.status), asyncHandler(async (req, res) => {
   const { id } = req.params;
-  const { status, lost_reason } = req.body;
+  const { status } = req.body;
 
   try {
-    const lead = await leadService.updateStatus(id, status, lost_reason, req.user?.id);
-
-    if (!lead) {
-      throw ApiError.notFound('Lead');
-    }
-
-    // Invalidate stats cache
+    // Use the pipeline state machine which is a superset of the original
+    const lead = await leadService.updatePipelineStatus(parseInt(id), status, req.user?.id);
     cache.invalidatePattern('leads:stats');
-
     res.success(lead);
   } catch (error) {
     if (error.message.includes('Invalid status transition')) {
       throw ApiError.badRequest(error.message);
+    }
+    if (error.message === 'Lead not found') {
+      throw ApiError.notFound('Lead');
     }
     throw error;
   }

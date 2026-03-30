@@ -506,9 +506,10 @@ function App() {
           <Route path="/product-visualization/:id" element={<ProductVisualization />} />
           {/* Quick Search removed — use Ctrl+K command palette */}
           {/* Leads / Inquiry Capture */}
-          <Route path="/leads" element={<LeadCapture />} />
+          <Route path="/leads" element={<LeadsPipelineContainer />} />
           <Route path="/leads/pipeline" element={<LeadsPipelineContainer />} />
-          <Route path="/leads/:id" element={<LeadCapture />} />
+          <Route path="/leads/:id" element={<LeadsPipelineContainer />} />
+          <Route path="/leads/legacy" element={<LeadCapture />} />
           {/* Admin routes */}
           <Route path="/admin/users" element={
             <ProtectedRoute requiredRoles={['admin']}>

@@ -149,6 +149,10 @@ describe('LeadService — Quote-to-Lead Pipeline', () => {
           .mockResolvedValueOnce({ rows: [{ id: 1 }] }) // logActivity
           .mockResolvedValueOnce({}); // COMMIT
 
+        // Post-commit: push notification lookup (assigned_to query)
+        mockPool.query.mockResolvedValueOnce({
+          rows: [{ assigned_to: 5, contact_name: 'Test' }]
+        });
         // getLeadById called after commit
         mockPool.query.mockResolvedValueOnce({
           rows: [{ id: 1, status: to }]
@@ -195,6 +199,10 @@ describe('LeadService — Quote-to-Lead Pipeline', () => {
         .mockResolvedValueOnce({ rows: [{ id: 1 }] }) // logActivity
         .mockResolvedValueOnce({}); // COMMIT
 
+      // Post-commit: push notification lookup
+      mockPool.query.mockResolvedValueOnce({
+        rows: [{ assigned_to: 5, contact_name: 'Test' }]
+      });
       mockPool.query.mockResolvedValueOnce({
         rows: [{ id: 1, status: 'won', resolved_at: '2026-03-30T00:00:00Z' }]
       });

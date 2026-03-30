@@ -498,6 +498,48 @@ setInterval(async () => {
 }, 15 * 60 * 1000);
 logger.info('[LeadEmailQueue] Email queue processor scheduled (every 15 min)');
 
+// Push notification queue processor — every 15 minutes
+const LeadPushService = require('./services/LeadPushService');
+const leadPushService = new LeadPushService(pool);
+
+setInterval(async () => {
+  try {
+    const pushReminders = await pool.query(`
+      SELECT id, lead_id, trigger_type, recipient_user_id
+      FROM lead_reminders
+      WHERE reminder_type = 'push' AND sent_at IS NULL AND scheduled_at <= NOW()
+      LIMIT 20
+    `);
+
+    for (const reminder of pushReminders.rows) {
+      try {
+        // Build lead data for payload
+        const leadRes = await pool.query(
+          'SELECT id, contact_name FROM leads WHERE id = $1',
+          [reminder.lead_id]
+        );
+        const lead = leadRes.rows[0];
+        if (lead && reminder.recipient_user_id) {
+          const payload = leadPushService.buildPayload('followup-reminder', {
+            id: lead.id, customerName: lead.contact_name
+          });
+          await leadPushService.sendToUser(reminder.recipient_user_id, payload);
+        }
+        await pool.query('UPDATE lead_reminders SET sent_at = NOW() WHERE id = $1', [reminder.id]);
+      } catch (err) {
+        logger.error({ err, reminderId: reminder.id }, '[LeadPushQueue] Push reminder failed');
+      }
+    }
+
+    if (pushReminders.rows.length > 0) {
+      logger.info({ count: pushReminders.rows.length }, '[LeadPushQueue] Processed push queue');
+    }
+  } catch (err) {
+    logger.error({ err }, '[LeadPushQueue] Push queue processing failed');
+  }
+}, 15 * 60 * 1000);
+logger.info('[LeadPushQueue] Push queue processor scheduled (every 15 min)');
+
 logger.info('Enterprise services initialized');
 
 // ============================================
@@ -673,15 +715,27 @@ app.get('/api/users/me/permissions', authenticate, (req, res) => {
 // PATCH /api/users/me/notifications — update notification preferences
 app.patch('/api/users/me/notifications', authenticate, async (req, res) => {
   try {
-    const { lead_email_reminders } = req.body;
-    const prefs = { lead_email_reminders: lead_email_reminders !== false };
+    const { lead_email_reminders, push_notifications_enabled } = req.body;
+    const updates = {};
 
-    await pool.query(`
-      UPDATE users SET notification_preferences = notification_preferences || $1::jsonb
-      WHERE id = $2
-    `, [JSON.stringify(prefs), req.user.id]);
+    if (lead_email_reminders !== undefined) {
+      const prefs = { lead_email_reminders: lead_email_reminders !== false };
+      await pool.query(
+        'UPDATE users SET notification_preferences = notification_preferences || $1::jsonb WHERE id = $2',
+        [JSON.stringify(prefs), req.user.id]
+      );
+      updates.lead_email_reminders = prefs.lead_email_reminders;
+    }
 
-    res.json({ success: true, data: prefs });
+    if (push_notifications_enabled !== undefined) {
+      await pool.query(
+        'UPDATE users SET push_notifications_enabled = $1 WHERE id = $2',
+        [push_notifications_enabled === true, req.user.id]
+      );
+      updates.push_notifications_enabled = push_notifications_enabled === true;
+    }
+
+    res.json({ success: true, data: updates });
   } catch (err) {
     logger.error({ err }, 'Failed to update notification preferences');
     res.status(500).json({ success: false, error: 'Failed to update preferences' });
@@ -1062,7 +1116,7 @@ logger.info('Quotation routes loaded (modular)');
 // POS TRANSACTIONS (TeleTime POS)
 // ============================================
 const { init: initTransactionsRoutes } = require('./routes/transactions');
-app.use('/api/transactions', initTransactionsRoutes({ pool, cache, discountAuthorityService, serialNumberService }));
+app.use('/api/transactions', initTransactionsRoutes({ pool, cache, discountAuthorityService, serialNumberService, taxService }));
 logger.info('POS transactions routes loaded');
 
 // NOTE: sales-orders and delivery-slips routes mounted after auth routes above

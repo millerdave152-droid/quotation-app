@@ -132,7 +132,14 @@ describe('PdfService', () => {
       mockPool.query
         .mockResolvedValueOnce({ rows: [mockQuote] })  // Quote fetch
         .mockResolvedValueOnce({ rows: mockItems })     // Items fetch
-        .mockResolvedValueOnce({ rows: [] });           // Signatures fetch
+        .mockResolvedValueOnce({ rows: [] })            // Signatures fetch
+        // Add-on queries (warranties, delivery, rebates, trade-ins, financing)
+        // Added after PdfService was extended to fetch revenue feature add-ons
+        .mockResolvedValueOnce({ rows: [] })            // warranties
+        .mockResolvedValueOnce({ rows: [] })            // delivery
+        .mockResolvedValueOnce({ rows: [] })            // rebates
+        .mockResolvedValueOnce({ rows: [] })            // trade-ins
+        .mockResolvedValueOnce({ rows: [] });           // financing
     });
 
     test('should generate PDF for small quote (customer type)', async () => {
@@ -149,16 +156,25 @@ describe('PdfService', () => {
       expect(pdf.length).toBeGreaterThan(1000);
     });
 
+    // Fix: PdfService now fetches add-ons (warranties, delivery, rebates,
+    // trade-ins, financing) via Promise.all — 5 additional queries after
+    // the original 3 (quote, items, signatures), totalling 8.
     test('should call database queries in correct order', async () => {
       await pdfService.generateQuotePdf(1);
 
-      expect(mockPool.query).toHaveBeenCalledTimes(3);
+      expect(mockPool.query).toHaveBeenCalledTimes(8);
       // First call: quote fetch
       expect(mockPool.query.mock.calls[0][0]).toContain('FROM quotations');
       // Second call: items fetch
       expect(mockPool.query.mock.calls[1][0]).toContain('FROM quotation_items');
       // Third call: signatures fetch
       expect(mockPool.query.mock.calls[2][0]).toContain('FROM quote_signatures');
+      // Calls 4-8: add-on queries (warranties, delivery, rebates, trade-ins, financing)
+      expect(mockPool.query.mock.calls[3][0]).toContain('quote_warranties');
+      expect(mockPool.query.mock.calls[4][0]).toContain('quote_delivery');
+      expect(mockPool.query.mock.calls[5][0]).toContain('quote_rebates');
+      expect(mockPool.query.mock.calls[6][0]).toContain('quote_trade_ins');
+      expect(mockPool.query.mock.calls[7][0]).toContain('quote_financing');
     });
   });
 
@@ -517,24 +533,37 @@ describe('PdfService', () => {
   });
 
   describe('generateBulkPdfs', () => {
+    // Fix: Each PDF generation now requires 8 queries (3 base + 5 add-ons).
+    // The original test only mocked 4 per PDF (with a stale 4th mock),
+    // causing add-on queries to consume responses meant for the next PDF.
     test('should generate multiple PDFs', async () => {
       const quotes = [
         { id: 1, quotation_number: 'Q-001', customer_name: 'A', subtotal_cents: 10000, total_cents: 11300, created_at: new Date().toISOString() },
         { id: 2, quotation_number: 'Q-002', customer_name: 'B', subtotal_cents: 20000, total_cents: 22600, created_at: new Date().toISOString() }
       ];
 
-      // Setup mocks for each PDF generation
+      // Setup mocks for each PDF generation (8 queries per PDF + 1 quote_number lookup in generateBulkPdfs)
       mockPool.query
-        // First PDF
+        // First PDF: quote, items, signatures, 5 add-ons, then bulk quote_number lookup
         .mockResolvedValueOnce({ rows: [quotes[0]] })
         .mockResolvedValueOnce({ rows: [] })
         .mockResolvedValueOnce({ rows: [] })
-        .mockResolvedValueOnce({ rows: [{ quotation_number: 'Q-001' }] })
-        // Second PDF
+        .mockResolvedValueOnce({ rows: [] })  // warranties
+        .mockResolvedValueOnce({ rows: [] })  // delivery
+        .mockResolvedValueOnce({ rows: [] })  // rebates
+        .mockResolvedValueOnce({ rows: [] })  // trade-ins
+        .mockResolvedValueOnce({ rows: [] })  // financing
+        .mockResolvedValueOnce({ rows: [{ quotation_number: 'Q-001' }] }) // bulk lookup
+        // Second PDF: quote, items, signatures, 5 add-ons, then bulk quote_number lookup
         .mockResolvedValueOnce({ rows: [quotes[1]] })
         .mockResolvedValueOnce({ rows: [] })
         .mockResolvedValueOnce({ rows: [] })
-        .mockResolvedValueOnce({ rows: [{ quotation_number: 'Q-002' }] });
+        .mockResolvedValueOnce({ rows: [] })  // warranties
+        .mockResolvedValueOnce({ rows: [] })  // delivery
+        .mockResolvedValueOnce({ rows: [] })  // rebates
+        .mockResolvedValueOnce({ rows: [] })  // trade-ins
+        .mockResolvedValueOnce({ rows: [] })  // financing
+        .mockResolvedValueOnce({ rows: [{ quotation_number: 'Q-002' }] }); // bulk lookup
 
       const results = await pdfService.generateBulkPdfs([1, 2]);
 
@@ -543,13 +572,20 @@ describe('PdfService', () => {
       expect(results[1].success).toBe(true);
     });
 
+    // Fix: First PDF needs 8 + 1 queries (3 base + 5 add-ons + bulk lookup).
+    // Second PDF returns empty rows[0] → QUOTE_NOT_FOUND error (expected).
     test('should handle partial failures in bulk generation', async () => {
       mockPool.query
-        // First PDF succeeds
+        // First PDF succeeds: quote, items, signatures, 5 add-ons, bulk lookup
         .mockResolvedValueOnce({ rows: [{ id: 1, quotation_number: 'Q-001', customer_name: 'A', subtotal_cents: 10000, total_cents: 11300, created_at: new Date().toISOString() }] })
         .mockResolvedValueOnce({ rows: [] })
         .mockResolvedValueOnce({ rows: [] })
-        .mockResolvedValueOnce({ rows: [{ quotation_number: 'Q-001' }] })
+        .mockResolvedValueOnce({ rows: [] })  // warranties
+        .mockResolvedValueOnce({ rows: [] })  // delivery
+        .mockResolvedValueOnce({ rows: [] })  // rebates
+        .mockResolvedValueOnce({ rows: [] })  // trade-ins
+        .mockResolvedValueOnce({ rows: [] })  // financing
+        .mockResolvedValueOnce({ rows: [{ quotation_number: 'Q-001' }] }) // bulk lookup
         // Second PDF fails - not found
         .mockResolvedValueOnce({ rows: [] });
 

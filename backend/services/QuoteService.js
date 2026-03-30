@@ -1163,20 +1163,26 @@ class QuoteService {
         console.warn('[QuoteService] Embedding error:', err.message);
       });
 
-      // TODO [Tax Engine Integration]: After quote INSERT, call taxEngineService
-      // to persist province-aware tax breakdown:
-      //
-      //   const provinceInfo = await taxEngineService.getProvinceForCustomer(customer_id);
-      //   await taxEngineService.calculateTax({
-      //     subtotalCents: subtotal_cents,
-      //     provinceCode: provinceInfo.provinceCode,
-      //     customerId: customer_id,
-      //     transactionId: quotation_id,
-      //     transactionType: 'quote',
-      //   });
-      //
-      // This replaces the single tax_rate/tax_cents fields with full GST/HST/PST/QST
-      // breakdown and exemption support. Wire up once migration 168 is live.
+      // TAX-UNIFIED: both POS and quotes now use TaxService as single source of truth
+      // Recalculate tax via TaxService for DB-driven rates + exemption support.
+      // This overrides the initial calculateTotals() tax_cents with accurate province-aware values.
+      try {
+        const TaxService = require('./TaxService');
+        const taxSvc = new TaxService(this.pool);
+        const taxResult = await taxSvc.calculateTax({
+          amountCents: subtotal_cents - discount_cents + (ehf_cents || 0),
+          provinceCode: 'ON', // Default for Mississauga — future: resolve from customer address
+          customerId: customer_id || null,
+        });
+        // Update the quotation with TaxService-calculated values
+        await client.query(
+          `UPDATE quotations SET tax_cents = $1, total_cents = $2, updated_at = NOW() WHERE id = $3`,
+          [taxResult.totalTaxCents, (subtotal_cents - discount_cents + (ehf_cents || 0)) + taxResult.totalTaxCents, quotation_id]
+        );
+      } catch (taxErr) {
+        // Non-fatal: fall back to the calculateTotals() values already saved
+        console.warn('[QuoteService] TaxService recalculation failed, using fallback:', taxErr.message);
+      }
 
       // ── Skulytics enrichment (snapshot at quote time) ──────────
       let skulyticsWarnings = [];
@@ -2563,26 +2569,117 @@ class QuoteService {
   }
 
   /**
-   * Restore a quote to a previous version
+   * Restore a quote to a previous version.
+   * Performs a pricing validation gate: if any snapshot prices differ from
+   * current product prices, returns a requiresConfirmation response instead
+   * of restoring. Use confirmRestoreVersion() to bypass the gate.
+   *
    * @param {number} quoteId - Quote ID
    * @param {number} versionNumber - Version to restore
    * @param {string} restoredBy - User performing the restore
-   * @returns {Promise<object>} The restored quote
+   * @returns {Promise<object>} Restored quote OR requiresConfirmation payload
    */
   async restoreVersion(quoteId, versionNumber, restoredBy = 'User') {
+    // 1. Load the snapshot
+    const version = await this.getQuoteVersion(quoteId, versionNumber);
+    if (!version) {
+      throw new Error('Version not found');
+    }
+
+    const items = version.items_snapshot || [];
+    if (items.length === 0) {
+      // No items to validate — proceed directly
+      return this._executeRestore(quoteId, versionNumber, version, restoredBy, false);
+    }
+
+    // 2. Load current prices for all products in the snapshot
+    const productIds = items.map(i => i.product_id).filter(Boolean);
+    if (productIds.length === 0) {
+      return this._executeRestore(quoteId, versionNumber, version, restoredBy, false);
+    }
+
+    const priceResult = await this.pool.query(
+      'SELECT id, msrp_cents, cost_cents, is_serialized, name, model FROM products WHERE id = ANY($1)',
+      [productIds]
+    );
+    const currentPrices = new Map(priceResult.rows.map(p => [p.id, p]));
+
+    // 3. Compare snapshot prices to current prices
+    const priceDifferences = [];
+    for (const item of items) {
+      if (!item.product_id) continue;
+      const current = currentPrices.get(item.product_id);
+      if (!current) continue; // Product deleted — can't compare
+
+      const snapshotPriceCents = item.unit_price_cents || item.sell_cents || 0;
+      const currentPriceCents = current.msrp_cents || 0;
+      const diffCents = Math.abs(snapshotPriceCents - currentPriceCents);
+
+      if (diffCents > 1) { // > $0.01
+        priceDifferences.push({
+          product_id: item.product_id,
+          sku: item.sku || item.model || current.model,
+          name: current.name,
+          snapshot_price_cents: snapshotPriceCents,
+          current_price_cents: currentPriceCents,
+          diff_cents: snapshotPriceCents - currentPriceCents,
+          diff_display: `$${((snapshotPriceCents - currentPriceCents) / 100).toFixed(2)}`,
+        });
+      }
+    }
+
+    // 4. If price differences found, return confirmation request
+    if (priceDifferences.length > 0) {
+      return {
+        requiresConfirmation: true,
+        quoteId,
+        versionNumber,
+        priceDifferences,
+        message: 'Restoring this version will apply historical prices. Review before confirming.',
+      };
+    }
+
+    // No price differences — safe to restore directly
+    return this._executeRestore(quoteId, versionNumber, version, restoredBy, false);
+  }
+
+  /**
+   * Confirm restore with explicit acceptStalePricing flag.
+   * Bypasses the pricing validation gate.
+   *
+   * @param {number} quoteId
+   * @param {number} versionNumber
+   * @param {object} options
+   * @param {boolean} options.acceptStalePricing - Must be true to proceed
+   * @param {string} options.restoredBy - User performing the restore
+   * @returns {Promise<object>} The restored quote
+   */
+  async confirmRestoreVersion(quoteId, versionNumber, { acceptStalePricing = false, restoredBy = 'User' } = {}) {
+    if (!acceptStalePricing) {
+      throw new Error('acceptStalePricing must be true to bypass pricing validation');
+    }
+
+    const version = await this.getQuoteVersion(quoteId, versionNumber);
+    if (!version) {
+      throw new Error('Version not found');
+    }
+
+    return this._executeRestore(quoteId, versionNumber, version, restoredBy, true);
+  }
+
+  /**
+   * Internal: execute the actual version restore with audit logging.
+   * @private
+   */
+  async _executeRestore(quoteId, versionNumber, version, restoredBy, acceptStalePricing) {
     const client = await this.pool.connect();
 
     try {
       await client.query('BEGIN');
 
-      // Get the version to restore
-      const version = await this.getQuoteVersion(quoteId, versionNumber);
-      if (!version) {
-        throw new Error('Version not found');
-      }
-
       // Create a snapshot of current state before restoring
-      await this.createVersionSnapshot(
+      await this.createVersionSnapshotInTransaction(
+        client,
         quoteId,
         'restored',
         `Restored to version ${versionNumber}`,
@@ -2641,18 +2738,21 @@ class QuoteService {
         await this.insertQuoteItems(client, quoteId, items);
       }
 
-      // Log the restore event
+      // Audit log: who restored, which version, stale pricing flag, timestamp
       await client.query(`
         INSERT INTO quote_events (quotation_id, event_type, description, user_name, metadata, activity_category)
-        VALUES ($1, 'UPDATED', $2, $3, $4, 'lifecycle')
+        VALUES ($1, 'VERSION_RESTORED', $2, $3, $4, 'lifecycle')
       `, [
         quoteId,
-        `Quote restored to version ${versionNumber}`,
+        `Quote restored to version ${versionNumber}${acceptStalePricing ? ' (stale pricing accepted)' : ''}`,
         restoredBy,
         JSON.stringify({
           restored_version: versionNumber,
           items_count: items.length,
-          total_cents: version.total_cents
+          total_cents: version.total_cents,
+          accept_stale_pricing: acceptStalePricing,
+          restored_by: restoredBy,
+          restored_at: new Date().toISOString(),
         })
       ]);
 

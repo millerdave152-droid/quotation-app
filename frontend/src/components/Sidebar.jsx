@@ -42,8 +42,7 @@ const API_URL = process.env.REACT_APP_API_URL || '';
 const navItems = {
   dashboard: { path: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
   customers: { path: '/customers', icon: Users, label: 'Customers' },
-  leads: { path: '/leads', icon: ClipboardCheck, label: 'Leads' },
-  'lead-pipeline': { path: '/leads/pipeline', icon: Activity, label: 'Lead Pipeline', hasReminderBadge: true },
+  leads: { path: '/leads', icon: ClipboardCheck, label: 'Leads', hasReminderBadge: true },
   products: { path: '/products', icon: Package, label: 'Products' },
   'product-visualization': { path: '/product-visualization', icon: Image, label: 'Product Gallery' },
   quotes: { path: '/quotes', icon: FileText, label: 'Quotations', hasBadge: true },

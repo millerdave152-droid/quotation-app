@@ -1002,12 +1002,21 @@ class LeadService {
 
       await client.query('COMMIT');
 
-      // Fire-and-forget: send lead-created email for new leads
+      // Fire-and-forget: send lead-created email + push for new leads
       if (isNew && lead.assigned_to) {
         const EmailReminderService = require('./EmailReminderService');
         const emailReminderService = new EmailReminderService(this.pool);
         emailReminderService.dispatchLeadEmail('lead-created', lead.id, [lead.assigned_to])
           .catch(err => logger.error({ err, leadId: lead.id }, 'lead-created email failed'));
+
+        const LeadPushService = require('./LeadPushService');
+        const pushSvc = new LeadPushService(this.pool);
+        const pushPayload = pushSvc.buildPayload('lead-created', {
+          id: lead.id, customerName: lead.contact_name,
+          quoteNumber: params.quoteId ? String(params.quoteId) : ''
+        });
+        pushSvc.sendToUser(lead.assigned_to, pushPayload)
+          .catch(err => logger.error({ err, leadId: lead.id }, 'lead-created push failed'));
       }
 
       return { lead, isNew };
@@ -1081,6 +1090,29 @@ class LeadService {
       );
 
       await client.query('COMMIT');
+
+      // Fire-and-forget: push notification on status change
+      if (currentResult.rows[0] && currentResult.rows[0].status !== newStatus) {
+        const LeadPushService = require('./LeadPushService');
+        const leadPushService = new LeadPushService(this.pool);
+        // Notify the assigned staff (look up from the lead)
+        this.pool.query('SELECT assigned_to, contact_name FROM leads WHERE id = $1', [leadId])
+          .then(res => {
+            const l = res.rows[0];
+            if (l && l.assigned_to) {
+              // Status change doesn't have a spec template — use lead-created as fallback title
+              leadPushService.sendToUser(l.assigned_to, {
+                title: 'Lead Status Updated',
+                body: `${l.contact_name || 'Customer'} \u2014 ${oldStatus} \u2192 ${newStatus}`.slice(0, 100),
+                icon: '/logo192.png', badge: '/logo192.png',
+                tag: `lead-${leadId}`, requireInteraction: false,
+                data: { url: `/leads/${leadId}`, leadId, templateId: 'status-changed' }
+              }).catch(() => {});
+            }
+          })
+          .catch(() => {});
+      }
+
       return this.getLeadById(leadId);
     } catch (error) {
       await client.query('ROLLBACK');
@@ -1244,15 +1276,23 @@ class LeadService {
 
     // Queue email reminder 1 hour before the follow-up (fire-and-forget)
     try {
-      const reminderAt = new Date(new Date(data.scheduledAt).getTime() - 60 * 60 * 1000);
-      if (reminderAt > new Date()) {
+      const followupTime = new Date(data.scheduledAt);
+      const emailAt = new Date(followupTime.getTime() - 60 * 60 * 1000);
+      if (emailAt > new Date()) {
         await this.pool.query(`
           INSERT INTO lead_reminders (lead_id, reminder_type, trigger_type, scheduled_at, recipient_user_id, message_body)
           VALUES ($1, 'email', 'manual', $2, $3, $4)
-        `, [leadId, reminderAt.toISOString(), userId, `Follow-up reminder: ${data.followupType || 'call'}`]);
+        `, [leadId, emailAt.toISOString(), userId, `Follow-up reminder: ${data.followupType || 'call'}`]);
+      }
+      // Queue push reminder at the follow-up time itself
+      if (followupTime > new Date()) {
+        await this.pool.query(`
+          INSERT INTO lead_reminders (lead_id, reminder_type, trigger_type, scheduled_at, recipient_user_id, message_body)
+          VALUES ($1, 'push', 'manual', $2, $3, $4)
+        `, [leadId, followupTime.toISOString(), userId, `Follow-up: ${data.followupType || 'call'}`]);
       }
     } catch (err) {
-      logger.error({ err, leadId }, 'Failed to queue follow-up email reminder');
+      logger.error({ err, leadId }, 'Failed to queue follow-up reminders');
     }
 
     return result.rows[0];

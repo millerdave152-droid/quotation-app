@@ -144,8 +144,8 @@ class EmailReminderService {
     const templates = {
       'lead-created': {
         subject: `New Lead: ${customerName} \u2014 Quote #${quoteNumber}`,
-        headerColor: '#667eea',
-        headerGradient: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+        headerColor: '#C8614A',
+        headerGradient: '#C8614A',
         heading: 'New Lead Created',
         body: `
           <p style="font-size: 16px; color: #374151;">A new lead has been created from a quote opt-in:</p>
@@ -155,8 +155,8 @@ class EmailReminderService {
       },
       'no-followup-nudge': {
         subject: `Follow Up with ${customerName} \u2014 Quote Expires ${expiryDate}`,
-        headerColor: '#f59e0b',
-        headerGradient: 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)',
+        headerColor: '#2B8FAD',
+        headerGradient: '#2B8FAD',
         heading: 'Follow-Up Needed',
         body: `
           <p style="font-size: 16px; color: #374151;"><strong>${customerName}</strong> has been in "Quoted" status with no follow-up contact.</p>
@@ -166,8 +166,8 @@ class EmailReminderService {
       },
       'expiry-warning': {
         subject: `Quote Expiring Soon: ${customerName} \u2014 ${daysUntilExpiry != null ? daysUntilExpiry : '?'} Days Left`,
-        headerColor: '#ef4444',
-        headerGradient: 'linear-gradient(135deg, #ef4444 0%, #dc2626 100%)',
+        headerColor: '#f59e0b',
+        headerGradient: '#f59e0b',
         heading: 'Quote Expiring Soon',
         body: `
           <p style="font-size: 16px; color: #374151;">The quote for <strong>${customerName}</strong> expires ${daysUntilExpiry != null && daysUntilExpiry <= 0 ? 'today' : `in <strong>${daysUntilExpiry}</strong> day(s)`}.</p>
@@ -177,8 +177,8 @@ class EmailReminderService {
       },
       'quote-expired': {
         subject: `Expired Quote \u2014 Lead Still Open: ${customerName}`,
-        headerColor: '#6b7280',
-        headerGradient: 'linear-gradient(135deg, #6b7280 0%, #4b5563 100%)',
+        headerColor: '#1A2332',
+        headerGradient: '#1A2332',
         heading: 'Quote Expired \u2014 Lead Still Open',
         body: `
           <p style="font-size: 16px; color: #374151;">The quote for <strong>${customerName}</strong> has expired but the lead is still open.</p>
@@ -188,8 +188,8 @@ class EmailReminderService {
       },
       'followup-reminder': {
         subject: `Reminder: Follow-Up with ${customerName} Today${lead.followup_time ? ' at ' + lead.followup_time : ''}`,
-        headerColor: '#8b5cf6',
-        headerGradient: 'linear-gradient(135deg, #8b5cf6 0%, #6366f1 100%)',
+        headerColor: '#1A2332',
+        headerGradient: '#1A2332',
         heading: 'Follow-Up Reminder',
         body: `
           <p style="font-size: 16px; color: #374151;">You have a follow-up scheduled with <strong>${customerName}</strong>${lead.followup_time ? ' at <strong>' + lead.followup_time + '</strong>' : ' today'}.</p>
@@ -250,7 +250,7 @@ class EmailReminderService {
         <div style="padding: 28px 30px; background: #f9fafb;">
           ${body}
           <div style="text-align: center; margin-top: 24px;">
-            <a href="${leadUrl}" style="display: inline-block; padding: 12px 28px; background: #6366F1; color: #ffffff; text-decoration: none; border-radius: 8px; font-weight: 600; font-size: 14px;">View Lead</a>
+            <a href="${leadUrl}" style="display: inline-block; padding: 12px 28px; background: #C8614A; color: #ffffff; text-decoration: none; border-radius: 8px; font-weight: 600; font-size: 14px;">View Lead</a>
           </div>
         </div>
         <div style="padding: 20px 30px; text-align: center; color: #9ca3af; font-size: 12px; border-top: 1px solid #e5e7eb;">

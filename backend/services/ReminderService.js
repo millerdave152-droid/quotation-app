@@ -73,6 +73,10 @@ class ReminderService {
           created++;
           // Queue expiry-warning email for staff + store manager
           await this._queueEmailReminder(leadId, 'quote_expiry', lead.assigned_to, label);
+          // Push notification
+          this._sendPush('expiry-warning', leadId, lead.assigned_to, {
+            customerName: lead.contact_name, daysLeft: Math.ceil(daysUntilExpiry)
+          });
         }
       }
     }
@@ -89,6 +93,10 @@ class ReminderService {
           // Queue no-followup-nudge email
           await this._queueEmailReminder(leadId, 'no_contact', lead.assigned_to,
             `Lead has been quoted for ${Math.floor(ageDays)} days with no follow-up scheduled`);
+          // Push notification
+          this._sendPush('no-followup-nudge', leadId, lead.assigned_to, {
+            customerName: lead.contact_name
+          });
         }
       }
     }
@@ -139,6 +147,21 @@ class ReminderService {
       `, [leadId, triggerType, recipientUserId || null, messageBody || null]);
     } catch (err) {
       logger.error({ err, leadId, triggerType }, '[ReminderService] Failed to queue email reminder');
+    }
+  }
+
+  /**
+   * Fire-and-forget push notification via LeadPushService.
+   */
+  _sendPush(templateId, leadId, recipientUserId, context) {
+    try {
+      const LeadPushService = require('./LeadPushService');
+      const pushSvc = new LeadPushService(this.pool);
+      const payload = pushSvc.buildPayload(templateId, { id: leadId, ...context });
+      pushSvc.sendToUser(recipientUserId, payload)
+        .catch(err => logger.error({ err, templateId, leadId }, '[ReminderService] Push failed'));
+    } catch (err) {
+      logger.error({ err, templateId, leadId }, '[ReminderService] Push init failed');
     }
   }
 
