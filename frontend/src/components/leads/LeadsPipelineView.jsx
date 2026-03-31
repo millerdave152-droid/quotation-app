@@ -53,7 +53,7 @@ const formatCents = (cents) => {
   return `$${(cents / 100).toLocaleString('en-CA', { minimumFractionDigits: 2 })}`;
 };
 
-function LeadsPipelineView({ onLeadSelect }) {
+function LeadsPipelineView({ onLeadSelect, onToggleReminders, showRemindersActive }) {
   const toast = useToast();
   const [leads, setLeads] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -190,9 +190,26 @@ function LeadsPipelineView({ onLeadSelect }) {
         <h2 style={{ margin: 0, fontSize: '22px', fontWeight: '700', color: '#111827' }}>
           Lead Pipeline
         </h2>
-        <span style={{ fontSize: '13px', color: '#6b7280' }}>
-          {pagination.total} lead{pagination.total !== 1 ? 's' : ''}
-        </span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+          <span style={{ fontSize: '13px', color: '#6b7280' }}>
+            {pagination.total} lead{pagination.total !== 1 ? 's' : ''}
+          </span>
+          {onToggleReminders && (
+            <button
+              onClick={onToggleReminders}
+              style={{
+                padding: '8px 16px',
+                background: showRemindersActive ? '#a8503d' : '#C8614A',
+                color: '#fff', border: 'none', borderRadius: '8px',
+                fontSize: '13px', fontWeight: '600', cursor: 'pointer',
+                boxShadow: '0 2px 8px rgba(200, 97, 74, 0.3)',
+                display: 'flex', alignItems: 'center', gap: '6px'
+              }}
+            >
+              {'\uD83D\uDD14'} Reminders
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Filters */}

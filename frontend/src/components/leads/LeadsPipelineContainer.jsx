@@ -23,14 +23,12 @@ function LeadsPipelineContainer() {
   const [showReminders, setShowReminders] = useState(false);
   const [showPushBanner, setShowPushBanner] = useState(false);
 
-  // Sync state when URL param changes (e.g. navigating from /leads/5 to /leads)
   useEffect(() => {
     if (urlLeadId && urlLeadId !== 'pipeline') {
       setSelectedLeadId(parseInt(urlLeadId));
     }
   }, [urlLeadId]);
 
-  // Show one-time push opt-in banner if not previously dismissed
   useEffect(() => {
     if (!localStorage.getItem(BANNER_DISMISSED_KEY)
       && 'Notification' in window
@@ -69,10 +67,20 @@ function LeadsPipelineContainer() {
     navigate(`/leads/${leadId}`, { replace: true });
   };
 
+  if (selectedLeadId) {
+    return (
+      <LeadDetailView
+        leadId={selectedLeadId}
+        onBack={handleBack}
+        onQuoteSelect={handleQuoteSelect}
+      />
+    );
+  }
+
   return (
-    <div style={{ position: 'relative' }}>
-      {/* Non-intrusive push opt-in banner (shown once) */}
-      {showPushBanner && !selectedLeadId && (
+    <div>
+      {/* Push opt-in banner (shown once per browser) */}
+      {showPushBanner && (
         <div style={{
           margin: '16px 24px 0', padding: '12px 16px',
           background: '#FFF7ED', border: '1px solid #FDBA74', borderRadius: '10px',
@@ -91,37 +99,12 @@ function LeadsPipelineContainer() {
         </div>
       )}
 
-      {/* Top-right action buttons */}
-      {!selectedLeadId && (
-        <div style={{
-          position: 'fixed', top: '16px', right: '24px', zIndex: 1050,
-          display: 'flex', gap: '8px'
-        }}>
-          <button
-            onClick={() => setShowReminders(!showReminders)}
-            style={{
-              padding: '8px 16px', background: showReminders ? '#a8503d' : '#C8614A',
-              color: '#fff', border: 'none', borderRadius: '8px',
-              fontSize: '13px', fontWeight: '600', cursor: 'pointer',
-              boxShadow: '0 2px 8px rgba(200, 97, 74, 0.3)',
-              display: 'flex', alignItems: 'center', gap: '6px'
-            }}
-          >
-            {'\uD83D\uDD14'} Reminders
-          </button>
-        </div>
-      )}
-
-      {/* Main content */}
-      {selectedLeadId ? (
-        <LeadDetailView
-          leadId={selectedLeadId}
-          onBack={handleBack}
-          onQuoteSelect={handleQuoteSelect}
-        />
-      ) : (
-        <LeadsPipelineView onLeadSelect={handleLeadSelect} />
-      )}
+      {/* Pipeline list with inline Reminders button */}
+      <LeadsPipelineView
+        onLeadSelect={handleLeadSelect}
+        onToggleReminders={() => setShowReminders(!showReminders)}
+        showRemindersActive={showReminders}
+      />
 
       {/* Reminders slide-in panel */}
       {showReminders && (
