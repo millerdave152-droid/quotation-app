@@ -53,7 +53,7 @@ const formatCents = (cents) => {
   return `$${(cents / 100).toLocaleString('en-CA', { minimumFractionDigits: 2 })}`;
 };
 
-function LeadsPipelineView({ onLeadSelect, onToggleReminders, showRemindersActive }) {
+function LeadsPipelineView({ onLeadSelect, onToggleReminders, showRemindersActive, onNewLead }) {
   const toast = useToast();
   const [leads, setLeads] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -197,6 +197,21 @@ function LeadsPipelineView({ onLeadSelect, onToggleReminders, showRemindersActiv
           <span style={{ fontSize: '13px', color: '#6b7280' }}>
             {pagination.total} lead{pagination.total !== 1 ? 's' : ''}
           </span>
+          {onNewLead && (
+            <button
+              onClick={onNewLead}
+              style={{
+                padding: '8px 16px',
+                background: '#1e40af',
+                color: '#fff', border: 'none', borderRadius: '8px',
+                fontSize: '13px', fontWeight: '600', cursor: 'pointer',
+                boxShadow: '0 2px 8px rgba(30, 64, 175, 0.3)',
+                display: 'flex', alignItems: 'center', gap: '6px'
+              }}
+            >
+              + New Lead
+            </button>
+          )}
           {onToggleReminders && (
             <button
               onClick={onToggleReminders}

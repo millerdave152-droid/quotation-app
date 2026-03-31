@@ -1,15 +1,17 @@
 /**
  * LeadsPipelineContainer — Routes between Pipeline list and Lead detail
  * Reads :id from URL params to auto-open lead detail when navigated to /leads/:id
- * Includes RemindersPanel toggle and PushNotificationToggle
+ * Includes RemindersPanel, PushNotificationToggle, and New Lead form
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import LeadsPipelineView from './LeadsPipelineView';
 import LeadDetailView from './LeadDetailView';
 import RemindersPanel from './RemindersPanel';
 import PushNotificationToggle from './PushNotificationToggle';
+import LeadForm from './LeadForm';
+import './LeadCapture.css';
 
 const BANNER_DISMISSED_KEY = 'leads_push_banner_dismissed';
 
@@ -22,6 +24,8 @@ function LeadsPipelineContainer() {
   );
   const [showReminders, setShowReminders] = useState(false);
   const [showPushBanner, setShowPushBanner] = useState(false);
+  const [showNewLeadForm, setShowNewLeadForm] = useState(false);
+  const [refreshKey, setRefreshKey] = useState(0);
 
   useEffect(() => {
     if (urlLeadId && urlLeadId !== 'pipeline') {
@@ -67,6 +71,11 @@ function LeadsPipelineContainer() {
     navigate(`/leads/${leadId}`, { replace: true });
   };
 
+  const handleNewLeadSaved = useCallback(() => {
+    setShowNewLeadForm(false);
+    setRefreshKey(k => k + 1);
+  }, []);
+
   if (selectedLeadId) {
     return (
       <LeadDetailView
@@ -99,11 +108,13 @@ function LeadsPipelineContainer() {
         </div>
       )}
 
-      {/* Pipeline list with inline Reminders button */}
+      {/* Pipeline list */}
       <LeadsPipelineView
+        key={refreshKey}
         onLeadSelect={handleLeadSelect}
         onToggleReminders={() => setShowReminders(!showReminders)}
         showRemindersActive={showReminders}
+        onNewLead={() => setShowNewLeadForm(true)}
       />
 
       {/* Reminders slide-in panel */}
@@ -112,6 +123,29 @@ function LeadsPipelineContainer() {
           onClose={() => setShowReminders(false)}
           onViewLead={handleViewLeadFromReminder}
         />
+      )}
+
+      {/* New Lead modal */}
+      {showNewLeadForm && (
+        <div
+          style={{
+            position: 'fixed', inset: 0, zIndex: 1100,
+            display: 'flex', alignItems: 'flex-start', justifyContent: 'center',
+            background: 'rgba(0,0,0,0.4)', paddingTop: '40px', overflowY: 'auto'
+          }}
+          onClick={(e) => { if (e.target === e.currentTarget) setShowNewLeadForm(false); }}
+        >
+          <div style={{
+            background: '#fff', borderRadius: '12px', width: '100%', maxWidth: '700px',
+            maxHeight: '90vh', overflowY: 'auto', boxShadow: '0 20px 60px rgba(0,0,0,0.2)'
+          }}>
+            <LeadForm
+              lead={null}
+              onSave={handleNewLeadSaved}
+              onCancel={() => setShowNewLeadForm(false)}
+            />
+          </div>
+        </div>
       )}
     </div>
   );
