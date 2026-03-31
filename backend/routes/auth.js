@@ -38,16 +38,25 @@ function parseDurationMs(str) {
 const REFRESH_TTL_MS = parseDurationMs(REFRESH_TOKEN_EXPIRY);
 
 /**
- * Store a refresh token in the database with session metadata.
+ * Hash a refresh token for storage (SHA-256).
+ * The raw token is returned to the client; only the hash is stored in the DB.
+ */
+function hashToken(token) {
+  return crypto.createHash('sha256').update(token).digest('hex');
+}
+
+/**
+ * Store a refresh token hash in the database with session metadata.
  * @returns {number} The inserted token row id
  */
 async function storeRefreshToken(client, { userId, token, familyId, ip, userAgent }) {
   const expiresAt = new Date(Date.now() + REFRESH_TTL_MS);
+  const tokenHash = hashToken(token);
   const result = await client.query(
     `INSERT INTO refresh_tokens (user_id, token, expires_at, family_id, ip_address, user_agent, created_at)
      VALUES ($1, $2, $3, $4, $5, $6, CURRENT_TIMESTAMP)
      RETURNING id`,
-    [userId, token, expiresAt, familyId || crypto.randomUUID(), ip || null, userAgent || null]
+    [userId, tokenHash, expiresAt, familyId || crypto.randomUUID(), ip || null, userAgent || null]
   );
   return result.rows[0].id;
 }
@@ -301,13 +310,14 @@ router.post('/refresh', validateRefreshToken, asyncHandler(async (req, res) => {
     throw ApiError.unauthorized(error.message || 'Invalid refresh token');
   }
 
-  // Look up the token row (regardless of revoked status — we need to detect reuse)
+  // Look up the token by hash (regardless of revoked status — we need to detect reuse)
+  const tokenHash = hashToken(refreshToken);
   const tokens = await db.query(
     `SELECT rt.*, u.email, u.role, u.is_active, u.tenant_id
      FROM refresh_tokens rt
      JOIN users u ON rt.user_id = u.id
      WHERE rt.token = $1`,
-    [refreshToken]
+    [tokenHash]
   );
 
   if (tokens.rows.length === 0) {
@@ -393,12 +403,13 @@ router.post('/logout', authenticate, auditLogMiddleware('logout', 'auth'), async
   const { refreshToken } = req.body;
 
   if (refreshToken) {
-    // Revoke the specific refresh token
+    // Revoke the specific refresh token (look up by hash)
+    const tokenHash = hashToken(refreshToken);
     await db.query(
       `UPDATE refresh_tokens
        SET revoked = true, revoked_at = CURRENT_TIMESTAMP
        WHERE token = $1 AND user_id = $2`,
-      [refreshToken, req.user.id]
+      [tokenHash, req.user.id]
     );
   } else {
     // Revoke all refresh tokens for the user

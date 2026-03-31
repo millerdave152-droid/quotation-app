@@ -137,6 +137,7 @@ class TaxService {
     customerId = null,
     productId = null,
     isTaxExempt = false,
+    provinceConfidence = null,
   }) {
     // Check exemptions if not already marked exempt
     if (!isTaxExempt) {
@@ -167,6 +168,7 @@ class TaxService {
         isTaxExempt: true,
         displayLabel: 'Tax Exempt',
         breakdown: [],
+        ...(provinceConfidence ? { tax_province_confidence: provinceConfidence } : {}),
       };
     }
 
@@ -236,6 +238,7 @@ class TaxService {
       isTaxExempt: false,
       displayLabel: rates.displayLabel,
       breakdown,
+      ...(provinceConfidence ? { tax_province_confidence: provinceConfidence } : {}),
     };
   }
 

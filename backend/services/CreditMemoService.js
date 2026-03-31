@@ -472,54 +472,219 @@ class CreditMemoService {
   /**
    * Apply an issued credit memo using a specified application method.
    *
+   * For refund_to_original: two-phase flow with 'processing' mutex status
+   * to prevent double-refund race conditions (CRIT-21 fix).
+   *
    * @param {number} creditMemoId - ID of the credit memo to apply
    * @param {string} applicationMethod - One of: refund_to_original, store_credit, manual_adjustment
    * @param {number} userId - ID of the user applying it
    * @returns {object} The updated credit memo (via getById)
    */
   async apply(creditMemoId, applicationMethod, userId) {
-    // Validate application method
+    const { ApiError } = require('../middleware/errorHandler');
+    const logger = require('../utils/logger');
+
     if (!VALID_APPLICATION_METHODS.includes(applicationMethod)) {
       throw new Error(
         `Invalid application method: ${applicationMethod}. Must be one of: ${VALID_APPLICATION_METHODS.join(', ')}`
       );
     }
 
-    const client = await this.pool.connect();
+    // ── refund_to_original: two-phase with Moneris ──────────────────────
+    if (applicationMethod === 'refund_to_original') {
+      return this._applyRefundToOriginal(creditMemoId, userId, logger);
+    }
 
+    // ── store_credit / manual_adjustment: single-phase (no external call) ──
+    const client = await this.pool.connect();
     try {
       await client.query('BEGIN');
 
-      // Verify current status
       const existing = await client.query(
-        'SELECT id, status FROM credit_memos WHERE id = $1',
+        'SELECT id, status, total_cents FROM credit_memos WHERE id = $1 FOR UPDATE',
         [creditMemoId]
       );
-      if (existing.rows.length === 0) {
-        throw new Error('Credit memo not found');
-      }
+      if (existing.rows.length === 0) throw new Error('Credit memo not found');
       if (existing.rows[0].status !== 'issued') {
-        throw new Error('Credit memo must be in issued status to apply');
+        throw ApiError.conflict('Credit memo already applied or voided');
       }
 
       await client.query(
         `UPDATE credit_memos
-         SET status = 'applied',
-             applied_at = NOW(),
-             applied_by = $2,
-             application_method = $3
+         SET status = 'applied', applied_at = NOW(), applied_by = $2, application_method = $3
          WHERE id = $1`,
         [creditMemoId, userId, applicationMethod]
       );
 
-      await client.query('COMMIT');
+      await client.query(
+        `INSERT INTO credit_memo_applications (credit_memo_id, application_method, amount_cents, applied_by)
+         VALUES ($1, $2, $3, $4)`,
+        [creditMemoId, applicationMethod, existing.rows[0].total_cents, userId]
+      );
 
+      await client.query('COMMIT');
       return this.getById(creditMemoId);
     } catch (err) {
       await client.query('ROLLBACK');
       throw err;
     } finally {
       client.release();
+    }
+  }
+
+  /**
+   * Two-phase refund_to_original flow:
+   *   Phase 1: Lock memo as 'processing' (mutex against concurrent apply)
+   *   Phase 2: Call Moneris refund, then finalize or revert
+   * @private
+   */
+  async _applyRefundToOriginal(creditMemoId, userId, logger) {
+    const { ApiError } = require('../middleware/errorHandler');
+
+    // ── PHASE 1: Acquire mutex via 'processing' status ──────────────────
+    let memo;
+    const lockClient = await this.pool.connect();
+    try {
+      await lockClient.query('BEGIN');
+
+      const existing = await lockClient.query(
+        'SELECT id, status, total_cents, order_id, original_invoice_number FROM credit_memos WHERE id = $1 FOR UPDATE',
+        [creditMemoId]
+      );
+      if (existing.rows.length === 0) throw new Error('Credit memo not found');
+      memo = existing.rows[0];
+
+      if (memo.status !== 'issued') {
+        throw ApiError.conflict('Credit memo already applied, processing, or voided');
+      }
+
+      await lockClient.query(
+        "UPDATE credit_memos SET status = 'processing', updated_at = NOW() WHERE id = $1",
+        [creditMemoId]
+      );
+
+      await lockClient.query('COMMIT');
+      logger.info({ creditMemoId, totalCents: memo.total_cents }, '[CreditMemo] Phase 1: locked as processing');
+    } catch (err) {
+      await lockClient.query('ROLLBACK');
+      throw err;
+    } finally {
+      lockClient.release();
+    }
+
+    // ── PHASE 2: Call Moneris refund ────────────────────────────────────
+    // Look up the original payment's Moneris order/transaction IDs
+    let monerisRefundId = null;
+    try {
+      const paymentResult = await this.pool.query(
+        `SELECT pt.moneris_order_id, pt.moneris_trans_id, pt.amount_cents
+         FROM payment_transactions pt
+         WHERE pt.quotation_id IN (
+           SELECT q.id FROM quotations q
+           JOIN unified_orders uo ON uo.quote_id = q.id
+           WHERE uo.id = $1
+         )
+         AND pt.status = 'succeeded'
+         ORDER BY pt.processed_at DESC LIMIT 1`,
+        [memo.order_id]
+      );
+
+      if (paymentResult.rows.length > 0) {
+        const origPayment = paymentResult.rows[0];
+        const MonerisService = require('./MonerisService');
+        const monerisService = await MonerisService.forLocation(null, this.pool);
+
+        const refundResult = await monerisService.refundPayment(
+          origPayment.moneris_order_id,
+          origPayment.moneris_trans_id,
+          memo.total_cents,
+          `Credit memo ${creditMemoId} refund`
+        );
+
+        if (!refundResult.success) {
+          // Moneris refused the refund — revert status to 'issued' so it can be retried
+          const revertClient = await this.pool.connect();
+          try {
+            await revertClient.query('BEGIN');
+            await revertClient.query(
+              "UPDATE credit_memos SET status = 'issued', updated_at = NOW() WHERE id = $1",
+              [creditMemoId]
+            );
+            await revertClient.query('COMMIT');
+          } catch (revertErr) {
+            await revertClient.query('ROLLBACK');
+            logger.error({ err: revertErr, creditMemoId }, '[CreditMemo] Failed to revert status after Moneris failure');
+          } finally {
+            revertClient.release();
+          }
+          throw ApiError.paymentFailed(`Moneris refund failed: ${refundResult.message}`);
+        }
+
+        monerisRefundId = refundResult.refundId;
+      }
+      // If no original Moneris payment found, proceed without external refund
+      // (manual refund or non-card payment)
+    } catch (err) {
+      if (err.statusCode) throw err; // Re-throw ApiError (paymentFailed)
+
+      // Unexpected error during Moneris call — revert to 'issued'
+      const revertClient = await this.pool.connect();
+      try {
+        await revertClient.query('BEGIN');
+        await revertClient.query(
+          "UPDATE credit_memos SET status = 'issued', updated_at = NOW() WHERE id = $1",
+          [creditMemoId]
+        );
+        await revertClient.query('COMMIT');
+      } catch (revertErr) {
+        await revertClient.query('ROLLBACK');
+        logger.error({ err: revertErr, creditMemoId }, '[CreditMemo] Failed to revert status after error');
+      } finally {
+        revertClient.release();
+      }
+      throw err;
+    }
+
+    // ── PHASE 3: Finalize — update DB with success ──────────────────────
+    const finalClient = await this.pool.connect();
+    try {
+      await finalClient.query('BEGIN');
+
+      await finalClient.query(
+        `UPDATE credit_memos
+         SET status = 'applied', applied_at = NOW(), applied_by = $2,
+             application_method = 'refund_to_original', moneris_refund_id = $3
+         WHERE id = $1`,
+        [creditMemoId, userId, monerisRefundId]
+      );
+
+      await finalClient.query(
+        `INSERT INTO credit_memo_applications
+           (credit_memo_id, application_method, amount_cents, moneris_refund_id, applied_by)
+         VALUES ($1, 'refund_to_original', $2, $3, $4)`,
+        [creditMemoId, memo.total_cents, monerisRefundId, userId]
+      );
+
+      await finalClient.query('COMMIT');
+      logger.info({ creditMemoId, monerisRefundId, totalCents: memo.total_cents }, '[CreditMemo] Phase 3: applied successfully');
+
+      return this.getById(creditMemoId);
+    } catch (dbErr) {
+      await finalClient.query('ROLLBACK');
+
+      // CRITICAL: Moneris refund succeeded but DB update failed.
+      // Leave status as 'processing' — do NOT revert to 'issued' (money already refunded).
+      // Operations team can reconcile from 'processing' status.
+      logger.error({
+        creditMemoId,
+        monerisRefundId,
+        amount: memo.total_cents,
+        err: dbErr.message,
+      }, 'CRITICAL: Moneris refund succeeded but credit memo DB update failed');
+
+      throw dbErr;
+    } finally {
+      finalClient.release();
     }
   }
 
@@ -549,8 +714,8 @@ class CreditMemoService {
       if (existing.rows.length === 0) {
         throw new Error('Credit memo not found');
       }
-      if (!['issued', 'applied'].includes(existing.rows[0].status)) {
-        throw new Error('Credit memo must be in issued or applied status to void');
+      if (!['issued', 'applied', 'processing'].includes(existing.rows[0].status)) {
+        throw new Error('Credit memo must be in issued, applied, or processing status to void');
       }
 
       await client.query(

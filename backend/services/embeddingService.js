@@ -130,29 +130,125 @@ async function updateEntityEmbedding(entity, id, embedding) {
   );
 }
 
-// ── Fire-and-forget convenience ─────────────────────────────────
+// ── Queue-based embedding ───────────────────────────────────────
+
+const logger = require('../utils/logger');
 
 /**
- * Generate + write embedding for a newly inserted record.
- * Callers MUST NOT await this — call it fire-and-forget:
+ * Enqueue a record for embedding generation.
+ * Replaces the old fire-and-forget pattern with a durable queue.
+ * Callers can still call this fire-and-forget — the INSERT is fast and safe.
  *
- *   embedNewRecord('customers', newRow).catch(err => console.warn(...));
- *
- * @param {string} entity - table name
+ * @param {string} entity - table name (e.g. 'customers', 'products')
  * @param {object} record - the row returned from RETURNING *
  */
 async function embedNewRecord(entity, record) {
   const builder = TEXT_BUILDERS[entity];
   if (!builder) return;
 
-  const text = builder(record);
-  if (!text || !text.trim()) return;
-
-  const embedding = await generateEmbedding(text);
-  if (!embedding) return;
-
   const idCol = ID_COLUMNS[entity] || 'id';
-  await updateEntityEmbedding(entity, record[idCol], embedding);
+  const entityId = record[idCol];
+  if (!entityId) return;
+
+  try {
+    await pool.query(
+      `INSERT INTO embedding_queue (entity_type, entity_id)
+       VALUES ($1, $2)
+       ON CONFLICT (entity_type, entity_id) DO NOTHING`,
+      [entity, entityId]
+    );
+  } catch (err) {
+    // Non-fatal: worst case the nightly job picks it up
+    logger.warn({ err: err.message, entity, entityId }, '[EmbeddingService] Queue insert failed');
+  }
+}
+
+/**
+ * Process pending embedding queue items.
+ * Picks up to 50 rows, generates embeddings, and writes to entity tables.
+ * Uses FOR UPDATE SKIP LOCKED for safe concurrent processing.
+ *
+ * @returns {Promise<{processed: number, failed: number, skipped: number}>}
+ */
+async function processEmbeddingQueue() {
+  if (!OPENAI_API_KEY) return { processed: 0, failed: 0, skipped: 0, reason: 'no_api_key' };
+
+  const stats = { processed: 0, failed: 0, skipped: 0 };
+
+  // Fetch batch with row-level lock (skip rows being processed by another worker)
+  const { rows: pending } = await pool.query(`
+    SELECT id, entity_type, entity_id, attempts
+    FROM embedding_queue
+    WHERE attempts < 3 AND scheduled_at <= NOW()
+    ORDER BY scheduled_at
+    LIMIT 50
+    FOR UPDATE SKIP LOCKED
+  `);
+
+  for (const item of pending) {
+    try {
+      const builder = TEXT_BUILDERS[item.entity_type];
+      if (!builder) {
+        // Unknown entity type — remove from queue
+        await pool.query('DELETE FROM embedding_queue WHERE id = $1', [item.id]);
+        stats.skipped++;
+        continue;
+      }
+
+      const idCol = ID_COLUMNS[item.entity_type] || 'id';
+
+      // Load the entity record
+      const { rows } = await pool.query(
+        `SELECT * FROM ${item.entity_type} WHERE ${idCol} = $1`,
+        [item.entity_id]
+      );
+
+      if (rows.length === 0) {
+        // Entity deleted — remove from queue
+        await pool.query('DELETE FROM embedding_queue WHERE id = $1', [item.id]);
+        stats.skipped++;
+        continue;
+      }
+
+      const text = builder(rows[0]);
+      if (!text || !text.trim()) {
+        await pool.query('DELETE FROM embedding_queue WHERE id = $1', [item.id]);
+        stats.skipped++;
+        continue;
+      }
+
+      const embedding = await generateEmbedding(text);
+      if (!embedding) {
+        throw new Error('generateEmbedding returned null');
+      }
+
+      await updateEntityEmbedding(item.entity_type, item.entity_id, embedding);
+
+      // Success — remove from queue
+      await pool.query('DELETE FROM embedding_queue WHERE id = $1', [item.id]);
+      stats.processed++;
+    } catch (err) {
+      const newAttempts = item.attempts + 1;
+      const backoffSeconds = newAttempts * 60;
+
+      await pool.query(
+        `UPDATE embedding_queue
+         SET attempts = $2, last_error = $3,
+             scheduled_at = NOW() + ($4 || ' seconds')::interval
+         WHERE id = $1`,
+        [item.id, newAttempts, err.message, backoffSeconds.toString()]
+      );
+
+      if (newAttempts >= 3) {
+        logger.warn({ entity_type: item.entity_type, entity_id: item.entity_id, error: err.message },
+          'Embedding failed 3 times — manual backfill required');
+      }
+
+      stats.failed++;
+    }
+  }
+
+  return stats;
 }
 
 // ── Nightly batch job ───────────────────────────────────────────
@@ -244,6 +340,7 @@ module.exports = {
   generateBatchEmbeddings,
   updateEntityEmbedding,
   embedNewRecord,
+  processEmbeddingQueue,
   runNightlyEmbeddingJob,
   // Exposed for testing / direct use
   TEXT_BUILDERS,

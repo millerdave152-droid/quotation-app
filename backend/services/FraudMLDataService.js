@@ -83,7 +83,7 @@ class FraudMLDataService {
    * @param {string} format         - 'csv' or 'json' (default: 'csv')
    * @returns {Promise<object>} Export metadata
    */
-  async exportTrainingData(startDate, endDate, format = 'csv') {
+  async exportTrainingData(startDate, endDate, format = 'csv', exportedBy = null) {
     const start = new Date(startDate);
     const end = new Date(endDate);
     end.setHours(23, 59, 59, 999);
@@ -111,7 +111,7 @@ class FraudMLDataService {
         fs.avs_result,
         fs.cvv_result,
         fs.ip_address,
-        fs.device_fingerprint,
+        ENCODE(HMAC(COALESCE(fs.device_fingerprint, ''), $3, 'sha256'), 'hex') AS device_fingerprint_hash,
         fs.reviewed_by,
         fs.review_notes,
         fs.created_at,
@@ -181,7 +181,7 @@ class FraudMLDataService {
       WHERE fs.created_at >= $1 AND fs.created_at <= $2
 
       ORDER BY fs.created_at ASC
-    `, [start.toISOString(), end.toISOString()]);
+    `, [start.toISOString(), end.toISOString(), process.env.FRAUD_SALT || 'default-salt']);
 
     if (rows.length === 0) {
       return {
@@ -244,6 +244,18 @@ class FraudMLDataService {
       legitimate: legitCount,
       unlabeled: unlabeledCount,
     }, '[FraudML] Training data export complete');
+
+    // PIPEDA compliance: audit log for data exports containing PII
+    try {
+      await this.pool.query(
+        `INSERT INTO data_export_audit
+           (exported_by, export_type, record_count, exported_at, contains_pii, anonymization_method)
+         VALUES ($1, 'fraud_ml_training', $2, NOW(), true, 'device_fingerprint_hmac_sha256')`,
+        [exportedBy, features.length]
+      );
+    } catch (auditErr) {
+      logger.error({ err: auditErr.message }, '[FraudML] Data export audit log failed (non-fatal)');
+    }
 
     return metadata;
   }

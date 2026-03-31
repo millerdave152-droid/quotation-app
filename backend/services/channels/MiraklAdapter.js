@@ -93,8 +93,29 @@ class MiraklAdapter extends ChannelAdapter {
   /**
    * Mirakl-specific retryable request (returns response.data).
    * Retries on 429 and 5xx; throws immediately on 401/403.
+   * Single retry layer enforced via MIRAKL_RETRY_DISABLED env var:
+   *   'adapter'  — disables retry here (default; service layer retries only)
+   *   'service'  — disables retry in miraklService only
+   *   unset      — both retry (legacy behavior)
    */
   async _miraklRequest(fn, label = 'request', maxRetries = 3) {
+    const logger = require('../../utils/logger');
+    const MAX_RETRY_ATTEMPTS = maxRetries;
+    const retryDisabled = process.env.MIRAKL_RETRY_DISABLED || 'adapter';
+
+    if (retryDisabled === 'adapter') {
+      // Single retry layer — adapter defers to service or runs once
+      try {
+        const response = await fn();
+        return response.data;
+      } catch (error) {
+        const status = error.response?.status;
+        logger.error({ attempts: 1, endpoint: label, status, channel: this.channelCode },
+          'Mirakl adapter request failed (retry disabled at adapter layer)');
+        throw error;
+      }
+    }
+
     let attempt = 0;
     while (true) {
       try {
@@ -103,20 +124,24 @@ class MiraklAdapter extends ChannelAdapter {
       } catch (error) {
         const status = error.response?.status;
         if (status === 401 || status === 403) throw error;
-        if (status === 429 && attempt < maxRetries) {
+        if (status === 429 && attempt < MAX_RETRY_ATTEMPTS) {
           const wait = parseInt(error.response?.headers?.['retry-after'] || '2', 10);
-          console.warn(`[${this.channelCode}] 429 on ${label}, retry ${attempt + 1}/${maxRetries} after ${wait}s`);
+          attempt++;
+          logger.warn({ attempt, status: 429, endpoint: label, channel: this.channelCode },
+            'Mirakl request retry');
           await this._sleep(Math.max(1, wait) * 1000);
-          attempt++;
           continue;
         }
-        if (status >= 500 && status < 600 && attempt < maxRetries) {
+        if (status >= 500 && status < 600 && attempt < MAX_RETRY_ATTEMPTS) {
           const backoff = Math.pow(2, attempt) * 1000;
-          console.warn(`[${this.channelCode}] ${status} on ${label}, retry ${attempt + 1}/${maxRetries} after ${backoff}ms`);
-          await this._sleep(backoff);
           attempt++;
+          logger.warn({ attempt, status, endpoint: label, channel: this.channelCode },
+            'Mirakl request retry');
+          await this._sleep(backoff);
           continue;
         }
+        logger.error({ attempts: MAX_RETRY_ATTEMPTS, endpoint: label, status, channel: this.channelCode },
+          'Mirakl request failed after all retries');
         throw error;
       }
     }

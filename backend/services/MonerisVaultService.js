@@ -16,6 +16,19 @@
  *   - moneris_token (data_key) is NEVER returned to API consumers
  *   - Only this service reads/writes the moneris_token column
  *   - All operations are audit-logged via AuditLogService
+ *
+ * PCI SCOPE NOTE: This service stores Moneris vault tokens.
+ * Vault tokens are classified as sensitive authentication data
+ * under PCI DSS v4.0.1 requirement 3.3.
+ * Any table storing vault tokens is in PCI scope.
+ * Do not add vault token columns to non-payment tables.
+ *
+ * CURRENT STATUS (audited 2026-03-31):
+ *   - customer_payment_tokens: moneris_token stored alongside card_bin, last_four,
+ *     expiry_date. Co-location expands PCI scope. Recommended: extract moneris_token
+ *     to a dedicated payment_vault_tokens table with restricted DB role access.
+ *   - fraud_scores: moneris_token column exists but is never populated (0 rows).
+ *     Should be dropped in a future migration to reduce PCI scope.
  */
 
 const logger = require('../utils/logger');

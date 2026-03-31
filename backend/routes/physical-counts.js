@@ -57,9 +57,52 @@ router.post('/:id/complete', authenticate, requirePermission('inventory_counts.c
 }));
 
 // Approve count (apply adjustments)
+// Requires inventory_counts.approve permission. Self-approval forbidden.
 router.post('/:id/approve', authenticate, requirePermission('inventory_counts.approve'), asyncHandler(async (req, res) => {
-  const count = await countService.approveCount(parseInt(req.params.id), req.user.userId);
-  res.success(count);
+  const countId = parseInt(req.params.id);
+  const userId = req.user.id || req.user.userId;
+
+  // Prevent self-approval: the person who created or counted cannot approve
+  const existing = await countService.getCount(countId);
+  if (existing.started_by === userId) {
+    return res.status(403).json({
+      success: false,
+      error: 'Cannot approve your own inventory count',
+      code: 'SELF_APPROVAL_FORBIDDEN',
+    });
+  }
+
+  const result = await countService.approveCount(countId, userId);
+
+  // Audit log
+  const pool = req.app.get('pool');
+  if (pool) {
+    try {
+      await pool.query(
+        `INSERT INTO audit_log (user_id, action, entity_type, entity_id, details, ip_address, user_agent, created_at)
+         VALUES ($1, 'PHYSICAL_COUNT_APPROVED', 'physical_count', $2, $3, $4, $5, NOW())`,
+        [
+          userId,
+          countId,
+          JSON.stringify({
+            count_id: countId,
+            approved_by: userId,
+            variance_units: existing.total_variance_units || 0,
+            variance_value_cents: existing.total_variance_cost_cents || 0,
+            location_id: existing.location_id,
+            count_number: existing.count_number,
+          }),
+          req.ip,
+          req.get('user-agent'),
+        ]
+      );
+    } catch (auditErr) {
+      const logger = require('../utils/logger');
+      logger.error({ err: auditErr }, '[PhysicalCount] Audit log insert failed (non-fatal)');
+    }
+  }
+
+  res.success(result);
 }));
 
 // Variance report

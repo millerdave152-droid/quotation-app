@@ -13,7 +13,7 @@
 const express = require('express');
 const router = express.Router({ mergeParams: true }); // mergeParams for :customerId
 const { ApiError, asyncHandler } = require('../middleware/errorHandler');
-const { authenticate } = require('../middleware/auth');
+const { authenticate, requireRole } = require('../middleware/auth');
 const logger = require('../utils/logger');
 
 let vaultService = null;
@@ -34,7 +34,9 @@ const init = (deps) => {
 // ============================================================================
 // Middleware: validate customer exists
 // ============================================================================
-router.use(authenticate, asyncHandler(async (req, res, next) => {
+// PCI SCOPE: vault token endpoints restricted to admin/manager.
+// Sales staff should not have direct access to saved payment methods.
+router.use(authenticate, requireRole('admin', 'manager'), asyncHandler(async (req, res, next) => {
   const customerId = parseInt(req.params.customerId);
   if (isNaN(customerId)) {
     throw new ApiError('Invalid customer ID', 400);

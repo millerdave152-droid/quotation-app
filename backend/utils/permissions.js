@@ -21,10 +21,8 @@ const POS_PERMISSIONS = {
   CUSTOMERS_EDIT: 'pos.customers.edit',
 };
 
-/**
- * Fallback permission sets when neither roles nor pos_roles tables are migrated.
- * Keyed by the existing `role` column value.
- */
+// DEPRECATED: replaced by SAFE_FALLBACK_PERMISSIONS (fail-closed)
+// Kept for reference only — no longer returned by resolvePermissions().
 const FALLBACK_ROLE_PERMISSIONS = {
   admin: Object.values(POS_PERMISSIONS),
   manager: Object.values(POS_PERMISSIONS),
@@ -37,8 +35,26 @@ const FALLBACK_ROLE_PERMISSIONS = {
 };
 
 /**
+ * Safe fallback permissions when DB lookup fails.
+ * SECURITY: Fail-closed — no role gets elevated permissions.
+ * Admin and manager get EMPTY arrays (must re-authenticate to restore access).
+ * Lower roles get minimal read-only permissions.
+ */
+const SAFE_FALLBACK_PERMISSIONS = {
+  admin:   [],
+  manager: [],
+  sales:   [POS_PERMISSIONS.DRAWER_OPEN, POS_PERMISSIONS.REPORTS_VIEW, POS_PERMISSIONS.CUSTOMERS_CREATE],
+  cashier: [POS_PERMISSIONS.DRAWER_OPEN],
+  driver:  [],
+  viewer:  [POS_PERMISSIONS.REPORTS_VIEW],
+  user:    [POS_PERMISSIONS.DRAWER_OPEN, POS_PERMISSIONS.REPORTS_VIEW],
+};
+
+const logger = require('./logger');
+
+/**
  * Resolve permissions for a user.
- * Priority: normalized permissions (from roles table) > POS JSONB permissions > fallback
+ * Priority: normalized permissions (from roles table) > POS JSONB permissions > safe fallback
  * @param {object} user - User object from req.user
  * @returns {string[]} Array of permission code strings
  */
@@ -53,9 +69,10 @@ function resolvePermissions(user) {
     return user.posPermissions;
   }
 
-  // 3. Fallback based on role column
+  // 3. Safe fallback — fail-closed: no elevated access during DB outage
   const role = (user.role || 'user').toLowerCase();
-  return FALLBACK_ROLE_PERMISSIONS[role] || FALLBACK_ROLE_PERMISSIONS.user;
+  logger.warn({ userId: user.id, role }, 'Permission DB lookup failed — using safe fallback');
+  return SAFE_FALLBACK_PERMISSIONS[role] ?? [];
 }
 
 /**
@@ -65,17 +82,19 @@ function resolvePermissions(user) {
  * @returns {boolean}
  */
 function hasPermission(user, permission) {
-  // Admin role always has all permissions
-  if (user.role === 'admin' || user.roleName === 'admin') {
+  // Admin role always has all permissions — BUT only when DB-backed permissions were loaded
+  // If we're in safe fallback (empty array), admin does NOT get bypass
+  const perms = resolvePermissions(user);
+  if (perms.length > 0 && (user.role === 'admin' || user.roleName === 'admin')) {
     return true;
   }
-  const perms = resolvePermissions(user);
   return perms.includes(permission);
 }
 
 module.exports = {
   POS_PERMISSIONS,
   FALLBACK_ROLE_PERMISSIONS,
+  SAFE_FALLBACK_PERMISSIONS,
   resolvePermissions,
   hasPermission,
 };

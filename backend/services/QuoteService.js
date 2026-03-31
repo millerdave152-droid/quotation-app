@@ -1685,6 +1685,11 @@ class QuoteService {
    * @param {Array}  items        - Items to insert
    * @param {Map|null} [skulyticsData=null] - Map of product_id -> { skulytics_id, snapshot, ... }
    */
+  // TRANSACTION-SAFE: always called within caller's BEGIN/COMMIT block.
+  // Callers: createQuote (line 1206), updateQuote (line 1548),
+  //          cloneQuote (line 2196), _executeRestore (line 2738).
+  // All pass their transactional client. Single batch INSERT — all-or-nothing.
+  // Verified during audit 2026-03-31 — see SECURITY_AUDIT_FINDINGS.md
   async insertQuoteItems(client, quotationId, items, skulyticsData = null) {
     const valuesPerRow = 19;
     const placeholders = items.map((_, i) =>

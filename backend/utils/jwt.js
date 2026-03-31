@@ -2,6 +2,20 @@
  * JWT Utility Functions
  * Handles JWT token generation and verification for authentication
  * @module utils/jwt
+ *
+ * SECURITY NOTE: HS256 with backend-only secret verification.
+ * All three apps (frontend, POS, driver) send tokens to backend for
+ * verification — no client-side cryptographic verification occurs.
+ * Frontend apps read role/permissions from the login response stored in
+ * localStorage for UI convenience only; every API call is re-verified
+ * by backend middleware (auth.js) which loads the real user from the DB.
+ * The driver app decodes the exp claim via atob() for auto-logout timing
+ * only — the backend enforces actual expiry independently.
+ * RS256 migration deferred: acceptable risk given backend-only verification.
+ * Revisit if any frontend ever needs to independently verify tokens
+ * (e.g., edge/CDN-level auth, microservice-to-microservice trust).
+ *
+ * Audited: 2026-03-31
  */
 
 const jwt = require('jsonwebtoken');

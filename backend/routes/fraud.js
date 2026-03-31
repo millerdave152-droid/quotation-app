@@ -6,7 +6,7 @@
 const express = require('express');
 const router = express.Router();
 const { ApiError, asyncHandler } = require('../middleware/errorHandler');
-const { authenticate, requirePermission } = require('../middleware/auth');
+const { authenticate, requirePermission, requireRole } = require('../middleware/auth');
 
 // ============================================================================
 // MODULE STATE
@@ -1472,7 +1472,7 @@ router.get('/analytics/export', authenticate, requirePermission('fraud.alerts.vi
 // ML — TRAINING DATA EXPORT
 // ============================================================================
 
-router.post('/ml/export', authenticate, requirePermission('fraud.alerts.manage'), asyncHandler(async (req, res) => {
+router.post('/ml/export', authenticate, requireRole('admin'), asyncHandler(async (req, res) => {
   if (!fraudMLDataService) {
     throw ApiError.badRequest('ML data service not configured');
   }
@@ -1485,7 +1485,7 @@ router.post('/ml/export', authenticate, requirePermission('fraud.alerts.manage')
   const validFormats = ['csv', 'json'];
   const exportFormat = validFormats.includes(format) ? format : 'csv';
 
-  const metadata = await fraudMLDataService.exportTrainingData(start_date, end_date, exportFormat);
+  const metadata = await fraudMLDataService.exportTrainingData(start_date, end_date, exportFormat, req.user.id);
   res.json({ success: true, data: metadata });
 }));
 

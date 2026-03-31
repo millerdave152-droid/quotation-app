@@ -35,7 +35,16 @@ ALTER TABLE customer_notes
 -- ============================================================================
 -- 2. HNSW indexes for approximate nearest neighbor search
 --    Cosine distance operator: vector_cosine_ops
---    m=16, ef_construction=64 matches existing codebase pattern
+--
+-- HNSW Index Configuration
+-- Current: m=16, ef_construction=64 (pgvector defaults)
+-- Acceptable for catalog size: up to ~50,000 products
+-- At 50,000+ products: run REINDEX with m=32, ef_construction=128
+-- At 200,000+ products: run REINDEX with m=64, ef_construction=256
+-- Monitor recall with: SELECT * FROM pg_stat_user_indexes
+--   WHERE indexname LIKE '%search_embedding%';
+-- Reindex command (zero-downtime):
+-- REINDEX INDEX CONCURRENTLY idx_products_search_embedding;
 -- ============================================================================
 
 CREATE INDEX IF NOT EXISTS idx_customers_search_embedding

@@ -365,10 +365,11 @@ function init({ pool }) {
           );
         }
 
-        // Update transfer status
+        // Update transfer status with expected receive deadline
         await client.query(
           `UPDATE inventory_transfers SET
-             status = 'in_transit', shipped_by = $1, shipped_at = NOW(), updated_at = NOW()
+             status = 'in_transit', shipped_by = $1, shipped_at = NOW(),
+             expected_receive_by = NOW() + INTERVAL '7 days', updated_at = NOW()
            WHERE id = $2`,
           [req.user.id, id]
         );
@@ -420,6 +421,13 @@ function init({ pool }) {
           throw ApiError.notFound('Transfer');
         }
         const transfer = current.rows[0];
+
+        // Idempotency: prevent double-receive
+        if (transfer.received_at !== null) {
+          await client.query('ROLLBACK');
+          return res.status(409).json({ success: false, error: 'Transfer already received' });
+        }
+
         if (transfer.status !== 'in_transit') {
           await client.query('ROLLBACK');
           throw ApiError.badRequest(`Can only receive transfers with status 'in_transit'. Current: '${transfer.status}'`);

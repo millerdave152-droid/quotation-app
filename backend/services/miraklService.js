@@ -577,12 +577,33 @@ class MiraklService {
   /**
    * Execute an API call with rate-limit (429) and server-error (5xx) retry.
    * Auth errors (401/403) are thrown immediately.
+   * Single retry layer enforced via MIRAKL_RETRY_DISABLED env var:
+   *   'adapter'  — disables retry in MiraklAdapter only (default; this layer retries)
+   *   'service'  — disables retry here
+   *   unset      — both retry (legacy behavior)
    * @param {Function} fn  - async () => axios response
    * @param {string} label - for logging
    * @param {number} maxRetries
    * @returns {Promise<object>} response.data
    */
   async _retryableRequest(fn, label = 'request', maxRetries = 3) {
+    const logger = require('../utils/logger');
+    const MAX_RETRY_ATTEMPTS = maxRetries;
+    const retryDisabled = process.env.MIRAKL_RETRY_DISABLED || 'adapter';
+
+    if (retryDisabled === 'service') {
+      // Single retry layer — service defers to adapter
+      try {
+        const response = await fn();
+        return response.data;
+      } catch (error) {
+        const status = error.response?.status;
+        logger.error({ attempts: 1, endpoint: label, status },
+          'Mirakl service request failed (retry disabled at service layer)');
+        throw error;
+      }
+    }
+
     let attempt = 0;
     while (true) {
       try {
@@ -592,26 +613,30 @@ class MiraklService {
         const status = error.response?.status;
 
         if (status === 401 || status === 403) {
-          console.error(`[Mirakl] Auth error (${status}) during ${label}:`, error.response?.data || error.message);
+          logger.error({ status, endpoint: label }, `[Mirakl] Auth error (${status}) during ${label}`);
           throw error;
         }
 
-        if (status === 429 && attempt < maxRetries) {
+        if (status === 429 && attempt < MAX_RETRY_ATTEMPTS) {
           const retryAfter = parseInt(error.response?.headers?.['retry-after'] || '2', 10);
-          console.warn(`[Mirakl] 429 rate-limited on ${label}, retry ${attempt + 1}/${maxRetries} after ${retryAfter}s`);
+          attempt++;
+          logger.warn({ attempt, status: 429, endpoint: label },
+            'Mirakl request retry');
           await this._sleep(Math.max(1, retryAfter) * 1000);
-          attempt++;
           continue;
         }
 
-        if (status >= 500 && status < 600 && attempt < maxRetries) {
+        if (status >= 500 && status < 600 && attempt < MAX_RETRY_ATTEMPTS) {
           const backoff = Math.pow(2, attempt) * 1000;
-          console.warn(`[Mirakl] ${status} server error on ${label}, retry ${attempt + 1}/${maxRetries} after ${backoff}ms`);
-          await this._sleep(backoff);
           attempt++;
+          logger.warn({ attempt, status, endpoint: label },
+            'Mirakl request retry');
+          await this._sleep(backoff);
           continue;
         }
 
+        logger.error({ attempts: MAX_RETRY_ATTEMPTS, endpoint: label, status },
+          'Mirakl request failed after all retries');
         throw error;
       }
     }

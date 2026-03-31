@@ -165,6 +165,11 @@ function fraudCheck(assessmentType) {
 
           if (scoreResult.action === 'held') {
             req.requiresManagerApproval = true;
+            req.fraudHold = true;
+          }
+
+          if (scoreResult.action === 'flagged') {
+            req.fraudFlagged = true;
           }
 
           // Attach score to request (flagged or approved)
@@ -327,8 +332,10 @@ function fraudCheck(assessmentType) {
     if (result.action === 'block' && assessmentType !== 'quote.convert') {
       return res.status(403).json({
         success: false,
-        error: 'Transaction blocked by fraud detection',
-        code: 'FRAUD_BLOCKED',
+        error: 'Transaction declined by fraud prevention',
+        code: 'FRAUD_DECLINED',
+        riskScore: result.riskScore,
+        alertId: result.alertId,
         fraudAssessment: {
           riskScore: result.riskScore,
           triggeredRules: result.triggeredRules.map(tr => ({
@@ -341,6 +348,18 @@ function fraudCheck(assessmentType) {
           alertId: result.alertId,
         },
       });
+    }
+
+    // Hold: transaction proceeds to pending state for manager review
+    if (result.action === 'require_approval' && assessmentType === 'transaction.create') {
+      req.fraudHold = true;
+      req.fraudAlertId = result.alertId;
+    }
+
+    // Flag: transaction completes but gets flagged status for review
+    if (result.action === 'alert' && assessmentType === 'transaction.create') {
+      req.fraudFlagged = true;
+      req.fraudAlertId = result.alertId;
     }
 
     // Attach assessment to request for downstream handlers

@@ -180,32 +180,66 @@ class InventorySyncService {
     locationId = null,
     notes = null,
   }) {
-    const result = await this.pool.query(`
-      SELECT * FROM reserve_inventory($1, $2, $3, $4, $5, $6, $7, $8, $9)
-    `, [
-      productId,
-      quantity,
-      quoteId,
-      quoteItemId,
-      customerId,
-      expiresHours,
-      userId,
-      locationId,
-      notes,
-    ]);
+    const client = await this.pool.connect();
+    try {
+      await client.query('BEGIN');
 
-    const row = result.rows[0];
+      const expiresAt = new Date(Date.now() + expiresHours * 60 * 60 * 1000);
 
-    if (row.success) {
+      // Atomic check-and-reserve: SELECT FOR UPDATE prevents concurrent oversell.
+      // The INSERT only succeeds if (qty_on_hand - active_reserved) >= requested qty.
+      const result = await client.query(`
+        INSERT INTO inventory_reservations
+          (product_id, quotation_id, quantity, status, expires_at, created_by, notes)
+        SELECT $1, $2, $3, 'reserved', $4, $5, $6
+        FROM products p
+        WHERE p.id = $1
+          AND (COALESCE(p.qty_on_hand, 0) - COALESCE((
+            SELECT SUM(r.quantity)
+            FROM inventory_reservations r
+            WHERE r.product_id = $1
+              AND r.status IN ('reserved', 'active')
+              AND r.expires_at > NOW()
+          ), 0)) >= $3
+        FOR UPDATE OF p
+        RETURNING id, product_id, quantity, status, expires_at
+      `, [productId, quoteId, quantity, expiresAt, userId || 'system', notes]);
+
+      if (result.rows.length === 0) {
+        await client.query('ROLLBACK');
+        return {
+          success: false,
+          reservationId: null,
+          reservationNumber: null,
+          message: `Insufficient stock for product ${productId}. Requested: ${quantity}`,
+        };
+      }
+
+      // Update the product's reserved quantity
+      await client.query(`
+        UPDATE products
+        SET qty_reserved = COALESCE(qty_reserved, 0) + $2,
+            updated_at = CURRENT_TIMESTAMP
+        WHERE id = $1
+      `, [productId, quantity]);
+
+      await client.query('COMMIT');
+
+      const row = result.rows[0];
       await this._invalidateCache(productId);
-    }
 
-    return {
-      success: row.success,
-      reservationId: row.reservation_id,
-      reservationNumber: row.reservation_number,
-      message: row.message,
-    };
+      return {
+        success: true,
+        reservationId: row.id,
+        reservationNumber: `RES-${row.id}`,
+        message: 'Reserved successfully',
+      };
+    } catch (err) {
+      await client.query('ROLLBACK');
+      throw err;
+    } finally {
+      client.release();
+    }
   }
 
   /**

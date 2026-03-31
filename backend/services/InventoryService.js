@@ -20,6 +20,7 @@ class InventoryService {
    * @returns {Promise<Array>} Created reservations
    */
   async reserveStock(quotationId, items, createdBy = 'system', expiryHours = 72) {
+    const { ApiError } = require('../middleware/errorHandler');
     const client = await this.pool.connect();
 
     try {
@@ -29,25 +30,30 @@ class InventoryService {
       const expiresAt = new Date(Date.now() + expiryHours * 60 * 60 * 1000);
 
       for (const item of items) {
-        // Check current availability
-        const availability = await this.getAvailability(item.product_id, client);
-
-        if (availability.available < item.quantity) {
-          throw new Error(
-            `Insufficient stock for product ${item.product_id}. ` +
-            `Requested: ${item.quantity}, Available: ${availability.available}`
-          );
-        }
-
-        // Create reservation
+        // Atomic check-and-reserve: SELECT FOR UPDATE prevents concurrent oversell.
+        // The INSERT only succeeds if (qty_on_hand - active_reserved) >= requested qty.
         const result = await client.query(`
           INSERT INTO inventory_reservations
             (product_id, quotation_id, quantity, status, expires_at, created_by)
-          VALUES ($1, $2, $3, 'reserved', $4, $5)
+          SELECT $1, $2, $3, 'reserved', $4, $5
+          FROM products p
+          WHERE p.id = $1
+            AND (COALESCE(p.qty_on_hand, 0) - COALESCE((
+              SELECT SUM(r.quantity)
+              FROM inventory_reservations r
+              WHERE r.product_id = $1
+                AND r.status IN ('reserved', 'active')
+                AND r.expires_at > NOW()
+            ), 0)) >= $3
+          FOR UPDATE OF p
           RETURNING *
         `, [item.product_id, quotationId, item.quantity, expiresAt, createdBy]);
 
-        // CRITICAL FIX: Update the product's reserved quantity to maintain accurate availability
+        if (result.rows.length === 0) {
+          throw ApiError.insufficientStock(item.product_id, item.quantity);
+        }
+
+        // Update the product's reserved quantity to maintain accurate availability
         await client.query(`
           UPDATE products
           SET qty_reserved = COALESCE(qty_reserved, 0) + $2,
@@ -408,6 +414,8 @@ class InventoryService {
    * @returns {Promise<number>} Number of expired reservations released
    */
   async processExpiredReservations() {
+    const logger = require('../utils/logger');
+
     const result = await this.pool.query(`
       UPDATE inventory_reservations
       SET
@@ -433,6 +441,9 @@ class InventoryService {
     if (result.rowCount > 0) {
       this.cache?.invalidatePattern('inventory:*');
       this.cache?.invalidatePattern('products:*');
+      logger.info({ released: result.rowCount }, 'Expired reservations released');
+    } else {
+      logger.debug({ released: 0 }, 'No expired reservations to release');
     }
 
     return result.rowCount;

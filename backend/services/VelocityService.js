@@ -21,6 +21,8 @@ const KEY_PREFIX = 'fraud:vel';
 const LOCATION_PREFIX = 'fraud:card:locations';
 const LOCATION_TTL = 43200; // 12 hours in seconds
 
+const CircuitBreaker = require('../utils/circuitBreaker');
+
 class VelocityService {
   /**
    * @param {import('pg').Pool} pool - PostgreSQL connection pool
@@ -29,6 +31,12 @@ class VelocityService {
   constructor(pool, redisClient = null) {
     this.pool = pool;
     this.redis = redisClient;
+
+    // Circuit breaker for PG fallback — prevents pool exhaustion under Redis outage
+    this._pgBreaker = new CircuitBreaker('velocity-pg-fallback', {
+      failureThreshold: 5,
+      recoveryTimeout: 30000,
+    });
 
     // Hourly cleanup of old PG rows (only when using PG fallback)
     if (!this.redis) {
@@ -80,38 +88,69 @@ class VelocityService {
       }
     }
 
-    // PostgreSQL fallback
-    return this._checkVelocityPG(dimension, identifier, windowSeconds, maxCount);
+    // PostgreSQL fallback — guarded by circuit breaker to prevent pool exhaustion
+    return this._pgBreaker.execute(
+      () => this._checkVelocityPG(dimension, identifier, windowSeconds, maxCount),
+      () => {
+        // Circuit open — skip velocity check, signal to fraud scoring
+        logger.error({ dimension, identifier, event: 'velocity_check_bypassed' },
+          'Velocity check skipped — PG fallback circuit open');
+        return { count: 0, exceeded: false, riskPoints: 0, bypassed: true };
+      }
+    );
   }
 
   /**
    * PostgreSQL fallback for checkVelocity.
+   * Uses SERIALIZABLE isolation to eliminate the race window where two
+   * concurrent checks both pass before either records its event.
+   *
+   * Flow: INSERT event → count window → if exceeded, DELETE the event (undo).
    */
   async _checkVelocityPG(dimension, identifier, windowSeconds, maxCount) {
+    logger.warn({ dimension, identifier }, 'Velocity check using PG fallback — Redis unavailable');
+
+    const client = await this.pool.connect();
     try {
-      // Record the event
-      await this.pool.query(
+      await client.query('BEGIN TRANSACTION ISOLATION LEVEL SERIALIZABLE');
+
+      // 1. Insert the event
+      const insertResult = await client.query(
         `INSERT INTO velocity_events (event_type, entity_id, amount_cents, metadata)
-         VALUES ($1, $2, 0, '{}')`,
+         VALUES ($1, $2, 0, '{}')
+         RETURNING id`,
         [dimension, identifier]
       );
+      const eventId = insertResult.rows[0].id;
 
-      // Count within window
-      const { rows } = await this.pool.query(
+      // 2. Count the window (includes the just-inserted row since we're in same txn)
+      const countResult = await client.query(
         `SELECT COUNT(*)::int AS cnt FROM velocity_events
-         WHERE event_type = $1 AND entity_id = $2
+         WHERE event_type = $1
+           AND entity_id = $2
            AND created_at > NOW() - ($3 || ' seconds')::interval`,
         [dimension, identifier, windowSeconds.toString()]
       );
 
-      const count = rows[0].cnt;
+      const count = countResult.rows[0].cnt;
       const exceeded = count > maxCount;
-      const riskPoints = exceeded ? Math.min(25, Math.round((count / maxCount) * 15)) : 0;
 
+      if (exceeded) {
+        // Undo: remove the just-inserted event since the threshold is exceeded
+        await client.query('DELETE FROM velocity_events WHERE id = $1', [eventId]);
+      }
+
+      await client.query('COMMIT');
+
+      const riskPoints = exceeded ? Math.min(25, Math.round((count / maxCount) * 15)) : 0;
       return { count, exceeded, riskPoints };
     } catch (err) {
-      logger.error({ err: err.message, dimension }, '[VelocityService] PG fallback failed');
-      return { count: 0, exceeded: false, riskPoints: 0 };
+      await client.query('ROLLBACK');
+      // Serialization failures (40001) are expected under contention — propagate
+      // to circuit breaker for proper failure counting
+      throw err;
+    } finally {
+      client.release();
     }
   }
 

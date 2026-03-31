@@ -120,10 +120,19 @@ async function disconnect() {
   }
 }
 
+// Circuit breaker for services that fall back to PostgreSQL when Redis is unavailable.
+// Import and use: const { cachePgBreaker } = require('../config/redis');
+const CircuitBreaker = require('../utils/circuitBreaker');
+const cachePgBreaker = new CircuitBreaker('cache-pg-fallback', {
+  failureThreshold: 5,
+  recoveryTimeout: 30000,
+});
+
 module.exports = {
   createClient,
   connect,
   getClient,
   isReady,
   disconnect,
+  cachePgBreaker,
 };

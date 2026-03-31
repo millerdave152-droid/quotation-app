@@ -24,31 +24,21 @@ let cache = null;
 let discountAuthorityService = null;
 let commissionService = null;
 let serialNumberService = null;
+let taxService = null;
 
-// ============================================================================
-// TAX RATES BY PROVINCE
-// ============================================================================
-const TAX_RATES = {
-  ON: { hst: 0.13, gst: 0, pst: 0 },        // Ontario - HST 13%
-  BC: { hst: 0, gst: 0.05, pst: 0.07 },     // British Columbia - GST 5% + PST 7%
-  AB: { hst: 0, gst: 0.05, pst: 0 },        // Alberta - GST 5% only
-  SK: { hst: 0, gst: 0.05, pst: 0.06 },     // Saskatchewan - GST 5% + PST 6%
-  MB: { hst: 0, gst: 0.05, pst: 0.07 },     // Manitoba - GST 5% + PST 7%
-  QC: { hst: 0, gst: 0.05, pst: 0.09975 },  // Quebec - GST 5% + QST 9.975%
-  NB: { hst: 0.15, gst: 0, pst: 0 },        // New Brunswick - HST 15%
-  NS: { hst: 0.15, gst: 0, pst: 0 },        // Nova Scotia - HST 15%
-  PE: { hst: 0.15, gst: 0, pst: 0 },        // PEI - HST 15%
-  NL: { hst: 0.15, gst: 0, pst: 0 },        // Newfoundland - HST 15%
-  YT: { hst: 0, gst: 0.05, pst: 0 },        // Yukon - GST 5% only
-  NT: { hst: 0, gst: 0.05, pst: 0 },        // NWT - GST 5% only
-  NU: { hst: 0, gst: 0.05, pst: 0 },        // Nunavut - GST 5% only
-};
+// TAX-UNIFIED: Hardcoded TAX_RATES removed. All tax calculations now use TaxService
+// (DB-driven rates with customer/product exemption support).
 
 // ============================================================================
 // INVENTORY HELPER (runs inside caller's transaction)
 // ============================================================================
 
 /**
+ * AUDIT-CONFIRMED 2026-03-30: This is the sole decrement path for POS sales.
+ * InventorySyncService.deductForTransaction() exists but is only reachable via
+ * the standalone POST /api/inventory-sync/deduct-transaction endpoint and is
+ * NOT called during POS transaction creation or voiding. No double-deduction.
+ *
  * Adjust inventory atomically within an existing DB transaction.
  * 1. Updates products.qty_on_hand
  * 2. UPSERTs location_inventory (skipped when locationId is null)
@@ -271,7 +261,7 @@ const listTransactionsSchema = Joi.object({
   endDate: Joi.date().iso().optional(),
   dateRange: Joi.string().valid('today', 'yesterday', 'this_week', 'last_week', 'this_month', 'last_month', 'custom').optional(),
   customerId: Joi.number().integer().optional(),
-  status: Joi.string().valid('pending', 'completed', 'voided', 'refunded', 'deposit_paid').optional(),
+  status: Joi.string().valid('pending', 'pending_payment', 'completed', 'completed_flagged', 'held_for_review', 'voided', 'refunded', 'deposit_paid', 'payment_failed').optional(),
   shiftId: Joi.number().integer().optional(),
   salesRepId: Joi.number().integer().optional(),
   search: Joi.string().max(100).optional(),
@@ -283,46 +273,22 @@ const listTransactionsSchema = Joi.object({
 // ============================================================================
 
 /**
- * Calculate taxes for a given subtotal and province
+ * Calculate line item discount amounts (pure math, no tax calculation).
+ * Tax is calculated centrally via TaxService after all items are processed.
  */
-function calculateTaxes(subtotal, province = 'ON') {
-  const rates = TAX_RATES[province] || TAX_RATES.ON;
-
-  return {
-    hstAmount: roundDollars(subtotal * rates.hst),
-    gstAmount: roundDollars(subtotal * rates.gst),
-    pstAmount: roundDollars(subtotal * rates.pst),
-    totalTax: roundDollars(subtotal * (rates.hst + rates.gst + rates.pst))
-  };
-}
-
-/**
- * Calculate line item totals
- */
-function calculateLineItem(item, taxRates) {
+function calculateLineItemDiscounts(item) {
   const baseAmount = item.unitPrice * item.quantity;
 
-  // Apply percentage discount first, then flat discount
   let discountAmount = item.discountAmount || 0;
   if (item.discountPercent > 0) {
     discountAmount += baseAmount * (item.discountPercent / 100);
   }
 
-  const afterDiscount = baseAmount - discountAmount;
-
-  // Calculate tax if taxable
-  let taxAmount = 0;
-  if (item.taxable !== false) {
-    const totalRate = taxRates.hst + taxRates.gst + taxRates.pst;
-    taxAmount = roundDollars(afterDiscount * totalRate);
-  }
-
-  const lineTotal = roundDollars(afterDiscount + taxAmount);
+  const afterDiscount = roundDollars(baseAmount - discountAmount);
 
   return {
     discountAmount: roundDollars(discountAmount),
-    taxAmount,
-    lineTotal
+    afterDiscount,
   };
 }
 
@@ -442,7 +408,28 @@ router.post('/', authenticate, paymentLimiter, validateBody(schemas.transactionC
     }
   }
 
+  // ===========================================================================
+  // PHASE 1: Create durable transaction record (pending_payment)
+  // Card payments are authorized via /api/pos-payments/card/confirm BEFORE
+  // this handler fires. Cash/debit/e-transfer are confirmed at the terminal.
+  // We create the transaction as pending_payment first so that if PHASE 2
+  // (completion + inventory) fails, the record exists for reconciliation.
+  //
+  // TODO: Add reconciliation job to find transactions in 'pending_payment' > 5 minutes old
+  // ===========================================================================
+
   const client = await pool.connect();
+  let transaction = null;
+  let transactionNumber = null;
+  let transactionStatus = null;
+  let processedItems = [];
+  let taxes = null;
+  let finalSubtotal = 0;
+  let totalAmount = 0;
+  let effectiveDeliveryFee = 0;
+  let ehfAmount = 0;
+  let totalTradeInCredit = 0;
+  let _saleLocationId = null;
 
   try {
     await client.query('BEGIN');
@@ -462,18 +449,20 @@ router.post('/', authenticate, paymentLimiter, validateBody(schemas.transactionC
     }
 
     // Resolve location from register for inventory tracking
-    const _saleLocationId = await resolveLocationId(client, shiftId);
+    _saleLocationId = await resolveLocationId(client, shiftId);
 
-    // Get tax rates for province
-    const taxRates = TAX_RATES[taxProvince] || TAX_RATES.ON;
+    // Resolve per-location Moneris credentials for this register's location
+    const MonerisService = require('../services/MonerisService');
+    const locationMoneris = await MonerisService.forLocation(_saleLocationId, pool, cache);
+    // locationMoneris is available for any Moneris calls within this request
+    // (card payments are handled via /api/pos-payments before this handler,
+    //  but the instance is ready for future inline payment integration)
+    req._locationMoneris = locationMoneris;
 
     // Fetch product details and calculate line items
     let subtotal = 0;
-    let totalTaxAmount = 0;
-    const processedItems = [];
 
     for (const item of items) {
-      // Fetch product details - try by ID first, then fall back to SKU/model
       let product = null;
 
       const productResult = await client.query(
@@ -484,7 +473,6 @@ router.post('/', authenticate, paymentLimiter, validateBody(schemas.transactionC
       if (productResult.rows.length > 0) {
         product = productResult.rows[0];
       } else if (item.sku) {
-        // Fallback: look up by SKU/model (handles ID mismatches from RLS, cache, or data sync)
         const skuResult = await client.query(
           'SELECT id AS product_id, name, model AS sku, price, cost FROM products WHERE model = $1 LIMIT 1',
           [item.sku]
@@ -500,8 +488,6 @@ router.post('/', authenticate, paymentLimiter, validateBody(schemas.transactionC
       }
 
       if (!product) {
-        // Product not in DB (stale cache, deleted, or data-sync gap).
-        // Use cart-provided data so the sale can still complete.
         req.log.warn({
           productId: item.productId,
           sku: item.sku || '(not provided)',
@@ -514,16 +500,13 @@ router.post('/', authenticate, paymentLimiter, validateBody(schemas.transactionC
           sku: item.sku || `UNKNOWN-${item.productId}`,
           price: item.unitPrice || 0,
           cost: item.unitCost || 0,
-          _fromCart: true, // flag to skip inventory adjustment
+          _fromCart: true,
         };
       }
 
-      // Calculate line item totals
-      const lineCalc = calculateLineItem(item, taxRates);
-
+      const lineDisc = calculateLineItemDiscounts(item);
       const baseAmount = item.unitPrice * item.quantity;
-      subtotal += baseAmount - lineCalc.discountAmount;
-      totalTaxAmount += lineCalc.taxAmount;
+      subtotal += baseAmount - lineDisc.discountAmount;
 
       processedItems.push({
         ...item,
@@ -532,17 +515,18 @@ router.post('/', authenticate, paymentLimiter, validateBody(schemas.transactionC
         productSku: product.sku,
         unitCost: item.unitCost || product.cost,
         _fromCart: product._fromCart || false,
-        ...lineCalc
+        discountAmount: lineDisc.discountAmount,
+        afterDiscount: lineDisc.afterDiscount,
+        // taxAmount and lineTotal populated below after TaxService call
+        taxAmount: 0,
+        lineTotal: lineDisc.afterDiscount,
       });
     }
 
-    // Apply transaction-level discount
-    const finalSubtotal = subtotal - (discountAmount || 0);
-
-    const effectiveDeliveryFee = deliveryFee || fulfillment?.fee || 0;
+    finalSubtotal = subtotal - (discountAmount || 0);
+    effectiveDeliveryFee = deliveryFee || fulfillment?.fee || 0;
 
     // Calculate EHF (Environmental Handling Fee — taxable, exclude warranties)
-    let ehfAmount = 0;
     try {
       const taxEngine = require('../services/TaxEngine');
       const nonWarrantyItems = processedItems.filter(i => {
@@ -558,12 +542,46 @@ router.post('/', authenticate, paymentLimiter, validateBody(schemas.transactionC
       ehfAmount = ehfResult.totalEHF;
     } catch { /* EHF optional */ }
 
-    // Recalculate taxes on subtotal + EHF (EHF is taxable in Ontario)
-    const taxes = calculateTaxes(finalSubtotal + ehfAmount, taxProvince);
+    // TAX-UNIFIED: Use TaxService (DB-driven rates) instead of hardcoded TAX_RATES
+    // Province confidence is 'api' when resolved from geocoder.ca, 'prefix' from postal code map, 'default' if ON fallback
+    const taxableAmountCents = dollarsToCents(finalSubtotal + ehfAmount);
+    const taxResult = await taxService.calculateTax({
+      amountCents: taxableAmountCents,
+      provinceCode: taxProvince,
+      customerId: customerId || null,
+      provinceConfidence: req._taxProvinceConfidence || null,
+    });
 
-    const totalAmount = finalSubtotal + ehfAmount + taxes.totalTax + effectiveDeliveryFee;
+    // Map TaxService result to the format the rest of the handler expects
+    taxes = {
+      hstAmount: taxResult.hstCents / 100,
+      gstAmount: taxResult.gstCents / 100,
+      pstAmount: (taxResult.pstCents + taxResult.qstCents) / 100,
+      totalTax: taxResult.totalTaxCents / 100,
+    };
+    totalAmount = finalSubtotal + ehfAmount + taxes.totalTax + effectiveDeliveryFee;
 
-    // Validate payment total (skip for deposit payments)
+    // Distribute tax proportionally across taxable line items for per-item tax_amount
+    const totalTaxableBase = processedItems
+      .filter(i => i.taxable !== false)
+      .reduce((sum, i) => sum + i.afterDiscount, 0);
+    if (totalTaxableBase > 0) {
+      let taxDistributed = 0;
+      const taxableItems = processedItems.filter(i => i.taxable !== false);
+      for (let ti = 0; ti < taxableItems.length; ti++) {
+        const item = taxableItems[ti];
+        if (ti === taxableItems.length - 1) {
+          // Last item gets remainder to avoid rounding drift
+          item.taxAmount = roundDollars(taxes.totalTax - taxDistributed);
+        } else {
+          item.taxAmount = roundDollars(taxes.totalTax * (item.afterDiscount / totalTaxableBase));
+          taxDistributed += item.taxAmount;
+        }
+        item.lineTotal = roundDollars(item.afterDiscount + item.taxAmount);
+      }
+    }
+
+    // Validate payment total
     const paymentTotal = payments.reduce((sum, p) => sum + p.amount, 0);
     if (!isDeposit && Math.abs(paymentTotal - totalAmount) > 0.01) {
       throw ApiError.badRequest(
@@ -576,28 +594,25 @@ router.post('/', authenticate, paymentLimiter, validateBody(schemas.transactionC
       );
     }
 
-    // Generate transaction number using the function
+    // Generate transaction number
     const txnNumResult = await client.query('SELECT generate_transaction_number() as txn_number');
-    const transactionNumber = txnNumResult.rows[0].txn_number;
+    transactionNumber = txnNumResult.rows[0].txn_number;
 
-    // Determine transaction status based on payment type
+    // Determine final transaction status
     const etransferPayment = payments.find(p => p.paymentMethod === 'etransfer');
     const etransferReference = etransferPayment?.etransferReference || null;
-    let transactionStatus = 'completed';
+    transactionStatus = 'completed';
     if (isDeposit) {
       transactionStatus = 'deposit_paid';
     } else if (etransferPayment) {
       transactionStatus = 'pending';
     }
 
-    // Insert transaction
     const depositAmount = isDeposit ? paymentTotal : null;
     const balanceDue = isDeposit ? roundDollars(totalAmount - paymentTotal) : null;
 
-    // Calculate completed_at timestamp
-    const completedAt = transactionStatus === 'completed' ? new Date() : null;
-
-    // DEBUG: Log the transaction INSERT
+    // INSERT transaction as 'pending_payment' — durable record before any side effects
+    const taxProvinceConfidence = taxResult.tax_province_confidence || null;
     const txQuery = `INSERT INTO transactions (
         transaction_number, shift_id, customer_id, quote_id, user_id, salesperson_id,
         subtotal, discount_amount, discount_reason,
@@ -610,64 +625,32 @@ router.post('/', authenticate, paymentLimiter, validateBody(schemas.transactionC
         subtotal_cents, discount_amount_cents,
         hst_amount_cents, gst_amount_cents, pst_amount_cents,
         total_amount_cents, deposit_amount_cents, balance_due_cents,
-        environmental_fee
+        environmental_fee, tax_province_confidence
       ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24,
-        $25, $26, $27, $28, $29, $30, $31, $32, $33)
+        $25, $26, $27, $28, $29, $30, $31, $32, $33, $34)
       RETURNING transaction_id, transaction_number, created_at`;
     const txParams = [
-        transactionNumber,
-        shiftId,
-        customerId || null,
-        quoteId || null,
-        req.user.id,
-        salespersonId,
-        finalSubtotal,
-        discountAmount || 0,
-        discountReason || null,
-        taxes.hstAmount,
-        taxes.gstAmount,
-        taxes.pstAmount,
-        taxProvince,
-        totalAmount,
-        transactionStatus,
-        completedAt,
-        etransferReference,
-        etransferPayment ? 'pending' : null,
-        isDeposit || false,
-        depositAmount,
-        balanceDue,
-        marketingSource || null,
-        marketingSourceDetail || null,
+        transactionNumber, shiftId, customerId || null, quoteId || null,
+        req.user.id, salespersonId, finalSubtotal, discountAmount || 0,
+        discountReason || null, taxes.hstAmount, taxes.gstAmount, taxes.pstAmount,
+        taxProvince, totalAmount,
+        'pending_payment',
+        null,
+        etransferReference, etransferPayment ? 'pending' : null,
+        isDeposit || false, depositAmount, balanceDue,
+        marketingSource || null, marketingSourceDetail || null,
         clientTransactionId || null,
-        dollarsToCents(finalSubtotal),
-        dollarsToCents(discountAmount || 0),
-        dollarsToCents(taxes.hstAmount),
-        dollarsToCents(taxes.gstAmount),
-        dollarsToCents(taxes.pstAmount),
-        dollarsToCents(totalAmount),
+        dollarsToCents(finalSubtotal), dollarsToCents(discountAmount || 0),
+        dollarsToCents(taxes.hstAmount), dollarsToCents(taxes.gstAmount),
+        dollarsToCents(taxes.pstAmount), dollarsToCents(totalAmount),
         depositAmount != null ? dollarsToCents(depositAmount) : null,
         balanceDue != null ? dollarsToCents(balanceDue) : null,
-        ehfAmount
+        ehfAmount, taxProvinceConfidence
       ];
     const transactionResult = await client.query(txQuery, txParams);
-    const transaction = transactionResult.rows[0];
+    transaction = transactionResult.rows[0];
 
-    // TODO [Tax Engine Integration]: After transaction INSERT, call taxEngineService
-    // to persist a province-aware breakdown in transaction_tax_breakdown:
-    //
-    //   await taxEngineService.calculateTax({
-    //     subtotalCents: dollarsToCents(finalSubtotal),
-    //     provinceCode: taxProvince,
-    //     customerId: customerId || null,
-    //     transactionId: transaction.transaction_id,
-    //     transactionType: 'pos_sale',
-    //   });
-    //
-    // This replaces the hardcoded TAX_RATES object above with DB-driven rates
-    // and adds exemption certificate support. Wire up once migration 168 is live.
-
-    // Insert transaction items
-    const _inventoryQueue = [];
+    // Insert transaction items (no inventory deduction yet — that's PHASE 2)
     for (const item of processedItems) {
       await client.query(
         `INSERT INTO transaction_items (
@@ -680,17 +663,11 @@ router.post('/', authenticate, paymentLimiter, validateBody(schemas.transactionC
         [
           transaction.transaction_id,
           item._fromCart ? null : item.productId,
-          item.productName,
-          item.productSku,
-          item.quantity,
-          item.unitPrice,
-          item.unitCost,
-          item.discountPercent || 0,
-          item.discountAmount,
-          item.taxAmount,
-          item.lineTotal,
-          item.serialNumber || null,
-          item.taxable !== false,
+          item.productName, item.productSku,
+          item.quantity, item.unitPrice, item.unitCost,
+          item.discountPercent || 0, item.discountAmount,
+          item.taxAmount, item.lineTotal,
+          item.serialNumber || null, item.taxable !== false,
           dollarsToCents(item.unitPrice),
           item.unitCost != null ? dollarsToCents(item.unitCost) : null,
           dollarsToCents(item.discountAmount),
@@ -698,26 +675,38 @@ router.post('/', authenticate, paymentLimiter, validateBody(schemas.transactionC
           dollarsToCents(item.lineTotal)
         ]
       );
-
-      // Update inventory (global + location + audit) — skip for cart-only items
-      if (!item._fromCart) {
-        const { oldQty: _oldQty, newQty: _newQty } = await adjustInventoryInline(client, {
-          productId: item.productId,
-          quantity: item.quantity,
-          type: 'sale',
-          locationId: _saleLocationId,
-          transactionId: transaction.transaction_id,
-          transactionNumber: transaction.transaction_number,
-          userId: req.user.id,
-        });
-        _inventoryQueue.push({ productId: item.productId, sku: item.productSku, oldQty: _oldQty, newQty: _newQty, source: 'POS_SALE' });
-      }
     }
+
+    // PHASE 1 COMMIT: transaction + items are now durable at 'pending_payment'
+    await client.query('COMMIT');
+    req.log.info({ transactionId: transaction.transaction_id, transactionNumber }, '[Transaction] PHASE 1 committed (pending_payment)');
+
+  } catch (err) {
+    await client.query('ROLLBACK');
+    req.log.error({ err }, '[Transaction] PHASE 1 FAILED');
+    throw err;
+  } finally {
+    client.release();
+  }
+
+  // ===========================================================================
+  // PHASE 2: Complete the transaction — payments, inventory, fulfillment
+  // At this point the transaction record exists. If PHASE 2 fails, the
+  // pending_payment record survives for manual reconciliation.
+  // Card payments were already captured via /api/pos-payments/card/confirm
+  // before this handler was called.
+  // ===========================================================================
+
+  const completionClient = await pool.connect();
+  const _inventoryQueue = [];
+
+  try {
+    await completionClient.query('BEGIN');
 
     // Insert payments
     for (const payment of payments) {
       const paymentStatus = payment.paymentMethod === 'etransfer' ? 'pending' : 'completed';
-      await client.query(
+      await completionClient.query(
         `INSERT INTO payments (
           transaction_id, payment_method, amount,
           card_last_four, card_brand, authorization_code, processor_reference,
@@ -726,17 +715,11 @@ router.post('/', authenticate, paymentLimiter, validateBody(schemas.transactionC
           card_entry_method, card_present, card_bin
         ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)`,
         [
-          transaction.transaction_id,
-          payment.paymentMethod,
-          payment.amount,
-          payment.cardLastFour || null,
-          payment.cardBrand || null,
-          payment.authorizationCode || null,
-          payment.processorReference || null,
-          payment.cashTendered || null,
-          payment.changeGiven || null,
-          paymentStatus,
-          dollarsToCents(payment.amount),
+          transaction.transaction_id, payment.paymentMethod, payment.amount,
+          payment.cardLastFour || null, payment.cardBrand || null,
+          payment.authorizationCode || null, payment.processorReference || null,
+          payment.cashTendered || null, payment.changeGiven || null,
+          paymentStatus, dollarsToCents(payment.amount),
           payment.cashTendered != null ? dollarsToCents(payment.cashTendered) : null,
           payment.changeGiven != null ? dollarsToCents(payment.changeGiven) : null,
           payment.cardEntryMethod || null,
@@ -749,7 +732,7 @@ router.post('/', authenticate, paymentLimiter, validateBody(schemas.transactionC
     // Redeem store credits
     for (const payment of payments) {
       if (payment.paymentMethod === 'store_credit' && payment.storeCreditId && payment.storeCreditAmountCents) {
-        const creditResult = await client.query(
+        const creditResult = await completionClient.query(
           'SELECT id, current_balance, status FROM store_credits WHERE id = $1 FOR UPDATE',
           [payment.storeCreditId]
         );
@@ -758,11 +741,11 @@ router.post('/', authenticate, paymentLimiter, validateBody(schemas.transactionC
           const redeemCents = payment.storeCreditAmountCents;
           const newBalance = sc.current_balance - redeemCents;
           const newStatus = newBalance <= 0 ? 'depleted' : 'active';
-          await client.query(
+          await completionClient.query(
             'UPDATE store_credits SET current_balance = $1, status = $2, updated_at = NOW() WHERE id = $3',
             [Math.max(newBalance, 0), newStatus, sc.id]
           );
-          await client.query(
+          await completionClient.query(
             `INSERT INTO store_credit_transactions (store_credit_id, transaction_id, amount_cents, transaction_type, balance_after, performed_by)
              VALUES ($1, $2, $3, 'redeem', $4, $5)`,
             [sc.id, transaction.transaction_id, -redeemCents, Math.max(newBalance, 0), req.user.id]
@@ -774,7 +757,7 @@ router.post('/', authenticate, paymentLimiter, validateBody(schemas.transactionC
     // Redeem loyalty points
     for (const payment of payments) {
       if (payment.paymentMethod === 'loyalty_points' && payment.loyaltyPointsUsed && payment.loyaltyCustomerId) {
-        const loyaltyResult = await client.query(
+        const loyaltyResult = await completionClient.query(
           'SELECT customer_id, points_balance FROM customer_loyalty WHERE customer_id = $1 FOR UPDATE',
           [payment.loyaltyCustomerId]
         );
@@ -789,31 +772,38 @@ router.post('/', authenticate, paymentLimiter, validateBody(schemas.transactionC
         }
 
         const newBalance = loyalty.points_balance - payment.loyaltyPointsUsed;
-
-        await client.query(
+        await completionClient.query(
           'UPDATE customer_loyalty SET points_balance = $1, updated_at = NOW() WHERE customer_id = $2',
           [newBalance, payment.loyaltyCustomerId]
         );
-
-        await client.query(
+        await completionClient.query(
           `INSERT INTO loyalty_transactions (
             customer_id, points, transaction_type, order_id, balance_after, description, performed_by
           ) VALUES ($1, $2, 'redeem', $3, $4, $5, $6)`,
-          [
-            payment.loyaltyCustomerId,
-            -payment.loyaltyPointsUsed,
-            orderId || null,
-            newBalance,
-            `Redeemed ${payment.loyaltyPointsUsed} points on POS transaction ${transaction.transaction_number}`,
-            req.user.id,
-          ]
+          [payment.loyaltyCustomerId, -payment.loyaltyPointsUsed, null, newBalance,
+           `Redeemed ${payment.loyaltyPointsUsed} points on POS transaction ${transactionNumber}`, req.user.id]
         );
+      }
+    }
+
+    // INVENTORY-UNIFIED: single decrement path via adjustInventoryInline
+    for (const item of processedItems) {
+      if (!item._fromCart) {
+        const { oldQty: _oldQty, newQty: _newQty } = await adjustInventoryInline(completionClient, {
+          productId: item.productId,
+          quantity: item.quantity,
+          type: 'sale',
+          locationId: _saleLocationId,
+          transactionId: transaction.transaction_id,
+          transactionNumber: transactionNumber,
+          userId: req.user.id,
+        });
+        _inventoryQueue.push({ productId: item.productId, sku: item.productSku, oldQty: _oldQty, newQty: _newQty, source: 'POS_SALE' });
       }
     }
 
     // Insert fulfillment record
     if (fulfillment) {
-      // Helper to ensure string or null (prevents boolean/number type issues)
       const toStringOrNull = (val) => val != null && val !== '' ? String(val) : null;
       const toIntOrNull = (val) => val != null ? parseInt(val, 10) || null : null;
       const toBool = (val) => Boolean(val);
@@ -848,8 +838,6 @@ router.post('/', authenticate, paymentLimiter, validateBody(schemas.transactionC
       const pickupVehicleType = toStringOrNull(fulfillment.pickupVehicleType);
       const pickupVehicleNotes = toStringOrNull(fulfillment.pickupVehicleNotes);
 
-      // DEBUG: Log the fulfillment INSERT
-      // Use explicit type casts for nullable parameters to avoid PostgreSQL type inference issues
       const fulfillmentQuery = `INSERT INTO order_fulfillment (
           transaction_id, fulfillment_type, delivery_zone_id,
           scheduled_date, scheduled_time_start, scheduled_time_end,
@@ -877,107 +865,64 @@ router.post('/', authenticate, paymentLimiter, validateBody(schemas.transactionC
           $34::varchar, $35::varchar, $36::varchar, $37::text,
           $38::text, $39::integer
         )`;
-      const fulfillmentParams = [
-          transaction.transaction_id,
-          fulfillment.type,
-          fulfillment.zoneId || null,
-          fulfillment.scheduledDate || null,
-          fulfillment.scheduledTimeStart || null,
-          fulfillment.scheduledTimeEnd || null,
-          fulfillment.address ? JSON.stringify(fulfillment.address) : null,
-          effectiveDeliveryFee,
-          dwellingType,
-          entryPoint,
-          floorNumber,
-          elevatorRequired,
-          elevatorDate,
-          elevatorTime,
-          conciergePhone,
-          conciergeNotes,
-          accessSteps,
-          accessNarrowStairs,
-          accessHeightRestriction,
-          accessWidthRestriction,
-          accessNotes,
-          parkingType,
-          parkingDistance,
-          parkingNotes,
-          pathwayConfirmed,
-          pathwayNotes,
-          deliveryDate,
-          deliveryWindowStart,
-          deliveryWindowEnd,
-          deliveryWindowId,
-          pickupLocationId,
-          pickupDate,
-          pickupTimePreference,
-          pickupPersonName,
-          pickupPersonPhone,
-          pickupVehicleType,
-          pickupVehicleNotes,
-          fulfillment.notes || null,
-          req.user.id,
-        ];
-
-      await client.query(fulfillmentQuery, fulfillmentParams);
+      await completionClient.query(fulfillmentQuery, [
+          transaction.transaction_id, fulfillment.type, fulfillment.zoneId || null,
+          fulfillment.scheduledDate || null, fulfillment.scheduledTimeStart || null, fulfillment.scheduledTimeEnd || null,
+          fulfillment.address ? JSON.stringify(fulfillment.address) : null, effectiveDeliveryFee,
+          dwellingType, entryPoint, floorNumber,
+          elevatorRequired, elevatorDate, elevatorTime,
+          conciergePhone, conciergeNotes,
+          accessSteps, accessNarrowStairs, accessHeightRestriction, accessWidthRestriction, accessNotes,
+          parkingType, parkingDistance, parkingNotes,
+          pathwayConfirmed, pathwayNotes,
+          deliveryDate, deliveryWindowStart, deliveryWindowEnd, deliveryWindowId,
+          pickupLocationId, pickupDate, pickupTimePreference,
+          pickupPersonName, pickupPersonPhone, pickupVehicleType, pickupVehicleNotes,
+          fulfillment.notes || null, req.user.id,
+        ]);
     }
 
-    // Process trade-ins if present
-    let totalTradeInCredit = 0;
+    // Process trade-ins
     if (tradeIns && tradeIns.length > 0) {
       for (const tradeIn of tradeIns) {
-        // Verify trade-in assessment exists and is valid
-        const assessmentResult = await client.query(
+        const assessmentResult = await completionClient.query(
           `SELECT id, status, final_value FROM trade_in_assessments
            WHERE id = $1 AND status IN ('pending', 'approved')`,
           [tradeIn.assessmentId]
         );
-
         if (assessmentResult.rows.length === 0) {
           throw ApiError.badRequest(`Trade-in assessment ${tradeIn.assessmentId} not found or not in valid state`);
         }
-
-        const assessment = assessmentResult.rows[0];
         totalTradeInCredit += tradeIn.creditAmount;
-
-        // Link trade-in to transaction and update status to 'applied'
-        await client.query(
-          `UPDATE trade_in_assessments
-           SET transaction_id = $1,
-               status = 'applied',
-               status_changed_at = NOW(),
-               status_changed_by = $2,
-               updated_at = NOW()
-           WHERE id = $3`,
+        await completionClient.query(
+          `UPDATE trade_in_assessments SET transaction_id = $1, status = 'applied',
+           status_changed_at = NOW(), status_changed_by = $2, updated_at = NOW() WHERE id = $3`,
           [transaction.transaction_id, req.user.id, tradeIn.assessmentId]
         );
       }
     }
 
-    // If converted from quote, update quote status
+    // Convert from quote
     if (quoteId) {
-      await client.query(
+      await completionClient.query(
         "UPDATE quotations SET status = 'converted', updated_at = NOW() WHERE id = $1",
         [quoteId]
       );
     }
 
-    // Insert commission splits if provided
+    // Commission splits
     if (commissionSplit?.splits?.length > 0) {
       const totalPct = commissionSplit.splits.reduce((s, sp) => s + Number(sp.splitPercentage), 0);
       if (Math.abs(totalPct - 100) <= 0.01) {
-        // Estimate commission at 3% for now; actual calculation happens via commission service
         const estimatedCommissionCents = dollarsToCents(totalAmount * 0.03);
         let remainderCents = estimatedCommissionCents;
-
         for (let i = 0; i < commissionSplit.splits.length; i++) {
           const sp = commissionSplit.splits[i];
           const commCents = i === commissionSplit.splits.length - 1
             ? remainderCents
             : Math.round(estimatedCommissionCents * (Number(sp.splitPercentage) / 100));
           remainderCents -= commCents;
-
-          await client.query(
+          await completionClient.query(
             `INSERT INTO order_commission_splits
               (transaction_id, user_id, split_percentage, commission_amount_cents, role, status)
              VALUES ($1, $2, $3, $4, $5, 'pending')`,
@@ -987,144 +932,173 @@ router.post('/', authenticate, paymentLimiter, validateBody(schemas.transactionC
       }
     }
 
-    await client.query('COMMIT');
+    // Apply fraud hold/flag status override (from fraudCheck middleware)
+    let finalStatus = transactionStatus;
+    if (req.fraudHold) finalStatus = 'held_for_review';
+    if (req.fraudFlagged && finalStatus === 'completed') finalStatus = 'completed_flagged';
 
-    // Sync serial numbers to product_serials registry (after commit, non-blocking)
-    if (serialNumberService && transactionStatus === 'completed') {
-      let serialWarning = false;
-      for (const item of processedItems) {
-        if (!item.serialNumber) continue;
-        try {
-          await serialNumberService.markAsSold(
-            item.serialNumber,
-            transaction.transaction_id,
-            customerId || null,
-            req.user.id
-          );
-          req.log.info({ serial: item.serialNumber, transactionId: transaction.transaction_id }, '[Transaction] Serial marked as sold');
-        } catch (serialErr) {
-          serialWarning = true;
-          req.log.error({ err: serialErr, serial: item.serialNumber, transactionId: transaction.transaction_id },
-            '[Transaction] Serial sync failed (non-fatal)');
-        }
-      }
-      if (serialWarning) {
-        try {
-          await pool.query(
-            'UPDATE transactions SET serial_sync_warning = true WHERE transaction_id = $1',
-            [transaction.transaction_id]
-          );
-          req.log.warn({ transactionId: transaction.transaction_id }, '[Transaction] Serial sync warning flagged');
-        } catch (flagErr) {
-          req.log.error({ err: flagErr }, '[Transaction] Failed to flag serial_sync_warning');
-        }
-      }
-    }
+    // Finalize: update status from pending_payment → final status
+    await completionClient.query(
+      `UPDATE transactions SET status = $1, completed_at = $2 WHERE transaction_id = $3`,
+      [finalStatus, finalStatus === 'completed' || finalStatus === 'completed_flagged' ? new Date() : null, transaction.transaction_id]
+    );
+    transactionStatus = finalStatus;
 
-    // Mark approved escalations as used (after commit so transaction ID is final)
-    if (req._discountEnforcementResult?.itemEscalations) {
-      for (const mapping of req._discountEnforcementResult.itemEscalations) {
-        if (mapping.escalationId) {
-          try {
-            await discountAuthorityService.markEscalationUsed(mapping.escalationId, transaction.transaction_id);
-          } catch (escErr) {
-            req.log.error({ err: escErr }, '[Transaction] Failed to mark escalation used');
-          }
-        }
-      }
-    }
+    // PHASE 2 COMMIT: payments, inventory, fulfillment, final status
+    await completionClient.query('COMMIT');
+    req.log.info({ transactionId: transaction.transaction_id, status: transactionStatus }, '[Transaction] PHASE 2 committed (completed)');
 
-    // Queue marketplace inventory changes (non-blocking, after commit)
-    for (const qi of _inventoryQueue) {
-      try {
-        await miraklService.queueInventoryChange(qi.productId, qi.sku, qi.oldQty, qi.newQty, qi.source);
-      } catch (queueErr) {
-        req.log.error({ err: queueErr }, '[MarketplaceQueue] POS_SALE queue error');
-      }
-    }
+  } catch (phase2Err) {
+    await completionClient.query('ROLLBACK');
 
-    // Auto-record commission for completed transactions
-    if (transactionStatus === 'completed' && commissionService) {
-      try {
-        await commissionService.recordCommission(transaction.transaction_id, salespersonId);
-        req.log.info({ transactionId: transaction.transaction_id, salespersonId }, '[Transaction] Commission recorded');
-      } catch (commErr) {
-        // Commission failure should not break the sale
-        req.log.error({ err: commErr }, '[Transaction] Commission recording failed (non-fatal)');
-      }
-    }
-
-    // Capture evidence snapshot for chargeback defense (non-blocking)
-    if (transactionStatus === 'completed') {
-      const fraudService = req.app.get('fraudService');
-      if (fraudService) {
-        fraudService.captureEvidenceSnapshot(transaction.transaction_id, {
-          transaction_number: transaction.transaction_number,
-          user_id: req.user.id,
-          shift_id: shiftId,
-          customer_id: customerId,
-          payments,
-          items: processedItems,
-          total_amount: totalAmount,
-        }).catch(err => req.log.error({ err }, '[Transaction] Evidence snapshot error'));
-      }
-    }
-
-    // Invalidate relevant caches
-    if (cache) {
-      cache.invalidatePattern('transactions:');
-      cache.invalidatePattern('products:');
-      if (quoteId) {
-        cache.invalidatePattern('quotes:');
-      }
-      // Invalidate walk-in customer context card cache
-      if (customerId) {
-        cache.del('short', `customer_context:${customerId}`);
-      }
-    }
-
-    res.status(201).json({
-      success: true,
-      data: {
+    // CRITICAL: PHASE 2 failed but transaction record exists as 'pending_payment'.
+    // If card payment was already captured (via /api/pos-payments/card/confirm),
+    // this means money was taken but the sale wasn't finalized.
+    const hasCardPayment = payments.some(p => ['credit', 'debit'].includes(p.paymentMethod) && p.authorizationCode);
+    if (hasCardPayment) {
+      req.log.error({
         transactionId: transaction.transaction_id,
-        transactionNumber: transaction.transaction_number,
-        createdAt: transaction.created_at,
-        totals: {
-          subtotal: finalSubtotal,
-          discountAmount: discountAmount || 0,
-          hstAmount: taxes.hstAmount,
-          gstAmount: taxes.gstAmount,
-          pstAmount: taxes.pstAmount,
-          totalTax: taxes.totalTax,
-          totalAmount,
-          tradeInCredit: totalTradeInCredit,
-          amountDue: Math.max(0, totalAmount - totalTradeInCredit)
-        },
-        tradeIns: tradeIns && tradeIns.length > 0 ? {
-          count: tradeIns.length,
-          totalCredit: totalTradeInCredit,
-          assessmentIds: tradeIns.map(ti => ti.assessmentId)
-        } : null,
-        deposit: isDeposit ? {
-          isDeposit: true,
-          depositAmount: paymentTotal,
-          balanceDue,
-          status: 'deposit_paid',
-        } : null,
-        status: transactionStatus,
-        fulfillmentType: fulfillment?.type || 'pickup_now',
-        deliveryAddress: fulfillment?.address?.street || fulfillment?.deliveryAddress || null,
-        fraudAssessment: req.fraudAssessment || null,
-      }
-    });
+        transactionNumber,
+        totalAmount,
+        payments: payments.map(p => ({ method: p.paymentMethod, amount: p.amount, authCode: p.authorizationCode })),
+      }, 'CRITICAL: payment captured but DB update failed — manual reconciliation required');
 
-  } catch (err) {
-    await client.query('ROLLBACK');
-    req.log.error({ err }, '[Transaction] CREATE ERROR');
-    throw err;
+      // Broadcast WebSocket alert to admin
+      const wsService = req.app.get('wsService');
+      if (wsService && wsService.broadcastToRoles) {
+        wsService.broadcastToRoles(['admin'], 'payment:reconciliation_required', {
+          transactionId: transaction.transaction_id,
+          transactionNumber,
+          totalAmount,
+          error: phase2Err.message,
+        });
+      }
+    }
+
+    req.log.error({ err: phase2Err, transactionId: transaction.transaction_id }, '[Transaction] PHASE 2 FAILED — transaction left as pending_payment');
+    throw phase2Err;
   } finally {
-    client.release();
+    completionClient.release();
   }
+
+  // ===========================================================================
+  // POST-COMPLETION: Non-blocking side effects (serial sync, commissions, etc.)
+  // These run after both phases are committed. Failures are logged but don't
+  // affect the transaction.
+  // ===========================================================================
+
+  // Sync serial numbers to product_serials registry
+  if (serialNumberService && transactionStatus === 'completed') {
+    let serialWarning = false;
+    for (const item of processedItems) {
+      if (!item.serialNumber) continue;
+      try {
+        await serialNumberService.markAsSold(item.serialNumber, transaction.transaction_id, customerId || null, req.user.id);
+        req.log.info({ serial: item.serialNumber, transactionId: transaction.transaction_id }, '[Transaction] Serial marked as sold');
+      } catch (serialErr) {
+        serialWarning = true;
+        req.log.error({ err: serialErr, serial: item.serialNumber, transactionId: transaction.transaction_id },
+          '[Transaction] Serial sync failed (non-fatal)');
+      }
+    }
+    if (serialWarning) {
+      try {
+        await pool.query('UPDATE transactions SET serial_sync_warning = true WHERE transaction_id = $1', [transaction.transaction_id]);
+      } catch (flagErr) {
+        req.log.error({ err: flagErr }, '[Transaction] Failed to flag serial_sync_warning');
+      }
+    }
+  }
+
+  // Mark approved escalations as used
+  if (req._discountEnforcementResult?.itemEscalations) {
+    for (const mapping of req._discountEnforcementResult.itemEscalations) {
+      if (mapping.escalationId) {
+        try {
+          await discountAuthorityService.markEscalationUsed(mapping.escalationId, transaction.transaction_id);
+        } catch (escErr) {
+          req.log.error({ err: escErr }, '[Transaction] Failed to mark escalation used');
+        }
+      }
+    }
+  }
+
+  // Queue marketplace inventory changes
+  for (const qi of _inventoryQueue) {
+    try {
+      await miraklService.queueInventoryChange(qi.productId, qi.sku, qi.oldQty, qi.newQty, qi.source);
+    } catch (queueErr) {
+      req.log.error({ err: queueErr }, '[MarketplaceQueue] POS_SALE queue error');
+    }
+  }
+
+  // Auto-record commission
+  if (transactionStatus === 'completed' && commissionService) {
+    try {
+      await commissionService.recordCommission(transaction.transaction_id, salespersonId);
+    } catch (commErr) {
+      req.log.error({ err: commErr }, '[Transaction] Commission recording failed (non-fatal)');
+    }
+  }
+
+  // Capture evidence snapshot for chargeback defense
+  if (transactionStatus === 'completed') {
+    const fraudService = req.app.get('fraudService');
+    if (fraudService) {
+      fraudService.captureEvidenceSnapshot(transaction.transaction_id, {
+        transaction_number: transactionNumber,
+        user_id: req.user.id,
+        shift_id: shiftId,
+        customer_id: customerId,
+        payments,
+        items: processedItems,
+        total_amount: totalAmount,
+      }).catch(err => req.log.error({ err }, '[Transaction] Evidence snapshot error'));
+    }
+  }
+
+  // Invalidate caches
+  if (cache) {
+    cache.invalidatePattern('transactions:');
+    cache.invalidatePattern('products:');
+    if (quoteId) cache.invalidatePattern('quotes:');
+    if (customerId) cache.del('short', `customer_context:${customerId}`);
+  }
+
+  res.status(201).json({
+    success: true,
+    data: {
+      transactionId: transaction.transaction_id,
+      transactionNumber: transaction.transaction_number,
+      createdAt: transaction.created_at,
+      totals: {
+        subtotal: finalSubtotal,
+        discountAmount: discountAmount || 0,
+        hstAmount: taxes.hstAmount,
+        gstAmount: taxes.gstAmount,
+        pstAmount: taxes.pstAmount,
+        totalTax: taxes.totalTax,
+        totalAmount,
+        tradeInCredit: totalTradeInCredit,
+        amountDue: Math.max(0, totalAmount - totalTradeInCredit)
+      },
+      tradeIns: tradeIns && tradeIns.length > 0 ? {
+        count: tradeIns.length,
+        totalCredit: totalTradeInCredit,
+        assessmentIds: tradeIns.map(ti => ti.assessmentId)
+      } : null,
+      deposit: isDeposit ? {
+        isDeposit: true,
+        depositAmount: payments.reduce((sum, p) => sum + p.amount, 0),
+        balanceDue: isDeposit ? roundDollars(totalAmount - payments.reduce((sum, p) => sum + p.amount, 0)) : null,
+        status: 'deposit_paid',
+      } : null,
+      status: transactionStatus,
+      fulfillmentType: fulfillment?.type || 'pickup_now',
+      deliveryAddress: fulfillment?.address?.street || fulfillment?.deliveryAddress || null,
+      fraudAssessment: req.fraudAssessment || null,
+    }
+  });
 }));
 
 /**
@@ -2080,6 +2054,13 @@ const init = (deps) => {
   cache = deps.cache;
   discountAuthorityService = deps.discountAuthorityService || null;
   serialNumberService = deps.serialNumberService || null;
+  taxService = deps.taxService || null;
+
+  // Initialize TaxService if not provided directly
+  if (!taxService) {
+    const TaxService = require('../services/TaxService');
+    taxService = new TaxService(pool, cache);
+  }
 
   // Initialize CommissionService if not provided directly
   if (deps.commissionService) {

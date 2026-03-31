@@ -167,14 +167,13 @@ describe('InventorySyncService', () => {
 
   describe('createReservation', () => {
     it('should create reservation when inventory available', async () => {
-      mockPool.query.mockResolvedValueOnce({
-        rows: [{
-          success: true,
-          reservation_id: 1,
-          reservation_number: 'RES-20240101-0001',
-          message: 'Reservation created successfully',
-        }],
-      });
+      mockClient.query
+        .mockResolvedValueOnce({}) // BEGIN
+        .mockResolvedValueOnce({   // Atomic INSERT...SELECT FOR UPDATE
+          rows: [{ id: 1, product_id: 1, quantity: 10, status: 'reserved', expires_at: new Date() }],
+        })
+        .mockResolvedValueOnce({}) // UPDATE products SET qty_reserved
+        .mockResolvedValueOnce({}); // COMMIT
 
       const result = await service.createReservation({
         productId: 1,
@@ -184,18 +183,14 @@ describe('InventorySyncService', () => {
 
       expect(result.success).toBe(true);
       expect(result.reservationId).toBe(1);
-      expect(result.reservationNumber).toBe('RES-20240101-0001');
+      expect(result.reservationNumber).toBe('RES-1');
     });
 
     it('should fail when inventory insufficient', async () => {
-      mockPool.query.mockResolvedValueOnce({
-        rows: [{
-          success: false,
-          reservation_id: null,
-          reservation_number: null,
-          message: 'Insufficient inventory. Available: 5, Requested: 10',
-        }],
-      });
+      mockClient.query
+        .mockResolvedValueOnce({}) // BEGIN
+        .mockResolvedValueOnce({ rows: [] }) // Atomic INSERT returns no rows
+        .mockResolvedValueOnce({}); // ROLLBACK
 
       const result = await service.createReservation({
         productId: 1,
@@ -203,7 +198,7 @@ describe('InventorySyncService', () => {
       });
 
       expect(result.success).toBe(false);
-      expect(result.message).toContain('Insufficient inventory');
+      expect(result.message).toContain('Insufficient stock');
     });
   });
 

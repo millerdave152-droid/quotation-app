@@ -139,7 +139,12 @@ class FraudScoringService {
     if (velocityResult) {
       signals.velocity = velocityResult;
       for (const [key, check] of Object.entries(velocityResult)) {
-        if (check.exceeded) {
+        if (check.bypassed) {
+          // Uncertainty penalty: velocity check was skipped due to PG fallback circuit open
+          const uncertaintyPts = 15;
+          totalPoints += uncertaintyPts;
+          triggeredRules.push({ source: 'velocity_bypassed', dimension: key, riskPoints: uncertaintyPts, details: { bypassed: true, reason: 'PG fallback circuit open' } });
+        } else if (check.exceeded) {
           const pts = check.riskPoints || 0;
           totalPoints += pts;
           triggeredRules.push({ source: 'velocity', dimension: key, riskPoints: pts, details: check });
@@ -238,7 +243,7 @@ class FraudScoringService {
     // Cap at 100
     const ruleScore = Math.min(100, Math.max(0, totalPoints));
 
-    // --- ML Scoring (A/B test) ---
+    // --- ML Scoring (A/B test — gated by kill switch + circuit breaker) ---
     let finalScore = ruleScore;
     if (this.mlScoringService) {
       try {
@@ -252,16 +257,19 @@ class FraudScoringService {
           rule_score: ruleScore,
         };
 
+        // scoreTransaction() returns null when kill-switched (env, DB flag, or circuit open)
         const mlResult = await this.mlScoringService.scoreTransaction(mlFeatures);
-        const abSignals = this.mlScoringService.buildABSignals(ruleScore, mlResult);
 
-        // Store A/B comparison data in signals
-        signals.ml_scoring = abSignals;
+        if (mlResult) {
+          const abSignals = this.mlScoringService.buildABSignals(ruleScore, mlResult);
+          signals.ml_scoring = abSignals;
 
-        // Use combined score when ML is active (confidence > 0)
-        if (mlResult.confidence > 0) {
-          finalScore = abSignals.combined_score;
+          // Use combined score when ML is active (confidence > 0)
+          if (mlResult.confidence > 0) {
+            finalScore = abSignals.combined_score;
+          }
         }
+        // mlResult === null means ML is disabled — use rule score only (no A/B signals stored)
       } catch (_) {
         // ML scoring failure is non-fatal — continue with rule score
       }

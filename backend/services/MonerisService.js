@@ -933,6 +933,45 @@ class MonerisService {
       cardType: txn.card_brand,
     };
   }
+
+  /**
+   * Create a MonerisService instance configured for a specific location.
+   * Loads credentials from location_moneris_config table.
+   * Falls back to process.env credentials if no row exists.
+   *
+   * @param {number} locationId - Location ID
+   * @param {object} pool - Database pool
+   * @param {object} [cache] - Optional cache instance
+   * @returns {Promise<MonerisService>} Configured instance
+   */
+  static async forLocation(locationId, pool, cache = null) {
+    const logger = require('../utils/logger');
+
+    if (locationId) {
+      try {
+        const result = await pool.query(
+          'SELECT store_id, api_token, webhook_secret, terminal_ids FROM location_moneris_config WHERE location_id = $1 AND is_active = true',
+          [locationId]
+        );
+
+        if (result.rows.length > 0) {
+          const row = result.rows[0];
+          return new MonerisService(pool, cache, {
+            storeId: row.store_id,
+            apiToken: row.api_token,
+            webhookSecret: row.webhook_secret,
+            terminalIds: row.terminal_ids,
+          });
+        }
+      } catch (err) {
+        logger.warn({ err: err.message, locationId }, 'Failed to load location Moneris config — falling back to default credentials');
+      }
+    }
+
+    // Fallback: use env var credentials (original shared instance behavior)
+    logger.warn({ locationId }, 'No location Moneris config found — falling back to default credentials');
+    return new MonerisService(pool, cache);
+  }
 }
 
 module.exports = MonerisService;
