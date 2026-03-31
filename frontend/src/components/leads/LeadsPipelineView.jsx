@@ -79,11 +79,14 @@ function LeadsPipelineView({ onLeadSelect, onToggleReminders, showRemindersActiv
         ]);
         if (storeRes.ok) {
           const storeData = await storeRes.json();
-          setStores(storeData.data || storeData || []);
+          const locs = storeData.data || storeData || [];
+          setStores(Array.isArray(locs) ? locs : []);
         }
         if (staffRes.ok) {
           const staffData = await staffRes.json();
-          setStaffList(staffData.data || staffData || []);
+          // API returns { data: { users: [...], total } } — extract the users array
+          const users = staffData.data?.users || staffData.data || staffData || [];
+          setStaffList(Array.isArray(users) ? users : []);
         }
       } catch {
         // Non-critical — filters will just be empty
