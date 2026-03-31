@@ -8,6 +8,44 @@ const cors = require('cors');
 require('dotenv').config();
 const multer = require('multer');
 
+// ============================================
+// NODE_ENV VALIDATION
+// Must be set explicitly — no implicit defaults.
+// ============================================
+if (!process.env.NODE_ENV) {
+  console.error('FATAL: NODE_ENV is not set. Server will not start without explicit environment.');
+  process.exit(1);
+}
+
+if (process.env.NODE_ENV !== 'development' &&
+    process.env.NODE_ENV !== 'production' &&
+    process.env.NODE_ENV !== 'test') {
+  console.error(`FATAL: NODE_ENV="${process.env.NODE_ENV}" is not valid. Must be development, production, or test.`);
+  process.exit(1);
+}
+
+// ============================================
+// REQUIRED ENVIRONMENT VARIABLES CHECK
+// Fail fast if critical config is missing.
+// ============================================
+const REQUIRED_ENV_VARS = [
+  'DB_HOST', 'DB_NAME', 'DB_USER', 'DB_PASSWORD',
+  'JWT_SECRET', 'JWT_REFRESH_SECRET',
+  'AWS_REGION', 'EMAIL_FROM',
+];
+
+// Production requires CORS allowlist
+if (process.env.NODE_ENV === 'production') {
+  REQUIRED_ENV_VARS.push('ALLOWED_ORIGINS');
+}
+
+const _missingEnv = REQUIRED_ENV_VARS.filter(v => !process.env[v]);
+if (_missingEnv.length > 0) {
+  console.error('FATAL: Missing required environment variables:', _missingEnv.join(', '));
+  console.error('Copy backend/.env.example to backend/.env and fill in all values.');
+  process.exit(1);
+}
+
 // Cache module for database query caching
 const cache = require('./cache');
 
@@ -313,7 +351,7 @@ const logArchiveService = new LogArchiveService(pool);
 const velocityService = new VelocityService(pool, redisClient);
 const binService = new BINValidationService(pool, redisClient);
 const fraudService = new FraudDetectionService(pool, { velocityService, binService, auditLogService });
-const mlScoringService = new MLScoringService();
+const mlScoringService = new MLScoringService({ pool, redis: redisClient });
 const fraudScoringService = new FraudScoringService(pool, { velocityService, binService, redisClient, mlScoringService });
 const employeeMonitorService = new EmployeeMonitorService(pool, { wsService, auditLogService });
 const chargebackEvidenceService = new ChargebackEvidenceService(pool, wsService);
@@ -330,115 +368,203 @@ app.set('wsService', wsService);
 app.set('deliveryWaiverService', deliveryWaiverService);
 
 // ── Scheduled jobs ──────────────────────────────────────────────────────────
+// CRIT-7 FIX: All scheduled jobs wrapped in runWithTenant() for RLS context
+const { runWithTenant } = require('./utils/tenantContext');
+const TENANT_ID = process.env.TELETIME_TENANT_ID || 'a0000000-0000-0000-0000-000000000000';
+
 // Hourly: Refresh employee fraud metrics and detect anomalies
 cron.schedule('0 * * * *', () => {
-  employeeMonitorService.refreshMetrics()
-    .catch(err => logger.error({ err }, 'Employee monitor refresh failed'));
-  // Also refresh ML feature store materialized views
-  featureStoreService.refreshViews()
-    .catch(err => logger.error({ err }, 'Feature store refresh failed'));
+  runWithTenant(TENANT_ID, () => {
+    employeeMonitorService.refreshMetrics()
+      .catch(err => logger.error({ err }, 'Employee monitor refresh failed'));
+    featureStoreService.refreshViews()
+      .catch(err => logger.error({ err }, 'Feature store refresh failed'));
+  });
 });
 logger.info('Employee monitor cron scheduled (hourly)');
 
 // Daily 3 AM: Audit log hash-chain integrity verification (yesterday's records)
 cron.schedule('0 3 * * *', () => {
-  const yesterday = new Date();
-  yesterday.setDate(yesterday.getDate() - 1);
-  const startOfDay = new Date(yesterday.getFullYear(), yesterday.getMonth(), yesterday.getDate());
-  const endOfDay = new Date(startOfDay);
-  endOfDay.setHours(23, 59, 59, 999);
+  runWithTenant(TENANT_ID, () => {
+    const yesterday = new Date();
+    yesterday.setDate(yesterday.getDate() - 1);
+    const startOfDay = new Date(yesterday.getFullYear(), yesterday.getMonth(), yesterday.getDate());
+    const endOfDay = new Date(startOfDay);
+    endOfDay.setHours(23, 59, 59, 999);
 
-  auditLogService.verifyChainIntegrity(startOfDay, endOfDay)
-    .then(result => {
-      if (result.violations && result.violations.length > 0) {
-        logger.error({ violations: result.violations.length }, '[AuditChain] Daily integrity check: VIOLATIONS DETECTED');
-        if (wsService) {
-          wsService.broadcastToRoles(['admin'], 'audit:chain_violation', {
-            violations: result.violations.length,
-            verified: result.verified,
-            totalRecords: result.totalRecords,
-            timestamp: new Date().toISOString(),
-          });
+    auditLogService.verifyChainIntegrity(startOfDay, endOfDay)
+      .then(result => {
+        if (result.violations && result.violations.length > 0) {
+          logger.error({ violations: result.violations.length }, '[AuditChain] Daily integrity check: VIOLATIONS DETECTED');
+          if (wsService) {
+            wsService.broadcastToRoles(['admin'], 'audit:chain_violation', {
+              violations: result.violations.length,
+              verified: result.verified,
+              totalRecords: result.totalRecords,
+              timestamp: new Date().toISOString(),
+            });
+          }
+        } else {
+          logger.info({ verified: result.verified }, '[AuditChain] Daily integrity check passed');
         }
-      } else {
-        logger.info({ verified: result.verified }, '[AuditChain] Daily integrity check passed');
-      }
-    })
-    .catch(err => logger.error({ err }, 'Audit chain verification failed'));
+      })
+      .catch(err => logger.error({ err }, 'Audit chain verification failed'));
+  });
 });
 logger.info('Audit chain verification cron scheduled (daily 3 AM)');
 
 // Weekly Sunday 3:30 AM: Full 7-day chain verification + compliance summary
 cron.schedule('30 3 * * 0', () => {
-  const weekAgo = new Date();
-  weekAgo.setDate(weekAgo.getDate() - 7);
+  runWithTenant(TENANT_ID, () => {
+    const weekAgo = new Date();
+    weekAgo.setDate(weekAgo.getDate() - 7);
 
-  auditLogService.verifyChainIntegrity(weekAgo, new Date())
-    .then(result => {
-      logger.info({
-        verified: result.verified,
-        violations: result.violations.length,
-      }, '[AuditChain] Weekly integrity check complete');
-      return auditLogService.generateComplianceReport('week');
-    })
-    .then(report => {
-      logger.info({
-        totalEvents: report.total_events,
-        failedLogins: report.failed_logins.total,
-        chainStatus: report.chain_integrity.status,
-      }, '[Compliance] Weekly compliance summary generated');
-    })
-    .catch(err => logger.error({ err }, 'Weekly chain verification / compliance report failed'));
+    auditLogService.verifyChainIntegrity(weekAgo, new Date())
+      .then(result => {
+        logger.info({
+          verified: result.verified,
+          violations: result.violations.length,
+        }, '[AuditChain] Weekly integrity check complete');
+        return auditLogService.generateComplianceReport('week');
+      })
+      .then(report => {
+        logger.info({
+          totalEvents: report.total_events,
+          failedLogins: report.failed_logins.total,
+          chainStatus: report.chain_integrity.status,
+        }, '[Compliance] Weekly compliance summary generated');
+      })
+      .catch(err => logger.error({ err }, 'Weekly chain verification / compliance report failed'));
+  });
 });
 logger.info('Weekly chain verification + compliance summary cron scheduled (Sunday 3:30 AM)');
 
 // Monthly 1st at 5 AM: Generate monthly compliance report + archive old logs
 cron.schedule('0 5 1 * *', () => {
-  auditLogService.generateComplianceReport('month')
-    .then(report => {
-      logger.info({
-        period: report.report_period,
-        totalEvents: report.total_events,
-        chainStatus: report.chain_integrity.status,
-        retention: report.retention,
-      }, '[Compliance] Monthly compliance report generated');
-      // Archive logs older than 12 months to cold storage
-      return logArchiveService.archiveLogs(12);
-    })
-    .then(archiveResult => {
-      if (archiveResult.exported > 0) {
+  runWithTenant(TENANT_ID, () => {
+    auditLogService.generateComplianceReport('month')
+      .then(report => {
         logger.info({
-          exported: archiveResult.exported,
-          files: archiveResult.files,
-        }, '[LogArchive] Monthly archive complete');
-      }
-    })
-    .catch(err => logger.error({ err }, 'Monthly compliance report / archive failed'));
+          period: report.report_period,
+          totalEvents: report.total_events,
+          chainStatus: report.chain_integrity.status,
+          retention: report.retention,
+        }, '[Compliance] Monthly compliance report generated');
+        return logArchiveService.archiveLogs(12);
+      })
+      .then(archiveResult => {
+        if (archiveResult.exported > 0) {
+          logger.info({
+            exported: archiveResult.exported,
+            files: archiveResult.files,
+          }, '[LogArchive] Monthly archive complete');
+        }
+      })
+      .catch(err => logger.error({ err }, 'Monthly compliance report / archive failed'));
+  });
 });
 logger.info('Monthly compliance report + log archive cron scheduled (1st at 5 AM)');
 
 // Daily 4 AM: Clean up velocity_events older than 30 days
 cron.schedule('0 4 * * *', () => {
-  employeeMonitorService.cleanupVelocityEvents()
-    .catch(err => logger.error({ err }, 'Velocity events cleanup failed'));
+  runWithTenant(TENANT_ID, () => {
+    employeeMonitorService.cleanupVelocityEvents()
+      .catch(err => logger.error({ err }, 'Velocity events cleanup failed'));
+  });
 });
 logger.info('Velocity events cleanup cron scheduled (daily 4 AM)');
 
 // Weekly Sunday 5 AM: Clean up expired bin_cache entries
 cron.schedule('0 5 * * 0', () => {
-  employeeMonitorService.cleanupExpiredBinCache()
-    .catch(err => logger.error({ err }, 'BIN cache cleanup failed'));
+  runWithTenant(TENANT_ID, () => {
+    employeeMonitorService.cleanupExpiredBinCache()
+      .catch(err => logger.error({ err }, 'BIN cache cleanup failed'));
+  });
 });
 logger.info('BIN cache cleanup cron scheduled (weekly Sunday 5 AM)');
 
 // Chargeback deadline check (daily 9 AM)
 cron.schedule('0 9 * * *', () => {
-  if (chargebackRouter._checkDeadlines) {
-    chargebackRouter._checkDeadlines()
-      .catch(err => logger.error({ err }, 'Chargeback deadline check failed'));
-  }
+  runWithTenant(TENANT_ID, () => {
+    if (chargebackRouter._checkDeadlines) {
+      chargebackRouter._checkDeadlines()
+        .catch(err => logger.error({ err }, 'Chargeback deadline check failed'));
+    }
+  });
 });
 logger.info('Chargeback deadline check cron scheduled (daily 9 AM)');
+
+// Daily 5:30 AM: Clean up expired refresh tokens (older than 1 day past expiry)
+cron.schedule('30 5 * * *', () => {
+  runWithTenant(TENANT_ID, () => {
+    pool.query("DELETE FROM refresh_tokens WHERE expires_at < NOW() - INTERVAL '1 day'")
+      .then(result => {
+        if (result.rowCount > 0) {
+          logger.info({ purged: result.rowCount }, '[RefreshTokens] Expired tokens cleaned up');
+        }
+      })
+      .catch(err => logger.error({ err }, 'Refresh token cleanup failed'));
+  });
+});
+logger.info('Refresh token cleanup cron scheduled (daily 5:30 AM)');
+
+// Daily 6 AM: Check for overdue inventory transfers (shipped > 7 days, not received)
+cron.schedule('0 6 * * *', () => {
+  runWithTenant(TENANT_ID, async () => {
+    try {
+      const { rows } = await pool.query(`
+        SELECT t.id, t.transfer_number, t.from_location_id, t.to_location_id,
+               t.shipped_at, t.expected_receive_by,
+               fl.name AS from_location, tl.name AS to_location,
+               EXTRACT(DAY FROM NOW() - t.shipped_at)::int AS days_since_ship
+        FROM inventory_transfers t
+        LEFT JOIN locations fl ON fl.id = t.from_location_id
+        LEFT JOIN locations tl ON tl.id = t.to_location_id
+        WHERE t.status = 'in_transit'
+          AND t.expected_receive_by < NOW()
+          AND t.received_at IS NULL
+      `);
+
+      for (const transfer of rows) {
+        logger.warn({ transferId: transfer.id, transferNumber: transfer.transfer_number, daysSinceShip: transfer.days_since_ship },
+          'Transfer overdue — not received within 7 days');
+
+        if (wsService) {
+          wsService.broadcastToRoles(['admin', 'manager'], 'transfer:overdue', {
+            transferId: transfer.id,
+            transferNumber: transfer.transfer_number,
+            fromLocation: transfer.from_location,
+            toLocation: transfer.to_location,
+            daysSinceShip: transfer.days_since_ship,
+            shippedAt: transfer.shipped_at,
+          });
+        }
+      }
+
+      if (rows.length > 0) {
+        logger.info({ count: rows.length }, '[TransferReconciliation] Overdue transfers found');
+      }
+    } catch (err) {
+      logger.error({ err }, 'Overdue transfer check failed');
+    }
+  });
+});
+logger.info('Overdue transfer check cron scheduled (daily 6 AM)');
+
+// Every 15 minutes: Expire stale inventory reservations
+setInterval(() => {
+  runWithTenant(TENANT_ID, async () => {
+    try {
+      const count = await inventoryService.processExpiredReservations();
+      if (count > 0) {
+        logger.info({ released: count }, 'Expired reservations released');
+      }
+    } catch (err) {
+      logger.error({ err }, 'Reservation expiry job failed — stock may be soft-locked. Manual run: POST /api/admin/run-expiry');
+    }
+  });
+}, 15 * 60 * 1000);
+logger.info('Reservation expiry job scheduled (every 15 min)');
 
 app.set('pool', pool);
 app.set('cache', cache);
@@ -455,29 +581,33 @@ const catalogExportService = new CatalogExportService(pool, cache);
 const audienceSyncService = new AudienceSyncService(pool, cache);
 
 // Expire stale pending discount escalations every 5 minutes
-setInterval(async () => {
-  try {
-    const expired = await discountAuthorityService.expireStalePendingEscalations();
-    if (expired.length > 0) logger.info({ count: expired.length }, '[EscalationExpiry] Expired pending escalations');
-  } catch (err) {
-    logger.error({ err }, '[EscalationExpiry] Error');
-  }
+setInterval(() => {
+  runWithTenant(TENANT_ID, async () => {
+    try {
+      const expired = await discountAuthorityService.expireStalePendingEscalations();
+      if (expired.length > 0) logger.info({ count: expired.length }, '[EscalationExpiry] Expired pending escalations');
+    } catch (err) {
+      logger.error({ err }, '[EscalationExpiry] Error');
+    }
+  });
 }, 5 * 60 * 1000);
 
 // Lead reminder generation — every 15 minutes
 const ReminderService = require('./services/ReminderService');
 const reminderService = new ReminderService(pool);
 
-setInterval(async () => {
-  try {
-    const result = await reminderService.generateAllStoreReminders();
-    if (result.created > 0) {
-      logger.info({ stores: result.stores, evaluated: result.evaluated, created: result.created },
-        '[LeadReminders] Generated reminders');
+setInterval(() => {
+  runWithTenant(TENANT_ID, async () => {
+    try {
+      const result = await reminderService.generateAllStoreReminders();
+      if (result.created > 0) {
+        logger.info({ stores: result.stores, evaluated: result.evaluated, created: result.created },
+          '[LeadReminders] Generated reminders');
+      }
+    } catch (err) {
+      logger.error({ err }, '[LeadReminders] Reminder generation failed');
     }
-  } catch (err) {
-    logger.error({ err }, '[LeadReminders] Reminder generation failed');
-  }
+  });
 }, 15 * 60 * 1000);
 logger.info('[LeadReminders] Reminder polling scheduled (every 15 min)');
 
@@ -485,16 +615,18 @@ logger.info('[LeadReminders] Reminder polling scheduled (every 15 min)');
 const EmailReminderService = require('./services/EmailReminderService');
 const emailReminderService = new EmailReminderService(pool);
 
-setInterval(async () => {
-  try {
-    const result = await emailReminderService.processEmailQueue();
-    if (result.sent > 0) {
-      logger.info({ processed: result.processed, sent: result.sent, errors: result.errors },
-        '[LeadEmailQueue] Processed email queue');
+setInterval(() => {
+  runWithTenant(TENANT_ID, async () => {
+    try {
+      const result = await emailReminderService.processEmailQueue();
+      if (result.sent > 0) {
+        logger.info({ processed: result.processed, sent: result.sent, errors: result.errors },
+          '[LeadEmailQueue] Processed email queue');
+      }
+    } catch (err) {
+      logger.error({ err }, '[LeadEmailQueue] Email queue processing failed');
     }
-  } catch (err) {
-    logger.error({ err }, '[LeadEmailQueue] Email queue processing failed');
-  }
+  });
 }, 15 * 60 * 1000);
 logger.info('[LeadEmailQueue] Email queue processor scheduled (every 15 min)');
 
@@ -502,45 +634,70 @@ logger.info('[LeadEmailQueue] Email queue processor scheduled (every 15 min)');
 const LeadPushService = require('./services/LeadPushService');
 const leadPushService = new LeadPushService(pool);
 
-setInterval(async () => {
-  try {
-    const pushReminders = await pool.query(`
-      SELECT id, lead_id, trigger_type, recipient_user_id
-      FROM lead_reminders
-      WHERE reminder_type = 'push' AND sent_at IS NULL AND scheduled_at <= NOW()
-      LIMIT 20
-    `);
+setInterval(() => {
+  runWithTenant(TENANT_ID, async () => {
+    try {
+      const pushReminders = await pool.query(`
+        SELECT id, lead_id, trigger_type, recipient_user_id
+        FROM lead_reminders
+        WHERE reminder_type = 'push' AND sent_at IS NULL AND scheduled_at <= NOW()
+        LIMIT 20
+      `);
 
-    for (const reminder of pushReminders.rows) {
-      try {
-        // Build lead data for payload
-        const leadRes = await pool.query(
-          'SELECT id, contact_name FROM leads WHERE id = $1',
-          [reminder.lead_id]
-        );
-        const lead = leadRes.rows[0];
-        if (lead && reminder.recipient_user_id) {
-          const payload = leadPushService.buildPayload('followup-reminder', {
-            id: lead.id, customerName: lead.contact_name
-          });
-          await leadPushService.sendToUser(reminder.recipient_user_id, payload);
+      for (const reminder of pushReminders.rows) {
+        try {
+          const leadRes = await pool.query(
+            'SELECT id, contact_name FROM leads WHERE id = $1',
+            [reminder.lead_id]
+          );
+          const lead = leadRes.rows[0];
+          if (lead && reminder.recipient_user_id) {
+            const payload = leadPushService.buildPayload('followup-reminder', {
+              id: lead.id, customerName: lead.contact_name
+            });
+            await leadPushService.sendToUser(reminder.recipient_user_id, payload);
+          }
+          await pool.query('UPDATE lead_reminders SET sent_at = NOW() WHERE id = $1', [reminder.id]);
+        } catch (err) {
+          logger.error({ err, reminderId: reminder.id }, '[LeadPushQueue] Push reminder failed');
         }
-        await pool.query('UPDATE lead_reminders SET sent_at = NOW() WHERE id = $1', [reminder.id]);
-      } catch (err) {
-        logger.error({ err, reminderId: reminder.id }, '[LeadPushQueue] Push reminder failed');
       }
-    }
 
-    if (pushReminders.rows.length > 0) {
-      logger.info({ count: pushReminders.rows.length }, '[LeadPushQueue] Processed push queue');
+      if (pushReminders.rows.length > 0) {
+        logger.info({ count: pushReminders.rows.length }, '[LeadPushQueue] Processed push queue');
+      }
+    } catch (err) {
+      logger.error({ err }, '[LeadPushQueue] Push queue processing failed');
     }
-  } catch (err) {
-    logger.error({ err }, '[LeadPushQueue] Push queue processing failed');
-  }
+  });
 }, 15 * 60 * 1000);
 logger.info('[LeadPushQueue] Push queue processor scheduled (every 15 min)');
 
+// Embedding queue processor — every 2 minutes
+const embeddingService = require('./services/embeddingService');
+setInterval(() => {
+  runWithTenant(TENANT_ID, async () => {
+    try {
+      const stats = await embeddingService.processEmbeddingQueue();
+      if (stats.processed > 0 || stats.failed > 0) {
+        logger.info(stats, '[EmbeddingQueue] Processed embedding queue');
+      }
+    } catch (err) {
+      logger.error({ err }, '[EmbeddingQueue] Queue processing failed');
+    }
+  });
+}, 2 * 60 * 1000);
+logger.info('[EmbeddingQueue] Embedding queue processor scheduled (every 2 min)');
+
 logger.info('Enterprise services initialized');
+
+// HNSW index health check (one-time on startup)
+const { checkHnswHealth } = require('./scripts/check-hnsw-health');
+checkHnswHealth(pool).then(report => {
+  logger.info({ report }, '[Startup] HNSW index health check');
+}).catch(err => {
+  logger.warn({ err: err.message }, '[Startup] HNSW health check failed (non-fatal)');
+});
 
 // ============================================
 // FILE UPLOAD & AWS SES CONFIGURATION
@@ -648,6 +805,23 @@ app.get('/health', async (req, res) => {
     };
   }
 
+  // Check for stuck expired reservations
+  try {
+    const expiredResult = await pool.query(`
+      SELECT COUNT(*)::int AS cnt FROM inventory_reservations
+      WHERE status IN ('reserved', 'active')
+        AND expires_at < NOW() - INTERVAL '30 minutes'
+    `);
+    const stuckCount = expiredResult.rows[0]?.cnt || 0;
+    if (stuckCount > 0) {
+      health.checks.expiredReservations = {
+        status: 'warning',
+        expiredReservationsStuck: stuckCount,
+        action: 'POST /api/admin/run-expiry',
+      };
+    }
+  } catch { /* non-fatal */ }
+
   health.responseTime = Date.now() - startTime;
 
   const statusCode = health.status === 'OK' ? 200 : 503;
@@ -696,6 +870,7 @@ logger.info('Delivery slip routes loaded');
 // ============================================
 // USER MANAGEMENT ROUTES
 // ============================================
+// SHADOW-SAFE: serves /api/users CRUD, /me, /password — distinct from RBAC + commission sub-paths
 const usersRoutes = require('./routes/users');
 app.use('/api/users', usersRoutes);
 
@@ -807,6 +982,7 @@ const rbacRouters = initRbacRoutes({ pool });
 app.use('/api/rbac', rbacRouters.rbacRouter);
 app.use('/api/roles', rbacRouters.rolesRouter);
 app.use('/api/permissions', rbacRouters.permissionsRouter);
+// SHADOW-SAFE: serves /api/users/:id/role, /:id/permissions (RBAC sub-paths)
 app.use('/api/users', rbacRouters.usersRbacRouter);
 logger.info('RBAC management routes loaded');
 
@@ -814,6 +990,7 @@ logger.info('RBAC management routes loaded');
 const marketingAttribution = require('./routes/marketing-attribution');
 const marketingRouters = marketingAttribution.init({ pool });
 app.use('/api/marketing-sources', marketingRouters.sourcesRouter);
+// SHADOW-SAFE: serves /api/reports/marketing-attribution (distinct sub-path)
 app.use('/api/reports', marketingRouters.reportRouter);
 logger.info('Marketing attribution routes loaded');
 
@@ -839,18 +1016,21 @@ logger.info('Lookup routes loaded');
 // ============================================
 // PRODUCT BARCODE LOOKUP (must be before /:id routes)
 // ============================================
+// SHADOW-SAFE: serves /api/products/lookup, /api/products/lookup/batch (distinct sub-paths)
 app.use('/api/products', productLookupRoutes.init({ pool }));
 logger.info('Product barcode lookup routes loaded');
 
 // ============================================
 // DISCONTINUED PRODUCTS (must be before /:id routes)
 // ============================================
+// SHADOW-SAFE: serves /api/products/:id/discontinue, /reactivate, /discontinued, /bulk-discontinue
 app.use('/api/products', discontinuedProductRoutes.init({ pool }));
 logger.info('Discontinued product routes loaded');
 
 // ============================================
 // PRODUCT MANAGEMENT (Modular)
 // ============================================
+// SHADOW-SAFE: serves /api/products/ CRUD, /stats, /favorites, /categories, /manufacturers, etc.
 app.use('/api/products', initProductRoutes({ pool, cache, upload }));
 logger.info('Product routes loaded (modular)');
 
@@ -944,6 +1124,7 @@ app.get('/api/inventory/summary', authenticate, async (req, res, next) => {
   }
 });
 
+// SHADOW-SAFE: serves location-level CRUD /:locationId/:productId, /low-stock, /movement-report, /valuation
 const { init: initLocationInventoryRoutes } = require('./routes/location-inventory');
 app.use('/api/inventory', initLocationInventoryRoutes({ pool }));
 logger.info('Multi-location inventory routes loaded');
@@ -952,10 +1133,18 @@ const { init: initTransferRoutes } = require('./routes/inventory-transfers');
 app.use('/api/inventory/transfers', initTransferRoutes({ pool }));
 logger.info('Inventory transfer routes loaded');
 
+// Stock transfers (migration 210) + inventory-by-location
+const { init: initStockTransferRoutes } = require('./routes/transfers');
+app.use('/api/transfers', initStockTransferRoutes({ pool }));
+app.use('/api/inventory', initStockTransferRoutes({ pool }));
+logger.info('Stock transfer & inventory-by-location routes loaded');
+
+// SHADOW-SAFE: serves /api/inventory/alert-rules, /alerts, /sell-through, /brand-performance
 const { init: initInventoryReportRoutes } = require('./routes/inventory-reports');
 app.use('/api/inventory', initInventoryReportRoutes({ pool }));
 logger.info('Inventory reports & alerts routes loaded');
 
+// SHADOW-SAFE: serves /api/inventory/reports/aging, /reports/abc, /reports/forecast
 const { init: initInventoryAgingRoutes } = require('./routes/inventory-aging');
 app.use('/api/inventory', initInventoryAgingRoutes({ pool }));
 logger.info('Inventory aging & turnover routes loaded');
@@ -1022,6 +1211,7 @@ logger.info('CE competitor pricing routes loaded (PricesAPI)');
 // ============================================
 // PRICING ENGINE (Promotional Price Calculation)
 // ============================================
+// SHADOW-SAFE: serves /api/pricing/calculate, /active-rules (distinct from enterprise pricing tiers/margins)
 const { init: initPricingEngineRoutes } = require('./routes/pricing-engine');
 app.use('/api/pricing', initPricingEngineRoutes({ pool }));
 logger.info('Pricing engine routes loaded');
@@ -1069,6 +1259,7 @@ logger.info('Insights routes loaded (AI-powered business insights)');
 // ============================================
 // REPORTS (Report Builder & Scheduling)
 // ============================================
+// SHADOW-SAFE: serves /api/reports/revenue, /pipeline, /sales-rep, /product (quote reports)
 app.use('/api/reports', initReportsRoutes({ pool }));
 logger.info('Reports routes loaded (report builder & scheduling)');
 
@@ -1255,6 +1446,7 @@ const { init: initPaymentMethodRoutes } = require('./routes/payment-methods');
 app.use('/api/customers/:customerId/payment-methods', initPaymentMethodRoutes({ pool, vaultService }));
 logger.info('Payment methods (Moneris Vault) routes loaded');
 
+// INTENTIONAL ALIAS: /api/serials is shorthand for /api/serial-numbers (same router, backward compat)
 app.use('/api/serials', initSerialNumberRoutes({ serialService: serialNumberService }));
 app.use('/api/serial-numbers', initSerialNumberRoutes({ serialService: serialNumberService }));
 logger.info('Serial number routes loaded');
@@ -1319,6 +1511,7 @@ logger.info('POS sales reps routes loaded');
 // SHIFT REPORTS (End-of-day/shift reports)
 // ============================================
 const { init: initShiftReportsRoutes } = require('./routes/shift-reports');
+// SHADOW-SAFE: serves /api/reports/shifts, /reconciliation, /shift/:id, /period
 app.use('/api/reports', initShiftReportsRoutes(pool));
 logger.info('Shift reports routes loaded');
 
@@ -1389,6 +1582,7 @@ app.use('/api/financing', initFinancingRoutes({ financingService, authenticate }
 logger.info('Financing routes loaded');
 
 // Commission Service
+// SHADOW-SAFE: POS commissions — /api/commissions/summary, /calculate/cart, /record/:orderId (distinct from hub commissions)
 app.use('/api/commissions', authenticate, initCommissionsRoutes({ commissionService, pool }));
 app.use('/api/signatures', initSignaturesRoutes({ signatureService }));
 app.use('/api/batch-email', initBatchEmailRoutes({ batchEmailService, receiptService }));
@@ -1856,7 +2050,7 @@ app.post('/api/payment-terms', async (req, res) => {
 
 logger.info('Payment terms endpoints loaded');
 
-// Quote aliases - redirect /api/quotes/* to /api/quotations/*
+// INTENTIONAL ALIAS: /api/quotes → same router as /api/quotations (line 1135) for backward compatibility
 app.use('/api/quotes', initQuotesRoutes({ pool }));
 logger.info('Quote aliases loaded (/api/quotes -> /api/quotations)');
 
@@ -1926,434 +2120,10 @@ app.delete('/api/quote-templates/:id', async (req, res) => {
 
 logger.info('Quote template endpoints loaded');
 
-// ============================================
-// APPROVAL WORKFLOW ENDPOINTS
-// ============================================
-
-// Request approval for a quotation
-app.post('/api/quotations/:id/request-approval', authenticate, async (req, res) => {
-  try {
-    const { id } = req.params;
-    const { requested_by, requested_by_email, approver_name, approver_email, comments } = req.body;
-
-    // Check if there's already a pending approval
-    const existing = await pool.query(
-      'SELECT * FROM quote_approvals WHERE quotation_id = $1 AND status = \'PENDING\'',
-      [id]
-    );
-
-    if (existing.rows.length > 0) {
-      return res.status(400).json({ error: 'This quote already has a pending approval request' });
-    }
-
-    // Create approval request
-    const result = await pool.query(`
-      INSERT INTO quote_approvals (quotation_id, requested_by, requested_by_email, approver_name, approver_email, comments)
-      VALUES ($1, $2, $3, $4, $5, $6) RETURNING *
-    `, [id, requested_by, requested_by_email, approver_name, approver_email, comments]);
-
-    // Add event to timeline
-    await pool.query(`
-      INSERT INTO quote_events (quotation_id, event_type, description)
-      VALUES ($1, $2, $3)
-    `, [id, 'APPROVAL_REQUESTED', `Approval requested by ${requested_by} from ${approver_name}`]);
-
-    // Update quote status to PENDING_APPROVAL
-    await pool.query(
-      'UPDATE quotations SET status = \'PENDING_APPROVAL\' WHERE id = $1',
-      [id]
-    );
-
-    // Send email notification to approver (using AWS SES)
-    const quoteResult = await pool.query(
-      `SELECT q.*, c.name as customer_name, c.company as customer_company
-       FROM quotations q LEFT JOIN customers c ON q.customer_id = c.id
-       WHERE q.id = $1`,
-      [id]
-    );
-
-    if (quoteResult.rows.length > 0 && approver_email) {
-      const quote = quoteResult.rows[0];
-      const emailHTML = `
-        <!DOCTYPE html>
-        <html>
-        <head>
-          <style>
-            body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
-            .container { max-width: 600px; margin: 0 auto; padding: 20px; }
-            .header { background: #6366f1; color: white; padding: 20px; border-radius: 8px; margin-bottom: 20px; }
-            .content { background: #f9fafb; padding: 20px; border-radius: 8px; margin-bottom: 20px; }
-            .button { display: inline-block; padding: 12px 24px; background: #6366f1; color: white;
-                     text-decoration: none; border-radius: 6px; font-weight: bold; margin-top: 16px; }
-            .details { background: white; padding: 16px; border-radius: 6px; margin-top: 16px; }
-            .label { color: #6b7280; font-size: 14px; }
-            .value { color: #111827; font-weight: bold; font-size: 16px; }
-          </style>
-        </head>
-        <body>
-          <div class="container">
-            <div class="header">
-              <h2 style="margin: 0;">Approval Request</h2>
-            </div>
-            <div class="content">
-              <p>Hi ${approver_name},</p>
-              <p><strong>${requested_by}</strong> has requested your approval for the following quote:</p>
-              <div class="details">
-                <div style="margin-bottom: 12px;">
-                  <div class="label">Quote Number</div>
-                  <div class="value">${quote.quote_number}</div>
-                </div>
-                <div style="margin-bottom: 12px;">
-                  <div class="label">Customer</div>
-                  <div class="value">${quote.customer_name}${quote.customer_company ? ' (' + quote.customer_company + ')' : ''}</div>
-                </div>
-                <div style="margin-bottom: 12px;">
-                  <div class="label">Total Value</div>
-                  <div class="value">$${((quote.total_cents || 0) / 100).toFixed(2)} CAD</div>
-                </div>
-                ${comments ? `
-                <div style="margin-top: 16px; padding-top: 16px; border-top: 1px solid #e5e7eb;">
-                  <div class="label">Comments</div>
-                  <div style="color: #374151; margin-top: 8px;">${comments}</div>
-                </div>
-                ` : ''}
-              </div>
-              <p style="margin-top: 24px;">Please review and approve or reject this quote in the quotation system.</p>
-            </div>
-            <div style="text-align: center; color: #6b7280; font-size: 12px;">
-              <p>This is an automated notification from the Quotation Management System</p>
-            </div>
-          </div>
-        </body>
-        </html>
-      `;
-
-      try {
-        const command = new SendEmailCommand({
-          Source: process.env.EMAIL_FROM,
-          Destination: { ToAddresses: [approver_email] },
-          Message: {
-            Subject: { Data: `Approval Request: Quote ${quote.quote_number}` },
-            Body: { Html: { Data: emailHTML } }
-          }
-        });
-        await sesClient.send(command);
-        logger.info({ recipient: approver_email }, 'Approval request email sent');
-      } catch (emailErr) {
-        logger.error({ err: emailErr }, 'Error sending approval email');
-      }
-    }
-
-    res.status(201).json(result.rows[0]);
-  } catch (error) {
-    logger.error({ err: error }, 'Error requesting approval');
-    res.status(500).json({ error: 'Failed to request approval' });
-  }
-});
-
-// Get approval history for a quotation
-app.get('/api/quotations/:id/approvals', authenticate, async (req, res) => {
-  try {
-    const { id } = req.params;
-    const result = await pool.query(
-      'SELECT * FROM quote_approvals WHERE quotation_id = $1 ORDER BY requested_at DESC',
-      [id]
-    );
-    res.json(result.rows);
-  } catch (error) {
-    logger.error({ err: error }, 'Error fetching approvals');
-    res.status(500).json({ error: 'Failed to fetch approvals' });
-  }
-});
-
-// Get approval rules summary for a quotation (shows if approval needed and user permissions)
-app.get('/api/quotations/:id/approval-summary', authenticate, async (req, res) => {
-  const ApprovalRulesService = require('./services/ApprovalRulesService');
-
-  try {
-    const { id } = req.params;
-
-    const quoteResult = await pool.query(
-      'SELECT * FROM quotations WHERE id = $1',
-      [id]
-    );
-
-    if (quoteResult.rows.length === 0) {
-      return res.status(404).json({ error: 'Quote not found' });
-    }
-
-    const quote = quoteResult.rows[0];
-    const summary = ApprovalRulesService.getApprovalSummary(quote, req.user);
-
-    res.json(summary);
-  } catch (error) {
-    logger.error({ err: error }, 'Error getting approval summary');
-    res.status(500).json({ error: 'Failed to fetch approvals' });
-  }
-});
-
-// Get all pending approvals
-app.get('/api/approvals/pending', authenticate, async (req, res) => {
-  try {
-    const { approver_email } = req.query;
-
-    let query = `
-      SELECT
-        qa.*,
-        q.quote_number,
-        q.total_cents,
-        q.created_at as quote_created_at,
-        c.name as customer_name,
-        c.company as customer_company
-      FROM quote_approvals qa
-      LEFT JOIN quotations q ON qa.quotation_id = q.id
-      LEFT JOIN customers c ON q.customer_id = c.id
-      WHERE qa.status = 'PENDING'
-    `;
-
-    const params = [];
-    if (approver_email) {
-      query += ' AND qa.approver_email = $1';
-      params.push(approver_email);
-    }
-
-    query += ' ORDER BY qa.requested_at DESC';
-
-    const result = await pool.query(query, params);
-    res.json(result.rows);
-  } catch (error) {
-    logger.error({ err: error }, 'Error fetching pending approvals');
-    res.status(500).json({ error: 'Failed to fetch pending approvals' });
-  }
-});
-
-// Approve a quote
-app.post('/api/approvals/:id/approve', authenticate, async (req, res) => {
-  const ApprovalRulesService = require('./services/ApprovalRulesService');
-
-  try {
-    const { id } = req.params;
-    const { comments } = req.body;
-
-    // Get approval request
-    const approvalResult = await pool.query(
-      `SELECT qa.*, q.total_cents FROM quote_approvals qa
-       LEFT JOIN quotations q ON qa.quotation_id = q.id
-       WHERE qa.id = $1`,
-      [id]
-    );
-
-    if (approvalResult.rows.length === 0) {
-      return res.status(404).json({ error: 'Approval request not found' });
-    }
-
-    const approval = approvalResult.rows[0];
-
-    // NEW: Role enforcement - check if user can approve this quote
-    const canApprove = ApprovalRulesService.canApprove(req.user, approval);
-    if (!canApprove.canApprove) {
-      return res.status(403).json({
-        error: 'Not authorized to approve this quote',
-        reason: canApprove.reason
-      });
-    }
-
-    // Update approval record
-    const result = await pool.query(`
-      UPDATE quote_approvals
-      SET status = 'APPROVED', comments = COALESCE($1, comments), reviewed_at = CURRENT_TIMESTAMP,
-          approver_name = $3, approver_email = $4
-      WHERE id = $2 RETURNING *
-    `, [comments, id, `${req.user.firstName} ${req.user.lastName}`, req.user.email]);
-
-    // Update quote status to APPROVED with audit fields
-    await pool.query(
-      'UPDATE quotations SET status = \'APPROVED\', approved_at = CURRENT_TIMESTAMP, approved_by = $2 WHERE id = $1',
-      [approval.quotation_id, req.user.id]
-    );
-
-    // Add event to timeline
-    await pool.query(`
-      INSERT INTO quote_events (quotation_id, event_type, description)
-      VALUES ($1, $2, $3)
-    `, [approval.quotation_id, 'APPROVED', `Quote approved by ${approval.approver_name}${comments ? ': ' + comments : ''}`]);
-
-    // Send notification email to requester
-    if (approval.requested_by_email) {
-      const quoteResult = await pool.query(
-        `SELECT q.*, c.name as customer_name FROM quotations q
-         LEFT JOIN customers c ON q.customer_id = c.id WHERE q.id = $1`,
-        [approval.quotation_id]
-      );
-
-      if (quoteResult.rows.length > 0) {
-        const quote = quoteResult.rows[0];
-        const emailHTML = `
-          <!DOCTYPE html>
-          <html>
-          <head>
-            <style>
-              body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
-              .container { max-width: 600px; margin: 0 auto; padding: 20px; }
-              .header { background: #10b981; color: white; padding: 20px; border-radius: 8px; margin-bottom: 20px; }
-              .content { background: #f9fafb; padding: 20px; border-radius: 8px; }
-            </style>
-          </head>
-          <body>
-            <div class="container">
-              <div class="header">
-                <h2 style="margin: 0;">✅ Quote Approved</h2>
-              </div>
-              <div class="content">
-                <p>Hi ${approval.requested_by},</p>
-                <p>Your quote <strong>${quote.quote_number}</strong> for <strong>${quote.customer_name}</strong> has been approved by ${approval.approver_name}.</p>
-                ${comments ? `<p><strong>Comments:</strong> ${comments}</p>` : ''}
-                <p>You can now proceed with sending the quote to the customer.</p>
-              </div>
-            </div>
-          </body>
-          </html>
-        `;
-
-        try {
-          const command = new SendEmailCommand({
-            Source: process.env.EMAIL_FROM,
-            Destination: { ToAddresses: [approval.requested_by_email] },
-            Message: {
-              Subject: { Data: `Quote Approved: ${quote.quote_number}` },
-              Body: { Html: { Data: emailHTML } }
-            }
-          });
-          await sesClient.send(command);
-        } catch (emailErr) {
-          logger.error({ err: emailErr }, 'Error sending approval notification');
-        }
-      }
-    }
-
-    res.json(result.rows[0]);
-  } catch (error) {
-    logger.error({ err: error }, 'Error approving quote');
-    res.status(500).json({ error: 'Failed to approve quote' });
-  }
-});
-
-// Reject a quote
-app.post('/api/approvals/:id/reject', authenticate, async (req, res) => {
-  const ApprovalRulesService = require('./services/ApprovalRulesService');
-
-  try {
-    const { id } = req.params;
-    const { comments } = req.body;
-
-    if (!comments || !comments.trim()) {
-      return res.status(400).json({ error: 'Comments are required when rejecting a quote' });
-    }
-
-    // Get approval request
-    const approvalResult = await pool.query(
-      `SELECT qa.*, q.total_cents FROM quote_approvals qa
-       LEFT JOIN quotations q ON qa.quotation_id = q.id
-       WHERE qa.id = $1`,
-      [id]
-    );
-
-    if (approvalResult.rows.length === 0) {
-      return res.status(404).json({ error: 'Approval request not found' });
-    }
-
-    const approval = approvalResult.rows[0];
-
-    // NEW: Role enforcement - check if user can reject this quote
-    const canReject = ApprovalRulesService.canReject(req.user);
-    if (!canReject.canReject) {
-      return res.status(403).json({
-        error: 'Not authorized to reject this quote',
-        reason: canReject.reason
-      });
-    }
-
-    // Update approval record
-    const result = await pool.query(`
-      UPDATE quote_approvals
-      SET status = 'REJECTED', comments = $1, reviewed_at = CURRENT_TIMESTAMP,
-          approver_name = $3, approver_email = $4
-      WHERE id = $2 RETURNING *
-    `, [comments, id, `${req.user.firstName} ${req.user.lastName}`, req.user.email]);
-
-    // Update quote status to REJECTED with audit fields
-    await pool.query(
-      'UPDATE quotations SET status = \'REJECTED\', rejected_at = CURRENT_TIMESTAMP, rejected_by = $2, rejected_reason = $3 WHERE id = $1',
-      [approval.quotation_id, req.user.id, comments]
-    );
-
-    // Add event to timeline
-    await pool.query(`
-      INSERT INTO quote_events (quotation_id, event_type, description)
-      VALUES ($1, $2, $3)
-    `, [approval.quotation_id, 'REJECTED', `Quote rejected by ${approval.approver_name}: ${comments}`]);
-
-    // Send notification email to requester
-    if (approval.requested_by_email) {
-      const quoteResult = await pool.query(
-        `SELECT q.*, c.name as customer_name FROM quotations q
-         LEFT JOIN customers c ON q.customer_id = c.id WHERE q.id = $1`,
-        [approval.quotation_id]
-      );
-
-      if (quoteResult.rows.length > 0) {
-        const quote = quoteResult.rows[0];
-        const emailHTML = `
-          <!DOCTYPE html>
-          <html>
-          <head>
-            <style>
-              body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
-              .container { max-width: 600px; margin: 0 auto; padding: 20px; }
-              .header { background: #ef4444; color: white; padding: 20px; border-radius: 8px; margin-bottom: 20px; }
-              .content { background: #f9fafb; padding: 20px; border-radius: 8px; }
-            </style>
-          </head>
-          <body>
-            <div class="container">
-              <div class="header">
-                <h2 style="margin: 0;">❌ Quote Rejected</h2>
-              </div>
-              <div class="content">
-                <p>Hi ${approval.requested_by},</p>
-                <p>Your quote <strong>${quote.quote_number}</strong> for <strong>${quote.customer_name}</strong> has been rejected by ${approval.approver_name}.</p>
-                <p><strong>Reason:</strong> ${comments}</p>
-                <p>Please review the feedback and make necessary changes before resubmitting.</p>
-              </div>
-            </div>
-          </body>
-          </html>
-        `;
-
-        try {
-          const command = new SendEmailCommand({
-            Source: process.env.EMAIL_FROM,
-            Destination: { ToAddresses: [approval.requested_by_email] },
-            Message: {
-              Subject: { Data: `Quote Rejected: ${quote.quote_number}` },
-              Body: { Html: { Data: emailHTML } }
-            }
-          });
-          await sesClient.send(command);
-        } catch (emailErr) {
-          logger.error({ err: emailErr }, 'Error sending rejection notification');
-        }
-      }
-    }
-
-    res.json(result.rows[0]);
-  } catch (error) {
-    logger.error({ err: error }, 'Error rejecting quote');
-    res.status(500).json({ error: 'Failed to reject quote' });
-  }
-});
-
-logger.info('Approval workflow endpoints loaded');
+// EXTRACTED: approval handlers moved to routes/approvals-inline.js
+const { init: initApprovalsInlineRoutes } = require('./routes/approvals-inline');
+app.use('/api', initApprovalsInlineRoutes({ pool, sesClient }));
+logger.info('Approval workflow endpoints loaded (extracted)');
 
 // ============================================
 // REVENUE FEATURES - DELIVERY & INSTALLATION
@@ -3189,18 +2959,21 @@ logger.info('AI recommendation endpoints loaded');
 // ENTERPRISE ROUTES (Phase 2)
 // Orders, Invoices, Inventory, Delivery, Pricing, Moneris
 // ============================================
+// SHADOW-SAFE: serves /api/orders CRUD — distinct from commission + etransfer sub-paths below
 app.use('/api/orders', ordersRoutes(pool, cache, orderService, inventoryService));
 logger.info('Orders routes loaded');
 
 app.use('/api/invoices', invoicesRoutes(pool, cache, invoiceService));
 logger.info('Invoices routes loaded');
 
+// SHADOW-SAFE: serves /api/inventory/low-stock, /products, /reservations, /reserve, /check, /sync, /adjust, /process-expired
 app.use('/api/inventory', inventoryRoutes(pool, cache, inventoryService));
 logger.info('Inventory routes loaded');
 
 app.use('/api/delivery', deliveryRoutes(pool, cache, deliveryService));
 logger.info('Delivery routes loaded');
 
+// SHADOW-SAFE: serves /api/pricing/tiers, /:productId, /:productId/margins, /simulate, /check-violations
 app.use('/api/pricing', pricingRoutes(pool, cache, pricingService));
 logger.info('Pricing routes loaded');
 
@@ -3243,14 +3016,19 @@ app.use('/api/hub-commissions', hubCommissionRoutes.init({ pool }));
 logger.info('Hub commission routes loaded');
 const commissionApi = require('./routes/commission-api');
 const commissionRouters = commissionApi.init({ pool });
+// SHADOW-SAFE: serves /api/orders/:id/commission (distinct sub-path on /orders)
 app.use('/api/orders', commissionRouters.orderRouter);
+// SHADOW-SAFE: serves /api/users/:id/commissions (distinct sub-path on /users)
 app.use('/api/users', commissionRouters.userRouter);
+// SHADOW-SAFE: serves /api/commissions/calculate, /calculate/cart, /:id (hub commission CRUD — distinct from POS commissions)
 app.use('/api/commissions', commissionRouters.commissionRouter);
 app.use('/api/commission-rules', commissionRouters.rulesRouter);
 logger.info('Commission management API routes loaded');
 const etransferPaymentRoutes = require('./routes/etransfer-payments');
 const etransferRouters = etransferPaymentRoutes.init({ pool, emailService });
+// SHADOW-SAFE: serves /api/orders/:id/payments/etransfer, /:id/payments, /:id/balance
 app.use('/api/orders', etransferRouters.orderRouter);
+// SHADOW-SAFE: serves /api/payments/etransfer/pending, /etransfer/:reference/confirm
 app.use('/api/payments', etransferRouters.paymentRouter);
 logger.info('E-transfer payment routes loaded');
 app.use('/api/warranty', warrantyRoutes(warrantyService));
@@ -3277,6 +3055,7 @@ logger.info('Advanced pricing routes loaded');
 // AI PERSONALIZATION (Dynamic Pricing, Upselling, Suggestions)
 // ============================================
 // Handle both old and new export formats
+// SHADOW-SAFE: serves /api/ai/dynamic-pricing, /upsell, /suggestions (personalization)
 const aiRouter = aiPersonalizationRoutes.router || aiPersonalizationRoutes;
 app.use('/api/ai', aiRouter);
 // Initialize AI Quote Builder service if available
@@ -3292,11 +3071,13 @@ logger.info('3D product configurator routes loaded');
 
 // PRODUCT IMAGES
 // ============================================
+// SHADOW-SAFE: serves /api/products/:id/images (distinct sub-path)
 app.use('/api/products', productImageRoutes.init({ pool }));
 logger.info('Product image gallery routes loaded');
 
 // BARCODE IMAGE GENERATION
 // ============================================
+// SHADOW-SAFE: serves /api/products/:id/barcode.png (distinct sub-path)
 const barcodeImageRoutes = require('./routes/barcode-image');
 app.use('/api/products', barcodeImageRoutes.init({ pool }));
 logger.info('Barcode image routes loaded');
@@ -3309,11 +3090,13 @@ logger.info('Call log tracking routes loaded');
 
 // AR AGING REPORT
 // ============================================
+// SHADOW-SAFE: serves /api/reports/ar-aging, /ar-aging/export, /ar-aging/send-reminders
 app.use('/api/reports', arAgingRoutes.init({ pool, emailService }));
 logger.info('AR aging report routes loaded');
 
 // TAX SUMMARY REPORT
 // ============================================
+// SHADOW-SAFE: serves /api/reports/tax-summary, /tax-summary/export
 app.use('/api/reports', taxSummaryRoutes.init({ pool }));
 logger.info('Tax summary report routes loaded');
 
@@ -3373,6 +3156,18 @@ const adminRoutes = require('./routes/admin');
 app.use('/api/admin', adminRoutes);
 logger.info('Admin routes loaded (email monitoring, queue management)');
 
+const { init: initFeatureFlagRoutes } = require('./routes/feature-flags');
+app.use('/api/admin/feature-flags', initFeatureFlagRoutes({ pool, mlScoringService }));
+logger.info('Feature flags admin routes loaded');
+
+// Admin endpoint: manually trigger reservation expiry (crash recovery)
+app.post('/api/admin/run-expiry', authenticate, requireRole('admin'), asyncHandler(async (req, res) => {
+  const count = await inventoryService.processExpiredReservations();
+  logger.info({ released: count, triggeredBy: req.user.id }, 'Manual reservation expiry triggered');
+  res.json({ success: true, released: count });
+}));
+logger.info('Admin run-expiry endpoint loaded');
+
 // ============================================
 // ADMIN APPROVAL RULES (Threshold Configuration)
 // ============================================
@@ -3400,6 +3195,7 @@ const scheduler = require('./jobs/scheduler');
 // ============================================
 // AI ASSISTANT ROUTES
 // ============================================
+// SHADOW-SAFE: serves /api/ai/chat, /conversations, /feedback, /analytics (chat assistant)
 const aiChatRoutes = require('./routes/ai-assistant');
 app.use('/api/ai', aiChatRoutes);
 logger.info('AI Assistant routes loaded');
@@ -3504,40 +3300,47 @@ const server = app.listen(PORT, () => {
   // Initialize WebSocket service (shares the same port via HTTP upgrade)
   wsService.init(server);
 
+  // CRIT-7 FIX: All startup jobs wrapped in runWithTenant() for RLS context.
+  // Jobs that use internal cron (.start() / .startScheduler()) manage their own
+  // tick callbacks — the pool's tenant-aware wrapper will use rawPool (bypasses RLS)
+  // for queries outside AsyncLocalStorage context. The wrapping here ensures the
+  // initial invocation and any synchronous setup runs in tenant context.
+  // TODO: Update job classes to wrap their internal cron callbacks with runWithTenant().
+
   // Start notification scheduler for automated email reminders
   if (process.env.ENABLE_EMAIL_NOTIFICATIONS !== 'false') {
-    notificationScheduler.start();
+    runWithTenant(TENANT_ID, () => notificationScheduler.start());
   }
 
   // Start email queue processor for reliable email delivery
   if (process.env.ENABLE_EMAIL_QUEUE !== 'false') {
     const EmailQueueService = require('./services/EmailQueueService');
-    EmailQueueService.start(process.env.EMAIL_QUEUE_SCHEDULE || '*/2 * * * *');
+    runWithTenant(TENANT_ID, () => EmailQueueService.start(process.env.EMAIL_QUEUE_SCHEDULE || '*/2 * * * *'));
     logger.info('Email queue processor started');
   }
 
   // Start churn alert scheduler for daily high churn risk notifications
   if (process.env.ENABLE_CHURN_ALERTS !== 'false') {
-    churnAlertJob.startScheduler(process.env.CHURN_ALERT_SCHEDULE || '0 9 * * *');
+    runWithTenant(TENANT_ID, () => churnAlertJob.startScheduler(process.env.CHURN_ALERT_SCHEDULE || '0 9 * * *'));
     logger.info('Churn alert scheduler started');
   }
 
   // Start purchasing intelligence scheduler for daily/weekly analysis
   if (process.env.ENABLE_PURCHASING_INTELLIGENCE !== 'false') {
-    purchasingIntelligenceJob.startScheduler();
+    runWithTenant(TENANT_ID, () => purchasingIntelligenceJob.startScheduler());
     logger.info('Purchasing intelligence scheduler started (Daily 6AM, Weekly Monday 6AM)');
   }
 
   // Start nomenclature scraper scheduler for weekly nomenclature updates
   if (process.env.ENABLE_NOMENCLATURE_SCRAPER !== 'false') {
-    nomenclatureScraperJob.startSchedule(process.env.NOMENCLATURE_SCRAPE_SCHEDULE || '0 2 * * 0');
+    runWithTenant(TENANT_ID, () => nomenclatureScraperJob.startSchedule(process.env.NOMENCLATURE_SCRAPE_SCHEDULE || '0 2 * * 0'));
     logger.info('Nomenclature scraper scheduler started (Weekly Sunday 2 AM)');
   }
 
   // Start quote expiry digest job for daily email digests to sales reps
   if (process.env.ENABLE_QUOTE_EXPIRY_DIGEST !== 'false') {
     const quoteExpiryDigestJob = new QuoteExpiryDigestJob(pool, emailService);
-    quoteExpiryDigestJob.start();
+    runWithTenant(TENANT_ID, () => quoteExpiryDigestJob.start());
     logger.info('Quote expiry digest scheduler started (Weekdays 8 AM)');
   }
 
@@ -3545,23 +3348,23 @@ const server = app.listen(PORT, () => {
   if (process.env.ENABLE_DAILY_DIGEST !== 'false') {
     const DailyDigestJob = require('./services/DailyDigestJob');
     const dailyDigestJob = new DailyDigestJob(pool, emailService);
-    dailyDigestJob.start();
+    runWithTenant(TENANT_ID, () => dailyDigestJob.start());
     logger.info('Daily digest scheduler started (Weekdays 8:15 AM)');
   }
 
   // Start discontinued product auto-hide job (daily at 2 AM)
   const discontinuedProductJob = require('./jobs/discontinuedProductJob');
-  discontinuedProductJob.start(process.env.DISCONTINUED_HIDE_SCHEDULE || '0 2 * * *');
+  runWithTenant(TENANT_ID, () => discontinuedProductJob.start(process.env.DISCONTINUED_HIDE_SCHEDULE || '0 2 * * *'));
   logger.info('Discontinued product auto-hide job started (Daily 2 AM)');
 
   // Start customer auto-tag evaluation job (daily at 3 AM)
   const autoTagJob = require('./jobs/autoTagJob');
-  autoTagJob.start(process.env.AUTO_TAG_SCHEDULE || '0 3 * * *');
+  runWithTenant(TENANT_ID, () => autoTagJob.start(process.env.AUTO_TAG_SCHEDULE || '0 3 * * *'));
   logger.info('Customer auto-tag job started (Daily 3 AM)');
 
   // Start CLV calculation job (daily at 2:30 AM)
   if (process.env.ENABLE_CLV_JOB !== 'false') {
-    clvCalculationJob.start(process.env.CLV_JOB_SCHEDULE || '30 2 * * *');
+    runWithTenant(TENANT_ID, () => clvCalculationJob.start(process.env.CLV_JOB_SCHEDULE || '30 2 * * *'));
     logger.info('CLV calculation job started (Daily 2:30 AM)');
   }
 
@@ -3570,30 +3373,32 @@ const server = app.listen(PORT, () => {
     const ProductSyncScheduler = require('./services/product-sync-scheduler');
     const importConfig = require('./config/import-config');
     const syncScheduler = new ProductSyncScheduler(pool, importConfig);
-    syncScheduler.start();
+    runWithTenant(TENANT_ID, () => syncScheduler.start());
     logger.info('Product CSV sync scheduler started');
   }
 
   // Initialize ChannelManager (loads active marketplace channels from DB)
   try {
-    const { getInstance: getChannelManager } = require('./services/ChannelManager');
-    getChannelManager().then(cm => {
-      logger.info({ channelCount: cm.getAllAdapters().length }, 'ChannelManager ready');
-    }).catch(err => {
-      logger.warn({ err }, 'ChannelManager init failed');
+    runWithTenant(TENANT_ID, () => {
+      const { getInstance: getChannelManager } = require('./services/ChannelManager');
+      getChannelManager().then(cm => {
+        logger.info({ channelCount: cm.getAllAdapters().length }, 'ChannelManager ready');
+      }).catch(err => {
+        logger.warn({ err }, 'ChannelManager init failed');
+      });
     });
   } catch (err) {
     logger.warn({ err }, 'ChannelManager not available');
   }
 
   // Start Skulytics nightly sync job (2 AM ET) via centralized scheduler
-  scheduler.startAll();
+  runWithTenant(TENANT_ID, () => scheduler.startAll());
 
   // Start marketplace polling jobs (order sync, inventory push, import checks, deadline monitor)
   try {
     const marketplaceJobs = require('./jobs/marketplaceJobs');
     if (process.env.MARKETPLACE_POLLING_ENABLED === 'true' && process.env.MIRAKL_API_KEY) {
-      marketplaceJobs.startPolling();
+      runWithTenant(TENANT_ID, () => marketplaceJobs.startPolling());
       logger.info('Marketplace polling started');
     }
   } catch (err) {

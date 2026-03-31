@@ -86,7 +86,7 @@ const MonitoringHub = React.lazy(() => import('./components/admin/MonitoringHub'
 
 // Lightspeed Feature Gap Components
 const InventoryCount = React.lazy(() => import('./components/inventory/InventoryCount'));
-const TransferManagement = React.lazy(() => import('./components/inventory/TransferManagement'));
+const TransferManagement = React.lazy(() => import('./components/transfers/TransferDashboard'));
 const ReceivingWorkflow = React.lazy(() => import('./components/inventory/ReceivingWorkflow'));
 const CycleCountReview = React.lazy(() => import('./components/inventory/CycleCountReview'));
 const WorkOrderDashboard = React.lazy(() => import('./components/operations/WorkOrderDashboard'));
