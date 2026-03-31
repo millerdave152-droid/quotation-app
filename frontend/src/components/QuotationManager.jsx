@@ -2198,7 +2198,9 @@ const QuotationManager = () => {
 
   const createNewQuote = useCallback(() => {
     // Generate a new draft UUID for this builder session
-    setActiveDraftId(crypto.randomUUID());
+    setActiveDraftId(typeof crypto.randomUUID === 'function'
+      ? crypto.randomUUID()
+      : 'draft-' + Date.now() + '-' + Math.random().toString(36).slice(2, 10));
     setView('builder');
     setSelectedCustomer(null);
 
