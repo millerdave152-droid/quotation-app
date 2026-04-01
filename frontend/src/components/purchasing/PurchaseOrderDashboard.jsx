@@ -61,7 +61,7 @@ function ProductSearchInput({ value, selectedProduct, onSelect, onClear, placeho
 
   if (selectedProduct) {
     return (
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 10px', borderRadius: 6, border: '1px solid #c7d2fe', background: '#eef2ff', fontSize: 13 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 12px', borderRadius: 6, border: '1px solid #c7d2fe', background: '#eef2ff', fontSize: 13, height: 42, boxSizing: 'border-box' }}>
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ fontWeight: 600, color: '#1e293b', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
             {selectedProduct.manufacturer} {selectedProduct.model}
@@ -71,7 +71,7 @@ function ProductSearchInput({ value, selectedProduct, onSelect, onClear, placeho
             {selectedProduct.cost_cents ? ` | Cost: $${(selectedProduct.cost_cents / 100).toFixed(2)}` : ''}
           </div>
         </div>
-        <button type="button" onClick={onClear} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#94a3b8', fontSize: 16, padding: 2, lineHeight: 1 }} title="Clear">&times;</button>
+        <button type="button" onClick={onClear} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#64748b', fontSize: 18, padding: '0 4px', lineHeight: 1, flexShrink: 0 }} title="Clear">&times;</button>
       </div>
     );
   }
@@ -79,7 +79,7 @@ function ProductSearchInput({ value, selectedProduct, onSelect, onClear, placeho
   return (
     <div ref={wrapperRef} style={{ position: 'relative' }}>
       <input
-        style={{ padding: '8px 12px', borderRadius: 6, border: '1px solid #d1d5db', fontSize: 14, width: '100%' }}
+        style={{ padding: '8px 12px', borderRadius: 6, border: '1px solid #d1d5db', fontSize: 14, width: '100%', height: 42, boxSizing: 'border-box' }}
         placeholder={placeholder || 'Search by model, SKU, name...'}
         value={query}
         onChange={handleChange}
@@ -203,6 +203,8 @@ export default function PurchaseOrderDashboard() {
   // Receiving form
   const [receiveItems, setReceiveItems] = useState([]);
 
+  const inputBase = { padding: '8px 12px', borderRadius: 6, border: '1px solid #d1d5db', fontSize: 14, width: '100%', boxSizing: 'border-box' };
+
   const styles = {
     container: { padding: 24, maxWidth: 1400, margin: '0 auto' },
     header: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24, flexWrap: 'wrap', gap: 12 },
@@ -213,9 +215,11 @@ export default function PurchaseOrderDashboard() {
       background: active ? '#fff' : 'transparent', color: active ? '#1e293b' : '#64748b',
       boxShadow: active ? '0 1px 3px rgba(0,0,0,0.1)' : 'none', border: 'none', whiteSpace: 'nowrap',
     }),
-    card: { background: '#fff', borderRadius: 12, boxShadow: '0 1px 3px rgba(0,0,0,0.08)', padding: 20, marginBottom: 16 },
-    input: { padding: '8px 12px', borderRadius: 6, border: '1px solid #d1d5db', fontSize: 14, width: '100%' },
-    select: { padding: '8px 12px', borderRadius: 6, border: '1px solid #d1d5db', fontSize: 14 },
+    card: { background: '#fff', borderRadius: 12, boxShadow: '0 1px 3px rgba(0,0,0,0.08)', padding: 24, marginBottom: 16 },
+    input: { ...inputBase },
+    inputTall: { ...inputBase, height: 42 },
+    select: { ...inputBase },
+    selectTall: { ...inputBase, height: 42 },
     btn: { padding: '8px 16px', borderRadius: 6, border: 'none', fontWeight: 600, cursor: 'pointer', fontSize: 14, background: '#667eea', color: '#fff' },
     btnSm: { padding: '4px 10px', borderRadius: 4, border: 'none', cursor: 'pointer', fontSize: 12, background: '#e2e8f0', color: '#475569' },
     btnDanger: { padding: '4px 10px', borderRadius: 4, border: 'none', cursor: 'pointer', fontSize: 12, background: '#fee2e2', color: '#dc2626' },
@@ -224,6 +228,8 @@ export default function PurchaseOrderDashboard() {
       display: 'inline-block', padding: '2px 8px', borderRadius: 12, fontSize: 12, fontWeight: 600,
       background: (STATUS_COLORS[status] || '#6b7280') + '20', color: STATUS_COLORS[status] || '#6b7280',
     }),
+    label: { fontSize: 13, fontWeight: 600, display: 'block', marginBottom: 6, color: '#334155' },
+    labelSm: { fontSize: 12, fontWeight: 600, color: '#64748b', marginBottom: 6, display: 'block', textTransform: 'uppercase', letterSpacing: '0.03em' },
     table: { width: '100%', borderCollapse: 'collapse' },
     th: { textAlign: 'left', padding: '10px 12px', borderBottom: '2px solid #e2e8f0', fontSize: 12, fontWeight: 600, color: '#64748b', textTransform: 'uppercase' },
     td: { padding: '10px 12px', borderBottom: '1px solid #f1f5f9', fontSize: 14 },
@@ -540,45 +546,45 @@ export default function PurchaseOrderDashboard() {
       {/* ================================================================== */}
       {tab === 'create' && (
         <div style={styles.card}>
-          <h3 style={{ fontSize: 20, fontWeight: 700, marginBottom: 24, color: '#1e293b' }}>Create Purchase Order</h3>
-          <form onSubmit={createPO} style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+          <h3 style={{ fontSize: 20, fontWeight: 700, marginBottom: 28, color: '#1e293b' }}>Create Purchase Order</h3>
+          <form onSubmit={createPO}>
             {/* Header fields */}
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 20 }}>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 20, marginBottom: 20 }}>
               <div>
-                <label style={{ fontSize: 13, fontWeight: 600, display: 'block', marginBottom: 6, color: '#334155' }}>Vendor *</label>
-                <select style={{ ...styles.select, width: '100%', height: 42 }} value={createForm.vendorId} onChange={e => setCreateForm({ ...createForm, vendorId: e.target.value })} required>
+                <label style={styles.label}>Vendor *</label>
+                <select style={styles.selectTall} value={createForm.vendorId} onChange={e => setCreateForm({ ...createForm, vendorId: e.target.value })} required>
                   <option value="">Select vendor...</option>
                   {vendors.map(v => <option key={v.id} value={v.id}>{v.name} ({v.code})</option>)}
                 </select>
               </div>
               <div>
-                <label style={{ fontSize: 13, fontWeight: 600, display: 'block', marginBottom: 6, color: '#334155' }}>Delivery Location</label>
-                <select style={{ ...styles.select, width: '100%', height: 42 }} value={createForm.locationId} onChange={e => setCreateForm({ ...createForm, locationId: e.target.value })}>
+                <label style={styles.label}>Delivery Location</label>
+                <select style={styles.selectTall} value={createForm.locationId} onChange={e => setCreateForm({ ...createForm, locationId: e.target.value })}>
                   <option value="">Default (any)</option>
                   {locations.map(l => <option key={l.id} value={l.id}>{l.name}{l.code ? ` (${l.code})` : ''}</option>)}
                 </select>
               </div>
               <div>
-                <label style={{ fontSize: 13, fontWeight: 600, display: 'block', marginBottom: 6, color: '#334155' }}>Expected Date</label>
-                <input style={{ ...styles.input, height: 42 }} type="date" value={createForm.expectedDate} onChange={e => setCreateForm({ ...createForm, expectedDate: e.target.value })} />
+                <label style={styles.label}>Expected Date</label>
+                <input style={styles.inputTall} type="date" value={createForm.expectedDate} onChange={e => setCreateForm({ ...createForm, expectedDate: e.target.value })} />
               </div>
             </div>
-            <div>
-              <label style={{ fontSize: 13, fontWeight: 600, display: 'block', marginBottom: 6, color: '#334155' }}>Notes</label>
-              <textarea style={{ ...styles.input, minHeight: 64 }} value={createForm.notes} onChange={e => setCreateForm({ ...createForm, notes: e.target.value })} placeholder="Internal notes for this purchase order..." />
+            <div style={{ marginBottom: 24 }}>
+              <label style={styles.label}>Notes</label>
+              <textarea style={{ ...styles.input, minHeight: 72, resize: 'vertical' }} value={createForm.notes} onChange={e => setCreateForm({ ...createForm, notes: e.target.value })} placeholder="Internal notes for this purchase order..." />
             </div>
 
             {/* Divider */}
-            <div style={{ borderTop: '1px solid #e2e8f0', marginTop: 4 }} />
+            <div style={{ borderTop: '2px solid #e2e8f0', marginBottom: 24 }} />
 
             {/* Line Items */}
-            <h4 style={{ fontSize: 16, fontWeight: 700, color: '#1e293b', margin: 0 }}>Line Items</h4>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+            <h4 style={{ fontSize: 16, fontWeight: 700, color: '#1e293b', marginTop: 0, marginBottom: 16 }}>Line Items</h4>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 16, marginBottom: 20 }}>
               {createForm.items.map((item, i) => (
                 <div key={i} style={{ background: '#f8fafc', borderRadius: 10, padding: 20, border: '1px solid #e2e8f0' }}>
                   {/* Row 1: Product search full width */}
-                  <div style={{ marginBottom: 16 }}>
-                    <label style={{ fontSize: 12, fontWeight: 600, color: '#64748b', marginBottom: 6, display: 'block', textTransform: 'uppercase', letterSpacing: '0.03em' }}>Product</label>
+                  <div style={{ marginBottom: 20 }}>
+                    <label style={styles.labelSm}>Product</label>
                     <ProductSearchInput
                       value={item.productId}
                       selectedProduct={item.product}
@@ -587,21 +593,21 @@ export default function PurchaseOrderDashboard() {
                       placeholder="Search by model #, SKU, or product name..."
                     />
                   </div>
-                  {/* Row 2: Qty, Cost, Line Total, Remove */}
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr auto', gap: 16, alignItems: 'end' }}>
+                  {/* Row 2: Qty, Cost, Line Total, Remove — all same height */}
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 100px', gap: 16, alignItems: 'end' }}>
                     <div>
-                      <label style={{ fontSize: 12, fontWeight: 600, color: '#64748b', marginBottom: 6, display: 'block', textTransform: 'uppercase', letterSpacing: '0.03em' }}>Quantity</label>
-                      <input style={{ ...styles.input, height: 42 }} type="number" min="1" value={item.quantityOrdered}
+                      <label style={styles.labelSm}>Quantity</label>
+                      <input style={styles.inputTall} type="number" min="1" value={item.quantityOrdered}
                         onChange={e => updateItem(i, 'quantityOrdered', e.target.value)} placeholder="0" />
                     </div>
                     <div>
-                      <label style={{ fontSize: 12, fontWeight: 600, color: '#64748b', marginBottom: 6, display: 'block', textTransform: 'uppercase', letterSpacing: '0.03em' }}>Unit Cost (cents)</label>
-                      <input style={{ ...styles.input, height: 42 }} type="number" min="0" value={item.unitCostCents}
+                      <label style={styles.labelSm}>Unit Cost (cents)</label>
+                      <input style={styles.inputTall} type="number" min="0" value={item.unitCostCents}
                         onChange={e => updateItem(i, 'unitCostCents', e.target.value)} placeholder="0" />
                     </div>
                     <div>
-                      <label style={{ fontSize: 12, fontWeight: 600, color: '#64748b', marginBottom: 6, display: 'block', textTransform: 'uppercase', letterSpacing: '0.03em' }}>Line Total</label>
-                      <div style={{ height: 42, display: 'flex', alignItems: 'center', padding: '0 12px', borderRadius: 6, background: '#f1f5f9', border: '1px solid #e2e8f0', fontSize: 14, fontWeight: 600, color: '#1e293b' }}>
+                      <label style={styles.labelSm}>Line Total</label>
+                      <div style={{ height: 42, display: 'flex', alignItems: 'center', padding: '0 12px', borderRadius: 6, background: '#f1f5f9', border: '1px solid #e2e8f0', fontSize: 14, fontWeight: 600, color: '#1e293b', boxSizing: 'border-box' }}>
                         {(item.unitCostCents > 0 && item.quantityOrdered > 0)
                           ? formatCents((parseInt(item.unitCostCents) || 0) * (parseInt(item.quantityOrdered) || 0))
                           : <span style={{ color: '#94a3b8', fontWeight: 400 }}>$0.00</span>
@@ -609,20 +615,21 @@ export default function PurchaseOrderDashboard() {
                       </div>
                     </div>
                     <div>
-                      <button type="button" style={{ ...styles.btnDanger, padding: '10px 16px', fontSize: 13, height: 42 }} onClick={() => {
+                      <label style={{ ...styles.labelSm, visibility: 'hidden' }}>&nbsp;</label>
+                      <button type="button" style={{ ...styles.btnDanger, width: '100%', height: 42, fontSize: 13, boxSizing: 'border-box' }} onClick={() => {
                         const items = createForm.items.filter((_, idx) => idx !== i);
                         setCreateForm({ ...createForm, items: items.length ? items : [emptyItem()] });
                       }}>Remove</button>
                     </div>
                   </div>
                   {/* Demand context for selected product */}
-                  {item.productId && <DemandChip productId={item.productId} />}
+                  {item.productId && <div style={{ marginTop: 16 }}><DemandChip productId={item.productId} /></div>}
                 </div>
               ))}
             </div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 8 }}>
-              <button type="button" style={{ ...styles.btnSm, padding: '8px 16px', fontSize: 13 }} onClick={() => setCreateForm({ ...createForm, items: [...createForm.items, emptyItem()] })}>+ Add Line Item</button>
-              <button type="submit" style={{ ...styles.btn, padding: '10px 28px', fontSize: 15 }}>Create PO</button>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <button type="button" style={{ ...styles.btnSm, padding: '10px 20px', fontSize: 13 }} onClick={() => setCreateForm({ ...createForm, items: [...createForm.items, emptyItem()] })}>+ Add Line Item</button>
+              <button type="submit" style={{ ...styles.btn, padding: '12px 32px', fontSize: 15 }}>Create PO</button>
             </div>
           </form>
         </div>
