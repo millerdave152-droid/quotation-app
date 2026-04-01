@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { authFetch } from '../../services/authFetch';
 
 const API_URL = process.env.REACT_APP_API_URL || '';
@@ -7,6 +7,174 @@ const STATUS_COLORS = {
   draft: '#94a3b8', submitted: '#f59e0b', confirmed: '#3b82f6',
   partially_received: '#8b5cf6', received: '#10b981', cancelled: '#ef4444',
 };
+
+const PROCUREMENT_COLORS = {
+  in_stock: '#10b981', received: '#10b981', on_order: '#3b82f6',
+  partially_on_order: '#f59e0b', pending: '#ef4444',
+};
+
+// ============================================================================
+// PRODUCT SEARCH AUTOCOMPLETE (reusable inline component)
+// ============================================================================
+function ProductSearchInput({ value, selectedProduct, onSelect, onClear, placeholder }) {
+  const [query, setQuery] = useState('');
+  const [results, setResults] = useState([]);
+  const [open, setOpen] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const debounceRef = useRef(null);
+  const wrapperRef = useRef(null);
+
+  useEffect(() => {
+    const handleClickOutside = (e) => {
+      if (wrapperRef.current && !wrapperRef.current.contains(e.target)) setOpen(false);
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  const search = useCallback(async (q) => {
+    if (!q || q.length < 2) { setResults([]); return; }
+    setLoading(true);
+    try {
+      const res = await authFetch(`${API_URL}/api/products/search?q=${encodeURIComponent(q)}&limit=15`);
+      const data = await res.json();
+      setResults(Array.isArray(data) ? data : (data.data || []));
+    } catch { setResults([]); }
+    finally { setLoading(false); }
+  }, []);
+
+  const handleChange = (e) => {
+    const v = e.target.value;
+    setQuery(v);
+    if (selectedProduct) onClear();
+    clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(() => search(v), 250);
+    setOpen(true);
+  };
+
+  const handleSelect = (product) => {
+    onSelect(product);
+    setQuery('');
+    setResults([]);
+    setOpen(false);
+  };
+
+  if (selectedProduct) {
+    return (
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 10px', borderRadius: 6, border: '1px solid #c7d2fe', background: '#eef2ff', fontSize: 13 }}>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ fontWeight: 600, color: '#1e293b', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+            {selectedProduct.manufacturer} {selectedProduct.model}
+          </div>
+          <div style={{ fontSize: 11, color: '#64748b' }}>
+            SKU: {selectedProduct.sku || selectedProduct.model || '—'} | Stock: {selectedProduct.qty_on_hand ?? '?'}
+            {selectedProduct.cost_cents ? ` | Cost: $${(selectedProduct.cost_cents / 100).toFixed(2)}` : ''}
+          </div>
+        </div>
+        <button type="button" onClick={onClear} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#94a3b8', fontSize: 16, padding: 2, lineHeight: 1 }} title="Clear">&times;</button>
+      </div>
+    );
+  }
+
+  return (
+    <div ref={wrapperRef} style={{ position: 'relative' }}>
+      <input
+        style={{ padding: '8px 12px', borderRadius: 6, border: '1px solid #d1d5db', fontSize: 14, width: '100%' }}
+        placeholder={placeholder || 'Search by model, SKU, name...'}
+        value={query}
+        onChange={handleChange}
+        onFocus={() => { if (results.length) setOpen(true); }}
+      />
+      {open && (results.length > 0 || loading) && (
+        <div style={{
+          position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 50, marginTop: 4,
+          background: '#fff', borderRadius: 8, boxShadow: '0 4px 20px rgba(0,0,0,0.15)',
+          border: '1px solid #e2e8f0', maxHeight: 320, overflowY: 'auto',
+        }}>
+          {loading && <div style={{ padding: 12, fontSize: 13, color: '#94a3b8', textAlign: 'center' }}>Searching...</div>}
+          {results.map(p => (
+            <div
+              key={p.id}
+              onClick={() => handleSelect(p)}
+              style={{
+                padding: '10px 14px', cursor: 'pointer', borderBottom: '1px solid #f1f5f9',
+                display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+              }}
+              onMouseEnter={e => e.currentTarget.style.background = '#f8fafc'}
+              onMouseLeave={e => e.currentTarget.style.background = '#fff'}
+            >
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontWeight: 600, fontSize: 13, color: '#1e293b' }}>
+                  {p.manufacturer} {p.model}
+                </div>
+                <div style={{ fontSize: 11, color: '#64748b', marginTop: 2 }}>
+                  {p.sku && p.sku !== p.model ? `SKU: ${p.sku} | ` : ''}{p.category || 'Uncategorized'}
+                  {p.name && !p.name.includes(p.model) ? ` | ${p.name}` : ''}
+                </div>
+              </div>
+              <div style={{ textAlign: 'right', fontSize: 12, flexShrink: 0, marginLeft: 12 }}>
+                <div style={{ fontWeight: 600, color: (p.qty_on_hand || 0) > 0 ? '#10b981' : '#ef4444' }}>
+                  {p.qty_on_hand ?? 0} in stock
+                </div>
+                {p.cost_cents ? <div style={{ color: '#64748b' }}>Cost: ${(p.cost_cents / 100).toFixed(2)}</div> : null}
+              </div>
+            </div>
+          ))}
+          {!loading && results.length === 0 && query.length >= 2 && (
+            <div style={{ padding: 12, fontSize: 13, color: '#94a3b8', textAlign: 'center' }}>No products found</div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ============================================================================
+// DEMAND CHIP — shows customer demand for a product inline
+// ============================================================================
+function DemandChip({ productId }) {
+  const [demand, setDemand] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const fetched = useRef(false);
+
+  useEffect(() => {
+    if (!productId || fetched.current) return;
+    fetched.current = true;
+    setLoading(true);
+    authFetch(`${API_URL}/api/purchase-orders/demand/${productId}`)
+      .then(r => r.json())
+      .then(data => { if (data.success !== false && Array.isArray(data.data) && data.data.length) setDemand(data.data); })
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }, [productId]);
+
+  // Reset when productId changes
+  useEffect(() => { fetched.current = false; setDemand(null); }, [productId]);
+
+  if (loading) return <span style={{ fontSize: 11, color: '#94a3b8' }}>Loading demand...</span>;
+  if (!demand || !demand.length) return null;
+
+  const totalQty = demand.reduce((s, d) => s + (d.quantity || 0), 0);
+  const unallocated = demand.reduce((s, d) => s + (d.quantity_unallocated || d.quantity || 0), 0);
+
+  return (
+    <div style={{ marginTop: 6, padding: '6px 10px', borderRadius: 6, background: '#fffbeb', border: '1px solid #fde68a', fontSize: 12 }}>
+      <div style={{ fontWeight: 600, color: '#92400e', marginBottom: 2 }}>
+        Customer Demand: {totalQty} unit(s) across {demand.length} order(s)
+        {unallocated > 0 && <span style={{ color: '#dc2626' }}> ({unallocated} unallocated)</span>}
+      </div>
+      {demand.slice(0, 4).map((d, i) => (
+        <div key={i} style={{ color: '#78716c', fontSize: 11, marginTop: 1 }}>
+          {d.order_number} — {d.customer_name}: {d.quantity} unit(s)
+          <span style={{ marginLeft: 6, color: PROCUREMENT_COLORS[d.procurement_status] || '#6b7280' }}>
+            [{d.procurement_status || 'pending'}]
+          </span>
+        </div>
+      ))}
+      {demand.length > 4 && <div style={{ fontSize: 11, color: '#94a3b8' }}>+{demand.length - 4} more orders</div>}
+    </div>
+  );
+}
 
 // ============================================================================
 // MAIN COMPONENT
@@ -21,12 +189,16 @@ export default function PurchaseOrderDashboard() {
   const [selectedPO, setSelectedPO] = useState(null);
   const [receivingQueue, setReceivingQueue] = useState([]);
   const [vendors, setVendors] = useState([]);
+  const [locations, setLocations] = useState([]);
   const [suggestions, setSuggestions] = useState([]);
+  const [demandBoard, setDemandBoard] = useState([]);
+  const [linkedOrders, setLinkedOrders] = useState([]);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
 
-  // Create PO form
-  const [createForm, setCreateForm] = useState({ vendorId: '', locationId: '', expectedDate: '', notes: '', items: [{ productId: '', quantityOrdered: '', unitCostCents: '' }] });
+  // Create PO form — items now carry selected product objects
+  const emptyItem = () => ({ productId: '', product: null, quantityOrdered: '', unitCostCents: '' });
+  const [createForm, setCreateForm] = useState({ vendorId: '', locationId: '', expectedDate: '', notes: '', items: [emptyItem()] });
 
   // Receiving form
   const [receiveItems, setReceiveItems] = useState([]);
@@ -98,10 +270,12 @@ export default function PurchaseOrderDashboard() {
       const data = await res.json();
       if (data.success !== false) {
         setSelectedPO(data.data);
+        fetchLinkedOrders(poId);
         // Set up receiving form
         setReceiveItems((data.data.items || []).map(it => ({
           purchaseOrderItemId: it.id,
           productName: it.product_name,
+          productSku: it.product_sku || it.product_model || '',
           quantityOrdered: it.quantity_ordered,
           quantityReceived: it.quantity_received,
           quantityToReceive: 0,
@@ -129,6 +303,14 @@ export default function PurchaseOrderDashboard() {
     } catch (err) { /* ignore */ }
   }, []);
 
+  const fetchLocations = useCallback(async () => {
+    try {
+      const res = await authFetch(`${API_URL}/api/locations`);
+      const data = await res.json();
+      if (data.success !== false) setLocations(data.data || []);
+    } catch (err) { /* ignore */ }
+  }, []);
+
   const fetchSuggestions = useCallback(async () => {
     try {
       const res = await authFetch(`${API_URL}/api/purchase-orders/suggestions`);
@@ -137,24 +319,73 @@ export default function PurchaseOrderDashboard() {
     } catch (err) { /* ignore */ }
   }, []);
 
+  const fetchDemandBoard = useCallback(async () => {
+    try {
+      const res = await authFetch(`${API_URL}/api/purchase-orders/demand-board`);
+      const data = await res.json();
+      if (data.success !== false) setDemandBoard(data.data || []);
+    } catch (err) { /* ignore */ }
+  }, []);
+
+  const fetchLinkedOrders = async (poId) => {
+    try {
+      const res = await authFetch(`${API_URL}/api/purchase-orders/${poId}/linked-orders`);
+      const data = await res.json();
+      if (data.success !== false) setLinkedOrders(data.data || []);
+    } catch (err) { setLinkedOrders([]); }
+  };
+
+  const createPOFromDemand = async (vendorId) => {
+    setError(''); setSuccess('');
+    try {
+      const res = await authFetch(`${API_URL}/api/purchase-orders/create-from-demand`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ vendorId }),
+      });
+      const data = await res.json();
+      if (res.ok) { setSuccess(`PO ${data.data?.po_number || ''} created from demand`); fetchDemandBoard(); }
+      else { setError(data.message || data.error?.message || 'Failed'); }
+    } catch (err) { setError(err.message); }
+  };
+
+  const autoLinkPO = async (poId) => {
+    setError(''); setSuccess('');
+    try {
+      const res = await authFetch(`${API_URL}/api/purchase-orders/${poId}/link-orders`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' });
+      const data = await res.json();
+      if (res.ok) { setSuccess(`Linked ${data.data?.linksCreated || 0} order items to PO`); fetchLinkedOrders(poId); }
+      else { setError(data.message || data.error?.message || 'Failed'); }
+    } catch (err) { setError(err.message); }
+  };
+
   const createPO = async (e) => {
     e.preventDefault();
     setError(''); setSuccess('');
     try {
-      const items = createForm.items.filter(i => i.productId && i.quantityOrdered && i.unitCostCents).map(i => ({
-        productId: parseInt(i.productId), quantityOrdered: parseInt(i.quantityOrdered), unitCostCents: parseInt(i.unitCostCents),
-      }));
-      if (!items.length) { setError('Add at least one item'); return; }
+      const items = createForm.items
+        .filter(i => i.productId && i.quantityOrdered && i.unitCostCents)
+        .map(i => ({
+          productId: parseInt(i.productId),
+          quantityOrdered: parseInt(i.quantityOrdered),
+          unitCostCents: parseInt(i.unitCostCents),
+        }));
+      if (!items.length) { setError('Add at least one complete line item (product, qty, cost)'); return; }
       const res = await authFetch(`${API_URL}/api/purchase-orders`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ vendorId: parseInt(createForm.vendorId), locationId: createForm.locationId ? parseInt(createForm.locationId) : null, items, expectedDate: createForm.expectedDate || null, notes: createForm.notes || null }),
+        body: JSON.stringify({
+          vendorId: parseInt(createForm.vendorId),
+          locationId: createForm.locationId ? parseInt(createForm.locationId) : null,
+          items,
+          expectedDate: createForm.expectedDate || null,
+          notes: createForm.notes || null,
+        }),
       });
       const data = await res.json();
       if (res.ok) {
         setSuccess(`PO ${data.data?.po_number || ''} created`);
-        setCreateForm({ vendorId: '', locationId: '', expectedDate: '', notes: '', items: [{ productId: '', quantityOrdered: '', unitCostCents: '' }] });
+        setCreateForm({ vendorId: '', locationId: '', expectedDate: '', notes: '', items: [emptyItem()] });
         fetchPOs();
-      } else { setError(data.message || 'Failed'); }
+      } else { setError(data.message || data.error?.message || 'Failed'); }
     } catch (err) { setError(err.message); }
   };
 
@@ -163,7 +394,7 @@ export default function PurchaseOrderDashboard() {
     try {
       const res = await authFetch(`${API_URL}/api/purchase-orders/${poId}/${action}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({}) });
       const data = await res.json();
-      if (res.ok) { setSuccess(`PO ${action} successful`); fetchPODetail(poId); } else { setError(data.message || 'Failed'); }
+      if (res.ok) { setSuccess(`PO ${action} successful`); fetchPODetail(poId); } else { setError(data.message || data.error?.message || 'Failed'); }
     } catch (err) { setError(err.message); }
   };
 
@@ -176,7 +407,7 @@ export default function PurchaseOrderDashboard() {
       });
       const data = await res.json();
       if (res.ok) { setSuccess(`PO ${data.data?.po_number || ''} created from suggestions`); fetchSuggestions(); }
-      else { setError(data.message || 'Failed'); }
+      else { setError(data.message || data.error?.message || 'Failed'); }
     } catch (err) { setError(err.message); }
   };
 
@@ -194,7 +425,7 @@ export default function PurchaseOrderDashboard() {
         method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ items }),
       });
       const data = await res.json();
-      if (res.ok) { setSuccess(`Goods received: ${data.data?.receipt?.receipt_number || ''}`); fetchPODetail(poId); } else { setError(data.message || 'Failed'); }
+      if (res.ok) { setSuccess(`Goods received: ${data.data?.receipt?.receipt_number || ''}`); fetchPODetail(poId); } else { setError(data.message || data.error?.message || 'Failed'); }
     } catch (err) { setError(err.message); }
   };
 
@@ -204,19 +435,44 @@ export default function PurchaseOrderDashboard() {
     if (tab === 'receiving') { fetchReceivingQueue(); }
     if (tab === 'vendors') { fetchVendors(); }
     if (tab === 'suggestions') { fetchSuggestions(); }
-    if (tab === 'create') { fetchVendors(); }
-  }, [tab, fetchStats, fetchPOs, fetchReceivingQueue, fetchVendors, fetchSuggestions]);
+    if (tab === 'create') { fetchVendors(); fetchLocations(); }
+    if (tab === 'demand') { fetchDemandBoard(); }
+  }, [tab, fetchStats, fetchPOs, fetchReceivingQueue, fetchVendors, fetchLocations, fetchSuggestions, fetchDemandBoard]);
 
   const formatCents = (c) => `$${((c || 0) / 100).toFixed(2)}`;
+
+  // Helpers for create form item updates
+  const updateItem = (index, field, value) => {
+    const items = [...createForm.items];
+    items[index] = { ...items[index], [field]: value };
+    setCreateForm({ ...createForm, items });
+  };
+
+  const selectProduct = (index, product) => {
+    const items = [...createForm.items];
+    items[index] = {
+      ...items[index],
+      productId: product.id,
+      product,
+      unitCostCents: items[index].unitCostCents || (product.cost_cents ? String(product.cost_cents) : ''),
+    };
+    setCreateForm({ ...createForm, items });
+  };
+
+  const clearProduct = (index) => {
+    const items = [...createForm.items];
+    items[index] = { ...items[index], productId: '', product: null };
+    setCreateForm({ ...createForm, items });
+  };
 
   return (
     <div style={styles.container}>
       <div style={styles.header}>
         <h1 style={styles.title}>Purchase Orders</h1>
         <div style={styles.tabs}>
-          {['dashboard', 'orders', 'create', 'receiving', 'vendors', 'suggestions'].map(t => (
+          {['dashboard', 'orders', 'demand', 'create', 'receiving', 'vendors', 'suggestions'].map(t => (
             <button key={t} style={styles.tab(tab === t || (t === 'detail' && tab === 'detail'))} onClick={() => setTab(t)}>
-              {t === 'create' ? 'New PO' : t.charAt(0).toUpperCase() + t.slice(1).replace('_', ' ')}
+              {t === 'create' ? 'New PO' : t === 'demand' ? 'Demand Board' : t.charAt(0).toUpperCase() + t.slice(1).replace('_', ' ')}
             </button>
           ))}
           {selectedPO && <button style={styles.tab(tab === 'detail')} onClick={() => setTab('detail')}>PO Detail</button>}
@@ -279,12 +535,15 @@ export default function PurchaseOrderDashboard() {
         </div>
       )}
 
-      {/* CREATE PO */}
+      {/* ================================================================== */}
+      {/* CREATE PO — with product search and demand context                 */}
+      {/* ================================================================== */}
       {tab === 'create' && (
         <div style={styles.card}>
           <h3 style={{ fontSize: 18, fontWeight: 600, marginBottom: 16 }}>Create Purchase Order</h3>
-          <form onSubmit={createPO} style={{ display: 'flex', flexDirection: 'column', gap: 12, maxWidth: 700 }}>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+          <form onSubmit={createPO} style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+            {/* Header fields */}
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12, maxWidth: 900 }}>
               <div>
                 <label style={{ fontSize: 13, fontWeight: 600, display: 'block', marginBottom: 4 }}>Vendor *</label>
                 <select style={{ ...styles.select, width: '100%' }} value={createForm.vendorId} onChange={e => setCreateForm({ ...createForm, vendorId: e.target.value })} required>
@@ -293,39 +552,77 @@ export default function PurchaseOrderDashboard() {
                 </select>
               </div>
               <div>
+                <label style={{ fontSize: 13, fontWeight: 600, display: 'block', marginBottom: 4 }}>Delivery Location</label>
+                <select style={{ ...styles.select, width: '100%' }} value={createForm.locationId} onChange={e => setCreateForm({ ...createForm, locationId: e.target.value })}>
+                  <option value="">Default (any)</option>
+                  {locations.map(l => <option key={l.id} value={l.id}>{l.name}{l.code ? ` (${l.code})` : ''}</option>)}
+                </select>
+              </div>
+              <div>
                 <label style={{ fontSize: 13, fontWeight: 600, display: 'block', marginBottom: 4 }}>Expected Date</label>
                 <input style={styles.input} type="date" value={createForm.expectedDate} onChange={e => setCreateForm({ ...createForm, expectedDate: e.target.value })} />
               </div>
             </div>
-            <div>
+            <div style={{ maxWidth: 900 }}>
               <label style={{ fontSize: 13, fontWeight: 600, display: 'block', marginBottom: 4 }}>Notes</label>
               <textarea style={{ ...styles.input, minHeight: 50 }} value={createForm.notes} onChange={e => setCreateForm({ ...createForm, notes: e.target.value })} />
             </div>
-            <h4 style={{ fontSize: 14, fontWeight: 600, marginTop: 8 }}>Line Items</h4>
-            {createForm.items.map((item, i) => (
-              <div key={i} style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr auto', gap: 8, alignItems: 'end' }}>
-                <div>
-                  <label style={{ fontSize: 11, color: '#64748b' }}>Product ID</label>
-                  <input style={styles.input} type="number" value={item.productId} onChange={e => { const items = [...createForm.items]; items[i].productId = e.target.value; setCreateForm({ ...createForm, items }); }} />
+
+            {/* Line Items */}
+            <h4 style={{ fontSize: 15, fontWeight: 600, marginTop: 12, marginBottom: 4 }}>Line Items</h4>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+              {createForm.items.map((item, i) => (
+                <div key={i} style={{ background: '#f8fafc', borderRadius: 8, padding: 14, border: '1px solid #e2e8f0' }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: '2fr 100px 140px auto', gap: 10, alignItems: 'start' }}>
+                    <div>
+                      <label style={{ fontSize: 11, fontWeight: 600, color: '#64748b', marginBottom: 4, display: 'block' }}>Product (search by model, SKU, or name)</label>
+                      <ProductSearchInput
+                        value={item.productId}
+                        selectedProduct={item.product}
+                        onSelect={(p) => selectProduct(i, p)}
+                        onClear={() => clearProduct(i)}
+                        placeholder="Type model #, SKU, or product name..."
+                      />
+                    </div>
+                    <div>
+                      <label style={{ fontSize: 11, fontWeight: 600, color: '#64748b', marginBottom: 4, display: 'block' }}>Qty</label>
+                      <input style={styles.input} type="number" min="1" value={item.quantityOrdered}
+                        onChange={e => updateItem(i, 'quantityOrdered', e.target.value)} placeholder="0" />
+                    </div>
+                    <div>
+                      <label style={{ fontSize: 11, fontWeight: 600, color: '#64748b', marginBottom: 4, display: 'block' }}>Unit Cost (cents)</label>
+                      <input style={styles.input} type="number" min="0" value={item.unitCostCents}
+                        onChange={e => updateItem(i, 'unitCostCents', e.target.value)} placeholder="0" />
+                      {item.unitCostCents > 0 && (
+                        <div style={{ fontSize: 11, color: '#64748b', marginTop: 2 }}>
+                          = {formatCents(parseInt(item.unitCostCents) || 0)}
+                          {item.quantityOrdered > 0 && ` | Line: ${formatCents((parseInt(item.unitCostCents) || 0) * (parseInt(item.quantityOrdered) || 0))}`}
+                        </div>
+                      )}
+                    </div>
+                    <div style={{ paddingTop: 22 }}>
+                      <button type="button" style={styles.btnDanger} onClick={() => {
+                        const items = createForm.items.filter((_, idx) => idx !== i);
+                        setCreateForm({ ...createForm, items: items.length ? items : [emptyItem()] });
+                      }}>Remove</button>
+                    </div>
+                  </div>
+                  {/* Demand context for selected product */}
+                  {item.productId && <DemandChip productId={item.productId} />}
                 </div>
-                <div>
-                  <label style={{ fontSize: 11, color: '#64748b' }}>Qty</label>
-                  <input style={styles.input} type="number" value={item.quantityOrdered} onChange={e => { const items = [...createForm.items]; items[i].quantityOrdered = e.target.value; setCreateForm({ ...createForm, items }); }} />
-                </div>
-                <div>
-                  <label style={{ fontSize: 11, color: '#64748b' }}>Unit Cost (cents)</label>
-                  <input style={styles.input} type="number" value={item.unitCostCents} onChange={e => { const items = [...createForm.items]; items[i].unitCostCents = e.target.value; setCreateForm({ ...createForm, items }); }} />
-                </div>
-                <button type="button" style={styles.btnDanger} onClick={() => { const items = createForm.items.filter((_, idx) => idx !== i); setCreateForm({ ...createForm, items: items.length ? items : [{ productId: '', quantityOrdered: '', unitCostCents: '' }] }); }}>X</button>
-              </div>
-            ))}
-            <button type="button" style={{ ...styles.btnSm, alignSelf: 'flex-start' }} onClick={() => setCreateForm({ ...createForm, items: [...createForm.items, { productId: '', quantityOrdered: '', unitCostCents: '' }] })}>+ Add Item</button>
-            <button type="submit" style={{ ...styles.btn, alignSelf: 'flex-start', marginTop: 8 }}>Create PO</button>
+              ))}
+            </div>
+            <div style={{ display: 'flex', gap: 12, marginTop: 4 }}>
+              <button type="button" style={styles.btnSm} onClick={() => setCreateForm({ ...createForm, items: [...createForm.items, emptyItem()] })}>+ Add Line Item</button>
+            </div>
+            <button type="submit" style={{ ...styles.btn, alignSelf: 'flex-start', marginTop: 12 }}>Create PO</button>
           </form>
         </div>
       )}
 
-      {/* PO DETAIL */}
+      {/* ================================================================== */}
+      {/* PO DETAIL — with demand + linked orders panel                      */}
+      {/* ================================================================== */}
       {tab === 'detail' && selectedPO && (
         <>
           <div style={styles.card}>
@@ -349,6 +646,7 @@ export default function PurchaseOrderDashboard() {
             </div>
           </div>
 
+          {/* Line Items with demand context */}
           <div style={styles.card}>
             <h4 style={{ fontSize: 16, fontWeight: 600, marginBottom: 12 }}>Line Items</h4>
             <table style={styles.table}>
@@ -359,16 +657,30 @@ export default function PurchaseOrderDashboard() {
                   <th style={styles.th}>Received</th>
                   <th style={styles.th}>Unit Cost</th>
                   <th style={styles.th}>Total</th>
+                  <th style={styles.th}>Demand</th>
                 </tr>
               </thead>
               <tbody>
                 {(selectedPO.items || []).map(it => (
                   <tr key={it.id}>
-                    <td style={styles.td}>{it.product_name}<br/><span style={{ fontSize: 12, color: '#94a3b8' }}>{it.product_sku}</span></td>
+                    <td style={styles.td}>
+                      <div style={{ fontWeight: 600 }}>{it.product_name}</div>
+                      <span style={{ fontSize: 12, color: '#94a3b8', fontFamily: 'monospace' }}>{it.product_sku || it.product_model || `ID: ${it.product_id}`}</span>
+                    </td>
                     <td style={styles.td}>{it.quantity_ordered}</td>
-                    <td style={styles.td}>{it.quantity_received}</td>
+                    <td style={styles.td}>
+                      {it.quantity_received}
+                      {it.quantity_received < it.quantity_ordered && (
+                        <span style={{ fontSize: 11, color: '#f59e0b', marginLeft: 4 }}>
+                          ({it.quantity_ordered - it.quantity_received} pending)
+                        </span>
+                      )}
+                    </td>
                     <td style={styles.td}>{formatCents(it.unit_cost_cents)}</td>
                     <td style={styles.td}>{formatCents(it.total_cents)}</td>
+                    <td style={{ ...styles.td, maxWidth: 260 }}>
+                      <DemandChip productId={it.product_id} />
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -392,7 +704,10 @@ export default function PurchaseOrderDashboard() {
                 <tbody>
                   {receiveItems.map((ri, i) => (
                     <tr key={ri.purchaseOrderItemId}>
-                      <td style={styles.td}>{ri.productName}</td>
+                      <td style={styles.td}>
+                        <div>{ri.productName}</div>
+                        {ri.productSku && <div style={{ fontSize: 11, color: '#94a3b8', fontFamily: 'monospace' }}>{ri.productSku}</div>}
+                      </td>
                       <td style={styles.td}>{ri.quantityOrdered - ri.quantityReceived}</td>
                       <td style={styles.td}>
                         <input style={{ ...styles.input, width: 80 }} type="number" min={0} max={ri.quantityOrdered - ri.quantityReceived}
@@ -434,6 +749,50 @@ export default function PurchaseOrderDashboard() {
               </table>
             </div>
           )}
+
+          {/* Linked Customer Orders */}
+          <div style={styles.card}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+              <h4 style={{ fontSize: 16, fontWeight: 600 }}>Linked Customer Orders</h4>
+              {!['received', 'cancelled'].includes(selectedPO.status) && (
+                <button style={styles.btnSuccess} onClick={() => autoLinkPO(selectedPO.id)}>Auto-Link Orders</button>
+              )}
+            </div>
+            {linkedOrders.length > 0 ? (
+              <table style={styles.table}>
+                <thead>
+                  <tr>
+                    <th style={styles.th}>Order #</th>
+                    <th style={styles.th}>Customer</th>
+                    <th style={styles.th}>Status</th>
+                    <th style={styles.th}>Items</th>
+                    <th style={styles.th}>Date</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {linkedOrders.map(lo => (
+                    <tr key={lo.order_id}>
+                      <td style={{ ...styles.td, fontFamily: 'monospace', fontWeight: 600 }}>{lo.order_number}</td>
+                      <td style={styles.td}>{lo.customer_name}{lo.customer_company ? ` (${lo.customer_company})` : ''}</td>
+                      <td style={styles.td}><span style={styles.badge(lo.order_status)}>{lo.order_status}</span></td>
+                      <td style={styles.td}>
+                        {(lo.linked_items || []).map((li, idx) => (
+                          <div key={idx} style={{ fontSize: 12 }}>
+                            {li.productName} — {li.quantityAllocated} unit(s)
+                          </div>
+                        ))}
+                      </td>
+                      <td style={styles.td}>{lo.order_date ? new Date(lo.order_date).toLocaleDateString() : '—'}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            ) : (
+              <div style={{ textAlign: 'center', color: '#94a3b8', padding: 20, fontSize: 13 }}>
+                No customer orders linked to this PO
+              </div>
+            )}
+          </div>
         </>
       )}
 
@@ -539,6 +898,72 @@ export default function PurchaseOrderDashboard() {
             </div>
           ))}
           {!suggestions.length && <div style={styles.card}><div style={{ textAlign: 'center', color: '#94a3b8', padding: 40 }}>No products below reorder point</div></div>}
+        </div>
+      )}
+
+      {/* DEMAND BOARD */}
+      {tab === 'demand' && (
+        <div>
+          <div style={styles.card}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+              <h3 style={{ fontSize: 18, fontWeight: 600 }}>Order Demand Board</h3>
+              <span style={{ fontSize: 13, color: '#64748b' }}>
+                Products with unfulfilled customer order demand
+              </span>
+            </div>
+            {demandBoard.length > 0 ? (
+              <table style={styles.table}>
+                <thead>
+                  <tr>
+                    <th style={styles.th}>Product</th>
+                    <th style={styles.th}>Vendor</th>
+                    <th style={styles.th}>On Hand</th>
+                    <th style={styles.th}>Reorder Pt</th>
+                    <th style={styles.th}>Orders</th>
+                    <th style={styles.th}>Demanded</th>
+                    <th style={styles.th}>Unallocated</th>
+                    <th style={styles.th}>On Order</th>
+                    <th style={styles.th}>Net Gap</th>
+                    <th style={styles.th}>Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {demandBoard.map(d => (
+                    <tr key={d.product_id}>
+                      <td style={styles.td}>
+                        {d.product_name}
+                        <br/><span style={{ fontSize: 11, color: '#94a3b8', fontFamily: 'monospace' }}>{d.sku}</span>
+                      </td>
+                      <td style={styles.td}>{d.vendor_name || '—'}</td>
+                      <td style={{ ...styles.td, fontWeight: 600, color: d.qty_on_hand <= 0 ? '#ef4444' : '#1e293b' }}>{d.qty_on_hand}</td>
+                      <td style={styles.td}>{d.reorder_point || '—'}</td>
+                      <td style={{ ...styles.td, fontWeight: 600 }}>{d.order_count}</td>
+                      <td style={styles.td}>{d.total_demanded}</td>
+                      <td style={{ ...styles.td, fontWeight: 600, color: '#f59e0b' }}>{d.unallocated_demand}</td>
+                      <td style={{ ...styles.td, color: '#3b82f6' }}>{d.on_order_qty}</td>
+                      <td style={{ ...styles.td, fontWeight: 700, color: d.net_gap > 0 ? '#ef4444' : '#10b981', fontSize: 16 }}>
+                        {d.net_gap > 0 ? `+${d.net_gap}` : d.net_gap}
+                      </td>
+                      <td style={styles.td}>
+                        {d.net_gap > 0 && d.vendor_id && (
+                          <button style={styles.btnSuccess} onClick={() => createPOFromDemand(d.vendor_id)}>
+                            Create PO
+                          </button>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            ) : (
+              <div style={{ textAlign: 'center', color: '#94a3b8', padding: 40 }}>
+                No unfulfilled demand — all customer orders are covered
+              </div>
+            )}
+          </div>
+          <div style={{ padding: '8px 0', fontSize: 12, color: '#94a3b8' }}>
+            <strong>Net Gap</strong> = Demanded - On Hand - On Order. Positive = needs PO.
+          </div>
         </div>
       )}
     </div>

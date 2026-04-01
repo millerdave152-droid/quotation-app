@@ -795,19 +795,22 @@ class ProductService {
   async searchForAutocomplete(query, limit = 10, opts = {}) {
     const priceFilter = opts.requirePrice ? 'AND price IS NOT NULL AND price > 0' : '';
     const result = await this.pool.query(`
-      SELECT id, model, manufacturer, name, description, msrp_cents, cost_cents,
+      SELECT id, model, sku, manufacturer, name, description, msrp_cents, cost_cents,
              price, cost, stock_quantity, qty_on_hand, category, screen_size_inches
       FROM products
       WHERE (active = true OR active IS NULL)
         AND (
           model ILIKE $1 OR
+          sku ILIKE $1 OR
           manufacturer ILIKE $1 OR
           name ILIKE $1 OR
           description ILIKE $1
         )
         ${priceFilter}
       ORDER BY
-        CASE WHEN model ILIKE $2 THEN 0 ELSE 1 END,
+        CASE WHEN model ILIKE $2 THEN 0
+             WHEN sku ILIKE $2 THEN 0
+             ELSE 1 END,
         model
       LIMIT $3
     `, [`%${query}%`, `${query}%`, limit]);
