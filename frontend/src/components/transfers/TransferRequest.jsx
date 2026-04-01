@@ -282,9 +282,8 @@ function TransferRequest({ onCreated, onCancel }) {
                 <input
                   type="number"
                   min={1}
-                  max={getAvailableAtFrom()}
                   value={qty}
-                  onChange={(e) => setQty(Math.max(1, Math.min(getAvailableAtFrom(), parseInt(e.target.value) || 1)))}
+                  onChange={(e) => setQty(Math.max(1, parseInt(e.target.value) || 1))}
                   style={inputStyle}
                   required
                 />

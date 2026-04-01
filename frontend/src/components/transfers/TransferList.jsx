@@ -84,7 +84,8 @@ function TransferList() {
         const err = await res.json().catch(() => ({}));
         throw new Error(err.error?.message || err.error || err.message || `Failed to ${action}`);
       }
-      toast.success(`Transfer #${transferId} ${action === 'pickup' ? 'picked up' : action + 'd'}`);
+      const actionLabels = { approve: 'approved', pickup: 'picked up', receive: 'received', cancel: 'cancelled' };
+      toast.success(`Transfer #${transferId} ${actionLabels[action] || action + 'd'}`);
       setShowNotesFor(null);
       fetchTransfers();
     } catch (err) {
