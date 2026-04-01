@@ -587,8 +587,8 @@ export default function PurchaseOrderDashboard() {
                       placeholder="Search by model #, SKU, or product name..."
                     />
                   </div>
-                  {/* Row 2: Qty, Cost, Remove on separate row */}
-                  <div style={{ display: 'grid', gridTemplateColumns: '140px 200px 1fr auto', gap: 16, alignItems: 'end' }}>
+                  {/* Row 2: Qty, Cost, Line Total, Remove */}
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr auto', gap: 16, alignItems: 'end' }}>
                     <div>
                       <label style={{ fontSize: 12, fontWeight: 600, color: '#64748b', marginBottom: 6, display: 'block', textTransform: 'uppercase', letterSpacing: '0.03em' }}>Quantity</label>
                       <input style={{ ...styles.input, height: 42 }} type="number" min="1" value={item.quantityOrdered}
@@ -599,16 +599,17 @@ export default function PurchaseOrderDashboard() {
                       <input style={{ ...styles.input, height: 42 }} type="number" min="0" value={item.unitCostCents}
                         onChange={e => updateItem(i, 'unitCostCents', e.target.value)} placeholder="0" />
                     </div>
-                    <div style={{ fontSize: 13, color: '#475569', paddingBottom: 10 }}>
-                      {item.unitCostCents > 0 && (
-                        <span>
-                          = <strong>{formatCents(parseInt(item.unitCostCents) || 0)}</strong>
-                          {item.quantityOrdered > 0 && <span style={{ marginLeft: 8, color: '#1e293b' }}>Line total: <strong>{formatCents((parseInt(item.unitCostCents) || 0) * (parseInt(item.quantityOrdered) || 0))}</strong></span>}
-                        </span>
-                      )}
+                    <div>
+                      <label style={{ fontSize: 12, fontWeight: 600, color: '#64748b', marginBottom: 6, display: 'block', textTransform: 'uppercase', letterSpacing: '0.03em' }}>Line Total</label>
+                      <div style={{ height: 42, display: 'flex', alignItems: 'center', padding: '0 12px', borderRadius: 6, background: '#f1f5f9', border: '1px solid #e2e8f0', fontSize: 14, fontWeight: 600, color: '#1e293b' }}>
+                        {(item.unitCostCents > 0 && item.quantityOrdered > 0)
+                          ? formatCents((parseInt(item.unitCostCents) || 0) * (parseInt(item.quantityOrdered) || 0))
+                          : <span style={{ color: '#94a3b8', fontWeight: 400 }}>$0.00</span>
+                        }
+                      </div>
                     </div>
-                    <div style={{ paddingBottom: 6 }}>
-                      <button type="button" style={{ ...styles.btnDanger, padding: '6px 14px', fontSize: 13 }} onClick={() => {
+                    <div>
+                      <button type="button" style={{ ...styles.btnDanger, padding: '10px 16px', fontSize: 13, height: 42 }} onClick={() => {
                         const items = createForm.items.filter((_, idx) => idx !== i);
                         setCreateForm({ ...createForm, items: items.length ? items : [emptyItem()] });
                       }}>Remove</button>
