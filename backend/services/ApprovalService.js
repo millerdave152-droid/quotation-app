@@ -234,7 +234,35 @@ class ApprovalService {
         );
       }
 
-      // 6. Tier 1 — auto-approve
+      // 5b. Zero/free price on a costed product — force manager approval (skip Tier 1 auto)
+      if (requestedPrice <= 0 && cost > 0) {
+        // Treat as Tier 2 minimum — requires manager
+        const forcedTier = await this._resolveTier(100) || tier; // 100% discount = highest tier
+        // Fall through to Tier 2+ pending logic below
+        const { rows } = await client.query(
+          `INSERT INTO approval_requests (
+             cart_id, cart_item_id, product_id, salesperson_id, manager_id,
+             status, tier,
+             original_price, requested_price,
+             cost_at_time, margin_amount, margin_percent
+           ) VALUES (
+             $1, $2, $3, $4, $5,
+             'pending', $6,
+             $7, $8,
+             $9, $10, $11
+           ) RETURNING *`,
+          [
+            cartId, cartItemId, productId, salespersonId, managerId,
+            forcedTier.tier || 2,
+            originalPrice, requestedPrice,
+            cost, marginAmount, marginPercent,
+          ]
+        );
+        await client.query('COMMIT');
+        return { ...rows[0], autoApproved: false, tierName: forcedTier.name || 'Zero-price override', requiresManagerApproval: true };
+      }
+
+      // 6. Tier 1 — auto-approve (manager_id = NULL, auto_approved = true for audit clarity)
       if (tier.tier === 1) {
         const token = crypto.randomBytes(32).toString('hex');
         const { rows } = await client.query(
@@ -246,11 +274,11 @@ class ApprovalService {
              method, approval_token, token_used, token_expires_at,
              response_time_ms, responded_at
            ) VALUES (
-             $1, $2, $3, $4, $4,
+             $1, $2, $3, $4, NULL,
              'approved', $5,
              $6, $7, $7,
              $8, $9, $10,
-             'pin', $11, FALSE, NOW() + INTERVAL '10 minutes',
+             'auto', $11, FALSE, NOW() + INTERVAL '10 minutes',
              0, NOW()
            ) RETURNING *`,
           [

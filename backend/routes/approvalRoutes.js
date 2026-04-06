@@ -14,6 +14,7 @@ const express = require('express');
 const router = express.Router();
 const { authenticate, requireRole } = require('../middleware/auth');
 const { ApiError, asyncHandler } = require('../middleware/errorHandler');
+const { hasPermission, POS_PERMISSIONS } = require('../utils/permissions');
 const wsService = require('../services/WebSocketService');
 const logger = require('../utils/logger');
 const pool = require('../db');
@@ -85,6 +86,11 @@ module.exports = function (approvalService) {
    * Tier 1 requests are auto-approved and return immediately.
    */
   router.post('/request', asyncHandler(async (req, res) => {
+    // Permission gate: user must have pos.checkout.price_override
+    if (!hasPermission(req.user, POS_PERMISSIONS.CHECKOUT_PRICE_OVERRIDE)) {
+      throw ApiError.forbidden('Price override permission required (pos.checkout.price_override)');
+    }
+
     const { cartId, cartItemId, productId, managerId, requestedPrice } = req.body;
 
     if (productId == null || requestedPrice == null) {

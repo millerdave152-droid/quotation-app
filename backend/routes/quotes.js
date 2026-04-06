@@ -68,12 +68,35 @@ async function enforcePricingGateAndAudit(items, user, quotationId) {
     const itemSellCents = item.sell_cents || Math.round((item.sell || 0) * 100);
 
     if (!canEditPricing) {
-      // Salesperson: reset cost to DB value, keep sell at MSRP (or whatever DB has)
+      // Salesperson: reset cost to DB value — log if they attempted to change pricing
+      if (itemCostCents !== dbCostCents || itemSellCents !== dbSellCents) {
+        auditEntries.push({
+          field: 'blocked_salesperson_override',
+          product_id: item.product_id,
+          product_name: dbProduct.name || item.description,
+          old_value: JSON.stringify({ cost_cents: dbCostCents, sell_cents: dbSellCents }),
+          new_value: JSON.stringify({ cost_cents: itemCostCents, sell_cents: itemSellCents }),
+          blocked: true
+        });
+      }
       return {
         ...item,
         cost: dbCostCents / 100,
         cost_cents: dbCostCents,
       };
+    }
+
+    // Minimum price validation: sell_cents <= 0 on a priced product (cost > 0)
+    // flags the item for mandatory approval
+    if (itemSellCents <= 0 && dbCostCents > 0) {
+      auditEntries.push({
+        field: 'zero_price_on_costed_product',
+        product_id: item.product_id,
+        product_name: dbProduct.name || item.description,
+        old_value: dbSellCents,
+        new_value: itemSellCents,
+        requires_approval: true
+      });
     }
 
     // Authorised user: allow edits but log changes
@@ -110,20 +133,27 @@ function logPricingAudit(req, quotationId, auditEntries) {
   if (!auditLogService || auditEntries.length === 0) return;
 
   for (const entry of auditEntries) {
+    const action = entry.blocked
+      ? 'quote_item_price_override_blocked'
+      : 'quote_item_price_manual_edit';
+    const severity = entry.blocked ? 'warning' : 'info';
+
     auditLogService.log(
       req.user.id,
-      'quote_item_price_manual_edit',
+      action,
       'quotation_item',
       quotationId,
       {
         event_category: 'pricing',
+        severity,
         quotation_id: quotationId,
         product_id: entry.product_id,
         product_name: entry.product_name,
         field: entry.field,
         old_value: entry.old_value,
         new_value: entry.new_value,
-        user_role: req.user.role
+        user_role: req.user.role,
+        blocked: entry.blocked || false
       },
       req
     );
@@ -682,6 +712,17 @@ router.post('/', authenticate, asyncHandler(async (req, res) => {
 
   // Check if approval is required based on margin
   const approvalCheck = await checkAndUpdateApprovalRequired(quote.id, req.user?.id, req);
+
+  // Force approval if any zero-price items on costed products
+  const hasZeroPriceFlag = auditEntries.some(e => e.requires_approval);
+  if (hasZeroPriceFlag && !approvalCheck.approvalRequired) {
+    approvalCheck.approvalRequired = true;
+    await pool.query(
+      'UPDATE quotations SET approval_required = true WHERE id = $1',
+      [quote.id]
+    );
+  }
+
   quote.approval_required = approvalCheck.approvalRequired;
   quote.margin_percent = approvalCheck.margin;
 
@@ -715,6 +756,17 @@ router.put('/:id', authenticate, asyncHandler(async (req, res) => {
 
   // Re-check approval requirement after update
   const approvalCheck = await checkAndUpdateApprovalRequired(id, req.user?.id, req);
+
+  // Force approval if any zero-price items on costed products
+  const hasZeroPriceFlag = auditEntries.some(e => e.requires_approval);
+  if (hasZeroPriceFlag && !approvalCheck.approvalRequired) {
+    approvalCheck.approvalRequired = true;
+    await pool.query(
+      'UPDATE quotations SET approval_required = true WHERE id = $1',
+      [id]
+    );
+  }
+
   quote.approval_required = approvalCheck.approvalRequired;
   quote.margin_percent = approvalCheck.margin;
 

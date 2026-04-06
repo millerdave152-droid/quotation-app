@@ -391,7 +391,8 @@ export function useCustomerPricing({ customerId = null, autoFetch = true } = {})
   // ============================================================================
 
   const isManager = useMemo(() => {
-    return user?.role === 'admin' || user?.role === 'manager';
+    const r = user?.role?.toLowerCase();
+    return r === 'admin' || r === 'manager' || r === 'supervisor' || r === 'senior_manager';
   }, [user]);
 
   const canApproveOverrides = isManager;

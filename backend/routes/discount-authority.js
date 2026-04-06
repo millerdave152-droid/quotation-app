@@ -134,10 +134,32 @@ module.exports = function (discountAuthorityService, fraudService) {
    * Includes fraud risk assessment and audit logging.
    */
   router.post('/apply', auditLogMiddleware('discount_apply', 'discount'), asyncHandler(async (req, res) => {
-    const { productId, originalPrice, cost, discountPct, saleId, saleItemId, reason, approvedBy } = req.body;
+    const { productId, discountPct, saleId, saleItemId, reason, approvedBy } = req.body;
 
-    if (originalPrice == null || cost == null || discountPct == null) {
-      throw ApiError.badRequest('originalPrice, cost, and discountPct are required');
+    if (discountPct == null) {
+      throw ApiError.badRequest('discountPct is required');
+    }
+
+    // Always fetch original price and cost from DB — never trust client values
+    let originalPrice, cost;
+    if (productId) {
+      const prodResult = await discountAuthorityService.pool.query(
+        'SELECT price, cost, cost_cents, msrp_cents, retail_price_cents FROM products WHERE id = $1',
+        [productId]
+      );
+      if (!prodResult.rows[0]) {
+        throw ApiError.notFound('Product');
+      }
+      const p = prodResult.rows[0];
+      originalPrice = p.price ? parseFloat(p.price)
+        : p.msrp_cents ? parseFloat(p.msrp_cents) / 100
+        : p.retail_price_cents ? parseFloat(p.retail_price_cents) / 100
+        : 0;
+      cost = p.cost ? parseFloat(p.cost)
+        : p.cost_cents ? parseFloat(p.cost_cents) / 100
+        : 0;
+    } else {
+      throw ApiError.badRequest('productId is required');
     }
 
     // Fraud risk assessment before applying
@@ -148,8 +170,8 @@ module.exports = function (discountAuthorityService, fraudService) {
           employee_id: req.user.id,
           product_id: productId,
           discount_pct: parseFloat(discountPct),
-          discount_amount: parseFloat(originalPrice) * parseFloat(discountPct) / 100,
-          original_price: parseFloat(originalPrice),
+          discount_amount: originalPrice * parseFloat(discountPct) / 100,
+          original_price: originalPrice,
         },
         req.user.id
       );

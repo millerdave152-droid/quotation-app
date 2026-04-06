@@ -161,8 +161,17 @@ export function PriceOverrideModal({
     setError(null);
 
     try {
-      // Managers can always apply directly
+      // Managers can apply directly — but log via API for audit trail
       if (canApproveOverrides) {
+        try {
+          await createApprovalRequest({
+            productId: product.productId || product.id,
+            requestedPrice: overridePrice,
+          });
+        } catch (_auditErr) {
+          // Audit logging failure should not block the override
+          console.warn('Manager override audit log failed:', _auditErr);
+        }
         onApply?.(overridePrice, reasonText, {
           managerApproved: true,
           status: 'manager_approved',

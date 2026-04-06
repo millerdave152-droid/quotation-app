@@ -6,6 +6,7 @@
 import { useState, useRef, useCallback, memo } from 'react';
 import { formatCurrency } from '../../utils/formatters';
 import { DiscountSlider } from '../Discount/DiscountSlider';
+import { usePermissions, POS_PERMISSIONS } from '../../hooks/usePermissions';
 import { AlertTriangle, ChevronDown, ChevronUp, Minus, Plus, ShieldCheck, SquarePen, Tag, Trash2 } from 'lucide-react';
 
 /**
@@ -35,6 +36,7 @@ export const CartItem = memo(function CartItem({
   customerPricingLoading = false,
   disabled = false,
 }) {
+  const { can } = usePermissions();
   const [swipeOffset, setSwipeOffset] = useState(0);
   const [isSwiping, setIsSwiping] = useState(false);
   const [showSerialInput, setShowSerialInput] = useState(false);
@@ -287,7 +289,7 @@ export const CartItem = memo(function CartItem({
               </span>
 
               <div className="flex items-center gap-1">
-                {onPriceOverride && (
+                {onPriceOverride && can(POS_PERMISSIONS.CHECKOUT_PRICE_OVERRIDE) && (
                   <button
                     type="button"
                     onClick={(e) => { e.stopPropagation(); onPriceOverride?.(item); }}
