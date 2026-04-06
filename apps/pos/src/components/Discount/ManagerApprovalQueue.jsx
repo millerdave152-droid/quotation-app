@@ -6,7 +6,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { formatCurrency } from '../../utils/formatters';
 import { getPendingEscalations, approveEscalation, denyEscalation } from '../../api/discountAuthority';
-import { Check, Clock, Pencil, RefreshCw, Tag, User, X, XCircle } from 'lucide-react';
+import { Check, Clock, MapPin, Pencil, RefreshCw, Tag, User, X, XCircle } from 'lucide-react';
 
 const POLL_INTERVAL = 10000; // 10 seconds
 
@@ -146,9 +146,17 @@ export function ManagerApprovalQueue({ isOpen, onClose }) {
                       <p className="text-[10px] text-gray-400">{esc.product_name || `Product #${esc.product_id}`}</p>
                     </div>
                   </div>
-                  <div className="flex items-center gap-1 text-[10px] text-gray-400">
-                    <Clock className="w-3 h-3" />
-                    {timeAgo(esc.created_at)}
+                  <div className="flex items-center gap-2">
+                    {esc.location_name && (
+                      <span className="flex items-center gap-0.5 text-[10px] text-indigo-600 bg-indigo-50 px-1.5 py-0.5 rounded">
+                        <MapPin className="w-3 h-3" />
+                        {esc.location_name}
+                      </span>
+                    )}
+                    <div className="flex items-center gap-1 text-[10px] text-gray-400">
+                      <Clock className="w-3 h-3" />
+                      {timeAgo(esc.created_at)}
+                    </div>
                   </div>
                 </div>
 

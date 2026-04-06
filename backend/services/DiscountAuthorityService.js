@@ -473,14 +473,14 @@ class DiscountAuthorityService {
   /**
    * Create an escalation request for manager approval
    */
-  async createEscalation({ employeeId, productId, discountPct, reason, marginAfter, commissionImpact }) {
+  async createEscalation({ employeeId, productId, discountPct, reason, marginAfter, commissionImpact, locationId = null }) {
     const result = await this.pool.query(
       `INSERT INTO discount_escalations
         (requesting_employee_id, product_id, requested_discount_pct, reason,
-         margin_after_discount, commission_impact, expires_at)
-       VALUES ($1, $2, $3, $4, $5, $6, NOW() + INTERVAL '2 hours')
+         margin_after_discount, commission_impact, expires_at, location_id)
+       VALUES ($1, $2, $3, $4, $5, $6, NOW() + INTERVAL '2 hours', $7)
        RETURNING *`,
-      [employeeId, productId, discountPct, reason || null, marginAfter, commissionImpact]
+      [employeeId, productId, discountPct, reason || null, marginAfter, commissionImpact, locationId]
     );
 
     return result.rows[0];
@@ -536,10 +536,12 @@ class DiscountAuthorityService {
     const result = await this.pool.query(
       `SELECT de.*,
               u.first_name || ' ' || u.last_name AS employee_name,
-              p.name AS product_name, p.sku AS product_sku
+              p.name AS product_name, p.sku AS product_sku,
+              loc.name AS location_name, loc.code AS location_code
        FROM discount_escalations de
        JOIN users u ON u.id = de.requesting_employee_id
        LEFT JOIN products p ON p.id = de.product_id
+       LEFT JOIN locations loc ON de.location_id = loc.id
        WHERE de.status = 'pending'
        ORDER BY de.created_at ASC`
     );

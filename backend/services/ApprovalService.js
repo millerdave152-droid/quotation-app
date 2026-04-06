@@ -184,7 +184,7 @@ class ApprovalService {
    * @param {object} params
    * @returns {object} The created request row, plus { autoApproved: boolean }
    */
-  async createRequest({ cartId, cartItemId, productId, salespersonId, managerId = null, requestedPrice }) {
+  async createRequest({ cartId, cartItemId, productId, salespersonId, managerId = null, requestedPrice, locationId = null }) {
     const client = await this.pool.connect();
     try {
       await client.query('BEGIN');
@@ -272,21 +272,21 @@ class ApprovalService {
              original_price, requested_price, approved_price,
              cost_at_time, margin_amount, margin_percent,
              method, approval_token, token_used, token_expires_at,
-             response_time_ms, responded_at
+             response_time_ms, responded_at, location_id
            ) VALUES (
              $1, $2, $3, $4, NULL,
              'approved', $5,
              $6, $7, $7,
              $8, $9, $10,
              'auto', $11, FALSE, NOW() + INTERVAL '10 minutes',
-             0, NOW()
+             0, NOW(), $12
            ) RETURNING *`,
           [
             cartId, cartItemId, productId, salespersonId,
             tier.tier,
             originalPrice, requestedPrice,
             cost, marginAmount, marginPercent,
-            token,
+            token, locationId,
           ]
         );
 
@@ -304,14 +304,16 @@ class ApprovalService {
            cart_id, cart_item_id, product_id, salesperson_id, manager_id,
            status, tier,
            original_price, requested_price,
-           cost_at_time, margin_amount, margin_percent
-         ) VALUES ($1, $2, $3, $4, $5, 'pending', $6, $7, $8, $9, $10, $11)
+           cost_at_time, margin_amount, margin_percent,
+           location_id
+         ) VALUES ($1, $2, $3, $4, $5, 'pending', $6, $7, $8, $9, $10, $11, $12)
          RETURNING *`,
         [
           cartId, cartItemId, productId, salespersonId, managerId,
           tier.tier,
           originalPrice, requestedPrice,
           cost, marginAmount, marginPercent,
+          locationId,
         ]
       );
 

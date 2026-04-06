@@ -35,6 +35,17 @@ module.exports = function (discountAuthorityService, fraudService) {
       throw ApiError.badRequest('productId and discountPct are required');
     }
 
+    // Resolve location from user's active shift → register → location
+    let locationId = null;
+    try {
+      const { rows } = await discountAuthorityService.pool.query(
+        `SELECT r.location_id FROM shifts s JOIN registers r ON r.id = s.register_id
+         WHERE s.user_id = $1 AND s.status = 'open' ORDER BY s.opened_at DESC LIMIT 1`,
+        [req.user.id]
+      );
+      locationId = rows[0]?.location_id || null;
+    } catch (_) { /* best-effort */ }
+
     const escalation = await discountAuthorityService.createEscalation({
       employeeId: req.user.id,
       productId,
@@ -42,6 +53,7 @@ module.exports = function (discountAuthorityService, fraudService) {
       reason: reason || null,
       marginAfter: marginAfter != null ? parseFloat(marginAfter) : 0,
       commissionImpact: commissionImpact != null ? parseFloat(commissionImpact) : 0,
+      locationId,
     });
 
     // Audit: escalation submitted

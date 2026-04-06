@@ -97,6 +97,17 @@ module.exports = function (approvalService) {
       throw ApiError.badRequest('productId and requestedPrice are required');
     }
 
+    // Resolve location from user's active shift → register → location
+    let locationId = null;
+    try {
+      const { rows } = await pool.query(
+        `SELECT r.location_id FROM shifts s JOIN registers r ON r.id = s.register_id
+         WHERE s.user_id = $1 AND s.status = 'open' ORDER BY s.opened_at DESC LIMIT 1`,
+        [req.user.id]
+      );
+      locationId = rows[0]?.location_id || null;
+    } catch (_) { /* location resolution is best-effort */ }
+
     const result = await approvalService.createRequest({
       cartId: cartId || null,
       cartItemId: cartItemId || null,
@@ -104,6 +115,7 @@ module.exports = function (approvalService) {
       salespersonId: req.user.id,
       managerId: managerId ? parseInt(managerId, 10) : null,
       requestedPrice: parseFloat(requestedPrice),
+      locationId,
     });
 
     const statusCode = result.autoApproved ? 200 : 201;
@@ -304,11 +316,14 @@ module.exports = function (approvalService) {
          CONCAT(s.first_name, ' ', s.last_name) AS salesperson_name,
          ats.name AS tier_name,
          ats.timeout_seconds,
-         ats.requires_reason_code
+         ats.requires_reason_code,
+         loc.name AS location_name,
+         loc.code AS location_code
        FROM approval_requests ar
        LEFT JOIN products p ON ar.product_id = p.id
        JOIN users s    ON ar.salesperson_id = s.id
        LEFT JOIN approval_tier_settings ats ON ats.tier = ar.tier
+       LEFT JOIN locations loc ON ar.location_id = loc.id
        WHERE ar.status IN ('pending', 'countered')
          AND (ar.manager_id = $1 OR ar.manager_id IS NULL)
          AND (ar.request_type IS NULL OR ar.request_type IN ('single', 'batch'))
