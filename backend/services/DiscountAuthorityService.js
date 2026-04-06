@@ -5,6 +5,14 @@
  * and handles escalations to managers.
  */
 
+const {
+  isDenialFinal,
+  findNextApprover,
+  logEscalationStep,
+  normaliseRole,
+  ROLE_LABELS,
+} = require('../utils/escalationChain');
+
 class DiscountAuthorityService {
   constructor(pool) {
     this.pool = pool;
@@ -545,6 +553,8 @@ class DiscountAuthorityService {
   async getMyEscalations(employeeId) {
     const result = await this.pool.query(
       `SELECT de.*, de.used_in_transaction_id, de.expires_at,
+              de.escalation_level, de.escalated_from_id, de.current_approver_role,
+              de.escalation_reason, de.escalated_at,
               p.name AS product_name, p.sku AS product_sku,
               r.first_name || ' ' || r.last_name AS reviewer_name
        FROM discount_escalations de
@@ -553,6 +563,7 @@ class DiscountAuthorityService {
        WHERE de.requesting_employee_id = $1
          AND (
            de.status = 'pending'
+           OR de.status = 'escalated'
            OR (
              de.status IN ('approved', 'denied', 'expired')
              AND COALESCE(de.reviewed_at, de.created_at) >= NOW() - INTERVAL '24 hours'
@@ -599,10 +610,27 @@ class DiscountAuthorityService {
   }
 
   /**
-   * Deny an escalation
+   * Deny an escalation — auto-escalates to the next role unless the denier
+   * is at Operations Manager / CEO level, in which case denial is final.
+   *
+   * @param {number}  escalationId
+   * @param {number}  managerId
+   * @param {string}  reason
+   * @param {object}  [opts]
+   * @param {object}  [opts.auditLogService] - For audit logging escalation steps
+   * @param {object}  [opts.req]             - Express request for IP / UA
+   * @returns {object} Updated escalation row (the original if final, or the new escalated row)
    */
-  async denyEscalation(escalationId, managerId, reason) {
-    const result = await this.pool.query(
+  async denyEscalation(escalationId, managerId, reason, opts = {}) {
+    // Fetch the denier's role
+    const { rows: [denier] } = await this.pool.query(
+      'SELECT id, role FROM users WHERE id = $1',
+      [managerId]
+    );
+    const denierRole = denier ? normaliseRole(denier.role) : 'manager';
+
+    // Mark the current escalation as denied
+    const { rows: [denied] } = await this.pool.query(
       `UPDATE discount_escalations
        SET status = 'denied',
            reviewed_by = $1,
@@ -612,7 +640,159 @@ class DiscountAuthorityService {
        RETURNING *`,
       [managerId, reason, escalationId]
     );
-    return result.rows[0] || null;
+    if (!denied) return null;
+
+    // If denier is at final level, denial is terminal — return to salesperson
+    if (isDenialFinal(denierRole)) {
+      denied._escalation = { final: true, reason: 'final_authority_denied' };
+      return denied;
+    }
+
+    // Auto-escalate to next role
+    const next = await findNextApprover(this.pool, denierRole, denied.requesting_employee_id);
+    if (!next) {
+      // No higher approver found — treat as final
+      denied._escalation = { final: true, reason: 'no_higher_approver' };
+      return denied;
+    }
+
+    // Create a new escalation row linked to the original
+    const { rows: [escalated] } = await this.pool.query(
+      `INSERT INTO discount_escalations
+        (requesting_employee_id, product_id, requested_discount_pct, reason,
+         margin_after_discount, commission_impact, expires_at,
+         escalation_level, escalated_from_id, current_approver_role, escalation_reason, escalated_at)
+       VALUES ($1, $2, $3, $4, $5, $6, NOW() + INTERVAL '10 minutes',
+               $7, $8, $9, 'denied', NOW())
+       RETURNING *`,
+      [
+        denied.requesting_employee_id,
+        denied.product_id,
+        denied.requested_discount_pct,
+        denied.reason,
+        denied.margin_after_discount,
+        denied.commission_impact,
+        (denied.escalation_level || 0) + 1,
+        denied.id,
+        next.role,
+      ]
+    );
+
+    // Audit log the escalation step
+    logEscalationStep(opts.auditLogService, {
+      userId: managerId,
+      entityType: 'discount_escalation',
+      entityId: escalated.id,
+      fromRole: denierRole,
+      toRole: next.role,
+      reason: 'denied',
+      originalRequestId: denied.escalated_from_id || denied.id,
+      locationId: opts.req?.body?.location_id || null,
+      req: opts.req,
+    });
+
+    escalated._escalation = {
+      final: false,
+      reason: 'auto_escalated',
+      from_role: denierRole,
+      to_role: next.role,
+      to_approver: `${next.user.first_name} ${next.user.last_name}`,
+      new_escalation_id: escalated.id,
+    };
+    return escalated;
+  }
+
+  /**
+   * Auto-escalate timed-out POS discount escalations.
+   * Called by cron job every minute.
+   *
+   * @param {object} [auditLogService] - For audit logging
+   * @returns {Promise<number>} Number of escalations processed
+   */
+  async escalateTimedOut(auditLogService = null) {
+    // Find pending escalations that have expired
+    const { rows: expired } = await this.pool.query(
+      `SELECT de.*, u.role AS requester_role
+       FROM discount_escalations de
+       JOIN users u ON u.id = de.requesting_employee_id
+       WHERE de.status = 'pending'
+         AND de.expires_at IS NOT NULL
+         AND de.expires_at <= NOW()`
+    );
+
+    let processed = 0;
+    for (const esc of expired) {
+      const currentRole = normaliseRole(esc.current_approver_role || 'manager');
+
+      // If already at final level, mark as denied due to timeout
+      if (isDenialFinal(currentRole)) {
+        await this.pool.query(
+          `UPDATE discount_escalations
+           SET status = 'denied', review_notes = 'Auto-denied: timeout at final authority', reviewed_at = NOW()
+           WHERE id = $1`,
+          [esc.id]
+        );
+        processed++;
+        continue;
+      }
+
+      const next = await findNextApprover(this.pool, currentRole, esc.requesting_employee_id);
+      if (!next) {
+        // No higher approver — mark as denied
+        await this.pool.query(
+          `UPDATE discount_escalations
+           SET status = 'denied', review_notes = 'Auto-denied: no higher approver available', reviewed_at = NOW()
+           WHERE id = $1`,
+          [esc.id]
+        );
+        processed++;
+        continue;
+      }
+
+      // Mark current as timed out
+      await this.pool.query(
+        `UPDATE discount_escalations
+         SET status = 'escalated', review_notes = 'Auto-escalated: timeout', reviewed_at = NOW()
+         WHERE id = $1`,
+        [esc.id]
+      );
+
+      // Create escalated row
+      const { rows: [escalated] } = await this.pool.query(
+        `INSERT INTO discount_escalations
+          (requesting_employee_id, product_id, requested_discount_pct, reason,
+           margin_after_discount, commission_impact, expires_at,
+           escalation_level, escalated_from_id, current_approver_role, escalation_reason, escalated_at)
+         VALUES ($1, $2, $3, $4, $5, $6, NOW() + INTERVAL '10 minutes',
+                 $7, $8, $9, 'timeout', NOW())
+         RETURNING *`,
+        [
+          esc.requesting_employee_id,
+          esc.product_id,
+          esc.requested_discount_pct,
+          esc.reason,
+          esc.margin_after_discount,
+          esc.commission_impact,
+          (esc.escalation_level || 0) + 1,
+          esc.id,
+          next.role,
+        ]
+      );
+
+      logEscalationStep(auditLogService, {
+        userId: esc.requesting_employee_id,
+        entityType: 'discount_escalation',
+        entityId: escalated.id,
+        fromRole: currentRole,
+        toRole: next.role,
+        reason: 'timeout',
+        originalRequestId: esc.escalated_from_id || esc.id,
+      });
+
+      processed++;
+    }
+
+    return processed;
   }
 
   // ============================================================================

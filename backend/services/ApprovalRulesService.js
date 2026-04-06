@@ -4,6 +4,14 @@
  * Week 1.2 of 4-week sprint
  */
 
+const {
+  ROLE_CHAIN,
+  normaliseRole,
+  isDenialFinal,
+  findNextApprover,
+  logEscalationStep,
+} = require('../utils/escalationChain');
+
 class ApprovalRulesService {
   /**
    * Default approval thresholds
@@ -228,31 +236,25 @@ class ApprovalRulesService {
   }
 
   /**
-   * Get the appropriate approver for a quote
+   * Get the appropriate approver for a quote, walking the role chain upward.
+   * Starts from the requesting user's role level and finds the next higher role.
+   *
    * @param {Object} pool - Database pool
    * @param {Object} quote - Quote object
    * @param {Object} requestingUser - User requesting approval
+   * @param {string} [startAboveRole] - If provided, find an approver above THIS role
+   *                                    (used during auto-escalation after denial)
    * @returns {Object|null} Approver user or null
    */
-  static async findApprover(pool, quote, requestingUser) {
+  static async findApprover(pool, quote, requestingUser, startAboveRole = null) {
     const totalCents = parseInt(quote.total_cents) || 0;
+    const startRole = startAboveRole || normaliseRole(requestingUser.role);
 
-    // First try: User's manager
-    if (requestingUser.manager_id) {
-      const managerResult = await pool.query(
-        'SELECT * FROM users WHERE id = $1 AND is_active = true',
-        [requestingUser.manager_id]
-      );
-      if (managerResult.rows.length > 0) {
-        const manager = managerResult.rows[0];
-        // Check if manager can approve this amount
-        if (!manager.max_approval_amount_cents || manager.max_approval_amount_cents >= totalCents) {
-          return manager;
-        }
-      }
-    }
+    // Walk the chain: find next approver above startRole
+    const result = await findNextApprover(pool, startRole, requestingUser.id, totalCents);
+    if (result) return result.user;
 
-    // Second try: Any user with approval permission for this amount
+    // Fallback: any active user with can_approve_quotes for this amount
     const approverResult = await pool.query(`
       SELECT * FROM users
       WHERE is_active = true
@@ -260,16 +262,198 @@ class ApprovalRulesService {
         AND (max_approval_amount_cents IS NULL OR max_approval_amount_cents >= $1)
         AND id != $2
       ORDER BY
-        CASE role
+        CASE LOWER(role)
           WHEN 'admin' THEN 1
-          WHEN 'manager' THEN 2
-          WHEN 'supervisor' THEN 3
-          ELSE 4
+          WHEN 'senior_manager' THEN 2
+          WHEN 'manager' THEN 3
+          WHEN 'supervisor' THEN 4
+          ELSE 5
         END
       LIMIT 1
     `, [totalCents, requestingUser.id]);
 
     return approverResult.rows[0] || null;
+  }
+
+  /**
+   * Auto-escalate a denied CRM quote approval to the next role in the chain.
+   * Creates a new quote_approvals row linked to the denied one.
+   *
+   * @param {Object} pool              DB pool
+   * @param {Object} deniedApproval    The denied quote_approvals row
+   * @param {Object} denier            The user who denied { id, role, firstName, lastName, email }
+   * @param {string} denyReason        Reason for denial
+   * @param {Object} [auditLogService] For audit logging
+   * @param {Object} [req]             Express request
+   * @returns {Object|null} New escalated approval row, or null if denial is final
+   */
+  static async escalateOnDenial(pool, deniedApproval, denier, denyReason, auditLogService = null, req = null) {
+    const denierRole = normaliseRole(denier.role);
+
+    // If denier is at final authority, denial is terminal
+    if (isDenialFinal(denierRole)) {
+      return null;
+    }
+
+    // Find next approver above the denier's role
+    const totalCents = parseInt(deniedApproval.total_cents) || 0;
+    const next = await findNextApprover(pool, denierRole, deniedApproval.requested_by_user_id || 0, totalCents);
+    if (!next) return null;
+
+    // Create new escalated approval request
+    const { rows: [escalated] } = await pool.query(
+      `INSERT INTO quote_approvals
+        (quotation_id, requested_by, requested_by_email, approver_name, approver_email,
+         comments, escalation_level, escalated_from_id, current_approver_role,
+         escalation_reason, escalated_at)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'denied', NOW())
+       RETURNING *`,
+      [
+        deniedApproval.quotation_id,
+        deniedApproval.requested_by,
+        deniedApproval.requested_by_email,
+        `${next.user.first_name} ${next.user.last_name}`,
+        next.user.email,
+        `Auto-escalated: denied by ${denier.firstName || ''} ${denier.lastName || ''} (${denierRole}). Reason: ${denyReason}`,
+        (deniedApproval.escalation_level || 0) + 1,
+        deniedApproval.id,
+        next.role,
+      ]
+    );
+
+    // Reset quote status back to PENDING_APPROVAL
+    await pool.query(
+      "UPDATE quotations SET status = 'PENDING_APPROVAL' WHERE id = $1",
+      [deniedApproval.quotation_id]
+    );
+
+    // Timeline event
+    await pool.query(
+      `INSERT INTO quote_events (quotation_id, event_type, description)
+       VALUES ($1, 'ESCALATED', $2)`,
+      [
+        deniedApproval.quotation_id,
+        `Auto-escalated to ${next.user.first_name} ${next.user.last_name} (${next.role}) after denial by ${denier.firstName || ''} ${denier.lastName || ''}`
+      ]
+    );
+
+    // Audit log
+    logEscalationStep(auditLogService, {
+      userId: denier.id,
+      entityType: 'quote_approval',
+      entityId: escalated.id,
+      fromRole: denierRole,
+      toRole: next.role,
+      reason: 'denied',
+      originalRequestId: deniedApproval.escalated_from_id || deniedApproval.id,
+      locationId: req?.body?.location_id || null,
+      req,
+    });
+
+    return escalated;
+  }
+
+  /**
+   * Auto-escalate timed-out CRM quote approvals.
+   * Called by cron job every minute.
+   *
+   * @param {Object} pool
+   * @param {Object} [auditLogService]
+   * @returns {Promise<number>} Number of escalations processed
+   */
+  static async escalateTimedOutQuoteApprovals(pool, auditLogService = null) {
+    // Find pending approvals older than 10 minutes
+    const { rows: expired } = await pool.query(
+      `SELECT qa.*, q.total_cents
+       FROM quote_approvals qa
+       LEFT JOIN quotations q ON qa.quotation_id = q.id
+       WHERE qa.status = 'PENDING'
+         AND qa.requested_at <= NOW() - INTERVAL '10 minutes'`
+    );
+
+    let processed = 0;
+    for (const approval of expired) {
+      const currentRole = normaliseRole(approval.current_approver_role || 'supervisor');
+
+      // If at final level, mark as rejected due to timeout
+      if (isDenialFinal(currentRole)) {
+        await pool.query(
+          `UPDATE quote_approvals SET status = 'REJECTED', comments = 'Auto-rejected: timeout at final authority', reviewed_at = NOW()
+           WHERE id = $1`,
+          [approval.id]
+        );
+        await pool.query(
+          "UPDATE quotations SET status = 'REJECTED', rejected_reason = 'Approval timeout at final authority' WHERE id = $1",
+          [approval.quotation_id]
+        );
+        processed++;
+        continue;
+      }
+
+      const totalCents = parseInt(approval.total_cents) || 0;
+      const next = await findNextApprover(pool, currentRole, 0, totalCents);
+      if (!next) {
+        await pool.query(
+          `UPDATE quote_approvals SET status = 'REJECTED', comments = 'Auto-rejected: no higher approver', reviewed_at = NOW()
+           WHERE id = $1`,
+          [approval.id]
+        );
+        processed++;
+        continue;
+      }
+
+      // Mark current as escalated
+      await pool.query(
+        `UPDATE quote_approvals SET status = 'ESCALATED', comments = 'Auto-escalated: timeout', reviewed_at = NOW()
+         WHERE id = $1`,
+        [approval.id]
+      );
+
+      // Create escalated row
+      const { rows: [escalated] } = await pool.query(
+        `INSERT INTO quote_approvals
+          (quotation_id, requested_by, requested_by_email, approver_name, approver_email,
+           comments, escalation_level, escalated_from_id, current_approver_role,
+           escalation_reason, escalated_at)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'timeout', NOW())
+         RETURNING *`,
+        [
+          approval.quotation_id,
+          approval.requested_by,
+          approval.requested_by_email,
+          `${next.user.first_name} ${next.user.last_name}`,
+          next.user.email,
+          `Auto-escalated: previous approver timed out after 10 minutes`,
+          (approval.escalation_level || 0) + 1,
+          approval.id,
+          next.role,
+        ]
+      );
+
+      // Timeline event
+      await pool.query(
+        `INSERT INTO quote_events (quotation_id, event_type, description)
+         VALUES ($1, 'ESCALATED', $2)`,
+        [
+          approval.quotation_id,
+          `Auto-escalated to ${next.user.first_name} ${next.user.last_name} (${next.role}) after 10-minute timeout`
+        ]
+      );
+
+      logEscalationStep(auditLogService, {
+        userId: 0,
+        entityType: 'quote_approval',
+        entityId: escalated.id,
+        fromRole: currentRole,
+        toRole: next.role,
+        reason: 'timeout',
+        originalRequestId: approval.escalated_from_id || approval.id,
+      });
+
+      processed++;
+    }
+
+    return processed;
   }
 
   /**

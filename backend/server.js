@@ -131,6 +131,7 @@ const FeatureStoreService = require('./services/FeatureStoreService');
 const redisConfig = require('./config/redis');
 const cron = require('node-cron');
 const DiscountAuthorityService = require('./services/DiscountAuthorityService');
+const ApprovalRulesService = require('./services/ApprovalRulesService');
 const SerialNumberService = require('./services/SerialNumberService');
 const PurchaseOrderService = require('./services/PurchaseOrderService');
 const ProductVariantService = require('./services/ProductVariantService');
@@ -591,6 +592,25 @@ setInterval(() => {
     }
   });
 }, 5 * 60 * 1000);
+
+// Auto-escalate timed-out discount escalations and quote approvals every 1 minute
+setInterval(() => {
+  runWithTenant(TENANT_ID, async () => {
+    try {
+      const posCount = await discountAuthorityService.escalateTimedOut(auditLogService);
+      if (posCount > 0) logger.info({ count: posCount }, '[AutoEscalation] POS discount escalations auto-escalated');
+    } catch (err) {
+      logger.error({ err }, '[AutoEscalation] POS escalation error');
+    }
+    try {
+      const crmCount = await ApprovalRulesService.escalateTimedOutQuoteApprovals(pool, auditLogService);
+      if (crmCount > 0) logger.info({ count: crmCount }, '[AutoEscalation] CRM quote approvals auto-escalated');
+    } catch (err) {
+      logger.error({ err }, '[AutoEscalation] CRM escalation error');
+    }
+  });
+}, 60 * 1000);
+logger.info('Auto-escalation timeout checker started (every 1 minute)');
 
 // Lead reminder generation — every 15 minutes
 const ReminderService = require('./services/ReminderService');

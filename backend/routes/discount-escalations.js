@@ -89,7 +89,7 @@ module.exports = function (discountAuthorityService, fraudService) {
    * GET /api/discount-escalations/pending
    * List all pending escalation requests (manager+ only)
    */
-  router.get('/pending', requireRole('admin', 'manager'), asyncHandler(async (req, res) => {
+  router.get('/pending', requireRole('admin', 'manager', 'supervisor', 'senior_manager'), asyncHandler(async (req, res) => {
     const escalations = await discountAuthorityService.getPendingEscalations();
 
     res.json({
@@ -102,7 +102,7 @@ module.exports = function (discountAuthorityService, fraudService) {
    * PUT /api/discount-escalations/:id/approve
    * Approve an escalation with optional notes (manager+ only)
    */
-  router.put('/:id/approve', requireRole('admin', 'manager'), auditLogMiddleware('discount_escalation_approve', 'discount'), asyncHandler(async (req, res) => {
+  router.put('/:id/approve', requireRole('admin', 'manager', 'supervisor', 'senior_manager'), auditLogMiddleware('discount_escalation_approve', 'discount'), asyncHandler(async (req, res) => {
     const escalationId = parseInt(req.params.id, 10);
     const { notes } = req.body;
 
@@ -139,7 +139,7 @@ module.exports = function (discountAuthorityService, fraudService) {
    * PUT /api/discount-escalations/:id/deny
    * Deny an escalation with a required reason (manager+ only)
    */
-  router.put('/:id/deny', requireRole('admin', 'manager'), auditLogMiddleware('discount_escalation_deny', 'discount'), asyncHandler(async (req, res) => {
+  router.put('/:id/deny', requireRole('admin', 'manager', 'supervisor', 'senior_manager'), auditLogMiddleware('discount_escalation_deny', 'discount'), asyncHandler(async (req, res) => {
     const escalationId = parseInt(req.params.id, 10);
     const { reason } = req.body;
 
@@ -147,10 +147,14 @@ module.exports = function (discountAuthorityService, fraudService) {
       throw ApiError.badRequest('A reason is required when denying an escalation');
     }
 
+    // Get audit log service for escalation step logging
+    const auditLogService = req.app.get('auditLogService');
+
     const result = await discountAuthorityService.denyEscalation(
       escalationId,
       req.user.id,
-      reason.trim()
+      reason.trim(),
+      { auditLogService, req }
     );
 
     if (!result) {
@@ -166,13 +170,18 @@ module.exports = function (discountAuthorityService, fraudService) {
           product_id: result.product_id,
           requested_discount_pct: result.requested_discount_pct,
           deny_reason: reason.trim(),
+          auto_escalated: result._escalation ? !result._escalation.final : false,
+          escalation_to_role: result._escalation?.to_role || null,
         }, req
       );
     }
 
     res.json({
       success: true,
-      data: result,
+      data: {
+        ...result,
+        escalation: result._escalation || null,
+      },
     });
   }));
 

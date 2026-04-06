@@ -384,7 +384,7 @@ router.post('/approvals/:id/reject', authenticate, async (req, res) => {
       });
     }
 
-    // Update approval record
+    // Update approval record as REJECTED
     const result = await pool.query(`
       UPDATE quote_approvals
       SET status = 'REJECTED', comments = $1, reviewed_at = CURRENT_TIMESTAMP,
@@ -392,72 +392,136 @@ router.post('/approvals/:id/reject', authenticate, async (req, res) => {
       WHERE id = $2 RETURNING *
     `, [comments, id, `${req.user.firstName} ${req.user.lastName}`, req.user.email]);
 
-    // Update quote status to REJECTED with audit fields
-    await pool.query(
-      'UPDATE quotations SET status = \'REJECTED\', rejected_at = CURRENT_TIMESTAMP, rejected_by = $2, rejected_reason = $3 WHERE id = $1',
-      [approval.quotation_id, req.user.id, comments]
-    );
-
     // Add event to timeline
     await pool.query(`
       INSERT INTO quote_events (quotation_id, event_type, description)
       VALUES ($1, $2, $3)
-    `, [approval.quotation_id, 'REJECTED', `Quote rejected by ${approval.approver_name}: ${comments}`]);
+    `, [approval.quotation_id, 'REJECTED', `Quote rejected by ${req.user.firstName} ${req.user.lastName}: ${comments}`]);
 
-    // Send notification email to requester
-    if (approval.requested_by_email) {
-      const quoteResult = await pool.query(
-        `SELECT q.*, c.name as customer_name FROM quotations q
-         LEFT JOIN customers c ON q.customer_id = c.id WHERE q.id = $1`,
-        [approval.quotation_id]
+    // ============================================
+    // AUTO-ESCALATION: try to escalate to next role
+    // ============================================
+    const auditLogService = req.app?.get('auditLogService');
+    const escalated = await ApprovalRulesService.escalateOnDenial(
+      pool,
+      { ...approval, requested_by_user_id: approval.requested_by_user_id || null },
+      req.user,
+      comments,
+      auditLogService,
+      req
+    );
+
+    if (!escalated) {
+      // Denial is final — update quote status to REJECTED
+      await pool.query(
+        'UPDATE quotations SET status = \'REJECTED\', rejected_at = CURRENT_TIMESTAMP, rejected_by = $2, rejected_reason = $3 WHERE id = $1',
+        [approval.quotation_id, req.user.id, comments]
       );
 
-      if (quoteResult.rows.length > 0) {
-        const quote = quoteResult.rows[0];
-        const emailHTML = `
-          <!DOCTYPE html>
-          <html>
-          <head>
-            <style>
-              body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
-              .container { max-width: 600px; margin: 0 auto; padding: 20px; }
-              .header { background: #ef4444; color: white; padding: 20px; border-radius: 8px; margin-bottom: 20px; }
-              .content { background: #f9fafb; padding: 20px; border-radius: 8px; }
-            </style>
-          </head>
-          <body>
-            <div class="container">
-              <div class="header">
-                <h2 style="margin: 0;">Quote Rejected</h2>
-              </div>
-              <div class="content">
-                <p>Hi ${approval.requested_by},</p>
-                <p>Your quote <strong>${quote.quote_number}</strong> for <strong>${quote.customer_name}</strong> has been rejected by ${approval.approver_name}.</p>
-                <p><strong>Reason:</strong> ${comments}</p>
-                <p>Please review the feedback and make necessary changes before resubmitting.</p>
-              </div>
-            </div>
-          </body>
-          </html>
-        `;
+      // Send rejection email to requester
+      if (approval.requested_by_email) {
+        const quoteResult = await pool.query(
+          `SELECT q.*, c.name as customer_name FROM quotations q
+           LEFT JOIN customers c ON q.customer_id = c.id WHERE q.id = $1`,
+          [approval.quotation_id]
+        );
 
-        try {
-          const command = new SendEmailCommand({
-            Source: process.env.EMAIL_FROM,
-            Destination: { ToAddresses: [approval.requested_by_email] },
-            Message: {
-              Subject: { Data: `Quote Rejected: ${quote.quote_number}` },
-              Body: { Html: { Data: emailHTML } }
-            }
-          });
-          await sesClient.send(command);
-        } catch (emailErr) {
-          logger.error({ err: emailErr }, 'Error sending rejection notification');
+        if (quoteResult.rows.length > 0) {
+          const quote = quoteResult.rows[0];
+          const emailHTML = `
+            <!DOCTYPE html>
+            <html>
+            <head>
+              <style>
+                body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+                .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+                .header { background: #ef4444; color: white; padding: 20px; border-radius: 8px; margin-bottom: 20px; }
+                .content { background: #f9fafb; padding: 20px; border-radius: 8px; }
+              </style>
+            </head>
+            <body>
+              <div class="container">
+                <div class="header">
+                  <h2 style="margin: 0;">Quote Rejected (Final)</h2>
+                </div>
+                <div class="content">
+                  <p>Hi ${approval.requested_by},</p>
+                  <p>Your quote <strong>${quote.quote_number}</strong> for <strong>${quote.customer_name}</strong> has been rejected by ${req.user.firstName} ${req.user.lastName}.</p>
+                  <p><strong>Reason:</strong> ${comments}</p>
+                  <p>This is a final decision. Please review the feedback and make necessary changes before resubmitting.</p>
+                </div>
+              </div>
+            </body>
+            </html>
+          `;
+
+          try {
+            const command = new SendEmailCommand({
+              Source: process.env.EMAIL_FROM,
+              Destination: { ToAddresses: [approval.requested_by_email] },
+              Message: {
+                Subject: { Data: `Quote Rejected (Final): ${quote.quote_number}` },
+                Body: { Html: { Data: emailHTML } }
+              }
+            });
+            await sesClient.send(command);
+          } catch (emailErr) {
+            logger.error({ err: emailErr }, 'Error sending rejection notification');
+          }
+        }
+      }
+    } else {
+      // Escalated — send notification email to new approver
+      if (escalated.approver_email) {
+        const quoteResult = await pool.query(
+          `SELECT q.*, c.name as customer_name FROM quotations q
+           LEFT JOIN customers c ON q.customer_id = c.id WHERE q.id = $1`,
+          [approval.quotation_id]
+        );
+
+        if (quoteResult.rows.length > 0) {
+          const quote = quoteResult.rows[0];
+          try {
+            const command = new SendEmailCommand({
+              Source: process.env.EMAIL_FROM,
+              Destination: { ToAddresses: [escalated.approver_email] },
+              Message: {
+                Subject: { Data: `Escalated Approval Request: Quote ${quote.quote_number}` },
+                Body: { Html: { Data: `
+                  <!DOCTYPE html>
+                  <html>
+                  <head><style>body{font-family:Arial,sans-serif;line-height:1.6;color:#333;}.container{max-width:600px;margin:0 auto;padding:20px;}.header{background:#f59e0b;color:white;padding:20px;border-radius:8px;margin-bottom:20px;}.content{background:#f9fafb;padding:20px;border-radius:8px;}</style></head>
+                  <body>
+                    <div class="container">
+                      <div class="header"><h2 style="margin:0;">Escalated Approval Request</h2></div>
+                      <div class="content">
+                        <p>Hi ${escalated.approver_name},</p>
+                        <p>Quote <strong>${quote.quote_number}</strong> for <strong>${quote.customer_name}</strong> ($${((quote.total_cents || 0) / 100).toFixed(2)}) has been escalated to you after being rejected.</p>
+                        <p><strong>Previous reviewer:</strong> ${req.user.firstName} ${req.user.lastName}</p>
+                        <p><strong>Rejection reason:</strong> ${comments}</p>
+                        <p>Please review and approve or reject this quote.</p>
+                      </div>
+                    </div>
+                  </body>
+                  </html>
+                ` } }
+              }
+            });
+            await sesClient.send(command);
+          } catch (emailErr) {
+            logger.error({ err: emailErr }, 'Error sending escalation notification');
+          }
         }
       }
     }
 
-    res.json(result.rows[0]);
+    // Return the result with escalation info
+    const response = result.rows[0];
+    response.escalation = escalated
+      ? { auto_escalated: true, new_approver: escalated.approver_name, new_approval_id: escalated.id, escalation_level: escalated.escalation_level }
+      : { auto_escalated: false, final: true };
+
+    res.json(response);
   } catch (error) {
     logger.error({ err: error }, 'Error rejecting quote');
     res.status(500).json({ error: 'Failed to reject quote' });
