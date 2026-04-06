@@ -8,6 +8,7 @@ const express = require('express');
 const router = express.Router();
 const { ApiError, asyncHandler } = require('../middleware/errorHandler');
 const QuoteService = require('../services/QuoteService');
+const UnifiedOrderService = require('../services/UnifiedOrderService');
 const WinProbabilityService = require('../services/WinProbabilityService');
 const ApprovalRulesService = require('../services/ApprovalRulesService');
 const { authenticate } = require('../middleware/auth');
@@ -20,6 +21,7 @@ const PRICING_EDIT_ROLES = ['admin', 'manager', 'supervisor'];
 // Module-level dependencies (injected via init)
 let pool = null;
 let quoteService = null;
+let orderService = null;
 let winProbabilityService = null;
 
 /**
@@ -30,6 +32,7 @@ let winProbabilityService = null;
 const init = (deps) => {
   pool = deps.pool;
   quoteService = new QuoteService(deps.pool);
+  orderService = new UnifiedOrderService(deps.pool);
   winProbabilityService = new WinProbabilityService(deps.pool);
   return router;
 };
@@ -2605,6 +2608,30 @@ router.post('/:id/log-share', authenticate, asyncHandler(async (req, res) => {
   const { method, recipient, metadata } = req.body;
   const log = await quoteService.logShare(parseInt(req.params.id), method, recipient, req.user.userId, metadata);
   res.json({ success: true, data: log });
+}));
+
+// ============================================================================
+// CONVERT QUOTE TO ORDER
+// ============================================================================
+
+/**
+ * POST /api/quotations/:id/convert-to-order
+ * Convert an approved quote into a sales order
+ * Requires admin, manager, or supervisor role
+ */
+router.post('/:id/convert-to-order', authenticate, asyncHandler(async (req, res) => {
+  const role = req.user?.role;
+  if (!role || !['admin', 'manager', 'supervisor'].includes(role)) {
+    throw ApiError.forbidden('Only admins, managers, or supervisors can convert quotes to orders');
+  }
+
+  const quoteId = parseInt(req.params.id, 10);
+  const order = await orderService.convertQuoteToOrder(quoteId, req.user.id);
+
+  res.json({
+    success: true,
+    data: order
+  });
 }));
 
 module.exports = { router, init };

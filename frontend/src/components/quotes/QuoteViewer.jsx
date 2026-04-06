@@ -8,6 +8,7 @@ import React, { useState, useEffect } from 'react';
 import { previewQuotePDF, downloadQuotePDF } from '../../services/pdfService';
 import { toast } from '../ui/Toast';
 import logger from '../../utils/logger';
+import { useAuth } from '../../contexts/AuthContext';
 import VersionHistory from './VersionHistory';
 import QuotePromotionAlerts from './QuotePromotionAlerts';
 import TransactionSummary from './TransactionSummary';
@@ -263,6 +264,13 @@ const QuoteViewer = ({
   // Order edit modal state
   const [editModalOpen, setEditModalOpen] = useState(false);
 
+  // Convert to order state
+  const [showConvertDialog, setShowConvertDialog] = useState(false);
+  const [convertLoading, setConvertLoading] = useState(false);
+
+  // Auth context for role checks
+  const { isManagerOrAbove } = useAuth();
+
   // Fetch signatures when quote is loaded
   useEffect(() => {
     const fetchSignatures = async () => {
@@ -358,6 +366,33 @@ const QuoteViewer = ({
       toast.error(error.message || 'Failed to update status');
     } finally {
       setStatusLoading(false);
+    }
+  };
+
+  // Handle convert quote to order
+  const handleConvertToOrder = async () => {
+    setConvertLoading(true);
+    try {
+      const response = await authFetch(`${API_URL}/api/quotations/${quote.id}/convert-to-order`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' }
+      });
+      const result = await response.json();
+      if (!response.ok) {
+        throw new Error(result.message || result.error || 'Failed to convert quote to order');
+      }
+      const orderId = result.data?.id || result.data?.order_id || 'N/A';
+      toast.success(`Quote converted to order successfully. Order ID: ${orderId}`);
+      setShowConvertDialog(false);
+      // Refresh the quote view by triggering a status update callback
+      if (onUpdateStatus) {
+        await onUpdateStatus(quote.id, result.data?.status || 'order_pending');
+      }
+    } catch (error) {
+      logger.error('Error converting quote to order:', error);
+      toast.error(error.message || 'Failed to convert quote to order');
+    } finally {
+      setConvertLoading(false);
     }
   };
 
@@ -1622,6 +1657,41 @@ const QuoteViewer = ({
             </button>
           )}
 
+          {/* Convert to Order button - visible for APPROVED quotes to managers+ */}
+          {quote.status === 'APPROVED' && isManagerOrAbove && (
+            <button
+              onClick={() => setShowConvertDialog(true)}
+              style={{
+                padding: '12px 24px',
+                background: 'linear-gradient(135deg, #059669 0%, #047857 100%)',
+                color: 'white',
+                border: 'none',
+                borderRadius: '8px',
+                fontWeight: 'bold',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px',
+                boxShadow: '0 2px 4px rgba(5, 150, 105, 0.3)'
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.transform = 'translateY(-1px)';
+                e.currentTarget.style.boxShadow = '0 4px 8px rgba(5, 150, 105, 0.4)';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.transform = 'translateY(0)';
+                e.currentTarget.style.boxShadow = '0 2px 4px rgba(5, 150, 105, 0.3)';
+              }}
+            >
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M16 3h5v5"/>
+                <line x1="21" y1="3" x2="14" y2="10"/>
+                <path d="M21 14v5a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5"/>
+              </svg>
+              <span>Convert to Order</span>
+            </button>
+          )}
+
           <button
             onClick={() => onDuplicate?.(quote)}
             style={{
@@ -2127,6 +2197,124 @@ const QuoteViewer = ({
                 }}
               >
                 Save Note
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Convert to Order Confirmation Dialog */}
+      {showConvertDialog && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          background: 'rgba(0,0,0,0.5)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 1000
+        }}>
+          <div style={{
+            background: 'white',
+            padding: '32px',
+            borderRadius: '16px',
+            maxWidth: '480px',
+            width: '90%',
+            boxShadow: '0 20px 25px -5px rgba(0,0,0,0.1)'
+          }}>
+            <h3 style={{ fontSize: '20px', fontWeight: 'bold', marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#059669" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M16 3h5v5"/>
+                <line x1="21" y1="3" x2="14" y2="10"/>
+                <path d="M21 14v5a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5"/>
+              </svg>
+              Convert Quote to Sales Order
+            </h3>
+
+            <p style={{ color: '#4b5563', marginBottom: '20px' }}>
+              Are you sure you want to convert this quote into a sales order? This action will create a new order from the quote details.
+            </p>
+
+            {/* Quote Summary */}
+            <div style={{
+              background: '#f9fafb',
+              border: '1px solid #e5e7eb',
+              borderRadius: '8px',
+              padding: '16px',
+              marginBottom: '20px'
+            }}>
+              <div style={{ fontSize: '13px', fontWeight: '600', color: '#374151', marginBottom: '8px' }}>
+                Quote Summary
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', fontSize: '13px', color: '#4b5563' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                  <span>Customer:</span>
+                  <span style={{ fontWeight: '600', color: '#111827' }}>
+                    {quote.customer_name || quote.customerName || 'N/A'}
+                  </span>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                  <span>Items:</span>
+                  <span style={{ fontWeight: '600', color: '#111827' }}>
+                    {quote.items?.length || quote.item_count || 0} item(s)
+                  </span>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                  <span>Total:</span>
+                  <span style={{ fontWeight: '600', color: '#111827' }}>
+                    {formatCurrency
+                      ? formatCurrency(quote.total_cents || quote.total || 0)
+                      : `$${((quote.total_cents || quote.total || 0) / 100).toFixed(2)}`
+                    }
+                  </span>
+                </div>
+                {quote.quotation_number && (
+                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                    <span>Quote #:</span>
+                    <span style={{ fontWeight: '600', color: '#111827' }}>
+                      {quote.quotation_number}
+                    </span>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end' }}>
+              <button
+                onClick={() => setShowConvertDialog(false)}
+                disabled={convertLoading}
+                style={{
+                  padding: '10px 20px',
+                  background: 'white',
+                  color: '#374151',
+                  border: '2px solid #d1d5db',
+                  borderRadius: '8px',
+                  fontSize: '14px',
+                  fontWeight: 'bold',
+                  cursor: convertLoading ? 'not-allowed' : 'pointer'
+                }}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleConvertToOrder}
+                disabled={convertLoading}
+                style={{
+                  padding: '10px 20px',
+                  background: convertLoading ? '#9ca3af' : '#059669',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '8px',
+                  fontSize: '14px',
+                  fontWeight: 'bold',
+                  cursor: convertLoading ? 'not-allowed' : 'pointer',
+                  opacity: convertLoading ? 0.7 : 1
+                }}
+              >
+                {convertLoading ? 'Converting...' : 'Confirm Convert'}
               </button>
             </div>
           </div>
