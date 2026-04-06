@@ -135,6 +135,99 @@ class ApprovalRulesService {
   }
 
   /**
+   * DB-verified version of requiresApproval.
+   * Cross-checks quote item costs against actual product costs in the DB
+   * to prevent margin inflation via cost manipulation.
+   * @param {Object} pool - Database pool
+   * @param {number} quoteId - Quote ID
+   * @param {Object} user - User object with approval_threshold_percent
+   * @returns {Promise<Object>} { required, reasons, costManipulated, manipulatedItems }
+   */
+  static async requiresApprovalVerified(pool, quoteId, user = {}) {
+    const reasons = [];
+    let costManipulated = false;
+    const manipulatedItems = [];
+
+    // Fetch quote header
+    const { rows: [quote] } = await pool.query(
+      'SELECT id, total_cents, discount_percent FROM quotations WHERE id = $1',
+      [quoteId]
+    );
+    if (!quote) return { required: false, reasons: [], costManipulated: false, manipulatedItems: [] };
+
+    // Check discount threshold
+    const discountPercent = parseFloat(quote.discount_percent) || 0;
+    if (discountPercent > this.RULES.DISCOUNT_THRESHOLD) {
+      reasons.push(`Discount ${discountPercent}% exceeds threshold ${this.RULES.DISCOUNT_THRESHOLD}%`);
+    }
+
+    // Check amount threshold
+    const totalCents = parseInt(quote.total_cents) || 0;
+    if (totalCents > this.RULES.AMOUNT_THRESHOLD) {
+      reasons.push(`Amount $${(totalCents / 100).toFixed(2)} exceeds threshold $${(this.RULES.AMOUNT_THRESHOLD / 100).toFixed(2)}`);
+    }
+
+    // Fetch line items with DB product costs for cross-check
+    const { rows: items } = await pool.query(
+      `SELECT qi.product_id, qi.cost_cents AS quote_cost, qi.sell_cents, qi.quantity,
+              p.cost_cents AS db_cost, p.name AS product_name
+       FROM quotation_items qi
+       JOIN products p ON qi.product_id = p.id
+       WHERE qi.quotation_id = $1`,
+      [quoteId]
+    );
+
+    let dbTotalCost = 0;
+    let dbTotalRevenue = 0;
+
+    for (const item of items) {
+      const qty = parseInt(item.quantity) || 1;
+      const dbCost = parseInt(item.db_cost) || 0;
+      const quoteCost = parseInt(item.quote_cost) || 0;
+      const sell = parseInt(item.sell_cents) || 0;
+
+      dbTotalCost += dbCost * qty;
+      dbTotalRevenue += sell * qty;
+
+      if (quoteCost < dbCost) {
+        costManipulated = true;
+        manipulatedItems.push({
+          product_id: item.product_id,
+          product_name: item.product_name,
+          quote_cost_cents: quoteCost,
+          db_cost_cents: dbCost
+        });
+      }
+    }
+
+    // Calculate margin using DB-verified cost
+    let marginPercent = 0;
+    if (dbTotalRevenue > 0) {
+      marginPercent = ((dbTotalRevenue - dbTotalCost) / dbTotalRevenue) * 100;
+    }
+
+    // Check margin threshold using DB-verified cost
+    const marginThreshold = user.approval_threshold_percent || this.RULES.MARGIN_THRESHOLD;
+    if (marginPercent < marginThreshold) {
+      reasons.push(`Margin ${marginPercent.toFixed(1)}% below threshold ${marginThreshold}% (DB-verified cost)`);
+    }
+
+    // Force approval on cost manipulation
+    if (costManipulated) {
+      reasons.push(`Cost manipulation: ${manipulatedItems.length} item(s) have quote cost below DB cost`);
+    }
+
+    return {
+      required: reasons.length > 0,
+      reasons,
+      primaryReason: reasons[0] || null,
+      costManipulated,
+      manipulatedItems,
+      dbVerifiedMargin: marginPercent
+    };
+  }
+
+  /**
    * Get the appropriate approver for a quote
    * @param {Object} pool - Database pool
    * @param {Object} quote - Quote object

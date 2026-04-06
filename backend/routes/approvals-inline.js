@@ -176,6 +176,21 @@ router.get('/quotations/:id/approval-summary', authenticate, async (req, res) =>
     const quote = quoteResult.rows[0];
     const summary = ApprovalRulesService.getApprovalSummary(quote, req.user);
 
+    // Enhance with DB-verified margin check
+    const verified = await ApprovalRulesService.requiresApprovalVerified(pool, parseInt(id, 10), req.user);
+    summary.db_verified_margin = verified.dbVerifiedMargin;
+    summary.cost_manipulated = verified.costManipulated;
+    if (verified.costManipulated) {
+      summary.approval_required = true;
+      summary.approval_reasons = [...(summary.approval_reasons || []), ...verified.reasons.filter(r => r.includes('manipulation'))];
+      summary.manipulated_items = verified.manipulatedItems;
+    }
+    // Use DB-verified margin if it would trigger approval but quote margin wouldn't
+    if (verified.required && !summary.approval_required) {
+      summary.approval_required = true;
+      summary.approval_reasons = verified.reasons;
+    }
+
     res.json(summary);
   } catch (error) {
     logger.error({ err: error }, 'Error getting approval summary');

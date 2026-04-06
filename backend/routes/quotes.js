@@ -146,18 +146,18 @@ function logPricingAudit(req, quotationId, auditEntries) {
  * @param {number} userId - User ID (optional, for user-specific threshold)
  * @returns {Object} { approvalRequired, margin, threshold }
  */
-const checkAndUpdateApprovalRequired = async (quoteId, userId = null) => {
+const checkAndUpdateApprovalRequired = async (quoteId, userId = null, req = null) => {
   try {
-    // Get quote with item costs and prices
+    // Get quote with item costs and prices, plus product_ids for DB cross-check
     const quoteResult = await pool.query(`
       SELECT
         q.id,
         q.total_cents,
         q.created_by,
-        COALESCE(SUM(qi.unit_cost_cents * qi.quantity), 0) as total_cost_cents,
-        COALESCE(SUM(qi.unit_price_cents * qi.quantity), 0) as total_price_cents
+        COALESCE(SUM(qi.cost_cents * qi.quantity), 0) as total_cost_cents,
+        COALESCE(SUM(qi.sell_cents * qi.quantity), 0) as total_price_cents
       FROM quotations q
-      LEFT JOIN quote_items qi ON q.id = qi.quotation_id
+      LEFT JOIN quotation_items qi ON q.id = qi.quotation_id
       WHERE q.id = $1
       GROUP BY q.id
     `, [quoteId]);
@@ -182,18 +182,65 @@ const checkAndUpdateApprovalRequired = async (quoteId, userId = null) => {
       }
     }
 
-    // Calculate margin
-    const totalPrice = parseInt(quote.total_price_cents) || parseInt(quote.total_cents) || 0;
-    const totalCost = parseInt(quote.total_cost_cents) || 0;
+    // ============================================
+    // DB COST CROSS-CHECK: detect cost manipulation
+    // Fetch actual product costs from DB and compare against quote item costs
+    // ============================================
+    const itemsResult = await pool.query(
+      `SELECT qi.product_id, qi.cost_cents AS quote_cost_cents, qi.sell_cents, qi.quantity,
+              p.cost_cents AS db_cost_cents, p.name AS product_name
+       FROM quotation_items qi
+       JOIN products p ON qi.product_id = p.id
+       WHERE qi.quotation_id = $1`,
+      [quoteId]
+    );
 
-    let margin = 0;
-    if (totalPrice > 0) {
-      margin = ((totalPrice - totalCost) / totalPrice) * 100;
+    let dbTotalCost = 0;
+    let dbTotalPrice = 0;
+    let costManipulated = false;
+    const manipulatedItems = [];
+
+    for (const row of itemsResult.rows) {
+      const qty = parseInt(row.quantity) || 1;
+      const dbCost = parseInt(row.db_cost_cents) || 0;
+      const quoteCost = parseInt(row.quote_cost_cents) || 0;
+      const sellCents = parseInt(row.sell_cents) || 0;
+
+      dbTotalCost += dbCost * qty;
+      dbTotalPrice += sellCents * qty;
+
+      // Flag if quote cost is lower than DB cost (margin inflation attempt)
+      if (quoteCost < dbCost) {
+        costManipulated = true;
+        manipulatedItems.push({
+          product_id: row.product_id,
+          product_name: row.product_name,
+          quote_cost_cents: quoteCost,
+          db_cost_cents: dbCost,
+          difference_cents: dbCost - quoteCost
+        });
+      }
     }
 
-    const approvalRequired = margin < threshold && margin >= 0;
+    // Use DB-verified cost for true margin calculation
+    const totalPrice = dbTotalPrice || parseInt(quote.total_cents) || 0;
+    let margin = 0;
+    if (totalPrice > 0) {
+      margin = ((totalPrice - dbTotalCost) / totalPrice) * 100;
+    }
 
-    // Update quote with margin and approval flag
+    // Force approval if cost was manipulated OR margin is below threshold
+    let approvalRequired = (margin < threshold && margin >= 0) || costManipulated;
+    const reasons = [];
+
+    if (margin < threshold && margin >= 0) {
+      reasons.push(`Margin ${margin.toFixed(1)}% below threshold ${threshold}%`);
+    }
+    if (costManipulated) {
+      reasons.push(`Cost manipulation detected on ${manipulatedItems.length} item(s) — quote cost below DB cost`);
+    }
+
+    // Update quote with DB-verified margin and approval flag
     await pool.query(`
       UPDATE quotations
       SET margin_percent = $1,
@@ -208,12 +255,43 @@ const checkAndUpdateApprovalRequired = async (quoteId, userId = null) => {
         VALUES ($1, 'APPROVAL_FLAGGED', $2, $3)
       `, [
         quoteId,
-        `Quote flagged for approval: margin ${margin.toFixed(1)}% below threshold ${threshold}%`,
-        JSON.stringify({ margin, threshold })
+        costManipulated
+          ? `Quote flagged: cost manipulation detected + margin ${margin.toFixed(1)}% (DB-verified)`
+          : `Quote flagged for approval: margin ${margin.toFixed(1)}% below threshold ${threshold}%`,
+        JSON.stringify({ margin, threshold, costManipulated, manipulatedItems })
       ]);
     }
 
-    return { approvalRequired, margin, threshold };
+    // Audit log suspicious cost manipulation
+    if (costManipulated) {
+      const auditLogService = req?.app?.get('auditLogService');
+      if (auditLogService) {
+        auditLogService.log(
+          effectiveUserId,
+          'quote_cost_manipulation_detected',
+          'quotation',
+          quoteId,
+          {
+            event_category: 'pricing',
+            severity: 'warning',
+            quotation_id: quoteId,
+            manipulated_items: manipulatedItems,
+            quote_margin: margin.toFixed(2),
+            db_verified_total_cost: dbTotalCost,
+            quote_total_cost: parseInt(quote.total_cost_cents) || 0,
+            user_role: req?.user?.role || 'unknown'
+          },
+          req
+        );
+
+        logger.warn(
+          { userId: effectiveUserId, quoteId, items: manipulatedItems.length },
+          '[Pricing Audit] Cost manipulation detected — quote item cost below DB product cost'
+        );
+      }
+    }
+
+    return { approvalRequired, margin, threshold, costManipulated, manipulatedItems };
   } catch (error) {
     console.error('Error checking approval requirement:', error);
     return { approvalRequired: false, margin: 0, threshold: 20, error: error.message };
@@ -603,7 +681,7 @@ router.post('/', authenticate, asyncHandler(async (req, res) => {
   logPricingAudit(req, quote.id, auditEntries);
 
   // Check if approval is required based on margin
-  const approvalCheck = await checkAndUpdateApprovalRequired(quote.id, req.user?.id);
+  const approvalCheck = await checkAndUpdateApprovalRequired(quote.id, req.user?.id, req);
   quote.approval_required = approvalCheck.approvalRequired;
   quote.margin_percent = approvalCheck.margin;
 
@@ -636,7 +714,7 @@ router.put('/:id', authenticate, asyncHandler(async (req, res) => {
   logPricingAudit(req, parseInt(id, 10), auditEntries);
 
   // Re-check approval requirement after update
-  const approvalCheck = await checkAndUpdateApprovalRequired(id, req.user?.id);
+  const approvalCheck = await checkAndUpdateApprovalRequired(id, req.user?.id, req);
   quote.approval_required = approvalCheck.approvalRequired;
   quote.margin_percent = approvalCheck.margin;
 
