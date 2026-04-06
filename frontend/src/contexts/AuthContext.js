@@ -187,6 +187,14 @@ export const AuthProvider = ({ children }) => {
     return managerRoles.includes(user.role.toLowerCase());
   }, [user]);
 
+  // Check if user can manually edit cost/sell pricing on quote line items
+  // Supervisor, Store Manager (manager), Operations Manager, CEO/Owner (admin) only
+  const canEditQuotePricing = useMemo(() => {
+    if (!user?.role) return false;
+    const pricingRoles = ['admin', 'manager', 'supervisor'];
+    return pricingRoles.includes(user.role.toLowerCase());
+  }, [user]);
+
   // Check if user can access marketplace features
   const canAccessMarketplace = useMemo(() => {
     if (!user) return false;
@@ -211,9 +219,10 @@ export const AuthProvider = ({ children }) => {
     isAdmin,
     isManagerOrAbove,
     canAccessMarketplace,
+    canEditQuotePricing,
     // Utility
     refreshUser: () => token && fetchCurrentUser(token)
-  }), [user, token, loading, login, logout, hasRole, hasAnyRole, canApproveQuotes, approvalThreshold, isAdmin, isManagerOrAbove, canAccessMarketplace, fetchCurrentUser]);
+  }), [user, token, loading, login, logout, hasRole, hasAnyRole, canApproveQuotes, approvalThreshold, isAdmin, isManagerOrAbove, canAccessMarketplace, canEditQuotePricing, fetchCurrentUser]);
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 };

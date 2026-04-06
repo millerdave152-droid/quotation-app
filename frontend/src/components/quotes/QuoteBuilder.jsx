@@ -239,7 +239,7 @@ const QuoteBuilder = ({
 
 }) => {
   // Auth context for margin threshold
-  const { user } = useAuth();
+  const { user, canEditQuotePricing } = useAuth();
 
   // Local state
   const [customerSearchTerm, setCustomerSearchTerm] = useState('');
@@ -1282,25 +1282,29 @@ const QuoteBuilder = ({
                       <td style={{ padding: '12px', textAlign: 'right', color: '#6b7280' }}>${item.cost.toFixed(2)}</td>
                       <td style={{ padding: '12px', textAlign: 'right', color: '#6b7280' }}>${item.msrp.toFixed(2)}</td>
                       <td style={{ padding: '12px', textAlign: 'right' }}>
-                        <input
-                          type="number"
-                          min="0"
-                          step="0.01"
-                          value={Math.round(item.sell * 100) / 100}
-                          onChange={(e) => {
-                            const val = e.target.value;
-                            if (val === '') {
-                              updateQuoteItem(idx, 'sell', 0);
-                            } else {
-                              const num = parseFloat(val);
-                              if (!isNaN(num) && num >= 0) {
-                                // Round to 2 decimal places to avoid float precision errors
-                                updateQuoteItem(idx, 'sell', Math.round(num * 100) / 100);
+                        {canEditQuotePricing ? (
+                          <input
+                            type="number"
+                            min="0"
+                            step="0.01"
+                            value={Math.round(item.sell * 100) / 100}
+                            onChange={(e) => {
+                              const val = e.target.value;
+                              if (val === '') {
+                                updateQuoteItem(idx, 'sell', 0);
+                              } else {
+                                const num = parseFloat(val);
+                                if (!isNaN(num) && num >= 0) {
+                                  // Round to 2 decimal places to avoid float precision errors
+                                  updateQuoteItem(idx, 'sell', Math.round(num * 100) / 100);
+                                }
                               }
-                            }
-                          }}
-                          style={{ width: '100px', padding: '6px', border: '1px solid #d1d5db', borderRadius: '4px', textAlign: 'right' }}
-                        />
+                            }}
+                            style={{ width: '100px', padding: '6px', border: '1px solid #d1d5db', borderRadius: '4px', textAlign: 'right' }}
+                          />
+                        ) : (
+                          <span title="Use the discount request flow to adjust pricing">${(Math.round(item.sell * 100) / 100).toFixed(2)}</span>
+                        )}
                       </td>
                       <td style={{ padding: '12px', textAlign: 'right', fontWeight: 'bold', color: margin >= 20 ? '#10b981' : margin >= 10 ? '#f59e0b' : '#ef4444' }}>
                         {margin.toFixed(1)}%

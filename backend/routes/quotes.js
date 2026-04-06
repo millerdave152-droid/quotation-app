@@ -12,6 +12,11 @@ const WinProbabilityService = require('../services/WinProbabilityService');
 const ApprovalRulesService = require('../services/ApprovalRulesService');
 const { authenticate } = require('../middleware/auth');
 
+const logger = require('../utils/logger');
+
+// Roles allowed to manually edit cost_cents or sell_cents on quote line items
+const PRICING_EDIT_ROLES = ['admin', 'manager', 'supervisor'];
+
 // Module-level dependencies (injected via init)
 let pool = null;
 let quoteService = null;
@@ -28,6 +33,107 @@ const init = (deps) => {
   winProbabilityService = new WinProbabilityService(deps.pool);
   return router;
 };
+
+/**
+ * Enforce pricing role gate on quote items.
+ * For users without pricing edit permission, replace any client-supplied
+ * cost_cents/sell_cents with the DB product values so they cannot override.
+ * Returns an array of audit entries for any manual price changes by authorised users.
+ */
+async function enforcePricingGateAndAudit(items, user, quotationId) {
+  const role = (user.role || '').toLowerCase();
+  const canEditPricing = PRICING_EDIT_ROLES.includes(role);
+  const auditEntries = [];
+
+  if (!items || items.length === 0) return { items, auditEntries };
+
+  // Fetch DB product prices for comparison / enforcement
+  const productIds = items.map(i => i.product_id).filter(Boolean);
+  let dbPrices = {};
+  if (productIds.length > 0) {
+    const { rows } = await pool.query(
+      'SELECT id, cost_cents, msrp_cents, name FROM products WHERE id = ANY($1)',
+      [productIds]
+    );
+    dbPrices = Object.fromEntries(rows.map(r => [r.id, r]));
+  }
+
+  const enforced = items.map(item => {
+    const dbProduct = dbPrices[item.product_id];
+    if (!dbProduct) return item;
+
+    const dbCostCents = dbProduct.cost_cents || 0;
+    const dbSellCents = dbProduct.msrp_cents || 0;
+    const itemCostCents = item.cost_cents || Math.round((item.cost || 0) * 100);
+    const itemSellCents = item.sell_cents || Math.round((item.sell || 0) * 100);
+
+    if (!canEditPricing) {
+      // Salesperson: reset cost to DB value, keep sell at MSRP (or whatever DB has)
+      return {
+        ...item,
+        cost: dbCostCents / 100,
+        cost_cents: dbCostCents,
+      };
+    }
+
+    // Authorised user: allow edits but log changes
+    if (itemCostCents !== dbCostCents) {
+      auditEntries.push({
+        field: 'cost_cents',
+        product_id: item.product_id,
+        product_name: dbProduct.name || item.description,
+        old_value: dbCostCents,
+        new_value: itemCostCents
+      });
+    }
+    if (itemSellCents !== dbSellCents) {
+      auditEntries.push({
+        field: 'sell_cents',
+        product_id: item.product_id,
+        product_name: dbProduct.name || item.description,
+        old_value: dbSellCents,
+        new_value: itemSellCents
+      });
+    }
+
+    return item;
+  });
+
+  return { items: enforced, auditEntries };
+}
+
+/**
+ * Write audit log entries for manual pricing changes on quote items.
+ */
+function logPricingAudit(req, quotationId, auditEntries) {
+  const auditLogService = req.app.get('auditLogService');
+  if (!auditLogService || auditEntries.length === 0) return;
+
+  for (const entry of auditEntries) {
+    auditLogService.log(
+      req.user.id,
+      'quote_item_price_manual_edit',
+      'quotation_item',
+      quotationId,
+      {
+        event_category: 'pricing',
+        quotation_id: quotationId,
+        product_id: entry.product_id,
+        product_name: entry.product_name,
+        field: entry.field,
+        old_value: entry.old_value,
+        new_value: entry.new_value,
+        user_role: req.user.role
+      },
+      req
+    );
+  }
+
+  logger.info(
+    { userId: req.user.id, role: req.user.role, quotationId, changeCount: auditEntries.length },
+    '[Pricing Audit] Manual quote item price edits logged'
+  );
+}
 
 // ============================================
 // APPROVAL MARGIN CHECK HELPER
@@ -482,10 +588,19 @@ router.get('/:id', authenticate, asyncHandler(async (req, res) => {
  * Create new quotation
  */
 router.post('/', authenticate, asyncHandler(async (req, res) => {
+  // Enforce pricing role gate: salesperson cannot override cost_cents/sell_cents
+  const { items: gatedItems, auditEntries } = await enforcePricingGateAndAudit(
+    req.body.items, req.user, null
+  );
+
   const quote = await quoteService.createQuote({
     ...req.body,
+    items: gatedItems,
     tenant_id: req.user?.tenantId || null,
   });
+
+  // Log any manual pricing changes by authorised users
+  logPricingAudit(req, quote.id, auditEntries);
 
   // Check if approval is required based on margin
   const approvalCheck = await checkAndUpdateApprovalRequired(quote.id, req.user?.id);
@@ -501,14 +616,24 @@ router.post('/', authenticate, asyncHandler(async (req, res) => {
  */
 router.put('/:id', authenticate, asyncHandler(async (req, res) => {
   const { id } = req.params;
+
+  // Enforce pricing role gate: salesperson cannot override cost_cents/sell_cents
+  const { items: gatedItems, auditEntries } = await enforcePricingGateAndAudit(
+    req.body.items, req.user, parseInt(id, 10)
+  );
+
   const quote = await quoteService.updateQuote(id, {
     ...req.body,
+    items: gatedItems,
     tenant_id: req.user?.tenantId || null,
   });
 
   if (!quote) {
     throw ApiError.notFound('Quotation');
   }
+
+  // Log any manual pricing changes by authorised users
+  logPricingAudit(req, parseInt(id, 10), auditEntries);
 
   // Re-check approval requirement after update
   const approvalCheck = await checkAndUpdateApprovalRequired(id, req.user?.id);
