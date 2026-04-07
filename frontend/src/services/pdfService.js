@@ -464,9 +464,20 @@ export const generateCustomerPDF = (quote, customer, items, addOns = {}) => {
     const quantity = item.quantity || 1;
     const lineTotal = (item.line_total_cents || 0) / 100 || (quantity * unitPrice);
     const discountPct = item.discount_percent || 0;
+    const description = formatProductDescription(item, hideModelNumbers);
+
+    if (hideModelNumbers) {
+      return [
+        quantity.toString(),
+        description.substring(0, 80),
+        `$${unitPrice.toLocaleString('en-CA', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
+        discountPct > 0 ? `${discountPct}%` : '-',
+        `$${lineTotal.toLocaleString('en-CA', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+      ];
+    }
+
     const manufacturer = item.manufacturer || '-';
     const model = (item.model && item.model !== 'undefined') ? item.model : '';
-    const description = formatProductDescription(item, hideModelNumbers);
 
     return [
       quantity.toString(),
@@ -480,10 +491,11 @@ export const generateCustomerPDF = (quote, customer, items, addOns = {}) => {
   });
 
   // Add add-on rows to table
+  const totalCols = hideModelNumbers ? 5 : 7;
   const hasAddOns = addOns.warranties?.length > 0 || addOns.delivery || addOns.tradeIns?.length > 0 || addOns.rebates?.length > 0;
 
   if (hasAddOns) {
-    tableData.push([{ content: 'ADD-ONS & ADJUSTMENTS', colSpan: 7, styles: { fillColor: [240, 253, 244], fontStyle: 'bold', textColor: [22, 101, 52], fontSize: 7 } }]);
+    tableData.push([{ content: 'ADD-ONS & ADJUSTMENTS', colSpan: totalCols, styles: { fillColor: [240, 253, 244], fontStyle: 'bold', textColor: [22, 101, 52], fontSize: 7 } }]);
   }
 
   (addOns.warranties || []).forEach(w => {
@@ -493,22 +505,38 @@ export const generateCustomerPDF = (quote, customer, items, addOns = {}) => {
       ? `${w.covered_product_manufacturer || ''} ${w.covered_product_model}`.trim()
       : [w.manufacturer, w.model].filter(Boolean).join(' ');
     const detail = [productLabel ? `For: ${productLabel}` : '', w.provider ? `Provider: ${w.provider}` : ''].filter(Boolean).join(' · ');
-    tableData.push(['1', `${warnName}${yearsLabel}${detail ? ' - ' + detail : ''}`, '', 'WRN', fmtDollars(w.warranty_cost_cents || 0), '-', `+${fmtDollars(w.warranty_cost_cents || 0)}`]);
+    if (hideModelNumbers) {
+      tableData.push(['1', `${warnName}${yearsLabel}`, fmtDollars(w.warranty_cost_cents || 0), '-', `+${fmtDollars(w.warranty_cost_cents || 0)}`]);
+    } else {
+      tableData.push(['1', `${warnName}${yearsLabel}${detail ? ' - ' + detail : ''}`, '', 'WRN', fmtDollars(w.warranty_cost_cents || 0), '-', `+${fmtDollars(w.warranty_cost_cents || 0)}`]);
+    }
   });
 
   if (addOns.delivery) {
     const del = addOns.delivery;
     const totalCents = del.total_delivery_cost_cents || del.delivery_cost_cents || 0;
-    tableData.push(['1', `Delivery: ${del.delivery_type || 'Standard'}`, '', 'DLV', fmtDollars(totalCents), '-', `+${fmtDollars(totalCents)}`]);
+    if (hideModelNumbers) {
+      tableData.push(['1', `Delivery: ${del.delivery_type || 'Standard'}`, fmtDollars(totalCents), '-', `+${fmtDollars(totalCents)}`]);
+    } else {
+      tableData.push(['1', `Delivery: ${del.delivery_type || 'Standard'}`, '', 'DLV', fmtDollars(totalCents), '-', `+${fmtDollars(totalCents)}`]);
+    }
   }
 
   (addOns.tradeIns || []).forEach(t => {
     const label = `Trade-In: ${[t.brand, t.model, t.item_type].filter(Boolean).join(' ')}`;
-    tableData.push(['1', label, '', 'TRD', '', '-', `-${fmtDollars(t.trade_in_value_cents || 0)}`]);
+    if (hideModelNumbers) {
+      tableData.push(['1', label, '', '-', `-${fmtDollars(t.trade_in_value_cents || 0)}`]);
+    } else {
+      tableData.push(['1', label, '', 'TRD', '', '-', `-${fmtDollars(t.trade_in_value_cents || 0)}`]);
+    }
   });
 
   (addOns.rebates || []).forEach(r => {
-    tableData.push(['1', r.rebate_name || 'Manufacturer Rebate', '', 'REB', '', '-', `-${fmtDollars(r.rebate_amount_cents || 0)}`]);
+    if (hideModelNumbers) {
+      tableData.push(['1', r.rebate_name || 'Manufacturer Rebate', '', '-', `-${fmtDollars(r.rebate_amount_cents || 0)}`]);
+    } else {
+      tableData.push(['1', r.rebate_name || 'Manufacturer Rebate', '', 'REB', '', '-', `-${fmtDollars(r.rebate_amount_cents || 0)}`]);
+    }
   });
 
   if (addOns.financing) {
@@ -517,12 +545,36 @@ export const generateCustomerPDF = (quote, customer, items, addOns = {}) => {
     const aprVal = fin.apr_percent != null ? parseFloat(fin.apr_percent) : (fin.interest_rate || 0);
     const detail = `${finLabel} - ${fin.term_months || 0}mo @ ${aprVal}%${fin.provider ? ` · ${fin.provider}` : ''}`;
     const monthly = fin.monthly_payment_cents ? `${fmtDollars(fin.monthly_payment_cents)}/mo` : '';
-    tableData.push([{ content: `Financing: ${detail}  ${monthly}`, colSpan: 7, styles: { fillColor: [254, 252, 232], fontStyle: 'italic', textColor: [133, 77, 14], fontSize: 7 } }]);
+    tableData.push([{ content: `Financing: ${detail}  ${monthly}`, colSpan: totalCols, styles: { fillColor: [254, 252, 232], fontStyle: 'italic', textColor: [133, 77, 14], fontSize: 7 } }]);
   }
+
+  const tableHead = hideModelNumbers
+    ? [['QTY', 'DESCRIPTION', 'PRICE', 'DISC', 'AMOUNT']]
+    : [['QTY', 'DESCRIPTION', 'BRAND', 'MODEL', 'PRICE', 'DISC', 'AMOUNT']];
+
+  const tableColumnStyles = hideModelNumbers
+    ? {
+      0: { cellWidth: 14, halign: 'center', fontStyle: 'bold' },  // QTY
+      1: { cellWidth: 106, halign: 'left' },                       // DESCRIPTION (wider)
+      2: { cellWidth: 24, halign: 'right' },                       // PRICE
+      3: { cellWidth: 16, halign: 'center' },                      // DISC
+      4: { cellWidth: 27, halign: 'right', fontStyle: 'bold' }     // AMOUNT
+    }
+    : {
+      0: { cellWidth: 14, halign: 'center', fontStyle: 'bold' },  // QTY
+      1: { cellWidth: 60, halign: 'left' },                        // DESCRIPTION
+      2: { cellWidth: 22, halign: 'left' },                        // BRAND
+      3: { cellWidth: 24, halign: 'left' },                        // MODEL
+      4: { cellWidth: 24, halign: 'right' },                       // PRICE
+      5: { cellWidth: 16, halign: 'center' },                      // DISC
+      6: { cellWidth: 27, halign: 'right', fontStyle: 'bold' }     // AMOUNT
+    };
+
+  const discColIndex = hideModelNumbers ? 3 : 5;
 
   doc.autoTable({
     startY: currentY,
-    head: [['QTY', 'DESCRIPTION', 'BRAND', 'MODEL', 'PRICE', 'DISC', 'AMOUNT']],
+    head: tableHead,
     body: tableData,
     theme: 'plain',
     headStyles: {
@@ -542,30 +594,22 @@ export const generateCustomerPDF = (quote, customer, items, addOns = {}) => {
     alternateRowStyles: {
       fillColor: colors.bgLight
     },
-    columnStyles: {
-      0: { cellWidth: 14, halign: 'center', fontStyle: 'bold' }, // QTY - center
-      1: { cellWidth: 60, halign: 'left' },                      // DESCRIPTION - left
-      2: { cellWidth: 22, halign: 'left' },                      // BRAND - left
-      3: { cellWidth: 24, halign: 'left' },                      // MODEL - left
-      4: { cellWidth: 24, halign: 'right' },                     // PRICE - right
-      5: { cellWidth: 16, halign: 'center' },                    // DISC - center
-      6: { cellWidth: 27, halign: 'right', fontStyle: 'bold' }   // AMOUNT - right
-    },
+    columnStyles: tableColumnStyles,
     margin: { left: 14, right: 14 },
     tableLineWidth: 0,
     didParseCell: function(data) {
       if (data.section === 'head') {
         const colIndex = data.column.index;
-        if (colIndex === 0 || colIndex === 5) {
+        if (colIndex === 0 || colIndex === discColIndex) {
           data.cell.styles.halign = 'center';
-        } else if (colIndex === 4 || colIndex === 6) {
+        } else if (colIndex === discColIndex - 1 || colIndex === discColIndex + 1) {
           data.cell.styles.halign = 'right';
         } else {
           data.cell.styles.halign = 'left';
         }
       }
       // Color discount column red
-      if (data.section === 'body' && data.column.index === 5) {
+      if (data.section === 'body' && data.column.index === discColIndex) {
         const val = data.cell.raw;
         if (val && val !== '-') {
           data.cell.styles.textColor = colors.error;
