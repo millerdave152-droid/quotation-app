@@ -1691,7 +1691,7 @@ class QuoteService {
   // All pass their transactional client. Single batch INSERT — all-or-nothing.
   // Verified during audit 2026-03-31 — see SECURITY_AUDIT_FINDINGS.md
   async insertQuoteItems(client, quotationId, items, skulyticsData = null) {
-    const valuesPerRow = 19;
+    const valuesPerRow = 20;
     const placeholders = items.map((_, i) =>
       `(${Array.from({length: valuesPerRow}, (_, j) => `$${i * valuesPerRow + j + 1}`).join(', ')})`
     ).join(', ');
@@ -1720,6 +1720,8 @@ class QuoteService {
         // Discontinued acknowledgement (preserved from prior version)
         skuData?.discontinued_acknowledged_by || null,
         skuData?.discontinued_acknowledged_at || null,
+        // Customer-facing description (for hidden model numbers)
+        item.customer_description || null,
       ];
     });
 
@@ -1729,7 +1731,8 @@ class QuoteService {
         quantity, cost_cents, msrp_cents, sell_cents, line_total_cents,
         line_profit_cents, margin_bp, item_notes, serial_number,
         skulytics_id, skulytics_snapshot,
-        discontinued_acknowledged_by, discontinued_acknowledged_at
+        discontinued_acknowledged_by, discontinued_acknowledged_at,
+        customer_description
       ) VALUES ${placeholders}`,
       values
     );

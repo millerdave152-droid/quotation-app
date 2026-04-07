@@ -338,6 +338,7 @@ export default function QuotationEditorNew() {
           cost: item.cost,
           sell: item.sell,
           notes: item.notes || '',
+          customer_description: item.customer_description || null,
         })),
         discount_percent: discountPercent,
         status: 'DRAFT',

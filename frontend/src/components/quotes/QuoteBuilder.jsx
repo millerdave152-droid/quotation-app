@@ -496,7 +496,14 @@ const QuoteBuilder = ({
       msrp: (item.msrp_cents || 0) / 100,
       sell: (item.sell_cents || 0) / 100,
       sku: item.model,
-      notes: item.item_notes || ''
+      notes: item.item_notes || '',
+      customer_description: item.customer_description || '',
+      screen_size_inches: item.screen_size_inches || null,
+      color: item.color || '',
+      variant_attributes: item.variant_attributes || null,
+      ce_specs: item.ce_specs || null,
+      category_name: item.category_name || '',
+      department_name: item.department_name || ''
     }));
 
     setQuoteItems(prev => [...prev, ...newItems]);
@@ -1348,6 +1355,36 @@ const QuoteBuilder = ({
                             {!item.serial_number && (
                               <span style={{ fontSize: '11px', color: '#d97706' }}>
                                 Serialized — assign a serial number
+                              </span>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    )}
+                    {/* Customer-facing description override (when Hide Model Numbers is enabled) */}
+                    {hideModelNumbers && (
+                      <tr style={{ borderBottom: (isPriceBelowCost || isLowMargin) ? 'none' : '1px solid #e5e7eb' }}>
+                        <td colSpan="8" style={{ padding: '6px 12px', background: '#faf5ff' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                            <span style={{ fontSize: '12px', color: '#7c3aed', fontWeight: '600', whiteSpace: 'nowrap' }}>Customer Description:</span>
+                            <input
+                              type="text"
+                              value={item.customer_description || ''}
+                              onChange={(e) => updateQuoteItem(idx, 'customer_description', e.target.value)}
+                              placeholder={`e.g. ${item.screen_size_inches ? item.screen_size_inches + '" ' : ''}${item.category || 'Product'} — auto-generated if left blank`}
+                              maxLength={500}
+                              style={{
+                                flex: 1,
+                                padding: '4px 8px',
+                                border: '1px solid #c4b5fd',
+                                borderRadius: '4px',
+                                fontSize: '12px',
+                                background: 'white'
+                              }}
+                            />
+                            {!item.customer_description && (
+                              <span style={{ fontSize: '11px', color: '#8b5cf6', fontStyle: 'italic', whiteSpace: 'nowrap' }}>
+                                Auto-generated on PDF
                               </span>
                             )}
                           </div>
