@@ -126,6 +126,7 @@ class PdfService {
       try {
         const itemsResult = await this.pool.query(`
           SELECT qi.*, p.manufacturer, p.model, p.sku, p.description as product_description,
+                 p.screen_size_inches, p.color, p.variant_attributes, p.ce_specs,
                  cat.name AS category_name, cat.slug AS category_slug,
                  dept.name AS department_name, dept.slug AS department_slug
           FROM quotation_items qi
@@ -287,8 +288,41 @@ class PdfService {
 
         // Package pricing mode: hide individual line prices, show only bundle total
         const hideLinePrices = !!(quote.hide_line_prices) && type !== 'internal';
-        // Hide model numbers from customer PDFs to protect pricing from competitors
         const hideModelNumbers = !!(quote.hide_model_numbers) && type !== 'internal';
+
+        // Build a customer-friendly description using the priority chain:
+        // 1. staff override (customer_description)
+        // 2. auto-built from product attributes
+        // 3. category/department fallback
+        const buildCustomerDescription = (item) => {
+          if (item.customer_description && item.customer_description.trim()) {
+            return item.customer_description.trim();
+          }
+          const parts = [];
+          if (item.screen_size_inches) parts.push(`${item.screen_size_inches}"`);
+          if (item.color) parts.push(item.color);
+          if (item.variant_attributes) {
+            try {
+              const attrs = typeof item.variant_attributes === 'string'
+                ? JSON.parse(item.variant_attributes)
+                : item.variant_attributes;
+              const vals = Object.values(attrs || {}).filter(Boolean);
+              parts.push(...vals);
+            } catch (_) { /* ignore malformed JSON */ }
+          }
+          if (item.ce_specs) {
+            try {
+              const specs = typeof item.ce_specs === 'string'
+                ? JSON.parse(item.ce_specs)
+                : item.ce_specs;
+              const resolution = specs && (specs.resolution || specs.Resolution);
+              if (resolution) parts.push(resolution);
+            } catch (_) { /* ignore malformed JSON */ }
+          }
+          if (item.category_name) parts.push(item.category_name);
+          if (parts.length > 0) return parts.join(' ');
+          return item.department_name || 'Product';
+        };
 
         // Helper: measure text height without drawing
         const measureText = (text, fontSize, width, font = 'Helvetica') => {
@@ -562,26 +596,14 @@ class PdfService {
         // Table rows
         items.forEach((item, index) => {
           // Description text components
-          const modelText = hideModelNumbers ? '' : (item.model || '');
-          let descText = item.description || item.product_description || '';
-
-          // When hiding model numbers, strip manufacturer and model from description text
-          if (hideModelNumbers) {
-            if (item.model) {
-              descText = descText.replace(new RegExp(item.model.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'gi'), '').trim();
-            }
-            if (item.manufacturer) {
-              descText = descText.replace(new RegExp(item.manufacturer.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'gi'), '').trim();
-            }
-            descText = descText.replace(/^[\s\-–—,;:]+|[\s\-–—,;:]+$/g, '').replace(/\s{2,}/g, ' ').trim();
-          }
-
+          const modelText = item.model || '';
+          const descText = item.description || item.product_description || '';
           const catBreadcrumb = (!hideModelNumbers && item.department_name && item.category_name)
             ? `${item.department_name} > ${item.category_name}`
-            : (!hideModelNumbers && item.category_name) ? item.category_name : '';
+            : (!hideModelNumbers ? item.category_name || '' : '');
 
           // Measure variable row height
-          const primaryText = hideModelNumbers ? (descText || item.category_name || 'Product') : (modelText || descText);
+          const primaryText = hideModelNumbers ? buildCustomerDescription(item) : (modelText || descText);
           const primaryH = measureText(primaryText, 8, cols.desc.w - 8, 'Helvetica-Bold');
           const secondaryH = (!hideModelNumbers && modelText && descText) ? measureText(descText, 6, cols.desc.w - 8) : 0;
           const catH = catBreadcrumb ? 7 : 0;
@@ -614,7 +636,11 @@ class PdfService {
           // Description column
           let descY = textY;
           if (hideModelNumbers) {
-            // Only show description text, no model numbers
+            // Customer-facing: single clean line from buildCustomerDescription
+            doc.font('Helvetica').fontSize(8).fillColor(colors.text)
+              .text(primaryText, cols.desc.x + 4, descY, { width: cols.desc.w - 8 });
+          } else if (modelText) {
+            // Internal / full view: model bold, product_description below, category breadcrumb italic
             doc.font('Helvetica-Bold').fontSize(8).fillColor(colors.text)
               .text(primaryText, cols.desc.x + 4, descY, { width: cols.desc.w - 8 });
           } else {

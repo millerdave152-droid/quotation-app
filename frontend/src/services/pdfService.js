@@ -176,31 +176,53 @@ export const downloadQuotePDF = async (quoteId, type = 'customer') => {
 // ===================================
 // HELPER: Clean and format product description
 // ===================================
+// Build a customer-friendly description using the priority chain:
+// 1. staff override (customer_description)
+// 2. auto-built from product attributes
+// 3. category/department fallback
+const buildCustomerDescription = (item) => {
+  if (item.customer_description && item.customer_description.trim()) {
+    return item.customer_description.trim();
+  }
+  const parts = [];
+  if (item.screen_size_inches) parts.push(`${item.screen_size_inches}"`);
+  if (item.color) parts.push(item.color);
+  if (item.variant_attributes) {
+    try {
+      const attrs = typeof item.variant_attributes === 'string'
+        ? JSON.parse(item.variant_attributes)
+        : item.variant_attributes;
+      const vals = Object.values(attrs || {}).filter(Boolean);
+      parts.push(...vals);
+    } catch (_) { /* ignore malformed JSON */ }
+  }
+  if (item.ce_specs) {
+    try {
+      const specs = typeof item.ce_specs === 'string'
+        ? JSON.parse(item.ce_specs)
+        : item.ce_specs;
+      const resolution = specs && (specs.resolution || specs.Resolution);
+      if (resolution) parts.push(resolution);
+    } catch (_) { /* ignore malformed JSON */ }
+  }
+  if (item.category_name) parts.push(item.category_name);
+  if (parts.length > 0) return parts.join(' ');
+  return item.department_name || 'Product';
+};
+
 const formatProductDescription = (item, hideModelNumbers = false) => {
   // Clean up any CSV-like data in description
   let description = item.description || '';
 
   // If description looks like CSV data, extract the last meaningful part
   if (description.includes(',') && description.match(/^\w+,\w+,[\d.]+,[\d.]+/)) {
-    // This looks like CSV data - extract the actual description
     const parts = description.split(',');
-    // Usually the description is the last part after numeric values
     const cleanParts = parts.filter(p => !p.match(/^[\d.]+$/) && p.length > 3);
     description = cleanParts[cleanParts.length - 1] || '';
   }
 
   if (hideModelNumbers) {
-    // Customer-facing: Strip manufacturer and model from description text
-    let cleanDesc = description;
-    if (item.model && item.model !== 'undefined') {
-      cleanDesc = cleanDesc.replace(new RegExp(item.model.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'gi'), '').trim();
-    }
-    if (item.manufacturer && item.manufacturer !== 'undefined') {
-      cleanDesc = cleanDesc.replace(new RegExp(item.manufacturer.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'gi'), '').trim();
-    }
-    // Clean up leftover separators and whitespace
-    cleanDesc = cleanDesc.replace(/^[\s\-–—,;:]+|[\s\-–—,;:]+$/g, '').replace(/\s{2,}/g, ' ').trim();
-    return cleanDesc || item.category || 'Product';
+    return buildCustomerDescription(item);
   }
 
   // Build full product name
