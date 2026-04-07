@@ -287,6 +287,8 @@ class PdfService {
 
         // Package pricing mode: hide individual line prices, show only bundle total
         const hideLinePrices = !!(quote.hide_line_prices) && type !== 'internal';
+        // Hide model numbers from customer PDFs to protect pricing from competitors
+        const hideModelNumbers = !!(quote.hide_model_numbers) && type !== 'internal';
 
         // Helper: measure text height without drawing
         const measureText = (text, fontSize, width, font = 'Helvetica') => {
@@ -499,12 +501,22 @@ class PdfService {
           disc:   { x: MARGIN + 393,  w: 35 },
           amount: { x: MARGIN + 428,  w: 42 },
           gp:     { x: MARGIN + 470,  w: 42 }
+        } : hideLinePrices && hideModelNumbers ? {
+          qty:    { x: MARGIN,        w: 35 },
+          desc:   { x: MARGIN + 35,   w: 415 },
+          incl:   { x: MARGIN + 450,  w: 62 }
         } : hideLinePrices ? {
           qty:    { x: MARGIN,        w: 35 },
           desc:   { x: MARGIN + 35,   w: 235 },
           brand:  { x: MARGIN + 270,  w: 80 },
           model:  { x: MARGIN + 350,  w: 100 },
           incl:   { x: MARGIN + 450,  w: 62 }
+        } : hideModelNumbers ? {
+          qty:    { x: MARGIN,        w: 35 },
+          desc:   { x: MARGIN + 35,   w: 317 },
+          price:  { x: MARGIN + 352,  w: 55 },
+          disc:   { x: MARGIN + 407,  w: 45 },
+          amount: { x: MARGIN + 452,  w: 60 }
         } : {
           qty:    { x: MARGIN,        w: 35 },
           desc:   { x: MARGIN + 35,   w: 175 },
@@ -522,12 +534,16 @@ class PdfService {
           doc.text('QTY', cols.qty.x + 4, y + 6, { width: cols.qty.w - 8, align: 'center' });
           doc.text('DESCRIPTION', cols.desc.x + 4, y + 6, { width: cols.desc.w - 8 });
           if (hideLinePrices) {
-            doc.text('BRAND', cols.brand.x + 4, y + 6, { width: cols.brand.w - 8 });
-            doc.text('MODEL', cols.model.x + 4, y + 6, { width: cols.model.w - 8 });
+            if (!hideModelNumbers) {
+              doc.text('BRAND', cols.brand.x + 4, y + 6, { width: cols.brand.w - 8 });
+              doc.text('MODEL', cols.model.x + 4, y + 6, { width: cols.model.w - 8 });
+            }
             doc.text('INCLUDED', cols.incl.x + 2, y + 6, { width: cols.incl.w - 4, align: 'center' });
           } else {
-            doc.text('BRAND', cols.brand.x + 4, y + 6, { width: cols.brand.w - 8 });
-            doc.text('MODEL', cols.model.x + 4, y + 6, { width: cols.model.w - 8 });
+            if (!hideModelNumbers) {
+              doc.text('BRAND', cols.brand.x + 4, y + 6, { width: cols.brand.w - 8 });
+              doc.text('MODEL', cols.model.x + 4, y + 6, { width: cols.model.w - 8 });
+            }
             doc.text('PRICE', cols.price.x + 2, y + 6, { width: cols.price.w - 4, align: 'right' });
             if (type === 'internal') {
               doc.text('COST', cols.cost.x + 2, y + 6, { width: cols.cost.w - 4, align: 'right' });
@@ -546,16 +562,16 @@ class PdfService {
         // Table rows
         items.forEach((item, index) => {
           // Description text components
-          const modelText = item.model || '';
+          const modelText = hideModelNumbers ? '' : (item.model || '');
           const descText = item.description || item.product_description || '';
-          const catBreadcrumb = item.department_name && item.category_name
+          const catBreadcrumb = (!hideModelNumbers && item.department_name && item.category_name)
             ? `${item.department_name} > ${item.category_name}`
-            : item.category_name || '';
+            : (!hideModelNumbers && item.category_name) ? item.category_name : '';
 
           // Measure variable row height
-          const primaryText = modelText || descText;
+          const primaryText = hideModelNumbers ? (descText || item.category_name || 'Product') : (modelText || descText);
           const primaryH = measureText(primaryText, 8, cols.desc.w - 8, 'Helvetica-Bold');
-          const secondaryH = (modelText && descText) ? measureText(descText, 6, cols.desc.w - 8) : 0;
+          const secondaryH = (!hideModelNumbers && modelText && descText) ? measureText(descText, 6, cols.desc.w - 8) : 0;
           const catH = catBreadcrumb ? 7 : 0;
           const rowH = Math.max(20, primaryH + secondaryH + catH + 8);
 
@@ -583,34 +599,41 @@ class PdfService {
           doc.fontSize(8).font('Helvetica-Bold').fillColor(colors.text)
             .text((item.quantity || 1).toString(), cols.qty.x + 4, textY, { width: cols.qty.w - 8, align: 'center' });
 
-          // Description column: model bold, product_description below, category breadcrumb italic
+          // Description column
           let descY = textY;
-          if (modelText) {
+          if (hideModelNumbers) {
+            // Only show description text, no model numbers
             doc.font('Helvetica-Bold').fontSize(8).fillColor(colors.text)
-              .text(modelText, cols.desc.x + 4, descY, { width: cols.desc.w - 8 });
-            descY += primaryH;
-            if (descText) {
-              doc.font('Helvetica').fontSize(6).fillColor(colors.textMuted)
+              .text(primaryText, cols.desc.x + 4, descY, { width: cols.desc.w - 8 });
+          } else {
+            // model bold, product_description below, category breadcrumb italic
+            if (modelText) {
+              doc.font('Helvetica-Bold').fontSize(8).fillColor(colors.text)
+                .text(modelText, cols.desc.x + 4, descY, { width: cols.desc.w - 8 });
+              descY += primaryH;
+              if (descText) {
+                doc.font('Helvetica').fontSize(6).fillColor(colors.textMuted)
+                  .text(descText, cols.desc.x + 4, descY, { width: cols.desc.w - 8 });
+                descY += secondaryH;
+              }
+            } else if (descText) {
+              doc.font('Helvetica').fontSize(8).fillColor(colors.text)
                 .text(descText, cols.desc.x + 4, descY, { width: cols.desc.w - 8 });
-              descY += secondaryH;
+              descY += primaryH;
             }
-          } else if (descText) {
-            doc.font('Helvetica').fontSize(8).fillColor(colors.text)
-              .text(descText, cols.desc.x + 4, descY, { width: cols.desc.w - 8 });
-            descY += primaryH;
-          }
-          if (catBreadcrumb) {
-            doc.font('Helvetica-Oblique').fontSize(5.5).fillColor(colors.textLight)
-              .text(catBreadcrumb, cols.desc.x + 4, descY, { width: cols.desc.w - 8 });
-          }
+            if (catBreadcrumb) {
+              doc.font('Helvetica-Oblique').fontSize(5.5).fillColor(colors.textLight)
+                .text(catBreadcrumb, cols.desc.x + 4, descY, { width: cols.desc.w - 8 });
+            }
 
-          // BRAND
-          doc.fontSize(8).font('Helvetica').fillColor(colors.text)
-            .text((item.manufacturer || '-').substring(0, 12), cols.brand.x + 4, textY, { width: cols.brand.w - 8 });
+            // BRAND
+            doc.fontSize(8).font('Helvetica').fillColor(colors.text)
+              .text((item.manufacturer || '-').substring(0, 12), cols.brand.x + 4, textY, { width: cols.brand.w - 8 });
 
-          // MODEL
-          doc.fontSize(8).font('Helvetica').fillColor(colors.text)
-            .text(modelText || '-', cols.model.x + 4, textY, { width: cols.model.w - 8 });
+            // MODEL
+            doc.fontSize(8).font('Helvetica').fillColor(colors.text)
+              .text((item.model || '-'), cols.model.x + 4, textY, { width: cols.model.w - 8 });
+          }
 
           if (hideLinePrices) {
             // Package pricing mode — show "Included"
@@ -678,22 +701,30 @@ class PdfService {
             // QTY column
             doc.fontSize(8).font('Helvetica').fillColor(isCredit ? '#1e40af' : '#166534')
                .text('1', cols.qty.x + 4, ry, { width: cols.qty.w - 8, align: 'center' });
-            // Description (spanning desc + brand columns)
+            // Description (spanning available columns)
+            const labelWidth = hideModelNumbers
+              ? cols.desc.w - 8
+              : cols.desc.w + cols.brand.w - 8;
+            const detailWidth = hideModelNumbers
+              ? cols.desc.w - 8
+              : cols.desc.w + cols.brand.w + cols.model.w - 8;
             doc.fontSize(8).font('Helvetica-Bold').fillColor(isCredit ? '#1e40af' : '#166534')
-               .text(label, cols.desc.x + 4, ry, { width: cols.desc.w + cols.brand.w - 8 });
+               .text(label, cols.desc.x + 4, ry, { width: labelWidth });
             if (detail) {
               doc.fontSize(6).font('Helvetica').fillColor(colors.textMuted)
-                 .text(detail, cols.desc.x + 4, ry + 10, { width: cols.desc.w + cols.brand.w + cols.model.w - 8 });
+                 .text(detail, cols.desc.x + 4, ry + 10, { width: detailWidth });
             }
             // Price column
-            doc.fontSize(8).font('Helvetica').fillColor(isCredit ? '#2563eb' : colors.text)
-               .text(fmtCents(Math.abs(amount)), cols.price.x + 2, ry, { width: cols.price.w - 4, align: 'right' });
-            // Disc column
-            doc.fontSize(8).font('Helvetica').fillColor(colors.textLight)
-               .text('-', cols.disc.x + 2, ry, { width: cols.disc.w - 4, align: 'center' });
-            // Amount column (aligned with table)
-            doc.fontSize(9).font('Helvetica-Bold').fillColor(isCredit ? '#2563eb' : colors.text)
-               .text((isCredit ? '-' : '+') + fmtCents(Math.abs(amount)), cols.amount.x + 2, ry, { width: cols.amount.w - 4, align: 'right' });
+            if (!hideLinePrices) {
+              doc.fontSize(8).font('Helvetica').fillColor(isCredit ? '#2563eb' : colors.text)
+                 .text(fmtCents(Math.abs(amount)), cols.price.x + 2, ry, { width: cols.price.w - 4, align: 'right' });
+              // Disc column
+              doc.fontSize(8).font('Helvetica').fillColor(colors.textLight)
+                 .text('-', cols.disc.x + 2, ry, { width: cols.disc.w - 4, align: 'center' });
+              // Amount column (aligned with table)
+              doc.fontSize(9).font('Helvetica-Bold').fillColor(isCredit ? '#2563eb' : colors.text)
+                 .text((isCredit ? '-' : '+') + fmtCents(Math.abs(amount)), cols.amount.x + 2, ry, { width: cols.amount.w - 4, align: 'right' });
+            }
             yPos += addOnRowHeight;
           };
 
