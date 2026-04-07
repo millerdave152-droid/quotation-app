@@ -15,14 +15,12 @@
 
 const cron = require('node-cron');
 const purchasingService = require('../services/PurchasingIntelligenceService');
-const EmailService = require('../services/EmailService');
+const emailService = require('../services/EmailService');
 const pool = require('../db');
 
 // Default schedules
 const DAILY_SCHEDULE = '0 6 * * *';      // 6:00 AM every day
 const WEEKLY_SCHEDULE = '0 6 * * 1';     // 6:00 AM every Monday
-
-let emailService = null;
 
 /**
  * Run the daily purchasing intelligence analysis
@@ -100,7 +98,7 @@ async function sendCriticalAlertEmail(result) {
   }
 
   if (!emailService) {
-    emailService = new EmailService();
+    return;
   }
 
   const subject = `[URGENT] ${result.criticalAlerts.length} Critical Stock Alerts - Immediate Action Required`;
@@ -187,7 +185,7 @@ async function sendWeeklyReport(result) {
   }
 
   if (!emailService) {
-    emailService = new EmailService();
+    return;
   }
 
   const weekStart = new Date();

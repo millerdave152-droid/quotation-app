@@ -89,7 +89,8 @@ const createLineItemSchema = Joi.object({
   discountAmount: dollars.optional(),
   taxable: Joi.boolean().default(true),
   serialNumber: Joi.string().max(100).optional().allow('', null),
-  notes: Joi.string().max(500).optional().allow('', null)
+  notes: Joi.string().max(500).optional().allow('', null),
+  customerDescription: Joi.string().max(500).optional().allow('', null)
 });
 
 const updateLineItemSchema = Joi.object({
@@ -101,7 +102,8 @@ const updateLineItemSchema = Joi.object({
   discountAmount: dollars.optional(),
   taxable: Joi.boolean().optional(),
   serialNumber: Joi.string().max(100).optional().allow('', null),
-  notes: Joi.string().max(500).optional().allow('', null)
+  notes: Joi.string().max(500).optional().allow('', null),
+  customerDescription: Joi.string().max(500).optional().allow('', null)
 }).min(1);
 
 // ============================================================================

@@ -2173,6 +2173,7 @@ const QuotationManager = () => {
         sell: (item.sell_cents || 0) / 100,
         notes: item.item_notes || '',
         skulytics_snapshot: item.skulytics_snapshot || null,
+        customer_description: item.customer_description || '',
       }));
 
       setQuoteItems(items);

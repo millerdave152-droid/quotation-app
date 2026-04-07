@@ -456,9 +456,9 @@ router.post('/',
             unit_price, total_price, discount_percent,
             manufacturer, model, description, category,
             cost_cents, msrp_cents, sell_cents, line_total_cents,
-            serial_number, item_notes,
+            serial_number, item_notes, customer_description,
             skulytics_id, skulytics_snapshot
-          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18)
+          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19)
         `, [
           quote.id,
           item.productId,
@@ -476,6 +476,7 @@ router.post('/',
           finalTotal,
           item.serialNumber || null,
           item.notes || null,
+          item.customerDescription || null,
           skuData?.skulytics_id || null,
           skuData?.snapshot ? JSON.stringify(skuData.snapshot) : null,
         ]);
@@ -716,10 +717,10 @@ router.put('/:id',
               quotation_id, product_id, quantity,
               unit_price, total_price, discount_percent,
               manufacturer, model, description, category,
-              sell_cents, line_total_cents,
+              sell_cents, line_total_cents, customer_description,
               skulytics_id, skulytics_snapshot,
               discontinued_acknowledged_by, discontinued_acknowledged_at
-            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
+            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)
           `, [
             quoteId,
             item.productId,
@@ -733,6 +734,7 @@ router.put('/:id',
             product.category,
             unitPriceCents,
             finalTotal,
+            item.customerDescription || null,
             skuD?.skulytics_id || null,
             skuD?.skulytics_snapshot || null,
             skuD?.discontinued_acknowledged_by || null,
@@ -982,10 +984,12 @@ router.post('/:id/clone',
       await client.query(`
         INSERT INTO quotation_items (
           quotation_id, product_id, quantity, unit_price, total_price, discount_percent,
-          manufacturer, model, description, category, cost_cents, msrp_cents, sell_cents, line_total_cents
+          manufacturer, model, description, category, cost_cents, msrp_cents, sell_cents, line_total_cents,
+          customer_description
         )
         SELECT $1, product_id, quantity, unit_price, total_price, discount_percent,
-               manufacturer, model, description, category, cost_cents, msrp_cents, sell_cents, line_total_cents
+               manufacturer, model, description, category, cost_cents, msrp_cents, sell_cents, line_total_cents,
+               customer_description
         FROM quotation_items WHERE quotation_id = $2
       `, [cloneId, sourceId]);
 
@@ -1248,7 +1252,8 @@ function formatQuoteResponse(quote, items = []) {
       discountPercent: parseFloat(item.discount_percent) || 0,
       lineTotalCents: item.line_total_cents || Math.round(item.total_price * 100),
       serialNumber: item.serial_number,
-      notes: item.item_notes
+      notes: item.item_notes,
+      customerDescription: item.customer_description || null
     })),
     subtotalCents: quote.subtotal_cents,
     discountCents: quote.discount_cents,

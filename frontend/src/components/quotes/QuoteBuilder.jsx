@@ -1328,6 +1328,41 @@ const QuoteBuilder = ({
                         </div>
                       </td>
                     </tr>
+                    {/* Customer description override (visible when Hide Model Numbers is on) */}
+                    {hideModelNumbers && (
+                      <tr style={{ borderBottom: '1px solid #e5e7eb' }}>
+                        <td colSpan="8" style={{ padding: '6px 12px', background: '#f5f3ff' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                            <span style={{ fontSize: '12px', color: '#7c3aed', fontWeight: '600', whiteSpace: 'nowrap' }}>Customer Description:</span>
+                            <input
+                              type="text"
+                              maxLength={500}
+                              value={item.customer_description || ''}
+                              onChange={(e) => updateQuoteItem(idx, 'customer_description', e.target.value)}
+                              placeholder="Auto-generated on PDF"
+                              style={{
+                                flex: 1,
+                                padding: '4px 8px',
+                                border: '1px solid #c4b5fd',
+                                borderRadius: '4px',
+                                fontSize: '12px',
+                                color: '#4c1d95',
+                                background: item.customer_description ? '#fff' : '#faf5ff'
+                              }}
+                            />
+                            {item.customer_description && (
+                              <button
+                                onClick={() => updateQuoteItem(idx, 'customer_description', '')}
+                                title="Clear — revert to auto-generated"
+                                style={{ padding: '2px 6px', background: '#ede9fe', border: '1px solid #c4b5fd', borderRadius: '4px', cursor: 'pointer', fontSize: '11px', color: '#7c3aed' }}
+                              >
+                                Clear
+                              </button>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    )}
                     {/* Serial number selector for serialized products */}
                     {item.is_serialized && (
                       <tr style={{ borderBottom: (isPriceBelowCost || isLowMargin) ? 'none' : '1px solid #e5e7eb' }}>

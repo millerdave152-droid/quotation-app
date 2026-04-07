@@ -1691,7 +1691,7 @@ class QuoteService {
   // All pass their transactional client. Single batch INSERT — all-or-nothing.
   // Verified during audit 2026-03-31 — see SECURITY_AUDIT_FINDINGS.md
   async insertQuoteItems(client, quotationId, items, skulyticsData = null) {
-    const valuesPerRow = 19;
+    const valuesPerRow = 20;
     const placeholders = items.map((_, i) =>
       `(${Array.from({length: valuesPerRow}, (_, j) => `$${i * valuesPerRow + j + 1}`).join(', ')})`
     ).join(', ');
@@ -1714,6 +1714,7 @@ class QuoteService {
         item.margin_bp || 0,
         item.item_notes || item.notes || '',
         item.serial_number || null,
+        item.customer_description || null,
         // Skulytics columns
         skuData?.skulytics_id || null,
         skuData?.snapshot ? JSON.stringify(skuData.snapshot) : null,
@@ -1728,6 +1729,7 @@ class QuoteService {
         quotation_id, product_id, manufacturer, model, description, category,
         quantity, cost_cents, msrp_cents, sell_cents, line_total_cents,
         line_profit_cents, margin_bp, item_notes, serial_number,
+        customer_description,
         skulytics_id, skulytics_snapshot,
         discontinued_acknowledged_by, discontinued_acknowledged_at
       ) VALUES ${placeholders}`,
@@ -2124,7 +2126,8 @@ class QuoteService {
         sell_cents: item.unit_price_cents || item.sell_cents,
         unit_price_cents: item.unit_price_cents,
         cost: item.cost_cents ? item.cost_cents / 100 : item.cost,
-        sell: item.unit_price_cents ? item.unit_price_cents / 100 : item.sell
+        sell: item.unit_price_cents ? item.unit_price_cents / 100 : item.sell,
+        customer_description: item.customer_description || null
       }));
 
       // 6. Calculate totals from items
