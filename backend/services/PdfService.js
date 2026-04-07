@@ -563,7 +563,19 @@ class PdfService {
         items.forEach((item, index) => {
           // Description text components
           const modelText = hideModelNumbers ? '' : (item.model || '');
-          const descText = item.description || item.product_description || '';
+          let descText = item.description || item.product_description || '';
+
+          // When hiding model numbers, strip manufacturer and model from description text
+          if (hideModelNumbers) {
+            if (item.model) {
+              descText = descText.replace(new RegExp(item.model.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'gi'), '').trim();
+            }
+            if (item.manufacturer) {
+              descText = descText.replace(new RegExp(item.manufacturer.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'gi'), '').trim();
+            }
+            descText = descText.replace(/^[\s\-–—,;:]+|[\s\-–—,;:]+$/g, '').replace(/\s{2,}/g, ' ').trim();
+          }
+
           const catBreadcrumb = (!hideModelNumbers && item.department_name && item.category_name)
             ? `${item.department_name} > ${item.category_name}`
             : (!hideModelNumbers && item.category_name) ? item.category_name : '';
