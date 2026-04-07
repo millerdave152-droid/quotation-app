@@ -248,7 +248,7 @@ router.get('/',
     const quotesResult = await pool.query(quotesQuery, params);
 
     // Format response
-    const quotes = quotesResult.rows.map(formatQuoteResponse);
+    const quotes = quotesResult.rows.map(row => formatQuoteResponse(row));
 
     res.paginated(quotes, {
       page: pagination.page,
