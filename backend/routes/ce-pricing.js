@@ -126,21 +126,7 @@ async function getStalePricing(productId, upc) {
     }
   }
 
-  // Fallback to global_skulytics_products
-  const result = await pool.query(`
-    SELECT competitor_pricing, last_fetched_at
-    FROM global_skulytics_products
-    WHERE upc = $1 AND pricing_source = 'pricesapi'
-    LIMIT 1
-  `, [upc]);
-
-  if (result.rows.length > 0) {
-    return {
-      competitorPricing: result.rows[0].competitor_pricing,
-      lastFetchedAt: result.rows[0].last_fetched_at,
-    };
-  }
-
+  // global_skulytics_products has no competitor_pricing column — skip fallback
   return null;
 }
 
@@ -199,17 +185,8 @@ async function persistPricing(productId, upc, competitorPricing, rawOffers) {
       [upc]
     );
 
-    if (existingGlobal.rows.length > 0) {
-      await client.query(`
-        UPDATE global_skulytics_products SET
-          competitor_pricing = $1,
-          pricing_source     = 'pricesapi',
-          last_fetched_at    = $2,
-          raw_json           = COALESCE($3, raw_json),
-          updated_at         = $2
-        WHERE upc = $4
-      `, [JSON.stringify(competitorPricing), now, JSON.stringify(rawOffers), upc]);
-    }
+    // global_skulytics_products has no competitor_pricing/pricing_source/last_fetched_at columns
+    // Pricing data is persisted via competitor_prices rows above — skip this update
 
     await client.query('COMMIT');
   } catch (err) {

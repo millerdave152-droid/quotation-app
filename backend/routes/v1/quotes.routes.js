@@ -231,7 +231,7 @@ router.get('/',
         q.sales_rep_name,
         q.sales_rep_id,
         q.notes,
-        q.valid_until,
+        q.expires_at,
         q.requires_approval,
         q.approval_status,
         q.created_at,
@@ -353,7 +353,7 @@ router.post('/',
         INSERT INTO quotations (
           quotation_number, customer_id, sales_rep_id, sales_rep_name,
           status, subtotal_cents, discount_cents, tax_cents, total_cents,
-          tax_province, notes, internal_notes, valid_until,
+          tax_province, notes, internal_notes, expires_at,
           requires_approval, approval_status, created_by, tenant_id, client_draft_id
         ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18)
         RETURNING *
@@ -605,7 +605,7 @@ router.put('/:id',
         values.push(data.internalNotes);
       }
       if (data.validUntil !== undefined) {
-        updates.push(`valid_until = $${idx++}`);
+        updates.push(`expires_at = $${idx++}`);
         values.push(data.validUntil);
       }
 
@@ -1257,7 +1257,7 @@ function formatQuoteResponse(quote, items = []) {
     taxProvince: quote.tax_province,
     notes: quote.notes,
     internalNotes: quote.internal_notes,
-    validUntil: quote.valid_until,
+    validUntil: quote.expires_at,
     requiresApproval: quote.requires_approval,
     approvalStatus: quote.approval_status,
     acceptedAt: quote.accepted_at,
