@@ -190,8 +190,17 @@ const formatProductDescription = (item, hideModelNumbers = false) => {
   }
 
   if (hideModelNumbers) {
-    // Customer-facing: Only show clean description
-    return description || item.category || 'Product';
+    // Customer-facing: Strip manufacturer and model from description text
+    let cleanDesc = description;
+    if (item.model && item.model !== 'undefined') {
+      cleanDesc = cleanDesc.replace(new RegExp(item.model.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'gi'), '').trim();
+    }
+    if (item.manufacturer && item.manufacturer !== 'undefined') {
+      cleanDesc = cleanDesc.replace(new RegExp(item.manufacturer.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'gi'), '').trim();
+    }
+    // Clean up leftover separators and whitespace
+    cleanDesc = cleanDesc.replace(/^[\s\-–—,;:]+|[\s\-–—,;:]+$/g, '').replace(/\s{2,}/g, ' ').trim();
+    return cleanDesc || item.category || 'Product';
   }
 
   // Build full product name
