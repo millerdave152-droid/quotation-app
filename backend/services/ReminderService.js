@@ -195,7 +195,7 @@ class ReminderService {
    */
   async generateAllStoreReminders() {
     const storesResult = await this.pool.query(
-      "SELECT id FROM locations WHERE active = true"
+      "SELECT id FROM locations WHERE is_active = true"
     );
 
     let totalEvaluated = 0;

@@ -129,7 +129,7 @@ router.get('/',
       LIMIT $${idx++} OFFSET $${idx++}
     `, [...params, pagination.limit, pagination.offset]);
 
-    const orders = ordersResult.rows.map(formatOrderResponse);
+    const orders = ordersResult.rows.map(row => formatOrderResponse(row));
 
     res.paginated(orders, {
       page: pagination.page,

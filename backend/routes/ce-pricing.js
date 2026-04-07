@@ -90,21 +90,9 @@ async function getCachedPricing(productId) {
  * Check global_skulytics_products for a fresh PricesAPI cache as fallback.
  */
 async function getSkulyticsCachedPricing(upc) {
-  const result = await pool.query(`
-    SELECT competitor_pricing, last_fetched_at
-    FROM global_skulytics_products
-    WHERE upc = $1
-      AND pricing_source = 'pricesapi'
-      AND last_fetched_at > NOW() - ($2 * INTERVAL '1 hour')
-    LIMIT 1
-  `, [upc, CACHE_TTL_HOURS]);
-
-  if (result.rows.length === 0) return null;
-
-  return {
-    competitorPricing: result.rows[0].competitor_pricing,
-    lastFetchedAt: result.rows[0].last_fetched_at,
-  };
+  // global_skulytics_products does not have a competitor_pricing column —
+  // that data lives in competitor_prices. Return null to fall through.
+  return null;
 }
 
 /**
