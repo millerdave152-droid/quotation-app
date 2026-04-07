@@ -351,10 +351,17 @@ router.get('/:id/items', authenticate, asyncHandler(async (req, res) => {
     throw ApiError.badRequest('Invalid quotation ID');
   }
 
-  const result = await pool.query(
-    'SELECT * FROM quotation_items WHERE quotation_id = $1 ORDER BY id',
-    [id]
-  );
+  const result = await pool.query(`
+    SELECT qi.*,
+           p.screen_size_inches, p.color, p.variant_attributes, p.ce_specs,
+           cat.name AS category_name, dept.name AS department_name
+    FROM quotation_items qi
+    LEFT JOIN products p ON qi.product_id = p.id
+    LEFT JOIN categories cat ON p.category_id = cat.id AND cat.is_active = true
+    LEFT JOIN categories dept ON cat.parent_id = dept.id AND dept.level = 1
+    WHERE qi.quotation_id = $1
+    ORDER BY qi.id
+  `, [id]);
   res.json(result.rows);
 }));
 

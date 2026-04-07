@@ -174,6 +174,67 @@ export const downloadQuotePDF = async (quoteId, type = 'customer') => {
 };
 
 // ===================================
+// HELPER: Build customer-facing description (no model numbers)
+// Priority: (1) customer_description, (2) auto-built from product attributes, (3) category fallback
+// ===================================
+const buildCustomerDescription = (item) => {
+  // 1. Staff-provided customer description takes priority
+  if (item.customer_description) {
+    return item.customer_description;
+  }
+
+  // 2. Auto-build from product attributes
+  const parts = [];
+
+  // Screen size (TVs, monitors)
+  if (item.screen_size_inches) {
+    parts.push(`${item.screen_size_inches}"`);
+  }
+
+  // Color / finish
+  const color = item.color
+    || (item.variant_attributes && typeof item.variant_attributes === 'object'
+      ? (item.variant_attributes.color || item.variant_attributes.colour || item.variant_attributes.finish)
+      : null);
+  if (color) {
+    parts.push(color);
+  }
+
+  // Size from variant attributes (appliances: "36 inch", "30 inch", etc.)
+  if (item.variant_attributes && typeof item.variant_attributes === 'object') {
+    const size = item.variant_attributes.size || item.variant_attributes.capacity;
+    if (size && !parts.some(p => String(p).includes(String(size)))) {
+      parts.push(size);
+    }
+  }
+
+  // Extract key specs from ce_specs (energy rating, type, technology)
+  if (item.ce_specs && typeof item.ce_specs === 'object') {
+    const specs = item.ce_specs;
+    const tech = specs.displayTechnology || specs.technology || specs.panel_type;
+    if (tech) parts.push(tech);
+    const resolution = specs.resolution || specs.display_resolution;
+    if (resolution) parts.push(resolution);
+    const energyClass = specs.energyClass || specs.energy_rating;
+    if (energyClass) parts.push(`Energy: ${energyClass}`);
+  }
+
+  // Category name (e.g. "75 inch TVs", "French Door Refrigerators")
+  const categoryName = item.category_name || item.category || '';
+  if (categoryName) {
+    parts.push(categoryName);
+  }
+
+  // Department as last resort
+  if (parts.length === 0 && item.department_name) {
+    parts.push(item.department_name);
+  }
+
+  const result = parts.join(' ').trim();
+  return result || 'Product';
+};
+
+// ===================================
 // HELPER: Clean and format product description
 // ===================================
 const formatProductDescription = (item, hideModelNumbers = false) => {
@@ -190,17 +251,7 @@ const formatProductDescription = (item, hideModelNumbers = false) => {
   }
 
   if (hideModelNumbers) {
-    // Customer-facing: Strip manufacturer and model from description text
-    let cleanDesc = description;
-    if (item.model && item.model !== 'undefined') {
-      cleanDesc = cleanDesc.replace(new RegExp(item.model.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'gi'), '').trim();
-    }
-    if (item.manufacturer && item.manufacturer !== 'undefined') {
-      cleanDesc = cleanDesc.replace(new RegExp(item.manufacturer.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'gi'), '').trim();
-    }
-    // Clean up leftover separators and whitespace
-    cleanDesc = cleanDesc.replace(/^[\s\-–—,;:]+|[\s\-–—,;:]+$/g, '').replace(/\s{2,}/g, ' ').trim();
-    return cleanDesc || item.category || 'Product';
+    return buildCustomerDescription(item);
   }
 
   // Build full product name

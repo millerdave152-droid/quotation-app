@@ -126,6 +126,7 @@ class PdfService {
       try {
         const itemsResult = await this.pool.query(`
           SELECT qi.*, p.manufacturer, p.model, p.sku, p.description as product_description,
+                 p.screen_size_inches, p.color, p.variant_attributes, p.ce_specs,
                  cat.name AS category_name, cat.slug AS category_slug,
                  dept.name AS department_name, dept.slug AS department_slug
           FROM quotation_items qi
@@ -284,6 +285,36 @@ class PdfService {
 
         const fmtCents = (c) => `$${(c / 100).toLocaleString('en-CA', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
         const fmtDollars = (d) => `$${parseFloat(d || 0).toLocaleString('en-CA', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+
+        // Build customer-facing description (no model numbers)
+        // Priority: (1) customer_description, (2) auto-built from product attributes, (3) category fallback
+        const buildCustomerDescription = (item) => {
+          if (item.customer_description) return item.customer_description;
+          const parts = [];
+          if (item.screen_size_inches) parts.push(`${item.screen_size_inches}"`);
+          const color = item.color
+            || (item.variant_attributes && typeof item.variant_attributes === 'object'
+              ? (item.variant_attributes.color || item.variant_attributes.colour || item.variant_attributes.finish)
+              : null);
+          if (color) parts.push(color);
+          if (item.variant_attributes && typeof item.variant_attributes === 'object') {
+            const size = item.variant_attributes.size || item.variant_attributes.capacity;
+            if (size && !parts.some(p => String(p).includes(String(size)))) parts.push(size);
+          }
+          if (item.ce_specs && typeof item.ce_specs === 'object') {
+            const specs = item.ce_specs;
+            const tech = specs.displayTechnology || specs.technology || specs.panel_type;
+            if (tech) parts.push(tech);
+            const resolution = specs.resolution || specs.display_resolution;
+            if (resolution) parts.push(resolution);
+            const energyClass = specs.energyClass || specs.energy_rating;
+            if (energyClass) parts.push(`Energy: ${energyClass}`);
+          }
+          const categoryName = item.category_name || item.category || '';
+          if (categoryName) parts.push(categoryName);
+          if (parts.length === 0 && item.department_name) parts.push(item.department_name);
+          return parts.join(' ').trim() || 'Product';
+        };
 
         // Package pricing mode: hide individual line prices, show only bundle total
         const hideLinePrices = !!(quote.hide_line_prices) && type !== 'internal';
@@ -563,25 +594,14 @@ class PdfService {
         items.forEach((item, index) => {
           // Description text components
           const modelText = hideModelNumbers ? '' : (item.model || '');
-          let descText = item.description || item.product_description || '';
-
-          // When hiding model numbers, strip manufacturer and model from description text
-          if (hideModelNumbers) {
-            if (item.model) {
-              descText = descText.replace(new RegExp(item.model.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'gi'), '').trim();
-            }
-            if (item.manufacturer) {
-              descText = descText.replace(new RegExp(item.manufacturer.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'gi'), '').trim();
-            }
-            descText = descText.replace(/^[\s\-–—,;:]+|[\s\-–—,;:]+$/g, '').replace(/\s{2,}/g, ' ').trim();
-          }
+          const descText = item.description || item.product_description || '';
 
           const catBreadcrumb = (!hideModelNumbers && item.department_name && item.category_name)
             ? `${item.department_name} > ${item.category_name}`
             : (!hideModelNumbers && item.category_name) ? item.category_name : '';
 
           // Measure variable row height
-          const primaryText = hideModelNumbers ? (descText || item.category_name || 'Product') : (modelText || descText);
+          const primaryText = hideModelNumbers ? buildCustomerDescription(item) : (modelText || descText);
           const primaryH = measureText(primaryText, 8, cols.desc.w - 8, 'Helvetica-Bold');
           const secondaryH = (!hideModelNumbers && modelText && descText) ? measureText(descText, 6, cols.desc.w - 8) : 0;
           const catH = catBreadcrumb ? 7 : 0;
